@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { immer } from 'zustand/middleware/immer'
 import type { SpaceId, Tab, TabState, MosaicKey } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 
@@ -26,7 +25,7 @@ export interface AppState {
   addTab: (tab: Tab) => void
   closeTab: (spaceId: SpaceId, tabId: string) => void
   setActiveTab: (spaceId: SpaceId, tabId: string) => void
-  updateTabState: (spaceId: SpaceId, tabId: string, state: Partial<TabState>) => void
+  updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
   openSearch: () => void
@@ -75,91 +74,72 @@ const DEFAULT_PANEL_LAYOUT: MosaicNode<MosaicKey> = {
 
 export const useAppStore = create<AppState>()(
   persist(
-    immer((set) => ({
-      activeSpace: 'scripture',
+    (set, get) => ({
+      activeSpace: 'scripture' as SpaceId,
       tabs: DEFAULT_TABS,
       activeTabId: DEFAULT_ACTIVE_TAB,
       panelLayout: DEFAULT_PANEL_LAYOUT,
       sidebarCollapsed: false,
       searchOpen: false,
       settingsOpen: false,
-      theme: 'dark',
+      theme: 'dark' as const,
 
-      setActiveSpace: (space) =>
-        set((state) => {
-          state.activeSpace = space
-        }),
+      setActiveSpace: (space) => set({ activeSpace: space }),
 
-      addTab: (tab) =>
-        set((state) => {
-          const existing = state.tabs[tab.spaceId].find((t: Tab) => t.id === tab.id)
-          if (!existing) {
-            state.tabs[tab.spaceId].push(tab)
-          }
-          state.activeTabId[tab.spaceId] = tab.id
-          state.activeSpace = tab.spaceId
-        }),
+      addTab: (tab) => {
+        const state = get()
+        const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
+        if (existing) {
+          set({ activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id }, activeSpace: tab.spaceId })
+        } else {
+          set({
+            tabs: { ...state.tabs, [tab.spaceId]: [...state.tabs[tab.spaceId], tab] },
+            activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },
+            activeSpace: tab.spaceId
+          })
+        }
+      },
 
-      closeTab: (spaceId, tabId) =>
-        set((state) => {
-          const tabs = state.tabs[spaceId]
-          const idx = tabs.findIndex((t: Tab) => t.id === tabId)
-          if (idx === -1) return
-          tabs.splice(idx, 1)
-          if (state.activeTabId[spaceId] === tabId) {
-            state.activeTabId[spaceId] = tabs[Math.max(0, idx - 1)]?.id ?? null
-          }
-        }),
-
-      setActiveTab: (spaceId, tabId) =>
-        set((state) => {
-          state.activeTabId[spaceId] = tabId
-          state.activeSpace = spaceId
-        }),
-
-      updateTabState: (spaceId, tabId, newState) =>
-        set((state) => {
-          const tab = state.tabs[spaceId].find((t: Tab) => t.id === tabId)
-          if (tab) {
-            Object.assign(tab.state, newState)
-          }
-        }),
-
-      updatePanelLayout: (layout) =>
-        set((state) => {
-          state.panelLayout = layout
-        }),
-
-      toggleSidebar: () =>
-        set((state) => {
-          state.sidebarCollapsed = !state.sidebarCollapsed
-        }),
-
-      openSearch: () =>
-        set((state) => {
-          state.searchOpen = true
-        }),
-
-      closeSearch: () =>
-        set((state) => {
-          state.searchOpen = false
-        }),
-
-      openSettings: () =>
-        set((state) => {
-          state.settingsOpen = true
-        }),
-
-      closeSettings: () =>
-        set((state) => {
-          state.settingsOpen = false
-        }),
-
-      setTheme: (theme) =>
-        set((state) => {
-          state.theme = theme
+      closeTab: (spaceId, tabId) => {
+        const state = get()
+        const tabs = state.tabs[spaceId]
+        const idx = tabs.findIndex((t) => t.id === tabId)
+        if (idx === -1) return
+        const newTabs = tabs.filter((t) => t.id !== tabId)
+        const newActiveId =
+          state.activeTabId[spaceId] === tabId
+            ? newTabs[Math.max(0, idx - 1)]?.id ?? null
+            : state.activeTabId[spaceId]
+        set({
+          tabs: { ...state.tabs, [spaceId]: newTabs },
+          activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }
         })
-    })),
+      },
+
+      setActiveTab: (spaceId, tabId) => {
+        const state = get()
+        set({ activeTabId: { ...state.activeTabId, [spaceId]: tabId }, activeSpace: spaceId })
+      },
+
+      updateTabState: (spaceId, tabId, newState) => {
+        const state = get()
+        const tabs = state.tabs[spaceId].map((t) =>
+          t.id === tabId ? { ...t, state: { ...t.state, ...newState } } : t
+        )
+        set({ tabs: { ...state.tabs, [spaceId]: tabs } })
+      },
+
+      updatePanelLayout: (layout) => set({ panelLayout: layout }),
+
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+
+      openSearch: () => set({ searchOpen: true }),
+      closeSearch: () => set({ searchOpen: false }),
+      openSettings: () => set({ settingsOpen: true }),
+      closeSettings: () => set({ settingsOpen: false }),
+
+      setTheme: (theme) => set({ theme })
+    }),
     {
       name: 'berean-app-state',
       storage: createJSONStorage(() => localStorage),
