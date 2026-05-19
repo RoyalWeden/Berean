@@ -14,8 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-builder install-app-deps"
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",

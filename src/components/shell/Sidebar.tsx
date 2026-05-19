@@ -1,9 +1,9 @@
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId } from '@/types'
 
-const SPACES: { id: SpaceId; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const SPACES: { id: SpaceId; label: string; icon: LucideIcon }[] = [
   { id: 'scripture', label: 'Scripture', icon: BookOpen },
   { id: 'notes', label: 'Notes', icon: FileText },
   { id: 'lexicon', label: 'Lexicon', icon: BookMarked },

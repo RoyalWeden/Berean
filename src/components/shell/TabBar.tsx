@@ -1,7 +1,7 @@
-import { X, BookOpen, FileText, BookMarked, Youtube, Search } from 'lucide-react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, type LucideIcon } from 'lucide-react'
 import type { Tab, SpaceId, TabType } from '@/types'
 
-const TAB_ICONS: Record<TabType, React.ComponentType<{ size?: number; className?: string }>> = {
+const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible: BookOpen,
   note: FileText,
   lexicon: BookMarked,

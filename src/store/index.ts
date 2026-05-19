@@ -92,7 +92,7 @@ export const useAppStore = create<AppState>()(
 
       addTab: (tab) =>
         set((state) => {
-          const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
+          const existing = state.tabs[tab.spaceId].find((t: Tab) => t.id === tab.id)
           if (!existing) {
             state.tabs[tab.spaceId].push(tab)
           }
@@ -103,7 +103,7 @@ export const useAppStore = create<AppState>()(
       closeTab: (spaceId, tabId) =>
         set((state) => {
           const tabs = state.tabs[spaceId]
-          const idx = tabs.findIndex((t) => t.id === tabId)
+          const idx = tabs.findIndex((t: Tab) => t.id === tabId)
           if (idx === -1) return
           tabs.splice(idx, 1)
           if (state.activeTabId[spaceId] === tabId) {
@@ -119,7 +119,7 @@ export const useAppStore = create<AppState>()(
 
       updateTabState: (spaceId, tabId, newState) =>
         set((state) => {
-          const tab = state.tabs[spaceId].find((t) => t.id === tabId)
+          const tab = state.tabs[spaceId].find((t: Tab) => t.id === tabId)
           if (tab) {
             Object.assign(tab.state, newState)
           }
