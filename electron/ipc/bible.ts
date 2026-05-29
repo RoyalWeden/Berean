@@ -1,120 +1,153 @@
 import type { IpcMain } from 'electron'
+import { getTextDb } from '../db/bible'
 
-const PLACEHOLDER_BOOKS = [
-  { id: 'GEN', name: 'Genesis', short_name: 'Gen', testament: 'OT', chapters_count: 50 },
-  { id: 'EXO', name: 'Exodus', short_name: 'Exo', testament: 'OT', chapters_count: 40 },
-  { id: 'LEV', name: 'Leviticus', short_name: 'Lev', testament: 'OT', chapters_count: 27 },
-  { id: 'NUM', name: 'Numbers', short_name: 'Num', testament: 'OT', chapters_count: 36 },
-  { id: 'DEU', name: 'Deuteronomy', short_name: 'Deu', testament: 'OT', chapters_count: 34 },
-  { id: 'JOS', name: 'Joshua', short_name: 'Jos', testament: 'OT', chapters_count: 24 },
-  { id: 'JDG', name: 'Judges', short_name: 'Jdg', testament: 'OT', chapters_count: 21 },
-  { id: 'RUT', name: 'Ruth', short_name: 'Rut', testament: 'OT', chapters_count: 4 },
-  { id: '1SA', name: '1 Samuel', short_name: '1Sa', testament: 'OT', chapters_count: 31 },
-  { id: '2SA', name: '2 Samuel', short_name: '2Sa', testament: 'OT', chapters_count: 24 },
-  { id: '1KI', name: '1 Kings', short_name: '1Ki', testament: 'OT', chapters_count: 22 },
-  { id: '2KI', name: '2 Kings', short_name: '2Ki', testament: 'OT', chapters_count: 25 },
-  { id: '1CH', name: '1 Chronicles', short_name: '1Ch', testament: 'OT', chapters_count: 29 },
-  { id: '2CH', name: '2 Chronicles', short_name: '2Ch', testament: 'OT', chapters_count: 36 },
-  { id: 'EZR', name: 'Ezra', short_name: 'Ezr', testament: 'OT', chapters_count: 10 },
-  { id: 'NEH', name: 'Nehemiah', short_name: 'Neh', testament: 'OT', chapters_count: 13 },
-  { id: 'JOB', name: 'Job', short_name: 'Job', testament: 'OT', chapters_count: 42 },
-  { id: 'PSA', name: 'Psalms', short_name: 'Psa', testament: 'OT', chapters_count: 150 },
-  { id: 'PRO', name: 'Proverbs', short_name: 'Pro', testament: 'OT', chapters_count: 31 },
-  { id: 'ECC', name: 'Ecclesiastes', short_name: 'Ecc', testament: 'OT', chapters_count: 12 },
-  { id: 'SNG', name: 'Song of Solomon', short_name: 'Sng', testament: 'OT', chapters_count: 8 },
-  { id: 'ISA', name: 'Isaiah', short_name: 'Isa', testament: 'OT', chapters_count: 66 },
-  { id: 'JER', name: 'Jeremiah', short_name: 'Jer', testament: 'OT', chapters_count: 52 },
-  { id: 'LAM', name: 'Lamentations', short_name: 'Lam', testament: 'OT', chapters_count: 5 },
-  { id: 'EZK', name: 'Ezekiel', short_name: 'Ezk', testament: 'OT', chapters_count: 48 },
-  { id: 'DAN', name: 'Daniel', short_name: 'Dan', testament: 'OT', chapters_count: 12 },
-  { id: 'HOS', name: 'Hosea', short_name: 'Hos', testament: 'OT', chapters_count: 14 },
-  { id: 'JOL', name: 'Joel', short_name: 'Jol', testament: 'OT', chapters_count: 3 },
-  { id: 'AMO', name: 'Amos', short_name: 'Amo', testament: 'OT', chapters_count: 9 },
-  { id: 'OBA', name: 'Obadiah', short_name: 'Oba', testament: 'OT', chapters_count: 1 },
-  { id: 'JON', name: 'Jonah', short_name: 'Jon', testament: 'OT', chapters_count: 4 },
-  { id: 'MIC', name: 'Micah', short_name: 'Mic', testament: 'OT', chapters_count: 7 },
-  { id: 'NAM', name: 'Nahum', short_name: 'Nam', testament: 'OT', chapters_count: 3 },
-  { id: 'HAB', name: 'Habakkuk', short_name: 'Hab', testament: 'OT', chapters_count: 3 },
-  { id: 'ZEP', name: 'Zephaniah', short_name: 'Zep', testament: 'OT', chapters_count: 3 },
-  { id: 'HAG', name: 'Haggai', short_name: 'Hag', testament: 'OT', chapters_count: 2 },
-  { id: 'ZEC', name: 'Zechariah', short_name: 'Zec', testament: 'OT', chapters_count: 14 },
-  { id: 'MAL', name: 'Malachi', short_name: 'Mal', testament: 'OT', chapters_count: 4 },
-  { id: 'MAT', name: 'Matthew', short_name: 'Mat', testament: 'NT', chapters_count: 28 },
-  { id: 'MRK', name: 'Mark', short_name: 'Mrk', testament: 'NT', chapters_count: 16 },
-  { id: 'LUK', name: 'Luke', short_name: 'Luk', testament: 'NT', chapters_count: 24 },
-  { id: 'JHN', name: 'John', short_name: 'Jhn', testament: 'NT', chapters_count: 21 },
-  { id: 'ACT', name: 'Acts', short_name: 'Act', testament: 'NT', chapters_count: 28 },
-  { id: 'ROM', name: 'Romans', short_name: 'Rom', testament: 'NT', chapters_count: 16 },
-  { id: '1CO', name: '1 Corinthians', short_name: '1Co', testament: 'NT', chapters_count: 16 },
-  { id: '2CO', name: '2 Corinthians', short_name: '2Co', testament: 'NT', chapters_count: 13 },
-  { id: 'GAL', name: 'Galatians', short_name: 'Gal', testament: 'NT', chapters_count: 6 },
-  { id: 'EPH', name: 'Ephesians', short_name: 'Eph', testament: 'NT', chapters_count: 6 },
-  { id: 'PHP', name: 'Philippians', short_name: 'Php', testament: 'NT', chapters_count: 4 },
-  { id: 'COL', name: 'Colossians', short_name: 'Col', testament: 'NT', chapters_count: 4 },
-  { id: '1TH', name: '1 Thessalonians', short_name: '1Th', testament: 'NT', chapters_count: 5 },
-  { id: '2TH', name: '2 Thessalonians', short_name: '2Th', testament: 'NT', chapters_count: 3 },
-  { id: '1TI', name: '1 Timothy', short_name: '1Ti', testament: 'NT', chapters_count: 6 },
-  { id: '2TI', name: '2 Timothy', short_name: '2Ti', testament: 'NT', chapters_count: 4 },
-  { id: 'TIT', name: 'Titus', short_name: 'Tit', testament: 'NT', chapters_count: 3 },
-  { id: 'PHM', name: 'Philemon', short_name: 'Phm', testament: 'NT', chapters_count: 1 },
-  { id: 'HEB', name: 'Hebrews', short_name: 'Heb', testament: 'NT', chapters_count: 13 },
-  { id: 'JAS', name: 'James', short_name: 'Jas', testament: 'NT', chapters_count: 5 },
-  { id: '1PE', name: '1 Peter', short_name: '1Pe', testament: 'NT', chapters_count: 5 },
-  { id: '2PE', name: '2 Peter', short_name: '2Pe', testament: 'NT', chapters_count: 3 },
-  { id: '1JN', name: '1 John', short_name: '1Jn', testament: 'NT', chapters_count: 5 },
-  { id: '2JN', name: '2 John', short_name: '2Jn', testament: 'NT', chapters_count: 1 },
-  { id: '3JN', name: '3 John', short_name: '3Jn', testament: 'NT', chapters_count: 1 },
-  { id: 'JUD', name: 'Jude', short_name: 'Jud', testament: 'NT', chapters_count: 1 },
-  { id: 'REV', name: 'Revelation', short_name: 'Rev', testament: 'NT', chapters_count: 22 }
-]
+// Cache which text DBs have specific columns
+const _taggedColCache = new Map<string, boolean>()
+function hasTaggedCol(db: ReturnType<typeof getTextDb>, textId: string): boolean {
+  if (_taggedColCache.has(textId)) return _taggedColCache.get(textId)!
+  const cols = (db as any).prepare('PRAGMA table_info(verses)').all() as Array<{ name: string }>
+  const has = cols.some((c) => c.name === 'text_tagged')
+  _taggedColCache.set(textId, has)
+  return has
+}
 
-const PLACEHOLDER_VERSES: Record<string, Record<number, { verse_num: number; text: string }[]>> = {
-  GEN: {
-    1: [
-      { verse_num: 1, text: 'In the beginning Elohim created the heaven and the earth.' },
-      { verse_num: 2, text: 'And the earth was without form, and void; and darkness was upon the face of the deep. And the Spirit of Elohim moved upon the face of the waters.' },
-      { verse_num: 3, text: 'And Elohim said, Let there be light: and there was light.' },
-      { verse_num: 4, text: 'And Elohim saw the light, that it was good: and Elohim divided the light from the darkness.' },
-      { verse_num: 5, text: 'And Elohim called the light Day, and the darkness he called Night. And the evening and the morning were the first day.' }
-    ]
+const _sortOrderColCache = new Map<string, boolean>()
+function hasSortOrderCol(db: ReturnType<typeof getTextDb>, textId: string): boolean {
+  if (_sortOrderColCache.has(textId)) return _sortOrderColCache.get(textId)!
+  const cols = (db as any).prepare('PRAGMA table_info(books)').all() as Array<{ name: string }>
+  const has = cols.some((c) => c.name === 'sort_order')
+  _sortOrderColCache.set(textId, has)
+  return has
+}
+
+function safeFtsQuery(q: string): string {
+  const trimmed = q.trim()
+  if (!trimmed) return ''
+
+  // Phrase query — already wrapped in FTS5 quotes
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    const inner = trimmed.slice(1, -1).trim()
+    const words = inner.split(/\s+/).filter(Boolean)
+      .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
+      .filter(w => w.length >= 1)
+    if (words.length === 0) return ''
+    return `"${words.join(' ')}"`
   }
+
+  // OR query (any mode) — split on " OR " and wildcard each term
+  if (trimmed.includes(' OR ')) {
+    const terms = trimmed.split(' OR ').map(t => t.trim())
+    const cleanTerms = terms
+      .map(t => t.replace(/[^a-zA-Z0-9']/g, '').trim())
+      .filter(t => t.length >= 1)
+      .map(t => `${t}*`)
+    if (cleanTerms.length === 0) return ''
+    return cleanTerms.join(' OR ')
+  }
+
+  // All-words query (default) — prefix wildcard each word
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  const clean = words
+    .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
+    .filter(w => w.length >= 1)
+    .map(w => `${w}*`)
+  if (clean.length === 0) return ''
+  return clean.join(' ')
 }
 
 export function registerBibleHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('bible:getBooks', (_event, _textId?: string) => {
-    return PLACEHOLDER_BOOKS
+  ipcMain.handle('bible:getBooks', (_event, textId = 'kjva') => {
+    const db = getTextDb(textId)
+    if (!db) return []
+    const orderBy = hasSortOrderCol(db, textId)
+      ? 'ORDER BY COALESCE(sort_order, 9999), rowid'
+      : 'ORDER BY rowid'
+    const books = db.prepare(
+      `SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`
+    ).all() as Array<{ id: string; name: string; short_name: string; testament: string; chapters_count: number }>
+    // LXX (and some other texts) store chapters_count = 0; compute from verses table
+    const countStmt = db.prepare('SELECT MAX(chapter) as max_ch FROM verses WHERE book_id = ?')
+    return books.map((b) => {
+      if (b.chapters_count === 0) {
+        const row = countStmt.get(b.id) as { max_ch: number | null } | undefined
+        return { ...b, chapters_count: row?.max_ch ?? 1 }
+      }
+      return b
+    })
   })
 
-  ipcMain.handle('bible:queryChapter', (_event, bookId: string, chapter: number) => {
-    const bookVerses = PLACEHOLDER_VERSES[bookId]
-    if (bookVerses && bookVerses[chapter]) {
-      return bookVerses[chapter].map((v) => ({ ...v, book_id: bookId, chapter }))
-    }
-    // Return generic placeholder for any book/chapter not in the map
-    return Array.from({ length: 5 }, (_, i) => ({
-      verse_num: i + 1,
-      text: `[Verse ${i + 1} of ${bookId} ${chapter} — real text loads in Phase 2]`,
-      book_id: bookId,
-      chapter
-    }))
+  ipcMain.handle('bible:queryChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
+    const db = getTextDb(textId)
+    if (!db) return []
+    const withTagged = hasTaggedCol(db, textId)
+    const sql = withTagged
+      ? 'SELECT book_id, chapter, verse_num, text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
+      : 'SELECT book_id, chapter, verse_num, text FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
+    return (db as any).prepare(sql).all(bookId, chapter)
   })
 
-  ipcMain.handle('bible:queryVerse', (_event, bookId: string, chapter: number, verseNum: number) => {
-    const bookVerses = PLACEHOLDER_VERSES[bookId]
-    if (bookVerses && bookVerses[chapter]) {
-      const v = bookVerses[chapter].find((v) => v.verse_num === verseNum)
-      if (v) return { ...v, book_id: bookId, chapter }
-    }
-    return {
-      verse_num: verseNum,
-      text: `[${bookId} ${chapter}:${verseNum} — real text loads in Phase 2]`,
-      book_id: bookId,
-      chapter
-    }
+  ipcMain.handle('bible:queryVerse', (_event, bookId: string, chapter: number, verseNum: number, textId = 'kjva') => {
+    const db = getTextDb(textId)
+    if (!db) return null
+    return db.prepare(
+      'SELECT verse_num, text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ?'
+    ).get(bookId, chapter, verseNum)
   })
 
-  ipcMain.handle('bible:searchText', (_event, query: string, _textId?: string) => {
+  ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva') => {
     if (!query.trim()) return []
-    return []
+    const db = getTextDb(textId)
+    if (!db) return []
+
+    const trimmed = query.trim()
+
+    // ── 'any' mode: query arrives as "word1 OR word2 OR word3" ──────────────
+    // FTS5 OR with prefix wildcards (in* OR the* OR beginning*) is unreliable
+    // for very common or very short tokens — it can silently return nothing.
+    // Fix: run one FTS5 query per word and union the results in JS.
+    if (trimmed.includes(' OR ')) {
+      const terms = trimmed.split(' OR ').map(t => t.trim()).filter(Boolean)
+      const seen = new Set<string>()
+      const rows: unknown[] = []
+      const stmt = db.prepare(`
+        SELECT v.book_id, v.chapter, v.verse_num, v.text
+        FROM verses_fts f
+        JOIN verses v ON v.id = f.rowid
+        WHERE verses_fts MATCH ?
+        ORDER BY rank
+        LIMIT 200
+      `)
+      for (const term of terms) {
+        const ftsQ = safeFtsQuery(term)
+        if (!ftsQ) continue
+        try {
+          const termRows = stmt.all(ftsQ) as Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
+          for (const row of termRows) {
+            const key = `${row.book_id}|${row.chapter}|${row.verse_num}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              rows.push(row)
+            }
+          }
+        } catch { /* skip terms that FTS5 rejects */ }
+      }
+      return rows.slice(0, 300)
+    }
+
+    // ── phrase and all-words modes ───────────────────────────────────────────
+    const ftsQ = safeFtsQuery(trimmed)
+    if (!ftsQ) return []
+    try {
+      return db.prepare(`
+        SELECT v.book_id, v.chapter, v.verse_num, v.text
+        FROM verses_fts f
+        JOIN verses v ON v.id = f.rowid
+        WHERE verses_fts MATCH ?
+        ORDER BY rank
+        LIMIT 100
+      `).all(ftsQ)
+    } catch {
+      return []
+    }
   })
 }

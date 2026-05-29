@@ -1,33 +1,22 @@
 interface VerseIndicatorProps {
-  hasNote?: boolean
-  hasHighlight?: boolean
   count?: number
-  color?: string
+  onClick?: () => void
 }
 
-export default function VerseIndicator({ hasNote, hasHighlight, count = 1, color = 'blue' }: VerseIndicatorProps) {
-  const colorMap: Record<string, string> = {
-    blue: 'bg-blue-400',
-    red: 'bg-red-400',
-    green: 'bg-green-400',
-    yellow: 'bg-yellow-400',
-    purple: 'bg-purple-400'
-  }
-
-  const dotColor = hasNote ? colorMap[color] ?? colorMap.blue : 'bg-[rgb(var(--color-accent))]'
-
-  if (count > 1) {
-    return (
-      <span className={`flex-shrink-0 text-[10px] font-medium px-1 py-0.5 rounded-full ${dotColor} text-white leading-none mt-1`}>
-        {count}
-      </span>
-    )
-  }
-
+export default function VerseIndicator({ count = 1, onClick }: VerseIndicatorProps) {
   return (
-    <span
-      className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${dotColor} mt-2`}
-      title={hasNote ? 'Has note' : 'Has highlight'}
-    />
+    <button
+      onClick={onClick}
+      className="
+        flex-shrink-0 self-start mt-1.5 inline-flex items-center gap-0.5
+        text-[10px] font-semibold leading-none rounded-full px-1.5 py-0.5
+        bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/40]
+        cursor-pointer select-none
+      "
+      title={`${count} note${count !== 1 ? 's' : ''} — click to view`}
+    >
+      <span>●</span>
+      {count > 1 && <span className="ml-px">{count}</span>}
+    </button>
   )
 }

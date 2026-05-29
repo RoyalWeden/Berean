@@ -1,28 +1,25 @@
 import type { IpcMain } from 'electron'
-
-const store: Record<string, unknown> = {
-  theme: 'dark',
-  defaultText: 'kjv',
-  showStrongs: false,
-  showStrongsTooltips: true,
-  strongsClickOpensTab: true,
-  fontSize: 16,
-  lineHeight: 'comfortable',
-  vaultPath: '/Users/roywe/Library/Mobile Documents/com~apple~CloudDocs/Octarine/workspaces/bible',
-  vaultSync: false
-}
+import { getBereanDb } from '../db/berean'
 
 export function registerSettingsHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('settings:get', (_event, key: string) => {
-    return store[key] ?? null
+    const row = getBereanDb()
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(key) as { value: string } | undefined
+    return row ? JSON.parse(row.value) : null
   })
 
   ipcMain.handle('settings:set', (_event, key: string, value: unknown) => {
-    store[key] = value
+    getBereanDb()
+      .prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(key, JSON.stringify(value))
     return { success: true }
   })
 
-  ipcMain.handle('settings:getAll', (_event) => {
-    return { ...store }
+  ipcMain.handle('settings:getAll', () => {
+    const rows = getBereanDb()
+      .prepare('SELECT key, value FROM settings')
+      .all() as Array<{ key: string; value: string }>
+    return Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]))
   })
 }

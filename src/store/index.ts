@@ -1,7 +1,64 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { SpaceId, Tab, TabState, MosaicKey } from '@/types'
+import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
+
+export interface WordReplacerRule {
+  id: string
+  queries: string[]
+  replacement: string
+  wholeWord: boolean
+  enabled: boolean
+}
+
+const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
+  { id: '3b8e241f', queries: ['elias'],                             replacement: 'Elijah',        wholeWord: false, enabled: true },
+  { id: '68d22a2b', queries: ['esaias'],                            replacement: 'Isaiah',        wholeWord: false, enabled: true },
+  { id: '7b60a59e', queries: ['osee'],                              replacement: 'Hosea',         wholeWord: false, enabled: true },
+  { id: '6630754e', queries: ['christ jesus', 'jesus christ'],      replacement: 'Yeshua Messiah',wholeWord: false, enabled: true },
+  { id: 'b9f1e2a3', queries: ['christ'],                            replacement: 'Messiah',        wholeWord: true,  enabled: true },
+  { id: '914c4d69', queries: ['obdias'],                            replacement: 'Obadiah',       wholeWord: false, enabled: true },
+  { id: 'f0ab3f1a', queries: ['jezekiel'],                          replacement: 'Ezekiel',       wholeWord: false, enabled: true },
+  { id: '3954462c', queries: ['jeremias', 'jeremy'],                replacement: 'Jeremiah',      wholeWord: false, enabled: true },
+  { id: 'af2b57c0', queries: ['zacharias'],                         replacement: 'Zechariah',     wholeWord: false, enabled: true },
+  { id: 'afcc27c7', queries: ['malachias'],                         replacement: 'Malachi',       wholeWord: false, enabled: true },
+  { id: 'c35d6066', queries: ['aggæus'],                            replacement: 'Haggai',        wholeWord: false, enabled: true },
+  { id: 'd12c8d7d', queries: ['sophonias'],                         replacement: 'Zephaniah',     wholeWord: false, enabled: true },
+  { id: 'bfa0e688', queries: ['naum'],                              replacement: 'Nahum',         wholeWord: true,  enabled: true },
+  { id: '7e62339f', queries: ['jonas'],                             replacement: 'Jonah',         wholeWord: false, enabled: true },
+  { id: '95a42357', queries: ['jesus'],                             replacement: 'Yeshua',        wholeWord: false, enabled: true },
+  { id: '864afedc', queries: ['michæas'],                           replacement: 'Micah',         wholeWord: false, enabled: true },
+  { id: '41e178e6', queries: ['pharao'],                            replacement: 'Pharaoh',       wholeWord: true,  enabled: true },
+  { id: 'b6c9a1a1', queries: ['sem'],                               replacement: 'Shem',          wholeWord: true,  enabled: true },
+  { id: '5e6698ce', queries: ['noe'],                               replacement: 'Noah',          wholeWord: true,  enabled: true },
+  { id: '75c0acbd', queries: ['ambacum'],                           replacement: 'Habakkuk',      wholeWord: false, enabled: true },
+  { id: '5a66cdad', queries: ['josias'],                            replacement: 'Josiah',        wholeWord: false, enabled: true },
+]
+
+function updateMRU(
+  list: Array<{ spaceId: SpaceId; tabId: string }>,
+  spaceId: SpaceId,
+  tabId: string
+): Array<{ spaceId: SpaceId; tabId: string }> {
+  return [{ spaceId, tabId }, ...list.filter(item => !(item.spaceId === spaceId && item.tabId === tabId))].slice(0, 100)
+}
+
+export interface Session {
+  id: string
+  name: string
+  icon?: string  // emoji icon for the session
+  tabs: Record<SpaceId, Tab[]>
+  activeTabId: Record<SpaceId, string | null>
+  tabFilter?: TabType | 'all'   // session-specific tab type filter
+}
+
+const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
+  bible: 'scripture',
+  note: 'notes',
+  lexicon: 'lexicon',
+  youtube: 'youtube',
+  search: 'search',
+}
 
 export interface AppState {
   // Navigation
@@ -15,42 +72,259 @@ export interface AppState {
 
   // UI modals
   searchOpen: boolean
+  searchMode: 'current' | 'new'
   settingsOpen: boolean
 
-  // Theme
-  theme: 'dark' | 'light'
+  // Cross-panel note communication
+  pendingNoteId: string | null
+  requestOpenNote: (noteId: string) => void
+  clearPendingNote: () => void
+  pendingVerseFilter: string | null
+  filterNotesByVerse: (verseRef: string) => void
+  clearVerseFilter: () => void
+  noteChangeToken: number
+  bumpNoteToken: () => void
+  applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => void
+
+  // Cross-panel lexicon communication
+  pendingLexiconEntry: string | null
+  openLexiconEntry: (strongsNum: string, fromNote?: { noteId: string; title: string }) => void
+  clearLexiconEntry: () => void
+  pendingLexiconSearch: string | null
+  requestLexiconSearch: (term: string) => void
+  clearLexiconSearch: () => void
+
+  // Bible right-panel triggers (from VerseRow actions)
+  pendingRightPanelNoteId: string | null
+  pendingRightPanelVerseFilter: string | null
+  pendingRightPanelCrossRefVerse: string | null
+  openNoteInBiblePanel: (noteId: string) => void
+  filterBiblePanelByVerse: (verseRef: string) => void
+  openCrossRefsInBiblePanel: (verseRef: string) => void
+  clearRightPanelNote: () => void
+  clearRightPanelVerseFilter: () => void
+  clearRightPanelCrossRef: () => void
+
+  // Highlight change notifications
+  highlightChangeToken: number
+  bumpHighlightToken: () => void
+
+  // Search tab
+  pendingSearchQuery: string | null
+  openSearchTab: (query: string) => void
+  clearSearchQuery: () => void
+
+  // Find bar (Cmd+F / type-anywhere in-panel search)
+  findBarOpen: boolean
+  findBarQuery: string
+  findBarAutoOpen: boolean   // true = opened by typing (auto-dismisses); false = Cmd+F (stays until Esc/X)
+  findBarWordMode: 'phrase' | 'all' | 'any'
+  openFindBar: (autoOpen?: boolean, seedChar?: string) => void
+  closeFindBar: () => void
+  setFindBarQuery: (q: string) => void
+  setFindBarWordMode: (mode: 'phrase' | 'all' | 'any') => void
+
+  // Active panel tracking — last panel that received a mousedown event
+  // Used to route Cmd+F to the correct panel's find bar
+  activePanelId: 'bible' | 'notes' | 'lexicon'
+  setActivePanelId: (id: 'bible' | 'notes' | 'lexicon') => void
+
+  // YouTube video navigation (from note timestamp links — handles tab creation + space switch)
+  pendingYouTubeVideo: { videoId: string; startTime: number } | null
+  openYouTubeVideo: (videoId: string, startTime?: number, fromNote?: { noteId: string; title: string }) => void
+  clearPendingYouTubeVideo: () => void
+
+  // YouTube playback preferences
+  autoPiP: boolean
+  setAutoPiP: (v: boolean) => void
+  youtubeIsPlaying: boolean
+  setYoutubeIsPlaying: (v: boolean) => void
+  youtubeNoteBack: { noteId: string; title: string } | null
+  setYoutubeNoteBack: (note: { noteId: string; title: string } | null) => void
+  lexiconNoteBack: { noteId: string; title: string } | null
+  setLexiconNoteBack: (note: { noteId: string; title: string } | null) => void
+
+  // Markdown reference modal
+  markdownReferenceOpen: boolean
+  openMarkdownReference: () => void
+  closeMarkdownReference: () => void
+
+  // Dedicated scripture search tab
+  openScriptureSearchTab: (query?: string) => void
+
+  // Note auto-ref settings
+  noteVerseRefsEnabled: boolean
+  noteLexiconRefsEnabled: boolean
+  setNoteVerseRefsEnabled: (v: boolean) => void
+  setNoteLexiconRefsEnabled: (v: boolean) => void
+
+  // Word replacer
+  wordReplacerEnabled: boolean
+  wordReplacerRules: WordReplacerRule[]
+  setWordReplacerEnabled: (v: boolean) => void
+  setWordReplacerRules: (rules: WordReplacerRule[]) => void
+  toggleWordReplacerRule: (id: string) => void
+
+  // Display preferences
+  bibleFontSize: number
+  bibleLineHeight: 'compact' | 'comfortable' | 'spacious'
+  defaultBibleTranslation: string
+  setBibleFontSize: (size: number) => void
+  setBibleLineHeight: (h: 'compact' | 'comfortable' | 'spacious') => void
+  setDefaultBibleTranslation: (id: string) => void
+  defaultScriptureLayout: import('@/types').ScriptureLayout
+  setDefaultScriptureLayout: (layout: import('@/types').ScriptureLayout) => void
+  noteTransformLayout: 'right' | 'bottom' | 'left'
+  setNoteTransformLayout: (layout: 'right' | 'bottom' | 'left') => void
+
+  // Cross-reference source preference
+  crossRefSource: 'tske' | 'classic' | 'notes'
+  setCrossRefSource: (s: 'tske' | 'classic' | 'notes') => void
+
+  // Sidebar new-tab button style
+  sidebarNewTabIconOnly: boolean
+  setSidebarNewTabIconOnly: (v: boolean) => void
+
+  // Theme — base + optional preset overlay
+  theme: 'dark' | 'light' | 'system'
+  themePreset: string  // '' = default, or one of the preset class names
+  setThemePreset: (preset: string) => void
+
+  // Per-section font families
+  scriptureFontFamily: string
+  notesFontFamily: string
+  uiFontFamily: string
+  setScriptureFontFamily: (family: string) => void
+  setNotesFontFamily: (family: string) => void
+  setUiFontFamily: (family: string) => void
+
+  // Tracks when each tab was last made active; key = "{spaceId}:{tabId}"
+  tabLastAccessed: Record<string, number>
+
+  // MRU tab list (most-recently-used order, used by Ctrl+Tab switcher)
+  tabMRUList: Array<{ spaceId: SpaceId; tabId: string }>
+
+  // Sessions
+  sessions: Session[]
+  currentSessionId: string
+  sessionTabFilters: Record<string, TabType | 'all'>  // keyed by session ID
+  sessionDisplayOrders: Record<string, string[]>        // keyed by session ID — custom tab display order
+  createSession: (name?: string) => void
+  switchSession: (id: string) => void
+  renameSession: (id: string, name: string) => void
+  setSessionIcon: (id: string, icon: string) => void
+  deleteSession: (id: string) => void
+  moveTabToSession: (spaceId: SpaceId, tabId: string, targetSessionId: string) => void
+  setSessionTabFilter: (sessionId: string, filter: TabType | 'all') => void
+  reorderTabDisplay: (sessionId: string, fromId: string, toId: string, before: boolean) => void
 
   // Actions
   setActiveSpace: (space: SpaceId) => void
   addTab: (tab: Tab) => void
+  createTab: (type: TabType) => void
+  ensureTab: (type: TabType) => void
   closeTab: (spaceId: SpaceId, tabId: string) => void
+  closeActiveTab: () => void
   setActiveTab: (spaceId: SpaceId, tabId: string) => void
+  activateTab: (tab: Tab) => void
+  renameTab: (spaceId: SpaceId, tabId: string, title: string) => void
+  reorderTabs: (spaceId: SpaceId, fromIndex: number, toIndex: number) => void
   updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
-  openSearch: () => void
+  openSearch: (mode?: 'current' | 'new') => void
   closeSearch: () => void
   openSettings: () => void
   closeSettings: () => void
-  setTheme: (theme: 'dark' | 'light') => void
+  toggleSettings: () => void
+  setTheme: (theme: 'dark' | 'light' | 'system') => void
+  autoCloseTabsAfter: number  // milliseconds; 0 = never
+  setAutoCloseTabsAfter: (ms: number) => void
+
+  // History — chronological log of everything the user opens
+  // Stored in SQLite (history table); the in-memory array is the UI view.
+  history: HistoryEntry[]
+  historyOpen: boolean
+  historyLoaded: boolean  // true once the SQLite load completes on mount
+  addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'sessionId' | 'sessionName'>) => void
+  setHistory: (entries: HistoryEntry[]) => void
+  deleteHistoryEntry: (id: string) => void
+  clearHistory: () => void
+  openHistory: () => void
+  closeHistory: () => void
+
+  // Onboarding
+  onboardingOpen: boolean
+  onboardingCompleted: boolean
+  openOnboarding: () => void
+  closeOnboarding: () => void
+  completeOnboarding: () => void
+
+  // Getting-started task checklist
+  tasksVisible: boolean         // panel rendered at all
+  tasksMinimized: boolean       // collapsed to chip
+  completedTaskIds: string[]    // task ids fully done (kept for compat)
+  completedStepIds: string[]    // "taskId:stepId" — per-step completion (persisted)
+  verseNoteToken: number        // bumped when a verse note is created via verse popover
+  strongsHoverToken: number     // bumped when a Strong's tooltip opens (hover detected)
+  versePopoverToken: number     // bumped when the verse number popover opens
+  noteEditToken: number         // bumped when note content is meaningfully edited
+  tableInsertToken: number      // bumped when a table is inserted via toolbar
+  settingsNavToken: number      // bumped when user navigates to a settings section
+  floatingTabToken: number      // bumped when a tab is opened in a floating window
+  youtubePipToken: number       // bumped when Picture-in-Picture is activated
+  vaultSyncToken: number        // bumped when vault sync is enabled in settings
+  openTasks: () => void
+  closeTasks: () => void
+  minimizeTasks: () => void
+  unminimizeTasks: () => void
+  completeTask: (id: string) => void
+  completeStep: (taskId: string, stepId: string) => void
+  bumpVerseNoteToken: () => void
+  bumpStrongsHoverToken: () => void
+  bumpVersePopoverToken: () => void
+  bumpNoteEditToken: () => void
+  bumpTableInsertToken: () => void
+  bumpSettingsNavToken: () => void
+  bumpFloatingTabToken: () => void
+  bumpYoutubePipToken: () => void
+  bumpVaultSyncToken: () => void
+  resetTasks: () => void
+
+  // Saved workspaces (loaded from SQLite on demand)
+  savedWorkspaces: import('@/types/electron').SavedWorkspace[]
+  setSavedWorkspaces: (ws: import('@/types/electron').SavedWorkspace[]) => void
+
+  // Import modal (non-persisted)
+  importModalOpen: boolean
+  importInitialTab: 'biblegateway' | 'esword'
+  openImportModal: () => void
+  openImportBibleGateway: () => void
+  openImportESword: () => void
+  closeImportModal: () => void
+  settingsInitialSection: string
+
+  // BibleGateway import progress (non-persisted — runtime only)
+  bgImportPhase: 'idle' | 'login' | 'fetching' | 'review' | 'saving' | 'done' | 'error'
+  bgImportDone: number
+  bgImportTotal: number
+  bgImportMessage: string
+  bgImportReviewNotes: import('@/types/electron').BgImportReviewNote[]
+  setBgImportProgress: (p: { phase: 'idle' | 'login' | 'fetching' | 'review' | 'saving' | 'done' | 'error'; done?: number; total?: number; message?: string; reviewNotes?: import('@/types/electron').BgImportReviewNote[] }) => void
+  resetBgImport: () => void
+
+  // e-Sword import progress (non-persisted — runtime only)
+  eSwordPhase: import('@/types/electron').ESwordPhase
+  eSwordDone: number
+  eSwordTotal: number
+  eSwordMessage: string
+  eSwordReviewNotes: import('@/types/electron').ESwordReviewNote[]
+  setESwordProgress: (p: { phase: import('@/types/electron').ESwordPhase; done?: number; total?: number; message?: string; reviewNotes?: import('@/types/electron').ESwordReviewNote[] }) => void
+  resetESword: () => void
 }
 
 const DEFAULT_TABS: Record<SpaceId, Tab[]> = {
-  scripture: [
-    {
-      id: 'bible-gen-1',
-      spaceId: 'scripture',
-      type: 'bible',
-      title: 'Genesis 1',
-      state: {
-        bookId: 'GEN',
-        chapter: 1,
-        translation: 'KJV',
-        showStrongs: false,
-        scrollPosition: 0
-      }
-    }
-  ],
+  scripture: [],
   notes: [],
   lexicon: [],
   youtube: [],
@@ -58,11 +332,18 @@ const DEFAULT_TABS: Record<SpaceId, Tab[]> = {
 }
 
 const DEFAULT_ACTIVE_TAB: Record<SpaceId, string | null> = {
-  scripture: 'bible-gen-1',
+  scripture: null,
   notes: null,
   lexicon: null,
   youtube: null,
   search: null
+}
+
+const DEFAULT_SESSION: Session = {
+  id: 'default',
+  name: 'Session 1',
+  tabs: DEFAULT_TABS,
+  activeTabId: DEFAULT_ACTIVE_TAB,
 }
 
 const DEFAULT_PANEL_LAYOUT: MosaicNode<MosaicKey> = {
@@ -78,24 +359,390 @@ export const useAppStore = create<AppState>()(
       activeSpace: 'scripture' as SpaceId,
       tabs: DEFAULT_TABS,
       activeTabId: DEFAULT_ACTIVE_TAB,
+      tabMRUList: [] as Array<{ spaceId: SpaceId; tabId: string }>,
+      tabLastAccessed: {} as Record<string, number>,
       panelLayout: DEFAULT_PANEL_LAYOUT,
       sidebarCollapsed: false,
       searchOpen: false,
+      searchMode: 'current' as const,
       settingsOpen: false,
-      theme: 'dark' as const,
+      pendingNoteId: null,
+      pendingVerseFilter: null,
+      noteChangeToken: 0,
+      pendingLexiconEntry: null,
+      pendingLexiconSearch: null,
+      pendingRightPanelNoteId: null,
+      pendingRightPanelVerseFilter: null,
+      pendingRightPanelCrossRefVerse: null,
+      highlightChangeToken: 0,
+      pendingSearchQuery: null,
+      findBarOpen: false,
+      findBarQuery: '',
+      findBarAutoOpen: false,
+      findBarWordMode: 'phrase' as 'phrase' | 'all' | 'any',
+      openFindBar: (autoOpen = false, seedChar = '') => set({ findBarOpen: true, findBarAutoOpen: autoOpen, findBarQuery: seedChar }),
+      closeFindBar: () => set({ findBarOpen: false, findBarQuery: '', findBarAutoOpen: false }),
+      setFindBarQuery: (q) => set({ findBarQuery: q }),
+      setFindBarWordMode: (mode) => set({ findBarWordMode: mode }),
+      activePanelId: 'bible' as 'bible' | 'notes' | 'lexicon',
+      setActivePanelId: (id) => set({ activePanelId: id }),
+      bibleFontSize: 16,
+      bibleLineHeight: 'comfortable' as const,
+      defaultBibleTranslation: 'kjva',
+      theme: 'system' as const,
+      themePreset: '',
+      setThemePreset: (preset) => set({ themePreset: preset }),
+      scriptureFontFamily: 'system',
+      notesFontFamily: 'system',
+      uiFontFamily: 'system',
+      setScriptureFontFamily: (family) => set({ scriptureFontFamily: family }),
+      setNotesFontFamily: (family) => set({ notesFontFamily: family }),
+      setUiFontFamily: (family) => set({ uiFontFamily: family }),
+      autoCloseTabsAfter: 0,
+      setAutoCloseTabsAfter: (ms) => set({ autoCloseTabsAfter: ms }),
+
+      history: [] as HistoryEntry[],
+      historyOpen: false,
+      historyLoaded: false,
+      addHistoryEntry: (entry) => {
+        const state = get()
+        const currentSession = state.sessions.find(s => s.id === state.currentSessionId)
+        const newEntry: HistoryEntry = {
+          ...entry,
+          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: Date.now(),
+          sessionId: state.currentSessionId,
+          sessionName: currentSession?.name,
+        }
+        set((s) => {
+          const prev = s.history
+          // Skip if the very last entry is identical (prevents duplicates from re-renders)
+          const last = prev[0]
+          if (last &&
+            last.type === newEntry.type &&
+            last.bookId === newEntry.bookId &&
+            last.chapter === newEntry.chapter &&
+            last.noteId === newEntry.noteId &&
+            last.strongsNum === newEntry.strongsNum &&
+            last.videoId === newEntry.videoId &&
+            last.query === newEntry.query &&
+            last.parentId === newEntry.parentId
+          ) return {}
+          return { history: [newEntry, ...prev].slice(0, 500) }
+        })
+        // Persist to SQLite (non-blocking)
+        window.appHistory?.add(newEntry).catch(() => {})
+      },
+      setHistory: (entries) => set({ history: entries, historyLoaded: true }),
+      deleteHistoryEntry: (id) => {
+        set((s) => ({ history: s.history.filter(e => e.id !== id) }))
+        window.appHistory?.delete(id).catch(() => {})
+      },
+      clearHistory: () => {
+        set({ history: [] })
+        window.appHistory?.clear().catch(() => {})
+      },
+      openHistory: () => set((s) => ({ historyOpen: !s.historyOpen })),
+      closeHistory: () => set({ historyOpen: false }),
+
+      onboardingOpen: false,
+      onboardingCompleted: false,
+      openOnboarding: () => set({ onboardingOpen: true }),
+      closeOnboarding: () => set({ onboardingOpen: false }),
+      completeOnboarding: () => {
+        set({ onboardingOpen: false, onboardingCompleted: true, tasksVisible: true, tasksMinimized: false })
+        window.settings?.set('onboardingCompleted', true).catch(() => {})
+      },
+
+      tasksVisible: false,
+      tasksMinimized: false,
+      completedTaskIds: [] as string[],
+      completedStepIds: [] as string[],
+      verseNoteToken: 0,
+      strongsHoverToken: 0,
+      versePopoverToken: 0,
+      noteEditToken: 0,
+      tableInsertToken: 0,
+      settingsNavToken: 0,
+      floatingTabToken: 0,
+      youtubePipToken: 0,
+      vaultSyncToken: 0,
+      openTasks: () => set({ tasksVisible: true, tasksMinimized: false }),
+      closeTasks: () => set({ tasksVisible: false }),
+      minimizeTasks: () => set({ tasksMinimized: true }),
+      unminimizeTasks: () => set({ tasksMinimized: false }),
+      completeTask: (id) => set((s) => ({
+        completedTaskIds: s.completedTaskIds.includes(id) ? s.completedTaskIds : [...s.completedTaskIds, id],
+      })),
+      completeStep: (taskId, stepId) => set((s) => {
+        const key = `${taskId}:${stepId}`
+        return { completedStepIds: s.completedStepIds.includes(key) ? s.completedStepIds : [...s.completedStepIds, key] }
+      }),
+      bumpVerseNoteToken: () => set((s) => ({ verseNoteToken: s.verseNoteToken + 1 })),
+      bumpStrongsHoverToken: () => set((s) => ({ strongsHoverToken: s.strongsHoverToken + 1 })),
+      bumpVersePopoverToken: () => set((s) => ({ versePopoverToken: s.versePopoverToken + 1 })),
+      bumpNoteEditToken: () => set((s) => ({ noteEditToken: s.noteEditToken + 1 })),
+      bumpTableInsertToken: () => set((s) => ({ tableInsertToken: s.tableInsertToken + 1 })),
+      bumpSettingsNavToken: () => set((s) => ({ settingsNavToken: s.settingsNavToken + 1 })),
+      bumpFloatingTabToken: () => set((s) => ({ floatingTabToken: s.floatingTabToken + 1 })),
+      bumpYoutubePipToken: () => set((s) => ({ youtubePipToken: s.youtubePipToken + 1 })),
+      bumpVaultSyncToken: () => set((s) => ({ vaultSyncToken: s.vaultSyncToken + 1 })),
+      resetTasks: () => set({ completedTaskIds: [], completedStepIds: [], tasksVisible: true, tasksMinimized: false }),
+
+      savedWorkspaces: [] as import('@/types/electron').SavedWorkspace[],
+      setSavedWorkspaces: (ws) => set({ savedWorkspaces: ws }),
+
+      importModalOpen: false,
+      importInitialTab: 'biblegateway' as 'biblegateway' | 'esword',
+      openImportModal: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }),
+      openImportBibleGateway: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }),
+      openImportESword: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'esword' }),
+      closeImportModal: () => set({ importModalOpen: false }),
+      settingsInitialSection: 'appearance',
+
+      bgImportPhase: 'idle' as const,
+      bgImportDone: 0,
+      bgImportTotal: 0,
+      bgImportMessage: '',
+      bgImportReviewNotes: [],
+      setBgImportProgress: (p) => set({
+        bgImportPhase: p.phase,
+        bgImportDone: p.done ?? 0,
+        bgImportTotal: p.total ?? 0,
+        bgImportMessage: p.message ?? '',
+        ...(p.reviewNotes !== undefined ? { bgImportReviewNotes: p.reviewNotes } : {}),
+      }),
+      resetBgImport: () => set({ bgImportPhase: 'idle', bgImportDone: 0, bgImportTotal: 0, bgImportMessage: '', bgImportReviewNotes: [] }),
+
+      eSwordPhase: 'idle' as const,
+      eSwordDone: 0,
+      eSwordTotal: 0,
+      eSwordMessage: '',
+      eSwordReviewNotes: [],
+      setESwordProgress: (p) => set({
+        eSwordPhase: p.phase,
+        eSwordDone: p.done ?? 0,
+        eSwordTotal: p.total ?? 0,
+        eSwordMessage: p.message ?? '',
+        ...(p.reviewNotes !== undefined ? { eSwordReviewNotes: p.reviewNotes } : {}),
+      }),
+      resetESword: () => set({ eSwordPhase: 'idle', eSwordDone: 0, eSwordTotal: 0, eSwordMessage: '', eSwordReviewNotes: [] }),
+      pendingYouTubeVideo: null,
+      autoPiP: true,
+      youtubeIsPlaying: false,
+      youtubeNoteBack: null,
+      lexiconNoteBack: null,
+      markdownReferenceOpen: false,
+      noteVerseRefsEnabled: true,
+      noteLexiconRefsEnabled: true,
+      wordReplacerEnabled: true,
+      wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
+
+      sessions: [DEFAULT_SESSION] as Session[],
+      currentSessionId: 'default',
+      sessionTabFilters: {} as Record<string, TabType | 'all'>,
+      sessionDisplayOrders: {} as Record<string, string[]>,
+
+      createSession: (name) => {
+        const state = get()
+        const newId = `session-${Date.now()}`
+        // Use total count of all sessions (including current) + 1 for naming
+        const allCount = state.sessions.length === 0 ? 1 : state.sessions.length
+        const newName = name ?? `Session ${allCount + 1}`
+        const newSession: Session = {
+          id: newId,
+          name: newName,
+          tabs: { scripture: [], notes: [], lexicon: [], youtube: [], search: [] },
+          activeTabId: { scripture: null, notes: null, lexicon: null, youtube: null, search: null },
+        }
+        // Save current session state before switching
+        const currentSession: Session = {
+          id: state.currentSessionId,
+          name: state.sessions.find(s => s.id === state.currentSessionId)?.name ?? 'Session 1',
+          icon: state.sessions.find(s => s.id === state.currentSessionId)?.icon,
+          tabs: state.tabs,
+          activeTabId: state.activeTabId,
+        }
+        const updatedSessions = state.sessions.length === 0
+          ? [currentSession, newSession]
+          : [...state.sessions.map(s => s.id === state.currentSessionId ? currentSession : s), newSession]
+        const defaultTabs: Record<SpaceId, Tab[]> = { scripture: [], notes: [], lexicon: [], youtube: [], search: [] }
+        const defaultActiveId: Record<SpaceId, string | null> = { scripture: null, notes: null, lexicon: null, youtube: null, search: null }
+        set({ sessions: updatedSessions, currentSessionId: newId, tabs: defaultTabs, activeTabId: defaultActiveId })
+      },
+
+      switchSession: (id) => {
+        const state = get()
+        if (id === state.currentSessionId) return
+        // Save current session
+        const currentSession: Session = {
+          id: state.currentSessionId,
+          name: state.sessions.find(s => s.id === state.currentSessionId)?.name ?? 'Session 1',
+          tabs: state.tabs,
+          activeTabId: state.activeTabId,
+        }
+        let updatedSessions = state.sessions.length === 0
+          ? [currentSession]
+          : state.sessions.map(s => s.id === state.currentSessionId ? currentSession : s)
+        const target = updatedSessions.find(s => s.id === id)
+        if (!target) return
+        set({ sessions: updatedSessions, currentSessionId: id, tabs: target.tabs, activeTabId: target.activeTabId })
+      },
+
+      renameSession: (id, name) => {
+        set(s => ({ sessions: s.sessions.map(ses => ses.id === id ? { ...ses, name } : ses) }))
+      },
+
+      setSessionIcon: (id, icon) => {
+        set(s => ({ sessions: s.sessions.map(ses => ses.id === id ? { ...ses, icon } : ses) }))
+      },
+
+      deleteSession: (id) => {
+        const state = get()
+        if (state.sessions.length <= 1) return  // keep at least one
+        const remaining = state.sessions.filter(s => s.id !== id)
+        if (state.currentSessionId === id) {
+          const fallback = remaining[0]!
+          set({ sessions: remaining, currentSessionId: fallback.id, tabs: fallback.tabs, activeTabId: fallback.activeTabId })
+        } else {
+          set({ sessions: remaining })
+        }
+      },
+
+      setSessionTabFilter: (sessionId, filter) =>
+        set((s) => ({ sessionTabFilters: { ...s.sessionTabFilters, [sessionId]: filter } })),
+
+      reorderTabDisplay: (sessionId, fromId, toId, before) => {
+        set((s) => {
+          const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+          const allTabs = allSpaces.flatMap((sp) => s.tabs[sp] ?? [])
+
+          const stored = s.sessionDisplayOrders[sessionId] ?? []
+
+          // Build the live order: start from stored order, drop missing IDs, append new ones
+          const current: string[] = [
+            ...stored.filter((id) => allTabs.some((t) => t.id === id)),
+            ...allTabs.filter((t) => !stored.includes(t.id)).map((t) => t.id),
+          ]
+
+          const fromIdx = current.indexOf(fromId)
+          const toIdx   = current.indexOf(toId)
+
+          if (fromIdx === -1 || toIdx === -1 || fromId === toId) return {}
+
+          const next = [...current]
+          next.splice(fromIdx, 1)
+          const insertAt = before ? toIdx : toIdx + 1
+          const adjusted = insertAt > fromIdx ? insertAt - 1 : insertAt
+          const finalIdx = Math.max(0, Math.min(adjusted, next.length))
+          next.splice(finalIdx, 0, fromId)
+
+          return { sessionDisplayOrders: { ...s.sessionDisplayOrders, [sessionId]: next } }
+        })
+      },
+
+      moveTabToSession: (spaceId, tabId, targetSessionId) => {
+        const state = get()
+        const tab = state.tabs[spaceId].find(t => t.id === tabId)
+        if (!tab) return
+        // Remove from current session tabs
+        const newTabs = { ...state.tabs, [spaceId]: state.tabs[spaceId].filter(t => t.id !== tabId) }
+        const newActiveId = state.activeTabId[spaceId] === tabId
+          ? (newTabs[spaceId][0]?.id ?? null)
+          : state.activeTabId[spaceId]
+        // Add to target session
+        const updatedSessions = state.sessions.map(s =>
+          s.id === targetSessionId
+            ? { ...s, tabs: { ...s.tabs, [spaceId]: [...s.tabs[spaceId], tab] } }
+            : s
+        )
+        set({ tabs: newTabs, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }, sessions: updatedSessions })
+      },
 
       setActiveSpace: (space) => set({ activeSpace: space }),
+
+      createTab: (type) => {
+        const spaceId = TYPE_TO_SPACE[type]
+        const id = `${type}-${Date.now()}`
+        let tab: Tab
+        if (type === 'bible') {
+          const defTranslation = get().defaultBibleTranslation.toUpperCase()
+          tab = { id, spaceId, type, title: 'Genesis 1', state: { bookId: 'GEN', chapter: 1, translation: defTranslation, showStrongs: false, scrollPosition: 0 } }
+        } else if (type === 'lexicon') {
+          tab = { id, spaceId, type, title: 'Lexicon', state: { strongsNum: null } }
+        } else if (type === 'note') {
+          tab = { id, spaceId, type, title: 'New Note', state: { noteId: null, isNew: true } }
+        } else if (type === 'youtube') {
+          tab = { id, spaceId, type, title: 'YouTube', state: { videoId: null, playlistId: null } }
+        } else {
+          tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
+        }
+        const state = get()
+        set({
+          tabs: { ...state.tabs, [spaceId]: [...state.tabs[spaceId], tab] },
+          activeTabId: { ...state.activeTabId, [spaceId]: id },
+          activeSpace: spaceId,
+          tabMRUList: updateMRU(state.tabMRUList, spaceId, id),
+        })
+      },
+
+      activateTab: (tab) => {
+        set((s) => ({
+          activeTabId: { ...s.activeTabId, [tab.spaceId]: tab.id },
+          activeSpace: tab.spaceId,
+          tabMRUList: updateMRU(s.tabMRUList, tab.spaceId, tab.id),
+        }))
+      },
+
+      ensureTab: (type) => {
+        const spaceId = TYPE_TO_SPACE[type]
+        const state = get()
+        if (state.tabs[spaceId].length === 0) {
+          get().createTab(type)
+        } else {
+          const currentId = state.activeTabId[spaceId] ?? state.tabs[spaceId][0].id
+          set({
+            activeSpace: spaceId,
+            activeTabId: { ...state.activeTabId, [spaceId]: currentId },
+            tabMRUList: updateMRU(state.tabMRUList, spaceId, currentId),
+          })
+        }
+      },
+
+      renameTab: (spaceId, tabId, title) => {
+        set((s) => ({
+          tabs: {
+            ...s.tabs,
+            [spaceId]: s.tabs[spaceId].map((t) => t.id === tabId ? { ...t, title } : t),
+          },
+        }))
+      },
+
+      reorderTabs: (spaceId, fromIndex, toIndex) => {
+        set((s) => {
+          const arr = [...s.tabs[spaceId]].filter(Boolean)
+          if (fromIndex < 0 || fromIndex >= arr.length || toIndex < 0 || toIndex >= arr.length) return {}
+          const [moved] = arr.splice(fromIndex, 1)
+          arr.splice(toIndex, 0, moved)
+          return { tabs: { ...s.tabs, [spaceId]: arr } }
+        })
+      },
 
       addTab: (tab) => {
         const state = get()
         const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
         if (existing) {
-          set({ activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id }, activeSpace: tab.spaceId })
+          set({
+            activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },
+            activeSpace: tab.spaceId,
+            tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
+          })
         } else {
           set({
             tabs: { ...state.tabs, [tab.spaceId]: [...state.tabs[tab.spaceId], tab] },
             activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },
-            activeSpace: tab.spaceId
+            activeSpace: tab.spaceId,
+            tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
           })
         }
       },
@@ -116,9 +763,43 @@ export const useAppStore = create<AppState>()(
         })
       },
 
+      closeActiveTab: () => {
+        const state = get()
+        const spaceId = state.activeSpace
+        const tabId = state.activeTabId[spaceId]
+        if (!tabId) return
+        const tabs = state.tabs[spaceId]
+        const idx = tabs.findIndex((t) => t.id === tabId)
+        if (idx === -1) return
+        const newTabs = tabs.filter((t) => t.id !== tabId)
+        const newActiveId = newTabs[Math.max(0, idx - 1)]?.id ?? null
+        const newTabsAll = { ...state.tabs, [spaceId]: newTabs }
+
+        // If no tabs remain in this space, switch to the first space that still has tabs
+        if (newTabs.length === 0) {
+          const spaceOrder: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+          const fallbackSpace = spaceOrder.find(s => s !== spaceId && (newTabsAll[s]?.length ?? 0) > 0) ?? spaceId
+          const fallbackTabId = newTabsAll[fallbackSpace]?.[0]?.id ?? null
+          set({
+            tabs: newTabsAll,
+            activeTabId: { ...state.activeTabId, [spaceId]: newActiveId },
+            activeSpace: fallbackSpace,
+            ...(fallbackTabId ? { activeTabId: { ...state.activeTabId, [spaceId]: newActiveId, [fallbackSpace]: fallbackTabId } } : {}),
+          })
+        } else {
+          set({ tabs: newTabsAll, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId } })
+        }
+      },
+
       setActiveTab: (spaceId, tabId) => {
         const state = get()
-        set({ activeTabId: { ...state.activeTabId, [spaceId]: tabId }, activeSpace: spaceId })
+        const key = `${spaceId}:${tabId}`
+        set({
+          activeTabId: { ...state.activeTabId, [spaceId]: tabId },
+          activeSpace: spaceId,
+          tabMRUList: updateMRU(state.tabMRUList, spaceId, tabId),
+          tabLastAccessed: { ...state.tabLastAccessed, [key]: Date.now() },
+        })
       },
 
       updateTabState: (spaceId, tabId, newState) => {
@@ -133,23 +814,210 @@ export const useAppStore = create<AppState>()(
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
-      openSearch: () => set({ searchOpen: true }),
+      openSearch: (mode = 'current') => set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false }),
       closeSearch: () => set({ searchOpen: false }),
+      requestOpenNote: (noteId) => set({ pendingNoteId: noteId }),
+      clearPendingNote: () => set({ pendingNoteId: null }),
+      filterNotesByVerse: (verseRef) => set({ pendingVerseFilter: verseRef }),
+      clearVerseFilter: () => set({ pendingVerseFilter: null }),
+      bumpNoteToken: () => set((s) => ({ noteChangeToken: s.noteChangeToken + 1 })),
+      // Apply tab state received from another window (does NOT trigger another broadcast)
+      applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => {
+        const update: Partial<AppState> = { tabs: payload.tabs }
+        if (payload.theme !== undefined) update.theme = payload.theme as AppState['theme']
+        if (payload.themePreset !== undefined) update.themePreset = payload.themePreset
+        set(update)
+      },
+
       openSettings: () => set({ settingsOpen: true }),
       closeSettings: () => set({ settingsOpen: false }),
+      toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
 
-      setTheme: (theme) => set({ theme })
+      openLexiconEntry: (strongsNum, fromNote) => {
+        get().addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
+        set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: fromNote ?? null })
+      },
+      clearLexiconEntry: () => set({ pendingLexiconEntry: null }),
+      requestLexiconSearch: (term) => set({ pendingLexiconSearch: term }),
+      clearLexiconSearch: () => set({ pendingLexiconSearch: null }),
+      openNoteInBiblePanel: (noteId) => set({ pendingRightPanelNoteId: noteId }),
+      filterBiblePanelByVerse: (verseRef) => set({ pendingRightPanelVerseFilter: verseRef }),
+      openCrossRefsInBiblePanel: (verseRef) => set({ pendingRightPanelCrossRefVerse: verseRef }),
+      clearRightPanelNote: () => set({ pendingRightPanelNoteId: null }),
+      clearRightPanelVerseFilter: () => set({ pendingRightPanelVerseFilter: null }),
+      clearRightPanelCrossRef: () => set({ pendingRightPanelCrossRefVerse: null }),
+      bumpHighlightToken: () => set((s) => ({ highlightChangeToken: s.highlightChangeToken + 1 })),
+      openSearchTab: (query) => {
+        get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
+        if (get().tabs['search'].length === 0) get().createTab('search')
+        const fresh = get()
+        set({ pendingSearchQuery: query, activeSpace: 'search', activeTabId: { ...fresh.activeTabId, search: fresh.tabs['search'][0]?.id ?? null } })
+      },
+      clearSearchQuery: () => set({ pendingSearchQuery: null }),
+
+      openYouTubeVideo: (videoId, startTime = 0, fromNote) => {
+        get().addHistoryEntry({ type: 'youtube', title: videoId ?? 'YouTube', videoId: videoId ?? undefined })
+        const state = get()
+        if (state.tabs['youtube'].length === 0) get().createTab('youtube')
+        const fresh = get()
+        set({
+          pendingYouTubeVideo: { videoId, startTime },
+          activeSpace: 'youtube',
+          activeTabId: { ...fresh.activeTabId, youtube: fresh.tabs['youtube'][0]?.id ?? null },
+          youtubeNoteBack: fromNote ?? null,
+        })
+      },
+      clearPendingYouTubeVideo: () => set({ pendingYouTubeVideo: null }),
+      setAutoPiP: (v) => set({ autoPiP: v }),
+      setYoutubeIsPlaying: (v) => set({ youtubeIsPlaying: v }),
+      setYoutubeNoteBack: (note) => set({ youtubeNoteBack: note }),
+      setLexiconNoteBack: (note) => set({ lexiconNoteBack: note }),
+      openMarkdownReference: () => set({ markdownReferenceOpen: true }),
+      closeMarkdownReference: () => set({ markdownReferenceOpen: false }),
+
+      openScriptureSearchTab: (query?: string) => {
+        if (query) get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
+        const state = get()
+        const SEARCH_TAB_ID = 'scripture-search-dedicated'
+        const existing = state.tabs['scripture'].find((t) => t.id === SEARCH_TAB_ID)
+        if (existing) {
+          // Focus + optionally update the search query
+          const newTabState: TabState = query !== undefined
+            ? { ...(existing.state as BibleTabState), scriptureSearchQuery: query } as BibleTabState
+            : existing.state
+          const updatedTabs = state.tabs['scripture'].map((t) =>
+            t.id === SEARCH_TAB_ID ? { ...t, state: newTabState } : t
+          )
+          set({
+            tabs: { ...state.tabs, scripture: updatedTabs },
+            activeTabId: { ...state.activeTabId, scripture: SEARCH_TAB_ID },
+            activeSpace: 'scripture',
+            tabMRUList: updateMRU(state.tabMRUList, 'scripture', SEARCH_TAB_ID),
+          })
+        } else {
+          const tab: Tab = {
+            id: SEARCH_TAB_ID,
+            spaceId: 'scripture',
+            type: 'bible',
+            title: 'Search',
+            state: {
+              bookId: 'GEN',
+              chapter: 1,
+              translation: state.defaultBibleTranslation.toUpperCase(),
+              showStrongs: false,
+              scrollPosition: 0,
+              searchMode: true,
+              scriptureSearchQuery: query ?? '',
+            },
+          }
+          set({
+            tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
+            activeTabId: { ...state.activeTabId, scripture: SEARCH_TAB_ID },
+            activeSpace: 'scripture',
+            tabMRUList: updateMRU(state.tabMRUList, 'scripture', SEARCH_TAB_ID),
+          })
+        }
+      },
+
+      setNoteVerseRefsEnabled: (v) => set({ noteVerseRefsEnabled: v }),
+      setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
+
+      setWordReplacerEnabled: (v) => set({ wordReplacerEnabled: v }),
+      setWordReplacerRules: (rules) => set({ wordReplacerRules: rules }),
+      toggleWordReplacerRule: (id) => set((s) => ({
+        wordReplacerRules: s.wordReplacerRules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r),
+      })),
+
+      setTheme: (theme) => set({ theme }),
+      setBibleFontSize: (size) => set({ bibleFontSize: size }),
+      setBibleLineHeight: (h) => set({ bibleLineHeight: h }),
+      setDefaultBibleTranslation: (id) => set({ defaultBibleTranslation: id }),
+      defaultScriptureLayout: 'standard' as import('@/types').ScriptureLayout,
+      setDefaultScriptureLayout: (layout) => set({ defaultScriptureLayout: layout }),
+      noteTransformLayout: 'right' as 'right' | 'bottom' | 'left',
+      setNoteTransformLayout: (layout) => set({ noteTransformLayout: layout }),
+      crossRefSource: 'tske' as 'tske' | 'classic' | 'notes',
+      setCrossRefSource: (s) => set({ crossRefSource: s }),
+      sidebarNewTabIconOnly: false,
+      setSidebarNewTabIconOnly: (v) => set({ sidebarNewTabIconOnly: v }),
     }),
     {
       name: 'berean-app-state',
+      version: 8,
       storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        if (!state?.tabs) return
+
+        // Merge any new default word replacer rules (by ID) that are missing from persisted state
+        if (Array.isArray(state.wordReplacerRules)) {
+          const existingIds = new Set(state.wordReplacerRules.map((r: WordReplacerRule) => r.id))
+          const missing = DEFAULT_WORD_REPLACER_RULES.filter(r => !existingIds.has(r.id))
+          if (missing.length > 0) {
+            // Prepend compound/multi-word rules, append single-word rules
+            const multiWord = missing.filter(r => r.queries.some(q => q.includes(' ')))
+            const singleWord = missing.filter(r => !r.queries.some(q => q.includes(' ')))
+            state.wordReplacerRules = [...multiWord, ...state.wordReplacerRules, ...singleWord]
+          }
+        }
+
+        const spaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+        for (const spaceId of spaces) {
+          if (Array.isArray(state.tabs[spaceId])) {
+            state.tabs[spaceId] = state.tabs[spaceId].filter((t) => t != null && typeof t === 'object')
+          }
+        }
+        // Rebuild MRU list from all persisted tabs so Ctrl+Tab shows all open tabs
+        // on first load. Active tab per space goes first, then others in sidebar order.
+        const mru: Array<{ spaceId: SpaceId; tabId: string }> = []
+        const seen = new Set<string>()
+        for (const spaceId of spaces) {
+          const spaceTabs = state.tabs[spaceId] ?? []
+          const activeId = state.activeTabId?.[spaceId]
+          // Push active tab for this space first
+          if (activeId && spaceTabs.find((t) => t.id === activeId)) {
+            const key = `${spaceId}:${activeId}`
+            if (!seen.has(key)) { mru.push({ spaceId, tabId: activeId }); seen.add(key) }
+          }
+          // Then remaining tabs in order
+          for (const tab of spaceTabs) {
+            const key = `${spaceId}:${tab.id}`
+            if (!seen.has(key)) { mru.push({ spaceId, tabId: tab.id }); seen.add(key) }
+          }
+        }
+        state.tabMRUList = mru
+      },
       partialize: (state) => ({
         activeSpace: state.activeSpace,
         tabs: state.tabs,
         activeTabId: state.activeTabId,
         panelLayout: state.panelLayout,
         sidebarCollapsed: state.sidebarCollapsed,
-        theme: state.theme
+        theme: state.theme,
+        bibleFontSize: state.bibleFontSize,
+        bibleLineHeight: state.bibleLineHeight,
+        defaultBibleTranslation: state.defaultBibleTranslation,
+        autoPiP: state.autoPiP,
+        wordReplacerEnabled: state.wordReplacerEnabled,
+        wordReplacerRules: state.wordReplacerRules,
+        noteVerseRefsEnabled: state.noteVerseRefsEnabled,
+        noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
+        themePreset: state.themePreset,
+        scriptureFontFamily: state.scriptureFontFamily,
+        notesFontFamily: state.notesFontFamily,
+        uiFontFamily: state.uiFontFamily,
+        autoCloseTabsAfter: state.autoCloseTabsAfter,
+        defaultScriptureLayout: state.defaultScriptureLayout,
+        noteTransformLayout: state.noteTransformLayout,
+        sessions: state.sessions,
+        currentSessionId: state.currentSessionId,
+        sessionTabFilters: state.sessionTabFilters,
+        sessionDisplayOrders: state.sessionDisplayOrders,
+        tasksVisible: state.tasksVisible,
+        tasksMinimized: state.tasksMinimized,
+        completedTaskIds: state.completedTaskIds,
+        completedStepIds: state.completedStepIds,
+        // NOTE: history is persisted to SQLite (history table), not localStorage.
+        // It is loaded on mount in App.tsx via window.history.getAll().
       })
     }
   )

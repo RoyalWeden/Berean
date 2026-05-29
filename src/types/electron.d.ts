@@ -1,8 +1,8 @@
 import type { Book, Verse, Note, LexiconEntry, SearchResult } from './index'
 
 interface BibleAPI {
-  queryChapter: (bookId: string, chapter: number) => Promise<Verse[]>
-  queryVerse: (bookId: string, chapter: number, verse: number) => Promise<Verse | null>
+  queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
+  queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<Verse | null>
   searchText: (query: string, textId?: string) => Promise<SearchResult[]>
   getBooks: (textId?: string) => Promise<Book[]>
 }
@@ -11,14 +11,31 @@ interface NotesAPI {
   createNote: (data: Partial<Note>) => Promise<{ success: boolean; note?: Note; error?: string }>
   updateNote: (id: string, data: Partial<Note>) => Promise<{ success: boolean; error?: string }>
   deleteNote: (id: string) => Promise<{ success: boolean; error?: string }>
+  deleteAllNotes: () => Promise<{ success: boolean }>
+  deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>
   getNotes: (limit?: number, offset?: number) => Promise<Note[]>
   getVerseNotes: (verseRef: string) => Promise<Note[]>
   getNote: (id: string) => Promise<Note | null>
+  getChapterNotes: (bookId: string, chapter: number) => Promise<Note[]>
+  getChapterCounts: (bookId: string, chapter: number) => Promise<Record<number, number>>
+  searchNotes: (query: string, limit?: number) => Promise<Note[]>
+}
+
+type HighlightColor = 'yellow' | 'red' | 'green' | 'blue' | 'purple'
+  | 'orange' | 'pink' | 'teal' | 'cyan' | 'indigo'
+  | 'lime' | 'amber' | 'rose' | 'violet' | 'sky'
+
+interface HighlightsAPI {
+  getChapter: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, Array<{ id: string; color: HighlightColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>
+  toggle: (params: { bookId: string; chapter: number; verseNum: number; color: HighlightColor; textId?: string; startWord?: number; endWord?: number; startChar?: number; endChar?: number }) => Promise<{ removed?: boolean; updated?: boolean; created?: boolean; id: string; color?: HighlightColor }>
+  remove: (bookId: string, chapter: number, verseNum: number, textId?: string) => Promise<{ success: boolean }>
 }
 
 interface LexiconAPI {
   getEntry: (strongsNum: string) => Promise<LexiconEntry | null>
-  getOccurrences: (strongsNum: string) => Promise<{ book_id: string; chapter: number; verse_num: number }[]>
+  getOccurrences: (strongsNum: string) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; matchWordIndices: number[] }[]>
+  getRelated: (strongsNum: string) => Promise<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>
+  search: (query: string, lang: 'H' | 'G' | 'all') => Promise<LexiconEntry[]>
 }
 
 interface SettingsAPI {
@@ -27,20 +44,253 @@ interface SettingsAPI {
   getAll: () => Promise<Record<string, unknown>>
 }
 
+interface YouTubeVideoEntry {
+  videoId: string
+  title: string
+  published: string
+  channelName: string
+  channelHandle: string
+  thumbnailUrl: string
+  type: 'video' | 'short' | 'live'
+  isLiveNow: boolean
+  durationSeconds: number
+  isStarred: boolean
+  description: string
+}
+
+interface YouTubeWatchHistoryEntry {
+  videoId: string
+  positionSeconds: number
+  lastWatched: string
+  title: string
+  channelName: string
+  thumbnailUrl: string
+}
+
+interface YouTubeSyncProgress {
+  done: number
+  total: number
+  phase: string
+}
+
+interface YouTubeAPI {
+  loadAll: () => Promise<YouTubeVideoEntry[]>
+  refresh: () => Promise<{ added: number; liveUpdated: number }>
+  fullSync: () => Promise<{ added?: number; error?: string }>
+  clearAll: () => Promise<{ success: boolean }>
+  onProgress?: (cb: (p: YouTubeSyncProgress) => void) => void
+  toggleStar: (videoId: string) => Promise<{ isStarred: boolean }>
+  savePosition: (videoId: string, seconds: number, meta: { title: string; channelName: string; thumbnailUrl: string }) => Promise<void>
+  getPosition: (videoId: string) => Promise<number>
+  getWatchHistory: () => Promise<YouTubeWatchHistoryEntry[]>
+  removeFromHistory: (videoId: string) => Promise<void>
+  clearWatchHistory: () => Promise<void>
+  fetchDescription: (videoId: string) => Promise<string>
+}
+
 interface VaultAPI {
   syncNote: (noteId: string) => Promise<{ success: boolean; reason?: string }>
   readVaultNote: (title: string) => Promise<string | null>
   watchVault: () => Promise<{ success: boolean; reason?: string }>
+  reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; reason?: string }>
   onVaultChange: (callback: (event: unknown) => void) => void
+}
+
+interface AppHistoryAPI {
+  add: (entry: import('./index').HistoryEntry) => Promise<{ success: boolean }>
+  getAll: () => Promise<import('./index').HistoryEntry[]>
+  delete: (id: string) => Promise<{ success: boolean }>
+  clear: () => Promise<{ success: boolean }>
+}
+
+export interface SavedWorkspace {
+  id: string
+  name: string
+  created_at: number
+}
+
+interface WorkspacesAPI {
+  list: () => Promise<SavedWorkspace[]>
+  save: (name: string, layoutJson: string, stateJson: string) => Promise<SavedWorkspace>
+  load: (id: string) => Promise<(SavedWorkspace & { layout_json: string; state_json: string | null }) | null>
+  delete: (id: string) => Promise<{ success: boolean }>
+  rename: (id: string, name: string) => Promise<{ success: boolean }>
+}
+
+export type UpdateStatusType = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'error' | 'mas'
+
+export interface UpdateStatus {
+  status: UpdateStatusType
+  version?: string
+  percent?: number
+  message?: string
+}
+
+interface AppAPI {
+  onCloseTab: (cb: () => void) => void
+  onOpenSettings: (cb: () => void) => void
+  onMenuAction: (cb: (action: string, payload?: unknown) => void) => void
+  openFolderDialog: () => Promise<string | null>
+  openExternal: (url: string) => Promise<void>
+  isDev?: () => Promise<boolean>
+  youTubeSignOut?: () => Promise<{ success: boolean }>
+  newWindow: () => Promise<void>
+  openFloatingTab: (type: string, state: unknown) => Promise<void>
+  broadcastTabState: (payload: unknown) => void
+  onTabStateUpdate: (cb: (payload: unknown) => void) => void
+  returnFloatTab: (payload: { type: string; state: Record<string, unknown> }) => void
+  // Auto-updater (GitHub Releases — disabled for MAS builds)
+  getVersion: () => Promise<string>
+  isMasBuild: () => Promise<boolean>
+  checkForUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  installUpdate: () => void
+  onUpdateStatus: (cb: (status: UpdateStatus) => void) => void
+}
+
+interface CrossRefEntry {
+  bookId: string
+  chapter: number
+  verse: number
+  endVerse: number | null
+  votes: number
+  text: string
+}
+
+interface CrossRefsResult {
+  refs: CrossRefEntry[]
+  loading: boolean
+  error: boolean
+}
+
+export interface TSKeRef {
+  bookId: string
+  chapter: number
+  verse: number
+  endVerse: number | null
+  text: string
+  context: string | null
+}
+
+export interface TSKeGroup {
+  heading: string | null
+  isReciprocal: boolean
+  refs: TSKeRef[]
+}
+
+interface TSKeResult {
+  groups: TSKeGroup[]
+  loading: boolean
+  error: boolean
+}
+
+export interface ChapterCrossRefEntry {
+  verseNum: number
+  refs: CrossRefEntry[]
+}
+
+export interface ChapterTSKeEntry {
+  verseNum: number
+  groups: TSKeGroup[]
+}
+
+interface CrossRefsAPI {
+  getForVerse: (bookId: string, chapter: number, verse: number) => Promise<CrossRefsResult>
+  getTSKeForVerse: (bookId: string, chapter: number, verse: number) => Promise<TSKeResult>
+  getForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterCrossRefEntry[]; error: boolean }>
+  getTSKeForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterTSKeEntry[]; error: boolean }>
+  status: () => Promise<{ hasData: boolean; loading: boolean; error: boolean }>
+}
+
+export type ESwordPhase = 'idle' | 'reading' | 'review' | 'saving' | 'done' | 'error'
+
+export interface ESwordReviewNote {
+  id: string
+  type: 'verse' | 'topic' | 'daily'
+  title: string
+  passage?: string
+  body: string
+  createdAt: number
+  status: 'new' | 'updated' | 'duplicate'
+  existingId?: string
+}
+
+export interface ESwordProgress {
+  phase: ESwordPhase
+  done: number
+  total: number
+  message: string
+  reviewNotes?: ESwordReviewNote[]
+}
+
+interface ESwordImportAPI {
+  detectFolder: () => Promise<string | null>
+  start: (opts: { folder: string; study: boolean; topics: boolean; journal: boolean }) => Promise<{ success: boolean; error?: string }>
+  importSelected: (notes: ESwordReviewNote[]) => Promise<{ success: boolean; imported?: number; updated?: number; error?: string }>
+  cancel: () => Promise<void>
+  onProgress: (cb: (p: ESwordProgress) => void) => void
+}
+
+export type BgImportPhase = 'login' | 'fetching' | 'review' | 'saving' | 'done' | 'error'
+
+export interface BgImportReviewNote {
+  id: string
+  passage: string
+  body: string
+  color: string
+  createdAt: number
+  updatedAt: number
+  status: 'new' | 'updated' | 'duplicate'
+  existingId?: string
+}
+
+export interface BgImportProgress {
+  phase: BgImportPhase
+  done: number
+  total: number
+  message: string
+  reviewNotes?: BgImportReviewNote[]
+}
+
+interface BgImportAPI {
+  start: (credentials: { username: string; password: string }) => Promise<{ success: boolean; error?: string }>
+  importSelected: (notes: BgImportReviewNote[]) => Promise<{ success: boolean; imported?: number; updated?: number; error?: string }>
+  cancel: () => Promise<void>
+  clearSession: () => Promise<{ success: boolean }>
+  debugOpen: () => Promise<{ success: boolean }>
+  onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
 declare global {
   interface Window {
     bible: BibleAPI
     notes: NotesAPI
+    highlights: HighlightsAPI
     lexicon: LexiconAPI
     settings: SettingsAPI
     vault: VaultAPI
+    youtube: YouTubeAPI
+    crossrefs: CrossRefsAPI
+    app: AppAPI
+    bgImport: BgImportAPI
+    eSwordImport: ESwordImportAPI
+    appHistory: AppHistoryAPI
+    workspaces: WorkspacesAPI
+  }
+
+  // Electron <webview> tag
+  namespace JSX {
+    interface IntrinsicElements {
+      webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        src?: string
+        partition?: string
+        allowpopups?: boolean | string
+        nodeintegration?: boolean | string
+        webpreferences?: string
+        style?: React.CSSProperties
+        ref?: React.Ref<HTMLElement>
+      }
+    }
   }
 }
 

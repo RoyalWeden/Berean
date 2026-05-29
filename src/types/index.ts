@@ -1,24 +1,70 @@
 export type SpaceId = 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'search'
 
+export type ScriptureLayout =
+  | 'standard'         // Scripture left | Panel right (tabs)
+  | 'panel-bottom'     // Scripture top (full) | Panel bottom (full)
+  | 'notes-bottom'     // Scripture top | Notes-only bottom
+  | 'lexicon-crossref' // 2×2: Scripture/Notes left | Lexicon/CrossRefs right
+  | 'reading'          // Full-width scripture, no panel
+  | 'panel-left'       // Panel left | Scripture right
+  | 'notes-wide'       // Scripture slim (40%) | Wide panel (60%)
+  | 'scripture-wide'   // Wide scripture (65%) | Slim panel (35%)
+  | 'compare-notes'    // Compare view top | Notes panel bottom
+  | 'study-grid'       // Scripture left | Lexicon above / CrossRefs below (right column)
+  | 'scripture-focus'  // Centered max-width scripture, no panel
+  | 'notes-right'      // Scripture | Notes-only panel right (no tab strip)
+  | 'notes-top'        // Notes above | Scripture below
+  | 'triple-col'       // Notes | Scripture | Lexicon — three equal columns
+  | 'commentary'       // Wide notes left | Scripture right — 50/50 with no tab strip on notes
+  | 'split-bottom'     // Scripture top | Notes left + Lexicon right in bottom row
+
 export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search'
 
 export interface BibleTabState {
   bookId: string
   chapter: number
+  endChapter?: number
   verse?: number
+  targetVerse?: number
+  endVerse?: number
   translation: string
   showStrongs: boolean
   scrollPosition: number
+  compareMode?: boolean
+  hiddenAnnotations?: string[]
+  rightPanelOpen?: boolean
+  rightPanelWidth?: number
+  bottomPanelHeight?: number
+  rightPanelTab?: 'notes' | 'lexicon' | 'crossrefs'
+  rightPanelNoteId?: string | null
+  rightPanelLexiconEntry?: string | null
+  rightPanelVerseFilter?: string | null
+  noteBack?: { noteId: string; title: string } | null
+  scriptureBack?: { bookId: string; chapter: number; verse?: number; label: string } | null
+  searchBack?: { query: string } | null
+  searchMode?: boolean
+  scriptureSearchQuery?: string
+  scriptureLayout?: ScriptureLayout
+  // Scripture search view persisted state
+  searchTextId?: string
+  searchWordMode?: 'all' | 'any' | 'phrase'
+  searchTestamentFilter?: string
+  searchBookFilter?: string
+  searchSortMode?: 'relevance' | 'bookOrder'
+  searchScrollTop?: number
 }
 
 export interface NoteTabState {
   noteId: string | null
   isNew: boolean
   verseRef?: string
+  scrollTop?: number
+  cursorPos?: number
 }
 
 export interface LexiconTabState {
   strongsNum: string | null
+  scrollTop?: number
 }
 
 export interface YouTubeTabState {
@@ -30,6 +76,7 @@ export interface YouTubeTabState {
 export interface SearchTabState {
   query: string
   results: SearchResult[]
+  scrollTop?: number
 }
 
 export type TabState =
@@ -53,6 +100,7 @@ export interface Verse {
   text: string
   book_id: string
   chapter: number
+  text_tagged?: string   // space-separated tokens: "word{H7225}" or "*word{}" (italic) or "word{}" (no strongs)
   hasNote?: boolean
   hasHighlight?: boolean
 }
@@ -66,11 +114,13 @@ export interface StrongsWord {
 
 export interface Note {
   id: string
+  type?: string
   title: string
   content: string
   verseRef?: string | null
   createdAt: number
   updatedAt: number
+  importedAt?: number
   tags: string[]
   color?: string
 }
@@ -87,8 +137,11 @@ export interface LexiconEntry {
   strongsNum: string
   lemma: string
   transliteration: string
+  pronunciation: string
   gloss: string
   definition: string
+  derivation: string
+  extendedDef: string
   occurrences: number
 }
 
@@ -102,18 +155,48 @@ export interface SearchResult {
   matchEnd: number
 }
 
+export type HighlightColor =
+  | 'yellow' | 'red' | 'green' | 'blue' | 'purple'
+  | 'orange' | 'pink' | 'teal' | 'cyan' | 'indigo'
+  | 'lime' | 'amber' | 'rose' | 'violet' | 'sky'
+
 export interface Highlight {
   id: string
   bookId: string
   chapter: number
   verseNum: number
-  color: 'yellow' | 'red' | 'green' | 'blue' | 'purple'
+  color: HighlightColor
   startWord?: number
   endWord?: number
   createdAt: number
 }
 
 export type MosaicKey = 'bible-panel' | 'notes-panel' | 'lexicon-panel' | 'youtube-panel' | 'search-panel'
+
+export interface HistoryEntry {
+  id: string
+  timestamp: number
+  type: 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'strongs-click' | 'compare' | 'import'
+  title: string
+  // Session context
+  sessionId?: string
+  sessionName?: string
+  // Chain tracking: ID of the parent history entry that led to this one
+  parentId?: string
+  // Type-specific navigation payload
+  bookId?: string       // bible
+  chapter?: number      // bible
+  translation?: string  // bible
+  noteId?: string       // note
+  strongsNum?: string   // lexicon / strongs-click
+  videoId?: string      // youtube
+  query?: string        // search
+  // compare: what was open in each column
+  compareColumns?: Array<{ textId: string; bookId: string; chapter: number; title: string }>
+  // import: summary
+  importSource?: string   // 'biblegateway' | 'esword'
+  importCount?: number
+}
 
 export interface AppSettings {
   theme: 'dark' | 'light'

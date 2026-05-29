@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac App Store entitlements — MAIN PROCESS (Berean.app)
+  The MAS sandbox is strict. Every capability must be declared here.
+-->
+<plist version="1.0">
+<dict>
+  <!-- Sandbox — required for MAS -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <!-- JIT / memory — required by Electron's V8 engine -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- Network: outbound for YouTube loading, cross-reference fetch, update checks -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- File access: user-selected vault folder (chokidar watcher + read/write) -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <!-- File access: read-only downloads folder (e-Sword import file picker) -->
+  <key>com.apple.security.files.downloads.read-only</key>
+  <true/>
+
+</dict>
+</plist>
