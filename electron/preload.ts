@@ -200,6 +200,18 @@ contextBridge.exposeInMainWorld('eSwordImport', {
 // Expose platform so renderer can adapt window chrome without Node access
 contextBridge.exposeInMainWorld('__berean_platform', process.platform)
 
+// Window controls for the custom frameless title bar (Windows only)
+contextBridge.exposeInMainWorld('windowControls', {
+  minimize:  () => ipcRenderer.send('window:minimize'),
+  maximize:  () => ipcRenderer.send('window:maximize'),
+  close:     () => ipcRenderer.send('window:close'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onMaximizeChange: (cb: (v: boolean) => void) => {
+    ipcRenderer.removeAllListeners('window:maximizeChanged')
+    ipcRenderer.on('window:maximizeChanged', (_, v) => cb(v as boolean))
+  },
+})
+
 contextBridge.exposeInMainWorld('bgImport', {
   start: (credentials: { username: string; password: string }) =>
     ipcRenderer.invoke('bgImport:start', credentials),

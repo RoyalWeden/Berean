@@ -202,14 +202,15 @@ export default function FloatingShell() {
     // hiddenInset mode: traffic lights sit at (12,14). The BiblePanel's own toolbar
     // already handles content, but we overlay a drag region for window movement.
     <div className="relative flex flex-col h-screen bg-[rgb(var(--color-surface-1))] overflow-hidden">
-      {/* Drag handle — covers only the 76px left strip (traffic-light safe zone).
-          BiblePanel/NotesPanel toolbars use pl-[76px] so this area is always empty.
-          Limiting to 76px prevents the native drag region from blocking toolbar buttons,
-          which sit to the right of that margin. */}
-      <div
-        className="absolute top-0 left-0 z-50 pointer-events-none"
-        style={{ height: 40, width: 76, WebkitAppRegion: 'drag' } as React.CSSProperties}
-      />
+      {/* Drag handle — Mac only. On Windows the OS title bar owns the top area;
+          the hiddenInset traffic-light zone does not exist so the overlay would
+          create a dead zone. The app's own toolbar handles dragging on Mac. */}
+      {window.__berean_platform !== 'win32' && (
+        <div
+          className="absolute top-0 left-0 z-50 pointer-events-none"
+          style={{ height: 40, width: 76, WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+      )}
 
       {/* Panel fills the window — its own toolbar is the only chrome visible */}
       <div className="flex-1 overflow-hidden" data-float="true">

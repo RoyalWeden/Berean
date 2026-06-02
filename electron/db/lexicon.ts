@@ -15,7 +15,10 @@ function dataPath(filename: string): string {
 export function getHebrewDb(): Database.Database {
   if (!hebrewDb) {
     hebrewDb = new Database(dataPath('strongs_hebrew.db'), { readonly: true })
-    hebrewDb.pragma('journal_mode = WAL')
+    // WAL mode needs write access to the DB directory for .db-shm files.
+    // The packaged app's Resources/data/ is read-only on Windows and in the
+    // Mac App Store sandbox, so only enable WAL in dev.
+    if (!app.isPackaged) hebrewDb.pragma('journal_mode = WAL')
   }
   return hebrewDb
 }
@@ -23,7 +26,7 @@ export function getHebrewDb(): Database.Database {
 export function getGreekDb(): Database.Database {
   if (!greekDb) {
     greekDb = new Database(dataPath('strongs_greek.db'), { readonly: true })
-    greekDb.pragma('journal_mode = WAL')
+    if (!app.isPackaged) greekDb.pragma('journal_mode = WAL')
   }
   return greekDb
 }

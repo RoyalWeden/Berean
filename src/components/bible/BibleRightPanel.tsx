@@ -949,7 +949,7 @@ function UserNotesChapterView({
             onClick={() => setIndirectSectionOpen(v => !v)}
             className="w-full flex items-center gap-2 px-3 py-1.5 bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))/60] transition-colors cursor-pointer text-left"
           >
-            <span className="text-[9px] select-none">{indirectSectionOpen ? '▾' : '▸'}</span>
+            <span className="text-sm flex-shrink-0 select-none text-[rgb(var(--color-text-muted))]">{indirectSectionOpen ? '▾' : '▸'}</span>
             <span className="flex-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
               General mentions ({indirectNotes.length})
             </span>
@@ -970,7 +970,7 @@ function UserNotesChapterView({
                           n.has(note.id) ? n.delete(note.id) : n.add(note.id)
                           return n
                         })}
-                        className="text-[9px] text-[rgb(var(--color-text-muted))] select-none cursor-pointer w-3 flex-shrink-0"
+                        className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer w-4 flex-shrink-0 leading-none"
                       >
                         {isExpanded ? '▾' : '▸'}
                       </button>

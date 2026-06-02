@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import Sidebar from '@/components/shell/Sidebar'
 import ActivePanel from '@/components/shell/ActivePanel'
+import WindowControls from '@/components/shell/WindowControls'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import SettingsModal from '@/components/settings/SettingsModal'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
@@ -675,12 +676,25 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   })
 
+  const isWin = window.__berean_platform === 'win32'
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
-      <Sidebar />
-      <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
-        <ActivePanel />
-      </main>
+    <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
+      {/* Windows custom title bar — drag region + native-style min/max/close */}
+      {isWin && (
+        <div
+          className="flex-shrink-0 flex items-center justify-end h-8 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] z-[200]"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <WindowControls />
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
+          <ActivePanel />
+        </main>
+      </div>
       <FloatingSearch />
       <SettingsModal />
       <MarkdownReferenceModal />

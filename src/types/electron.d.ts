@@ -310,6 +310,15 @@ declare global {
     workspaces: WorkspacesAPI
     // Platform string injected by preload for renderer-side platform detection
     __berean_platform: NodeJS.Platform
+
+    // Custom frameless window controls (Windows only)
+    windowControls: {
+      minimize: () => void
+      maximize: () => void
+      close: () => void
+      isMaximized: () => Promise<boolean>
+      onMaximizeChange: (cb: (isMax: boolean) => void) => void
+    }
   }
 
   // Electron <webview> tag

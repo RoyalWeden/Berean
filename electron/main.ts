@@ -194,7 +194,7 @@ function buildAppMenu(): Electron.Menu {
       ],
     }] : []),
 
-    // ── Edit ──────────────────────────────────────────────────────────────────
+    // ── Edit — keep standard roles for system clipboard + CodeMirror undo/redo ─
     {
       label: 'Edit',
       submenu: [
@@ -205,195 +205,25 @@ function buildAppMenu(): Electron.Menu {
         { role: 'copy' as const },
         { role: 'paste' as const },
         { role: 'selectAll' as const },
-        { type: 'separator' as const },
-        {
-          label: 'Find…',
-          accelerator: 'CmdOrCtrl+F',
-          click: () => menuSend('berean:menuAction', 'find'),
-        },
       ],
     },
 
-    // ── Bible ─────────────────────────────────────────────────────────────────
-    {
-      label: 'Bible',
-      submenu: [
-        {
-          label: 'Open Reference…',
-          accelerator: 'CmdOrCtrl+T',
-          click: () => menuSend('berean:menuAction', 'openRef'),
-        },
-        {
-          label: 'Command Bar…',
-          accelerator: 'CmdOrCtrl+K',
-          click: () => menuSend('berean:menuAction', 'openSearchInPanel'),
-        },
-        {
-          label: 'Search All Texts…',
-          accelerator: 'CmdOrCtrl+Shift+F',
-          click: () => menuSend('berean:menuAction', 'searchTexts'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Previous Chapter',
-          click: () => menuSend('berean:menuAction', 'prevChapter'),
-        },
-        {
-          label: 'Next Chapter',
-          click: () => menuSend('berean:menuAction', 'nextChapter'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Navigate Back',
-          accelerator: 'CmdOrCtrl+[',
-          click: () => menuSend('berean:menuAction', 'navBack'),
-        },
-        {
-          label: 'Navigate Forward',
-          accelerator: 'CmdOrCtrl+]',
-          click: () => menuSend('berean:menuAction', 'navForward'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Focus Reference Bar',
-          accelerator: 'CmdOrCtrl+L',
-          click: () => menuSend('berean:menuAction', 'focusRefBar'),
-        },
-        {
-          label: 'Toggle Strong\'s Numbers',
-          accelerator: 'CmdOrCtrl+G',
-          click: () => menuSend('berean:menuAction', 'toggleStrongs'),
-        },
-        {
-          label: 'Compare This Verse',
-          click: () => menuSend('berean:menuAction', 'compareVerse'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'New Verse Note',
-          accelerator: 'CmdOrCtrl+Shift+V',
-          click: () => menuSend('berean:menuAction', 'newVerseNote'),
-        },
-      ],
-    },
-
-    // ── Notes ─────────────────────────────────────────────────────────────────
-    {
-      label: 'Notes',
-      submenu: [
-        {
-          label: 'New Note',
-          accelerator: 'CmdOrCtrl+Shift+N',
-          click: () => menuSend('berean:menuAction', 'newNote'),
-        },
-        {
-          label: 'New Verse Note',
-          click: () => menuSend('berean:menuAction', 'newVerseNote'),
-        },
-        {
-          label: 'Open Today\'s Daily Note',
-          click: () => menuSend('berean:menuAction', 'openDailyNote'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Toggle Markdown Preview',
-          accelerator: 'CmdOrCtrl+Shift+M',
-          click: () => menuSend('berean:menuAction', 'toggleMarkdown'),
-        },
-        {
-          label: 'Insert Video Timestamp',
-          accelerator: 'CmdOrCtrl+Shift+L',
-          click: () => menuSend('berean:menuAction', 'insertTimestamp'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Import from BibleGateway…',
-          click: () => menuSend('berean:menuAction', 'openImportBibleGateway'),
-        },
-        {
-          label: 'Import from e-Sword…',
-          click: () => menuSend('berean:menuAction', 'openImportESword'),
-        },
-      ],
-    },
-
-    // ── View ──────────────────────────────────────────────────────────────────
-    {
+    // ── View — dev tools only (all navigation handled by React shortcut layer) ─
+    ...(is.dev ? [{
       label: 'View',
       submenu: [
-        {
-          label: 'Toggle Sidebar',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => menuSend('berean:menuAction', 'toggleSidebar'),
-        },
-        {
-          label: 'History',
-          accelerator: 'CmdOrCtrl+H',
-          click: () => menuSend('berean:menuAction', 'openHistory'),
-        },
-        { type: 'separator' as const },
-        ...(is.dev ? [
-          { role: 'reload' as const },
-          { role: 'forceReload' as const },
-          { role: 'toggleDevTools' as const },
-          { type: 'separator' as const },
-        ] : []),
-        { role: 'resetZoom' as const },
-        { role: 'zoomIn' as const },
-        { role: 'zoomOut' as const },
+        { role: 'reload' as const },
+        { role: 'forceReload' as const },
+        { role: 'toggleDevTools' as const },
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const },
       ],
-    },
+    }] : []),
 
-    // ── Window ────────────────────────────────────────────────────────────────
+    // ── Window — OS-level actions; app navigation lives in the React layer ────
     {
       label: 'Window',
       submenu: [
-        {
-          label: 'New Window',
-          accelerator: 'CmdOrCtrl+N',
-          click: () => createWindow(),
-        },
-        {
-          label: 'Pop Out Current Tab',
-          accelerator: 'CmdOrCtrl+Shift+O',
-          click: () => menuSend('berean:menuAction', 'popOutTab'),
-        },
-        { type: 'separator' as const },
-        // Close Tab intercepts Cmd+W before macOS closes the window
-        {
-          label: 'Close Tab',
-          accelerator: 'CmdOrCtrl+W',
-          click: () => menuSend('app:closeTab'),
-        },
-        { type: 'separator' as const },
-        {
-          label: 'Scripture',
-          accelerator: 'CmdOrCtrl+1',
-          click: () => menuSend('berean:menuAction', 'switchSpace', 'scripture'),
-        },
-        {
-          label: 'Notes',
-          accelerator: 'CmdOrCtrl+2',
-          click: () => menuSend('berean:menuAction', 'switchSpace', 'notes'),
-        },
-        {
-          label: 'Lexicon',
-          accelerator: 'CmdOrCtrl+3',
-          click: () => menuSend('berean:menuAction', 'switchSpace', 'lexicon'),
-        },
-        {
-          label: 'YouTube',
-          accelerator: 'CmdOrCtrl+4',
-          click: () => menuSend('berean:menuAction', 'switchSpace', 'youtube'),
-        },
-        {
-          label: 'Search',
-          accelerator: 'CmdOrCtrl+5',
-          click: () => menuSend('berean:menuAction', 'switchSpace', 'search'),
-        },
-        { type: 'separator' as const },
         { role: 'minimize' as const },
         { role: 'zoom' as const },
         ...(isMac ? [
@@ -468,14 +298,17 @@ function createWindow(): void {
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
 
-  const isMainWin = process.platform !== 'win32'
+  const isMacWin = process.platform === 'darwin'
+  const isWinWin = process.platform === 'win32'
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: isMainWin ? 'hiddenInset' : 'default',
-    ...(isMainWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
+    // On Windows: frameless so we draw our own title bar in React
+    frame: !isWinWin,
+    titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
+    ...(isMacWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
     backgroundColor: '#111114',
     icon: appIcon,
     // Show [Dev] in the window title (visible in macOS app switcher / dock tooltip)
@@ -500,6 +333,10 @@ function createWindow(): void {
   if (is.dev) {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
+
+  // Notify renderer when window is maximized/unmaximized (for Windows title bar button state)
+  mainWindow.on('maximize',   () => mainWindow?.webContents.send('window:maximizeChanged', true))
+  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximizeChanged', false))
 
   // Intercept Cmd+W so the renderer can close a tab instead of quitting.
   // IMPORTANT: capture the window reference now — do NOT use `mainWindow` inside the
@@ -731,6 +568,15 @@ app.whenReady().then(async () => {
   })
 
   // Update IPC
+  // ── Window controls (frameless Windows title bar) ────────────────────────
+  ipcMain.on('window:minimize', () => mainWindow?.minimize())
+  ipcMain.on('window:maximize', () => {
+    if (!mainWindow) return
+    mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize()
+  })
+  ipcMain.on('window:close', () => mainWindow?.close())
+  ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
+
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:isMasBuild', () => isMasBuild)
   ipcMain.handle('app:checkForUpdates', async () => {
