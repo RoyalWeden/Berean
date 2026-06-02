@@ -32,7 +32,7 @@ const GETTING_STARTED_NOTES: GettingStartedNote[] = [
     title: 'Welcome',
     content: `# Welcome to Berean
 
-Berean is a local-first desktop Bible study app for Torah-observant believers. All your Scripture, notes, lexicon, and study resources are stored on your device — no accounts, no cloud, no tracking.
+Berean is a local-first desktop Bible study app for Yehovah's servants. All your Scripture, notes, lexicon, and study resources are stored on your device — no accounts, no cloud, no tracking.
 
 This folder contains a complete guide to every feature in the app.
 
@@ -93,7 +93,7 @@ You can also use the **reference bar** at the top of any Bible panel — click i
 
 ## Navigating
 
-- **⌘[** / **⌘]** — Navigate back and forward through reading history
+- \`⌘[\` / \`⌘]\` — Navigate back and forward through reading history
 - **Previous / Next** arrows — Move one chapter at a time
 - **Book dropdown** — Click the book name to jump to any book
 - **Chapter dropdown** — Click the chapter number to jump within a book
@@ -102,16 +102,26 @@ You can also use the **reference bar** at the top of any Bible panel — click i
 
 ## Switching Translations
 
-Each Bible panel has its own translation selector. Click the translation abbreviation (e.g. **KJVA**) in the panel header to switch. Available texts include:
+Each Bible panel has its own translation selector. Click the translation abbreviation (e.g. **KJVA**) in the panel header to switch. Available texts:
 
-| Abbreviation | Text |
+| Label | Text |
 |---|---|
 | KJVA | King James Version with Apocrypha |
 | LXX | Brenton Septuagint (English) |
-| Enoch | 1 Enoch — R.H. Charles translation |
-| Jubilees | Book of Jubilees — R.H. Charles translation |
+| 1 Enoch | R.H. Charles translation |
+| Jubilees | R.H. Charles translation |
+| Apoc. Elijah | Apocalypse of Elijah |
+| Recog. Clement | Recognitions of Clement |
+| Hermas | Shepherd of Hermas |
+| Asc. Isaiah | Ascension of Isaiah — R.H. Charles |
+| Ep. Barnabas | Epistle of Barnabas — Samuel Sharpe |
+| T12 Patriarchs | Testaments of the Twelve Patriarchs — R.H. Charles |
+| Gad the Seer | Words of Gad the Seer — trans. Beir Bar-Ilan |
+| T. Job | Testament of Job — trans. M.R. James |
+| 1 Clement | First Epistle of Clement — J.B. Lightfoot |
+| Apoc. Abraham | Apocalypse of Abraham — G.H. Box |
 
-Additional texts listed in **Settings → Texts**.
+Enable or disable individual texts and reorder them in **Settings → Texts**.
 
 ---
 
@@ -518,16 +528,6 @@ The embedded player runs in a full Chromium webview — you can log in to your Y
 
 ---
 
-## Channel Allowlist
-
-To keep focused on study-related content, Berean uses an **allowlist** of YouTube channels.
-
-- Only channels on the allowlist can be opened as tabs
-- Attempting to navigate to an unlisted channel shows a prompt: **Add [Channel Name] to your allowlist?**
-- Manage the list in **Settings → YouTube → Allowed Channels**
-
----
-
 ## Picture-in-Picture (Auto PiP)
 
 When a YouTube tab is playing and you switch to a different space or tab:
@@ -702,7 +702,6 @@ Configure sync of your notes to a local Markdown folder. See [[Vault Sync]] for 
 
 ## YouTube
 
-- **Allowed channels** — add or remove channels by URL or handle
 - **Auto Picture-in-Picture** — toggle auto-PiP on tab switch
 - **Timestamp link format** — customize the inserted link format
 

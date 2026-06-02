@@ -947,3 +947,122 @@ describe('mixed blocks and inline formats render', () => {
     expect(h).toContain('<u>')
   })
 })
+
+// ── Table inline markdown (renderPreviewContent via marked GFM) ───────────────
+
+describe('table inline markdown rendering', () => {
+  function tableWith(cells: string) {
+    return `| ${cells} |\n| --- |\n| data |`
+  }
+  function bodyWith(cell: string) {
+    return `| Header |\n| --- |\n| ${cell} |`
+  }
+
+  // Bold
+  it('bold in header cell renders <strong>', () => {
+    const h = html(tableWith('**bold header**'))
+    expect(h).toMatch(/<strong>bold header<\/strong>/)
+  })
+  it('bold in body cell renders <strong>', () => {
+    const h = html(bodyWith('**bold cell**'))
+    expect(h).toMatch(/<strong>bold cell<\/strong>/)
+  })
+
+  // Italic
+  it('italic in header renders <em>', () => {
+    const h = html(tableWith('*italic header*'))
+    expect(h).toMatch(/<em>italic header<\/em>/)
+  })
+  it('italic in body renders <em>', () => {
+    const h = html(bodyWith('*italic body*'))
+    expect(h).toMatch(/<em>italic body<\/em>/)
+  })
+  it('underscore italic in body renders <em>', () => {
+    const h = html(bodyWith('_italic_'))
+    expect(h).toMatch(/<em>italic<\/em>/)
+  })
+
+  // Code
+  it('inline code in body renders <code>', () => {
+    const h = html(bodyWith('`code text`'))
+    expect(h).toMatch(/<code>code text<\/code>/)
+  })
+  it('inline code in header renders <code>', () => {
+    const h = html(tableWith('`header code`'))
+    expect(h).toMatch(/<code>header code<\/code>/)
+  })
+
+  // Strikethrough
+  it('strikethrough in body renders <del>', () => {
+    const h = html(bodyWith('~~struck~~'))
+    expect(h).toMatch(/<del>struck<\/del>/)
+  })
+
+  // Links
+  it('link in body renders <a>', () => {
+    const h = html(bodyWith('[text](https://example.com)'))
+    expect(h).toContain('<a')
+    expect(h).toContain('text')
+  })
+
+  // Combinations
+  it('bold + italic in same cell', () => {
+    const h = html(bodyWith('**bold** and *italic*'))
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+  })
+  it('code and bold in same cell', () => {
+    const h = html(bodyWith('`code` and **bold**'))
+    expect(h).toContain('<code>')
+    expect(h).toContain('<strong>')
+  })
+  it('multiple formatted cells in same row', () => {
+    const h = html('| **A** | *B* | `C` |\n| --- | --- | --- |\n| 1 | 2 | 3 |')
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+    expect(h).toContain('<code>')
+  })
+  it('formatted cells in multiple body rows', () => {
+    const h = html('| H |\n| --- |\n| **row1** |\n| *row2* |\n| `row3` |')
+    expect(h).toContain('<strong>row1</strong>')
+    expect(h).toContain('<em>row2</em>')
+    expect(h).toContain('<code>row3</code>')
+  })
+  it('bold italic combined (**_text_**)', () => {
+    const h = html(bodyWith('***bold italic***'))
+    // marked renders as <em><strong> or <strong><em> depending on version
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+  })
+  it('plain text cell unchanged', () => {
+    const h = html(bodyWith('plain text'))
+    expect(h).toContain('plain text')
+    expect(h).not.toContain('<strong>')
+  })
+  it('empty cell is valid', () => {
+    const h = html('| A | B |\n| --- | --- |\n| **bold** |  |')
+    expect(h).toContain('<strong>bold</strong>')
+  })
+  it('cell with only whitespace is valid', () => {
+    const h = html(bodyWith('   '))
+    expect(h).toBeDefined()
+  })
+  it('alignment headers do not break inline formatting', () => {
+    const h = html('| **H1** | *H2* |\n| :--- | ---: |\n| `code` | ~~del~~ |')
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+    expect(h).toContain('<code>')
+    expect(h).toContain('<del>')
+  })
+  it('table renders inside a note with other content before it', () => {
+    const h = html('Some text\n\n| **H** |\n| --- |\n| *cell* |')
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+  })
+  it('table renders inside a note with other content after it', () => {
+    const h = html('| **H** |\n| --- |\n| *cell* |\n\nMore text')
+    expect(h).toContain('<strong>')
+    expect(h).toContain('<em>')
+    expect(h).toContain('More text')
+  })
+})

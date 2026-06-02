@@ -54,7 +54,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   const [notes, setNotes] = useState<Note[]>([])
   const [activeNote, setActiveNote] = useState<Note | null>(null)
-  const [noteHistory, setNoteHistory] = useState<Note[]>([])
+  const [noteHistory, setNoteHistory] = useState<Array<{ note: Note; scrollTop: number }>>([])
   const openMarkdownReference = useAppStore((s) => s.openMarkdownReference)
 
   // ── Find bar — local to the notes panel, per-panel routing ────────────────
@@ -397,6 +397,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         if (!note) return
         setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)])
         setActiveNote(note)
+        lastScrollTopRef.current = 0
+        setRestoredScrollTop(0)
       })
       .catch(console.error)
   }, [pendingNoteId, clearPendingNote])
@@ -431,16 +433,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   function navigateToNote(note: Note) {
     if (activeNote && activeNote.id !== note.id) {
-      setNoteHistory(prev => [activeNote, ...prev.slice(0, 19)])
+      // Save current scroll so back-navigation can restore it
+      setNoteHistory(prev => [{ note: activeNote, scrollTop: lastScrollTopRef.current }, ...prev.slice(0, 19)])
+      // Reset scroll for the new note
+      lastScrollTopRef.current = 0
+      setRestoredScrollTop(0)
     }
     setActiveNote(note)
   }
 
   function goBackNote() {
     if (noteHistory.length === 0) return
-    const prev = noteHistory[0]
+    const { note: prev, scrollTop } = noteHistory[0]
     setNoteHistory(h => h.slice(1))
     setActiveNote(prev)
+    // Restore the scroll position the user was at in the previous note
+    lastScrollTopRef.current = scrollTop
+    setRestoredScrollTop(scrollTop)
   }
 
   function openNoteInNewTab(note: Note) {
@@ -676,10 +685,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <button
                   onClick={goBackNote}
                   className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] rounded px-1.5 py-0.5 cursor-pointer transition-colors flex-shrink-0 max-w-[120px]"
-                  title={`Back to "${noteHistory[0].title || 'Untitled'}"`}
+                  title={`Back to "${noteHistory[0].note.title || 'Untitled'}"`}
                 >
                   <ArrowLeft size={12} className="flex-shrink-0" />
-                  <span className="truncate">{noteHistory[0].title || 'Untitled'}</span>
+                  <span className="truncate">{noteHistory[0].note.title || 'Untitled'}</span>
                 </button>
               </>
             )}

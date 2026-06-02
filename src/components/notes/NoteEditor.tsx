@@ -1779,14 +1779,26 @@ class TableBlockWidget extends WidgetType {
       const th = document.createElement('th')
       th.style.cssText = CELL_BASE + `background:rgba(100,116,139,0.12);text-align:${this.alignments[colIdx] ?? 'left'};`
 
-      // editable header cell
+      // editable header cell — renders markdown inline, switches to raw on focus
       const cell = document.createElement('span')
       cell.contentEditable = 'true'
       cell.style.cssText = 'display:inline;outline:none;min-width:20px;white-space:pre-wrap;'
-      cell.textContent = h
+      cell.dataset.rawValue = h
+      cell.innerHTML = marked.parseInline(h) as string
       cell.dataset.col = String(colIdx)
       cell.dataset.row = 'header'
-      cell.addEventListener('blur', () => this.onCellBlur(wrap))
+      cell.addEventListener('focus', () => {
+        cell.textContent = cell.dataset.rawValue ?? ''
+        const range = document.createRange(); const sel = window.getSelection()
+        range.selectNodeContents(cell); range.collapse(false)
+        sel?.removeAllRanges(); sel?.addRange(range)
+      })
+      cell.addEventListener('blur', () => {
+        const raw = cell.textContent?.trim() ?? ''
+        cell.dataset.rawValue = raw
+        cell.innerHTML = marked.parseInline(raw) as string
+        this.onCellBlur(wrap)
+      })
       cell.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cell.blur() } })
       th.appendChild(cell)
 
@@ -1825,10 +1837,23 @@ class TableBlockWidget extends WidgetType {
         const cell = document.createElement('span')
         cell.contentEditable = 'true'
         cell.style.cssText = 'display:block;outline:none;min-height:1em;white-space:pre-wrap;'
-        cell.textContent = row[colIdx] ?? ''
+        const cellRaw = row[colIdx] ?? ''
+        cell.dataset.rawValue = cellRaw
+        cell.innerHTML = marked.parseInline(cellRaw) as string
         cell.dataset.col = String(colIdx)
         cell.dataset.row = String(rowIdx)
-        cell.addEventListener('blur', () => this.onCellBlur(wrap))
+        cell.addEventListener('focus', () => {
+          cell.textContent = cell.dataset.rawValue ?? ''
+          const range = document.createRange(); const sel = window.getSelection()
+          range.selectNodeContents(cell); range.collapse(false)
+          sel?.removeAllRanges(); sel?.addRange(range)
+        })
+        cell.addEventListener('blur', () => {
+          const raw = cell.textContent?.trim() ?? ''
+          cell.dataset.rawValue = raw
+          cell.innerHTML = marked.parseInline(raw) as string
+          this.onCellBlur(wrap)
+        })
         cell.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cell.blur() } })
         td.appendChild(cell)
         tr.appendChild(td)
@@ -1865,7 +1890,9 @@ class TableBlockWidget extends WidgetType {
     if (!view) return
     const headerCells = Array.from(wrap.querySelectorAll<HTMLElement>('span[data-row="header"]'))
       .sort((a, b) => Number(a.dataset.col) - Number(b.dataset.col))
-    const newHeaders = headerCells.map(c => c.textContent?.trim() ?? '')
+    // Use dataset.rawValue (set on blur) so we read the raw markdown,
+    // not the rendered HTML text content which strips syntax markers.
+    const newHeaders = headerCells.map(c => (c.dataset.rawValue ?? c.textContent ?? '').trim())
 
     const rowCount = this.rows.length
     const colCount = this.headers.length
@@ -1874,7 +1901,7 @@ class TableBlockWidget extends WidgetType {
       const ri = parseInt(cell.dataset.row ?? '-1')
       const ci = parseInt(cell.dataset.col ?? '-1')
       if (ri >= 0 && ci >= 0 && ri < rowCount && ci < colCount) {
-        newRows[ri][ci] = cell.textContent?.trim() ?? ''
+        newRows[ri][ci] = (cell.dataset.rawValue ?? cell.textContent ?? '').trim()
       }
     })
     const newMd = buildTableMarkdown(newHeaders, this.alignments, newRows)
@@ -2617,19 +2644,20 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     })
   }, [findQuery])
 
-  // Restore scroll position. Runs whenever initialScrollTop changes (the parent's restore
-  // effect sets it asynchronously after mount, so this must be a separate effect with the
-  // dep — not baked into the editor-creation effect which only runs once).
+  // Restore (or reset) scroll position. Fires when the note ID changes (navigating
+  // to a different note on the same tab) OR when initialScrollTop changes (back-nav
+  // scroll restore). When initialScrollTop is 0, scrolls to the top of the new note.
   useEffect(() => {
-    if (!initialScrollTop || initialScrollTop <= 0) return
+    const top = initialScrollTop ?? 0
     // Double RAF: first lets CM finish layout, second applies after that paint
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const view = viewRef.current
-        if (view) view.scrollDOM.scrollTop = initialScrollTop
+        if (view) view.scrollDOM.scrollTop = top
       })
     })
-  }, [initialScrollTop])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteId, initialScrollTop])
 
   // Restore cursor position. Uses double RAF for same timing reason as scroll restore.
   useEffect(() => {
