@@ -118,6 +118,10 @@ contextBridge.exposeInMainWorld('app', {
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
   installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+  onNativeThemeChanged: (cb: (isDark: boolean) => void) => {
+    ipcRenderer.removeAllListeners('app:nativeThemeChanged')
+    ipcRenderer.on('app:nativeThemeChanged', (_, isDark) => cb(isDark as boolean))
+  },
   onUpdateStatus: (cb: (status: unknown) => void) => {
     ipcRenderer.removeAllListeners('app:updateStatus')
     ipcRenderer.on('app:updateStatus', (_, status) => cb(status))

@@ -175,6 +175,7 @@ interface AppAPI {
   checkForUpdates: () => Promise<void>
   downloadUpdate: () => Promise<void>
   installUpdate: () => void
+  onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
   onUpdateStatus: (cb: (status: UpdateStatus) => void) => void
 }
 

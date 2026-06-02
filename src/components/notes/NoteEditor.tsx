@@ -1779,7 +1779,7 @@ class TableBlockWidget extends WidgetType {
       const th = document.createElement('th')
       th.style.cssText = CELL_BASE + `background:rgba(100,116,139,0.12);text-align:${this.alignments[colIdx] ?? 'left'};`
 
-      // editable header cell — renders markdown inline, switches to raw on focus
+      // editable header cell — always displays rendered markdown, never raw syntax
       const cell = document.createElement('span')
       cell.contentEditable = 'true'
       cell.style.cssText = 'display:inline;outline:none;min-width:20px;white-space:pre-wrap;'
@@ -1787,15 +1787,10 @@ class TableBlockWidget extends WidgetType {
       cell.innerHTML = marked.parseInline(h) as string
       cell.dataset.col = String(colIdx)
       cell.dataset.row = 'header'
-      cell.addEventListener('focus', () => {
-        cell.textContent = cell.dataset.rawValue ?? ''
-        const range = document.createRange(); const sel = window.getSelection()
-        range.selectNodeContents(cell); range.collapse(false)
-        sel?.removeAllRanges(); sel?.addRange(range)
-      })
+      // Track plain-text edits without switching to raw mode
+      cell.addEventListener('input', () => { cell.dataset.rawValue = cell.innerText.trim() })
       cell.addEventListener('blur', () => {
-        const raw = cell.textContent?.trim() ?? ''
-        cell.dataset.rawValue = raw
+        const raw = cell.dataset.rawValue ?? ''
         cell.innerHTML = marked.parseInline(raw) as string
         this.onCellBlur(wrap)
       })
@@ -1842,15 +1837,10 @@ class TableBlockWidget extends WidgetType {
         cell.innerHTML = marked.parseInline(cellRaw) as string
         cell.dataset.col = String(colIdx)
         cell.dataset.row = String(rowIdx)
-        cell.addEventListener('focus', () => {
-          cell.textContent = cell.dataset.rawValue ?? ''
-          const range = document.createRange(); const sel = window.getSelection()
-          range.selectNodeContents(cell); range.collapse(false)
-          sel?.removeAllRanges(); sel?.addRange(range)
-        })
+        // Track plain-text edits without switching to raw mode
+        cell.addEventListener('input', () => { cell.dataset.rawValue = cell.innerText.trim() })
         cell.addEventListener('blur', () => {
-          const raw = cell.textContent?.trim() ?? ''
-          cell.dataset.rawValue = raw
+          const raw = cell.dataset.rawValue ?? ''
           cell.innerHTML = marked.parseInline(raw) as string
           this.onCellBlur(wrap)
         })

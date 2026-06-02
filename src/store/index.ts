@@ -969,45 +969,29 @@ export const useAppStore = create<AppState>()(
       openScriptureSearchTab: (query?: string) => {
         if (query) get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         const state = get()
-        const SEARCH_TAB_ID = 'scripture-search-dedicated'
-        const existing = state.tabs['scripture'].find((t) => t.id === SEARCH_TAB_ID)
-        if (existing) {
-          // Focus + optionally update the search query
-          const newTabState: TabState = query !== undefined
-            ? { ...(existing.state as BibleTabState), scriptureSearchQuery: query } as BibleTabState
-            : existing.state
-          const updatedTabs = state.tabs['scripture'].map((t) =>
-            t.id === SEARCH_TAB_ID ? { ...t, state: newTabState } : t
-          )
-          set({
-            tabs: { ...state.tabs, scripture: updatedTabs },
-            activeTabId: { ...state.activeTabId, scripture: SEARCH_TAB_ID },
-            activeSpace: 'scripture',
-            tabMRUList: updateMRU(state.tabMRUList, 'scripture', SEARCH_TAB_ID),
-          })
-        } else {
-          const tab: Tab = {
-            id: SEARCH_TAB_ID,
-            spaceId: 'scripture',
-            type: 'bible',
-            title: 'Search',
-            state: {
-              bookId: 'GEN',
-              chapter: 1,
-              translation: state.defaultBibleTranslation.toUpperCase(),
-              showStrongs: false,
-              scrollPosition: 0,
-              searchMode: true,
-              scriptureSearchQuery: query ?? '',
-            },
-          }
-          set({
-            tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
-            activeTabId: { ...state.activeTabId, scripture: SEARCH_TAB_ID },
-            activeSpace: 'scripture',
-            tabMRUList: updateMRU(state.tabMRUList, 'scripture', SEARCH_TAB_ID),
-          })
+        // Always create a fresh tab — never reuse an existing search tab
+        const id = `scripture-search-${Date.now()}`
+        const tab: Tab = {
+          id,
+          spaceId: 'scripture',
+          type: 'bible',
+          title: 'Search',
+          state: {
+            bookId: 'GEN',
+            chapter: 1,
+            translation: state.defaultBibleTranslation.toUpperCase(),
+            showStrongs: false,
+            scrollPosition: 0,
+            searchMode: true,
+            scriptureSearchQuery: query ?? '',
+          },
         }
+        set({
+          tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
+          activeTabId: { ...state.activeTabId, scripture: id },
+          activeSpace: 'scripture',
+          tabMRUList: updateMRU(state.tabMRUList, 'scripture', id),
+        })
       },
 
       setNoteVerseRefsEnabled: (v) => set({ noteVerseRefsEnabled: v }),

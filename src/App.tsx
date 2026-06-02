@@ -259,6 +259,21 @@ export default function App() {
     document.documentElement.style.setProperty('--line-height-comfortable', values[bibleLineHeight])
   }, [bibleLineHeight])
 
+  // Relay nativeTheme IPC changes into a React-friendly state so the theme
+  // effect below re-runs reliably when macOS switches dark/light mode.
+  const [systemIsDark, setSystemIsDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+  )
+  useEffect(() => {
+    // IPC path (authoritative in Electron — nativeTheme fires on OS change)
+    window.app?.onNativeThemeChanged?.((isDark) => setSystemIsDark(isDark))
+    // matchMedia path (fallback for dev / non-Electron environments)
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   // Sync theme class on <html>; 'system' follows the OS preference
   useEffect(() => {
     const html = document.documentElement
@@ -301,11 +316,7 @@ export default function App() {
       }
 
       if (theme === 'system') {
-        const mq = window.matchMedia('(prefers-color-scheme: dark)')
-        applyPreset(mq.matches)
-        const handler = (e: MediaQueryListEvent) => applyPreset(e.matches)
-        mq.addEventListener('change', handler)
-        return () => mq.removeEventListener('change', handler)
+        applyPreset(systemIsDark)
       } else {
         applyPreset(theme === 'dark')
       }
@@ -314,17 +325,9 @@ export default function App() {
         html.classList.toggle('dark', isDark)
         html.classList.toggle('light', !isDark)
       }
-      if (theme === 'system') {
-        const mq = window.matchMedia('(prefers-color-scheme: dark)')
-        applyTheme(mq.matches)
-        const handler = (e: MediaQueryListEvent) => applyTheme(e.matches)
-        mq.addEventListener('change', handler)
-        return () => mq.removeEventListener('change', handler)
-      } else {
-        applyTheme(theme === 'dark')
-      }
+      applyTheme(theme === 'system' ? systemIsDark : theme === 'dark')
     }
-  }, [theme, themePreset])
+  }, [theme, themePreset, systemIsDark])
 
   // Sync per-section font families
   useEffect(() => {

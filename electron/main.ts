@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme } from 'electron'
 import { join } from 'path'
 import { appendFileSync, mkdirSync } from 'fs'
 import os from 'os'
@@ -796,6 +796,15 @@ app.whenReady().then(async () => {
       }, 6000)
     }
   }
+
+  // Relay OS-level dark/light changes to all renderer windows.
+  // matchMedia 'change' events are unreliable in Electron; nativeTheme is authoritative.
+  nativeTheme.on('updated', () => {
+    const isDark = nativeTheme.shouldUseDarkColors
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('app:nativeThemeChanged', isDark)
+    })
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
