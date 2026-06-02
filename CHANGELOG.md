@@ -2,7 +2,94 @@
 
 All notable changes to Berean are recorded here.
 Format: `## [version] — YYYY-MM-DD` with bullet points below each entry.
-Add new entries under `## [Unreleased]` as you work, then move them to a version block when tagging.
+
+<!--
+════════════════════════════════════════════════════════════════
+  RELEASE WORKFLOW — for Michael's reference (not shown to users)
+════════════════════════════════════════════════════════════════
+
+STEP 1 — Move items from [Unreleased] into a new version block in this file.
+STEP 2 — Run the tag command. It checks the tree is clean, shows you the
+         version change, and asks for confirmation before tagging.
+
+  npm run tag:stable    # finalises current version as a stable release
+  npm run tag:beta      # cuts a new beta build
+
+After tagging, GitHub Actions builds Mac + Windows in ~10 min and publishes
+to GitHub Releases. The download page updates automatically.
+
+────────────────────────────────────────────────────────────────
+SCENARIO 1 — Feature release: beta testing then ship
+────────────────────────────────────────────────────────────────
+  pkg: 0.2.8  (after last stable)
+  tag:beta   →  0.2.9-beta.1   PRE-RELEASE  (new patch series)
+              users on beta channel get this, test it
+  tag:beta   →  0.2.9-beta.2   PRE-RELEASE  (bug fixes, same series)
+  tag:beta   →  0.2.9-beta.3   PRE-RELEASE  (more fixes)
+  tag:stable →  0.2.9          STABLE       (strips suffix, commits clean version)
+
+  What users see:
+    Beta users: got beta.1 auto-updated to beta.2, then beta.3
+    Stable users: saw nothing until 0.2.9 stable dropped, then got it
+
+────────────────────────────────────────────────────────────────
+SCENARIO 2 — Hotfix: straight to stable, no betas needed
+────────────────────────────────────────────────────────────────
+  pkg: 0.2.9  (clean, after last stable)
+  Manually edit package.json version to "0.2.10"  ← required step
+  git add package.json && git commit -m "chore: bump to 0.2.10"
+  tag:stable →  0.2.10         STABLE  (version already clean, just tags)
+
+  What users see:
+    All users (beta and stable) get 0.2.10 on next launch check
+
+────────────────────────────────────────────────────────────────
+SCENARIO 3 — Release exactly one beta then immediately ship
+────────────────────────────────────────────────────────────────
+  pkg: 0.2.10
+  tag:beta   →  0.2.11-beta.1  PRE-RELEASE
+              looks good after quick testing
+  tag:stable →  0.2.11         STABLE  (pkg becomes 0.2.11, tag pushed)
+
+  What users see:
+    Beta users got 0.2.11-beta.1 briefly, then 0.2.11 stable
+    Stable users only ever see 0.2.11 stable
+
+────────────────────────────────────────────────────────────────
+SCENARIO 4 — Minor version jump (e.g. 0.2.x → 0.3.0)
+────────────────────────────────────────────────────────────────
+  pkg: 0.2.11
+  Manually edit package.json version to "0.3.0-beta.1"
+  git add package.json && git commit -m "chore: start 0.3.0 series"
+  tag:beta   →  0.3.0-beta.2   PRE-RELEASE  (increments beta N, doesn't bump patch)
+  tag:beta   →  0.3.0-beta.3   PRE-RELEASE
+  tag:stable →  0.3.0          STABLE
+
+  Note: first beta (0.3.0-beta.1) is the manual commit — it doesn't get a
+  GitHub Release because it was never tagged. That's fine; just start tagging
+  from tag:beta once you're ready for people to download it.
+
+────────────────────────────────────────────────────────────────
+SCENARIO 5 — Abandon a beta series and restart
+────────────────────────────────────────────────────────────────
+  pkg: 0.2.12-beta.2  (two betas out, major rework needed)
+  tag:beta  would give 0.2.12-beta.3 — but you want to reset
+
+  Option A: keep the version, just keep iterating
+    tag:beta  →  0.2.12-beta.3  ...  →  tag:stable  →  0.2.12
+
+  Option B: jump to a fresh patch (restart at beta.1)
+    Manually edit package.json to "0.2.12"  (strip the suffix)
+    git add package.json && git commit -m "chore: reset to 0.2.12 base"
+    tag:beta  →  0.2.13-beta.1  (new series, patch bumped)
+    tag:stable  →  0.2.13
+
+  Note: old 0.2.12-beta.1 and beta.2 stay on GitHub Releases as pre-releases.
+  They're visible but not shown to stable users. You can delete them from
+  GitHub Releases manually if you don't want them shown at all.
+
+════════════════════════════════════════════════════════════════
+-->
 
 ---
 
