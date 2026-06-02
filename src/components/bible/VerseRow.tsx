@@ -223,11 +223,13 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
   const [text, setText] = useState<string | null>(null)
   useEffect(() => {
     const textId = getTranslationForBook(bookId) ?? 'kjva'
-    window.bible.queryVerse(bookId, chapter, verse, textId)
-      .then(v => setText(v?.text ?? null))
+    // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
+    const queryVerse = verse === 0 ? 1 : verse
+    window.bible.queryVerse(bookId, chapter, queryVerse, textId)
+      .then(v => setText(v?.text ? (verse === 0 ? v.text + '…' : v.text) : null))
       .catch(() => {})
   }, [bookId, chapter, verse])
-  if (!text) return <span className="text-[rgb(var(--color-text-muted))] text-[9px] italic opacity-60"> Loading…</span>
+  if (!text) return null
   return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {text}</span>
 }
 
@@ -1077,7 +1079,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
                   <p className="text-[9px]" style={{ lineHeight: 1.1 }}>
-                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">{bookName(r.bookId)} {r.chapter}:{r.verse}</span>
+                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">{bookName(r.bookId)} {r.chapter}{r.verse > 0 ? `:${r.verse}` : ''}</span>
                     <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
                   </p>
                 </button>

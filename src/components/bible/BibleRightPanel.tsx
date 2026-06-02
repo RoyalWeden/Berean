@@ -819,8 +819,18 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
 
 // ─── Chapter-level User Notes view ───────────────────────────────────────────
 
-function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; chapter: number; activeVerseNum: number | null }) {
+function UserNotesChapterView({
+  bookId, chapter, activeVerseNum, onNoteClick,
+}: {
+  bookId: string
+  chapter: number
+  activeVerseNum: number | null
+  onNoteClick?: (note: Note) => void
+}) {
   const [verseNoteRefs, setVerseNoteRefs] = useState<Array<{ verseNum: number; refs: UserNoteRef[] }>>([])
+  const [indirectNotes, setIndirectNotes] = useState<Array<{ note: Note; verses: number[] }>>([])
+  const [indirectSectionOpen, setIndirectSectionOpen] = useState(false)
+  const [expandedIndirectIds, setExpandedIndirectIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
@@ -828,11 +838,9 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
 
   useEffect(() => {
     setLoading(true)
-    // Helper: add refs extracted from a note's content into the per-verse map.
-    // skipBookId/skipChapter: omit refs that point back at the same verse (self-refs).
     function mergeNoteRefs(
       byVerse: Map<number, UserNoteRef[]>,
-      note: import('@/types').Note,
+      note: Note,
       verseNum: number,
       skipBookId?: string,
       skipChapter?: number,
@@ -841,7 +849,6 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
       if (extracted.length === 0) return
       if (!byVerse.has(verseNum)) byVerse.set(verseNum, [])
       for (const ref of extracted) {
-        // Don't add a verse as its own cross-reference
         if (skipBookId && ref.bookId === skipBookId && ref.chapter === skipChapter && ref.verse === verseNum) continue
         const existing = byVerse.get(verseNum)!
         if (!existing.some(r => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse)) {
@@ -850,7 +857,6 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
       }
     }
 
-    // Helper: push a parsed verseRef string into byVerse[verseNum] if not already present.
     function mergeVerseRef(byVerse: Map<number, UserNoteRef[]>, verseRefStr: string, verseNum: number, sourceTitle: string) {
       const parts = verseRefStr.split('.')
       const nbId = parts[0]
@@ -867,6 +873,7 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
     window.notes.getChapterNotes(bookId, chapter)
       .then(async (verseNotes) => {
         const byVerse = new Map<number, UserNoteRef[]>()
+        const indirect: Array<{ note: Note; verses: number[] }> = []
 
         // 1) Direct verse notes attached to this chapter
         for (const note of verseNotes) {
@@ -875,25 +882,31 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
           mergeNoteRefs(byVerse, note, vn, bookId, chapter)
         }
 
-        // 2) Any note (verse note on another verse OR general note) whose content
-        //    mentions a verse in this chapter.
+        // 2) Notes whose content mentions a verse in this chapter
         const chapterLabel = `${bookName(bookId)} ${chapter}:`
         try {
           const candidates = await window.notes.searchNotes(chapterLabel, 80)
           const verseNoteIds = new Set(verseNotes.map(n => n.id))
           for (const note of candidates) {
-            if (verseNoteIds.has(note.id)) continue // already handled above
+            if (verseNoteIds.has(note.id)) continue
             const refs = extractRefsFromNote(note.content, note.title || '')
             const chapterRefs = refs.filter(r => r.bookId === bookId && r.chapter === chapter)
-            for (const r of chapterRefs) {
-              // KEY FIX: if this note is a verse note *on another verse*, that verse
-              // is itself the cross-reference (e.g. a note on Jer 4:9 that mentions
-              // Hab 1:5 → Jer 4:9 is a cross-ref for Hab 1:5).
-              if (note.verseRef) {
+            if (chapterRefs.length === 0) continue
+
+            if (note.verseRef) {
+              // Verse note on ANOTHER verse — treat as cross-ref (existing behaviour)
+              for (const r of chapterRefs) {
                 mergeVerseRef(byVerse, note.verseRef, r.verse, note.title || 'Untitled')
+                mergeNoteRefs(byVerse, note, r.verse, bookId, chapter)
               }
-              // Also surface any other refs the note mentions (skip the current verse).
-              mergeNoteRefs(byVerse, note, r.verse, bookId, chapter)
+            } else {
+              // General / daily / topic note — surface separately so the user knows
+              // the connection is indirect (the note mentions the chapter but isn't
+              // attached to any specific verse).
+              const verses = [...new Set(chapterRefs.map(r => r.verse).filter(v => v > 0))].sort((a, b) => a - b)
+              if (!indirect.some(x => x.note.id === note.id)) {
+                indirect.push({ note, verses })
+              }
             }
           }
         } catch { /* ignore search errors */ }
@@ -901,8 +914,9 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
         setVerseNoteRefs(
           Array.from(byVerse.entries()).sort((a, b) => a[0] - b[0]).map(([verseNum, refs]) => ({ verseNum, refs }))
         )
+        setIndirectNotes(indirect)
       })
-      .catch(() => setVerseNoteRefs([]))
+      .catch(() => { setVerseNoteRefs([]); setIndirectNotes([]) })
       .finally(() => setLoading(false))
   }, [bookId, chapter, noteChangeToken])
 
@@ -913,7 +927,7 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
   }, [loading, activeVerseNum])
 
   if (loading) return <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center py-6 animate-pulse">Loading…</p>
-  if (verseNoteRefs.length === 0) return (
+  if (verseNoteRefs.length === 0 && indirectNotes.length === 0) return (
     <div className="flex flex-col items-center justify-center px-4 py-10 text-center gap-2">
       <p className="text-xs text-[rgb(var(--color-text-muted))]">No cross-references found in your notes for this chapter.</p>
       <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Write verse notes that reference other passages to see them here.</p>
@@ -926,6 +940,77 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
 
   return (
     <div className="divide-y divide-[rgb(var(--color-surface-4))/30]">
+
+      {/* ── Indirect connections (general/daily/topic notes) ───────────────── */}
+      {indirectNotes.length > 0 && (
+        <div className="border-b border-[rgb(var(--color-surface-4))/50]">
+          {/* Section header — collapsible */}
+          <button
+            onClick={() => setIndirectSectionOpen(v => !v)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))/60] transition-colors cursor-pointer text-left"
+          >
+            <span className="text-[9px] select-none">{indirectSectionOpen ? '▾' : '▸'}</span>
+            <span className="flex-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+              General mentions ({indirectNotes.length})
+            </span>
+            <span className="text-[8px] text-[rgb(var(--color-text-muted))] opacity-60 italic">connection may be indirect</span>
+          </button>
+
+          {indirectSectionOpen && (
+            <div className="divide-y divide-[rgb(var(--color-surface-4))/30]">
+              {indirectNotes.map(({ note, verses }) => {
+                const isExpanded = expandedIndirectIds.has(note.id)
+                return (
+                  <div key={note.id}>
+                    {/* Note title row */}
+                    <div className="flex items-center gap-1 px-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))/40] group">
+                      <button
+                        onClick={() => setExpandedIndirectIds(prev => {
+                          const n = new Set(prev)
+                          n.has(note.id) ? n.delete(note.id) : n.add(note.id)
+                          return n
+                        })}
+                        className="text-[9px] text-[rgb(var(--color-text-muted))] select-none cursor-pointer w-3 flex-shrink-0"
+                      >
+                        {isExpanded ? '▾' : '▸'}
+                      </button>
+                      <button
+                        onClick={() => onNoteClick?.(note)}
+                        className="flex-1 text-left text-[10px] font-medium text-[rgb(var(--color-text-secondary))] truncate cursor-pointer hover:text-[rgb(var(--color-text-primary))] transition-colors min-w-0"
+                      >
+                        {note.title || 'Untitled'}
+                      </button>
+                      <button
+                        onClick={() => onNoteClick?.(note)}
+                        title="Open note"
+                        className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-all cursor-pointer"
+                      >
+                        <ExternalLink size={9} />
+                      </button>
+                    </div>
+                    {/* Verse chips — shown when note is expanded */}
+                    {isExpanded && verses.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pl-8 pr-3 pb-1.5">
+                        {verses.map(v => (
+                          <button
+                            key={v}
+                            onClick={() => navToVerseFromPanel(bookId, chapter, v)}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/15] cursor-pointer transition-colors font-mono"
+                          >
+                            v.{v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Verse-based cross-refs (direct verse notes) ────────────────────── */}
       {visibleVerseRefs.map(({ verseNum, refs }) => {
         const isActive = verseNum === activeVerseNum
         const isCollapsed = !activeVerseNum && collapsed.has(verseNum)
@@ -969,12 +1054,13 @@ function UserNotesChapterView({ bookId, chapter, activeVerseNum }: { bookId: str
 // ─── Cross refs tab (chapter-first) ──────────────────────────────────────────
 
 function CrossRefsTab({
-  bookId, chapter, activeVerseRef, onClearVerseFilter,
+  bookId, chapter, activeVerseRef, onClearVerseFilter, onNoteClick,
 }: {
   bookId: string
   chapter: number
   activeVerseRef: string | null
   onClearVerseFilter?: () => void
+  onNoteClick?: (note: Note) => void
 }) {
   const crossRefSource = useAppStore((s) => s.crossRefSource)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
@@ -1030,7 +1116,7 @@ function CrossRefsTab({
       <div className="flex-1 overflow-y-auto">
         {crossRefSource === 'tske' && <TSKeChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
         {crossRefSource === 'classic' && <ClassicChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
-        {crossRefSource === 'notes' && <UserNotesChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
+        {crossRefSource === 'notes' && <UserNotesChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} onNoteClick={onNoteClick} />}
       </div>
     </div>
   )
@@ -1073,6 +1159,7 @@ export default function BibleRightPanel({
   const [selectedNoteIdx, setSelectedNoteIdx] = useState(-1)
   const [verseFilter, setVerseFilter] = useState<string | null>(initialVerseFilter ?? null)
   const [referencingNotes, setReferencingNotes] = useState<Note[]>([])
+  const [chapterMentionNotes, setChapterMentionNotes] = useState<Note[]>([])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -1135,21 +1222,40 @@ export default function BibleRightPanel({
     setSidebarNote(null)
   }, [initialVerseFilter])
 
-  // Open a specific note when openNoteId arrives
+  // Open a specific note when openNoteId arrives (externally triggered).
+  // Guard: if sidebarNoteRef already holds this note, we triggered the prop change
+  // ourselves (click → onNoteChange → rightPanelNoteId → openNoteId) — don't re-open
+  // and don't clear the verse filter. External opens (VerseRow context menu) already
+  // clear rightPanelVerseFilter in BiblePanel before setting rightPanelNoteId, so
+  // verseFilter is cleared via the initialVerseFilter effect, not here.
   useEffect(() => {
     if (!openNoteId) return
+    if (sidebarNoteRef.current?.id === openNoteId) return  // we already opened it
     window.notes.getNote(openNoteId)
-      .then((note) => { if (note) { openSidebarNote(note); setVerseFilter(null) } })
+      .then((note) => { if (note) openSidebarNote(note) })
       .catch(() => {})
   }, [openNoteId])
 
   useEffect(() => {
     if (visibleTab !== 'notes') return
     if (scope === 'chapter') {
-      // Fetch only this chapter's notes from the DB — avoids the 500-note cap
-      // hitting large imported sets (BibleGateway, e-Sword).
-      window.notes.getChapterNotes(bookId, chapter).then(setNotes).catch(() => {})
+      // Fetch verse notes for this chapter, then also search for general/daily/topic
+      // notes that mention the chapter so they appear at the top as indirect connections.
+      window.notes.getChapterNotes(bookId, chapter).then(async (verseNotes) => {
+        setNotes(verseNotes)
+        const verseNoteIds = new Set(verseNotes.map(n => n.id))
+        const chapterLabel = `${bookName(bookId)} ${chapter}:`
+        try {
+          const candidates = await window.notes.searchNotes(chapterLabel, 30)
+          setChapterMentionNotes(
+            candidates.filter(n => !verseNoteIds.has(n.id) && !n.verseRef)
+          )
+        } catch {
+          setChapterMentionNotes([])
+        }
+      }).catch(() => { setNotes([]); setChapterMentionNotes([]) })
     } else {
+      setChapterMentionNotes([])
       window.notes.getNotes(500, 0).then(setNotes).catch(() => {})
     }
   }, [visibleTab, noteChangeToken, scope, bookId, chapter])
@@ -1428,12 +1534,51 @@ export default function BibleRightPanel({
 
           {/* Notes list */}
           <div className="flex-1 overflow-y-auto">
-            {filtered.length === 0 && referencingNotes.length === 0 ? (
+            {filtered.length === 0 && referencingNotes.length === 0 && chapterMentionNotes.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-[rgb(var(--color-text-muted))]">
                 No notes{verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}
               </div>
             ) : (
               <>
+                {/* General / daily notes that mention this chapter (indirect connections) */}
+                {scope === 'chapter' && !verseFilter && chapterMentionNotes.length > 0 && (
+                  <div className="border-b border-[rgb(var(--color-surface-4))]">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-[rgb(var(--color-surface-3))]">
+                      <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] whitespace-nowrap">
+                        mentions this chapter
+                      </span>
+                      <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
+                    </div>
+                    <div className="divide-y divide-[rgb(var(--color-surface-4))]">
+                      {chapterMentionNotes.map((note) => {
+                        const rawSnippet = note.content
+                          .replace(/^---[\s\S]*?---\n?/, '')
+                          .replace(/[#*`_>~\[\]]/g, '')
+                          .trim().replace(/\n/g, ' ')
+                        return (
+                          <div key={note.id} className="flex items-start group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]">
+                            <button
+                              onClick={() => openSidebarNote(note)}
+                              className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
+                            >
+                              <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{note.title || 'Untitled'}</div>
+                              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
+                            </button>
+                            <button
+                              onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
+                              title="Open in notes tab"
+                              className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 mt-1.5 mr-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+                            >
+                              <ExternalLink size={11} />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Direct verse notes */}
                 <div className="divide-y divide-[rgb(var(--color-surface-4))]">
                   {filtered.map((note, i) => {
@@ -1559,6 +1704,7 @@ export default function BibleRightPanel({
             chapter={chapter}
             activeVerseRef={verseFilter ?? null}
             onClearVerseFilter={onVerseFilterChange ? () => onVerseFilterChange(null) : undefined}
+            onNoteClick={(note) => { setVerseFilter(null); onTabChange('notes'); openSidebarNote(note) }}
           />
         </div>
       )}
