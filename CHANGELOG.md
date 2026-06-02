@@ -103,6 +103,22 @@ SCENARIO 5 — Abandon a beta series and restart
 ════════════════════════════════════════════════════════════════
 -->
 
+---
+
+## [0.2.11] - 2026-06-02
+
+- Windows now has custom title bar and window controls
+
+Bug Fixes:
+- Fixed Windows show bible/lexicon data
+- Fixed Windows floating tabs top bar
+
+---
+
+## [0.2.10] - 2026-06-02
+
+Bug Fixes:
+- Fixed git builds
 
 ---
 
@@ -110,7 +126,6 @@ SCENARIO 5 — Abandon a beta series and restart
 
 Bug Fixes:
 - Fixed git builds
-
 
 ---
 
