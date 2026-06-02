@@ -37,7 +37,7 @@ jobs:
 
       - name: Package macOS DMG
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing — set these secrets if you have a Developer ID cert
           # CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
           # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
@@ -90,7 +90,7 @@ jobs:
 
       - name: Package Windows NSIS installer
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing — set these secrets if you have a Windows cert
           # WIN_CSC_LINK: ${{ secrets.WIN_CERT_P12_BASE64 }}
           # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
@@ -105,7 +105,7 @@ jobs:
     steps:
       - name: Find and mark release as pre-release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
@@ -128,7 +128,7 @@ jobs:
     steps:
       - name: Publish draft as stable release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
