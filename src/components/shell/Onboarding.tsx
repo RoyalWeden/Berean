@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, FolderOpen, Keyboard, CheckCircle, ChevronRight, X, Layers, Download } from 'lucide-react'
+import { BookOpen, FolderOpen, Folder, FileText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
 import ESwordImporter from '@/components/settings/ESwordImporter'
@@ -11,134 +11,869 @@ const STEPS = [
   { id: 'translation',  label: 'Texts',        icon: Layers     },
   { id: 'vault',        label: 'Vault',        icon: FolderOpen },
   { id: 'import',       label: 'Import',       icon: Download   },
+  { id: 'notesView',    label: 'Notes view',   icon: List       },
   { id: 'shortcuts',    label: 'Shortcuts',    icon: Keyboard   },
   { id: 'done',         label: 'Done',         icon: CheckCircle },
 ] as const
 
 type StepId = (typeof STEPS)[number]['id']
 
-// ── Onboarding note content created on completion ─────────────────────────────
+// ── Getting Started note suite created on completion ──────────────────────────
 
-const WELCOME_NOTE_CONTENT = `# Welcome to Berean
+interface GettingStartedNote {
+  title: string
+  content: string
+}
 
-Berean is a local-first Bible study app built for serious study of Yehovah's word. Here is a reference guide for getting started.
+const GETTING_STARTED_FOLDER = 'Getting Started'
 
----
+const GETTING_STARTED_NOTES: GettingStartedNote[] = [
+  {
+    title: 'Welcome',
+    content: `# Welcome to Berean
 
-## 1. Reading Scripture
+Berean is a local-first desktop Bible study app for Torah-observant believers. All your Scripture, notes, lexicon, and study resources are stored on your device — no accounts, no cloud, no tracking.
 
-Open the **Scripture** space with **⌘1**. Type any reference into the bar at the top of the Bible panel:
-
-> \`Gen 1\` · \`Exodus 20:1-17\` · \`Rev 22\` · \`Psalm 119\`
-
-**Navigation:**
-- **⌘T** — Open a new reference or search
-- **⌘K** — Command bar (search current space)
-- \`⌘[\` / \`⌘]\` — Navigate back / forward through reading history
-- **⌘G** — Toggle Strong's numbers inline
+This folder contains a complete guide to every feature in the app.
 
 ---
 
-## 2. Texts Available
+## Pages in This Guide
 
-The following texts are available in the translation selector inside each Bible panel:
-
-| Text | Abbreviation |
-|------|-------------|
-| King James + Apocrypha | KJVA |
-| Brenton LXX (Septuagint) | LXX |
-| 1 Enoch (R.H. Charles) | Enoch |
-| Jubilees (R.H. Charles) | Jubilees |
-| And more... | See Settings → Display |
-
-Change your **default translation** in **Settings → Display**.
+- [[Bible Reader]] — Navigate passages, switch translations, verse actions
+- [[Notes & Editor]] — Verse notes, general notes, markdown editor
+- [[Strong's & Lexicon]] — Inline numbers, hover tooltips, full lexicon entries
+- [[Highlighting]] — Color-code words, phrases, and entire verses
+- [[Search]] — Full-text search, reference lookup, word replacer
+- [[YouTube]] — Embedded video study with Picture-in-Picture
+- [[Keyboard Shortcuts]] — Complete shortcut reference
+- [[Settings]] — Display, texts, notes, vault, and more
+- [[Vault Sync]] — Sync notes to Obsidian, Logseq, or any Markdown app
 
 ---
 
-## 3. Notes
+## Quick Start
 
-Press **⌘⇧N** to create a general note, or click the dot next to any verse number to attach a verse note.
-
-- Write in **Markdown** — headings, bold, italic, lists, tables all work
-- Press **⌘⇧M** to toggle between raw Markdown and rendered view
-- Type \`[[Gen 1:1]]\` to create a clickable verse link
-- Use **⌘B**, **⌘I**, **⌘U** for bold / italic / underline
-
----
-
-## 4. Strong's Lexicon
-
-When Strong's numbers are visible (toggle with **⌘G**):
-
-- **Hover** over any Strong's chip to see a quick gloss
-- **Click** to open the full lexicon entry with the Hebrew or Greek word, transliteration, full definition, and every occurrence in Scripture
+1. Press **⌘1** to open the Scripture space
+2. Press **⌘T** and type a reference — \`Gen 1\`, \`Exodus 20\`, \`Rev 22:1-5\`
+3. Press **⌘⇧N** to create a note
+4. Press **⌘G** to toggle Strong's numbers
+5. Press **⌘,** to open Settings
 
 ---
 
-## 5. Highlighting
+> You can replay the setup walkthrough anytime from **Settings → About**.
+`,
+  },
+  {
+    title: 'Bible Reader',
+    content: `# Bible Reader
 
-Select any text in a verse — a color toolbar appears above the selection. Choose a color and the highlight is saved permanently.
+← Back to [[Welcome]]
 
-Colors and their suggested uses:
-- 🟡 **Yellow** — general study
-- 🔴 **Red** — warning, rebuke, sin
-- 🟢 **Green** — Torah connection
-- 🔵 **Blue** — cross-reference
-- 🟣 **Purple** — prophecy
-
----
-
-## 6. Search
-
-Press **⌘⇧F** or go to the **Search** space (**⌘5**).
-
-- Phrase: \`in the beginning\`
-- Any word: \`sabbath holy rest\`
-- Strong's: \`H7676\`
-- All texts searched simultaneously — filter by OT / NT / Apocrypha
+The Bible panel is the heart of Berean. It supports multiple simultaneous panels, every translation in your library, and deep integration with notes and lexicon.
 
 ---
 
-## 7. Vault Sync (Optional)
+## Opening a Passage
 
-To sync your notes as Markdown files to a local folder (compatible with Obsidian, Logseq, or any Markdown app), go to **Settings → Vault Sync** and choose a folder.
+Press **⌘T** to open the floating search bar, then type any reference:
+
+| You type | Opens |
+|---|---|
+| \`Gen 1\` | Genesis chapter 1 |
+| \`Exodus 20:1-17\` | Exodus 20, verses 1–17 highlighted |
+| \`Rev 22\` | Revelation chapter 22 |
+| \`Psalm 119\` | Psalm 119 |
+| \`1 Enoch 1\` | 1 Enoch chapter 1 |
+
+You can also use the **reference bar** at the top of any Bible panel — click it or press **⌘L**.
 
 ---
 
-## 8. Key Shortcuts
+## Navigating
+
+- **⌘[** / **⌘]** — Navigate back and forward through reading history
+- **Previous / Next** arrows — Move one chapter at a time
+- **Book dropdown** — Click the book name to jump to any book
+- **Chapter dropdown** — Click the chapter number to jump within a book
+
+---
+
+## Switching Translations
+
+Each Bible panel has its own translation selector. Click the translation abbreviation (e.g. **KJVA**) in the panel header to switch. Available texts include:
+
+| Abbreviation | Text |
+|---|---|
+| KJVA | King James Version with Apocrypha |
+| LXX | Brenton Septuagint (English) |
+| Enoch | 1 Enoch — R.H. Charles translation |
+| Jubilees | Book of Jubilees — R.H. Charles translation |
+
+Additional texts listed in **Settings → Texts**.
+
+---
+
+## Verse Actions
+
+Click any **verse number** to open the verse action popover:
+
+- **Add verse note** — creates a note attached to this verse
+- **Highlight verse** — applies a color to the entire verse
+- **Copy verse text** — copies to clipboard
+- **Compare this verse** — opens a compare tab with multiple translations
+
+---
+
+## Verse Display Options
+
+Toggle these from the Bible panel toolbar:
+
+- **Strong's numbers** (⌘G) — show inline Strong's tags after each word
+- **Verse numbers** — show/hide verse number badges
+- **Red letter text** — Yeshua's words highlighted in red (where tagged)
+
+---
+
+## Multiple Panels
+
+Berean supports a resizable split-panel layout powered by react-mosaic:
+
+- Drag the divider between panels to resize
+- Open **two Bible panels** to compare chapters side by side
+- Open a **notes panel** alongside Scripture for simultaneous reading and writing
+- Panels can be rearranged from the layout menu in the toolbar
+
+---
+
+## Compare Mode
+
+Right-click any verse → **Compare this verse**, or use the compare icon in the toolbar. Select 2–4 translations and a layout (columns, stacked, 2×2 grid). All cells navigate together — or unlock individual cells to scroll independently.
+
+---
+
+> See also: [[Strong's & Lexicon]], [[Highlighting]], [[Notes & Editor]]
+`,
+  },
+  {
+    title: 'Notes & Editor',
+    content: `# Notes & Editor
+
+← Back to [[Welcome]]
+
+Berean has two note types, both using the same full-featured markdown editor.
+
+---
+
+## Verse Notes
+
+A verse note is attached to a specific verse. It appears as a colored dot next to the verse number in the Bible reader.
+
+**Creating a verse note:**
+- Click the dot indicator next to a verse number → **+ New note for this verse**
+- Right-click a verse → **Add verse note**
+- Press **⌘⇧V** when a verse is focused
+
+**Verse note indicators:**
+- A colored dot appears to the right of the verse number
+- Multiple notes stack as a count badge (e.g. ●3)
+- Click the dot to open the verse notes popover — see all notes for that verse
+
+---
+
+## General Notes
+
+General notes are freeform documents not attached to a verse. They live in the Notes space (**⌘2**).
+
+**Creating a general note:**
+- Press **⌘⇧N**
+- Click the **+** button in the Notes toolbar
+
+**Daily notes:**
+- Press the calendar icon in the Notes toolbar to open or create today's dated note
+- Each day gets one note — clicking again opens the existing note, never creates a duplicate
+
+---
+
+## The Markdown Editor
+
+Both note types use the same CodeMirror 6 editor with live markdown rendering (WYSIWYG-style).
+
+### Formatting shortcuts
+
+| Shortcut | Format |
+|---|---|
+| **⌘B** | **Bold** |
+| **⌘I** | *Italic* |
+| **⌘U** | Underline |
+| **⌘⇧M** | Toggle raw markdown / rendered view |
+| **Tab** / **⇧Tab** | Indent / outdent list item |
+
+### Headings
+
+Type \`# Heading 1\` through \`###### Heading 6\`. The active heading level is highlighted in the markdown toolbar.
+
+- Click the **▸** arrow beside any heading to **collapse** all content under it
+- A subtle horizontal rule separates headings from body text (toggle in Settings → Notes)
+
+### Lists
+
+- \`- item\` or \`* item\` — unordered list
+- \`1. item\` — ordered list
+- \`- [ ] task\` — task checkbox
+- Each indent level (4 spaces or Tab) gets its own bullet symbol
+- Choose your bullet style in **Settings → Notes → Bullet list style**
+
+### Other markdown
+
+- \`> blockquote\` — indented callout block
+- \`> [!NOTE]\` — named callout (Note, Warning, Tip, Info, etc.)
+- \`---\` — horizontal divider
+- \`\`\`code\`\`\` — code block
+- \`| col | col |\` — table
+- \`==highlighted text==\` — text highlight (15 colors available)
+- \`[[Gen 1:1]]\` — clickable verse link (navigates the active Bible panel)
+
+---
+
+## Note Colors
+
+Each note has an assignable color shown as its indicator dot:
+
+| Color | Suggested use |
+|---|---|
+| Blue | General study (default) |
+| Red | Warning, rebuke, sin |
+| Green | Torah connection |
+| Yellow | General study / prophecy |
+| Purple | Prophetic theme |
+
+---
+
+## Opening Notes
+
+Notes can open in:
+- **New tab** — full-width in the main panel area
+- **Side panel** — alongside the Bible panel
+- **Bottom panel** — below the Bible panel
+
+Configure the default in **Settings → Notes → Default note opening**.
+
+---
+
+## Organizing Notes
+
+In the Notes space (**⌘2**), switch between **List view** and **Folder view** using the folder icon in the toolbar.
+
+- **List view** — all notes sorted by last modified
+- **Folder view** — organize notes into user-created folders; drag notes to move them
+- Create a folder with the **New Folder** button in the toolbar
+- Right-click a note for rename, move, duplicate, or delete
+
+---
+
+> See also: [[Vault Sync]], [[Highlighting]]
+`,
+  },
+  {
+    title: "Strong's & Lexicon",
+    content: `# Strong's & Lexicon
+
+← Back to [[Welcome]]
+
+Every word in the KJV and Brenton LXX has a Strong's number tag that links it to the original Hebrew or Greek. Berean gives you three ways to access this data.
+
+---
+
+## Enabling Inline Strong's Numbers
+
+Press **⌘G** or click the **S** button in the Bible panel toolbar to toggle Strong's numbers. When enabled, each word is followed by a small chip:
+
+\`\`\`
+In{H0}  the{H0}  beginning{H7225}  Elohim{H430}  created{H1254}…
+\`\`\`
+
+Hebrew numbers start with **H**, Greek with **G**.
+
+---
+
+## Hover Tooltip
+
+Hover over any Strong's chip to see a quick popup:
+
+- **Original word** (Hebrew or Greek)
+- **Transliteration** (phonetic rendering)
+- **Short definition** (1–2 lines)
+
+This lets you check words at a glance without leaving the reading flow.
+
+Toggle in **Settings → Display → Show Strong's hover tooltips**.
+
+---
+
+## Full Lexicon Entry
+
+Click any Strong's chip to open a full lexicon tab:
+
+\`\`\`
+H7225  בְּרֵאשִׁית  (bĕrêʼshîyth)
+Strong's: "in the beginning, chief"
+────────────────────────────────
+BDB Definition:
+[full entry text]
+────────────────────────────────
+Occurrences: 51 times
+[list of references — all clickable]
+\`\`\`
+
+The occurrence list lets you jump to any verse where this word appears across the entire corpus.
+
+Toggle click-to-open in **Settings → Display → Click Strong's opens lexicon tab**.
+
+---
+
+## Searching by Strong's Number
+
+In the floating search bar (**⌘T**), type a Strong's number directly:
+
+- \`H7225\` → opens the lexicon entry for H7225 (בְּרֵאשִׁית)
+- \`G3056\` → opens the lexicon entry for G3056 (λόγος, *logos*)
+
+---
+
+## Display Settings
+
+All three modes are independently toggleable in **Settings → Display**:
+
+1. Show inline Strong's numbers
+2. Show Strong's hover tooltips
+3. Click Strong's opens lexicon tab
+
+---
+
+> See also: [[Bible Reader]], [[Search]]
+`,
+  },
+  {
+    title: 'Highlighting',
+    content: `# Highlighting
+
+← Back to [[Welcome]]
+
+Highlights are persistent color annotations applied to any word, phrase, or full verse. They survive app restarts and sync to vault files.
+
+---
+
+## Applying a Highlight
+
+1. Select any text inside a verse (click and drag, or double-click a word)
+2. A color toolbar appears above the selection
+3. Click a color to apply the highlight
+
+Available colors:
+
+| Color | Suggested use |
+|---|---|
+| 🟡 Yellow | General study |
+| 🔴 Red | Warning, rebuke, sin |
+| 🟢 Green | Torah connection |
+| 🔵 Blue | Cross-reference |
+| 🟣 Purple | Prophecy |
+
+---
+
+## Scope
+
+Highlights can cover:
+- A **single word** — double-click to select it
+- A **phrase** — click and drag across multiple words
+- An **entire verse** — triple-click or select all text in the verse row
+
+Multiple overlapping highlights on the same verse are supported.
+
+---
+
+## Visual Indicators
+
+- Highlighted words show a **colored background tint** in the verse text
+- The entire verse row gains a **subtle background tint** in chapter view
+- The verse number badge gains a **small color dot** when any highlight exists on that verse
+
+---
+
+## Creating a Note from a Highlight
+
+After selecting text, the color toolbar also shows a **+ Note** button. Clicking it creates a verse note pre-filled with your selected text as a blockquote — useful for annotating specific phrases.
+
+---
+
+## Managing Highlights
+
+Highlights are text-specific (KJV highlights don't show in LXX by default). Toggle **cross-text highlight sync** in **Settings → Display** to share highlights across translations.
+
+To remove a highlight, select the highlighted text again → choose **Remove** in the color toolbar.
+
+---
+
+## Copy on Highlight
+
+Enable **Settings → Display → Copy verse text on highlight** to automatically copy the verse text to your clipboard whenever you apply a highlight.
+
+---
+
+> See also: [[Bible Reader]], [[Notes & Editor]]
+`,
+  },
+  {
+    title: 'Search',
+    content: `# Search
+
+← Back to [[Welcome]]
+
+Berean has a unified search system across all Scripture texts and your notes. Press **⌘5** to open the Search space, or **⌘⇧F** from anywhere.
+
+---
+
+## Search Types
+
+| Query | What it does |
+|---|---|
+| \`Gen 1:1\` | Opens Genesis 1:1 directly |
+| \`Exodus 20\` | Opens Exodus chapter 20 |
+| \`Rev 22:1-5\` | Opens Revelation 22:1–5 |
+| \`H7676\` | Opens Strong's entry for H7676 (sabbath) |
+| \`G26\` | Opens Strong's entry for G26 (agape) |
+| \`in the beginning\` | Full-text keyword search |
+| \`sabbath holy rest\` | All verses containing any of these words |
+| \`note:creation\` | Searches your note content |
+
+---
+
+## Keyword Search
+
+Full-text search uses SQLite FTS5 for fast results across all enabled texts simultaneously.
+
+- Results are grouped by book
+- Each result shows: **reference + verse snippet** with the keyword highlighted
+- Click any result to open that chapter with the verse in view
+
+**Filters:**
+- Limit by text: KJVA, LXX, Enoch, Jubilees
+- Limit by testament: OT, NT, Apocrypha, Pseudepigrapha
+- Limit by book range
+
+---
+
+## Word Replacer
+
+The word replacer substitutes display names throughout the app — including search. If you search for **Yeshua**, Berean automatically also searches the underlying text for **Jesus**, so you always find the right results.
+
+Configure replacements in **Settings → Word Replacer**.
+
+---
+
+## Search Results Tab
+
+Search results open in a new tab labeled **Search: [query]**. From the results tab:
+
+- Scroll through all matches
+- Results are paginated for large result sets
+- Click **Open all in Compare** (for small result sets) to see every matching verse side by side
+
+---
+
+## Floating Search Bar
+
+Press **⌘T** or **⌘K** to open the floating search bar from anywhere in the app. It searches across:
+
+- Bible references and chapters
+- Strong's numbers
+- Keywords (full-text)
+- Note titles and content
+- YouTube channel names
+
+Results are grouped by category and shown with icons. Press Enter or click to open in a new tab.
+
+---
+
+> See also: [[Bible Reader]], [[Strong's & Lexicon]]
+`,
+  },
+  {
+    title: 'YouTube',
+    content: `# YouTube
+
+← Back to [[Welcome]]
+
+Berean embeds a full YouTube browser inside the app — useful for watching Torah teachings, Hebrew studies, and Scripture lectures alongside your notes.
+
+---
+
+## Opening YouTube
+
+Press **⌘4** or click the **YouTube** space in the sidebar. Each video or channel opens as its own named tab.
+
+The embedded player runs in a full Chromium webview — you can log in to your YouTube account normally, access your subscriptions, playlists, and history.
+
+---
+
+## Channel Allowlist
+
+To keep focused on study-related content, Berean uses an **allowlist** of YouTube channels.
+
+- Only channels on the allowlist can be opened as tabs
+- Attempting to navigate to an unlisted channel shows a prompt: **Add [Channel Name] to your allowlist?**
+- Manage the list in **Settings → YouTube → Allowed Channels**
+
+---
+
+## Picture-in-Picture (Auto PiP)
+
+When a YouTube tab is playing and you switch to a different space or tab:
+- The video automatically enters **Picture-in-Picture** mode
+- The PiP window floats over the app
+
+When you return to the YouTube tab: PiP dismisses, video returns to the tab.
+
+**Manual toggle:** **⌘⇧P** — toggle PiP at any time.
+
+Toggle auto-PiP in **Settings → YouTube → Auto Picture-in-Picture**.
+
+---
+
+## Timestamp Note Linking
+
+While a video is playing, a **📎 Insert Timestamp** button appears in the YouTube tab toolbar.
+
+Clicking it inserts a markdown link into your currently active note:
+
+\`\`\`markdown
+[Channel Name — Video Title — 12:34](https://youtu.be/VIDEO_ID?t=754)
+\`\`\`
+
+The timestamp captures the exact playback position at the moment you click.
+
+**Keyboard shortcut:** **⌘⇧L** — insert timestamp from anywhere in the app (if a YouTube tab is active).
+
+If no note is open when you click, Berean prompts you to open one first.
+
+---
+
+> See also: [[Notes & Editor]], [[Keyboard Shortcuts]]
+`,
+  },
+  {
+    title: 'Keyboard Shortcuts',
+    content: `# Keyboard Shortcuts
+
+← Back to [[Welcome]]
+
+Berean is keyboard-driven. All major actions are reachable without touching the mouse.
+
+---
+
+## Navigation
 
 | Shortcut | Action |
-|----------|--------|
-| ⌘1–5 | Switch between spaces |
-| ⌘T | Open reference / new tab |
-| ⌘K | Command bar |
-| ⌘W | Close current tab |
-| ⌘F | Find in current view |
-| ⌘⇧F | Full text search |
-| ⌘⇧N | New note |
-| ⌘⇧M | Toggle Markdown preview |
-| ⌘G | Toggle Strong's numbers |
-| ⌘[ / ⌘] | Navigate back / forward |
-| ⌘, | Open Settings |
-| ⌘H | Open history |
-| Ctrl+Tab | Switch tabs (MRU order) |
+|---|---|
+| **⌘1** | Scripture space |
+| **⌘2** | Notes space |
+| **⌘3** | Lexicon space |
+| **⌘4** | YouTube space |
+| **⌘5** | Search space |
+| **⌘T** | Open floating search / new reference |
+| **⌘K** | Floating command bar |
+| **⌘W** | Close current tab |
+| **⌘[** | Navigate back in tab history |
+| **⌘]** | Navigate forward in tab history |
+| **⌘L** | Focus Bible reference bar |
+| **⌘H** | Open reading history modal |
+| **Ctrl+Tab** | Switch tabs (most-recently-used order) |
+| **⌘⇧S** | Toggle sidebar visibility |
 
 ---
 
-*This note was created automatically on first launch. You can edit or delete it at any time.*
-`
+## Bible Reader
 
-// ── Helper: create welcome note ────────────────────────────────────────────────
+| Shortcut | Action |
+|---|---|
+| **⌘G** | Toggle Strong's numbers inline |
+| **⌘F** | Find in current panel |
 
-async function createWelcomeNote() {
+---
+
+## Notes
+
+| Shortcut | Action |
+|---|---|
+| **⌘⇧N** | New general note |
+| **⌘⇧V** | New verse note (for focused verse) |
+| **⌘⇧M** | Toggle markdown notation (raw ↔ rendered) |
+| **⌘B** | Bold |
+| **⌘I** | Italic |
+| **⌘U** | Underline |
+| **Tab** | Indent list item |
+| **⇧Tab** | Outdent list item |
+| **⌘Z** | Undo |
+| **⌘⇧Z** | Redo |
+
+---
+
+## YouTube
+
+| Shortcut | Action |
+|---|---|
+| **⌘⇧L** | Insert YouTube timestamp into active note |
+| **⌘⇧P** | Toggle Picture-in-Picture |
+
+---
+
+## Search
+
+| Shortcut | Action |
+|---|---|
+| **⌘⇧F** | Full-text search across all texts |
+
+---
+
+## Global
+
+| Shortcut | Action |
+|---|---|
+| **⌘,** | Open Settings |
+| **Escape** | Close floating search / dismiss popovers |
+
+---
+
+> The full shortcut list is also in **Settings → Shortcuts**.
+`,
+  },
+  {
+    title: 'Settings',
+    content: `# Settings
+
+← Back to [[Welcome]]
+
+Open Settings with **⌘,**. Use the compact/expanded toggle in the top bar to show or hide setting descriptions.
+
+---
+
+## Display
+
+- **Default Bible text** — which translation opens in new Bible tabs
+- **Font family and size** — for Bible text and notes editor separately
+- **Line height** — comfortable / compact / spacious
+- **Theme** — Light / Dark / System
+- **Show inline Strong's numbers** — display H/G tags after each word
+- **Show Strong's hover tooltips** — popup on Strong's chip hover
+- **Click Strong's opens lexicon tab** — open full entry on click
+- **Verse indicator position** — dot to the right of the verse number or in the left margin
+- **Cross-text highlight sync** — share highlights across KJV and LXX
+
+---
+
+## Texts
+
+- Enable or disable each available text
+- Reorder texts (affects compare view order)
+- Customize display names per text
+
+---
+
+## Notes
+
+- **Default editor mode** — start new notes in edit mode or view mode
+- **Heading divider lines** — subtle rule below each heading
+- **Bullet list style** — choose from 5 bullet symbol sets with preview
+- **Confirm before deleting notes** — safety prompt on delete
+- **Spell check** — enable system spell check in the editor
+- **Default note color**
+- **Default note opening** — new tab, right panel, or bottom panel
+- **Copy verse text on highlight** — auto-copy when you highlight
+
+---
+
+## Vault Sync
+
+Configure sync of your notes to a local Markdown folder. See [[Vault Sync]] for full details.
+
+---
+
+## YouTube
+
+- **Allowed channels** — add or remove channels by URL or handle
+- **Auto Picture-in-Picture** — toggle auto-PiP on tab switch
+- **Timestamp link format** — customize the inserted link format
+
+---
+
+## Word Replacer
+
+Define word substitutions applied across the entire app UI, search, and notes. Example: display "Yehovah" wherever the underlying texts say "LORD".
+
+Replacements also expand search queries — searching "Yeshua" finds "Jesus" occurrences automatically.
+
+---
+
+## Shortcuts
+
+Read-only list of all keyboard shortcuts. See [[Keyboard Shortcuts]] for the full table.
+
+---
+
+## Import
+
+Import notes from BibleGateway or e-Sword. Also available during the onboarding walkthrough.
+
+---
+
+## Updates
+
+Check for new app versions, enable auto-check on startup, and toggle the beta update channel to receive pre-release builds. The **download page** link opens the Berean website with release notes.
+
+---
+
+## About
+
+- App version
+- Replay the getting started walkthrough
+- Recreate Getting Started notes
+- Open source licenses
+
+---
+
+> See also: [[Vault Sync]], [[Keyboard Shortcuts]]
+`,
+  },
+  {
+    title: 'Vault Sync',
+    content: `# Vault Sync
+
+← Back to [[Welcome]]
+
+Vault sync writes your Berean notes as plain Markdown files to any local folder on your machine. This makes them accessible in Obsidian, Logseq, iA Writer, Octarine, or any Markdown-compatible app.
+
+---
+
+## Setting Up
+
+1. Open **Settings → Vault Sync**
+2. Toggle **Enable vault sync** ON
+3. Click **Choose folder** and select a directory (e.g. your Obsidian vault root or iCloud folder)
+4. Berean writes all notes into a \`berean-notes/\` subfolder inside that directory
+
+**Default path for Octarine users:**
+\`\`\`
+~/Library/Mobile Documents/com~apple~CloudDocs/Octarine/workspaces/bible
+\`\`\`
+
+---
+
+## File Structure
+
+\`\`\`
+{vault-root}/
+└── berean-notes/
+    ├── verse-notes/
+    │   ├── Gen_1_1_note1.md
+    │   └── Exod_20_1_note1.md
+    └── general-notes/
+        ├── creation-study.md
+        └── torah-observance-overview.md
+\`\`\`
+
+---
+
+## File Format
+
+Every note file uses YAML frontmatter compatible with Obsidian, Logseq, and Octarine:
+
+\`\`\`markdown
+---
+type: verse-note
+ref: Gen 1:1
+created: 2025-01-15T10:30:00
+updated: 2025-01-15T14:22:00
+tags: [creation, beginnings]
+color: blue
+berean_id: abc123-uuid
+---
+
+# Gen 1:1 — My Note
+
+In the beginning Yehovah created...
+
+[[Exod 20:11]] — cross-reference to Sabbath
+\`\`\`
+
+The \`berean_id\` field is used to reconcile notes between Berean and your vault editor without relying on filenames.
+
+---
+
+## Two-Way Sync
+
+- **Berean → vault:** notes saved in Berean are immediately written to disk
+- **Vault → Berean:** Berean watches the vault folder for changes (via \`chokidar\`) and imports edits made in other apps
+- **Conflict resolution:** last-write-wins by \`updated_at\` timestamp
+
+---
+
+## Wikilinks
+
+Berean supports both verse reference wikilinks and note-to-note wikilinks:
+
+- \`[[Gen 1:1]]\` — navigates the active Bible panel to Genesis 1:1
+- \`[[My Note Title]]\` — links to another note by title
+- \`[[Gen 1:1|custom label]]\` — wikilink with display text
+
+These links render as clickable in Berean's note viewer and are preserved in vault files for Obsidian/Octarine compatibility.
+
+---
+
+## iCloud and Mobile Access
+
+If your vault is in iCloud Drive, notes synced by Berean are automatically available on your iPhone in Octarine or any other iCloud-aware Markdown app — no additional setup required.
+
+---
+
+> See also: [[Notes & Editor]], [[Settings]]
+`,
+  },
+]
+
+// ── Helper: create Getting Started folder + notes ─────────────────────────────
+
+export async function createGettingStartedNotes() {
   try {
-    await window.notes.createNote({
-      type: 'general',
-      title: 'Welcome to Berean — Getting Started',
-      content: WELCOME_NOTE_CONTENT,
-      color: 'blue',
-      tags: ['berean', 'guide'],
-    })
+    // Find or create the "Getting Started" folder
+    const folders = await window.notes.getFolders()
+    let folderId: string | null = null
+    const existing = folders.find((f) => f.name === GETTING_STARTED_FOLDER)
+    if (existing) {
+      folderId = existing.id
+    } else {
+      const res = await window.notes.createFolder(GETTING_STARTED_FOLDER, null)
+      if (res.success) folderId = res.id
+    }
+
+    // Get all existing note titles to avoid duplicates
+    const existingNotes = await window.notes.getNotes(500, 0)
+    const existingTitles = new Set(existingNotes.map((n) => n.title?.toLowerCase()))
+
+    for (const noteSpec of GETTING_STARTED_NOTES) {
+      if (existingTitles.has(noteSpec.title.toLowerCase())) continue
+      const res = await window.notes.createNote({
+        type: 'general',
+        title: noteSpec.title,
+        content: noteSpec.content,
+        color: 'blue',
+        tags: ['getting-started'],
+      })
+      if (res.success && res.note && folderId) {
+        await window.notes.setNoteFolder(res.note.id, folderId)
+      }
+    }
   } catch {
     // non-fatal
   }
@@ -444,7 +1179,7 @@ function StepDone() {
       <div>
         <h2 className="text-2xl font-bold text-[rgb(var(--color-text-primary))] mb-2">You're all set</h2>
         <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed max-w-sm">
-          A <strong>Getting Started</strong> note has been added to your Notes space with a full reference guide.
+          A <strong>Getting Started</strong> folder has been added to your Notes space with 10 linked guide pages covering every feature in the app.
           You can replay this walkthrough anytime from <strong>Settings → About</strong>.
         </p>
       </div>
@@ -459,6 +1194,82 @@ function StepDone() {
   )
 }
 
+// ── StepNotesView ──────────────────────────────────────────────────────────────
+
+function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoose: (v: 'list' | 'folder') => void }) {
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-[rgb(var(--color-text-primary))] mb-1">Notes view</h2>
+      <p className="text-sm text-[rgb(var(--color-text-muted))] mb-5">
+        How would you like your notes organised? You can always switch later using the folder-tree icon in the notes toolbar.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {/* List view option */}
+        <button
+          onClick={() => onChoose('list')}
+          className={`rounded-xl border-2 p-3 text-left transition-all cursor-pointer ${
+            choice === 'list'
+              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+              : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/40]'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <List size={15} className={choice === 'list' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'} />
+            <span className={`text-sm font-semibold ${choice === 'list' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))]'}`}>List view</span>
+          </div>
+          {/* Preview */}
+          <div className="rounded-lg overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
+            {['Genesis 1:1 note', 'Torah study', 'Daily — 2025-01-01', 'Creation notes'].map((t) => (
+              <div key={t} className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] last:border-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))/40] flex-shrink-0" />
+                <span className="truncate text-[rgb(var(--color-text-secondary))]">{t}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-2 leading-snug">Simple flat list sorted by last modified. Quick to scan.</p>
+        </button>
+
+        {/* Folder view option */}
+        <button
+          onClick={() => onChoose('folder')}
+          className={`rounded-xl border-2 p-3 text-left transition-all cursor-pointer ${
+            choice === 'folder'
+              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+              : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/40]'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <FolderTree size={15} className={choice === 'folder' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'} />
+            <span className={`text-sm font-semibold ${choice === 'folder' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))]'}`}>Folder view</span>
+          </div>
+          {/* Preview */}
+          <div className="rounded-lg overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
+            {[
+              { open: false, label: 'Daily Notes',             indent: 0, muted: true,  isFile: false },
+              { open: false, label: 'Verse Notes',             indent: 0, muted: true,  isFile: false },
+              { open: true,  label: 'Covenants of promise',    indent: 0, muted: false, isFile: false },
+              { open: false, label: 'Holy covenant notes',     indent: 1, muted: false, isFile: true  },
+              { open: false, label: 'Rainbow covenant notes',  indent: 1, muted: false, isFile: true  },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-1.5 py-1 border-b border-[rgb(var(--color-surface-4))] last:border-0"
+                style={{ paddingLeft: 8 + row.indent * 12 }}>
+                {row.isFile
+                  ? <FileText size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  : row.open
+                    ? <FolderOpen size={9} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+                    : <Folder size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                }
+                <span className={`truncate ${row.muted ? 'text-[rgb(var(--color-text-muted))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>{row.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-2 leading-snug">Organised into folders. Drag notes to move them.</p>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Onboarding component ─────────────────────────────────────────────────
 
 export default function Onboarding() {
@@ -468,6 +1279,7 @@ export default function Onboarding() {
 
   const [stepIdx, setStepIdx] = useState(0)
   const [completing, setCompleting] = useState(false)
+  const [notesViewChoice, setNotesViewChoice] = useState<'list' | 'folder'>('list')
 
   // Reset to first step when opened
   useEffect(() => {
@@ -483,7 +1295,11 @@ export default function Onboarding() {
   async function handleNext() {
     if (isLast) {
       setCompleting(true)
-      await createWelcomeNote()
+      // Persist notes view choice before creating the welcome note
+      try {
+        await window.settings.set('notesFolderView', notesViewChoice === 'folder')
+      } catch { /* ignore */ }
+      await createGettingStartedNotes()
       completeOnboarding()
       setCompleting(false)
     } else {
@@ -496,7 +1312,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-[260] flex items-center justify-center bg-black/60">
       <div className="relative w-full max-w-lg mx-4 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '90vh' }}>
 
         {/* Close / Skip button (top right) */}
@@ -530,11 +1346,12 @@ export default function Onboarding() {
         </div>
 
         {/* Step content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-6" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
           {currentStep.id === 'welcome'     && <StepWelcome />}
           {currentStep.id === 'translation' && <StepTranslation />}
           {currentStep.id === 'vault'       && <StepVault />}
           {currentStep.id === 'import'      && <StepImport />}
+          {currentStep.id === 'notesView'   && <StepNotesView choice={notesViewChoice} onChoose={setNotesViewChoice} />}
           {currentStep.id === 'shortcuts'   && <StepShortcuts />}
           {currentStep.id === 'done'        && <StepDone />}
         </div>

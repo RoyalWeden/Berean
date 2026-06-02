@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { Download, Loader2, CheckCircle2, XCircle, FolderOpen, RefreshCw } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import type { ESwordReviewNote } from '@/types/electron'
 
 type ReviewFilter = 'all' | 'new' | 'updated' | 'duplicate'
@@ -10,7 +11,7 @@ export default function ESwordImporter() {
   const {
     eSwordPhase, eSwordDone, eSwordTotal, eSwordMessage, eSwordReviewNotes,
     setESwordProgress, resetESword, bumpNoteToken,
-  } = useAppStore((s) => ({
+  } = useAppStore(useShallow((s) => ({
     eSwordPhase:       s.eSwordPhase,
     eSwordDone:        s.eSwordDone,
     eSwordTotal:       s.eSwordTotal,
@@ -19,7 +20,7 @@ export default function ESwordImporter() {
     setESwordProgress: s.setESwordProgress,
     resetESword:       s.resetESword,
     bumpNoteToken:     s.bumpNoteToken,
-  }))
+  })))
 
   const [folder, setFolder] = useState('')
   const [importStudy, setImportStudy] = useState(true)

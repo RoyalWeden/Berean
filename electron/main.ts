@@ -1,13 +1,36 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu } from 'electron'
 import { join } from 'path'
+import { appendFileSync, mkdirSync } from 'fs'
+import os from 'os'
 import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
-import { getBereanDb, closeBereanDb } from './db/berean'
+
+// Write to a known container path before anything else — captures crashes that happen
+// before app.ready (before electron-log knows its path).
+const EARLY_LOG = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'berean-startup.log')
+function earlyLog(msg: string) {
+  try {
+    mkdirSync(join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data'), { recursive: true })
+    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+  } catch { /* sandbox may block this pre-ready; tolerate */ }
+}
+earlyLog('main.ts: module loaded')
+// Verify the early log is actually writing by immediately reading it back.
+// If the file exists, we know the container path is correct.
+try {
+  const { readFileSync } = require('fs') as typeof import('fs')
+  const contents = readFileSync(EARLY_LOG, 'utf8')
+  if (!contents.includes('module loaded')) {
+    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] WARNING: log verify mismatch\n`)
+  }
+} catch { /* will be caught if file not yet created */ }
+import { getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
 import { registerNotesHandlers } from './ipc/notes'
+import { registerPdfHandlers } from './ipc/pdf'
 import { registerVaultHandlers } from './ipc/vault'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
@@ -25,8 +48,75 @@ if (!app.isPackaged) {
   app.setPath('userData', join(app.getPath('appData'), 'Berean-dev'))
 }
 
-// Redirect electron-updater logs to file so they don't clutter the console
-log.transports.file.level = 'info'
+if (app.isPackaged && process.mas) {
+  // The Chromium Network Service utility process crashes in MAS with SIGTRAP
+  // because it tries to register Mach bootstrap IPC endpoints that the App
+  // Sandbox blocks. Disabling Chromium's own sandbox on the Network Service
+  // lets Mojo IPC initialize via the channel the MAS sandbox does allow.
+  app.commandLine.appendSwitch('disable-features', 'NetworkServiceSandbox')
+
+  // GPU flags: run GPU in-process so the renderer never waits for a separate
+  // GPU helper that might also fail in the sandbox.
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('in-process-gpu')
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-gpu-compositing')
+  app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
+  app.commandLine.appendSwitch('disable-hang-monitor')
+  app.commandLine.appendSwitch('no-proxy-server')
+
+  // Chromium internal log for future debugging.
+  const chromiumLog = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'chromium-log.txt')
+  earlyLog(`chromium log path: ${chromiumLog}`)
+  app.commandLine.appendSwitch('enable-logging')
+  app.commandLine.appendSwitch('log-level', '0')
+  app.commandLine.appendSwitch('log-file', chromiumLog)
+}
+
+// Track ALL child process exits with full detail.
+app.on('child-process-gone', (_event, details) => {
+  const msg = `[child-process-gone] type=${details.type} reason=${details.reason} exitCode=${details.exitCode} name=${details.name ?? '?'} pid=${(details as any).pid ?? '?'} serviceWorkerProcessType=${(details as any).serviceWorkerProcessType ?? '?'}`
+  earlyLog(msg)
+  log.error(msg)
+  // If network service crashes: show a dialog so we can see the exact state
+  if (details.name === 'Network Service' && details.reason === 'crashed') {
+    earlyLog(`[NS-crash-detail] exitCode=${details.exitCode} — application-groups IPC fix applied`)
+  }
+})
+
+// Crash logging — catches any uncaught error before Electron quits silently.
+// Writes to the electron-log file so sandbox/TestFlight crashes are diagnosable.
+log.transports.file.level = 'debug'
+log.transports.console.level = is.dev ? 'debug' : false
+
+process.on('uncaughtException', (err) => {
+  earlyLog(`uncaughtException: ${err.message}\n${err.stack}`)
+  log.error('[uncaughtException]', err.message, err.stack)
+})
+process.on('unhandledRejection', (reason) => {
+  earlyLog(`unhandledRejection: ${String(reason)}`)
+  log.error('[unhandledRejection]', reason)
+})
+
+earlyLog(`process handlers registered — packaged=${app.isPackaged} mas=${process.mas}`)
+earlyLog(`versions: electron=${process.versions.electron} chrome=${process.versions.chrome} node=${process.versions.node} v8=${process.versions.v8}`)
+earlyLog(`paths: exec=${process.execPath} resources=${process.resourcesPath}`)
+log.info(`Berean starting — version=${app.getVersion()} packaged=${app.isPackaged} mas=${process.mas} platform=${process.platform}`)
+log.info(`versions: electron=${process.versions.electron} chrome=${process.versions.chrome} node=${process.versions.node}`)
+
+// On startup, surface any crash report left in the container from a previous run.
+try {
+  const { readdirSync, readFileSync, statSync } = require('fs') as typeof import('fs')
+  const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
+  const files = readdirSync(crashDir).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
+  for (const f of files) {
+    const full = join(crashDir, f)
+    const age = Date.now() - statSync(full).mtimeMs
+    if (age < 5 * 60 * 1000) { // only crashes from the last 5 min
+      earlyLog(`[prev-crash-report] ${f}: ${readFileSync(full, 'utf8').slice(0, 800)}`)
+    }
+  }
+} catch { /* dir may not exist yet */ }
 
 // MAS builds: the App Store owns updates — electron-updater must be disabled entirely.
 // process.mas is set to true by Electron when running inside the Mac App Store sandbox.
@@ -327,13 +417,14 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
     Object.entries(state).map(([k, v]) => [k, String(v)])
   )}).toString()
 
+  const isWin = process.platform === 'win32'
   const floatWin = new BrowserWindow({
     width: 700,
     height: 700,
     minWidth: 400,
     minHeight: 400,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 12, y: 14 },
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
     backgroundColor: '#111114',
     icon: appIcon,
     title: is.dev ? 'Berean Float [Dev]' : 'Berean',
@@ -377,13 +468,14 @@ function createWindow(): void {
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
 
+  const isMainWin = process.platform !== 'win32'
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 12, y: 14 },
+    titleBarStyle: isMainWin ? 'hiddenInset' : 'default',
+    ...(isMainWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
     backgroundColor: '#111114',
     icon: appIcon,
     // Show [Dev] in the window title (visible in macOS app switcher / dock tooltip)
@@ -392,6 +484,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // webviewTag disabled in MAS to prevent Network Service crash on webview
+      // infrastructure init. YouTube uses a dedicated BrowserWindow instead.
       webviewTag: true,
       sandbox: false,
     },
@@ -423,9 +517,75 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    const msg = `reason: ${details.reason}  exitCode: ${details.exitCode}`
+    earlyLog(`[renderer-process-gone] ${msg}`)
+    log.error('[renderer-process-gone]', JSON.stringify(details))
+    dialog.showErrorBox('Renderer crashed', msg)
+  })
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    earlyLog(`[did-fail-load] ${code} ${desc} ${url}`)
+    log.error('[did-fail-load]', code, desc, url)
+  })
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    const lvl = ['verbose', 'info', 'warning', 'error'][level] ?? 'unknown'
+    earlyLog(`[renderer-console:${lvl}] ${message}  (${sourceId}:${line})`)
+    log.info(`[renderer:${lvl}] ${message}`)
+  })
+  mainWindow.webContents.on('did-start-loading', () => {
+    earlyLog('[did-start-loading]')
+    log.info('[did-start-loading]')
+  })
+  mainWindow.webContents.on('did-start-navigation', (_e, url) => {
+    earlyLog(`[did-start-navigation] ${url}`)
+    log.info('[did-start-navigation]', url)
+  })
+  mainWindow.webContents.on('dom-ready', () => {
+    earlyLog('[dom-ready]')
+    log.info('[dom-ready]')
+  })
+  mainWindow.webContents.on('did-finish-load', () => {
+    earlyLog('[did-finish-load] renderer HTML loaded OK')
+    log.info('[did-finish-load] renderer loaded')
+  })
+  mainWindow.webContents.on('unresponsive', () => {
+    earlyLog('[unresponsive] renderer is not responding')
+    log.warn('[unresponsive]')
+  })
+  mainWindow.webContents.on('responsive', () => {
+    earlyLog('[responsive]')
+    log.info('[responsive]')
+  })
+  log.info('mainWindow created, loading renderer...')
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  earlyLog('app.whenReady fired')
+  log.info('app.whenReady fired')
+
+  // Log GPU status so we know what Chromium sees inside the sandbox.
+  try {
+    const gpuInfo = await app.getGPUInfo('basic') as Record<string, unknown>
+    const gpuSummary = JSON.stringify(gpuInfo).slice(0, 500)
+    earlyLog(`[gpu-info] ${gpuSummary}`)
+    log.info('[gpu-info]', gpuSummary)
+  } catch (e) {
+    earlyLog(`[gpu-info-error] ${e}`)
+    log.warn('[gpu-info-error]', e)
+  }
+
+  // Log all active command-line switches so we can verify flags are applied.
+  try {
+    const switches = app.commandLine
+    const knownSwitches = ['in-process-gpu','disable-gpu','disable-gpu-compositing','disable-hang-monitor','enable-logging','log-level','no-sandbox']
+    const active = knownSwitches.filter(s => switches.hasSwitch(s)).join(', ')
+    earlyLog(`[active-switches] ${active || 'none'}`)
+    log.info('[active-switches]', active || 'none')
+  } catch (e) {
+    earlyLog(`[switches-error] ${e}`)
+  }
+
   // Dock icon for dev — packaged app uses the bundled icns automatically
   if (is.dev && process.platform === 'darwin') {
     const icnsPath = join(app.getAppPath(), 'assets/icon.icns')
@@ -445,15 +605,29 @@ app.whenReady().then(() => {
 
   // Native app menu
   Menu.setApplicationMenu(buildAppMenu())
+  log.info('menu built')
 
   // Open app DB and run migrations before registering IPC handlers
-  getBereanDb()
+  try {
+    const db = getBereanDb()
+    earlyLog('berean.db opened OK')
+    log.info('berean.db opened')
+    mergeYouTubeSeed(db)
+  } catch (err) {
+    earlyLog(`berean.db FAILED: ${err}`)
+    log.error('Failed to open berean.db:', err)
+    throw err
+  }
 
   // Persistent session for YouTube webview
   session.fromPartition('persist:youtube')
+  log.info('youtube session created')
 
   registerBibleHandlers(ipcMain)
   registerNotesHandlers(ipcMain)
+  log.info('[berean-main] Notes handlers registered')
+  registerPdfHandlers(ipcMain)
+  log.info('[berean-main] PDF handlers registered')
   registerVaultHandlers(ipcMain)
   registerSettingsHandlers(ipcMain)
   registerLexiconHandlers(ipcMain)
@@ -466,6 +640,16 @@ app.whenReady().then(() => {
   registerWorkspacesHandlers(ipcMain)
 
   // Core app IPC
+  // Diagnostic: renderer can call this to verify handler registration at runtime
+  ipcMain.handle('app:listHandlers', () => {
+    // ipcMain doesn't expose a built-in list; we enumerate known channels
+    const known = [
+      'notes:create','notes:update','notes:delete','notes:setFolder',
+      'folders:create','folders:getAll','folders:rename','folders:delete','folders:deleteDeep','folders:setParent',
+    ]
+    log.info('[berean-main] Handler list requested:', known.join(', '))
+    return known
+  })
   ipcMain.handle('app:isDev', () => is.dev)
   ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url))
   ipcMain.handle('app:youTubeSignOut', async () => {
@@ -479,6 +663,41 @@ app.whenReady().then(() => {
   ipcMain.handle('app:newWindow', () => { createWindow() })
   ipcMain.handle('app:openFloatingTab', (_e, type: string, state: Record<string, unknown>) => {
     createFloatingWindow(type, state ?? {})
+  })
+
+  // Print a note: load its HTML into an offscreen window and invoke the print dialog.
+  ipcMain.handle('app:printNote', async (_e, html: string) => {
+    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
+    try {
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      await new Promise<void>((resolve) => {
+        win.webContents.print({ silent: false, printBackground: true }, () => resolve())
+      })
+      return { success: true }
+    } finally {
+      // Delay close so the print dialog can read the contents
+      setTimeout(() => { if (!win.isDestroyed()) win.close() }, 60000)
+    }
+  })
+
+  // Export a note to PDF: render HTML offscreen, printToPDF, save via dialog.
+  ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string) => {
+    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
+    try {
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } })
+      const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+      const result = await dialog.showSaveDialog(parent!, {
+        defaultPath: `${(suggestedName || 'note').replace(/[/\\:]/g, '-')}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+      if (result.canceled || !result.filePath) return { success: false, canceled: true }
+      const { writeFile } = await import('fs/promises')
+      await writeFile(result.filePath, pdf)
+      return { success: true }
+    } finally {
+      if (!win.isDestroyed()) win.close()
+    }
   })
 
   // Cross-window tab sync: one window broadcasts a store state snapshot,
@@ -524,6 +743,10 @@ app.whenReady().then(() => {
       return
     }
     try {
+      // Apply beta channel preference at check time
+      const db = getBereanDb()
+      const ch = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
+      autoUpdater.allowPrerelease = ch?.value === 'beta'
       await autoUpdater.checkForUpdates()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -544,7 +767,11 @@ app.whenReady().then(() => {
     autoUpdater.quitAndInstall(false, true)
   })
 
+  earlyLog('all IPC handlers registered — calling createWindow()')
+  log.info('all IPC handlers registered — calling createWindow()')
   createWindow()
+  earlyLog('createWindow() returned')
+  log.info('createWindow() returned')
 
   // Wire up auto-updater events now that mainWindow exists.
   // Skip entirely for MAS — the App Store handles all updates.
@@ -555,6 +782,11 @@ app.whenReady().then(() => {
     const db = getBereanDb()
     const row = db.prepare("SELECT value FROM settings WHERE key='autoUpdate'").get() as { value: string } | undefined
     const autoCheckEnabled = !row || row.value !== 'false'
+
+    // Apply beta channel preference before the first check
+    const channelRow = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
+    if (channelRow?.value === 'beta') autoUpdater.allowPrerelease = true
+
     if (autoCheckEnabled) {
       // Delay so the window finishes rendering before we fire the network request
       setTimeout(() => {
@@ -568,6 +800,11 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((err: unknown) => {
+  const msg = err instanceof Error ? `${err.message}\n\n${err.stack}` : String(err)
+  earlyLog(`STARTUP FATAL: ${msg}`)
+  log.error('[startup fatal]', msg)
+  dialog.showErrorBox('Berean failed to start', msg)
 })
 
 app.on('window-all-closed', () => {

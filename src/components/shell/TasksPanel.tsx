@@ -703,6 +703,11 @@ export default function TasksPanel() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // When a BibleGateway import toast is showing (bottom-right, z-200), lift the
+  // Getting Started panel above it so getting started stays visible on top.
+  const bgImportActive = useAppStore((s) => s.bgImportPhase !== 'idle')
+  const liftBottom = bgImportActive ? 168 : 20  // px; clears the BG progress toast
+
   // ── Auto-detect subscription ───────────────────────────────────────────────
   useEffect(() => {
     if (!tasksVisible) return
@@ -737,7 +742,7 @@ export default function TasksPanel() {
   // ── Minimized chip ─────────────────────────────────────────────────────────
   if (tasksMinimized) {
     return createPortal(
-      <div className="fixed bottom-5 right-5 z-[9999]" style={{ pointerEvents: 'auto' }}>
+      <div className="fixed right-5 z-[9999]" style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}>
         <button
           onClick={unminimizeTasks}
           className="flex items-center gap-2 px-3 py-2 rounded-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-lg hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
@@ -759,8 +764,8 @@ export default function TasksPanel() {
   // ── Expanded panel ─────────────────────────────────────────────────────────
   return createPortal(
     <div
-      className="fixed bottom-5 right-5 z-[9999] w-[360px] flex flex-col rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl overflow-hidden"
-      style={{ pointerEvents: 'auto' }}
+      className="fixed right-5 z-[9999] w-[360px] flex flex-col rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl overflow-hidden"
+      style={{ pointerEvents: 'auto', bottom: liftBottom, transition: 'bottom 0.2s ease' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -805,7 +810,7 @@ export default function TasksPanel() {
       {/* Scrollable body — stopPropagation on wheel prevents Radix Dialog from swallowing scroll events */}
       <div
         className="overflow-y-scroll"
-        style={{ maxHeight: '480px' }}
+        style={{ maxHeight: '480px', transform: 'translateZ(0)', contain: 'paint' }}
         onWheel={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >

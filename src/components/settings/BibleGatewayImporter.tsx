@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, RefreshCw, LogOut,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import type { BgImportReviewNote } from '@/types/electron'
 
 type ReviewFilter = 'all' | 'new' | 'updated' | 'duplicate'
@@ -12,7 +13,7 @@ export default function BibleGatewayImporter() {
   const {
     bgImportPhase, bgImportDone, bgImportTotal, bgImportMessage, bgImportReviewNotes,
     setBgImportProgress, resetBgImport, bumpNoteToken,
-  } = useAppStore((s) => ({
+  } = useAppStore(useShallow((s) => ({
     bgImportPhase:       s.bgImportPhase,
     bgImportDone:        s.bgImportDone,
     bgImportTotal:       s.bgImportTotal,
@@ -21,7 +22,7 @@ export default function BibleGatewayImporter() {
     setBgImportProgress: s.setBgImportProgress,
     resetBgImport:       s.resetBgImport,
     bumpNoteToken:       s.bumpNoteToken,
-  }))
+  })))
 
   // ── Local state ──────────────────────────────────────────────────────────────
   const [username, setUsername] = useState('')

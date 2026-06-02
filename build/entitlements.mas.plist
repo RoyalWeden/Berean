@@ -28,5 +28,11 @@
   <key>com.apple.security.files.downloads.read-only</key>
   <true/>
 
+  <!-- Explicitly empty application-groups — prevents electron-builder from
+       auto-injecting "TEAMID.BUNDLEID" which requires a registered App Group
+       in the provisioning profile (we don't need inter-app data sharing). -->
+  <key>com.apple.security.application-groups</key>
+  <array/>
+
 </dict>
 </plist>

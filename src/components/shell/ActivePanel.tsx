@@ -4,6 +4,7 @@ import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import YouTubeTab from '@/components/youtube/YouTubeTab'
 import SearchTab from '@/components/search/SearchTab'
+import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import { BookOpen } from 'lucide-react'
 
@@ -55,6 +56,7 @@ export default function ActivePanel() {
           {tab?.type === 'note'    && <ErrorBoundary key={tab.id} label="Notes panel error"><NotesPanel key={tab.id} /></ErrorBoundary>}
           {tab?.type === 'lexicon' && <ErrorBoundary key={tab.id} label="Lexicon panel error"><LexiconPanel key={tab.id} /></ErrorBoundary>}
           {tab?.type === 'search'  && <ErrorBoundary key={tab.id} label="Search error"><SearchTab key={tab.id} /></ErrorBoundary>}
+          {tab?.type === 'pdf'     && <ErrorBoundary key={tab.id} label="PDF viewer error"><PDFViewer key={tab.id} /></ErrorBoundary>}
         </div>
       )}
     </div>

@@ -377,6 +377,8 @@ export default function App() {
       if (typeof all.crossRefSource === 'string') s.setCrossRefSource(all.crossRefSource as 'tske' | 'classic' | 'notes')
       if (typeof all.autoCloseTabsAfter === 'number') s.setAutoCloseTabsAfter(all.autoCloseTabsAfter)
       if (typeof all.wordReplacerEnabled === 'boolean') s.setWordReplacerEnabled(all.wordReplacerEnabled)
+      if (typeof all.noteScriptureBlock === 'boolean') s.setNoteScriptureBlock(all.noteScriptureBlock)
+      if (typeof all.noteScriptureBlockThreshold === 'number') s.setNoteScriptureBlockThreshold(all.noteScriptureBlockThreshold)
     }).catch(() => {})
 
     // 3. Check onboarding status
@@ -410,7 +412,9 @@ export default function App() {
         state.noteTransformLayout !== prev.noteTransformLayout ||
         state.crossRefSource !== prev.crossRefSource ||
         state.autoCloseTabsAfter !== prev.autoCloseTabsAfter ||
-        state.wordReplacerEnabled !== prev.wordReplacerEnabled
+        state.wordReplacerEnabled !== prev.wordReplacerEnabled ||
+        state.noteScriptureBlock !== prev.noteScriptureBlock ||
+        state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold
       if (!changed) return
       clearTimeout(timer)
       timer = setTimeout(() => {
@@ -430,6 +434,8 @@ export default function App() {
           ['crossRefSource', s.crossRefSource],
           ['autoCloseTabsAfter', s.autoCloseTabsAfter],
           ['wordReplacerEnabled', s.wordReplacerEnabled],
+          ['noteScriptureBlock', s.noteScriptureBlock],
+          ['noteScriptureBlockThreshold', s.noteScriptureBlockThreshold],
         ]
         pairs.forEach(([k, v]) => window.settings?.set(k, v).catch(() => {}))
       }, DEBOUNCE)
@@ -529,7 +535,7 @@ export default function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const cmd = e.metaKey
+      const cmd = e.metaKey || e.ctrlKey
 
       // ── Cmd+F → route find bar to the last-focused panel ───────────────
       if (cmd && !e.shiftKey && e.key.toLowerCase() === 'f') {

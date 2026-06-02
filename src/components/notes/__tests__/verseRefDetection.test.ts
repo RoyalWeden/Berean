@@ -1,0 +1,329 @@
+/**
+ * Tests for:
+ *  - findVerseRefMatches: ANY number of verse refs per line, multi-word book
+ *    names, leading-word recovery ("vs Deuteronomy 18:15-19"), all books.
+ *  - verseTextMatchRatio: the "actually contains the verse text" check.
+ *  - renderPreviewContent verse blocks (view-mode styling parity).
+ *  - detectVerseBlock across all books.
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import {
+  findVerseRefMatches, verseTextMatchRatio, renderPreviewContent, detectVerseBlock,
+} from '../NoteEditor'
+import { ALL_BOOKS, parseRef } from '@/lib/parseRef'
+import { useAppStore } from '@/store'
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+const refTexts = (s: string) => findVerseRefMatches(s).map(m => m.refText)
+const refIds = (s: string) => findVerseRefMatches(s).map(m => parseRef(m.refText)?.bookId)
+
+// Representative books spanning every section of the canon Berean ships. Each is
+// verified to round-trip through parseRef. We test detection across this curated
+// set (rather than every obscure pseudepigraphon) plus the explicit multi-word
+// cases in section 1.
+const SIMPLE_BOOKS = ALL_BOOKS.filter(b => [
+  // OT
+  'GEN','EXO','LEV','NUM','DEU','JOS','JDG','RUT','1SA','2SA','1KI','2KI',
+  '1CH','2CH','EZR','NEH','JOB','PSA','PRO','ECC','ISA','JER','LAM','EZK',
+  'DAN','HOS','JOL','AMO','OBA','JON','MIC','NAM','HAB','ZEP','HAG','ZEC','MAL',
+  // NT
+  'MAT','MRK','LUK','JHN','ACT','ROM','1CO','2CO','GAL','EPH','PHP','COL',
+  '1TH','2TH','1TI','2TI','TIT','PHM','HEB','JAS','1PE','2PE','1JN','2JN','3JN','JUD','REV',
+  // Apocrypha / pseudepigrapha (single-token or "N Word" names)
+  'TOB','JDT','SIR','BAR','ENO','JUB',
+].includes(b.id))
+
+// Alias retained for any remaining references.
+const CLEAN_BOOKS = SIMPLE_BOOKS
+
+// ── 1. Multiple refs per line (the reported bug) ──────────────────────────────
+
+describe('findVerseRefMatches — multiple refs per line', () => {
+  it('the reported line: Romans 10:1-2 vs Deuteronomy 18:15-19', () => {
+    const line = 'two diff righteousness: Romans 10:1-2 vs Deuteronomy 18:15-19'
+    const ids = refIds(line)
+    expect(ids).toContain('ROM')
+    expect(ids).toContain('DEU')
+    expect(ids.length).toBe(2)
+  })
+
+  it('recovers book after a leading non-book word ("vs Deuteronomy")', () => {
+    const m = findVerseRefMatches('vs Deuteronomy 18:15-19')
+    expect(m.length).toBe(1)
+    expect(m[0].refText).toBe('Deuteronomy 18:15-19')
+    expect(parseRef(m[0].refText)?.bookId).toBe('DEU')
+  })
+
+  it('two refs separated by "and"', () => {
+    expect(refIds('Gen 1:1 and John 1:1')).toEqual(['GEN', 'JHN'])
+  })
+
+  it('three refs on one line', () => {
+    expect(refIds('Gen 1:1, Exod 20:3, and Rev 22:21')).toEqual(['GEN', 'EXO', 'REV'])
+  })
+
+  it('four refs on one line', () => {
+    const ids = refIds('Matt 5:8 Mark 1:1 Luke 2:1 John 3:16')
+    expect(ids).toEqual(['MAT', 'MRK', 'LUK', 'JHN'])
+  })
+
+  it('refs with ranges all detected', () => {
+    expect(refIds('Isa 53:1-5 / Ps 22:1-18')).toEqual(['ISA', 'PSA'])
+  })
+
+  it('numbered-book refs both detected', () => {
+    expect(refIds('1 John 2:4 vs 2 Peter 1:5')).toEqual(['1JN', '2PE'])
+  })
+
+  it('multi-word book ref + simple ref', () => {
+    expect(refIds('Song of Songs 2:1 and Ps 45:1')).toEqual(['SNG', 'PSA'])
+  })
+
+  it('leading commentary words then two refs', () => {
+    expect(refIds('compare Genesis 1:1 with John 1:1')).toEqual(['GEN', 'JHN'])
+  })
+
+  it('refs separated by colon-prefixed phrase', () => {
+    const ids = refIds('law vs grace: Galatians 3:24 then Romans 6:14')
+    expect(ids).toEqual(['GAL', 'ROM'])
+  })
+
+  it('five refs in a list', () => {
+    const ids = refIds('Gen 1:1 Exod 2:2 Lev 3:3 Num 4:4 Deut 5:5')
+    expect(ids).toEqual(['GEN', 'EXO', 'LEV', 'NUM', 'DEU'])
+  })
+
+  it('match offsets are non-overlapping and ordered', () => {
+    const m = findVerseRefMatches('Gen 1:1 and John 3:16')
+    expect(m.length).toBe(2)
+    expect(m[0].index).toBeLessThan(m[1].index)
+    expect(m[0].index + m[0].length).toBeLessThanOrEqual(m[1].index)
+  })
+
+  it('refText excludes the leading non-book word', () => {
+    const m = findVerseRefMatches('see Romans 8:28')
+    expect(m[0].refText).toBe('Romans 8:28')
+  })
+
+  it('chapter-only refs detected', () => {
+    expect(refIds('Genesis 1 and Exodus 20')).toEqual(['GEN', 'EXO'])
+  })
+
+  it('mixed chapter-only and verse refs', () => {
+    expect(refIds('Psalm 23 then Ps 23:1')).toEqual(['PSA', 'PSA'])
+  })
+
+  it('does not match gibberish', () => {
+    expect(findVerseRefMatches('hello world no refs here')).toHaveLength(0)
+  })
+
+  it('does not match a word glued to a number with no book', () => {
+    expect(findVerseRefMatches('xyz123 abc456')).toHaveLength(0)
+  })
+
+  it('LXX suffix flagged on the right ref only', () => {
+    const m = findVerseRefMatches('Gen 1:1 LXX and John 1:1')
+    expect(m.length).toBe(2)
+    expect(m[0].lxx).toBe(true)
+    expect(m[1].lxx).toBe(false)
+  })
+})
+
+// ── 2. All books — single ref recognised ──────────────────────────────────────
+
+describe('findVerseRefMatches — every clean-named book', () => {
+  for (const book of CLEAN_BOOKS) {
+    it(`${book.name} 1:1 → ${book.id}`, () => {
+      const m = findVerseRefMatches(`${book.name} 1:1`)
+      expect(m.length).toBeGreaterThanOrEqual(1)
+      expect(parseRef(m[0].refText)?.bookId).toBe(book.id)
+    })
+  }
+})
+
+// ── 3. All books — two refs on one line (cross product sample) ────────────────
+
+describe('findVerseRefMatches — each book paired with John 3:16', () => {
+  for (const book of SIMPLE_BOOKS) {
+    it(`${book.name} 1:1 and John 3:16`, () => {
+      const ids = refIds(`${book.name} 1:1 and John 3:16`)
+      expect(ids).toContain(book.id)
+      expect(ids).toContain('JHN')
+      expect(ids.length).toBe(2)
+    })
+  }
+})
+
+// ── 4. All books — "vs" recovery (leading word) ───────────────────────────────
+
+describe('findVerseRefMatches — "vs Book" recovery for every book', () => {
+  for (const book of SIMPLE_BOOKS) {
+    it(`Gen 1:1 vs ${book.name} 2:2`, () => {
+      const ids = refIds(`Gen 1:1 vs ${book.name} 2:2`)
+      expect(ids).toContain('GEN')
+      expect(ids).toContain(book.id)
+    })
+  }
+})
+
+// ── 5. verseTextMatchRatio ────────────────────────────────────────────────────
+
+describe('verseTextMatchRatio', () => {
+  it('identical text → 1', () => {
+    expect(verseTextMatchRatio('In the beginning', 'In the beginning')).toBe(1)
+  })
+
+  it('candidate fully contained → 1', () => {
+    expect(verseTextMatchRatio('the beginning', 'In the beginning God created')).toBe(1)
+  })
+
+  it('no overlap → 0', () => {
+    expect(verseTextMatchRatio('xyz qqq', 'In the beginning')).toBe(0)
+  })
+
+  it('half overlap → 0.5', () => {
+    expect(verseTextMatchRatio('beginning xyz', 'in the beginning')).toBe(0.5)
+  })
+
+  it('case-insensitive', () => {
+    expect(verseTextMatchRatio('IN THE BEGINNING', 'in the beginning')).toBe(1)
+  })
+
+  it('ignores punctuation', () => {
+    expect(verseTextMatchRatio('beginning,', 'In the beginning.')).toBe(1)
+  })
+
+  it('empty candidate → 0', () => {
+    expect(verseTextMatchRatio('', 'anything')).toBe(0)
+  })
+
+  it('commentary text scores low', () => {
+    // "my thoughts here" vs an actual verse — near zero
+    const ratio = verseTextMatchRatio('my thoughts here', 'And Adam lived after he begat Seth eight hundred years')
+    expect(ratio).toBeLessThan(0.5)
+  })
+
+  it('real verse text scores high', () => {
+    const actual = 'For God so loved the world that he gave his only begotten Son'
+    const candidate = 'For God so loved the world that he gave his only begotten Son'
+    expect(verseTextMatchRatio(candidate, actual)).toBe(1)
+  })
+
+  it('mostly-correct verse scores above 0.9', () => {
+    const actual = 'He that saith I know him and keepeth not his commandments is a liar'
+    const candidate = 'He that saith I know him and keepeth not his commandments is a' // dropped last word
+    expect(verseTextMatchRatio(candidate, actual)).toBeGreaterThan(0.9)
+  })
+
+  it('multiset: duplicate candidate words need duplicate actual words', () => {
+    // candidate has "the the", actual has only one "the"
+    expect(verseTextMatchRatio('the the', 'the cat')).toBe(0.5)
+  })
+
+  it('gibberish verse comment example scores low', () => {
+    // user's example: "Genesis 5:4 therniorns gresoin" — comment text
+    expect(verseTextMatchRatio('therniorns gresoin', 'And the days of Adam after he had begotten Seth')).toBe(0)
+  })
+})
+
+// ── 6. renderPreviewContent verse blocks (view-mode styling) ─────────────────
+
+describe('renderPreviewContent verse blocks (setting ON)', () => {
+  beforeAll(() => { useAppStore.setState({ noteScriptureBlock: true, noteScriptureBlockThreshold: 0.9 }) })
+  afterAll(() => { useAppStore.setState({ noteScriptureBlock: false }) })
+
+  it('single-line verse block gets berean-verse-block div', () => {
+    const html = renderPreviewContent('1 John 2:4 He that saith I know him')
+    expect(html).toContain('berean-verse-block')
+    expect(html).toContain('He that saith')
+  })
+
+  it('single-line block has the ref styled', () => {
+    const html = renderPreviewContent('John 3:16 For God so loved the world')
+    expect(html).toContain('berean-verse-block')
+    expect(html).toContain('berean-verse-ref')
+    expect(html).toContain('John 3:16')
+  })
+
+  it('multi-line verse block gets a single block div', () => {
+    const md = 'Luke 16:29-31\n29 Abraham saith.\n30 And he said.\n31 And he said.'
+    const html = renderPreviewContent(md)
+    expect(html).toContain('berean-verse-block')
+    expect(html).toContain('Abraham saith')
+    expect(html).toContain('Luke 16:29-31')
+  })
+
+  it('bare reference alone is NOT a block', () => {
+    const html = renderPreviewContent('Luke 16:29-31')
+    expect(html).not.toContain('berean-verse-block')
+  })
+
+  it('block style applied via inline style (works in print)', () => {
+    const html = renderPreviewContent('Gen 1:1 In the beginning God created')
+    expect(html).toMatch(/berean-verse-block[^>]*style=/)
+  })
+})
+
+describe('renderPreviewContent verse blocks (setting OFF)', () => {
+  beforeAll(() => { useAppStore.setState({ noteScriptureBlock: false }) })
+
+  it('no block formatting when disabled', () => {
+    const html = renderPreviewContent('1 John 2:4 He that saith I know him')
+    expect(html).not.toContain('berean-verse-block')
+  })
+
+  it('inline verse refs still link when disabled', () => {
+    const html = renderPreviewContent('See Gen 1:1 here')
+    expect(html).toContain('berean-verse-ref')
+  })
+})
+
+// ── 7. Inline multi-ref in preview HTML ───────────────────────────────────────
+
+describe('renderPreviewContent — multiple inline refs per line', () => {
+  beforeAll(() => { useAppStore.setState({ noteScriptureBlock: false }) })
+
+  it('both refs become links: Romans 10:1-2 vs Deuteronomy 18:15-19', () => {
+    const html = renderPreviewContent('compare Romans 10:1-2 vs Deuteronomy 18:15-19')
+    const links = html.match(/class="berean-verse-ref"/g) ?? []
+    expect(links.length).toBe(2)
+    expect(html).toContain('Romans 10:1-2')
+    expect(html).toContain('Deuteronomy 18:15-19')
+  })
+
+  it('three refs all become links', () => {
+    const html = renderPreviewContent('Gen 1:1, John 1:1, and Rev 22:21')
+    const links = html.match(/class="berean-verse-ref"/g) ?? []
+    expect(links.length).toBe(3)
+  })
+
+  it('ref inside code is NOT linked', () => {
+    const html = renderPreviewContent('`Gen 1:1`')
+    expect(html).not.toContain('berean-verse-ref')
+  })
+})
+
+// ── 8. detectVerseBlock across all clean books ───────────────────────────────
+
+describe('detectVerseBlock — single-line for every clean book', () => {
+  for (const book of CLEAN_BOOKS) {
+    it(`${book.name} 1:1 + text`, () => {
+      const r = detectVerseBlock(`${book.name} 1:1 here is some verse text content`)
+      expect(r).not.toBeNull()
+      expect(r!.kind).toBe('single')
+      expect(parseRef(r!.ref)?.bookId).toBe(book.id)
+    })
+  }
+})
+
+// ── 9. Print HTML carries verse styles ───────────────────────────────────────
+
+describe('buildPrintHTML verse styling', () => {
+  it('print CSS includes berean-verse-ref and berean-verse-block rules', async () => {
+    const { buildPrintHTML } = await import('../NoteEditor')
+    const html = buildPrintHTML('Test', 'See Gen 1:1')
+    expect(html).toContain('.berean-verse-block')
+    expect(html).toContain('a.berean-verse-ref')
+  })
+})

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp } from 'lucide-react'
+import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
 import ChapterView from './ChapterView'
 import CompareView from './CompareView'
@@ -86,7 +87,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const textId = (tabState.translation ?? 'KJVA').toLowerCase()
   const [books, setBooks] = useState<Book[]>([])
   const [translationOpen, setTranslationOpen] = useState(false)
+  const [translationFilter, setTranslationFilter] = useState('')
   const translationRef = useRef<HTMLDivElement>(null)
+  const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const infoRef = useRef<HTMLDivElement>(null)
 
@@ -182,9 +185,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
   }, [])
 
-  // Close translation dropdown on outside click
+  // Close translation dropdown on outside click; reset filter when it closes
   useEffect(() => {
-    if (!translationOpen) return
+    if (!translationOpen) { setTranslationFilter(''); return }
     function onDown(e: MouseEvent) {
       if (translationRef.current && !translationRef.current.contains(e.target as Node)) {
         setTranslationOpen(false)
@@ -193,6 +196,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [translationOpen])
+
+  // Filtered translation list (type-to-filter by label or description)
+  const filteredTranslations = useMemo(() => {
+    const q = translationFilter.trim().toLowerCase()
+    if (!q) return TRANSLATIONS
+    return TRANSLATIONS.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+  }, [translationFilter])
 
   // Close info popover on outside click
   useEffect(() => {
@@ -341,6 +351,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       })
     }
   }, [pendingRightPanelCrossRefVerse]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync right-panel local state when tabState changes externally (e.g. tab combine drop).
+  // We watch the tab ID so that switching to a different tab also restores its panel state.
+  // The individual fields guard against overwriting user interactions in the current session.
+  const prevTabId = useRef(activeTab?.id)
+  useEffect(() => {
+    const tabChanged = activeTab?.id !== prevTabId.current
+    prevTabId.current = activeTab?.id
+    // Only sync if tab changed OR if the new state has rightPanelOpen=true with a specific content.
+    // This avoids clobbering panel state the user set via the UI.
+    if (tabState.rightPanelOpen && (tabChanged || !rightPanelOpen)) {
+      setRightPanelOpen(true)
+    }
+    if (tabState.rightPanelTab) setRightPanelTab(tabState.rightPanelTab)
+    if (tabState.rightPanelNoteId !== undefined) setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
+    if (tabState.rightPanelLexiconEntry !== undefined) setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
+  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Find-bar: compute verse match list whenever query or chapter changes ──────
   // We watch the rendered chapter verses to know which ones match.
@@ -729,8 +756,30 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {TRANSLATIONS.find((t) => t.id === textId)?.label ?? tabState.translation.toUpperCase()}
           </button>
           {translationOpen && (
-            <div className="absolute top-full left-0 mt-1 z-50 w-[420px] max-h-96 overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1">
-              {TRANSLATIONS.map((t) => (
+            <div className="absolute top-full left-0 mt-1 z-50 w-[420px] max-h-96 overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl py-1">
+              {/* Type-to-filter input */}
+              <div className="px-2 pb-1 sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
+                <input
+                  autoFocus
+                  value={translationFilter}
+                  onChange={(e) => setTranslationFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') { setTranslationOpen(false); setTranslationFilter('') }
+                    if (e.key === 'Enter' && filteredTranslations.length > 0 && activeTab) {
+                      const t = filteredTranslations[0]
+                      const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
+                      updateTabState('scripture', activeTab.id, {
+                        translation: t.id.toUpperCase(),
+                        ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+                      })
+                      setTranslationOpen(false); setTranslationFilter('')
+                    }
+                  }}
+                  placeholder="Filter translations…"
+                  className="w-full text-xs bg-[rgb(var(--color-surface-4))] rounded px-2 py-1.5 outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                />
+              </div>
+              {filteredTranslations.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => {
@@ -767,6 +816,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             </div>
           )}
         </div>
+
+        {/* PDF import / library button */}
+        {!floating && (
+          <button
+            onClick={(e) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              setPdfPicker({ x: r.left, y: r.bottom + 4 })
+            }}
+            title="PDF library — import or open a PDF"
+            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer flex-shrink-0"
+          >
+            <FileUp size={14} />
+          </button>
+        )}
 
         {/* Annotation info button */}
         {ANNOTATION_KEYS[textId] && (
@@ -1001,6 +1064,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           currentTextId={textId}
         />
       )}
+
+      {/* PDF library picker */}
+      {pdfPicker && <PdfPicker anchor={pdfPicker} onClose={() => setPdfPicker(null)} />}
 
       {/* Verse digit overlay — shown while accumulating a type-anywhere verse number */}
       {verseDigitAccum && (

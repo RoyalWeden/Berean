@@ -28,6 +28,17 @@ contextBridge.exposeInMainWorld('notes', {
     ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter),
   searchNotes: (query: string, limit?: number) =>
     ipcRenderer.invoke('notes:search', query, limit),
+  setNoteFolder: (noteId: string, folderId: string | null) =>
+    ipcRenderer.invoke('notes:setFolder', noteId, folderId),
+  // Folders
+  getFolders: () => ipcRenderer.invoke('folders:getAll'),
+  createFolder: (name: string, parentId?: string | null) =>
+    ipcRenderer.invoke('folders:create', name, parentId ?? null),
+  renameFolder: (id: string, name: string) => ipcRenderer.invoke('folders:rename', id, name),
+  deleteFolder: (id: string) => ipcRenderer.invoke('folders:delete', id),
+  deleteFolderDeep: (id: string) => ipcRenderer.invoke('folders:deleteDeep', id),
+  setFolderParent: (id: string, parentId: string | null) =>
+    ipcRenderer.invoke('folders:setParent', id, parentId),
 })
 
 contextBridge.exposeInMainWorld('lexicon', {
@@ -53,6 +64,20 @@ contextBridge.exposeInMainWorld('settings', {
   getAll: () => ipcRenderer.invoke('settings:getAll')
 })
 
+contextBridge.exposeInMainWorld('pdf', {
+  import: () => ipcRenderer.invoke('pdf:import'),
+  list: () => ipcRenderer.invoke('pdf:list'),
+  get: (id: string) => ipcRenderer.invoke('pdf:get', id),
+  readBytes: (id: string) => ipcRenderer.invoke('pdf:readBytes', id),
+  setPageCount: (id: string, n: number) => ipcRenderer.invoke('pdf:setPageCount', id, n),
+  rename: (id: string, title: string) => ipcRenderer.invoke('pdf:rename', id, title),
+  delete: (id: string) => ipcRenderer.invoke('pdf:delete', id),
+  highlightsList: (pdfId: string) => ipcRenderer.invoke('pdf:highlights:list', pdfId),
+  highlightsAdd: (data: unknown) => ipcRenderer.invoke('pdf:highlights:add', data),
+  highlightsRemove: (id: string) => ipcRenderer.invoke('pdf:highlights:remove', id),
+  highlightsSetNote: (id: string, note: string) => ipcRenderer.invoke('pdf:highlights:setNote', id, note),
+})
+
 contextBridge.exposeInMainWorld('app', {
   onCloseTab: (cb: () => void) => {
     ipcRenderer.removeAllListeners('app:closeTab')
@@ -75,6 +100,9 @@ contextBridge.exposeInMainWorld('app', {
   youTubeSignOut: () => ipcRenderer.invoke('app:youTubeSignOut'),
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
   openFloatingTab: (type: string, state: unknown) => ipcRenderer.invoke('app:openFloatingTab', type, state),
+  // Print / export a rendered note (full HTML document string)
+  printNote: (html: string) => ipcRenderer.invoke('app:printNote', html),
+  exportNotePDF: (html: string, suggestedName: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName),
   // Cross-window tab sync
   broadcastTabState: (payload: unknown) => ipcRenderer.send('app:broadcastTabState', payload),
   onTabStateUpdate: (cb: (payload: unknown) => void) => {
@@ -125,6 +153,7 @@ contextBridge.exposeInMainWorld('youtube', {
   removeFromHistory: (videoId: string) => ipcRenderer.invoke('youtube:removeFromHistory', videoId),
   clearWatchHistory: () => ipcRenderer.invoke('youtube:clearWatchHistory'),
   fetchDescription: (videoId: string) => ipcRenderer.invoke('youtube:fetchDescription', videoId),
+  searchVideos: (query: string, limit?: number) => ipcRenderer.invoke('youtube:searchVideos', query, limit),
 })
 
 contextBridge.exposeInMainWorld('vault', {
@@ -163,6 +192,9 @@ contextBridge.exposeInMainWorld('eSwordImport', {
     ipcRenderer.on('eSwordImport:progress', (_, p) => cb(p))
   },
 })
+
+// Expose platform so renderer can adapt window chrome without Node access
+contextBridge.exposeInMainWorld('__berean_platform', process.platform)
 
 contextBridge.exposeInMainWorld('bgImport', {
   start: (credentials: { username: string; password: string }) =>

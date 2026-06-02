@@ -89,6 +89,13 @@ export const ANNOTATION_KEYS: Record<string, { canHide: boolean; description?: s
       { key: '1clement_brackets', symbol: '[word]', meaning: 'Text supplied by Lightfoot where the manuscript is damaged or lacunose.' },
     ],
   },
+  apoc_abraham: {
+    canHide: true,
+    description: 'Trans. G.H. Box (1918), from the Slavonic. 32 chapters: 1–8 narrate Abraham’s rejection of his father’s idols; 9–32 the apocalyptic vision. Verse numbering follows the Box edition.',
+    keys: [
+      { key: 'apoc_abraham_parens', symbol: '(word)', meaning: 'Word supplied by the translator for clarity — not present in the Slavonic source.' },
+    ],
+  },
 }
 
 export const TRANSLATIONS = [
@@ -105,4 +112,5 @@ export const TRANSLATIONS = [
   { id: 'gad',           label: 'Gad the Seer',    description: 'Words of Gad the Seer, trans. Beir Bar-Ilan' },
   { id: 't_job',         label: 'T. Job',           description: 'Testament of Job, trans. M.R. James (1897)' },
   { id: '1clement',      label: '1 Clement',        description: 'First Epistle of Clement to the Corinthians, trans. J.B. Lightfoot' },
+  { id: 'apoc_abraham',  label: 'Apoc. Abraham',    description: 'Apocalypse of Abraham, trans. G.H. Box (1918)' },
 ]

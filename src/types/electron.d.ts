@@ -1,4 +1,4 @@
-import type { Book, Verse, Note, LexiconEntry, SearchResult } from './index'
+import type { Book, Verse, Note, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight } from './index'
 
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
@@ -19,6 +19,13 @@ interface NotesAPI {
   getChapterNotes: (bookId: string, chapter: number) => Promise<Note[]>
   getChapterCounts: (bookId: string, chapter: number) => Promise<Record<number, number>>
   searchNotes: (query: string, limit?: number) => Promise<Note[]>
+  setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
+  getFolders: () => Promise<NoteFolder[]>
+  createFolder: (name: string, parentId?: string | null) => Promise<{ success: boolean; id: string }>
+  renameFolder: (id: string, name: string) => Promise<{ success: boolean }>
+  deleteFolder: (id: string) => Promise<{ success: boolean }>
+  deleteFolderDeep: (id: string) => Promise<{ success: boolean }>
+  setFolderParent: (id: string, parentId: string | null) => Promise<{ success: boolean; error?: string }>
 }
 
 type HighlightColor = 'yellow' | 'red' | 'green' | 'blue' | 'purple'
@@ -42,6 +49,23 @@ interface SettingsAPI {
   get: (key: string) => Promise<unknown>
   set: (key: string, value: unknown) => Promise<{ success: boolean }>
   getAll: () => Promise<Record<string, unknown>>
+}
+
+interface PdfAPI {
+  import: () => Promise<{ success?: boolean; canceled?: boolean; error?: string; pdf?: PdfDoc }>
+  list: () => Promise<PdfDoc[]>
+  get: (id: string) => Promise<PdfDoc | null>
+  readBytes: (id: string) => Promise<ArrayBuffer | null>
+  setPageCount: (id: string, n: number) => Promise<{ success: boolean }>
+  rename: (id: string, title: string) => Promise<{ success: boolean }>
+  delete: (id: string) => Promise<{ success: boolean }>
+  highlightsList: (pdfId: string) => Promise<PdfHighlight[]>
+  highlightsAdd: (data: {
+    pdfId: string; page: number; rects: Array<{ x: number; y: number; w: number; h: number }>
+    color: string; text: string; note?: string | null
+  }) => Promise<{ success: boolean; id: string }>
+  highlightsRemove: (id: string) => Promise<{ success: boolean }>
+  highlightsSetNote: (id: string, note: string) => Promise<{ success: boolean }>
 }
 
 interface YouTubeVideoEntry {
@@ -86,6 +110,10 @@ interface YouTubeAPI {
   removeFromHistory: (videoId: string) => Promise<void>
   clearWatchHistory: () => Promise<void>
   fetchDescription: (videoId: string) => Promise<string>
+  searchVideos: (query: string, limit?: number) => Promise<Array<{
+    videoId: string; title: string; channelName: string
+    thumbnailUrl: string; type: string; published: string
+  }>>
 }
 
 interface VaultAPI {
@@ -136,6 +164,8 @@ interface AppAPI {
   youTubeSignOut?: () => Promise<{ success: boolean }>
   newWindow: () => Promise<void>
   openFloatingTab: (type: string, state: unknown) => Promise<void>
+  printNote: (html: string) => Promise<{ success: boolean }>
+  exportNotePDF: (html: string, suggestedName: string) => Promise<{ success: boolean; canceled?: boolean }>
   broadcastTabState: (payload: unknown) => void
   onTabStateUpdate: (cb: (payload: unknown) => void) => void
   returnFloatTab: (payload: { type: string; state: Record<string, unknown> }) => void
@@ -268,6 +298,7 @@ declare global {
     highlights: HighlightsAPI
     lexicon: LexiconAPI
     settings: SettingsAPI
+    pdf: PdfAPI
     vault: VaultAPI
     youtube: YouTubeAPI
     crossrefs: CrossRefsAPI
@@ -276,6 +307,8 @@ declare global {
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
     workspaces: WorkspacesAPI
+    // Platform string injected by preload for renderer-side platform detection
+    __berean_platform: NodeJS.Platform
   }
 
   // Electron <webview> tag

@@ -77,6 +77,7 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'JUB', name: 'Jubilees',       patterns: ['jub', 'jubilees'] },
   // Pseudepigrapha — additional texts
   { id: 'AEL', name: 'Apocalypse of Elijah', patterns: ['ael', 'apoc elijah', 'apocalypse of elijah', 'apoc. elijah', 'revelation of elijah', 'rev elijah'] },
+  { id: 'ABR', name: 'Apocalypse of Abraham', patterns: ['abr', 'apoc abraham', 'apocalypse of abraham', 'apoc. abraham', 'apoc abr'] },
   // Recognitions of Clement — 10 books; 'rcl' / 'recognitions' defaults to Book I
   { id: 'RCL1',  name: 'Recognitions - Book 1',  patterns: ['rcl1', 'rcl i', 'rec clem 1', 'recognitions book 1', 'recognitions book i'] },
   { id: 'RCL2',  name: 'Recognitions - Book 2',  patterns: ['rcl2', 'rcl ii', 'rec clem 2', 'recognitions book 2', 'recognitions book ii'] },
@@ -121,9 +122,52 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
 
 const PATTERN_LOOKUP = new Map<string, string>()
 const ID_TO_NAME = new Map<string, string>()
-for (const { id, name, patterns } of BOOK_MAP) {
+const BOOK_ORDER_MAP = new Map<string, number>()
+BOOK_MAP.forEach(({ id, name, patterns }, i) => {
+  if (!BOOK_ORDER_MAP.has(id)) BOOK_ORDER_MAP.set(id, i) // first occurrence wins for duplicate IDs
   ID_TO_NAME.set(id, name)
   for (const p of patterns) PATTERN_LOOKUP.set(p, id)
+})
+
+/** Canonical sort position for a bookId (lower = earlier in canon). Returns 9999 for unknown IDs. */
+export function bookOrder(bookId: string): number {
+  return BOOK_ORDER_MAP.get(bookId) ?? 9999
+}
+
+/** All books with a canonical display name (deduped by id, first occurrence wins). */
+export const ALL_BOOKS: ReadonlyArray<{ id: string; name: string; patterns: readonly string[] }> = (() => {
+  const seen = new Set<string>()
+  const out: Array<{ id: string; name: string; patterns: readonly string[] }> = []
+  for (const b of BOOK_MAP) {
+    if (seen.has(b.id)) continue
+    seen.add(b.id)
+    out.push({ id: b.id, name: b.name, patterns: b.patterns })
+  }
+  return out
+})()
+
+/**
+ * Resolve a book token to a book id.
+ * 1. Exact pattern match ("gen", "jhn", "1jo")
+ * 2. Name prefix match in canonical order ("joh" → John, "rev" → Revelation)
+ * 3. Pattern prefix match in canonical order (fallback, e.g. "jdg" partials)
+ * Prefix matching needs ≥2 chars to avoid wild single-letter ambiguity.
+ */
+export function resolveBookToken(raw: string): string | null {
+  const key = raw.trim().toLowerCase().replace(/\s+/g, ' ')
+  const exact = PATTERN_LOOKUP.get(key)
+  if (exact) return exact
+  const noSpace = key.replace(/\s+/g, '')
+  if (noSpace.length < 2) return null
+  // Name prefix (canonical order)
+  for (const { id, name } of BOOK_MAP) {
+    if (name.toLowerCase().replace(/\s+/g, '').startsWith(noSpace)) return id
+  }
+  // Pattern prefix (canonical order)
+  for (const { id, patterns } of BOOK_MAP) {
+    if (patterns.some((p) => p.replace(/\s+/g, '').startsWith(noSpace))) return id
+  }
+  return null
 }
 
 export function bookName(bookId: string): string {
@@ -134,6 +178,7 @@ const BOOK_TRANSLATION: Record<string, string> = {
   ENO:     'enoch',
   JUB:     'jubilees',
   AEL:     'apoc_elijah',
+  ABR:     'apoc_abraham',
   // Recognitions of Clement — all 10 books in same DB
   RCL1:    'recog_clement',
   RCL2:    'recog_clement',
@@ -210,7 +255,7 @@ export function parseRef(input: string): ParsedRef | null {
 
   if (isNaN(chapter) || chapter < 1) return null
 
-  const bookId = PATTERN_LOOKUP.get(bookRaw)
+  const bookId = resolveBookToken(bookRaw)
   if (!bookId) return null
 
   return { bookId, chapter, verse, endVerse, endChapter }

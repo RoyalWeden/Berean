@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, memo } from 'react'
 import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
@@ -156,7 +156,7 @@ function SessionBadge({ name }: { name: string }) {
 
 // ── Single history item ────────────────────────────────────────────────────────
 
-function HistoryItem({
+const HistoryItem = memo(function HistoryItem({
   entry,
   isChained,
   onNavigate,
@@ -206,7 +206,7 @@ function HistoryItem({
       </button>
     </div>
   )
-}
+})
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -410,7 +410,7 @@ export default function HistoryModal() {
         )}
 
         {/* ── List ── */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto min-h-0" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-[rgb(var(--color-text-muted))]">
               <Clock size={26} className="opacity-25" />
@@ -426,7 +426,7 @@ export default function HistoryModal() {
           ) : (
             <div className="py-1">
               {groups.map((group) => (
-                <div key={group.label}>
+                <div key={group.label} style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${group.entries.length * 30 + 24}px` }}>
                   {/* Day header */}
                   <div className="sticky top-0 px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))] border-b border-[rgb(var(--color-surface-4))] z-10 flex items-center gap-2">
                     <span>{group.label}</span>

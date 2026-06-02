@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine } from 'lucide-react'
 import NotesList from './NotesList'
-import NoteEditor from './NoteEditor'
+import NoteEditor, { buildPrintHTML } from './NoteEditor'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
-import type { Note, NoteTabState, Tab } from '@/types'
+import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
+import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
+import { orderedFolders } from './NoteContextMenu'
+import { isSystemNote, parseVerseRef } from '@/lib/noteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword'
 type NoteSort = 'modified' | 'created' | 'name'
@@ -139,22 +142,87 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [noteSort, setNoteSort] = useState<NoteSort>('modified')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
+  const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [expandAll, setExpandAll] = useState(false)
+  const [folderView, setFolderView] = useState(false)
+  const [folders, setFolders] = useState<NoteFolder[]>([])
+  const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const loadFolders = useCallback(() => {
+    window.notes.getFolders().then(setFolders).catch(console.error)
+  }, [])
+
+  // Load folders + persisted folder-view preference on mount
+  useEffect(() => {
+    loadFolders()
+    window.settings?.get('notesFolderView').then((v) => { if (v === true) setFolderView(true) }).catch(() => {})
+  }, [loadFolders])
+
+  const toggleFolderView = useCallback(() => {
+    setFolderView((v) => {
+      const next = !v
+      window.settings?.set('notesFolderView', next).catch(() => {})
+      return next
+    })
+  }, [])
+
+  // Folder operation handlers — call IPC then reload folders + notes
+  const reloadNotes = useCallback(() => {
+    window.notes.getNotes(100000, 0).then(setNotes).catch(console.error)
+  }, [])
+  const handleCreateFolder = useCallback(async (parentId: string | null) => {
+    await window.notes.createFolder('New Folder', parentId); loadFolders()
+  }, [loadFolders])
+  const handleRenameFolder = useCallback(async (id: string, name: string) => {
+    await window.notes.renameFolder(id, name); loadFolders()
+  }, [loadFolders])
+  const handleDeleteFolder = useCallback(async (id: string) => {
+    await window.notes.deleteFolder(id); loadFolders(); reloadNotes()
+  }, [loadFolders, reloadNotes])
+  const handleDeleteFolderDeep = useCallback(async (id: string) => {
+    await window.notes.deleteFolderDeep(id); loadFolders(); reloadNotes(); bumpNoteToken()
+  }, [loadFolders, reloadNotes, bumpNoteToken])
+  const handleSetFolderParent = useCallback(async (id: string, parentId: string | null) => {
+    await window.notes.setFolderParent(id, parentId); loadFolders()
+  }, [loadFolders])
+  const handleSetNoteFolder = useCallback(async (noteId: string, folderId: string | null) => {
+    await window.notes.setNoteFolder(noteId, folderId)
+    setNotes((prev) => prev.map((n) => n.id === noteId ? { ...n, folderId } : n))
+  }, [])
 
   function toggleSelectNote(id: string) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
+  function toggleSelectFolder(id: string) {
+    setSelectedFolderIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function exitSelectMode() {
+    setSelectMode(false); setSelectedIds([]); setSelectedFolderIds([]); setMoveMenu(null)
+  }
 
   async function deleteSelected() {
-    for (const id of selectedIds) {
-      await window.notes.deleteNote(id)
-    }
-    setNotes(prev => prev.filter(n => !selectedIds.includes(n.id)))
+    for (const id of selectedIds) await window.notes.deleteNote(id)
+    for (const fid of selectedFolderIds) await window.notes.deleteFolderDeep(fid)
+    loadFolders()
+    reloadNotes()
     bumpNoteToken()
-    setSelectedIds([])
-    setSelectMode(false)
+    exitSelectMode()
+  }
+
+  async function moveSelectedToFolder(folderId: string | null) {
+    for (const id of selectedIds) {
+      const note = notes.find(n => n.id === id)
+      if (note && noteIsMovable(note)) await window.notes.setNoteFolder(id, folderId)
+    }
+    for (const fid of selectedFolderIds) {
+      if (fid !== folderId) await window.notes.setFolderParent(fid, folderId)
+    }
+    loadFolders()
+    reloadNotes()
+    exitSelectMode()
   }
 
   // Keep the ref pointing at the latest version so the event listener always uses current notes
@@ -168,16 +236,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   async function openDailyNote(date: Date) {
     const title = dailyNoteTitle(date)
-    const existing = notes.find(n => n.title === title && n.type === 'daily')
-    if (existing) {
-      setActiveNote(existing)
-    } else {
-      const result = await window.notes.createNote({ title, content: '', type: 'daily' })
-      if (result.success && result.note) {
-        setNotes(prev => [result.note!, ...prev])
-        setActiveNote(result.note!)
-        bumpNoteToken()
+    // 1. Check in-memory list first (fast path)
+    const inMemory = notes.find(n => n.title === title && n.type === 'daily')
+    if (inMemory) {
+      setActiveNote(inMemory)
+      setCalendarOpen(false)
+      return
+    }
+    // 2. Always query the DB before creating — guards against race conditions
+    //    or notes loaded in another session not yet reflected in local state.
+    try {
+      const candidates = await window.notes.searchNotes(title, 5)
+      const dbExisting = candidates.find(n => n.title === title && n.type === 'daily')
+      if (dbExisting) {
+        // Merge into local list so subsequent opens are fast
+        setNotes(prev => prev.some(n => n.id === dbExisting.id) ? prev : [dbExisting, ...prev])
+        setActiveNote(dbExisting)
+        setCalendarOpen(false)
+        return
       }
+    } catch { /* ignore search errors, fall through to create */ }
+    // 3. Truly doesn't exist — create it
+    const result = await window.notes.createNote({ title, content: '', type: 'daily' })
+    if (result.success && result.note) {
+      setNotes(prev => [result.note!, ...prev])
+      setActiveNote(result.note!)
+      bumpNoteToken()
     }
     setCalendarOpen(false)
   }
@@ -185,14 +269,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Allow sidebar's daily-note button (berean:openDailyNote) to work when notes panel is mounted
   const openDailyNoteRef = useRef<(d: Date) => void>(() => {})
 
-  const [previewMode, setPreviewMode] = useState(false)
+  type EditorMode = 'raw' | 'wysiwyg' | 'preview'
+  const NEXT_MODE: Record<EditorMode, EditorMode> = { raw: 'wysiwyg', wysiwyg: 'preview', preview: 'raw' }
+  const [editorMode, setEditorMode] = useState<EditorMode>('wysiwyg')
+  const previewMode = editorMode === 'preview'
+  const wysiwygMode = editorMode === 'wysiwyg'
 
-  // Cmd+Shift+M → toggle markdown preview via menu/shortcut
+  // Cmd+Shift+M → cycle through raw → wysiwyg → preview
   useEffect(() => {
-    function onToggle() { setPreviewMode((v) => !v) }
+    function onToggle() { setEditorMode((prev) => NEXT_MODE[prev]) }
     window.addEventListener('berean:toggleMarkdown', onToggle)
     return () => window.removeEventListener('berean:toggleMarkdown', onToggle)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorFocusRef = useRef<(() => void) | null>(null)
@@ -202,12 +290,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Track latest cursor position so it can be persisted on tab switch
   const lastCursorPosRef = useRef(0)
 
-  // Keep tab title in sync with the open note
+  // Keep tab title in sync with the open note — re-runs whenever the note id
+  // OR title changes so that renaming a note immediately updates the tab label.
   useEffect(() => {
     if (!notesTabId) return
     const title = activeNote ? (activeNote.title?.trim() || 'Untitled') : 'Notes'
     renameTab('notes', notesTabId, title)
-    // Record note view in history
+    // Record note view in history (only on note change, not on every title keystroke)
     if (activeNote) {
       useAppStore.getState().addHistoryEntry({
         type: 'note',
@@ -215,10 +304,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         noteId: activeNote.id,
       })
     }
-  }, [activeNote?.id, notesTabId, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeNote?.id, activeNote?.title, notesTabId, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    window.notes.getNotes(1000, 0).then(setNotes).catch(console.error)
+    window.notes.getNotes(100000, 0).then(setNotes).catch(console.error)
   }, [noteChangeToken])
 
   // Restore the note that was open when this tab was last active
@@ -327,7 +416,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     await window.notes.deleteNote(target.id)
     setNotes((prev) => prev.filter((n) => n.id !== target.id))
     bumpNoteToken()
-    if (target.id === activeNote?.id) { setActiveNote(null); setPreviewMode(false) }
+    if (target.id === activeNote?.id) { setActiveNote(null); setEditorMode('wysiwyg') }
   }
 
   async function goBack() {
@@ -337,7 +426,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }
     setActiveNote(null)
     setNoteHistory([])
-    setPreviewMode(false)
+    setEditorMode('wysiwyg')
   }
 
   function navigateToNote(note: Note) {
@@ -424,6 +513,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }
 
     fresh.updateTabState('scripture', scriptureTabId, stateUpdate)
+    fresh.setActiveSpace('scripture')
+  }
+
+  function openVerseFromNote(verseRef: string) {
+    const parsed = parseVerseRef(verseRef)
+    if (!parsed) return
+    const store = useAppStore.getState()
+    store.createTab('bible')
+    const fresh = useAppStore.getState()
+    const scriptureTabId = fresh.activeTabId['scripture']
+    if (!scriptureTabId) return
+    const translation = (getTranslationForBook(parsed.bookId) ?? fresh.defaultBibleTranslation).toUpperCase()
+    fresh.updateTabState('scripture', scriptureTabId, {
+      bookId: parsed.bookId, chapter: parsed.chapter,
+      targetVerse: parsed.verse, scrollPosition: 0, translation,
+      noteBack: activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : null,
+    })
     fresh.setActiveSpace('scripture')
   }
 
@@ -577,24 +683,74 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 </button>
               </>
             )}
-            <input
-              ref={titleInputRef}
-              value={activeNote.title ?? ''}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              onKeyDown={handleTitleKeyDown}
-              placeholder="Untitled"
-              className="flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
-            />
-            <button
-              onClick={() => setPreviewMode((v) => !v)}
-              title={previewMode ? 'Edit (raw markdown)' : 'Preview (rendered)'}
-              className={`p-1 rounded cursor-pointer transition-colors ${
-                previewMode
-                  ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-              }`}
+            {isSystemNote(activeNote) ? (
+              /* System notes (daily, verse, esword, biblegateway) — title is read-only */
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                {activeNote.verseRef && parseVerseRef(activeNote.verseRef) ? (
+                  <button
+                    onClick={() => openVerseFromNote(activeNote.verseRef!)}
+                    title="Open scripture reference"
+                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left group"
+                  >
+                    <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] transition-colors">
+                      {activeNote.title || 'Untitled'}
+                    </span>
+                    <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))] transition-colors" />
+                  </button>
+                ) : (
+                  <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none">
+                    {activeNote.title || 'Untitled'}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <input
+                ref={titleInputRef}
+                value={activeNote.title ?? ''}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                onKeyDown={handleTitleKeyDown}
+                placeholder="Untitled"
+                className="flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+              />
+            )}
+            {/* ── Editor mode segmented toggle ── */}
+            <div
+              className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 gap-px flex-shrink-0"
+              title="Editor mode (⌘⇧M to cycle)"
             >
-              {previewMode ? <EyeOff size={15} /> : <Eye size={15} />}
+              {([
+                ['raw',     Code2,   'Raw',     'Raw markdown — see syntax as-is'],
+                ['wysiwyg', PenLine, 'Edit',    'Clean edit — syntax hidden while editing'],
+                ['preview', Eye,     'View',    'Preview — rendered read-only output'],
+              ] as const).map(([mode, Icon, label, tip]) => (
+                <button
+                  key={mode}
+                  title={tip}
+                  onClick={() => setEditorMode(mode)}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer select-none ${
+                    editorMode === mode
+                      ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+                >
+                  <Icon size={11} strokeWidth={editorMode === mode ? 2.2 : 1.8} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { if (activeNote) window.app.printNote(buildPrintHTML(activeNote.title || 'Untitled', activeNote.content)).catch(() => {}) }}
+              title="Print note"
+              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+            >
+              <Printer size={15} />
+            </button>
+            <button
+              onClick={() => { if (activeNote) window.app.exportNotePDF(buildPrintHTML(activeNote.title || 'Untitled', activeNote.content), activeNote.title || 'note').catch(() => {}) }}
+              title="Export note as PDF"
+              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+            >
+              <FileDown size={15} />
             </button>
             <button
               onClick={openMarkdownReference}
@@ -681,6 +837,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               )}
             </div>
+            {/* Folder view toggle */}
+            <button
+              onClick={toggleFolderView}
+              title={folderView ? 'List view' : 'Folder view'}
+              className={`p-1 rounded cursor-pointer transition-colors ${folderView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+            >
+              <FolderTree size={15} />
+            </button>
             {/* Expand all toggle */}
             <button
               onClick={() => setExpandAll(v => !v)}
@@ -691,7 +855,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
             {/* Select mode toggle */}
             <button
-              onClick={() => { setSelectMode(v => !v); setSelectedIds([]) }}
+              onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
               title="Select notes"
               className={`p-1 rounded cursor-pointer transition-colors ${selectMode ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
             >
@@ -699,7 +863,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
             <button
               onClick={createNote}
-              title="New note (⌘⇧N)"
+              onContextMenu={(e) => {
+                e.preventDefault()
+                const MENU_W = 160, pad = 8
+                setPlusMenu({ x: Math.min(e.clientX, window.innerWidth - MENU_W - pad), y: e.clientY })
+              }}
+              title="New note (⌘⇧N) · right-click for more"
               className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             >
               <Plus size={16} />
@@ -707,6 +876,66 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           </>
         )}
       </div>
+
+      {/* Plus-button context menu: new note / new folder */}
+      {plusMenu && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
+          <div
+            className="fixed z-[9999] min-w-[160px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+            style={{ left: plusMenu.x, top: plusMenu.y }}
+          >
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { setPlusMenu(null); createNote() }}
+            >
+              <FileText size={13} className="flex-shrink-0" /> New note
+            </button>
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => {
+                setPlusMenu(null)
+                if (!folderView) { setFolderView(true); window.settings?.set('notesFolderView', true).catch(() => {}) }
+                handleCreateFolder(null)
+              }}
+            >
+              <FolderPlus size={13} className="flex-shrink-0" /> New folder
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Move-selected-to-folder menu (multi-select, folder view) */}
+      {moveMenu && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setMoveMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMoveMenu(null) }} />
+          <div
+            className="fixed z-[9999] min-w-[180px] max-h-72 overflow-y-auto bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            style={{ left: Math.min(moveMenu.x, window.innerWidth - 200), top: Math.min(moveMenu.y, window.innerHeight - 320) }}
+          >
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => moveSelectedToFolder(null)}
+            >
+              <Home size={12} className="flex-shrink-0" /> No folder (root)
+            </button>
+            <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+            {orderedFolders(folders).map(({ folder, depth }) => (
+              <button
+                key={folder.id}
+                className="w-full text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer py-1.5"
+                style={{ paddingLeft: 12 + depth * 12, paddingRight: 12 }}
+                onClick={() => moveSelectedToFolder(folder.id)}
+              >
+                {folder.name}
+              </button>
+            ))}
+            {folders.length === 0 && (
+              <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet — create one first</div>
+            )}
+          </div>
+        </>
+      )}
 
 
       {/* Content */}
@@ -724,6 +953,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 initialCursorPos={restoredCursorPos}
                 autoFocus={autoFocusEditor}
                 previewMode={previewMode}
+                wysiwyg={wysiwygMode}
                 notes={notes}
                 onWikilinkClick={handleWikilinkClick}
                 onVerseRefClick={handleVerseRefClick}
@@ -748,28 +978,41 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               noteId={activeNote.id}
               allNotes={notes}
               onNoteClick={navigateToNote}
+              folderPath={folderPathFor(activeNote, folders)}
             />
           </div>
         ) : (
           <>
-            {/* Search bar */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+            {/* Search bar — with sort selector inline on the right */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
               <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
               <input
                 type="text"
                 value={noteSearch}
                 onChange={(e) => setNoteSearch(e.target.value)}
                 placeholder="Search notes…"
-                className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+                className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none min-w-0"
               />
               {noteSearch && (
-                <button onClick={() => setNoteSearch('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+                <button onClick={() => setNoteSearch('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
                   <X size={13} />
                 </button>
               )}
+              <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
+              <select
+                value={noteSort}
+                onChange={e => setNoteSort(e.target.value as NoteSort)}
+                className="text-[10px] bg-transparent text-[rgb(var(--color-text-muted))] outline-none cursor-pointer hover:text-[rgb(var(--color-text-primary))] flex-shrink-0"
+                title="Sort notes"
+              >
+                <option value="modified">Modified</option>
+                <option value="created">Created</option>
+                <option value="name">A-Z</option>
+              </select>
             </div>
 
-            {/* Filter + sort bar */}
+            {/* Filter chips bar (list view only) */}
+            {!folderView && (
             <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
               {([
                 ['all',          'All'],
@@ -792,27 +1035,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   {label}
                 </button>
               ))}
-              <div className="flex-1" />
-              {/* Sort */}
-              <select
-                value={noteSort}
-                onChange={e => setNoteSort(e.target.value as NoteSort)}
-                className="text-[10px] bg-transparent text-[rgb(var(--color-text-muted))] outline-none cursor-pointer hover:text-[rgb(var(--color-text-primary))] pr-1"
-                title="Sort notes"
-              >
-                <option value="modified">Modified</option>
-                <option value="created">Created</option>
-                <option value="name">A-Z</option>
-              </select>
             </div>
+            )}
 
             {/* Multi-select action bar */}
             {selectMode && (
               <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-4))/50]">
                 <span className="text-xs text-[rgb(var(--color-text-muted))] flex-1">
-                  {selectedIds.length} selected
+                  {selectedIds.length + selectedFolderIds.length} selected
                 </span>
-                {selectedIds.length > 0 && (
+                {folderView && (selectedIds.length + selectedFolderIds.length) > 0 && (
+                  <button
+                    onClick={(e) => setMoveMenu({ x: e.clientX, y: e.clientY })}
+                    className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer px-2 py-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+                  >
+                    <FolderInput size={11} /> Move to folder
+                  </button>
+                )}
+                {(selectedIds.length + selectedFolderIds.length) > 0 && (
                   <button
                     onClick={deleteSelected}
                     className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 cursor-pointer px-2 py-0.5 rounded hover:bg-red-500/15 transition-colors"
@@ -821,7 +1061,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </button>
                 )}
                 <button
-                  onClick={() => { setSelectMode(false); setSelectedIds([]) }}
+                  onClick={exitSelectMode}
                   className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
                 >
                   Cancel
@@ -829,22 +1069,50 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto">
-              <NotesList
-                notes={visibleNotes}
-                onSelect={navigateToNote}
-                onDelete={(note) => deleteNote(note)}
-                findQuery={activeListFindQuery}
-                selectMode={selectMode}
-                selected={selectedIds}
-                onToggleSelect={toggleSelectNote}
-                expandAll={expandAll}
-                onOpenNewTab={openNoteInNewTab}
-                onRenameCommit={renameNoteCommit}
-                onOpenInFloatingTab={openNoteInFloatingTab}
-                onOpenInSession={openNoteInSession}
-                sessions={sessions}
-              />
+            <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
+              {folderView ? (
+                <NotesFolderView
+                  notes={visibleNotes}
+                  folders={folders}
+                  activeNoteId={(activeNote as Note | null)?.id ?? null}
+                  onSelect={navigateToNote}
+                  onDelete={(note) => deleteNote(note)}
+                  onSetNoteFolder={handleSetNoteFolder}
+                  onCreateFolder={handleCreateFolder}
+                  onRenameFolder={handleRenameFolder}
+                  onDeleteFolder={handleDeleteFolder}
+                  onDeleteFolderDeep={handleDeleteFolderDeep}
+                  onSetFolderParent={handleSetFolderParent}
+                  onRenameNote={renameNoteCommit}
+                  onOpenNewTab={openNoteInNewTab}
+                  onOpenInFloatingTab={openNoteInFloatingTab}
+                  onOpenInSession={openNoteInSession}
+                  sessions={sessions}
+                  selectMode={selectMode}
+                  selectedNoteIds={selectedIds}
+                  selectedFolderIds={selectedFolderIds}
+                  onToggleSelectNote={toggleSelectNote}
+                  onToggleSelectFolder={toggleSelectFolder}
+                  searchQuery={noteSearch || undefined}
+                />
+              ) : (
+                <NotesList
+                  notes={visibleNotes}
+                  onSelect={navigateToNote}
+                  onDelete={(note) => deleteNote(note)}
+                  findQuery={activeListFindQuery}
+                  searchQuery={noteSearch}
+                  selectMode={selectMode}
+                  selected={selectedIds}
+                  onToggleSelect={toggleSelectNote}
+                  expandAll={expandAll}
+                  onOpenNewTab={openNoteInNewTab}
+                  onRenameCommit={renameNoteCommit}
+                  onOpenInFloatingTab={openNoteInFloatingTab}
+                  onOpenInSession={openNoteInSession}
+                  sessions={sessions}
+                />
+              )}
             </div>
           </>
         )}

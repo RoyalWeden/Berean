@@ -98,7 +98,7 @@ export default function Sidebar() {
   async function openBookMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job']
+    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham']
     const results = await Promise.allSettled(
       TEXT_IDS.map(id => window.bible.getBooks(id).then(bs => ({ id, books: bs })))
     )
@@ -233,8 +233,10 @@ export default function Sidebar() {
           ${sidebarCollapsed ? 'w-14' : 'w-56'}
         `}
       >
-        {/* macOS traffic light spacer — no button here to avoid overlapping traffic lights */}
-        <div className="h-9 app-drag-region flex-shrink-0" />
+        {/* macOS traffic light spacer — hidden on Windows where OS chrome occupies that space */}
+        {window.__berean_platform !== 'win32' && (
+          <div className="h-9 app-drag-region flex-shrink-0" />
+        )}
 
         {/* ── Search / location bar (ABOVE space buttons) ── */}
         <div className="px-2 pb-1 flex-shrink-0">
@@ -500,6 +502,30 @@ export default function Sidebar() {
                   x: Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad)),
                   y: Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad)),
                 })
+              }}
+              // Accept note-item drags anywhere in the tab list area (fallback for gaps between tabs)
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('berean-note-id')) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
+              }}
+              onDrop={(e) => {
+                const noteId    = e.dataTransfer.getData('berean-note-id')
+                const noteTitle = e.dataTransfer.getData('berean-note-title')
+                if (!noteId) return
+                e.preventDefault(); e.stopPropagation()
+                const store = useAppStore.getState()
+                const tab = {
+                  id:      `note-${noteId}-${Date.now()}`,
+                  spaceId: 'notes' as const,
+                  type:    'note'  as const,
+                  title:   noteTitle || 'Note',
+                  state:   { noteId, isNew: false },
+                }
+                store.addTab(tab as import('@/types').Tab)
+                store.activateTab(tab as import('@/types').Tab)
+                store.setActiveSpace('notes')
               }}
             >
               <TabBar

@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild
+
+      - name: Build renderer + main
+        run: npm run build
+
+      - name: Package macOS DMG
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Code signing — set these secrets if you have a Developer ID cert
+          # CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+        run: |
+          npx electron-builder --mac dmg --publish always
+
+  build-win:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild
+
+      - name: Build renderer + main
+        run: npm run build
+
+      - name: Package Windows NSIS installer
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Code signing — set these secrets if you have a Windows cert
+          # WIN_CSC_LINK: ${{ secrets.WIN_CERT_P12_BASE64 }}
+          # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          npx electron-builder --win nsis --publish always
+
+  mark-prerelease:
+    name: Mark pre-release if beta tag
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc')
+    steps:
+      - name: Find and mark release as pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id")
+          if [ -n "$RELEASE_ID" ]; then
+            gh api repos/${{ github.repository }}/releases/$RELEASE_ID \
+              --method PATCH \
+              --field prerelease=true \
+              --field draft=false
+            echo "Marked release $RELEASE_ID as pre-release"
+          else
+            echo "No release found for tag $TAG — skipping"
+          fi
+
+  publish-stable:
+    name: Publish stable release
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    if: "!contains(github.ref_name, '-beta') && !contains(github.ref_name, '-alpha') && !contains(github.ref_name, '-rc')"
+    steps:
+      - name: Publish draft as stable release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id")
+          if [ -n "$RELEASE_ID" ]; then
+            gh api repos/${{ github.repository }}/releases/$RELEASE_ID \
+              --method PATCH \
+              --field prerelease=false \
+              --field draft=false
+            echo "Published release $RELEASE_ID as stable"
+          else
+            echo "No release found for tag $TAG — skipping"
+          fi

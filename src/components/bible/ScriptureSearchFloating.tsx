@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, ChevronDown, BookOpen, ExternalLink, GitFork } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { Book } from '@/types'
@@ -33,6 +34,7 @@ const ALL_TEXTS = [
   { id: 'gad',           label: 'Gad the Seer',      category: 'pseudo' as const },
   { id: 't_job',         label: 'T. Job',            category: 'pseudo' as const },
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' as const },
+  { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
 ]
 
 interface RawResult {
@@ -70,6 +72,8 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [selectedTextId, setSelectedTextId] = useState(currentTextId)
   const [textDropdownOpen, setTextDropdownOpen] = useState(false)
+  const [textDropRect, setTextDropRect] = useState<{ left: number; top: number } | null>(null)
+  const textDropBtnRef = useRef<HTMLButtonElement>(null)
   const [bookFilter, setBookFilter] = useState<string>('all')
   const [books, setBooks] = useState<Book[]>([])
   const [results, setResults] = useState<(RawResult & { _textId: string })[]>([])
@@ -210,14 +214,30 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
             {effectiveMode(query) !== 'crossref' && (
               <div ref={textDropRef} className="relative flex-shrink-0">
                 <button
-                  onClick={() => setTextDropdownOpen((v) => !v)}
+                  ref={textDropBtnRef}
+                  onClick={() => {
+                    setTextDropdownOpen((v) => {
+                      const next = !v
+                      if (next && textDropBtnRef.current) {
+                        const r = textDropBtnRef.current.getBoundingClientRect()
+                        // Align right edge of dropdown (w-44 = 176px) with button's right edge
+                        setTextDropRect({ left: r.right - 176, top: r.bottom + 4 })
+                      }
+                      return next
+                    })
+                  }}
                   className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 >
                   {selectedText?.label ?? selectedTextId.toUpperCase()}
                   <ChevronDown size={10} />
                 </button>
-                {textDropdownOpen && (
-                  <div className="absolute top-full right-0 mt-1 z-50 w-44 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1">
+                {/* Rendered via portal so the dialog's overflow-hidden doesn't clip it */}
+                {textDropdownOpen && textDropRect && createPortal(
+                  <div
+                    className="fixed z-[9999] w-44 max-h-[60vh] overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+                    style={{ left: textDropRect.left, top: textDropRect.top }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
                     <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Bible</div>
                     {ALL_TEXTS.filter((t) => t.category === 'bible').map((t) => (
                       <button
@@ -238,7 +258,8 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
                         {t.label}
                       </button>
                     ))}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             )}

@@ -3,15 +3,26 @@ import { EditorView, keymap, ViewPlugin, Decoration, WidgetType } from '@codemir
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { EditorState, EditorSelection, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state'
 import type { ChangeSpec } from '@codemirror/state'
+// ─── WYSIWYG mode state ────────────────────────────────────────────────────────
+// When active, col() always returns false — ALL markdown syntax markers are hidden
+// even when the cursor is on the same line. Text stays fully editable.
+export const wysiwygEffect = StateEffect.define<boolean>()
+export const wysiwygField = StateField.define<boolean>({
+  create: () => false,
+  update(val, tr) {
+    for (const e of tr.effects) if (e.is(wysiwygEffect)) return e.value
+    return val
+  },
+})
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxHighlighting, HighlightStyle, syntaxTree } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { tags } from '@lezer/highlight'
 import { marked } from 'marked'
-import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2 } from 'lucide-react'
+import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2, IndentIncrease, IndentDecrease, Copy, Trash2 } from 'lucide-react'
 import type { Note } from '@/types'
-import { parseRef } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 
@@ -62,6 +73,8 @@ interface NoteEditorProps {
   initialCursorPos?: number
   autoFocus?: boolean
   previewMode?: boolean
+  /** When true: all markdown/HTML syntax markers are hidden globally (WYSIWYG clean edit). */
+  wysiwyg?: boolean
   notes?: Note[]
   onWikilinkClick?: (title: string) => void
   onVerseRefClick?: (ref: ParsedRef) => void
@@ -150,6 +163,10 @@ const suppressedRangesField = StateField.define<SuppressedRange[]>({
 // Configure marked for safe HTML output — gfm:true enables GitHub-Flavored Markdown tables
 marked.setOptions({ breaks: true, gfm: true })
 
+// Disable setext headings so a line of text directly above "---" (or "===") is NOT
+// turned into a heading. "---" should always render as a horizontal-rule divider.
+marked.use({ tokenizer: { lheading() { return undefined } } })
+
 const headingStyle = syntaxHighlighting(HighlightStyle.define([
   { tag: tags.heading1, fontSize: '1.71em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
   { tag: tags.heading2, fontSize: '1.43em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
@@ -232,10 +249,28 @@ const bereanTheme = EditorView.theme({
   '.cm-live-lexicon-ref': { color: 'rgb(52,211,153)', textDecoration: 'underline', textDecorationStyle: 'dashed', cursor: 'pointer', textUnderlineOffset: '2px' },
   '.cm-live-suppressed': { textDecoration: 'none !important', cursor: 'text' },
   '.cm-live-blockquote': { borderLeft: '2px solid rgb(var(--color-accent))', paddingLeft: '0.75em', color: 'rgb(var(--color-text-secondary)) !important' },
+  // Verse block — plain text styled like a scripture quote (decoration only)
+  '.cm-live-verse-block': { borderLeft: '3px solid rgb(var(--color-accent))', paddingLeft: '0.75em', backgroundColor: 'rgba(100,116,139,0.06)', color: 'rgb(var(--color-text-secondary))' },
+  '.cm-live-verse-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
+  '.cm-live-verse-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
+  '.cm-live-verse-block-ref': { fontWeight: '700', color: 'rgb(var(--color-text-primary)) !important' },
   '.cm-live-callout-header': { borderLeft: '3px solid rgba(168,85,247,0.7)', paddingLeft: '0.75em', color: 'rgba(192,132,252,0.9) !important', fontWeight: '600' },
   '.cm-live-underline': { textDecoration: 'underline' },
-  '.cm-live-hr-line': { borderBottom: '1px solid rgba(100,116,139,0.4)', lineHeight: '1.2' },
+  // Horizontal rule: draw a centred 1 px line using a background gradient so the
+  // divider sits at the vertical mid-point of the line rather than at the bottom.
+  '.cm-live-hr-line': {
+    background: 'linear-gradient(transparent calc(50% - 0.5px), rgba(100,116,139,0.45) calc(50% - 0.5px), rgba(100,116,139,0.45) calc(50% + 0.5px), transparent calc(50% + 0.5px))',
+    lineHeight: '1.6',
+  },
   '.cm-live-hr-mark': { color: 'transparent', userSelect: 'none' as const },
+  // Heading collapse arrow — font-size and vertical-align set inline per level by CollapseArrowWidget.
+  // We deliberately avoid vertical-align:middle here because that aligns to the 14 px PARENT
+  // x-height, which sits too low inside a tall heading line box.  Instead the widget uses the
+  // same font-size as the heading text so baseline alignment naturally centres both elements.
+  '.cm-heading-collapse-arrow': { marginLeft: '5px', cursor: 'pointer', userSelect: 'none' as const, opacity: '0.45' },
+  '.cm-heading-collapse-arrow:hover': { opacity: '0.85' },
+  // Subtle bottom border drawn below each heading line when "heading divider" setting is on
+  '.cm-live-h-divider': { borderBottom: '1px solid rgba(100,116,139,0.15)', paddingBottom: '1px' },
 })
 
 const NOTE_HL_COLORS: { id: string; dot: string }[] = [
@@ -267,13 +302,146 @@ function wrapWith(open: string, close: string) {
   }
 }
 
+/**
+ * Scan outward through HTML tags from a position to find a markdown marker.
+ * Skips over `<tag>` or `</tag>` sequences that separate the selection from its marker.
+ * Returns the position (from-inclusive) where `marker` starts/ends, or -1 if not found.
+ *
+ * direction === -1: scan BACKWARD from `pos`, looking for `marker` that ENDS at the
+ *   scan target (i.e., marker occupies [result, result+len)).
+ * direction === 1:  scan FORWARD from `pos`, looking for `marker` that STARTS at the
+ *   scan target (i.e., marker occupies [result, result+len)).
+ */
+export function scanThroughHtml(
+  doc: { sliceString: (f: number, t: number) => string; length: number },
+  pos: number,
+  marker: string,
+  direction: -1 | 1,
+): number {
+  let cur = pos
+  const len = marker.length
+  for (let guard = 0; guard < 12; guard++) {
+    if (direction === -1) {
+      if (cur - len < 0) return -1
+      if (doc.sliceString(cur - len, cur) === marker) return cur - len
+      // If the character immediately before cur is '>' it's the end of an HTML tag → skip it
+      if (cur > 0 && doc.sliceString(cur - 1, cur) === '>') {
+        let p = cur - 2
+        while (p >= 0 && doc.sliceString(p, p + 1) !== '<') p--
+        if (p < 0) return -1
+        cur = p
+      } else {
+        return -1
+      }
+    } else {
+      if (cur + len > doc.length) return -1
+      if (doc.sliceString(cur, cur + len) === marker) return cur
+      // If the character at cur is '<' it's the start of an HTML tag → skip it
+      if (doc.sliceString(cur, cur + 1) === '<') {
+        let p = cur + 1
+        while (p < doc.length && doc.sliceString(p, p + 1) !== '>') p++
+        if (p >= doc.length) return -1
+        cur = p + 1
+      } else {
+        return -1
+      }
+    }
+  }
+  return -1
+}
+
+// ─── Star-counting helpers for italic/bold toggle ─────────────────────────────
+// These are needed so that toggling italic on "**word**" doesn't confuse the inner
+// '*' chars of '**' for italic markers. We count ALL adjacent '*' (scanning through
+// HTML tags) and use parity: odd = italic present, even = bold only.
+
+/** Count consecutive '*' chars adjacent to `pos` scanning in `dir`, skipping HTML tags. */
+export function countStarsBeside(
+  doc: { sliceString: (f: number, t: number) => string; length: number },
+  pos: number,
+  dir: -1 | 1,
+): number {
+  let count = 0
+  let p = dir === -1 ? pos - 1 : pos
+  for (let guard = 0; guard < 64; guard++) {
+    if (p < 0 || p >= doc.length) break
+    const ch = doc.sliceString(p, p + 1)
+    if (ch === '*') { count++; p += dir }
+    else if (ch === '>' && dir === -1) {
+      let q = p - 1
+      while (q >= 0 && doc.sliceString(q, q + 1) !== '<') q--
+      if (q < 0) break
+      p = q - 1
+    } else if (ch === '<' && dir === 1) {
+      let q = p + 1
+      while (q < doc.length && doc.sliceString(q, q + 1) !== '>') q++
+      if (q >= doc.length) break
+      p = q + 1
+    } else break
+  }
+  return count
+}
+
+/** Position of the first '*' when scanning from `pos` in `dir`, skipping HTML. Returns -1 if none. */
+export function innermostStarPos(
+  doc: { sliceString: (f: number, t: number) => string; length: number },
+  pos: number,
+  dir: -1 | 1,
+): number {
+  let p = dir === -1 ? pos - 1 : pos
+  for (let guard = 0; guard < 64; guard++) {
+    if (p < 0 || p >= doc.length) return -1
+    const ch = doc.sliceString(p, p + 1)
+    if (ch === '*') return p
+    if (ch === '>' && dir === -1) {
+      let q = p - 1
+      while (q >= 0 && doc.sliceString(q, q + 1) !== '<') q--
+      if (q < 0) return -1
+      p = q - 1
+    } else if (ch === '<' && dir === 1) {
+      let q = p + 1
+      while (q < doc.length && doc.sliceString(q, q + 1) !== '>') q++
+      if (q >= doc.length) return -1
+      p = q + 1
+    } else return -1
+  }
+  return -1
+}
+
 function toggleWith(open: string, close: string) {
   return (view: EditorView): boolean => {
     const sel = view.state.selection.main
     if (!sel.empty) {
       const doc = view.state.doc
+
+      // ── Italic ('*'): use star-counting to avoid confusing '*' in '**' ─────
+      // "bold then italic" would leave 3 '*' on each side; ordinary bold leaves 2.
+      // Counting parity (odd=italic present, even=italic absent) gives the right answer
+      // for every nesting combination, even when HTML tags separate the markers.
+      if (open === '*' && close === '*') {
+        const sb = countStarsBeside(doc, sel.from, -1)
+        const sa = countStarsBeside(doc, sel.to, 1)
+        if (sb >= 1 && sa >= 1 && sb % 2 === 1 && sa % 2 === 1) {
+          // Italic IS applied — remove the innermost '*' on each side
+          const fromStar = innermostStarPos(doc, sel.from, -1)
+          const toStar   = innermostStarPos(doc, sel.to,   1)
+          if (fromStar >= 0 && toStar >= 0) {
+            view.dispatch({
+              changes: [
+                { from: fromStar, to: fromStar + 1 },
+                { from: toStar,   to: toStar   + 1 },
+              ],
+              selection: EditorSelection.range(sel.from - 1, sel.to - 1),
+            })
+            return true
+          }
+        }
+        return wrapWith('*', '*')(view)
+      }
+
+      // ── Bold ('**') and all other markers: fast path + HTML-aware ─────────
       const before = doc.sliceString(Math.max(0, sel.from - open.length), sel.from)
-      const after = doc.sliceString(sel.to, Math.min(doc.length, sel.to + close.length))
+      const after  = doc.sliceString(sel.to, Math.min(doc.length, sel.to + close.length))
       if (before === open && after === close) {
         view.dispatch({
           changes: [
@@ -284,9 +452,70 @@ function toggleWith(open: string, close: string) {
         })
         return true
       }
+      // HTML-aware: markers separated from selection by HTML tags.
+      // E.g. **<u>word</u>** — toggling bold ('**') finds the markers through <u>…</u>.
+      const markerFrom = scanThroughHtml(doc, sel.from, open,  -1)
+      const markerTo   = scanThroughHtml(doc, sel.to,   close, 1)
+      if (markerFrom >= 0 && markerTo >= 0) {
+        view.dispatch({
+          changes: [
+            { from: markerFrom, to: markerFrom + open.length },
+            { from: markerTo,   to: markerTo  + close.length },
+          ],
+          selection: EditorSelection.range(sel.from - open.length, sel.to - open.length),
+        })
+        return true
+      }
     }
     return wrapWith(open, close)(view)
   }
+}
+
+// ── Bullet style definitions ────────────────────────────────────────────────
+// Each array has 5 symbols: [level-0, level-1, level-2, level-3, level-4+]
+
+export const BULLET_STYLE_DEFS: Record<string, { label: string; symbols: string[] }> = {
+  classic:    { label: 'Classic',    symbols: ['•', '◦', '▸', '◦', '·'] },
+  geometric:  { label: 'Geometric',  symbols: ['◆', '◇', '▪', '▫', '·'] },
+  arrows:     { label: 'Arrows',     symbols: ['›', '»', '→', '⟩', '·'] },
+  dash:       { label: 'Dash',       symbols: ['—', '–', '−', '‒', '·'] },
+  star:       { label: 'Star',       symbols: ['★', '☆', '✦', '✧', '·'] },
+}
+
+// ── List-aware indent / outdent ──────────────────────────────────────────────
+const INDENT_UNIT = '    ' // four spaces per level — wider visual separation
+
+export function indentSelection(view: EditorView): boolean {
+  const { state } = view
+  const sel = state.selection.main
+  const startLine = state.doc.lineAt(sel.from).number
+  const endLine = state.doc.lineAt(sel.to).number
+  const changes: { from: number; insert: string }[] = []
+  for (let n = startLine; n <= endLine; n++) {
+    const line = state.doc.line(n)
+    // Skip totally empty lines unless it's the only line (so a lone cursor still indents)
+    if (line.text.length === 0 && startLine !== endLine) continue
+    changes.push({ from: line.from, insert: INDENT_UNIT })
+  }
+  if (changes.length === 0) { changes.push({ from: sel.from, insert: INDENT_UNIT }) }
+  view.dispatch(state.update({ changes, scrollIntoView: true, userEvent: 'input.indent' }))
+  return true
+}
+
+export function outdentSelection(view: EditorView): boolean {
+  const { state } = view
+  const sel = state.selection.main
+  const startLine = state.doc.lineAt(sel.from).number
+  const endLine = state.doc.lineAt(sel.to).number
+  const changes: { from: number; to: number }[] = []
+  for (let n = startLine; n <= endLine; n++) {
+    const line = state.doc.line(n)
+    const m = line.text.match(/^(\t| {1,2})/)
+    if (m) changes.push({ from: line.from, to: line.from + m[0].length })
+  }
+  if (changes.length === 0) return false
+  view.dispatch(state.update({ changes, scrollIntoView: true, userEvent: 'delete.outdent' }))
+  return true
 }
 
 function detectFormats(state: EditorState): Set<string> {
@@ -345,14 +574,51 @@ function detectFormats(state: EditorState): Set<string> {
   const a2 = doc.sliceString(sel.to, Math.min(doc.length, sel.to + 2))
   if (b2 === '==' && a2 === '==') fmts.add('highlight')
 
-  // Alignment — check current line for <div align="X">
+  // Colored highlights <mark class="hl-X">...</mark> — check if cursor is inside one
+  const hlLine = doc.lineAt(sel.from)
+  const hlText = hlLine.text
+  const hlOffset = sel.from - hlLine.from
+  const HlColors = ['yellow','orange','amber','red','rose','pink','violet','purple','indigo','blue','sky','cyan','teal','green','lime']
+  for (const c of HlColors) {
+    const open = `<mark class="hl-${c}">`
+    const close = `</mark>`
+    const openIdx = hlText.lastIndexOf(open, hlOffset)
+    if (openIdx !== -1) {
+      const closeIdx = hlText.indexOf(close, openIdx + open.length)
+      if (closeIdx === -1 || closeIdx >= hlOffset) { fmts.add(`hl-${c}`); break }
+    }
+  }
+
+  // Heading — check current line for # prefix
   const currentLine = doc.lineAt(sel.from)
+  const headingMatch = currentLine.text.match(/^(#{1,6}) /)
+  if (headingMatch) fmts.add(`heading-${headingMatch[1].length}`)
+
+  // Alignment — check current line for <div align="X">
   const alignMatch = currentLine.text.match(/^<div align="(left|center|right|justify)">/)
   if (alignMatch) fmts.add(`align-${alignMatch[1]}`)
 
-  // New list types — check line prefix
+  // Line-level contexts: blockquote, callout, bullet list (- ), dash list (- ), numbered list
   const lineText = currentLine.text
+  if (/^> \[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.test(lineText)) {
+    fmts.add('callout')
+  } else if (/^> /.test(lineText) || lineText === '>') {
+    fmts.add('blockquote')
+  }
+  // Also detect blockquote/callout from syntax tree (handles nested or multiline)
+  syntaxTree(state).iterate({
+    from: Math.max(0, sel.from - 1),
+    to: Math.min(state.doc.length, sel.from + 1),
+    enter(node) {
+      if (node.name === 'Blockquote') fmts.has('callout') || fmts.add('blockquote')
+    },
+  })
+
+  // List types — check line prefix
   if (/^- \[[ xX]\] /.test(lineText)) fmts.add('task')
+  else if (/^\* /.test(lineText)) fmts.add('bullet')
+  else if (/^- /.test(lineText)) fmts.add('dash')
+  else if (/^\d+\. /.test(lineText)) fmts.add('ordered')
   if (/^[a-z]+\. /.test(lineText)) fmts.add('alpha-lower')
   if (/^[A-Z]+\. /.test(lineText)) fmts.add('alpha-upper')
   if (/^[ivxlcdmIVXLCDM]+\. /.test(lineText) && /^[ivxlcdm]+\. /i.test(lineText) && !/^[A-Z]+\. /.test(lineText)) {
@@ -387,6 +653,222 @@ const wrapOnTypeHandler = EditorView.inputHandler.of((view, from, to, text) => {
   return true
 })
 
+// ─── Verse block detector ─────────────────────────────────────────────────────
+// When enabled in Notes settings, a verse reference + its text is *visually*
+// formatted (styled left border, bold reference) WITHOUT changing the underlying
+// text. The text stays plain — copying copies the plain text only, exactly like
+// how an inline verse reference is decorated. See buildLiveDecorations.
+//
+// Recognised patterns (the reference must be verse-level, i.e. contain ":"):
+//   A) Multi-line: "Luke 16:29-31\n29 text\n30 text\n31 text"
+//   B) Single-line: "1 John 2:4 He that saith…"
+//
+// NOT triggered: a bare reference like "Luke 16:29-31" (no verse text follows).
+
+// Single-line "Book c:v rest" — verse-level ref (colon) then text.
+// Book name may be 1–3 words ("Song of Songs", "Testament of Levi", "1 John").
+const SINGLE_VERSE_LINE_RE =
+  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+(?:[ \t]+[A-Za-z][a-z]+){0,2}[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
+// A body line in a multi-line block: starts with a verse number then text.
+const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
+
+export interface VerseBlockMatch {
+  kind: 'multi' | 'single'
+  ref: string         // the reference text, e.g. "Luke 16:29-31"
+  refLength: number   // character length of `ref`
+  lineCount: number   // total lines in the block (1 for single; ref + verses for multi)
+}
+
+export function detectVerseBlock(text: string): VerseBlockMatch | null {
+  if (!text.trim()) return null
+  const nonEmpty = text.split('\n').map(l => l.trimEnd()).filter(l => l.trim())
+  if (nonEmpty.length === 0) return null
+
+  // A) Multi-line: first line is a verse-level ref, following lines are numbered verses
+  if (nonEmpty.length >= 2) {
+    const refLine = nonEmpty[0].trim()
+    if (refLine.includes(':') && parseRef(refLine)) {
+      const body = nonEmpty.slice(1)
+      if (body.every(l => VERSE_BODY_LINE_RE.test(l))) {
+        return { kind: 'multi', ref: refLine, refLength: refLine.length, lineCount: nonEmpty.length }
+      }
+    }
+  }
+
+  // B) Single-line: "Book c:v verse text…"
+  const m = SINGLE_VERSE_LINE_RE.exec(nonEmpty[0])
+  if (m && parseRef(m[2].trim())) {
+    return { kind: 'single', ref: m[2].trim(), refLength: m[2].trim().length, lineCount: 1 }
+  }
+
+  return null
+}
+
+// ─── Inline verse-reference finder ────────────────────────────────────────────
+// Finds EVERY verse reference in a string, so a single line can contain any
+// number of references (e.g. "Romans 10:1-2 vs Deuteronomy 18:15-19").
+//
+// Book names can be 1–3 words ("Song of Songs", "1 John"). The broad regex may
+// greedily grab a leading non-book word ("vs Deuteronomy"); we recover by retrying
+// parseRef on progressively shorter suffixes until one parses, then adjust the
+// match start so only the real reference is decorated.
+const VERSE_REF_SCAN_RE =
+  /((?:[1-3][ \t]+)?(?:[A-Za-z][a-z]*\.?[ \t]+){0,2}[A-Za-z][a-z]+\.?)[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+
+export interface VerseRefMatch {
+  index: number      // start offset of the recognised reference within `text`
+  length: number     // length of the matched reference (incl. LXX suffix)
+  refText: string    // the parseable reference, e.g. "Deuteronomy 18:15-19"
+  lxx: boolean       // whether a trailing " LXX" suffix was present
+}
+
+export function findVerseRefMatches(text: string): VerseRefMatch[] {
+  const out: VerseRefMatch[] = []
+  VERSE_REF_SCAN_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = VERSE_REF_SCAN_RE.exec(text)) !== null) {
+    const bookPhrase = m[1]
+    const numPart = m[2]
+    const lxx = !!m[3]
+    const words = bookPhrase.split(/[ \t]+/).filter(Boolean)
+    // Precompute each word's offset within bookPhrase
+    const wordStarts: number[] = []
+    let search = 0
+    for (const w of words) {
+      const i = bookPhrase.indexOf(w, search)
+      wordStarts.push(i)
+      search = i + w.length
+    }
+    // Try the full phrase, then drop leading words until parseRef succeeds.
+    let matched = false
+    for (let start = 0; start < words.length; start++) {
+      const candidateRef = words.slice(start).join(' ') + ' ' + numPart
+      if (parseRef(candidateRef)) {
+        const refStart = m.index + wordStarts[start]
+        const fullEnd = m.index + m[0].length
+        out.push({ index: refStart, length: fullEnd - refStart, refText: candidateRef, lxx })
+        matched = true
+        break
+      }
+    }
+    // If nothing parsed, the regex may have swallowed a digit that actually
+    // belongs to a following numbered book, e.g. "vs 1 Samuel 2:2" matches
+    // "vs 1" and eats the "1". Rewind lastIndex to just past the first word so
+    // the numbered book ("1 Samuel 2:2") gets a fresh chance to match.
+    if (!matched && words.length > 0) {
+      const rewind = m.index + wordStarts[0] + words[0].length
+      if (rewind > m.index) VERSE_REF_SCAN_RE.lastIndex = rewind
+    }
+  }
+  return out
+}
+
+// ─── Verse-text match ratio (for the "actually contains the verse text" check) ──
+// Returns the fraction (0..1) of candidate words that appear in the actual verse
+// text (multiset overlap). Used to avoid formatting a line where the user is just
+// commenting on a verse (e.g. "Genesis 5:4 my thoughts here").
+export function verseTextMatchRatio(candidate: string, actual: string): number {
+  // Normalise to word tokens. Drop Strong's-number tokens (h1234 / g3056) that
+  // leak in when the source verse text is tagged (e.g. "word{H1234}"); otherwise
+  // a tagged verse would have ~2× the word count and even an exact paste would
+  // score far below the threshold.
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(w => w && !/^[hg]\d+$/.test(w))
+  const cand = norm(candidate)
+  const act = norm(actual)
+  if (cand.length === 0) return 0
+  const counts = new Map<string, number>()
+  for (const w of act) counts.set(w, (counts.get(w) ?? 0) + 1)
+  let hit = 0
+  for (const w of cand) {
+    const c = counts.get(w) ?? 0
+    if (c > 0) { hit++; counts.set(w, c - 1) }
+  }
+  return hit / cand.length
+}
+
+// ─── Async verse-text verification cache ──────────────────────────────────────
+// Resolving real verse text requires the Bible DB (async). We cache the computed
+// ratio per (ref + candidate-text) so the synchronous decoration builder can read
+// it. A miss kicks off a background fetch, then re-decorates when it resolves.
+const verseRatioCache = new Map<string, number>()
+const versePending = new Set<string>()
+
+function verseCacheKey(refText: string, candidate: string): string {
+  return refText + ' ' + candidate.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+interface BibleQueryWindow {
+  bible?: { queryChapter?: (b: string, c: number, t?: string) => Promise<Array<{ verse_num: number; text: string }>> }
+}
+
+async function fetchActualVerseText(refText: string): Promise<string | null> {
+  const ref = parseRef(refText)
+  if (!ref) return null
+  const w = (typeof window !== 'undefined' ? (window as unknown as BibleQueryWindow) : null)
+  if (!w?.bible?.queryChapter) return null
+  const def = useAppStore.getState().defaultBibleTranslation || 'kjva'
+  const textId = (getTranslationForBook(ref.bookId) ?? def).toLowerCase()
+  const startCh = ref.chapter
+  const endCh = ref.endChapter ?? ref.chapter
+  const parts: string[] = []
+  for (let ch = startCh; ch <= endCh; ch++) {
+    const verses = await w.bible.queryChapter(ref.bookId, ch, textId)
+    if (!Array.isArray(verses)) continue
+    for (const v of verses) {
+      if (endCh === startCh && ref.verse != null) {
+        const lo = ref.verse
+        const hi = ref.endVerse ?? ref.verse
+        if (v.verse_num >= lo && v.verse_num <= hi) parts.push(v.text)
+      } else {
+        parts.push(v.text)
+      }
+    }
+  }
+  return parts.length ? parts.join(' ') : null
+}
+
+/**
+ * Returns true (format it), false (don't), or null (pending — don't format yet).
+ * When the Bible DB is unavailable (tests / fallback), returns true (structural).
+ * On a cache miss, schedules a background fetch and calls onResolved() afterward.
+ */
+function verseTextAccepted(
+  refText: string, candidate: string, threshold: number, onResolved: () => void,
+): boolean | null {
+  const w = (typeof window !== 'undefined' ? (window as unknown as BibleQueryWindow) : null)
+  if (!w?.bible?.queryChapter) return true
+  const key = verseCacheKey(refText, candidate)
+  if (verseRatioCache.has(key)) return verseRatioCache.get(key)! >= threshold
+  if (versePending.has(key)) return null
+  versePending.add(key)
+  fetchActualVerseText(refText)
+    .then((actual) => {
+      // Measure how much of the ACTUAL VERSE is present in the typed text, so that
+      // a short comment that merely reuses common words (e.g. "the the") scores low.
+      // When the verse can't be resolved (null/empty — DB miss, unusual translation),
+      // default to accept (1) so genuine pasted verses still format; only a CONFIRMED
+      // low-coverage match is rejected.
+      verseRatioCache.set(key, actual ? verseTextMatchRatio(actual, candidate) : 1)
+      versePending.delete(key)
+      onResolved()
+    })
+    .catch(() => {
+      verseRatioCache.set(key, 1) // on error, don't block formatting
+      versePending.delete(key)
+      onResolved()
+    })
+  return null
+}
+
+// Synchronous variant for preview/print — reads cache, falls back to structural.
+function verseTextAcceptedSync(refText: string, candidate: string, threshold: number): boolean {
+  const key = verseCacheKey(refText, candidate)
+  if (verseRatioCache.has(key)) return verseRatioCache.get(key)! >= threshold
+  return true
+}
+
 const pasteHandler = EditorView.domEventHandlers({
   paste(e, view) {
     const items = e.clipboardData?.items
@@ -410,21 +892,28 @@ const pasteHandler = EditorView.domEventHandlers({
         }
       }
     }
-    // Paste URL as markdown link
     const text = e.clipboardData?.getData('text/plain')
+
+    // NOTE: verse-block formatting is decoration-only (see buildLiveDecorations).
+    // We intentionally do NOT transform pasted text here — it stays plain so that
+    // copying it back out yields the original plain text.
+
+    // Paste URL as markdown link
     if (text && /^https?:\/\/\S+$/.test(text.trim())) {
       e.preventDefault()
-      const sel = view.state.selection.main
-      if (!sel.empty) {
-        const selectedText = view.state.sliceDoc(sel.from, sel.to)
+      const urlSel = view.state.selection.main
+      if (!urlSel.empty) {
+        const selectedText = view.state.sliceDoc(urlSel.from, urlSel.to)
         view.dispatch({
-          changes: { from: sel.from, to: sel.to, insert: `[${selectedText}](${text.trim()})` },
-          selection: { anchor: sel.from + selectedText.length + text.trim().length + 4 },
+          changes: { from: urlSel.from, to: urlSel.to, insert: `[${selectedText}](${text.trim()})` },
+          selection: { anchor: urlSel.from + selectedText.length + text.trim().length + 4 },
         })
       } else {
+        // No selection: use the URL itself as the display text → [url](url)
+        const url = text.trim()
         view.dispatch({
-          changes: { from: sel.from, insert: `[](${text.trim()})` },
-          selection: { anchor: sel.from + 1 },
+          changes: { from: urlSel.from, insert: `[${url}](${url})` },
+          selection: { anchor: urlSel.from + url.length * 2 + 4 },
         })
       }
       return true
@@ -434,6 +923,16 @@ const pasteHandler = EditorView.domEventHandlers({
 })
 
 function openEditorLink(url: string, noteId?: string, noteTitle?: string) {
+  // berean-pdf://{pdfId}/{page} — open the PDF tab at that page
+  const pdfMatch = url.match(/^berean-pdf:\/\/([^/]+)\/(\d+)/)
+  if (pdfMatch) {
+    const pdfId = pdfMatch[1]
+    const page = parseInt(pdfMatch[2], 10)
+    window.pdf?.get?.(pdfId).then((doc) => {
+      useAppStore.getState().openPdf(pdfId, doc?.title ?? 'PDF', page)
+    }).catch(() => useAppStore.getState().openPdf(pdfId, 'PDF', page))
+    return
+  }
   const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/)
   if (ytMatch) {
     const tMatch = url.match(/[?&]t=(\d+)/)
@@ -445,6 +944,140 @@ function openEditorLink(url: string, noteId?: string, noteTitle?: string) {
 }
 
 // ─── End of preview helpers ────────────────────────────────────────────────────
+
+// ─── Collapsible headings ─────────────────────────────────────────────────────
+
+export const collapseHeadingEffect = StateEffect.define<{ lineFrom: number; collapsed: boolean }>()
+
+export const collapsedHeadingsField = StateField.define<ReadonlySet<number>>({
+  create: () => new Set<number>(),
+  update(val, tr) {
+    let next: Set<number> | null = null
+    for (const e of tr.effects) {
+      if (e.is(collapseHeadingEffect)) {
+        if (!next) next = new Set(val)
+        if (e.value.collapsed) next.add(e.value.lineFrom)
+        else next.delete(e.value.lineFrom)
+      }
+    }
+    // Map positions through doc changes so collapsed positions stay valid
+    if (tr.docChanged && !next) {
+      next = new Set<number>()
+      for (const pos of val) next.add(tr.changes.mapPos(pos))
+    } else if (tr.docChanged && next) {
+      const mapped = new Set<number>()
+      for (const pos of next) mapped.add(tr.changes.mapPos(pos))
+      next = mapped
+    }
+    return next ?? val
+  },
+})
+
+/** Parse heading level (1-6) from a line, or 0 if not a heading. */
+function headingLevel(lineText: string): number {
+  const m = lineText.match(/^(#{1,6}) /)
+  return m ? m[1].length : 0
+}
+
+/** Widget shown at the end of a collapsed heading section. */
+class CollapsedHeadingWidget extends WidgetType {
+  constructor(readonly level: number, readonly lineCount: number) { super() }
+  eq(other: WidgetType) {
+    return other instanceof CollapsedHeadingWidget &&
+      other.level === this.level && other.lineCount === this.lineCount
+  }
+  toDOM() {
+    const el = document.createElement('span')
+    el.className = 'cm-collapsed-heading-pill'
+    el.textContent = `  ···  ${this.lineCount} line${this.lineCount !== 1 ? 's' : ''}`
+    el.style.cssText = 'display:inline-block;margin-left:6px;padding:1px 8px;border-radius:10px;font-size:0.75em;opacity:0.55;background:rgba(100,116,139,0.18);cursor:pointer;vertical-align:middle;user-select:none;'
+    return el
+  }
+  ignoreEvent() { return false }
+}
+
+// Exact font-sizes from headingStyle — setting the arrow to the same em size as the
+// heading text means their baselines (and therefore their optical centres) sit at
+// the same vertical position in the line box. No vertical-align trick needed.
+const HEADING_FONT_SIZES_EM = [1.71, 1.43, 1.29, 1.0, 1.0, 1.0] // h1 … h6
+
+class CollapseArrowWidget extends WidgetType {
+  constructor(readonly isCollapsed: boolean, readonly level: number) { super() }
+  eq(other: WidgetType) {
+    return other instanceof CollapseArrowWidget &&
+      other.isCollapsed === this.isCollapsed && other.level === this.level
+  }
+  toDOM() {
+    const el = document.createElement('span')
+    el.className = 'cm-heading-collapse-arrow'
+    el.textContent = this.isCollapsed ? '▸' : '▾'
+    // Match the heading's font-size exactly so the arrow sits at the same
+    // optical centre as the heading text (baseline-aligned siblings with
+    // identical metrics → visually centred on the line).
+    const size = HEADING_FONT_SIZES_EM[Math.min(this.level - 1, HEADING_FONT_SIZES_EM.length - 1)]
+    el.style.fontSize = `${size}em`
+    return el
+  }
+  ignoreEvent() { return false }
+}
+
+/** Build block replace decorations that hide collapsed heading content. */
+function buildCollapsedHeadingDecos(state: EditorState): DecorationSet {
+  const collapsed = state.field(collapsedHeadingsField, false)
+  if (!collapsed || collapsed.size === 0) return Decoration.none
+  const doc = state.doc
+  const builder = new RangeSetBuilder<Decoration>()
+  const entries: Array<{ lineFrom: number; lineNum: number; level: number }> = []
+  for (const lineFrom of collapsed) {
+    if (lineFrom >= doc.length) continue
+    try {
+      const ln = doc.lineAt(lineFrom)
+      const lvl = headingLevel(ln.text)
+      if (lvl > 0) entries.push({ lineFrom, lineNum: ln.number, level: lvl })
+    } catch { /* skip */ }
+  }
+  entries.sort((a, b) => a.lineFrom - b.lineFrom)
+  for (const { lineFrom, lineNum, level } of entries) {
+    const headLine = doc.line(lineNum)
+    let endLineNum = lineNum
+    while (endLineNum + 1 <= doc.lines) {
+      const nextLine = doc.line(endLineNum + 1)
+      const nextLevel = headingLevel(nextLine.text)
+      // Stop at next same-or-higher-level heading
+      if (nextLevel > 0 && nextLevel <= level) break
+      // Stop at a horizontal rule (--- / *** / ___) — text below the divider stays visible
+      const trimmedNext = nextLine.text.trim()
+      if (trimmedNext === '---' || trimmedNext === '***' || trimmedNext === '___') break
+      endLineNum++
+    }
+    // Trim trailing blank lines so the collapse ends at the last line with actual text
+    while (endLineNum > lineNum && doc.line(endLineNum).text.trim() === '') endLineNum--
+
+    if (endLineNum <= lineNum) continue
+    const hideFrom = headLine.to         // end of heading line (after text, before newline)
+    const hideTo   = doc.line(endLineNum).to
+    const lineCount = endLineNum - lineNum
+    builder.add(
+      hideFrom, hideTo,
+      Decoration.replace({
+        widget: new CollapsedHeadingWidget(level, lineCount),
+        block: false,
+        inclusive: false,
+      })
+    )
+  }
+  return builder.finish()
+}
+
+const collapsedHeadingDecoField = StateField.define<DecorationSet>({
+  create(state) { return buildCollapsedHeadingDecos(state) },
+  update(decos, tr) {
+    const hasEffect = tr.effects.some(e => e.is(collapseHeadingEffect))
+    if (tr.docChanged || hasEffect) return buildCollapsedHeadingDecos(tr.state)
+    return decos
+  },
+  provide: f => EditorView.decorations.from(f),
+})
 
 // --- Live markdown preview plugin ---
 
@@ -495,13 +1128,45 @@ class CalloutBlockWidget extends WidgetType {
     if (this.bodyText.trim()) {
       const body = document.createElement('div')
       body.style.cssText = 'opacity:0.85;white-space:pre-wrap;'
-      body.textContent = this.bodyText
+      // Render inline markdown per line so links (incl. YouTube timestamp links),
+      // bold, and italic stay live even when the callout is not selected. textContent
+      // would show them as raw "[label](url)" text — this keeps them clickable.
+      try {
+        body.innerHTML = this.bodyText
+          .split('\n')
+          .map((line) => marked.parseInline(line) as string)
+          .join('<br>')
+        body.querySelectorAll('a').forEach((a) => {
+          a.style.color = 'rgb(99,102,241)'
+          a.style.textDecoration = 'underline'
+          a.style.cursor = 'pointer'
+        })
+        body.style.userSelect = 'none'
+        body.addEventListener('mousedown', (ev) => {
+          const anchor = (ev.target as HTMLElement).closest('a')
+          if (anchor) {
+            ev.preventDefault()
+            ev.stopPropagation()
+            const href = anchor.getAttribute('href') ?? ''
+            if (/^https?:\/\//.test(href)) openEditorLink(href)
+          }
+        })
+      } catch {
+        body.textContent = this.bodyText
+      }
       el.appendChild(body)
     }
     return el
   }
 
-  ignoreEvent() { return false }
+  ignoreEvent(event: Event) {
+    // Let mousedown on links reach our handler; ignore other events (CM default).
+    if (event.type === 'mousedown') {
+      const t = event.target as HTMLElement | null
+      if (t && t.closest('a')) return true
+    }
+    return false
+  }
 }
 
 class TaskCheckboxWidget extends WidgetType {
@@ -526,7 +1191,19 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
   const state = view.state
   const doc = state.doc
   const focused = view.hasFocus
-  const col = (nodeFrom: number) => cursorOnLine(state, nodeFrom, focused)
+  const wysiwyg = view.state.field(wysiwygField)
+  // In WYSIWYG mode, cursor is never "on" any line for decoration purposes — all
+  // syntax markers are hidden globally so the text looks clean while staying editable.
+  const col = wysiwyg ? (_: number) => false : (nodeFrom: number) => cursorOnLine(state, nodeFrom, focused)
+  const collapsed = state.field(collapsedHeadingsField, false) ?? new Set<number>()
+
+  // Read ALL store settings up front — before syntaxTree.iterate() — so
+  // the callback closures can access them without hitting the TDZ for `const`.
+  const storeSnapshot = useAppStore.getState()
+  const headingDivider = storeSnapshot.noteHeadingDivider
+  const noteVerseRefsEnabled = storeSnapshot.noteVerseRefsEnabled
+  const noteLexiconRefsEnabled = storeSnapshot.noteLexiconRefsEnabled
+  const noteScriptureBlock = storeSnapshot.noteScriptureBlock
 
   syntaxTree(state).iterate({
     from: vpFrom, to: vpTo,
@@ -540,7 +1217,22 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
           if (!col(from)) {
             const lv = parseInt(name.slice(-1))
             const ln = doc.lineAt(from)
-            decos.push({ from: ln.from, to: ln.from, deco: Decoration.line({ class: `cm-live-h${lv}` }), kind: 'line' })
+            const hClass = headingDivider ? `cm-live-h${lv} cm-live-h-divider` : `cm-live-h${lv}`
+            decos.push({ from: ln.from, to: ln.from, deco: Decoration.line({ class: hClass }), kind: 'line' })
+            // Collapse toggle arrow — shown at end of each heading in wysiwyg mode.
+            // Uses CollapseArrowWidget (level-aware) so the triangle is proportional
+            // to the heading's font size and vertically centred on the line.
+            if (wysiwyg) {
+              const isCollapsed = collapsed.has(ln.from)
+              decos.push({
+                from: ln.to, to: ln.to,
+                deco: Decoration.widget({
+                  widget: new CollapseArrowWidget(isCollapsed, lv),
+                  side: 1,
+                }),
+                kind: 'mark',
+              })
+            }
           }
           break
         }
@@ -657,8 +1349,19 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
             // Skip bullet widget for task list items — the task renderer replaces the whole prefix
             const lineAfterMark = to < doc.length ? doc.sliceString(end, end + 3) : ''
             if (lineAfterMark === '[ ]' || lineAfterMark === '[x]' || lineAfterMark === '[X]') break
-            const bullet = markText === '*' ? '• ' : markText === '-' ? '– ' : `${markText} `
-            decos.push({ from, to: Math.min(end, vpTo), deco: Decoration.replace({ widget: new InlineWidget(bullet, 'cm-live-list-bullet') }), kind: 'replace' })
+            // Ordered lists keep their numeric marker
+            if (/^\d/.test(markText)) {
+              decos.push({ from, to: Math.min(end, vpTo), deco: Decoration.replace({ widget: new InlineWidget(`${markText} `, 'cm-live-list-bullet') }), kind: 'replace' })
+              break
+            }
+            // Unordered bullets: pick symbol based on indent level and bullet style setting
+            const bulletLine = doc.lineAt(from)
+            const leadingSpaces = bulletLine.text.length - bulletLine.text.trimStart().length
+            const indentLevel = Math.min(Math.floor(leadingSpaces / 4), 4)
+            const styleName = storeSnapshot.noteBulletStyle ?? 'classic'
+            const styleDef = BULLET_STYLE_DEFS[styleName] ?? BULLET_STYLE_DEFS.classic
+            const bulletChar = styleDef.symbols[indentLevel] ?? styleDef.symbols[0]
+            decos.push({ from, to: Math.min(end, vpTo), deco: Decoration.replace({ widget: new InlineWidget(`${bulletChar} `, 'cm-live-list-bullet') }), kind: 'replace' })
           }
           break
         }
@@ -678,10 +1381,40 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
   // Regex-based patterns
   const text = doc.sliceString(vpFrom, vpTo)
 
-  // Settings from store (safe to call outside React — reads current snapshot)
-  const storeSnapshot = useAppStore.getState()
-  const noteVerseRefsEnabled = storeSnapshot.noteVerseRefsEnabled
-  const noteLexiconRefsEnabled = storeSnapshot.noteLexiconRefsEnabled
+  // ── Regex-based heading mark hiding (flash prevention) ────────────────────
+  // Hides `# `, `## ` etc. immediately from the raw text, before the syntax tree
+  // is fully parsed, preventing the brief flash of '#' chars when opening a note.
+  // The syntax-tree path above provides the same decorations once the tree is ready;
+  // duplicates are silently skipped by the RangeSetBuilder's lastReplaceEnd guard.
+  if (wysiwyg) {
+    const headRegex = /^(#{1,6}) /gm
+    let hm: RegExpExecArray | null
+    while ((hm = headRegex.exec(text)) !== null) {
+      const level = hm[1].length
+      const markFrom = vpFrom + hm.index
+      const markTo   = markFrom + hm[1].length + 1   // '# ' = mark + space
+      if (markTo > vpTo) break
+      const lineFrom = doc.lineAt(markFrom).from
+      const hCls = headingDivider ? `cm-live-h${level} cm-live-h-divider` : `cm-live-h${level}`
+      decos.push({ from: lineFrom, to: lineFrom, deco: Decoration.line({ class: hCls }), kind: 'line' })
+      decos.push({ from: markFrom, to: markTo,   deco: hide, kind: 'replace' })
+    }
+
+    // ── Regex-based horizontal-rule rendering (flash prevention) ────────────
+    // A line that is exactly --- / *** / ___ becomes a divider. Without this the
+    // raw dashes flash on screen until the syntax tree finishes parsing (the bug
+    // seen when returning to a note).
+    const hrRegex = /^(-{3,}|\*{3,}|_{3,})$/gm
+    let rm: RegExpExecArray | null
+    while ((rm = hrRegex.exec(text)) !== null) {
+      const lineStart = vpFrom + rm.index
+      const lineEnd   = lineStart + rm[0].length
+      if (lineEnd > vpTo) break
+      decos.push({ from: lineStart, to: lineEnd, deco: Decoration.mark({ class: 'cm-live-hr-mark' }), kind: 'mark' })
+      decos.push({ from: lineStart, to: lineStart, deco: Decoration.line({ class: 'cm-live-hr-line' }), kind: 'line' })
+    }
+  }
+
   // Suppressed ranges (mapped through edits by the StateField)
   const suppressedRanges = view.state.field(suppressedRangesField)
   function isInSuppressedRange(from: number, to: number): boolean {
@@ -700,8 +1433,10 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
     }
   }
 
-  // Use mark + hide for underline (so it stays editable-looking)
-  const addMarkRegex = (re: RegExp, markClass: string) => {
+  // Use mark + hide for underline (so it stays editable-looking).
+  // fixedPrefixLen / fixedSuffixLen: explicit byte counts for the opening/closing markers,
+  // used when the inner capture group may contain '<' (nested HTML) which would fool indexOf.
+  const addMarkRegex = (re: RegExp, markClass: string, fixedPrefixLen?: number, fixedSuffixLen?: number) => {
     re.lastIndex = 0
     let m: RegExpExecArray | null
     while ((m = re.exec(text)) !== null) {
@@ -709,21 +1444,31 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
       const to = from + m[0].length
       if (col(from)) continue
       const inner = m[1]
-      const prefixLen = m[0].indexOf(inner)
-      const suffixLen = m[0].length - prefixLen - inner.length
+      const prefixLen = fixedPrefixLen ?? m[0].indexOf(inner)
+      const suffixLen = fixedSuffixLen ?? (m[0].length - prefixLen - inner.length)
+      if (prefixLen < 0 || suffixLen < 0 || prefixLen + suffixLen > m[0].length) continue
       decos.push({ from, to: from + prefixLen, deco: hide, kind: 'replace' })
       decos.push({ from: from + prefixLen, to: to - suffixLen, deco: Decoration.mark({ class: markClass }), kind: 'mark' })
-      decos.push({ from: to - suffixLen, to, deco: hide, kind: 'replace' })
+      if (suffixLen > 0) decos.push({ from: to - suffixLen, to, deco: hide, kind: 'replace' })
     }
   }
 
   addWidgetRegex(/~~([^~\n]+?)~~/g, 'cm-live-strike')
   addWidgetRegex(/\[\[([^\]\n]+?)\]\]/g, 'cm-live-wikilink')
-  addMarkRegex(/<u>([^<\n]+?)<\/u>/g, 'cm-live-underline')
+  // Underline: allow nested HTML tags (e.g. <mark> inside <u>) — prefix=3 (<u>), suffix=4 (</u>)
+  addMarkRegex(/<u>((?:[^<]|<(?!\/u)[^>]*>)*)<\/u>/g, 'cm-live-underline', 3, 4)
   addMarkRegex(/==([^=\n]+?)==/g, 'cm-live-highlight')
-  // Colored highlight marks: <mark class="hl-COLOR">text</mark>
+  // Colored highlight marks: allow nested HTML (e.g. <u>, <b> inside <mark class="hl-X">)
+  // The inner pattern `((?:[^<]|<(?!\/?mark)[^>]*>)*)` matches any content that isn't
+  // a nested <mark> or </mark>, including simple inline tags like <u>, <b>, <i>.
   for (const { id } of NOTE_HL_COLORS) {
-    addMarkRegex(new RegExp(`<mark class="hl-${id}">([^<\\n]*?)<\\/mark>`, 'g'), `cm-live-hl-${id}`)
+    const prefixLen = 18 + id.length  // `<mark class="hl-${id}">` byte count
+    addMarkRegex(
+      new RegExp(`<mark class="hl-${id}">((?:[^<]|<(?!\\/?mark)[^>]*>)*)<\\/mark>`, 'g'),
+      `cm-live-hl-${id}`,
+      prefixLen,
+      7,  // `</mark>` = 7 bytes
+    )
   }
 
   // Alignment line decorations — apply alignment class and hide the raw HTML div tags
@@ -771,41 +1516,66 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
     }
   }
 
-  // Bible verse refs
+  // Verse blocks — plain text styled like a scripture quote (decoration only).
+  // The document text is NEVER modified; only line/mark decorations are applied,
+  // so copying the text yields the original plain text. The block is only formatted
+  // if its text matches the real verse text by at least `threshold` (so commentary
+  // like "Genesis 5:4 my thoughts" is left untouched).
+  if (noteScriptureBlock) {
+    const threshold = storeSnapshot.noteScriptureBlockThreshold ?? 0.9
+    const onResolved = () => { try { view.dispatch({ effects: refreshDecorationsEffect.of(null) }) } catch { /* view gone */ } }
+    const firstLineNum = doc.lineAt(vpFrom).number
+    const lastLineNum = doc.lineAt(Math.min(vpTo, doc.length > 0 ? doc.length - 1 : 0)).number
+    let ln = firstLineNum
+    while (ln <= lastLineNum) {
+      const line = doc.line(ln)
+      const trimmed = line.text.trim()
+      const leadWs = line.text.length - line.text.trimStart().length
+
+      // A) Multi-line block: verse-level ref line + following numbered verse lines
+      if (trimmed.includes(':') && parseRef(trimmed) &&
+          ln + 1 <= doc.lines && VERSE_BODY_LINE_RE.test(doc.line(ln + 1).text)) {
+        let endLn = ln + 1
+        while (endLn + 1 <= doc.lines && VERSE_BODY_LINE_RE.test(doc.line(endLn + 1).text)) endLn++
+        // Build candidate text: body lines with leading verse numbers stripped
+        const bodyParts: string[] = []
+        for (let i = ln + 1; i <= endLn; i++) bodyParts.push(doc.line(i).text.replace(/^\s*\d{1,3}[ \t]+/, ''))
+        const accepted = verseTextAccepted(trimmed, bodyParts.join(' '), threshold, onResolved)
+        if (accepted !== false) {
+          for (let i = ln; i <= endLn; i++) {
+            const L = doc.line(i)
+            let cls = 'cm-live-verse-block'
+            if (i === ln) cls += ' cm-live-verse-block-first'
+            if (i === endLn) cls += ' cm-live-verse-block-last'
+            decos.push({ from: L.from, to: L.from, deco: Decoration.line({ class: cls }), kind: 'line' })
+          }
+          decos.push({ from: line.from + leadWs, to: line.to, deco: Decoration.mark({ class: 'cm-live-verse-block-ref' }), kind: 'mark' })
+        }
+        ln = endLn + 1
+        continue
+      }
+
+      // B) Single-line block: "Book c:v verse text…"
+      const m = SINGLE_VERSE_LINE_RE.exec(line.text)
+      if (m && parseRef(m[2])) {
+        const accepted = verseTextAccepted(m[2], m[3], threshold, onResolved)
+        if (accepted !== false) {
+          decos.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-live-verse-block cm-live-verse-block-first cm-live-verse-block-last' }), kind: 'line' })
+          const refFrom = line.from + m[1].length
+          const refTo = refFrom + m[2].length
+          decos.push({ from: refFrom, to: refTo, deco: Decoration.mark({ class: 'cm-live-verse-block-ref' }), kind: 'mark' })
+        }
+      }
+      ln++
+    }
+  }
+
+  // Bible verse refs — uses findVerseRefMatches so a single line can hold any
+  // number of references (e.g. "Romans 10:1-2 vs Deuteronomy 18:15-19").
   if (noteVerseRefsEnabled) {
-    // LXX-suffix refs first: "Book ch:v LXX" — collect ranges so the regular verse-ref
-    // pass can skip them (avoids double-decorating the ref portion of a suffix match)
-    const lxxSuffixRanges: Array<{ from: number; to: number }> = []
-    const lxxSuffixRefRe = /\b((?:[1-3][ \t]*)?[A-Za-z][a-z]+(?:[ \t]+(?:of[ \t]+)?[A-Za-z][a-z]+)?[ \t]+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)[ \t]+LXX\b/gi
-    lxxSuffixRefRe.lastIndex = 0
-    let sm: RegExpExecArray | null
-    while ((sm = lxxSuffixRefRe.exec(text)) !== null) {
-      const from = vpFrom + sm.index
-      const to = from + sm[0].length
-      if (!parseRef(sm[1])) continue
-      if (isInSuppressedRange(from, to)) continue
-      lxxSuffixRanges.push({ from, to })
-      decos.push({ from, to, deco: Decoration.mark({ class: 'cm-live-lxx-ref' }), kind: 'mark' })
-    }
-
-    // Regular verse refs — lowercase first char supported; ranges already matched as LXX
-    // suffix are excluded to prevent double-decoration.
-    // Use `?` (zero or one) for the optional second word so we don't greedily consume
-    // preceding words like "hello hosea 13" — only "hosea 13" should match.
-    const verseRefRe = /\b(?:[1-3][ \t]*)?[A-Za-z][a-z]+(?:[ \t]+(?:of[ \t]+)?[A-Za-z][a-z]+)?[ \t]+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?\b/g
-    verseRefRe.lastIndex = 0
-    let vm: RegExpExecArray | null
-    while ((vm = verseRefRe.exec(text)) !== null) {
-      const from = vpFrom + vm.index
-      const to = from + vm[0].length
-      if (!parseRef(vm[0])) continue
-      if (isInSuppressedRange(from, to)) continue
-      if (lxxSuffixRanges.some(r => r.from < to && r.to > from)) continue
-      decos.push({ from, to, deco: Decoration.mark({ class: 'cm-live-verse-ref' }), kind: 'mark' })
-    }
-
-    // LXX-prefixed refs: lxx: or LXX: prefix — renders in violet to distinguish from KJVA refs
+    // LXX-prefixed refs (lxx: / LXX:) — handled separately, rendered violet.
     const lxxRefRe = /\b(?:lxx|LXX):(?:[1-3][ \t]*)?[A-Za-z][a-z]+(?:[ \t]+(?:of[ \t]+)?[A-Za-z][a-z]+)?[ \t]+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?\b/g
+    const lxxPrefixRanges: Array<{ from: number; to: number }> = []
     lxxRefRe.lastIndex = 0
     let lm: RegExpExecArray | null
     while ((lm = lxxRefRe.exec(text)) !== null) {
@@ -813,7 +1583,21 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
       const to = from + lm[0].length
       if (!parseRef(lm[0].replace(/^(?:lxx|LXX):/i, ''))) continue
       if (isInSuppressedRange(from, to)) continue
+      lxxPrefixRanges.push({ from, to })
       decos.push({ from, to, deco: Decoration.mark({ class: 'cm-live-lxx-ref' }), kind: 'mark' })
+    }
+
+    // All other refs (with " LXX" suffix → violet, otherwise accent)
+    for (const ma of findVerseRefMatches(text)) {
+      const from = vpFrom + ma.index
+      const to = from + ma.length
+      if (isInSuppressedRange(from, to)) continue
+      if (lxxPrefixRanges.some(r => r.from < to && r.to > from)) continue
+      decos.push({
+        from, to,
+        deco: Decoration.mark({ class: ma.lxx ? 'cm-live-lxx-ref' : 'cm-live-verse-ref' }),
+        kind: 'mark',
+      })
     }
   }
 
@@ -861,7 +1645,7 @@ const liveMarkdownPlugin = ViewPlugin.fromClass(
     constructor(view: EditorView) { this.decorations = buildLiveDecorations(view) }
     update(u: ViewUpdate) {
       const hasSpecialEffect = u.transactions.some(tr =>
-        tr.effects.some(e => e.is(refreshDecorationsEffect) || e.is(setSuppressedEffect))
+        tr.effects.some(e => e.is(refreshDecorationsEffect) || e.is(setSuppressedEffect) || e.is(wysiwygEffect))
       )
       if (u.docChanged || u.selectionSet || u.viewportChanged || u.focusChanged || hasSpecialEffect)
         this.decorations = buildLiveDecorations(u.view)
@@ -890,69 +1674,267 @@ function isTableRow(line: string): boolean {
   return t.startsWith('|') && t.includes('|', 1)
 }
 
+// ─── WYSIWYG table module-level view reference ────────────────────────────────
+// The table widget needs to dispatch changes back to the editor. Using a module-
+// level reference is pragmatic: only one NoteEditor is interacted-with at a time.
+let _tableView: EditorView | null = null
+
+// ─── Markdown table rebuild helpers ──────────────────────────────────────────
+
+function sepFromAlignment(a: 'left' | 'center' | 'right'): string {
+  if (a === 'center') return ':---:'
+  if (a === 'right') return '---:'
+  return '---'
+}
+
+function buildTableMarkdown(
+  headers: string[],
+  alignments: ('left' | 'center' | 'right')[],
+  rows: string[][],
+): string {
+  const hLine = '| ' + headers.join(' | ') + ' |'
+  const sLine = '| ' + headers.map((_, i) => sepFromAlignment(alignments[i] ?? 'left')).join(' | ') + ' |'
+  const bLines = rows.map(row => '| ' + headers.map((_, i) => row[i] ?? '').join(' | ') + ' |')
+  return [hLine, sLine, ...bLines].join('\n')
+}
+
+// ─── Table block widget ───────────────────────────────────────────────────────
+
+const BTN_BASE = 'cursor-pointer border-none outline-none font-inherit'
+
 class TableBlockWidget extends WidgetType {
   constructor(
     readonly headers: string[],
     readonly alignments: ('left' | 'center' | 'right')[],
     readonly rows: string[][],
     readonly rawText: string,
+    readonly blockFrom: number = 0,
+    readonly blockTo: number = 0,
+    readonly wysiwyg: boolean = false,
   ) { super() }
 
   eq(other: WidgetType) {
-    return other instanceof TableBlockWidget && other.rawText === this.rawText
+    return other instanceof TableBlockWidget
+      && other.rawText === this.rawText
+      && other.wysiwyg === this.wysiwyg
   }
 
-  toDOM() {
-    const wrap = document.createElement('div')
-    wrap.style.cssText = 'overflow-x:auto;margin:4px 0;cursor:text;user-select:none;'
+  // Dispatch a table replacement. `from`/`to` are the stored block positions;
+  // we verify they still contain the expected markdown before dispatching.
+  private dispatch(newMarkdown: string) {
+    const view = _tableView
+    if (!view) return
+    const safeFrom = Math.min(this.blockFrom, view.state.doc.length)
+    const safeTo   = Math.min(this.blockTo,   view.state.doc.length)
+    view.dispatch({ changes: { from: safeFrom, to: safeTo, insert: newMarkdown }, userEvent: 'table.edit' })
+  }
 
+  // ── Static (non-editable) rendering ──────────────────────────────────────
+
+  private buildStaticTable(): HTMLTableElement {
     const table = document.createElement('table')
     table.style.cssText = 'border-collapse:collapse;width:100%;font-size:0.8rem;font-family:inherit;'
 
-    // Header
     const thead = table.createTHead()
-    const headerRow = thead.insertRow()
+    const hr = thead.insertRow()
     this.headers.forEach((h, i) => {
       const th = document.createElement('th')
-      th.style.cssText = `border:1px solid rgba(var(--color-surface-4),0.8);padding:4px 10px;background:rgba(var(--color-surface-3),0.6);font-weight:600;text-align:${this.alignments[i] ?? 'left'};`
+      th.style.cssText = `border:1px solid rgba(100,116,139,0.35);padding:4px 10px;background:rgba(100,116,139,0.1);font-weight:600;text-align:${this.alignments[i] ?? 'left'};`
       th.innerHTML = marked.parseInline(h) as string
-      headerRow.appendChild(th)
+      hr.appendChild(th)
     })
 
-    // Body
     const tbody = table.createTBody()
     this.rows.forEach((row, ri) => {
       const tr = tbody.insertRow()
-      if (ri % 2 === 1) tr.style.background = 'rgba(var(--color-surface-3),0.3)'
+      if (ri % 2 === 1) tr.style.background = 'rgba(100,116,139,0.07)'
       this.headers.forEach((_, i) => {
         const td = document.createElement('td')
-        td.style.cssText = `border:1px solid rgba(var(--color-surface-4),0.8);padding:4px 10px;text-align:${this.alignments[i] ?? 'left'};`
+        td.style.cssText = `border:1px solid rgba(100,116,139,0.35);padding:4px 10px;text-align:${this.alignments[i] ?? 'left'};`
         td.innerHTML = marked.parseInline(row[i] ?? '') as string
         tr.appendChild(td)
       })
     })
+    return table
+  }
+
+  // ── WYSIWYG editable rendering ────────────────────────────────────────────
+
+  private buildWysiwygDOM(): HTMLElement {
+    const wrap = document.createElement('div')
+    wrap.style.cssText = 'overflow-x:auto;margin:4px 0;position:relative;'
+
+    const table = document.createElement('table')
+    table.style.cssText = 'border-collapse:collapse;width:100%;font-size:0.8rem;font-family:inherit;'
+
+    const CELL_BASE = 'border:1px solid rgba(100,116,139,0.35);padding:2px 6px;vertical-align:top;min-width:60px;'
+    const HDEL_BTN  = 'display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:3px;font-size:9px;line-height:1;background:rgba(100,116,139,0.15);color:rgba(var(--color-text-muted),0.8);border:none;cursor:pointer;margin-left:4px;flex-shrink:0;vertical-align:middle;padding:0;'
+    const RDEL_BTN  = 'display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;font-size:10px;line-height:1;background:rgba(100,116,139,0.15);color:rgba(var(--color-text-muted),0.8);border:none;cursor:pointer;padding:0;'
+
+    // ── Header row ──────────────────────────────────────────────────────────
+    const thead = table.createTHead()
+    const hr = thead.insertRow()
+
+    this.headers.forEach((h, colIdx) => {
+      const th = document.createElement('th')
+      th.style.cssText = CELL_BASE + `background:rgba(100,116,139,0.12);text-align:${this.alignments[colIdx] ?? 'left'};`
+
+      // editable header cell
+      const cell = document.createElement('span')
+      cell.contentEditable = 'true'
+      cell.style.cssText = 'display:inline;outline:none;min-width:20px;white-space:pre-wrap;'
+      cell.textContent = h
+      cell.dataset.col = String(colIdx)
+      cell.dataset.row = 'header'
+      cell.addEventListener('blur', () => this.onCellBlur(wrap))
+      cell.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cell.blur() } })
+      th.appendChild(cell)
+
+      // delete-column button
+      const del = document.createElement('button')
+      del.innerHTML = '×'
+      del.style.cssText = HDEL_BTN
+      del.title = `Delete column "${h}"`
+      del.onmousedown = (e) => { e.preventDefault(); this.deleteCol(colIdx) }
+      th.appendChild(del)
+
+      hr.appendChild(th)
+    })
+
+    // + add column cell in header
+    const addColTh = document.createElement('th')
+    addColTh.style.cssText = CELL_BASE + 'background:rgba(100,116,139,0.06);width:28px;padding:2px 4px;'
+    const addColBtn = document.createElement('button')
+    addColBtn.innerHTML = '+'
+    addColBtn.title = 'Add column'
+    addColBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:13px;line-height:1;background:rgba(100,116,139,0.15);color:rgba(var(--color-text-muted),1);border:none;cursor:pointer;padding:0;'
+    addColBtn.onmousedown = (e) => { e.preventDefault(); this.addCol() }
+    addColTh.appendChild(addColBtn)
+    hr.appendChild(addColTh)
+
+    // ── Body rows ────────────────────────────────────────────────────────────
+    const tbody = table.createTBody()
+    this.rows.forEach((row, rowIdx) => {
+      const tr = tbody.insertRow()
+      if (rowIdx % 2 === 1) tr.style.background = 'rgba(100,116,139,0.05)'
+
+      this.headers.forEach((_, colIdx) => {
+        const td = document.createElement('td')
+        td.style.cssText = CELL_BASE + `text-align:${this.alignments[colIdx] ?? 'left'};`
+
+        const cell = document.createElement('span')
+        cell.contentEditable = 'true'
+        cell.style.cssText = 'display:block;outline:none;min-height:1em;white-space:pre-wrap;'
+        cell.textContent = row[colIdx] ?? ''
+        cell.dataset.col = String(colIdx)
+        cell.dataset.row = String(rowIdx)
+        cell.addEventListener('blur', () => this.onCellBlur(wrap))
+        cell.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); cell.blur() } })
+        td.appendChild(cell)
+        tr.appendChild(td)
+      })
+
+      // delete-row button column
+      const delTd = document.createElement('td')
+      delTd.style.cssText = CELL_BASE + 'width:22px;padding:2px 3px;border-left:none;vertical-align:middle;'
+      const delBtn = document.createElement('button')
+      delBtn.innerHTML = '×'
+      delBtn.title = `Delete row ${rowIdx + 1}`
+      delBtn.style.cssText = RDEL_BTN
+      delBtn.onmousedown = (e) => { e.preventDefault(); this.deleteRow(rowIdx) }
+      delTd.appendChild(delBtn)
+      tr.appendChild(delTd)
+    })
 
     wrap.appendChild(table)
+
+    // ── "Add row" button ─────────────────────────────────────────────────────
+    const addRowBtn = document.createElement('button')
+    addRowBtn.textContent = '+ Add row'
+    addRowBtn.title = 'Add a row below the last row'
+    addRowBtn.style.cssText = 'display:inline-flex;align-items:center;gap:3px;margin-top:3px;padding:2px 8px;font-size:11px;font-family:inherit;border-radius:4px;border:1px solid rgba(100,116,139,0.3);background:rgba(100,116,139,0.08);color:rgba(var(--color-text-muted),1);cursor:pointer;'
+    addRowBtn.onmousedown = (e) => { e.preventDefault(); this.addRow() }
+    wrap.appendChild(addRowBtn)
+
     return wrap
   }
 
-  ignoreEvent() { return false }
+  // Read all contenteditable cell values from the rendered widget and commit
+  private onCellBlur(wrap: HTMLElement) {
+    const view = _tableView
+    if (!view) return
+    const headerCells = Array.from(wrap.querySelectorAll<HTMLElement>('span[data-row="header"]'))
+      .sort((a, b) => Number(a.dataset.col) - Number(b.dataset.col))
+    const newHeaders = headerCells.map(c => c.textContent?.trim() ?? '')
+
+    const rowCount = this.rows.length
+    const colCount = this.headers.length
+    const newRows: string[][] = Array.from({ length: rowCount }, () => Array(colCount).fill(''))
+    wrap.querySelectorAll<HTMLElement>('span[data-row]').forEach((cell) => {
+      const ri = parseInt(cell.dataset.row ?? '-1')
+      const ci = parseInt(cell.dataset.col ?? '-1')
+      if (ri >= 0 && ci >= 0 && ri < rowCount && ci < colCount) {
+        newRows[ri][ci] = cell.textContent?.trim() ?? ''
+      }
+    })
+    const newMd = buildTableMarkdown(newHeaders, this.alignments, newRows)
+    if (newMd !== this.rawText) this.dispatch(newMd)
+  }
+
+  private addRow() {
+    const newRows = [...this.rows, Array(this.headers.length).fill('')]
+    this.dispatch(buildTableMarkdown(this.headers, this.alignments, newRows))
+  }
+
+  private deleteRow(rowIdx: number) {
+    if (this.rows.length <= 1) return  // keep at least one row
+    const newRows = this.rows.filter((_, i) => i !== rowIdx)
+    this.dispatch(buildTableMarkdown(this.headers, this.alignments, newRows))
+  }
+
+  private addCol() {
+    const newHeaders  = [...this.headers, 'Column']
+    const newAligns   = [...this.alignments, 'left' as const]
+    const newRows     = this.rows.map(row => [...row, ''])
+    this.dispatch(buildTableMarkdown(newHeaders, newAligns, newRows))
+  }
+
+  private deleteCol(colIdx: number) {
+    if (this.headers.length <= 1) return  // keep at least one column
+    const newHeaders = this.headers.filter((_, i) => i !== colIdx)
+    const newAligns  = this.alignments.filter((_, i) => i !== colIdx)
+    const newRows    = this.rows.map(row => row.filter((_, i) => i !== colIdx))
+    this.dispatch(buildTableMarkdown(newHeaders, newAligns, newRows))
+  }
+
+  toDOM() {
+    if (this.wysiwyg) return this.buildWysiwygDOM()
+    const wrap = document.createElement('div')
+    wrap.style.cssText = 'overflow-x:auto;margin:4px 0;cursor:text;user-select:none;'
+    wrap.appendChild(this.buildStaticTable())
+    return wrap
+  }
+
+  ignoreEvent(event: Event) {
+    // In wysiwyg mode let the DOM handle all events (contenteditable cells, buttons)
+    return this.wysiwyg
+  }
 }
 
 function buildTableBlockDecos(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const doc = state.doc
   let lineNum = 1
+  // Use wysiwyg mode: tables always visible, cells editable
+  const wysiwyg = state.field(wysiwygField, false) ?? false
 
   while (lineNum <= doc.lines) {
     const line = doc.line(lineNum)
 
-    // Need at least a header row and a separator row
     if (!isTableRow(line.text) || lineNum + 1 > doc.lines) { lineNum++; continue }
     const sepLine = doc.line(lineNum + 1)
     if (!isTableSep(sepLine.text)) { lineNum++; continue }
 
-    // Collect all body rows following the separator
     let endLineNum = lineNum + 1
     while (endLineNum + 1 <= doc.lines) {
       const next = doc.line(endLineNum + 1)
@@ -961,29 +1943,33 @@ function buildTableBlockDecos(state: EditorState): DecorationSet {
     }
     const endLine = doc.line(endLineNum)
 
-    // Show raw if cursor is anywhere in the block
+    // In wysiwyg mode: always show the widget.
+    // In raw/preview mode: only show when cursor is NOT in the block.
     const cursorInBlock = state.selection.ranges.some(
       r => r.head >= line.from && r.head <= endLine.to
     )
-    if (!cursorInBlock) {
-      const headerCells = parseTableCells(line.text)
-      const sepCells = parseTableCells(sepLine.text)
-      const alignments = sepCells.map((s): 'left' | 'center' | 'right' => {
-        const t = s.trim()
-        if (t.startsWith(':') && t.endsWith(':')) return 'center'
-        if (t.endsWith(':')) return 'right'
-        return 'left'
-      })
-      const rows: string[][] = []
-      for (let r = lineNum + 2; r <= endLineNum; r++) {
-        rows.push(parseTableCells(doc.line(r).text))
-      }
-      const rawText = doc.sliceString(line.from, endLine.to)
-      builder.add(
-        line.from, endLine.to,
-        Decoration.replace({ widget: new TableBlockWidget(headerCells, alignments, rows, rawText), block: true })
-      )
+    if (!wysiwyg && cursorInBlock) { lineNum = endLineNum + 1; continue }
+
+    const headerCells = parseTableCells(line.text)
+    const sepCells = parseTableCells(sepLine.text)
+    const alignments = sepCells.map((s): 'left' | 'center' | 'right' => {
+      const t = s.trim()
+      if (t.startsWith(':') && t.endsWith(':')) return 'center'
+      if (t.endsWith(':')) return 'right'
+      return 'left'
+    })
+    const rows: string[][] = []
+    for (let r = lineNum + 2; r <= endLineNum; r++) {
+      rows.push(parseTableCells(doc.line(r).text))
     }
+    const rawText = doc.sliceString(line.from, endLine.to)
+    builder.add(
+      line.from, endLine.to,
+      Decoration.replace({
+        widget: new TableBlockWidget(headerCells, alignments, rows, rawText, line.from, endLine.to, wysiwyg),
+        block: true,
+      })
+    )
 
     lineNum = endLineNum + 1
   }
@@ -994,7 +1980,9 @@ function buildTableBlockDecos(state: EditorState): DecorationSet {
 const tableBlockField = StateField.define<DecorationSet>({
   create(state) { return buildTableBlockDecos(state) },
   update(decos, tr) {
-    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection)) return buildTableBlockDecos(tr.state)
+    const wysiwygToggled = tr.effects.some(e => e.is(wysiwygEffect))
+    if (tr.docChanged || wysiwygToggled || !tr.startState.selection.eq(tr.state.selection))
+      return buildTableBlockDecos(tr.state)
     return decos
   },
   provide: f => EditorView.decorations.from(f),
@@ -1072,9 +2060,9 @@ const calloutBlockField = StateField.define<DecorationSet>({
 // ─── Preview helpers (exported so YouTubeTab can reuse them) ───────────────────
 
 export function addVerseLinksToHtml(html: string): string {
-  // Group 1: ref part (Book ch:v), Group 2: optional " LXX" / " lxx" suffix
-  // The `i` flag allows lowercase book names and case-insensitive LXX suffix
-  const verseRefRe = /\b((?:[1-3]\s+)?[A-Za-z][a-z]+(?:\s+(?:of\s+)?[A-Za-z][a-z]+)?\s+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:\s*[-–]\s*\d{1,3})?)?)(\s+LXX\b)?/gi
+  // Uses findVerseRefMatches so a single text node can contain any number of
+  // references (e.g. "Romans 10:1-2 vs Deuteronomy 18:15-19"). Skips content
+  // inside <a>/<code>/<pre> so existing links and code aren't re-wrapped.
   let inSkip = 0
   return html.replace(/(<\/?(?:a|code|pre)[^>]*>)|([^<>]+)/gi, (match, tag, text) => {
     if (tag) {
@@ -1084,13 +2072,20 @@ export function addVerseLinksToHtml(html: string): string {
       return tag
     }
     if (inSkip > 0 || !text) return text ?? match
-    return text.replace(verseRefRe, (m: string, refPart: string, lxxSuffix: string | undefined) => {
-      if (!parseRef(refPart)) return m
-      if (lxxSuffix) {
-        return `<a href="#lxx-verse-ref-${encodeURIComponent(refPart)}" class="berean-verse-ref berean-lxx-ref">${m}</a>`
-      }
-      return `<a href="#verse-ref-${encodeURIComponent(refPart)}" class="berean-verse-ref">${m}</a>`
-    })
+    const matches = findVerseRefMatches(text)
+    if (matches.length === 0) return text
+    let result = ''
+    let pos = 0
+    for (const ma of matches) {
+      result += text.slice(pos, ma.index)
+      const seg = text.slice(ma.index, ma.index + ma.length)
+      result += ma.lxx
+        ? `<a href="#lxx-verse-ref-${encodeURIComponent(ma.refText)}" class="berean-verse-ref berean-lxx-ref">${seg}</a>`
+        : `<a href="#verse-ref-${encodeURIComponent(ma.refText)}" class="berean-verse-ref">${seg}</a>`
+      pos = ma.index + ma.length
+    }
+    result += text.slice(pos)
+    return result
   })
 }
 
@@ -1103,9 +2098,67 @@ const CALLOUT_META: Record<string, { icon: string; label: string; bg: string; bo
   CAUTION:   { icon: '✕', label: 'Caution',   bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.6)',   color: '#f87171' },
 }
 
+// Escape HTML special chars for safe inclusion in generated markup.
+function escapeHtmlBasic(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Wrap detected verse blocks in styled HTML divs so the "view"/preview and the
+// printed/PDF output show the same scripture-block styling as the editor. Gated
+// on the noteScriptureBlock setting and the verse-text match threshold.
+const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:0 4px 4px 0;margin:8px 0'
+const VERSE_BLOCK_REF_STYLE = 'font-weight:700'
+
+export function wrapVerseBlocksForPreview(content: string): string {
+  const st = (typeof useAppStore?.getState === 'function') ? useAppStore.getState() : null
+  if (!st?.noteScriptureBlock) return content
+  const threshold = st.noteScriptureBlockThreshold ?? 0.9
+  const lines = content.split('\n')
+  const out: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = line.trim()
+    // A) Multi-line block
+    if (trimmed.includes(':') && parseRef(trimmed) &&
+        i + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[i + 1])) {
+      let j = i + 1
+      while (j + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[j + 1])) j++
+      const bodyLines = lines.slice(i + 1, j + 1)
+      const candidate = bodyLines.map(l => l.replace(/^\s*\d{1,3}[ \t]+/, '')).join(' ')
+      if (verseTextAcceptedSync(trimmed, candidate, threshold)) {
+        const ref = `<a href="#verse-ref-${encodeURIComponent(trimmed)}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(trimmed)}</a>`
+        const body = bodyLines.map(l => escapeHtmlBasic(l)).join('<br>')
+        out.push(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}"><div>${ref}</div>${body}</div>`)
+        i = j + 1
+        continue
+      }
+    }
+    // B) Single-line block
+    const m = SINGLE_VERSE_LINE_RE.exec(line)
+    if (m && parseRef(m[2]) && verseTextAcceptedSync(m[2], m[3], threshold)) {
+      const ref = `<a href="#verse-ref-${encodeURIComponent(m[2])}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(m[2])}</a>`
+      out.push(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}">${ref} ${escapeHtmlBasic(m[3])}</div>`)
+      i++
+      continue
+    }
+    out.push(line)
+    i++
+  }
+  return out.join('\n')
+}
+
 export function renderPreviewContent(content: string): string {
-  // Preserve intentional extra blank lines as explicit <br> elements
-  const withSpacing = content.replace(/\n(\n{2,})/g, (_, extra) => '\n' + '<br>\n'.repeat(extra.length - 1) + '\n')
+  // Wrap verse blocks first (when enabled) so subsequent markdown passes leave them intact.
+  content = wrapVerseBlocksForPreview(content)
+  // Preserve intentional extra blank lines as explicit <br> elements.
+  // Each <br> is surrounded by blank lines so it forms its own block — otherwise
+  // a <br> placed on the line directly after a blockquote/list would be absorbed
+  // into it via markdown's lazy continuation (making the blockquote span the blanks).
+  const withSpacing = content.replace(/\n(\n{2,})/g, (_, extra: string) => {
+    const count = extra.length - 1
+    return '\n\n' + Array(count).fill('<br>').join('\n\n') + '\n\n'
+  })
   // Convert [[Note Title]] to markdown links
   let processed = withSpacing.replace(/\[\[([^\]\n]+?)\]\]/g, (_, title) => `[${title}](#note-${title.replace(/\s+/g, '-').toLowerCase()})`)
   // ==highlight== → <mark>
@@ -1157,10 +2210,36 @@ export function renderPreviewContent(content: string): string {
   return addVerseLinksToHtml(html)
 }
 
-export default function NoteEditor({ content, onChange, placeholder, onFocusRef, onCommandsRef, onScrollRef, onScrollPosition, onCursorPosition, initialScrollTop, initialCursorPos, autoFocus, previewMode, notes, onWikilinkClick, onVerseRefClick, noteId, noteTitle, findQuery = '', importSource, importedAt }: NoteEditorProps) {
+// Build a standalone, print-ready HTML document for a note (used by print + PDF export).
+export function buildPrintHTML(title: string, content: string): string {
+  const body = renderPreviewContent(content)
+  const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title><style>
+    @page { margin: 1in; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; font-size: 12pt; line-height: 1.6; color: #111; max-width: 7in; margin: 0 auto; padding: 0.5in 0; }
+    h1 { font-size: 1.9em; margin: 0.6em 0 0.3em; } h2 { font-size: 1.5em; margin: 0.6em 0 0.3em; }
+    h3 { font-size: 1.25em; } h4,h5,h6 { font-size: 1.05em; }
+    p { margin: 0.5em 0; } ul, ol { margin: 0.5em 0; padding-left: 1.5em; }
+    blockquote { border-left: 3px solid #ccc; margin: 0.6em 0; padding: 0.2em 0 0.2em 1em; color: #444; }
+    code { background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 0.9em; }
+    pre { background: #f6f6f6; padding: 0.8em; border-radius: 6px; overflow-x: auto; }
+    pre code { background: none; padding: 0; }
+    table { border-collapse: collapse; margin: 0.6em 0; } th, td { border: 1px solid #ccc; padding: 0.3em 0.6em; text-align: left; }
+    hr { border: none; border-top: 1px solid #ccc; margin: 1em 0; }
+    a { color: #1a4ed8; } img { max-width: 100%; }
+    a.berean-verse-ref { color: #4f46e5; text-decoration: underline; }
+    .berean-verse-block { border-left: 3px solid #6366f1; background: #f4f5fb; padding: 0.4em 0.8em; border-radius: 0 4px 4px 0; margin: 0.6em 0; }
+    .berean-verse-block a.berean-verse-ref { font-weight: 700; color: #312e81; text-decoration: none; }
+    h1.note-doc-title { font-size: 2.1em; border-bottom: 2px solid #eee; padding-bottom: 0.2em; margin-bottom: 0.5em; }
+  </style></head><body><h1 class="note-doc-title">${safeTitle}</h1>${body}</body></html>`
+}
+
+export default function NoteEditor({ content, onChange, placeholder, onFocusRef, onCommandsRef, onScrollRef, onScrollPosition, onCursorPosition, initialScrollTop, initialCursorPos, autoFocus, previewMode, wysiwyg, notes, onWikilinkClick, onVerseRefClick, noteId, noteTitle, findQuery = '', importSource, importedAt }: NoteEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const findHighlightCompartment = useRef(new Compartment())
+  const editableCompartment = useRef(new Compartment())
   const [importFooterOpen, setImportFooterOpen] = useState(false)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -1179,6 +2258,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
 
   const noteVerseRefsEnabled = useAppStore((s) => s.noteVerseRefsEnabled)
   const noteLexiconRefsEnabled = useAppStore((s) => s.noteLexiconRefsEnabled)
+  const noteHeadingDividerProp = useAppStore((s) => s.noteHeadingDivider)
 
   const [backlinkInfo, setBacklinkInfo] = useState<{ x: number; y: number; query: string; from: number; to: number } | null>(null)
   const [backlinkIdx, setBacklinkIdx] = useState(0)
@@ -1186,6 +2266,8 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [wikiHover, setWikiHover] = useState<{ note: Note; x: number; y: number } | null>(null)
   const wikiHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selToolbar, setSelToolbar] = useState<{ x: number; y: number } | null>(null)
+  // Right-click link editor popup (raw markdown + WYSIWYG edit views)
+  const [linkEditMenu, setLinkEditMenu] = useState<{ x: number; y: number; from: number; to: number; text: string; url: string } | null>(null)
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
   const [headingMode, setHeadingMode] = useState(false)
   const [listMode, setListMode] = useState(false)
@@ -1239,10 +2321,10 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     if (previewMode) { setBacklinkInfo(null); setSelToolbar(null) }
   }, [previewMode])
 
-  // Re-decorate when note ref settings change so the live plugin picks up new values
+  // Re-decorate when note display settings change so the live plugin picks up new values
   useEffect(() => {
     viewRef.current?.dispatch({ effects: refreshDecorationsEffect.of(null) })
-  }, [noteVerseRefsEnabled, noteLexiconRefsEnabled])
+  }, [noteVerseRefsEnabled, noteLexiconRefsEnabled, noteHeadingDividerProp])
 
   // Reset heading/list mode when toolbar closes
   useEffect(() => { if (!selToolbar) { setHeadingMode(false); setListMode(false) } }, [selToolbar])
@@ -1297,40 +2379,26 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   }, [pCalloutOpen])
 
   // Scroll to a heading when the TOC side panel fires berean:scrollToHeading
-  const previewRef = useRef<HTMLDivElement>(null)
   const previewModeRef = useRef(previewMode)
   useEffect(() => { previewModeRef.current = previewMode }, [previewMode])
 
   useEffect(() => {
     function handler(e: Event) {
       const { headingText } = (e as CustomEvent<{ headingText: string }>).detail
-      if (previewModeRef.current) {
-        // Preview mode: find matching h1-h6 element in the rendered HTML
-        const container = previewRef.current
-        if (!container) return
-        const headings = container.querySelectorAll('h1,h2,h3,h4,h5,h6')
-        for (const el of Array.from(headings)) {
-          if ((el.textContent ?? '').trim() === headingText) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            return
-          }
-        }
-      } else {
-        // Edit mode: find the heading line in the CM document and scroll to it
-        const view = viewRef.current
-        if (!view) return
-        const doc = view.state.doc.toString()
-        const escaped = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const re = new RegExp(`^#{1,6}\\s+${escaped}\\s*$`, 'm')
-        const match = re.exec(doc)
-        if (match) {
-          const pos = match.index
-          view.dispatch({
-            selection: EditorSelection.cursor(pos),
-            effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 24 }),
-          })
-          view.focus()
-        }
+      // Both edit and view mode: scroll the CM editor to the matching heading line
+      const view = viewRef.current
+      if (!view) return
+      const doc = view.state.doc.toString()
+      const escaped = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const re = new RegExp(`^#{1,6}\\s+${escaped}\\s*$`, 'm')
+      const match = re.exec(doc)
+      if (match) {
+        const pos = match.index
+        view.dispatch({
+          selection: EditorSelection.cursor(pos),
+          effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 24 }),
+        })
+        if (!previewModeRef.current) view.focus()
       }
     }
     window.addEventListener('berean:scrollToHeading', handler)
@@ -1360,14 +2428,27 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   useEffect(() => {
     if (!containerRef.current) return
 
-    const state = EditorState.create({
+    // Capture props at creation time so the initial editor state matches exactly
+    // what will be dispatched by the wysiwyg/editable useEffect. Without this,
+    // the editor first paints in raw mode (wysiwygField defaults to false), then
+    // the effect fires and hides syntax — causing a visible flash of markdown
+    // syntax when a note is opened or re-entered.
+    const initialWysiwyg = previewMode ? true : (wysiwyg ?? false)
+    const initialEditable = !(previewMode ?? false)
+
+    const rawState = EditorState.create({
       doc: content,
       extensions: [
+        wysiwygField,
         suppressedRangesField,
+        collapsedHeadingsField,
+        collapsedHeadingDecoField,
         tableBlockField,
         calloutBlockField,
         history(),
         keymap.of([
+          { key: 'Tab', preventDefault: true, run: indentSelection },
+          { key: 'Shift-Tab', preventDefault: true, run: outdentSelection },
           { key: 'Mod-b', run: toggleWith('**', '**') },
           { key: 'Mod-i', run: toggleWith('*', '*') },
           { key: 'Mod-`', run: toggleWith('`', '`') },
@@ -1396,7 +2477,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
         ]),
         wrapOnTypeHandler,
         pasteHandler,
-        markdown(),
+        markdown({ extensions: { remove: ['SetextHeading'] } }),
         liveMarkdownPlugin,
         oneDark,
         headingStyle,
@@ -1433,27 +2514,36 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           }
 
           // Detect selection for toolbar + active formats
+          // In view/preview mode: selection is allowed for copy but no toolbar appears
+          // and no formatting shortcuts should apply.
           if (update.selectionSet) {
             const sel = update.state.selection.main
             // Report cursor head position to parent so it can persist it
             onCursorPositionRef.current?.(sel.head)
-            // Always update active formats (drives both persistent toolbar and selection toolbar)
-            setActiveFormats(detectFormats(update.state))
-            if (!sel.empty) {
-              const suppressed = update.state.field(suppressedRangesField)
-              setIsSelectionSuppressed(suppressed.some(r => r.from < sel.to && r.to > sel.from))
-              const fc = update.view.coordsAtPos(sel.from)
-              const tc = update.view.coordsAtPos(sel.to)
-              if (fc && tc) {
-                const TOOLBAR_H = 36
-                const pad = 8
-                const rawY = Math.min(fc.top, tc.top) - TOOLBAR_H - pad
-                const finalY = rawY < pad ? Math.max(fc.bottom, tc.bottom) + pad : rawY
-                setSelToolbar({ x: (fc.left + tc.right) / 2, y: finalY })
-              }
-            } else {
+            if (previewModeRef.current) {
+              // View mode — suppress toolbar entirely; still track cursor for TOC scroll
               setSelToolbar(null)
               setIsSelectionSuppressed(false)
+              setActiveFormats(new Set())
+            } else {
+              // Always update active formats (drives both persistent toolbar and selection toolbar)
+              setActiveFormats(detectFormats(update.state))
+              if (!sel.empty) {
+                const suppressed = update.state.field(suppressedRangesField)
+                setIsSelectionSuppressed(suppressed.some(r => r.from < sel.to && r.to > sel.from))
+                const fc = update.view.coordsAtPos(sel.from)
+                const tc = update.view.coordsAtPos(sel.to)
+                if (fc && tc) {
+                  const TOOLBAR_H = 36
+                  const pad = 8
+                  const rawY = Math.min(fc.top, tc.top) - TOOLBAR_H - pad
+                  const finalY = rawY < pad ? Math.max(fc.bottom, tc.bottom) + pad : rawY
+                  setSelToolbar({ x: (fc.left + tc.right) / 2, y: finalY })
+                }
+              } else {
+                setSelToolbar(null)
+                setIsSelectionSuppressed(false)
+              }
             }
           }
           // Also refresh suppress state when ranges change (e.g. ⌘⇧R was pressed)
@@ -1469,12 +2559,18 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           'aria-label': placeholder ?? 'Start writing...',
           spellcheck: 'true',
         }),
+        editableCompartment.current.of(EditorView.editable.of(initialEditable)),
         findHighlightCompartment.current.of([]),
       ],
     })
 
+    // Apply the correct initial wysiwyg value synchronously before the first paint
+    // so decorations are computed with the right mode from the very first render.
+    const state = rawState.update({ effects: [wysiwygEffect.of(initialWysiwyg)] }).state
+
     const view = new EditorView({ state, parent: containerRef.current })
     viewRef.current = view
+    _tableView = view  // allow TableBlockWidget to dispatch changes back
     onFocusRef?.(() => view.focus())
     onCommandsRef?.({
       undo: () => { undo(view); view.focus() },
@@ -1491,9 +2587,24 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       view.scrollDOM.removeEventListener('scroll', scrollListener)
       view.destroy()
       viewRef.current = null
+      if (_tableView === view) _tableView = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Sync WYSIWYG mode and editability whenever previewMode or wysiwyg changes.
+  // In preview (view) mode: force WYSIWYG decorations ON and make editor read-only
+  // so the visual appearance is identical to edit mode, just non-editable.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: [
+        wysiwygEffect.of(previewMode ? true : (wysiwyg ?? false)),
+        editableCompartment.current.reconfigure(EditorView.editable.of(!previewMode)),
+      ],
+    })
+  }, [previewMode, wysiwyg])
 
   // Reconfigure find-highlight decorations whenever findQuery changes
   useEffect(() => {
@@ -1788,34 +2899,49 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
 
           <TSep />
 
-          {/* Heading type dropdown */}
+          {/* Heading type dropdown — label shows current heading level */}
           <div ref={pHeadingRef} className="relative">
             <TBtn
               title="Text style"
               onMouseDown={() => setPHeadingOpen((v) => !v)}
               className="text-[10px] font-mono px-1.5 gap-0.5"
             >
-              <span>¶</span>
+              <span>
+                {[1,2,3,4,5].find(i => activeFormats.has(`heading-${i}`))
+                  ? `H${[1,2,3,4,5].find(i => activeFormats.has(`heading-${i}`))}`
+                  : '¶'}
+              </span>
               <ChevronDown size={9} />
             </TBtn>
             {pHeadingOpen && (
               <div className="absolute top-full left-0 mt-0.5 z-50 rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] py-1 min-w-[130px]">
                 {([
-                  ['Paragraph', ''],
-                  ['Heading 1', '# '],
-                  ['Heading 2', '## '],
-                  ['Heading 3', '### '],
-                  ['Heading 4', '#### '],
-                  ['Heading 5', '##### '],
-                ] as const).map(([label, prefix]) => (
-                  <button
-                    key={label}
-                    onMouseDown={(e) => { e.preventDefault(); applyHeading(prefix); setPHeadingOpen(false) }}
-                    className="w-full text-left px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
+                  ['Paragraph', '',      'heading-0'],
+                  ['Heading 1', '# ',    'heading-1'],
+                  ['Heading 2', '## ',   'heading-2'],
+                  ['Heading 3', '### ',  'heading-3'],
+                  ['Heading 4', '#### ', 'heading-4'],
+                  ['Heading 5', '#####', 'heading-5'],
+                ] as const).map(([label, prefix, fmt]) => {
+                  const isActive = fmt === 'heading-0'
+                    ? ![1,2,3,4,5].some(i => activeFormats.has(`heading-${i}`))
+                    : activeFormats.has(fmt)
+                  return (
+                    <button
+                      key={label}
+                      onMouseDown={(e) => { e.preventDefault(); applyHeading(prefix.trimEnd()); setPHeadingOpen(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors flex items-center gap-2 ${
+                        isActive
+                          ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-3))] font-semibold'
+                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'
+                      }`}
+                    >
+                      {isActive && <span className="w-1 h-1 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
+                      {!isActive && <span className="w-1 h-1 flex-shrink-0" />}
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1855,7 +2981,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           ))}
           {/* Highlight color picker */}
           <div ref={pHlRef} className="relative">
-            <TBtn title="Highlight color" active={pHlOpen} onMouseDown={() => setPHlOpen(v => !v)}>
+            <TBtn title="Highlight color" active={pHlOpen || NOTE_HL_COLORS.some(c => activeFormats.has(`hl-${c.id}`))} onMouseDown={() => setPHlOpen(v => !v)}>
               <Highlighter size={13} />
             </TBtn>
             {pHlOpen && (
@@ -1886,8 +3012,14 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           <TBtn title="Numbered list" active={activeFormats.has('ordered')} onMouseDown={() => toggleLinePrefix('1. ')}>
             <ListOrdered size={13} />
           </TBtn>
-          <TBtn title="Blockquote" onMouseDown={() => toggleLinePrefix('> ')}>
+          <TBtn title="Blockquote" active={activeFormats.has('blockquote') || activeFormats.has('callout')} onMouseDown={() => toggleLinePrefix('> ')}>
             <Quote size={13} />
+          </TBtn>
+          <TBtn title="Outdent (⇧Tab)" onMouseDown={() => { if (viewRef.current) { outdentSelection(viewRef.current); viewRef.current.focus() } }}>
+            <IndentDecrease size={13} />
+          </TBtn>
+          <TBtn title="Indent (Tab)" onMouseDown={() => { if (viewRef.current) { indentSelection(viewRef.current); viewRef.current.focus() } }}>
+            <IndentIncrease size={13} />
           </TBtn>
 
           {/* Callout box picker */}
@@ -1990,6 +3122,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           >
             <Link2Off size={13} />
           </TBtn>
+
         </div>
       )}
 
@@ -2439,37 +3572,10 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
         </div>
       )}
 
-      {/* Preview div — shown when previewMode, hidden (not unmounted) when editing */}
-      {previewMode && (
-        <div
-          ref={previewRef}
-          className="flex-1 overflow-y-auto px-5 py-4 text-[rgb(var(--color-text-primary))] text-sm leading-relaxed [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-3 [&_h1]:mt-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2 [&_h2]:mt-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mb-2 [&_h3]:mt-3 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:mb-1 [&_h4]:mt-3 [&_h5]:text-sm [&_h5]:font-semibold [&_h5]:mb-1 [&_h5]:mt-2 [&_p]:mb-3 [&_p:empty]:min-h-[1.4em] [&_a]:text-[rgb(var(--color-accent))] [&_a]:underline [&_a]:cursor-pointer [&_strong]:font-bold [&_em]:italic [&_del]:line-through [&_del]:opacity-70 [&_code]:bg-[rgb(var(--color-surface-4))] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-[rgb(var(--color-surface-4))] [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:mb-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-2 [&_blockquote]:border-[rgb(var(--color-accent))] [&_blockquote]:pl-3 [&_blockquote]:opacity-80 [&_blockquote]:mb-3 [&_hr]:border-[rgb(var(--color-surface-4))] [&_hr]:my-4 [&_ul:not(.berean-dash-list)]:list-disc [&_ul:not(.berean-dash-list)]:pl-5 [&_ul]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-3 [&_li]:mb-1 [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_table]:w-full [&_table]:border-collapse [&_table]:mb-3 [&_table]:text-xs [&_th]:border [&_th]:border-[rgb(var(--color-surface-4))] [&_th]:px-3 [&_th]:py-1.5 [&_th]:bg-[rgb(var(--color-surface-3))] [&_th]:font-semibold [&_th]:text-left [&_td]:border [&_td]:border-[rgb(var(--color-surface-4))] [&_td]:px-3 [&_td]:py-1.5 [&_tr:nth-child(even)]:bg-[rgb(var(--color-surface-3))/50]"
-          dangerouslySetInnerHTML={{ __html: injectFindMarks(renderPreviewContent(content), findQuery) }}
-          onClick={(e) => {
-            const target = e.target as HTMLElement
-            const anchor = target.closest('a') as HTMLAnchorElement | null
-            if (anchor) {
-              e.preventDefault()
-              const href = anchor.getAttribute('href') ?? ''
-              if (href.startsWith('#note-')) {
-                onWikilinkClickRef.current?.(anchor.textContent ?? '')
-              } else if (href.startsWith('#lxx-verse-ref-')) {
-                const refText = decodeURIComponent(href.replace('#lxx-verse-ref-', ''))
-                const ref = parseRef(refText)
-                if (ref) onVerseRefClickRef.current?.({ ...ref, forcedTranslation: 'LXX' })
-              } else if (href.startsWith('#verse-ref-')) {
-                const refText = decodeURIComponent(href.replace('#verse-ref-', ''))
-                const ref = parseRef(refText)
-                if (ref) onVerseRefClickRef.current?.(ref)
-              } else if (/^https?:\/\//.test(href)) {
-                openEditorLink(href, noteIdRef.current, noteTitleRef.current)
-              }
-            }
-          }}
-        />
-      )}
-
-      {/* Editor container — ALWAYS in DOM, hidden with CSS when previewMode.
+      {/* Editor container — ALWAYS in DOM in all modes (raw / wysiwyg / view).
+           In view mode the editor is made read-only via editableCompartment so
+           the visual appearance (decorations, colors, fonts) is identical to
+           wysiwyg edit mode — only text input is disabled.
            We use onMouseDownCapture (React capture phase) so this fires BEFORE
            CodeMirror's own capture-phase mousedown listener on contentDOM. This
            is the only reliable way to intercept clicks on decorated spans
@@ -2477,7 +3583,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
            re-renders them away during its cursor-placement logic. */}
       <div
         ref={containerRef}
-        className={`overflow-hidden ${previewMode ? 'hidden' : 'flex-1'}`}
+        className="overflow-hidden flex-1"
         onMouseMove={(e) => {
           const target = e.target as HTMLElement
           const wikiEl = target.closest('.cm-live-wikilink') as HTMLElement | null
@@ -2500,8 +3606,47 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           if (wikiHoverTimerRef.current) { clearTimeout(wikiHoverTimerRef.current); wikiHoverTimerRef.current = null }
           setWikiHover(null)
         }}
+        onContextMenu={(e) => {
+          // Right-click a markdown link → open the link editor popup. Works in both
+          // raw markdown and WYSIWYG edit views (the editor container is shown in both).
+          const view = viewRef.current
+          if (!view) return
+          const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+          if (pos === null) return
+          const line = view.state.doc.lineAt(pos)
+          const linkRe = /\[([^\]]*)\]\(([^)\s]+)\)/g
+          let m: RegExpExecArray | null
+          while ((m = linkRe.exec(line.text)) !== null) {
+            const start = line.from + m.index
+            const end = start + m[0].length
+            if (pos >= start && pos <= end) {
+              e.preventDefault()
+              e.stopPropagation()
+              setLinkEditMenu({ x: e.clientX, y: e.clientY, from: start, to: end, text: m[1], url: m[2] })
+              return
+            }
+          }
+        }}
         onMouseDownCapture={(e) => {
+          // Only left-click opens links/refs. Right-click is handled by onContextMenu
+          // (link editor popup) and must not navigate/open the link.
+          if (e.button !== 0) return
           const target = e.target as HTMLElement
+
+          // ── Heading collapse arrow ───────────────────────────────────────
+          if (target.classList.contains('cm-heading-collapse-arrow')) {
+            e.stopPropagation()
+            e.preventDefault()
+            const view = viewRef.current
+            if (view) {
+              const pos = view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? 0
+              const line = view.state.doc.lineAt(pos)
+              const lineFrom = line.from
+              const isCollapsed = (view.state.field(collapsedHeadingsField, false) ?? new Set()).has(lineFrom)
+              view.dispatch({ effects: collapseHeadingEffect.of({ lineFrom, collapsed: !isCollapsed }) })
+            }
+            return
+          }
 
           // ── Verse reference ──────────────────────────────────────────────
           const verseEl = target.closest('.cm-live-verse-ref') as HTMLElement | null
@@ -2562,7 +3707,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           const line = view.state.doc.lineAt(pos)
 
           let handled = false
-          const linkRe = /\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g
+          const linkRe = /\[([^\]]*)\]\(((?:https?|berean-pdf):\/\/[^)]+)\)/g
           let m: RegExpExecArray | null
           while ((m = linkRe.exec(line.text)) !== null) {
             const start = line.from + m.index
@@ -2578,7 +3723,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             const liveEl = target.closest('.cm-live-link') as HTMLElement | null
             const label = liveEl?.textContent?.trim()
             if (label) {
-              const allLinks = [...line.text.matchAll(/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g)]
+              const allLinks = [...line.text.matchAll(/\[([^\]]*)\]\(((?:https?|berean-pdf):\/\/[^)]+)\)/g)]
               const hit = allLinks.find(x => x[1] === label) ?? allLinks[0]
               if (hit) { handled = true; openEditorLink(hit[2], noteIdRef.current, noteTitleRef.current) }
             }
@@ -2612,6 +3757,99 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Link editor popup (right-click a markdown link) ─────────────────── */}
+      {linkEditMenu && (
+        <>
+          {/* Backdrop — click anywhere to dismiss */}
+          <div className="fixed inset-0 z-[9998]" onMouseDown={() => setLinkEditMenu(null)} onContextMenu={(e) => { e.preventDefault(); setLinkEditMenu(null) }} />
+          <div
+            className="fixed z-[9999] w-72 rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-2xl p-3"
+            style={{
+              left: Math.min(linkEditMenu.x, window.innerWidth - 300),
+              top: Math.min(linkEditMenu.y, window.innerHeight - 200),
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); setLinkEditMenu(null); viewRef.current?.focus() }
+            }}
+          >
+            <div className="flex items-center gap-1.5 mb-2 text-[rgb(var(--color-text-secondary))]">
+              <Link2 size={13} />
+              <span className="text-xs font-semibold">Edit link</span>
+            </div>
+
+            <label className="block text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] mb-0.5">Text</label>
+            <input
+              autoFocus
+              value={linkEditMenu.text}
+              onChange={(e) => setLinkEditMenu(m => m ? { ...m, text: e.target.value } : m)}
+              className="w-full mb-2 px-2 py-1 text-xs rounded border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
+            />
+
+            <label className="block text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] mb-0.5">Link</label>
+            <input
+              value={linkEditMenu.url}
+              onChange={(e) => setLinkEditMenu(m => m ? { ...m, url: e.target.value } : m)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const view = viewRef.current
+                  if (view && linkEditMenu) {
+                    view.dispatch({ changes: { from: linkEditMenu.from, to: linkEditMenu.to, insert: `[${linkEditMenu.text}](${linkEditMenu.url})` } })
+                  }
+                  setLinkEditMenu(null)
+                  viewRef.current?.focus()
+                }
+              }}
+              className="w-full mb-3 px-2 py-1 text-xs rounded border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60] font-mono"
+            />
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const view = viewRef.current
+                  if (view && linkEditMenu) {
+                    view.dispatch({ changes: { from: linkEditMenu.from, to: linkEditMenu.to, insert: `[${linkEditMenu.text}](${linkEditMenu.url})` } })
+                  }
+                  setLinkEditMenu(null)
+                  viewRef.current?.focus()
+                }}
+                className="flex-1 px-2 py-1 text-xs rounded bg-[rgb(var(--color-accent))] text-white font-medium hover:opacity-90 cursor-pointer transition-opacity"
+              >
+                Save
+              </button>
+              <button
+                title="Copy link"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  if (linkEditMenu) navigator.clipboard?.writeText(linkEditMenu.url).catch(() => {})
+                  setLinkEditMenu(null)
+                }}
+                className="p-1.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+              >
+                <Copy size={13} />
+              </button>
+              <button
+                title="Remove link (keep text)"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const view = viewRef.current
+                  if (view && linkEditMenu) {
+                    view.dispatch({ changes: { from: linkEditMenu.from, to: linkEditMenu.to, insert: linkEditMenu.text } })
+                  }
+                  setLinkEditMenu(null)
+                  viewRef.current?.focus()
+                }}
+                className="p-1.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

@@ -2,12 +2,16 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
-  FileText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus,
+  FileText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
+  BookOpen, BookMarked,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/NoteEditor'
+import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
 import type { ParsedRef } from '@/lib/parseRef'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
+import { YOUTUBE_LAYOUTS, getLayoutStyle, needsPanelWrapper, panelSide, suggestLayout, type LayoutDef } from '@/lib/youtubeLayouts'
+import type { YouTubeLayout, YouTubePanelState, YouTubeTabState } from '@/types'
 
 interface VideoNoteLink {
   noteId: string
@@ -161,6 +165,62 @@ const WATCH_LABEL: Record<WatchFilter, string> = {
   all: 'All', inprogress: 'In progress', unseen: 'Unseen',
 }
 
+// ── Panel slot: type-picker when empty, content panel when chosen ───────────
+function PanelSlot({
+  panel, label, onSet, onClear,
+}: {
+  panel: YouTubePanelState | null
+  label: string
+  onSet: (p: YouTubePanelState) => void
+  onClear: () => void
+}) {
+  // No panel chosen yet → show the 3 visual type buttons
+  if (!panel) {
+    const TYPES: { type: 'notes' | 'scripture' | 'lexicon'; label: string; icon: typeof FileText; desc: string }[] = [
+      { type: 'notes',     label: 'Notes',     icon: FileText,  desc: 'Search & view a note' },
+      { type: 'scripture', label: 'Scripture', icon: BookOpen,  desc: 'Open a chapter' },
+      { type: 'lexicon',   label: 'Lexicon',   icon: BookMarked, desc: 'Look up a word' },
+    ]
+    return (
+      <div className="flex flex-col h-full overflow-hidden bg-[rgb(var(--color-surface-3))]">
+        <div className="flex items-center px-3 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
+          <span className="flex-1 text-xs font-medium text-[rgb(var(--color-text-muted))]">{label}</span>
+          <button onClick={onClear} title="Remove panel" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><X size={11} /></button>
+        </div>
+        <div className="flex-1 flex flex-col justify-center gap-2 p-3">
+          <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center mb-1">Choose what this panel shows</p>
+          {TYPES.map(({ type, label: tl, icon: Icon, desc }) => (
+            <button key={type}
+              onClick={() => { console.log('[yt-panel-slot] type chosen', type, 'for', label); onSet({ type } as YouTubePanelState) }}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/8] transition-all cursor-pointer text-left group"
+            >
+              <div className="w-9 h-9 rounded-lg bg-[rgb(var(--color-surface-4))] group-hover:bg-[rgb(var(--color-accent))/15] flex items-center justify-center flex-shrink-0 transition-colors">
+                <Icon size={16} className="text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-accent))]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">{tl}</p>
+                <p className="text-[10px] text-[rgb(var(--color-text-muted))]">{desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Panel type chosen → render the self-contained content panel.
+  // onBack returns to the type picker (clears content + type).
+  return (
+    <YouTubeSecondaryPanel
+      panel={panel}
+      label={label}
+      onUpdate={onSet}
+      onBack={() => onClear()}
+      onClose={onClear}
+    />
+  )
+}
+
 export default function YouTubeTab({ floating = false }: { floating?: boolean }) {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const autoPiP = useAppStore((s) => s.autoPiP)
@@ -172,6 +232,27 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const youtubeNoteBack = useAppStore((s) => s.youtubeNoteBack)
   const setYoutubeNoteBack = useAppStore((s) => s.setYoutubeNoteBack)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const tabs = useAppStore((s) => s.tabs)
+
+  // ─── YouTube layout state ────────────────────────────────────────────────────
+  // Read initial layout from persisted tab state; fallback to 'video-full'
+  const [ytLayout, setYtLayout] = useState<YouTubeLayout>(() => {
+    const s = useAppStore.getState()
+    const tab = s.tabs['youtube'].find((t) => t.id === s.activeTabId['youtube'])
+    return (tab?.state as YouTubeTabState | undefined)?.youtubeLayout ?? 'video-full'
+  })
+  const [panelA, setPanelA] = useState<YouTubePanelState | null>(() => {
+    const s = useAppStore.getState()
+    const tab = s.tabs['youtube'].find((t) => t.id === s.activeTabId['youtube'])
+    return (tab?.state as YouTubeTabState | undefined)?.panelA ?? null
+  })
+  const [panelB, setPanelB] = useState<YouTubePanelState | null>(() => {
+    const s = useAppStore.getState()
+    const tab = s.tabs['youtube'].find((t) => t.id === s.activeTabId['youtube'])
+    return (tab?.state as YouTubeTabState | undefined)?.panelB ?? null
+  })
+  const [showLayoutPicker, setShowLayoutPicker] = useState(false)
+  const layoutPickerRef = useRef<HTMLDivElement>(null)
   const [videos, setVideos] = useState<VideoEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -204,6 +285,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [recommendations, setRecommendations] = useState<VideoEntry[]>([])
   const [isPiPActive, setIsPiPActive] = useState(false)
   const [copyToast, setCopyToast] = useState(false)
+  const [videoMenu, setVideoMenu] = useState<{ video: VideoEntry; x: number; y: number } | null>(null)
   const [videoNotes, setVideoNotes] = useState<VideoNoteLink[]>([])
   const [inlinePanelNoteId, setInlinePanelNoteId] = useState<string | null>(null)
   const [inlinePanelContent, setInlinePanelContent] = useState('')
@@ -282,12 +364,98 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:openYouTubeVideo', handler)
   }, [])
 
-  // Persist activeVideoId to tab state so floating tab pop-out can restore it
+  // Persist activeVideoId + layout + panels to tab state
   const updateTabState = useAppStore((s) => s.updateTabState)
   useEffect(() => {
     if (!ytTabId) return
     updateTabState('youtube', ytTabId, { videoId: activeVideoId ?? undefined })
   }, [activeVideoId, ytTabId, updateTabState])
+
+  useEffect(() => {
+    if (!ytTabId) return
+    console.log('[yt-layout] persisting layout to tab state', ytTabId, ytLayout, { panelA, panelB })
+    updateTabState('youtube', ytTabId, {
+      youtubeLayout: ytLayout,
+      panelA: panelA ?? null,
+      panelB: panelB ?? null,
+    })
+  }, [ytLayout, panelA, panelB, ytTabId, updateTabState])
+
+  // Sync layout+panels from tab state when the active YouTube tab changes
+  useEffect(() => {
+    if (!ytTabId) return
+    const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
+    const state = tab?.state as YouTubeTabState | undefined
+    if (!state) return
+    console.log('[yt-layout] syncing from tab state on tab change', ytTabId, state.youtubeLayout, state.panelA)
+    if (state.youtubeLayout) setYtLayout(state.youtubeLayout)
+    setPanelA(state.panelA ?? null)
+    setPanelB(state.panelB ?? null)
+  }, [ytTabId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Layout picker close on outside click
+  useEffect(() => {
+    if (!showLayoutPicker) return
+    function onDown(e: MouseEvent) {
+      if (layoutPickerRef.current && !layoutPickerRef.current.contains(e.target as Node)) {
+        setShowLayoutPicker(false)
+      }
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [showLayoutPicker])
+
+  // Close panel A: if panel B exists, promote it to A and collapse to a single-panel layout.
+  function closePanelA() {
+    console.log('[yt-layout] closePanelA — panelB exists:', !!panelB)
+    if (panelB) {
+      // Promote B → A, collapse to single-panel layout
+      setPanelA(panelB)
+      setPanelB(null)
+      setYtLayout(suggestLayout(true, false, 'side-right'))
+    } else {
+      setPanelA(null)
+      setYtLayout('video-full')
+    }
+  }
+  // Close panel B: drop it, collapse to a single-panel layout (panelA stays).
+  function closePanelB() {
+    console.log('[yt-layout] closePanelB')
+    setPanelB(null)
+    setYtLayout(suggestLayout(!!panelA, false, 'side-right'))
+  }
+
+  // Helper to add a panel (A first, B if A is taken, then replace A)
+  function addPanel(panel: YouTubePanelState) {
+    console.log('[yt-layout] addPanel', panel, 'current panelA:', panelA, 'panelB:', panelB)
+    if (!panelA) {
+      setPanelA(panel)
+      const next = suggestLayout(true, false, ytLayout)
+      setYtLayout(next)
+      console.log('[yt-layout] added as panelA, layout now', next)
+    } else if (!panelB) {
+      setPanelB(panel)
+      const next = suggestLayout(true, true, ytLayout)
+      setYtLayout(next)
+      console.log('[yt-layout] added as panelB, layout now', next)
+    } else {
+      // Both panels taken → replace panelA, keep panelB
+      setPanelA(panel)
+      console.log('[yt-layout] replaced panelA (both were full)')
+    }
+  }
+
+  // Listen for external panel-add events from TabBar drop handler
+  useEffect(() => {
+    function onAddPanel(e: Event) {
+      const detail = (e as CustomEvent<{ tabId: string; panel: YouTubePanelState }>).detail
+      if (detail.tabId !== ytTabId) return
+      console.log('[yt-layout] received berean:youtubeAddPanel', detail)
+      addPanel(detail.panel)
+    }
+    window.addEventListener('berean:youtubeAddPanel', onAddPanel)
+    return () => window.removeEventListener('berean:youtubeAddPanel', onAddPanel)
+  }, [ytTabId, panelA, panelB, ytLayout]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Store-based video navigation (from note timestamp links — works even when YouTubeTab is not mounted)
   useEffect(() => {
@@ -433,6 +601,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           /* Force the controls bar and progress bar to span the full viewport width */ +
           '#movie_player .ytp-chrome-bottom{width:100vw!important;left:0!important;right:0!important;box-sizing:border-box!important;}' +
           '#movie_player .ytp-progress-bar-padding,.ytp-timed-markers-progress-bar-padding{width:100%!important;}' +
+          '#movie_player .ytp-progress-bar-container,#movie_player .ytp-progress-bar,#movie_player .ytp-progress-list{width:100%!important;left:0!important;right:0!important;}' +
           '#movie_player .ytp-scrubber-container{width:100%!important;}'
         )
       } catch { /* ignore */ }
@@ -453,7 +622,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               markEmbedBlocked(activeVideoId)
               if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
               setWatchFallback(true)
-            } else if (state?.playing) {
+            } else if (state?.playing || (typeof state?.t === 'number' && state.t > 0)) {
+              // playing flag OR currentTime advancing — either means the video is live.
+              // The onStateChange "playing" message is sometimes missed, so the
+              // currentTime check (from infoDelivery) is a reliable fallback.
               if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
               setPlayerReady(true)
             } else if (count >= 6) {
@@ -564,9 +736,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   cb.style.setProperty('right','0','important');
                   cb.style.setProperty('box-sizing','border-box','important');
                 }
-                ['ytp-progress-bar-padding','ytp-timed-markers-progress-bar-padding','ytp-scrubber-container'].forEach(function(cls){
-                  var el=p&&p.querySelector('.'+cls);
-                  if(el)el.style.setProperty('width','100%','important');
+                ['ytp-progress-bar-padding','ytp-timed-markers-progress-bar-padding','ytp-scrubber-container','ytp-progress-bar-container','ytp-progress-bar','ytp-progress-list'].forEach(function(cls){
+                  if(p){p.querySelectorAll('.'+cls).forEach(function(el){el.style.setProperty('width','100%','important');el.style.setProperty('left','0','important');el.style.setProperty('right','0','important');});}
                 });
               }catch(barErr){}
               }catch(styleErr){}
@@ -1134,6 +1305,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   if (activeVideoId) {
     const activeVideo = videos.find((v) => v.videoId === activeVideoId)
 
+    // Floating tabs never show secondary panels — force full-width video.
+    const effectiveLayout: YouTubeLayout = floating ? 'video-full' : ytLayout
+    const layoutStyle = getLayoutStyle(effectiveLayout)
+    const stackedPanels = needsPanelWrapper(effectiveLayout)
+    const panelWrapperSide = panelSide(effectiveLayout)
+    console.log('[yt-layout] render', { effectiveLayout, floating, hasPanelA: !!panelA, hasPanelB: !!panelB, stackedPanels })
+
     return (
       <div className="flex flex-col h-full bg-[rgb(var(--color-surface-1))]">
         {/* Header */}
@@ -1193,6 +1371,70 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           >
             {videoMaximized ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
           </button>
+          {/* Layout button — hidden in floating tabs */}
+          {!floating && (
+            <div className="relative" ref={layoutPickerRef}>
+              <button
+                onClick={() => setShowLayoutPicker((v) => !v)}
+                title="Change layout"
+                className={`p-1 rounded transition-colors cursor-pointer flex-shrink-0 ${
+                  showLayoutPicker ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
+                }`}
+              >
+                <LayoutGrid size={13} />
+              </button>
+              {showLayoutPicker && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-3 w-[340px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-2">Layout</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {YOUTUBE_LAYOUTS.map((def) => (
+                      <button
+                        key={def.id}
+                        onClick={() => {
+                          console.log('[yt-layout] user selected layout', def.id)
+                          setYtLayout(def.id)
+                          setShowLayoutPicker(false)
+                          // If layout requires both panels but we only have A, add a placeholder B
+                          if (def.requiresBoth && panelA && !panelB) {
+                            console.log('[yt-layout] layout needs panelB but none set — left empty for user to fill')
+                          }
+                        }}
+                        className={`flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-lg text-left border transition-all cursor-pointer text-[11px]
+                          ${ytLayout === def.id
+                            ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+                            : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                          }`}
+                      >
+                        <span className="font-semibold">{def.label}</span>
+                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] leading-snug">{def.description}</span>
+                        {def.requiresBoth && <span className="text-[9px] text-amber-400 mt-0.5">Needs 2 panels</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Active panels summary */}
+                  {(panelA || panelB) && (
+                    <div className="mt-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-1.5">Active panels</p>
+                      <div className="flex flex-col gap-1">
+                        {panelA && (
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-[rgb(var(--color-text-secondary))]">Panel A: <span className="font-medium capitalize">{panelA.type}</span></span>
+                            <button onClick={() => { setPanelA(null); if (!panelB) setYtLayout('video-full') }} className="text-red-400 hover:text-red-300 cursor-pointer text-[10px]">Remove</button>
+                          </div>
+                        )}
+                        {panelB && (
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span className="text-[rgb(var(--color-text-secondary))]">Panel B: <span className="font-medium capitalize">{panelB.type}</span></span>
+                            <button onClick={() => { setPanelB(null); setYtLayout(suggestLayout(!!panelA, false, ytLayout)) }} className="text-red-400 hover:text-red-300 cursor-pointer text-[10px]">Remove</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={() => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`)}
             title="Open in browser"
@@ -1201,6 +1443,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             <ExternalLink size={11} />
           </button>
         </div>
+
+        {/* ── Layout container: wraps video column + optional secondary panels ─ */}
+        <div className={`flex-1 min-h-0 overflow-hidden ${layoutStyle.containerClass}`}>
+
+        {/* ── Video column ─────────────────────────────────────────────────── */}
+        <div className={`flex flex-col overflow-hidden ${layoutStyle.videoClass}`}>
 
         {/* ── Video container ──────────────────────────────────────────────────
              The webview uses position:absolute (inset 0) to fill this div.
@@ -1325,7 +1573,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <button
                   onClick={(e) => {
-                    if (e.metaKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
+                    if (e.metaKey || e.ctrlKey) window.app.openExternal(`https://www.youtube.com/${activeVideo?.channelHandle}`)
                     else if (activeVideo) handleBackAndFilter(activeVideo.channelHandle)
                   }}
                   title="Filter by channel (⌘+click to open in browser)"
@@ -1500,6 +1748,41 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             </div>
           </div>
         )}
+        </div>{/* end video column */}
+
+        {/* ── Secondary panels ─────────────────────────────────────────────── */}
+        {/* Closing panelA in a 2-panel layout promotes panelB to panelA and
+            collapses to a single-panel layout. Closing panelB just drops it. */}
+        {effectiveLayout !== 'video-full' && (
+          stackedPanels ? (
+            // Stacked: panelA + panelB in a nested flex-col column
+            <div className={`flex flex-col overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${panelWrapperSide === 'right' ? layoutStyle.panelAClass : layoutStyle.videoClass}`}>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <PanelSlot panel={panelA} label="Panel A" onSet={setPanelA} onClear={closePanelA} />
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden border-t border-[rgb(var(--color-surface-4))]">
+                <PanelSlot panel={panelB} label="Panel B" onSet={setPanelB} onClear={closePanelB} />
+              </div>
+            </div>
+          ) : effectiveLayout === 'three-col' || effectiveLayout === 'three-col-wide-video' ? (
+            // Three-column: panelA left | video center | panelB right
+            <>
+              <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] order-first ${layoutStyle.panelAClass}`}>
+                <PanelSlot panel={panelA} label="Left panel" onSet={setPanelA} onClear={closePanelA} />
+              </div>
+              <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${layoutStyle.panelBClass}`}>
+                <PanelSlot panel={panelB} label="Right panel" onSet={setPanelB} onClear={closePanelB} />
+              </div>
+            </>
+          ) : (
+            // Single secondary panel (side-right/left, stack-below/above, wide-*)
+            <div className={`overflow-hidden border-l border-[rgb(var(--color-surface-4))] ${layoutStyle.panelAClass}`}>
+              <PanelSlot panel={panelA} label="Panel" onSet={setPanelA} onClear={closePanelA} />
+            </div>
+          )
+        )}
+
+        </div>{/* end layout container */}
       </div>
     )
   }
@@ -1752,6 +2035,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   <div
                     key={video.videoId}
                     onClick={() => setActiveVideoId(video.videoId)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      const MENU_W = 230, MENU_H = 176, pad = 8
+                      setVideoMenu({
+                        video,
+                        x: Math.max(pad, Math.min(e.clientX, window.innerWidth - MENU_W - pad)),
+                        y: Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad)),
+                      })
+                    }}
                     className="text-left group rounded-xl overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] transition-all cursor-pointer relative"
                   >
                     {/* Thumbnail */}
@@ -1848,6 +2140,51 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </>
         )}
       </div>
+
+      {/* Video right-click context menu */}
+      {videoMenu && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setVideoMenu(null)} onContextMenu={(e) => { e.preventDefault(); setVideoMenu(null) }} />
+          <div
+            className="fixed z-[9999] min-w-[230px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+            style={{ left: videoMenu.x, top: videoMenu.y }}
+          >
+            {[
+              {
+                icon: <Link2 size={13} className="flex-shrink-0" />, label: 'Copy link for note',
+                action: async () => {
+                  await navigator.clipboard.writeText(`[${videoMenu.video.title}](https://youtu.be/${videoMenu.video.videoId})`)
+                  setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+                },
+              },
+              {
+                icon: <ExternalLink size={13} className="flex-shrink-0" />, label: 'Copy video URL',
+                action: async () => {
+                  await navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoMenu.video.videoId}`)
+                  setCopyToast(true); setTimeout(() => setCopyToast(false), 2000)
+                },
+              },
+              {
+                icon: <Plus size={13} className="flex-shrink-0" />, label: 'Open in new tab',
+                action: () => useAppStore.getState().openYouTubeVideoInNewTab(videoMenu.video.videoId),
+              },
+              {
+                icon: <Maximize2 size={13} className="flex-shrink-0" />, label: 'Open in floating tab',
+                action: () => window.app.openFloatingTab('youtube', { videoId: videoMenu.video.videoId }),
+              },
+            ].map((item) => (
+              <button
+                key={item.label}
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => { item.action(); setVideoMenu(null) }}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -58,6 +58,7 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   lexicon: 'lexicon',
   youtube: 'youtube',
   search: 'search',
+  pdf: 'scripture',   // PDFs open as tabs within the Scripture space
 }
 
 export interface AppState {
@@ -132,6 +133,8 @@ export interface AppState {
   // YouTube video navigation (from note timestamp links — handles tab creation + space switch)
   pendingYouTubeVideo: { videoId: string; startTime: number } | null
   openYouTubeVideo: (videoId: string, startTime?: number, fromNote?: { noteId: string; title: string }) => void
+  openYouTubeVideoInNewTab: (videoId: string) => void
+  openPdf: (pdfId: string, title: string, page?: number) => void
   clearPendingYouTubeVideo: () => void
 
   // YouTube playback preferences
@@ -157,6 +160,12 @@ export interface AppState {
   noteLexiconRefsEnabled: boolean
   setNoteVerseRefsEnabled: (v: boolean) => void
   setNoteLexiconRefsEnabled: (v: boolean) => void
+  // Auto-format pasted verse blocks into styled blockquotes
+  noteScriptureBlock: boolean
+  setNoteScriptureBlock: (v: boolean) => void
+  // Minimum fraction (0..1) of verse text that must match to auto-format a block
+  noteScriptureBlockThreshold: number
+  setNoteScriptureBlockThreshold: (v: number) => void
 
   // Word replacer
   wordReplacerEnabled: boolean
@@ -164,6 +173,26 @@ export interface AppState {
   setWordReplacerEnabled: (v: boolean) => void
   setWordReplacerRules: (rules: WordReplacerRule[]) => void
   toggleWordReplacerRule: (id: string) => void
+
+  // Note editor preferences
+  defaultNoteEditorMode: 'raw' | 'wysiwyg' | 'preview'
+  setDefaultNoteEditorMode: (m: 'raw' | 'wysiwyg' | 'preview') => void
+  confirmNoteDelete: boolean
+  setConfirmNoteDelete: (v: boolean) => void
+  noteSpellCheck: boolean
+  setNoteSpellCheck: (v: boolean) => void
+  autoCopyOnHighlight: boolean
+  setAutoCopyOnHighlight: (v: boolean) => void
+  noteHeadingDivider: boolean
+  setNoteHeadingDivider: (v: boolean) => void
+  noteBulletStyle: string
+  setNoteBulletStyle: (s: string) => void
+
+  // Scripture display preferences
+  showVerseNumbers: boolean
+  setShowVerseNumbers: (v: boolean) => void
+  showRedLetters: boolean
+  setShowRedLetters: (v: boolean) => void
 
   // Display preferences
   bibleFontSize: number
@@ -182,6 +211,10 @@ export interface AppState {
   setCrossRefSource: (s: 'tske' | 'classic' | 'notes') => void
 
   // Sidebar new-tab button style
+  floatingSearchDensity: 'compact' | 'comfortable' | 'spacious'
+  setFloatingSearchDensity: (d: 'compact' | 'comfortable' | 'spacious') => void
+  defaultYoutubeLayout: import('@/types').YouTubeLayout
+  setDefaultYoutubeLayout: (l: import('@/types').YouTubeLayout) => void
   sidebarNewTabIconOnly: boolean
   setSidebarNewTabIconOnly: (v: boolean) => void
 
@@ -535,6 +568,16 @@ export const useAppStore = create<AppState>()(
       markdownReferenceOpen: false,
       noteVerseRefsEnabled: true,
       noteLexiconRefsEnabled: true,
+      noteScriptureBlock: false,
+      noteScriptureBlockThreshold: 0.9,
+      defaultNoteEditorMode: 'wysiwyg' as const,
+      confirmNoteDelete: false,
+      noteSpellCheck: true,
+      autoCopyOnHighlight: false,
+      noteHeadingDivider: true,
+      noteBulletStyle: 'classic',
+      showVerseNumbers: true,
+      showRedLetters: true,
       wordReplacerEnabled: true,
       wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
 
@@ -753,13 +796,21 @@ export const useAppStore = create<AppState>()(
         const idx = tabs.findIndex((t) => t.id === tabId)
         if (idx === -1) return
         const newTabs = tabs.filter((t) => t.id !== tabId)
+        // Switch to the most-recently-used remaining tab in this space (skip adjacent fallback)
+        const mruActiveId =
+          state.tabMRUList
+            .filter((m) => m.spaceId === spaceId && m.tabId !== tabId)
+            .map((m) => m.tabId)
+            .find((id) => newTabs.some((t) => t.id === id))
+          ?? newTabs[Math.max(0, idx - 1)]?.id ?? null
         const newActiveId =
           state.activeTabId[spaceId] === tabId
-            ? newTabs[Math.max(0, idx - 1)]?.id ?? null
+            ? mruActiveId
             : state.activeTabId[spaceId]
         set({
           tabs: { ...state.tabs, [spaceId]: newTabs },
-          activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }
+          activeTabId: { ...state.activeTabId, [spaceId]: newActiveId },
+          tabMRUList: state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId)),
         })
       },
 
@@ -772,7 +823,13 @@ export const useAppStore = create<AppState>()(
         const idx = tabs.findIndex((t) => t.id === tabId)
         if (idx === -1) return
         const newTabs = tabs.filter((t) => t.id !== tabId)
-        const newActiveId = newTabs[Math.max(0, idx - 1)]?.id ?? null
+        const newActiveId =
+          state.tabMRUList
+            .filter((m) => m.spaceId === spaceId && m.tabId !== tabId)
+            .map((m) => m.tabId)
+            .find((id) => newTabs.some((t) => t.id === id))
+          ?? newTabs[Math.max(0, idx - 1)]?.id ?? null
+        const prunedMRU = state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId))
         const newTabsAll = { ...state.tabs, [spaceId]: newTabs }
 
         // If no tabs remain in this space, switch to the first space that still has tabs
@@ -784,10 +841,11 @@ export const useAppStore = create<AppState>()(
             tabs: newTabsAll,
             activeTabId: { ...state.activeTabId, [spaceId]: newActiveId },
             activeSpace: fallbackSpace,
+            tabMRUList: prunedMRU,
             ...(fallbackTabId ? { activeTabId: { ...state.activeTabId, [spaceId]: newActiveId, [fallbackSpace]: fallbackTabId } } : {}),
           })
         } else {
-          set({ tabs: newTabsAll, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId } })
+          set({ tabs: newTabsAll, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }, tabMRUList: prunedMRU })
         }
       },
 
@@ -814,7 +872,10 @@ export const useAppStore = create<AppState>()(
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
-      openSearch: (mode = 'current') => set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false }),
+      openSearch: (mode = 'current') => {
+        set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
+        window.dispatchEvent(new CustomEvent('berean:closeContextMenus'))
+      },
       closeSearch: () => set({ searchOpen: false }),
       requestOpenNote: (noteId) => set({ pendingNoteId: noteId }),
       clearPendingNote: () => set({ pendingNoteId: null }),
@@ -865,6 +926,36 @@ export const useAppStore = create<AppState>()(
           activeSpace: 'youtube',
           activeTabId: { ...fresh.activeTabId, youtube: fresh.tabs['youtube'][0]?.id ?? null },
           youtubeNoteBack: fromNote ?? null,
+        })
+      },
+      openYouTubeVideoInNewTab: (videoId) => {
+        get().addHistoryEntry({ type: 'youtube', title: videoId ?? 'YouTube', videoId: videoId ?? undefined })
+        get().createTab('youtube') // creates + activates a fresh youtube tab
+        set({ pendingYouTubeVideo: { videoId, startTime: 0 }, activeSpace: 'youtube' })
+      },
+      openPdf: (pdfId, title, page) => {
+        const state = get()
+        // Reuse an existing tab for the same PDF if one is open
+        const existing = state.tabs['scripture'].find(
+          (t) => t.type === 'pdf' && (t.state as { pdfId?: string }).pdfId === pdfId
+        )
+        if (existing) {
+          set({
+            activeTabId: { ...state.activeTabId, scripture: existing.id },
+            activeSpace: 'scripture',
+            tabMRUList: updateMRU(state.tabMRUList, 'scripture', existing.id),
+          })
+          if (page) window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId, page } }))
+          return
+        }
+        const id = `pdf-${pdfId}-${Date.now()}`
+        const tab: Tab = { id, spaceId: 'scripture', type: 'pdf', title: title || 'PDF', state: { pdfId, title, page } }
+        get().addHistoryEntry({ type: 'import', title: title || 'PDF', importSource: 'pdf' })
+        set({
+          tabs: { ...state.tabs, scripture: [...state.tabs.scripture, tab] },
+          activeTabId: { ...state.activeTabId, scripture: id },
+          activeSpace: 'scripture',
+          tabMRUList: updateMRU(state.tabMRUList, 'scripture', id),
         })
       },
       clearPendingYouTubeVideo: () => set({ pendingYouTubeVideo: null }),
@@ -921,6 +1012,16 @@ export const useAppStore = create<AppState>()(
 
       setNoteVerseRefsEnabled: (v) => set({ noteVerseRefsEnabled: v }),
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
+      setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
+      setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
+      setDefaultNoteEditorMode: (m) => set({ defaultNoteEditorMode: m }),
+      setConfirmNoteDelete: (v) => set({ confirmNoteDelete: v }),
+      setNoteSpellCheck: (v) => set({ noteSpellCheck: v }),
+      setAutoCopyOnHighlight: (v) => set({ autoCopyOnHighlight: v }),
+      setNoteHeadingDivider: (v) => set({ noteHeadingDivider: v }),
+      setNoteBulletStyle: (s) => set({ noteBulletStyle: s }),
+      setShowVerseNumbers: (v) => set({ showVerseNumbers: v }),
+      setShowRedLetters: (v) => set({ showRedLetters: v }),
 
       setWordReplacerEnabled: (v) => set({ wordReplacerEnabled: v }),
       setWordReplacerRules: (rules) => set({ wordReplacerRules: rules }),
@@ -938,6 +1039,10 @@ export const useAppStore = create<AppState>()(
       setNoteTransformLayout: (layout) => set({ noteTransformLayout: layout }),
       crossRefSource: 'tske' as 'tske' | 'classic' | 'notes',
       setCrossRefSource: (s) => set({ crossRefSource: s }),
+      floatingSearchDensity: 'compact' as const,
+      setFloatingSearchDensity: (d) => set({ floatingSearchDensity: d }),
+      defaultYoutubeLayout: 'video-full' as import('@/types').YouTubeLayout,
+      setDefaultYoutubeLayout: (l) => set({ defaultYoutubeLayout: l }),
       sidebarNewTabIconOnly: false,
       setSidebarNewTabIconOnly: (v) => set({ sidebarNewTabIconOnly: v }),
     }),
@@ -1008,6 +1113,8 @@ export const useAppStore = create<AppState>()(
         autoCloseTabsAfter: state.autoCloseTabsAfter,
         defaultScriptureLayout: state.defaultScriptureLayout,
         noteTransformLayout: state.noteTransformLayout,
+        floatingSearchDensity: state.floatingSearchDensity,
+        defaultYoutubeLayout: state.defaultYoutubeLayout,
         sessions: state.sessions,
         currentSessionId: state.currentSessionId,
         sessionTabFilters: state.sessionTabFilters,

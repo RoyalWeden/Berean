@@ -3,6 +3,7 @@ import { Copy, StickyNote, X } from 'lucide-react'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
+import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
@@ -49,6 +50,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   const ensureTab = useAppStore((s) => s.ensureTab)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
 
   const [verses, setVerses] = useState<Verse[]>([])
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
@@ -99,9 +101,12 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         for (const note of notes) {
           const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
           if (!vn) continue
-          // Look for patterns like "Gen 1:1", "genesis 1:1", or [[wikilinks with digits]]
-          const xrefRe = /\b(?:[1-3]\s+)?[A-Za-z][a-z]*(?:\s+(?:of\s+)?[A-Za-z][a-z]*)*\s+\d{1,3}:\d{1,3}\b|\[\[[^\]]*\d+[:/][^\]]*\]\]/i
-          if (xrefRe.test(note.content)) flags[vn] = true
+          // A verse note carries a cross-ref indicator if its content references
+          // any OTHER verse or chapter (not just itself). extractRefsFromNote also
+          // recognises chapter-only references like "Genesis 5".
+          const refs = extractRefsFromNote(note.content, note.title || '')
+          const hasOther = refs.some(r => !(r.bookId === bookId && r.chapter === chapter && !r.isChapter && r.verse === vn))
+          if (hasOther) flags[vn] = true
         }
         setVerseHasNoteCrossRefs(flags)
       })
@@ -142,7 +147,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     function lxxSuffix() { return textId === 'lxx' ? ' LXX' : '' }
 
     function onKey(e: KeyboardEvent) {
-      if (!e.metaKey) return
+      if (!e.metaKey && !e.ctrlKey) return
       if (e.key === 'c' && !e.shiftKey) {
         e.preventDefault()
         // Formatted: reference header + one verse per line with verse numbers
@@ -357,6 +362,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
             key={verse.verse_num}
             verse={verse}
             showStrongs={showStrongs}
+            showVerseNumber={showVerseNumbers}
             noteCount={noteCounts[verse.verse_num] ?? 0}
             hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
             isHighlighted={isHighlighted}

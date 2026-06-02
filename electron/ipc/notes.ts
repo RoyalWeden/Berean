@@ -13,6 +13,7 @@ interface NoteRow {
   updated_at: number
   tags: string
   imported_at: number | null
+  folder_id: string | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -27,10 +28,13 @@ function rowToNote(row: NoteRow) {
     updatedAt:  row.updated_at,
     tags:       JSON.parse(row.tags) as string[],
     importedAt: row.imported_at ?? undefined,
+    folderId:   row.folder_id ?? null,
   }
 }
 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
+  console.log('[berean-ipc] registerNotesHandlers: registering notes + folders IPC handlers')
+
   ipcMain.handle('notes:create', (_event, data: {
     type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]
   }) => {
@@ -79,12 +83,94 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
+  // ── Note folders (user-created, nestable) ──────────────────────────────────
+  ipcMain.handle('folders:getAll', () => {
+    const rows = getBereanDb()
+      .prepare('SELECT id, name, parent_id, created_at FROM note_folders ORDER BY name COLLATE NOCASE')
+      .all() as Array<{ id: string; name: string; parent_id: string | null; created_at: number }>
+    return rows.map((r) => ({ id: r.id, name: r.name, parentId: r.parent_id ?? null, createdAt: r.created_at }))
+  })
+
+  ipcMain.handle('folders:create', (_event, name: string, parentId: string | null = null) => {
+    const db = getBereanDb()
+    const id = randomUUID()
+    db.prepare('INSERT INTO note_folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)')
+      .run(id, name || 'New Folder', parentId, Date.now())
+    return { success: true, id }
+  })
+
+  ipcMain.handle('folders:rename', (_event, id: string, name: string) => {
+    getBereanDb().prepare('UPDATE note_folders SET name = ? WHERE id = ?').run(name, id)
+    return { success: true }
+  })
+
+  // Delete a folder: reparent child folders to this folder's parent, and move
+  // contained notes to root (folder_id = NULL). Never deletes notes.
+  ipcMain.handle('folders:delete', (_event, id: string) => {
+    const db = getBereanDb()
+    const folder = db.prepare('SELECT parent_id FROM note_folders WHERE id = ?').get(id) as { parent_id: string | null } | undefined
+    const parentId = folder?.parent_id ?? null
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE note_folders SET parent_id = ? WHERE parent_id = ?').run(parentId, id)
+      db.prepare('UPDATE notes SET folder_id = NULL WHERE folder_id = ?').run(id)
+      db.prepare('DELETE FROM note_folders WHERE id = ?').run(id)
+    })
+    tx()
+    return { success: true }
+  })
+
+  // Delete a folder AND its contents: recursively removes all descendant
+  // folders and every note contained in any of them. Destructive.
+  ipcMain.handle('folders:deleteDeep', (_event, id: string) => {
+    const db = getBereanDb()
+    const tx = db.transaction(() => {
+      const all = db.prepare('SELECT id, parent_id FROM note_folders').all() as Array<{ id: string; parent_id: string | null }>
+      const childrenOf = new Map<string | null, string[]>()
+      for (const f of all) {
+        const arr = childrenOf.get(f.parent_id) ?? []
+        arr.push(f.id); childrenOf.set(f.parent_id, arr)
+      }
+      const toDelete: string[] = []
+      const stack = [id]
+      while (stack.length) {
+        const cur = stack.pop()!
+        toDelete.push(cur)
+        for (const c of childrenOf.get(cur) ?? []) stack.push(c)
+      }
+      const delNotes = db.prepare('DELETE FROM notes WHERE folder_id = ?')
+      const delFolder = db.prepare('DELETE FROM note_folders WHERE id = ?')
+      for (const fid of toDelete) { delNotes.run(fid); delFolder.run(fid) }
+    })
+    tx()
+    return { success: true }
+  })
+
+  // Set a folder's parent (for nesting). Guards against cycles.
+  ipcMain.handle('folders:setParent', (_event, id: string, parentId: string | null) => {
+    const db = getBereanDb()
+    // Walk up from the proposed parent; if we reach `id`, it would create a cycle.
+    let cur: string | null = parentId
+    while (cur) {
+      if (cur === id) return { success: false, error: 'cycle' }
+      const row = db.prepare('SELECT parent_id FROM note_folders WHERE id = ?').get(cur) as { parent_id: string | null } | undefined
+      cur = row?.parent_id ?? null
+    }
+    db.prepare('UPDATE note_folders SET parent_id = ? WHERE id = ?').run(parentId, id)
+    return { success: true }
+  })
+
+  // Assign a note to a user folder (or NULL for root).
+  ipcMain.handle('notes:setFolder', (_event, noteId: string, folderId: string | null) => {
+    getBereanDb().prepare('UPDATE notes SET folder_id = ? WHERE id = ?').run(folderId, noteId)
+    return { success: true }
+  })
+
   ipcMain.handle('notes:deleteAll', () => {
     getBereanDb().prepare('DELETE FROM notes').run()
     return { success: true }
   })
 
-  ipcMain.handle('notes:getAll', (_event, limit = 100, offset = 0) => {
+  ipcMain.handle('notes:getAll', (_event, limit = 100000, offset = 0) => {
     const rows = getBereanDb()
       .prepare('SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?')
       .all(limit, offset) as NoteRow[]
@@ -141,4 +227,6 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     }
     return counts
   })
+
+  console.log('[berean-ipc] registerNotesHandlers: ALL handlers registered OK (notes:create, notes:update, notes:delete, folders:create, folders:getAll, folders:rename, folders:delete, folders:deleteDeep, folders:setParent, notes:setFolder, notes:deleteAll, notes:getAll, notes:getByVerse, notes:getOne, notes:search, notes:deleteByTag, notes:getByChapter, notes:getChapterCounts)')
 }

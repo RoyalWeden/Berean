@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 
@@ -10,6 +10,7 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
   lexicon: BookMarked,
   youtube: Youtube,
   search:  Search,
+  pdf:     FileType2,
 }
 
 interface ContextMenuState {
@@ -119,15 +120,40 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
 
-    const draggedTab = draggingTabRef.current
-    const targetTab  = tabs[idx]
-    const rect   = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const relY   = (e.clientY - rect.top) / rect.height
+    const draggedTab  = draggingTabRef.current
+    const targetTab   = tabs[idx]
+    const rect        = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const relY        = (e.clientY - rect.top) / rect.height
 
-    // Cross-space merge: only activate in the center 40% of the tab height.
-    // Top/bottom 30% still show insert lines so the user can reorder past cross-space tabs.
+    // ── Note-item drag (from notes list / folder view, not a tab drag) ────────
+    // dataTransfer.types is readable during dragover; getData is not.
+    const isNoteItemDrag = !draggedTab && e.dataTransfer.types.includes('berean-note-id')
+    if (isNoteItemDrag) {
+      // Centre zone over a scripture tab → show side-panel merge indicator
+      if (targetTab?.spaceId === 'scripture' && relY > 0.3 && relY < 0.7) {
+        setCrossSpaceHoverIdx(idx)
+        setDragOverIdx(null)
+      } else {
+        // Any other tab → generic "drop to open" highlight (no insert line)
+        setCrossSpaceHoverIdx(null)
+        setDragOverIdx(idx)
+        setDragInsertBefore(false)
+      }
+      return
+    }
+
+    // ── Cross-space tab merge: only activate in the centre 40% ────────────────
+    // Also catches youtube ↔ everything and everything → youtube
     if (draggedTab && targetTab && draggedTab.spaceId !== targetTab.spaceId) {
-      if (relY > 0.3 && relY < 0.7) {
+      // Allowed combine pairs
+      const srcSpace = draggedTab.spaceId as string
+      const tgtSpace = targetTab.spaceId as string
+      const canCombine =
+        (tgtSpace === 'scripture' && (srcSpace === 'notes' || srcSpace === 'lexicon')) ||
+        tgtSpace === 'youtube' ||   // anything → youtube
+        srcSpace === 'youtube' ||   // youtube → anything
+        (srcSpace === 'scripture' && (tgtSpace === 'notes' || tgtSpace === 'lexicon' || tgtSpace === 'youtube'))
+      if (canCombine && relY > 0.3 && relY < 0.7) {
         setCrossSpaceHoverIdx(idx)
         setDragOverIdx(null)
         return
@@ -146,23 +172,29 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   // between tabs where elementFromPoint returns the container, not a tab div.
   function handleContainerDrop(e: React.DragEvent) {
     e.preventDefault()
+    console.log('[berean-tab-drop] container DROP fired, types:', Array.from(e.dataTransfer.types))
 
     const fromIdx = draggingIdxRef.current
     draggingIdxRef.current = null
     setDraggingIdx(null)
 
     // Snapshot indicator state before clearing — gap fallback uses these
-    const fallbackToIdx     = dragOverIdx
-    const fallbackBefore    = dragInsertBefore
+    const fallbackToIdx        = dragOverIdx
+    const fallbackBefore       = dragInsertBefore
+    const wasCrossSpaceHover   = crossSpaceHoverIdx !== null
+    const wasCrossSpaceHoverIdx = crossSpaceHoverIdx   // ← snapshot index too for note drops
     setDragOverIdx(null)
     setCrossSpaceHoverIdx(null)
 
     // ── Cross-space drop: note/lexicon onto bible (or vice versa) ──────────
+    // Only combine if the merge indicator was active at drop time (user released
+    // in the center zone). If they dragged away from the target, wasCrossSpaceHover
+    // is false and we fall through to normal same-space reorder logic.
     const crossId    = e.dataTransfer.getData('berean-tab-id')
     const crossType  = e.dataTransfer.getData('berean-tab-type')
     const crossSpace = e.dataTransfer.getData('berean-tab-space')
     const mySpace    = tabs[0]?.spaceId ?? ''
-    if (crossId && crossSpace && crossSpace !== mySpace) {
+    if (crossId && crossSpace && crossSpace !== mySpace && wasCrossSpaceHover) {
       const store = useAppStore.getState()
       const draggedTab = store.tabs[crossSpace as keyof typeof store.tabs]?.find((t: Tab) => t.id === crossId)
       if (!draggedTab) return
@@ -220,7 +252,123 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         onTabClose(targetTab)
         return
       }
+      // ── X → YouTube: note/scripture/lexicon dropped on a YouTube tab ─────────
+      if (mySpace === 'youtube') {
+        console.log('[berean-tab-drop] X → youtube:', crossType, crossSpace, 'target:', targetTab?.id)
+        if (!targetTab) return
+        let panel: import('@/types').YouTubePanelState | null = null
+
+        if (crossType === 'note') {
+          const noteId = (draggedTab.state as { noteId?: string | null }).noteId ?? null
+          panel = { type: 'notes', noteId }
+          console.log('[berean-tab-drop] note panel', panel)
+        } else if (crossType === 'bible') {
+          const bState = draggedTab.state as import('@/types').BibleTabState
+          panel = {
+            type: 'scripture',
+            bookId: bState.bookId,
+            chapter: bState.chapter,
+            translation: bState.translation,
+          }
+          console.log('[berean-tab-drop] scripture panel', panel)
+        } else if (crossType === 'lexicon') {
+          const sNum = (draggedTab.state as { strongsNum?: string | null }).strongsNum ?? null
+          panel = { type: 'lexicon', strongsNum: sNum }
+          console.log('[berean-tab-drop] lexicon panel', panel)
+        }
+
+        if (panel) {
+          // Dispatch a custom event that YouTubeTab listens for
+          window.dispatchEvent(new CustomEvent('berean:youtubeAddPanel', {
+            detail: { tabId: targetTab.id, panel },
+          }))
+          store.activateTab(targetTab)
+          store.setActiveSpace('youtube')
+          onTabClose(draggedTab)
+          return
+        }
+      }
+
+      // ── YouTube → X: YouTube dropped on note/scripture/lexicon tab ────────────
+      if (crossSpace === 'youtube') {
+        const ytState = draggedTab.state as import('@/types').YouTubeTabState
+        const videoId = ytState.videoId ?? null
+        console.log('[berean-tab-drop] youtube → X:', mySpace, 'videoId:', videoId)
+
+        if (mySpace === 'scripture' && videoId) {
+          // Open the video in a new YouTube tab, don't modify the scripture tab
+          // (scripture tab currently can't host a YouTube secondary panel)
+          const store = useAppStore.getState()
+          store.addTab({
+            id: `youtube-${videoId}-${Date.now()}`,
+            spaceId: 'youtube',
+            type: 'youtube',
+            title: draggedTab.title,
+            state: { videoId, playlistId: null },
+          } as import('@/types').Tab)
+          store.setActiveSpace('youtube')
+          onTabClose(draggedTab)
+          return
+        }
+
+        if (mySpace === 'notes' || mySpace === 'lexicon') {
+          // Similar: open in new YouTube tab
+          const store = useAppStore.getState()
+          if (videoId) {
+            store.addTab({
+              id: `youtube-${videoId}-${Date.now()}`,
+              spaceId: 'youtube',
+              type: 'youtube',
+              title: draggedTab.title,
+              state: { videoId, playlistId: null },
+            } as import('@/types').Tab)
+            store.setActiveSpace('youtube')
+            onTabClose(draggedTab)
+          }
+          return
+        }
+      }
+
       return  // unhandled cross-space combo — just ignore
+    }
+
+    // ── Note-item drop: a note dragged from the notes list/folder view ────────
+    // (no berean-tab-id, but has berean-note-id from NotesList/NotesFolderView)
+    const noteItemId    = e.dataTransfer.getData('berean-note-id')
+    const noteItemTitle = e.dataTransfer.getData('berean-note-title')
+    console.log('[berean-tab-drop] drop event — noteItemId:', noteItemId, 'crossId:', crossId, 'wasCrossSpaceHover:', wasCrossSpaceHover, 'wasCrossSpaceHoverIdx:', wasCrossSpaceHoverIdx)
+    if (noteItemId && !crossId) {
+      const store = useAppStore.getState()
+
+      // If dropped on a scripture tab while the merge indicator was active → open in side panel
+      if (wasCrossSpaceHover && wasCrossSpaceHoverIdx !== null) {
+        const targetTab = tabs[wasCrossSpaceHoverIdx]
+        if (targetTab && targetTab.spaceId === 'scripture') {
+          console.log('[berean-tab-drop] note → scripture side panel:', targetTab.id)
+          store.updateTabState('scripture', targetTab.id, {
+            rightPanelOpen:   true,
+            rightPanelTab:    'notes',
+            rightPanelNoteId: noteItemId,
+          })
+          store.activateTab(targetTab)
+          store.setActiveSpace('scripture')
+          return
+        }
+      }
+
+      // Default: open as a new note tab
+      console.log('[berean-tab-drop] note → new note tab:', noteItemTitle)
+      const tab = {
+        id:      `note-${noteItemId}-${Date.now()}`,
+        spaceId: 'notes' as const,
+        type:    'note'  as const,
+        title:   noteItemTitle || 'Note',
+        state:   { noteId: noteItemId, isNew: false },
+      }
+      store.addTab(tab)
+      store.activateTab(tab)
+      store.setActiveSpace('notes')
+      return
     }
 
     if (fromIdx === null) return

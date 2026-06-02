@@ -57,7 +57,7 @@ function DerivationText({ text, onNav }: { text: string; onNav: (num: string, ne
           return (
             <button
               key={i}
-              onClick={(e) => onNav(part, e.metaKey)}
+              onClick={(e) => onNav(part, e.metaKey || e.ctrlKey)}
               className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
             >
               {part}
@@ -343,7 +343,7 @@ function EntryView({
               {related.map((r) => (
                 <button
                   key={r.strongsNum}
-                  onClick={(e) => onNav(r.strongsNum, e.metaKey)}
+                  onClick={(e) => onNav(r.strongsNum, e.metaKey || e.ctrlKey)}
                   className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left transition-colors"
                 >
                   <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 w-10">{r.strongsNum}</span>

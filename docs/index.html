@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Berean — Desktop Bible Study</title>
+  <meta name="description" content="A local-first desktop Bible study app for Torah-observant believers. KJV, LXX, 1 Enoch, Jubilees, Strong's lexicon, notes, search, and YouTube — all offline." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ── Nav ───────────────────────────────────────────────────────────────── -->
+  <nav>
+    <span class="nav-logo">Berean</span>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/RoyalWeden/Berean" target="_blank" rel="noopener">GitHub</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero-inner">
+      <h1>Berean</h1>
+      <p class="tagline">Local-first desktop Bible study for Yehovah's servants.</p>
+      <p class="subtitle">
+        KJV + Apocrypha · Brenton LXX · 1 Enoch · Jubilees · Strong's Lexicon ·
+        Verse Notes · Full-Text Search · YouTube — all offline, no accounts.
+      </p>
+
+      <!-- Download cards — populated by app.js from GitHub Releases API -->
+      <div class="download-section" id="download">
+        <div class="download-grid" id="download-grid">
+          <div class="download-card skeleton">
+            <div class="skeleton-line wide"></div>
+            <div class="skeleton-line narrow"></div>
+          </div>
+          <div class="download-card skeleton">
+            <div class="skeleton-line wide"></div>
+            <div class="skeleton-line narrow"></div>
+          </div>
+        </div>
+        <p class="download-note" id="download-note"></p>
+      </div>
+
+      <!-- Beta section -->
+      <div class="beta-section" id="beta-section" style="display:none">
+        <button class="beta-toggle" id="beta-toggle" onclick="toggleBeta()">
+          ▸ Beta builds
+        </button>
+        <div class="beta-content" id="beta-content" style="display:none">
+          <p class="beta-note">Beta builds include new features that are still being tested. They may contain bugs.</p>
+          <div class="download-grid" id="beta-grid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ──────────────────────────────────────────────────────────── -->
+  <section class="features" id="features">
+    <h2>Everything you need for deep study</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📖</div>
+        <h3>Multi-Text Scripture Reader</h3>
+        <p>Read KJV+A, Brenton LXX, 1 Enoch, and Jubilees in resizable side-by-side panels. Verse-level compare across any combination of texts.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔤</div>
+        <h3>Strong's Lexicon</h3>
+        <p>Inline Hebrew and Greek Strong's numbers with hover tooltips and full BDB/BDAG entries. Click any number to see every occurrence in Scripture.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <h3>Verse & General Notes</h3>
+        <p>Attach notes to any verse or keep freeform study documents. WYSIWYG markdown editor with heading collapse, bullet styles, and callouts.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <h3>Highlighting</h3>
+        <p>Select any word or phrase and apply persistent color highlights. Five colors with suggested thematic uses. Highlights sync to vault files.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Full-Text Search</h3>
+        <p>Search across all texts simultaneously using SQLite FTS5. Filter by testament, text, or book range. Word replacer expands searches automatically.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📂</div>
+        <h3>Vault Sync</h3>
+        <p>Sync notes as plain Markdown files to any local folder — Obsidian, Logseq, Octarine, or iCloud. Two-way sync with wikilink support.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">▶️</div>
+        <h3>YouTube Study</h3>
+        <p>Embedded YouTube browser with an allowlist, auto Picture-in-Picture, and one-click timestamp insertion into your active note.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⌨️</div>
+        <h3>Keyboard-Driven</h3>
+        <p>Every major action has a shortcut. ⌘T opens any reference, ⌘G toggles Strong's, ⌘⇧N creates a note. No mouse required.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Privacy strip ─────────────────────────────────────────────────────── -->
+  <section class="privacy-strip">
+    <div class="privacy-inner">
+      <span>🔒 All data stored locally on your device.</span>
+      <span>No accounts required.</span>
+      <span>No analytics or tracking.</span>
+      <a href="privacy.html">Privacy policy →</a>
+    </div>
+  </section>
+
+  <!-- ── Footer ────────────────────────────────────────────────────────────── -->
+  <footer>
+    <p>
+      Berean is free and open source.
+      <a href="https://github.com/RoyalWeden/Berean" target="_blank" rel="noopener">View on GitHub</a>
+      · <a href="privacy.html">Privacy Policy</a>
+    </p>
+    <p class="footer-sub">All included Bible texts are public domain. Strong's lexicons from OpenScriptures.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

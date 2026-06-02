@@ -1,5 +1,5 @@
 import { useMemo, useState, useRef, useCallback } from 'react'
-import { List, Link2, ChevronRight, ChevronLeft } from 'lucide-react'
+import { List, Link2, ChevronRight, ChevronLeft, Folder } from 'lucide-react'
 import type { Note } from '@/types'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ interface Props {
   noteId: string
   allNotes: Note[]
   onNoteClick: (note: Note) => void
+  folderPath?: string[]
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ const DEFAULT_WIDTH = 176   // w-44 equivalent
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, onNoteClick }: Props) {
+export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, onNoteClick, folderPath = [] }: Props) {
   const headings = useMemo(() => parseHeadings(content), [content])
   const backlinks = useMemo(() => findBacklinks(noteTitle, allNotes, noteId), [noteTitle, allNotes, noteId])
 
@@ -138,6 +139,23 @@ export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, on
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto min-h-0">
+          {/* Folder breadcrumb — where this note is filed */}
+          {folderPath.length > 0 && (
+            <div className="px-2 pt-1 pb-2">
+              <div className="flex items-center gap-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+                <Folder size={9} />
+                Folder
+              </div>
+              <div className="flex items-center flex-wrap gap-0.5 text-[10px] text-[rgb(var(--color-text-secondary))]">
+                {folderPath.map((seg, i) => (
+                  <span key={i} className="flex items-center gap-0.5">
+                    {i > 0 && <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))]" />}
+                    <span className="truncate max-w-[120px]">{seg}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {/* TOC section */}
           {headings.length > 0 && (
             <div>

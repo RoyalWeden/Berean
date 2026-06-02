@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Mac App Store entitlements — RENDERER / HELPER PROCESSES
-  Applies to: Berean Helper, Berean Helper (GPU), Berean Helper (Renderer), etc.
-  Must include com.apple.security.inherit so subprocesses inherit the parent sandbox.
+  Mac App Store entitlements — RENDERER / HELPER / UTILITY PROCESSES
+  Applies to: Berean Helper, Berean Helper (GPU), Berean Helper (Renderer),
+  Berean Helper (Plugin), and the Network Service utility process.
+
+  CRITICAL: This file must contain ONLY app-sandbox + inherit. When
+  com.apple.security.inherit is set, the child inherits the parent's entire
+  sandbox profile (including network access and the application-group used for
+  Mojo IPC). Declaring ANY additional entitlement here produces a conflicting
+  sandbox profile and the helper crashes at launch with SIGTRAP (exit code 5) —
+  this is what was killing the Network Service utility process.
+
+  This matches @electron/osx-sign's default.mas.child.plist exactly.
 -->
 <plist version="1.0">
 <dict>
   <key>com.apple.security.app-sandbox</key>
   <true/>
   <key>com.apple.security.inherit</key>
-  <true/>
-  <key>com.apple.security.cs.allow-jit</key>
-  <true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-  <true/>
-  <key>com.apple.security.network.client</key>
   <true/>
 </dict>
 </plist>

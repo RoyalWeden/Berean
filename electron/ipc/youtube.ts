@@ -888,4 +888,27 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   ipc.handle('youtube:removeFromHistory', (_e, videoId: string) => { removeFromHistory(videoId) })
   ipc.handle('youtube:clearWatchHistory', () => { clearWatchHistory() })
   ipc.handle('youtube:fetchDescription', async (_e, videoId: string) => fetchDescription(videoId))
+
+  // Full-text search over stored video titles/channel names — used by FloatingSearch
+  ipc.handle('youtube:searchVideos', (_e, query: string, limit = 8) => {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    const pat = `%${trimmed.toLowerCase()}%`
+    const rows = getBereanDb()
+      .prepare(`SELECT video_id, title, channel_name, thumbnail_url, type, published
+                FROM youtube_videos
+                WHERE LOWER(title) LIKE ? OR LOWER(channel_name) LIKE ?
+                ORDER BY published DESC
+                LIMIT ?`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .all(pat, pat, limit) as any[]
+    return rows.map((r) => ({
+      videoId:     r.video_id   as string,
+      title:       r.title      as string,
+      channelName: r.channel_name as string,
+      thumbnailUrl: r.thumbnail_url as string,
+      type:        r.type       as string,
+      published:   r.published  as string,
+    }))
+  })
 }

@@ -45,6 +45,7 @@ const ALL_TEXTS = [
   { id: 'gad',           label: 'Gad the Seer',      category: 'pseudo' as const },
   { id: 't_job',         label: 'T. Job',            category: 'pseudo' as const },
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' as const },
+  { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
 ]
 
 interface RawResult {

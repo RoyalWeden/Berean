@@ -18,7 +18,7 @@ export type ScriptureLayout =
   | 'commentary'       // Wide notes left | Scripture right — 50/50 with no tab strip on notes
   | 'split-bottom'     // Scripture top | Notes left + Lexicon right in bottom row
 
-export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search'
+export type TabType = 'bible' | 'note' | 'lexicon' | 'youtube' | 'search' | 'pdf'
 
 export interface BibleTabState {
   bookId: string
@@ -67,10 +67,50 @@ export interface LexiconTabState {
   scrollTop?: number
 }
 
+/**
+ * Layout of the YouTube tab when a secondary (or tertiary) panel is open.
+ *
+ *  video-full            — video only, no panel
+ *  side-right            — video left 55% | panelA right 45%
+ *  side-left             — panelA left 45% | video right 55%
+ *  stack-below           — video top 60% / panelA bottom 40%
+ *  stack-above           — panelA top 40% / video bottom 60%
+ *  wide-panel            — video left 35% | panelA right 65%
+ *  wide-video            — video left 65% | panelA right 35%
+ *  three-col             — panelA 30% | video 40% | panelB 30%
+ *  three-col-wide-video  — panelA 25% | video 50% | panelB 25%
+ *  stacked-right         — video left 55% | panelA + panelB stacked right 45%
+ *  stacked-left          — panelA + panelB stacked left 45% | video right 55%
+ */
+export type YouTubeLayout =
+  | 'video-full'
+  | 'side-right'
+  | 'side-left'
+  | 'stack-below'
+  | 'stack-above'
+  | 'wide-panel'
+  | 'wide-video'
+  | 'three-col'
+  | 'three-col-wide-video'
+  | 'stacked-right'
+  | 'stacked-left'
+
+export interface YouTubePanelState {
+  type: 'notes' | 'scripture' | 'lexicon'
+  noteId?: string | null
+  bookId?: string | null
+  chapter?: number | null
+  translation?: string | null
+  strongsNum?: string | null
+}
+
 export interface YouTubeTabState {
   videoId: string | null
   playlistId: string | null
   url?: string
+  youtubeLayout?: YouTubeLayout
+  panelA?: YouTubePanelState | null
+  panelB?: YouTubePanelState | null
 }
 
 export interface SearchTabState {
@@ -79,12 +119,41 @@ export interface SearchTabState {
   scrollTop?: number
 }
 
+export interface PdfTabState {
+  pdfId: string
+  title: string
+  page?: number          // 1-indexed page to scroll to
+  scrollTop?: number
+}
+
+export interface PdfDoc {
+  id: string
+  title: string
+  filename: string
+  pageCount: number
+  fileSize: number
+  importedAt: number
+}
+
+export interface PdfHighlight {
+  id: string
+  pdfId: string
+  page: number           // 1-indexed
+  // Normalised rects (0..1 relative to page width/height) so they survive zoom
+  rects: Array<{ x: number; y: number; w: number; h: number }>
+  color: string
+  text: string           // selected text
+  note?: string | null
+  createdAt: number
+}
+
 export type TabState =
   | BibleTabState
   | NoteTabState
   | LexiconTabState
   | YouTubeTabState
   | SearchTabState
+  | PdfTabState
 
 export interface Tab {
   id: string
@@ -123,6 +192,14 @@ export interface Note {
   importedAt?: number
   tags: string[]
   color?: string
+  folderId?: string | null
+}
+
+export interface NoteFolder {
+  id: string
+  name: string
+  parentId: string | null
+  createdAt: number
 }
 
 export interface Book {

@@ -1,19 +1,21 @@
 import { X, Loader2, CheckCircle2, XCircle, BookOpen } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 
 // Floating non-blocking progress banner — clicking opens the Import modal.
 // Mounts at the App root level so it's visible across all views.
 
 export default function BgImportProgress() {
+  // useShallow prevents re-renders when unrelated store slices change (object selector anti-pattern fix)
   const { bgImportPhase, bgImportDone, bgImportTotal, bgImportMessage,
-    resetBgImport, openImportModal } = useAppStore((s) => ({
+    resetBgImport, openImportModal } = useAppStore(useShallow((s) => ({
       bgImportPhase: s.bgImportPhase,
       bgImportDone: s.bgImportDone,
       bgImportTotal: s.bgImportTotal,
       bgImportMessage: s.bgImportMessage,
       resetBgImport: s.resetBgImport,
       openImportModal: s.openImportModal,
-    }))
+    })))
 
   // Only show when an import is running or just finished (not idle)
   if (bgImportPhase === 'idle') return null

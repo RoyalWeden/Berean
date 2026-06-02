@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import type { Book, SearchTabState } from '@/types'
 
 function normalizeBookName(name: string): string {
@@ -21,6 +22,7 @@ const SEARCH_TRANSLATIONS = [
   { id: 'gad',           label: 'Gad the Seer',      category: 'pseudo' },
   { id: 't_job',         label: 'T. Job',            category: 'pseudo' },
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' },
+  { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' },
 ]
 
 // Detect if query starts with a translation hint like "lxx: ..." or "enoch ..."
@@ -39,6 +41,7 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
     [['gad the seer:', 'gad seer:', 'words of gad '], 'gad'],
     [['testament of job:', 'test job:', 'tjob '], 't_job'],
     [['1 clement:', '1clement:', '1clem '], '1clement'],
+    [['apoc abraham:', 'apoc abraham ', 'apoc. abraham:', 'apocalypse of abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
   ]
   for (const [patterns, id] of prefixes) {
     for (const pat of patterns) {
@@ -144,9 +147,17 @@ export default function SearchTab() {
     inputRef.current?.focus()
   }, [pendingSearchQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const wordReplacerEnabled = useAppStore.getState().wordReplacerEnabled
+  const wordReplacerRules   = useAppStore.getState().wordReplacerRules
+
   const runSearch = useCallback(async (q: string, tid: string) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) { setResults([]); return }
+    // Expand query with original terms for any replacement words (e.g. "yeshua" → also "jesus")
+    const state = useAppStore.getState()
+    const searchQ = state.wordReplacerEnabled
+      ? expandQueryForWordReplacer(trimmed, state.wordReplacerRules)
+      : trimmed
     setLoading(true)
     try {
       if (tid === 'all') {
@@ -154,14 +165,14 @@ export default function SearchTab() {
         const allResults = await Promise.all(
           SEARCH_TRANSLATIONS.map(async (t) => {
             try {
-              const res = await window.bible.searchText(trimmed, t.id)
+              const res = await window.bible.searchText(searchQ, t.id)
               return (res as unknown as RawResult[]).map((r) => ({ ...r, _textId: t.id }))
             } catch { return [] }
           })
         )
         setResults(allResults.flat())
       } else {
-        const res = await window.bible.searchText(trimmed, tid)
+        const res = await window.bible.searchText(searchQ, tid)
         setResults((res as unknown as RawResult[]).map((r) => ({ ...r, _textId: tid })))
       }
     } catch {

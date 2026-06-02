@@ -3,8 +3,13 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import './styles/global.css'
+import 'pdfjs-dist/web/pdf_viewer.css'
+
+// Very first line of renderer JS — confirms the bundle is executing.
+console.log('[berean-renderer] main.tsx executing')
 
 const isFloatMode = new URLSearchParams(window.location.search).get('float') === '1'
+console.log('[berean-renderer] isFloatMode=', isFloatMode)
 
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
@@ -92,25 +97,25 @@ function escapeHtml(s: string): string {
 }
 
 window.addEventListener('error', (e) => {
+  const stack = e.error?.stack ?? `${e.filename}:${e.lineno}:${e.colno}`
+  console.error('[berean-renderer] unhandled error:', e.message, stack)
   // Ignore errors from browser extensions or devtools
   if (!e.filename || e.filename.startsWith('chrome-extension://')) return
-  showCrashOverlay(
-    e.message,
-    e.error?.stack ?? `${e.filename}:${e.lineno}:${e.colno}`,
-    'Unhandled JS error'
-  )
+  showCrashOverlay(e.message, stack, 'Unhandled JS error')
 })
 
 window.addEventListener('unhandledrejection', (e) => {
   const reason = e.reason
   const message = reason instanceof Error ? reason.message : String(reason)
   const stack = reason instanceof Error ? (reason.stack ?? '') : ''
+  console.error('[berean-renderer] unhandled rejection:', message, stack)
   // Skip noisy / non-fatal IPC rejections (they're logged elsewhere)
   if (!message || message === 'undefined') return
   showCrashOverlay(message, stack, 'Unhandled promise rejection')
 })
 // ─────────────────────────────────────────────────────────────────────────────
 
+console.log('[berean-renderer] calling ReactDOM.createRoot')
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {isFloatMode ? <FloatingShell /> : <App />}

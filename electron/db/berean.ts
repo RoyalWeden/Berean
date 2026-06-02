@@ -3,6 +3,59 @@ import { app } from 'electron'
 import { join } from 'path'
 import { mkdirSync, existsSync } from 'fs'
 
+// Merge YouTube seed data from the bundled youtube_seed.db into the user's
+// berean.db. Uses INSERT OR IGNORE so existing user data is never overwritten.
+// Runs once (tracked by the 'youtubeSeedVersion' setting) so re-installs or
+// app updates can push a refreshed seed by bumping the seed version number.
+export function mergeYouTubeSeed(db: DB): void {
+  const SEED_VERSION = 1 // bump this when youtube_seed.db is regenerated
+
+  // Check if already seeded at this version
+  const row = db.prepare("SELECT value FROM settings WHERE key='youtubeSeedVersion'").get() as { value: string } | undefined
+  if (row && parseInt(row.value ?? '0') >= SEED_VERSION) return
+
+  const seedPath = app.isPackaged
+    ? join(process.resourcesPath, 'data', 'youtube_seed.db')
+    : join(app.getAppPath(), 'data', 'youtube_seed.db')
+
+  if (!existsSync(seedPath)) {
+    console.log('[berean-db] youtube_seed.db not found, skipping seed')
+    return
+  }
+
+  try {
+    db.exec(`ATTACH '${seedPath.replace(/'/g, "''")}' AS seed`)
+
+    const result = db.transaction(() => {
+      const videos = db.prepare(`
+        INSERT OR IGNORE INTO youtube_videos
+          (video_id, title, published, channel_name, channel_handle,
+           thumbnail_url, type, is_live_now, fetched_at,
+           duration_seconds, is_starred, description)
+        SELECT
+          video_id, title, published, channel_name, channel_handle,
+          thumbnail_url, type, is_live_now, fetched_at,
+          duration_seconds, is_starred, description
+        FROM seed.youtube_videos
+      `).run()
+
+      const syncs = db.prepare(`
+        INSERT OR IGNORE INTO youtube_sync (channel_handle, last_full_sync, last_refresh)
+        SELECT channel_handle, last_full_sync, last_refresh FROM seed.youtube_sync
+      `).run()
+
+      return { videos: videos.changes, syncs: syncs.changes }
+    })()
+
+    db.exec('DETACH seed')
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('youtubeSeedVersion', ?)").run(String(SEED_VERSION))
+    console.log(`[berean-db] youtube seed merged: ${result.videos} videos, ${result.syncs} channels`)
+  } catch (err) {
+    try { db.exec('DETACH seed') } catch { /* ignore */ }
+    console.error('[berean-db] youtube seed merge failed:', err)
+  }
+}
+
 type DB = InstanceType<typeof Database>
 
 let _db: DB | null = null
@@ -274,6 +327,51 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       // Onboarding flag
       db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('onboardingCompleted', 'false')
       console.log('[berean-db] v9: history table, workspaces.state_json, onboarding setting')
+    }
+  },
+  {
+    // Note folders: user-created, nestable. System folders (Daily/eSword/BibleGateway)
+    // are virtual (computed from note type/tags), not stored here.
+    version: 10,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS note_folders (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          parent_id  TEXT,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_note_folders_parent ON note_folders(parent_id);
+      `)
+      try { db.exec(`ALTER TABLE notes ADD COLUMN folder_id TEXT`) } catch {}
+      console.log('[berean-db] v10: note_folders table + notes.folder_id')
+    }
+  },
+  {
+    version: 11,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pdfs (
+          id          TEXT PRIMARY KEY,
+          title       TEXT NOT NULL,
+          filename    TEXT NOT NULL,
+          page_count  INTEGER NOT NULL DEFAULT 0,
+          file_size   INTEGER NOT NULL DEFAULT 0,
+          imported_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS pdf_highlights (
+          id          TEXT PRIMARY KEY,
+          pdf_id      TEXT NOT NULL,
+          page        INTEGER NOT NULL,
+          rects_json  TEXT NOT NULL,
+          color       TEXT NOT NULL,
+          text        TEXT NOT NULL DEFAULT '',
+          note        TEXT,
+          created_at  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pdf_hl_pdf ON pdf_highlights(pdf_id);
+      `)
+      console.log('[berean-db] v11: pdfs + pdf_highlights tables')
     }
   }
 ]

@@ -14,3 +14,5 @@ release/
 .DS_Store
 *.local
 electron/youtube-key.ts
+scripts/cache/
+build/embedded.provisionprofile

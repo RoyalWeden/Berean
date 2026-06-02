@@ -1,9 +1,30 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Search, BookOpen, Hash, BookMarked, StickyNote } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook } from '@/lib/parseRef'
+import { applyFindHighlight } from '@/lib/highlight'
+import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import type { Book, LexiconEntry, Note } from '@/types'
+
+// How many result-list lines each density shows
+const DENSITY_HEIGHT: Record<'compact' | 'comfortable' | 'spacious', string> = {
+  compact:     '18rem',
+  comfortable: '30rem',
+  spacious:    '44rem',
+}
+// Sub-text truncation per density
+const DENSITY_SUB_LEN: Record<'compact' | 'comfortable' | 'spacious', number> = {
+  compact:     80,
+  comfortable: 140,
+  spacious:    240,
+}
+// Sub-text line-clamp css class per density
+const DENSITY_CLAMP: Record<'compact' | 'comfortable' | 'spacious', string> = {
+  compact:     'line-clamp-1',
+  comfortable: 'line-clamp-2',
+  spacious:    'line-clamp-3',
+}
 
 interface VerseResult {
   book_id: string
@@ -28,6 +49,7 @@ const TRANSLATION_PREFIXES: Array<[string[], string]> = [
   [['gad the seer:', 'gad seer:', 'words of gad '], 'gad'],
   [['testament of job:', 'test job:', 'tjob '], 't_job'],
   [['1 clement:', '1clement:', '1clem '], '1clement'],
+  [['apoc abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
 ]
 
 /** All extra-book text IDs searched automatically in parallel for keyword queries */
@@ -44,6 +66,7 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   gad:           'Gad the Seer',
   t_job:         'T. Job',
   '1clement':    '1 Clement',
+  apoc_abraham:  'Apoc. Abraham',
 }
 
 function normalizeBookName(name: string): string {
@@ -86,6 +109,9 @@ export default function FloatingSearch() {
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const defaultBibleTranslation = useAppStore((s) => s.defaultBibleTranslation)
   const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
 
   type SearchWordMode = 'all' | 'any' | 'phrase'
 
@@ -98,6 +124,8 @@ export default function FloatingSearch() {
   const [verseResults, setVerseResults] = useState<VerseResult[]>([])
   const [lexiconResults, setLexiconResults] = useState<LexiconEntry[]>([])
   const [noteResults, setNoteResults] = useState<Note[]>([])
+  const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string }>>([])
+  const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -111,6 +139,7 @@ export default function FloatingSearch() {
       setVerseResults([])
       setLexiconResults([])
       setNoteResults([])
+      setYoutubeResults([])
       setSelectedIdx(0)
     }
   }, [searchOpen, defaultBibleTranslation])
@@ -132,9 +161,13 @@ export default function FloatingSearch() {
 
   function buildFTSQuery(q: string, mode: SearchWordMode): string {
     const trimmed = q.trim()
-    if (mode === 'phrase') return `"${trimmed}"`
-    if (mode === 'any') return trimmed.split(/\s+/).filter(Boolean).join(' OR ')
-    return trimmed // 'all' — FTS5 default treats space as AND
+    // Expand with original terms when the user typed a replacement word (e.g. "yeshua" → also "jesus")
+    const expanded = wordReplacerEnabled
+      ? expandQueryForWordReplacer(trimmed, wordReplacerRules)
+      : trimmed
+    if (mode === 'phrase') return `"${expanded}"`
+    if (mode === 'any') return expanded.split(/\s+/).filter(Boolean).join(' OR ')
+    return expanded // 'all' — FTS5 default treats space as AND
   }
 
   // Debounced FTS search
@@ -145,6 +178,7 @@ export default function FloatingSearch() {
       setVerseResults([])
       setLexiconResults([])
       setNoteResults([])
+      setYoutubeResults([])
       if (!trimmed) return
 
       if (isStrongsRef(trimmed)) {
@@ -179,16 +213,33 @@ export default function FloatingSearch() {
         : []
 
       const ftsQ = buildFTSQuery(trimmed, mode)
-      const [verses, notes, ...extraAll] = await Promise.allSettled([
-        window.bible.searchText(ftsQ, tid),
-        window.notes.searchNotes(trimmed, 5),
-        ...extraSearches,
-      ])
+      console.log('[float-search] running search', { ftsQ, tid, hasYtSearch: typeof window.youtube?.searchVideos })
+      try {
+        const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
+          ? window.youtube.searchVideos(trimmed, 5).catch((e) => { console.error('[float-search] youtube search failed', e); return [] })
+          : Promise.resolve([])
 
-      const primaryVerse = verses.status === 'fulfilled' ? verses.value as unknown as VerseResult[] : []
-      const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
-      setVerseResults([...primaryVerse, ...extraVerses])
-      setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
+        const [verses, notes, ytVideos, ...extraAll] = await Promise.allSettled([
+          window.bible.searchText(ftsQ, tid),
+          window.notes.searchNotes(trimmed, 5),
+          ytSearch,
+          ...extraSearches,
+        ])
+
+        console.log('[float-search] results', {
+          verses: verses.status, notes: notes.status, yt: ytVideos.status,
+          verseCount: verses.status === 'fulfilled' ? (verses.value as unknown[]).length : 0,
+          ytCount: ytVideos.status === 'fulfilled' ? (ytVideos.value as unknown[]).length : 0,
+        })
+
+        const primaryVerse = verses.status === 'fulfilled' ? verses.value as unknown as VerseResult[] : []
+        const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
+        setVerseResults([...primaryVerse, ...extraVerses])
+        setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
+        setYoutubeResults(ytVideos.status === 'fulfilled' ? (ytVideos.value as Array<{ videoId: string; title: string; channelName: string }>).slice(0, 4) : [])
+      } catch (err) {
+        console.error('[float-search] search threw', err)
+      }
     }, 350)
   }, [])
 
@@ -258,7 +309,7 @@ export default function FloatingSearch() {
   }
 
   // Build result list for keyboard nav
-  const results: Array<{ type: 'ref' | 'verse' | 'lexicon' | 'note'; label: string; sub: string; action: () => void }> = []
+  const results: Array<{ type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube'; label: string; sub: string; action: () => void }> = []
 
   if (parsedRef) {
     const book = books.find((b) => b.id === parsedRef.bookId)
@@ -295,16 +346,35 @@ export default function FloatingSearch() {
     })
   }
 
+  const subLen = DENSITY_SUB_LEN[floatingSearchDensity]
+  const wr = (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t
+
+  // Scripture verses first — most relevant for a Bible-study keyword search.
+  for (const v of verseResults.slice(0, 12)) {
+    const book = books.find((b) => b.id === v.book_id)
+    const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
+    const rawText = wr(v.text)
+    const subText = rawText.length > subLen ? rawText.slice(0, subLen) + '…' : rawText
+    results.push({
+      type: 'verse',
+      label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
+      sub: subText,
+      action: () => navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId),
+    })
+  }
+
+  // Then the user's notes.
   for (const note of noteResults.slice(0, 4)) {
-    const snippet = note.content
+    const rawSnippet = note.content
       .replace(/^---[\s\S]*?---\n?/, '')
       .replace(/[#*`_>~\[\]]/g, '')
       .replace(/\n/g, ' ')
       .trim()
+    const snippet = wr(rawSnippet)
     results.push({
       type: 'note' as const,
-      label: note.title || 'Untitled note',
-      sub: snippet.length > 80 ? snippet.slice(0, 80) + '…' : snippet || 'Empty note',
+      label: wr(note.title || 'Untitled note'),
+      sub: snippet.length > subLen ? snippet.slice(0, subLen) + '…' : snippet || 'Empty note',
       action: () => {
         ensureTab('note')
         setActiveSpace('notes')
@@ -314,14 +384,17 @@ export default function FloatingSearch() {
     })
   }
 
-  for (const v of verseResults.slice(0, 12)) {
-    const book = books.find((b) => b.id === v.book_id)
-    const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
+  // YouTube videos last — external media is lowest priority.
+  for (const vid of youtubeResults) {
     results.push({
-      type: 'verse',
-      label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
-      sub: v.text.length > 80 ? v.text.slice(0, 80) + '…' : v.text,
-      action: () => navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId),
+      type: 'youtube' as const,
+      label: vid.title,
+      sub: vid.channelName,
+      action: () => {
+        openYouTubeVideoInNewTab(vid.videoId)
+        setActiveSpace('youtube')
+        closeSearch()
+      },
     })
   }
 
@@ -359,7 +432,7 @@ export default function FloatingSearch() {
         <Dialog.Content
           aria-describedby={undefined}
           className="
-            fixed left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2
+            fixed left-1/2 top-[12%] -translate-x-1/2
             z-50 w-full max-w-2xl
             bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
             rounded-xl shadow-2xl overflow-hidden
@@ -392,32 +465,36 @@ export default function FloatingSearch() {
 
           {/* Results */}
           {results.length > 0 && (
-            <div className="max-h-72 overflow-y-auto py-1">
-              {results.map((r, i) => (
-                <button
-                  key={i}
-                  ref={i === selectedIdx ? selectedItemRef : undefined}
-                  onClick={r.action}
-                  className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer hover:bg-[rgb(var(--color-surface-3))]"
-                  style={i === selectedIdx ? {
-                    backgroundColor: 'rgb(var(--color-accent) / 0.18)',
-                    borderLeft: '2px solid rgb(var(--color-accent))',
-                    paddingLeft: '14px',
-                  } : { borderLeft: '2px solid transparent', paddingLeft: '14px' }}
-                >
-                  <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                    {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : <Hash size={14} />}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
-                      {r.label}
+            <div className="overflow-y-auto py-1" style={{ maxHeight: DENSITY_HEIGHT[floatingSearchDensity] }}>
+              {results.map((r, i) => {
+                // Only highlight matches on verse/note sub-text, not ref labels
+                const highlightQ = (r.type === 'verse' || r.type === 'note' || r.type === 'youtube') ? cleanQuery : ''
+                return (
+                  <button
+                    key={i}
+                    ref={i === selectedIdx ? selectedItemRef : undefined}
+                    onClick={r.action}
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer hover:bg-[rgb(var(--color-surface-3))]"
+                    style={i === selectedIdx ? {
+                      backgroundColor: 'rgb(var(--color-accent) / 0.18)',
+                      borderLeft: '2px solid rgb(var(--color-accent))',
+                      paddingLeft: '14px',
+                    } : { borderLeft: '2px solid transparent', paddingLeft: '14px' }}
+                  >
+                    <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : <Hash size={14} />}
                     </span>
-                    <span className="text-xs text-[rgb(var(--color-text-muted))] truncate block">
-                      {r.sub}
+                    <span className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
+                        {r.label}
+                      </span>
+                      <span className={`text-xs text-[rgb(var(--color-text-muted))] block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
+                        {highlightQ ? applyFindHighlight(r.sub, highlightQ, searchWordMode) : r.sub}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                )
+              })}
             </div>
           )}
 

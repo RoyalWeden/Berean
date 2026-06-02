@@ -6,7 +6,7 @@ import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, parseRef } from '@/lib/parseRef'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import { extractRefsFromNote } from '@/lib/noteRefs'
+import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
@@ -310,7 +310,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                   // Already has H/G prefix (e.g. H7225)
                   if (/^[HG]\d+$/.test(part)) {
                     return (
-                      <button key={i} onClick={(e) => navToEntry(part, e.metaKey)}
+                      <button key={i} onClick={(e) => navToEntry(part, e.metaKey || e.ctrlKey)}
                         className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
                       >{part}</button>
                     )
@@ -319,7 +319,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                   if (/^\d{3,}$/.test(part)) {
                     const num = `${langPrefix}${part}`
                     return (
-                      <button key={i} onClick={(e) => navToEntry(num, e.metaKey)}
+                      <button key={i} onClick={(e) => navToEntry(num, e.metaKey || e.ctrlKey)}
                         className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
                       >{num}</button>
                     )
@@ -344,7 +344,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                 {related.map((r) => (
                   <button
                     key={r.strongsNum}
-                    onClick={(e) => navToEntry(r.strongsNum, e.metaKey)}
+                    onClick={(e) => navToEntry(r.strongsNum, e.metaKey || e.ctrlKey)}
                     className="w-full flex items-baseline gap-1.5 px-1.5 py-1 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left transition-colors"
                   >
                     <span className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">{r.strongsNum}</span>
@@ -472,7 +472,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           <button
             key={entry.strongsNum}
             onClick={(e) => {
-              if (e.metaKey) {
+              if (e.metaKey || e.ctrlKey) {
                 navToEntry(entry.strongsNum, true)
               } else {
                 setActiveEntry(entry)

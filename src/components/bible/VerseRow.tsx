@@ -7,7 +7,7 @@ import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { applyFindHighlight } from '@/lib/highlight'
-import { extractRefsFromNote } from '@/lib/noteRefs'
+import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import type { Verse, HighlightColor, Note } from '@/types'
 export type { HighlightColor }
@@ -61,6 +61,7 @@ type HighlightEntry = { id: string; color: HighlightColor; startWord: number | n
 interface VerseRowProps {
   verse: Verse
   showStrongs: boolean
+  showVerseNumber?: boolean
   noteCount?: number
   hasNoteCrossRef?: boolean
   isHighlighted?: boolean
@@ -93,7 +94,13 @@ interface TaggedToken {
  */
 function parseTaggedTokens(tagged: string): TaggedToken[] {
   const tokens: TaggedToken[] = []
-  for (const part of tagged.split(' ')) {
+  for (let part of tagged.split(' ')) {
+    if (!part) continue
+
+    // Strip malformed <sup> / </sup> fragments — some KJVA DB entries have `sup>` and
+    // `/sup>` literal text (the '<' was stripped during data import). Remove the prefix
+    // so the actual content (e.g. a parenthesis marker) is still kept if present.
+    part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
     if (!part) continue
 
     // Parenthetical token: ~{H853} — no associated English word
@@ -224,7 +231,7 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
   return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {text}</span>
 }
 
-export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
+export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -249,6 +256,7 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
   const [indicatorMenu, setIndicatorMenu] = useState<{ type: 'note'; note: Note; x: number; y: number } | { type: 'verse'; ref: NoteVerseRef; x: number; y: number } | null>(null)
   const indicatorMenuRef = useRef<HTMLDivElement>(null)
   const [popoverAbove, setPopoverAbove] = useState(false)
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
@@ -262,10 +270,17 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
   )
   const activeHighlight: HighlightColor | null = verseHL?.color ?? null
 
-  function openPopover() {
-    if (popoverRef.current) {
+  function openPopover(e?: React.MouseEvent) {
+    const MENU_W = 180, MENU_H = 240, pad = 8
+    if (e) {
+      // Position at cursor, clamped to viewport
+      const x = Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad))
+      const y = Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad))
+      setPopoverPos({ x, y })
+      setPopoverAbove(false) // unused when fixed-positioned; kept for safety
+    } else if (popoverRef.current) {
       const rect = popoverRef.current.getBoundingClientRect()
-      // Show above if element is in lower 40% of viewport
+      setPopoverPos({ x: rect.left, y: rect.bottom + 4 })
       setPopoverAbove(rect.top > window.innerHeight * 0.6)
     }
     setPopoverOpen(true)
@@ -344,37 +359,14 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
     crossRefHoverTimerRef.current = setTimeout(async () => {
       const vRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
       try {
-        // Direct verse notes (includes BibleGateway / eSword imports)
+        // Only use verse notes directly attached to this verse — same source as
+        // the ChapterView cross-ref indicator logic. General notes that merely
+        // mention the verse inline are excluded so the hover matches what the
+        // side panel's "My Notes" cross-ref view shows.
         const verseNotes = await window.notes.getVerseNotes(vRef)
-        // Also find general / other-verse notes that mention this verse in content
-        const humanRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
-        const candidates = await window.notes.searchNotes(humanRef, 40)
-        const verseNoteIds = new Set(verseNotes.map(n => n.id))
-        const refNotes: Note[] = []
-        for (const note of candidates) {
-          if (verseNoteIds.has(note.id)) continue
-          const refs = extractRefsFromNote(note.content, note.title || '')
-          if (refs.some(r => r.bookId === verse.book_id && r.chapter === verse.chapter && r.verse === verse.verse_num)) {
-            refNotes.push(note)
-          }
-        }
-        // Extract cross-refs from all notes combined.
-        // For refNotes that are verse-notes *on another verse*, that verseRef IS the
-        // cross-reference (e.g. a note on Jer 4:9 that mentions Hab 1:5 → Jer 4:9).
         const all: NoteVerseRef[] = []
-        const refNoteIds = new Set(refNotes.map(n => n.id))
-        for (const note of [...verseNotes, ...refNotes]) {
-          if (refNoteIds.has(note.id) && note.verseRef) {
-            const parts = note.verseRef.split('.')
-            const nbId = parts[0]; const nCh = parseInt(parts[1] ?? '0', 10); const nVs = parseInt(parts[2] ?? '0', 10)
-            if (nbId && nCh && nVs &&
-                !(nbId === verse.book_id && nCh === verse.chapter && nVs === verse.verse_num) &&
-                !all.some(r => r.bookId === nbId && r.chapter === nCh && r.verse === nVs)) {
-              all.push({ bookId: nbId, chapter: nCh, verse: nVs, sourceNoteTitle: note.title || 'Untitled', context: '' })
-            }
-          }
+        for (const note of verseNotes) {
           for (const ref of extractRefsFromNote(note.content, note.title || 'Untitled')) {
-            // Never show the current verse as its own cross-reference
             if (ref.bookId === verse.book_id && ref.chapter === verse.chapter && ref.verse === verse.verse_num) continue
             if (!all.some(r => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse)) {
               all.push(ref)
@@ -408,7 +400,7 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
         for (const note of candidates) {
           if (verseNoteIds.has(note.id)) continue
           const refs = extractRefsFromNote(note.content, note.title || '')
-          if (refs.some(r => r.bookId === verse.book_id && r.chapter === verse.chapter && r.verse === verse.verse_num)) {
+          if (refs.some(r => refMatchesVerse(r, verse.book_id, verse.chapter, verse.verse_num))) {
             refNotes.push(note)
           }
         }
@@ -455,6 +447,9 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
   const MENU_W = 200
 
   const handleVerseMouseUp = useCallback((e: React.MouseEvent) => {
+    // Right-click (button 2) is handled by onContextMenu; skip selection toolbar for it
+    // to prevent a second menu appearing when right-clicking over selected text.
+    if (e.button === 2) return
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !verseTextRef.current) {
       setSelToolbar(null)
@@ -826,11 +821,12 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
       className="flex gap-3 mb-3 group leading-relaxed relative"
       style={rowStyle}
     >
-      {/* Verse number + popover anchor */}
-      <div className="relative flex-shrink-0" ref={popoverRef}>
+      {/* Verse number + popover anchor — hidden when showVerseNumber is off;
+           right-clicking the verse text still opens the popover in that case */}
+      <div className={`relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
         <button
           onClick={() => popoverOpen ? setPopoverOpen(false) : openPopover()}
-          onContextMenu={(e) => { e.preventDefault(); openPopover() }}
+          onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
           className={`
             w-7 text-right text-xs font-medium rounded
             pt-0.5 cursor-pointer select-none transition-colors
@@ -844,12 +840,10 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
         </button>
 
         {popoverOpen && (
-          <div className={`
-            absolute left-0 z-20 min-w-[160px]
-            bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]
-            rounded-lg shadow-xl overflow-hidden py-1
-            ${popoverAbove ? 'bottom-full mb-1' : 'top-6'}
-          `}>
+          <div
+            className="fixed z-[100] min-w-[160px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1"
+            style={{ left: popoverPos.x, top: popoverPos.y }}
+          >
             <button
               onClick={copyVerse}
               className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
@@ -919,7 +913,7 @@ export default function VerseRow({ verse, showStrongs, noteCount = 0, hasNoteCro
         ref={verseTextRef}
         data-verse-text="true"
         onMouseUp={handleVerseMouseUp}
-        onContextMenu={(e) => { e.preventDefault(); openPopover() }}
+        onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
         className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))]"
         style={{ lineHeight: 'var(--line-height-comfortable)' }}
       >

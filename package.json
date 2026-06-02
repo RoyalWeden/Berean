@@ -1,6 +1,6 @@
 {
   "name": "berean",
-  "version": "0.1.10",
+  "version": "0.2.7",
   "description": "Desktop Bible study application for Yehovah's servants",
   "main": "out/main/index.js",
   "author": "Michael Kougang",
@@ -16,16 +16,21 @@
     "build:local": "npm run build && electron-builder --mac --publish never",
     "build:draft": "npm run build && electron-builder --mac --publish always",
     "build:mas": "npm run build && electron-builder --mac --config.mac.target=mas --config.mac.hardenedRuntime=false --publish never",
-    "build:win": "npm run build && electron-builder --win --publish never"
+    "build:win": "npm run build && electron-builder --win --publish never",
+    "build:win:publish": "npm run build && electron-builder --win --publish always",
+    "build:mac:x64": "npm run build && electron-builder --mac --config.mac.target.arch=x64 --publish never",
+    "tag:stable": "node scripts/tag-release.js stable",
+    "tag:beta": "node scripts/tag-release.js beta"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.3",
     "@lezer/highlight": "^1.2.3",
     "@radix-ui/react-popover": "^1.1.15",
-    "better-sqlite3": "^9.4.3",
+    "better-sqlite3": "^12.10.0",
     "electron-log": "^5.1.2",
     "electron-updater": "^6.2.1",
     "marked": "^18.0.4",
+    "pdfjs-dist": "^4.10.38",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
@@ -46,7 +51,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "clsx": "^2.1.1",
-    "electron": "^30.0.1",
+    "electron": "^32.3.3",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.1.0",
     "eslint": "^9.1.1",
@@ -71,6 +76,9 @@
     "files": [
       "out/**/*"
     ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "extraResources": [
       {
         "from": "data/",
@@ -84,6 +92,7 @@
         "to": "assets/",
         "filter": [
           "*.icns",
+          "*.ico",
           "*.png"
         ]
       }
@@ -133,7 +142,13 @@
       }
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
     },
     "publish": {
       "provider": "github",

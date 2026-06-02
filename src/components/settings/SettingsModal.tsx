@@ -3,11 +3,36 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
+import { YOUTUBE_LAYOUTS } from '@/lib/youtubeLayouts'
 import type { WordReplacerRule } from '@/store'
 import type { UpdateStatus } from '@/types/electron'
 import type { ScriptureLayout } from '@/types'
 import BibleGatewayImporter from './BibleGatewayImporter'
 import ESwordImporter from './ESwordImporter'
+import { BULLET_STYLE_DEFS } from '@/components/notes/NoteEditor'
+
+function YtLayoutSetting() {
+  const layout = useAppStore((s) => s.defaultYoutubeLayout)
+  const set = useAppStore((s) => s.setDefaultYoutubeLayout)
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {YOUTUBE_LAYOUTS.map((def) => (
+        <button
+          key={def.id}
+          onClick={() => set(def.id)}
+          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg text-left border transition-all cursor-pointer text-xs
+            ${layout === def.id
+              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+            }`}
+        >
+          <span className="font-semibold">{def.label}</span>
+          <span className="text-[9px] text-[rgb(var(--color-text-muted))] leading-snug">{def.description}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 interface WordReplacerSectionProps {
   enabled: boolean
@@ -23,7 +48,7 @@ function WordReplacerSection({ enabled, rules, onToggleEnabled, onToggleRule }: 
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Word replacer</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
             Substitute archaic or Latinised names in scripture text with more recognisable forms.
             Only applies to the Scripture tab — never to notes, lexicon, or YouTube.
           </p>
@@ -165,6 +190,7 @@ const DEFAULT_TRANSLATIONS = [
   { id: 'gad',           label: 'Gad the Seer — Beir Bar-Ilan' },
   { id: 't_job',         label: 'Testament of Job — M.R. James (1897)' },
   { id: '1clement',      label: '1 Clement — J.B. Lightfoot' },
+  { id: 'apoc_abraham',  label: 'Apocalypse of Abraham — G.H. Box (1918)' },
 ]
 
 // Theme preset data — bg/accent/text are "r g b" strings matching global.css vars
@@ -238,26 +264,33 @@ function resolvePresetClass(preset: ThemePresetDef, variant: 'dark' | 'light'): 
   return `${preset.id}-${variant}`
 }
 
+const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
+
 function UpdatesSection() {
   const [version, setVersion] = useState('')
+  const [isMas, setIsMas] = useState(false)
   const [autoCheck, setAutoCheck] = useState(true)
+  const [betaChannel, setBetaChannel] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ status: 'idle' })
 
   useEffect(() => {
     window.app.getVersion().then(setVersion).catch(() => {})
-    window.settings.get('autoUpdate').then((v) => {
-      setAutoCheck(v !== false)
-    }).catch(() => {})
+    window.settings.get('autoUpdate').then((v) => setAutoCheck(v !== false)).catch(() => {})
+    window.settings.get('updateChannel').then((v) => setBetaChannel(v === 'beta')).catch(() => {})
     window.app.onUpdateStatus((s) => setUpdateStatus(s as UpdateStatus))
-    // If this is a MAS build, set status immediately so the UI doesn't flash
     window.app.isMasBuild?.().then((mas) => {
-      if (mas) setUpdateStatus({ status: 'mas' })
+      if (mas) { setIsMas(true); setUpdateStatus({ status: 'mas' }) }
     }).catch(() => {})
   }, [])
 
   async function toggleAutoCheck(enabled: boolean) {
     setAutoCheck(enabled)
     await window.settings.set('autoUpdate', enabled)
+  }
+
+  async function toggleBeta(enabled: boolean) {
+    setBetaChannel(enabled)
+    await window.settings.set('updateChannel', enabled ? 'beta' : 'stable')
   }
 
   async function checkNow() {
@@ -270,30 +303,60 @@ function UpdatesSection() {
     await window.app.downloadUpdate()
   }
 
-  function installUpdate() {
-    window.app.installUpdate()
-  }
+  function installUpdate() { window.app.installUpdate() }
 
   const st = updateStatus.status
 
+  // ── MAS build: clean App Store UI ─────────────────────────────────────────
+  if (isMas) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
+          <p className="text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
+        </div>
+        <div className="px-4 py-4 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-3">
+          <p className="text-sm text-[rgb(var(--color-text-primary))] font-medium">Updates via Mac App Store</p>
+          <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+            This copy of Berean was installed from the Mac App Store. Updates are delivered automatically by Apple — no manual action needed. To check now, open the App Store and go to Updates.
+          </p>
+          <button
+            onClick={() => window.app.openExternal('macappstore://apps.apple.com')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+          >
+            Open App Store
+          </button>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
+          <span>Download page & release notes:</span>
+          <button
+            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
+            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+          >
+            royalweden.github.io/Berean
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── GitHub / direct distribution UI ───────────────────────────────────────
   return (
     <div className="space-y-5">
       {/* Version badge */}
-      <div className="flex items-center gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">
-            {version ? `v${version}` : '—'}
-          </p>
-        </div>
+      <div>
+        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">
+          {version ? `v${version}` : '—'}
+        </p>
       </div>
 
       {/* Auto-check toggle */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Check for updates automatically</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-            Check for new versions when the app launches (6 seconds after start)
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+            Check on launch, 6 seconds after startup
           </p>
         </div>
         <button
@@ -306,22 +369,31 @@ function UpdatesSection() {
         </button>
       </div>
 
+      {/* Beta channel toggle */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Beta updates</p>
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+            Receive pre-release builds — may contain unfinished features or bugs
+          </p>
+        </div>
+        <button
+          onClick={() => toggleBeta(!betaChannel)}
+          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
+            betaChannel ? 'bg-amber-500' : 'bg-[rgb(var(--color-surface-4))]'
+          }`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${betaChannel ? 'translate-x-5' : ''}`} />
+        </button>
+      </div>
+
       {/* Status card */}
       <div className="px-3 py-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] min-h-[52px]">
-        {st === 'mas' && (
-          <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-            This copy of Berean was installed from the Mac App Store. Updates are delivered automatically by the App Store — no manual update needed.
-          </p>
-        )}
         {st === 'idle' && (
-          <p className="text-xs text-[rgb(var(--color-text-muted))]">
-            Click "Check for Updates" to check now.
-          </p>
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Click "Check for Updates" to check now.</p>
         )}
         {st === 'checking' && (
-          <p className="text-xs text-[rgb(var(--color-text-muted))] animate-pulse">
-            Checking for updates…
-          </p>
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] animate-pulse">Checking for updates…</p>
         )}
         {st === 'current' && (
           <p className="text-xs text-green-400">You're on the latest version.</p>
@@ -333,7 +405,7 @@ function UpdatesSection() {
         )}
         {st === 'downloading' && (
           <div>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-2">
+            <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
               Downloading update… {updateStatus.percent ?? 0}%
             </p>
             <div className="h-1.5 bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
@@ -356,9 +428,9 @@ function UpdatesSection() {
         )}
       </div>
 
-      {/* Action buttons — hidden for MAS builds (App Store handles updates) */}
+      {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
-        {st !== 'mas' && (st === 'idle' || st === 'current' || st === 'error') && (
+        {(st === 'idle' || st === 'current' || st === 'error') && (
           <button
             onClick={checkNow}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -387,10 +459,19 @@ function UpdatesSection() {
         )}
       </div>
 
-      <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-relaxed">
-          Updates are distributed via GitHub Releases. Only the installed app (not the dev build)
-          can receive automatic updates.
+      {/* Footer: GitHub Pages link + distribution note */}
+      <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-1.5">
+        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
+          <span>Download page & release notes:</span>
+          <button
+            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
+            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+          >
+            royalweden.github.io/Berean
+          </button>
+        </div>
+        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
+          Only the installed app (not dev build) can receive automatic updates.
         </p>
       </div>
     </div>
@@ -444,10 +525,44 @@ export default function SettingsModal() {
   const noteLexiconRefsEnabled = useAppStore((s) => s.noteLexiconRefsEnabled)
   const setNoteVerseRefsEnabled = useAppStore((s) => s.setNoteVerseRefsEnabled)
   const setNoteLexiconRefsEnabled = useAppStore((s) => s.setNoteLexiconRefsEnabled)
+  const noteScriptureBlock = useAppStore((s) => s.noteScriptureBlock)
+  const setNoteScriptureBlock = useAppStore((s) => s.setNoteScriptureBlock)
+  const noteScriptureBlockThreshold = useAppStore((s) => s.noteScriptureBlockThreshold)
+  const setNoteScriptureBlockThreshold = useAppStore((s) => s.setNoteScriptureBlockThreshold)
   const sidebarNewTabIconOnly = useAppStore((s) => s.sidebarNewTabIconOnly)
   const setSidebarNewTabIconOnly = useAppStore((s) => s.setSidebarNewTabIconOnly)
+  const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
+  const setFloatingSearchDensity = useAppStore((s) => s.setFloatingSearchDensity)
+  const defaultNoteEditorMode = useAppStore((s) => s.defaultNoteEditorMode)
+  const setDefaultNoteEditorMode = useAppStore((s) => s.setDefaultNoteEditorMode)
+  const confirmNoteDelete = useAppStore((s) => s.confirmNoteDelete)
+  const setConfirmNoteDelete = useAppStore((s) => s.setConfirmNoteDelete)
+  const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
+  const setShowVerseNumbers = useAppStore((s) => s.setShowVerseNumbers)
+  const showRedLetters = useAppStore((s) => s.showRedLetters)
+  const setShowRedLetters = useAppStore((s) => s.setShowRedLetters)
+  const autoCopyOnHighlight = useAppStore((s) => s.autoCopyOnHighlight)
+  const setAutoCopyOnHighlight = useAppStore((s) => s.setAutoCopyOnHighlight)
+  const noteSpellCheck = useAppStore((s) => s.noteSpellCheck)
+  const setNoteSpellCheck = useAppStore((s) => s.setNoteSpellCheck)
+  const noteHeadingDivider = useAppStore((s) => s.noteHeadingDivider)
+  const setNoteHeadingDivider = useAppStore((s) => s.setNoteHeadingDivider)
+  const noteBulletStyle = useAppStore((s) => s.noteBulletStyle)
+  const setNoteBulletStyle = useAppStore((s) => s.setNoteBulletStyle)
 
   const [section, setSection] = useState<Section>('appearance')
+  // Compact mode — hides description text and reduces spacing so more settings
+  // fit on screen at once. Default ON; user can toggle to expanded view.
+  const [compact, setCompact] = useState(() => {
+    try { return localStorage.getItem('settings-compact') !== 'false' } catch { return true }
+  })
+  function toggleCompact() {
+    setCompact((v) => {
+      const next = !v
+      try { localStorage.setItem('settings-compact', String(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
   // previewVariant: which palette to show in the preset swatches
   // follows base theme (dark/light) and can be toggled independently
   const [previewVariant, setPreviewVariant] = useState<'dark' | 'light'>(
@@ -572,10 +687,22 @@ export default function SettingsModal() {
           "
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <Dialog.Title className="text-base font-semibold text-[rgb(var(--color-text-primary))]">
+          <div className="flex items-center gap-3 px-6 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+            <Dialog.Title className="text-base font-semibold text-[rgb(var(--color-text-primary))] flex-1">
               Settings
             </Dialog.Title>
+            {/* Compact / Expanded toggle */}
+            <button
+              onClick={toggleCompact}
+              title={compact ? 'Switch to expanded view (show descriptions)' : 'Switch to compact view (hide descriptions)'}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer border ${
+                compact
+                  ? 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                  : 'border-[rgb(var(--color-accent))/40] bg-[rgb(var(--color-accent))/8] text-[rgb(var(--color-accent))]'
+              }`}
+            >
+              <span>{compact ? '⊟ Compact' : '⊞ Expanded'}</span>
+            </button>
             <button
               onClick={closeSettings}
               className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -583,15 +710,22 @@ export default function SettingsModal() {
               <X size={18} />
             </button>
           </div>
+          {/* Compact-mode style injection — hides .s-desc description text and tightens gaps */}
+          {compact && (
+            <style>{`
+              .settings-content .s-desc { display: none !important; }
+              .settings-content .s-section { margin-bottom: 0.25rem !important; }
+            `}</style>
+          )}
 
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left nav */}
-            <div className="w-40 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 p-2 space-y-0.5">
+            <div className="w-36 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 p-1.5 space-y-px overflow-y-auto">
               {NAV.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => { setSection(n.id); useAppStore.getState().bumpSettingsNavToken() }}
-                  className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors cursor-pointer ${
+                  className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                     n.id === 'danger'
                       ? section === n.id
                         ? 'bg-red-500/15 text-red-400'
@@ -607,13 +741,13 @@ export default function SettingsModal() {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            <div className={`settings-content flex-1 overflow-y-auto ${compact ? 'px-4 py-3 space-y-4' : 'px-6 py-6 space-y-6'}`}>
               {section === 'appearance' && (
                 <>
                   {/* Color mode: Dark / Light / System — controls all themes including presets */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Color mode</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls dark or light for all themes and preset palettes</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls dark or light for all themes and preset palettes</p>
                     <div className="flex gap-2">
                       {([['dark', Moon, 'Dark'], ['light', Sun, 'Light'], ['system', Monitor, 'System']] as const).map(([t, Icon, label]) => (
                         <button
@@ -640,7 +774,7 @@ export default function SettingsModal() {
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Preset themes</p>
-                        <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
                           {theme === 'system' ? 'Previews show dark/light split — system picks automatically' : `Showing ${previewVariant} variants`}
                         </p>
                       </div>
@@ -735,7 +869,7 @@ export default function SettingsModal() {
                   {/* Font family per section */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Section fonts</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Choose typefaces independently for each area</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Choose typefaces independently for each area</p>
                     <div className="space-y-3">
                       {([
                         ['UI chrome', uiFontFamily, setUiFontFamily],
@@ -743,7 +877,7 @@ export default function SettingsModal() {
                         ['Notes', notesFontFamily, setNotesFontFamily],
                       ] as [string, string, (v: string) => void][]).map(([label, value, setter]) => (
                         <div key={label} className="flex items-center gap-3">
-                          <span className="text-xs text-[rgb(var(--color-text-muted))] w-20 flex-shrink-0">{label}</span>
+                          <span className="s-desc text-xs text-[rgb(var(--color-text-muted))] w-20 flex-shrink-0">{label}</span>
                           <select
                             value={value}
                             onChange={(e) => setter(e.target.value)}
@@ -772,7 +906,7 @@ export default function SettingsModal() {
                 <>
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default translation</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Used when opening a new Bible tab</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Used when opening a new Bible tab</p>
                     <select
                       value={defaultBibleTranslation}
                       onChange={(e) => saveTranslation(e.target.value)}
@@ -786,7 +920,7 @@ export default function SettingsModal() {
 
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default scripture layout</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout for new scripture tabs — can be overridden per-tab using the layout button in the tab toolbar</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout for new scripture tabs — can be overridden per-tab using the layout button in the tab toolbar</p>
                     <select
                       value={defaultScriptureLayout}
                       onChange={(e) => setDefaultScriptureLayout(e.target.value as ScriptureLayout)}
@@ -800,7 +934,7 @@ export default function SettingsModal() {
 
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Open note alongside scripture</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Where the note appears when using the "Open alongside scripture" button in the notes toolbar</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Where the note appears when using the "Open alongside scripture" button in the notes toolbar</p>
                     <div className="flex gap-2">
                       {([
                         { value: 'right',  label: 'Right panel' },
@@ -826,7 +960,7 @@ export default function SettingsModal() {
 
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Line height</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Spacing between verse lines</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Spacing between verse lines</p>
                     <div className="flex gap-2">
                       {(['compact', 'comfortable', 'spacious'] as const).map((h) => (
                         <button
@@ -847,8 +981,30 @@ export default function SettingsModal() {
                   </div>
 
                   <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Floating search density</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls how many results are visible before scrolling — compact shows fewer lines, spacious shows more context</p>
+                    <div className="flex gap-2">
+                      {(['compact', 'comfortable', 'spacious'] as const).map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setFloatingSearchDensity(d)}
+                          className={`
+                            px-3 py-1.5 rounded-lg text-sm capitalize border transition-colors cursor-pointer
+                            ${floatingSearchDensity === d
+                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                            }
+                          `}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Bible text size</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Font size for verse text (px)</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Font size for verse text (px)</p>
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
@@ -867,7 +1023,7 @@ export default function SettingsModal() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Compact sidebar space buttons</p>
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
                         Show Scripture / Notes / Lexicon / YouTube as a single row of icon chips instead of a column. Hover to reveal a + indicator.
                       </p>
                     </div>
@@ -884,7 +1040,7 @@ export default function SettingsModal() {
                   {/* Auto-close tabs */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Auto-close inactive tabs</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">Automatically close tabs that haven't been visited for the selected period</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Automatically close tabs that haven't been visited for the selected period</p>
                     <div className="flex flex-wrap gap-2">
                       {([
                         [0, 'Never'],
@@ -911,12 +1067,40 @@ export default function SettingsModal() {
                       ))}
                     </div>
                   </div>
+
+                  {/* ── Show verse numbers ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Show verse numbers</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Display verse numbers in the reading panel</p>
+                    </div>
+                    <button
+                      onClick={() => setShowVerseNumbers(!showVerseNumbers)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${showVerseNumbers ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showVerseNumbers ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Red letters ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Red letter text</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Highlight words of Yeshua in the KJVA text (requires tagged source)</p>
+                    </div>
+                    <button
+                      onClick={() => setShowRedLetters(!showRedLetters)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${showRedLetters ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showRedLetters ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
                 </>
               )}
 
               {section === 'notes' && (
                 <div className="space-y-5">
-                  <p className="text-xs text-[rgb(var(--color-text-muted))] -mt-2">
+                  <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] -mt-2">
                     Control how Berean auto-detects references while you write notes.
                   </p>
 
@@ -924,7 +1108,7 @@ export default function SettingsModal() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-detect verse references</p>
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
                         Highlight and make clickable any Bible reference typed in a note (e.g. Genesis 1:1). Clicking navigates the Scripture panel.
                       </p>
                     </div>
@@ -942,7 +1126,7 @@ export default function SettingsModal() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-detect lexicon references</p>
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
                         Highlight and make clickable any Strong's number typed in a note (e.g. H7225 or G3056). Clicking opens the lexicon entry.
                       </p>
                     </div>
@@ -956,8 +1140,48 @@ export default function SettingsModal() {
                     </button>
                   </div>
 
+                  {/* Scripture block auto-format toggle */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-format verse blocks</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        When a verse reference is followed by its text, it is displayed as a styled scripture block (left border, bold reference) — but the text stays plain, so copying it gives back the original text only. Works for multi-line blocks (reference line + numbered verses) and single-line verses (e.g. <span className="font-mono text-[10px]">1 John 2:4 He that saith…</span>). A bare reference alone is not affected.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setNoteScriptureBlock(!noteScriptureBlock)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                        noteScriptureBlock ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteScriptureBlock ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Verse-text match threshold slider — only when auto-format is on */}
+                  {noteScriptureBlock && (
+                    <div className="pl-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-medium text-[rgb(var(--color-text-secondary))]">Verse-text match sensitivity</p>
+                        <span className="text-xs font-mono text-[rgb(var(--color-accent))]">{Math.round(noteScriptureBlockThreshold * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={50}
+                        max={100}
+                        step={5}
+                        value={Math.round(noteScriptureBlockThreshold * 100)}
+                        onChange={(e) => setNoteScriptureBlockThreshold(Number(e.target.value) / 100)}
+                        className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
+                      />
+                      <p className="text-[11px] text-[rgb(var(--color-text-muted))] mt-1 leading-relaxed">
+                        A line only formats when at least this percent of the actual verse text is present. Higher = stricter. This prevents formatting a line where you're just commenting on a verse (e.g. <span className="font-mono text-[10px]">Genesis 5:4 my thoughts here</span>).
+                      </p>
+                    </div>
+                  )}
+
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <kbd className="font-mono text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧R</kbd> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
@@ -965,10 +1189,127 @@ export default function SettingsModal() {
                   {/* Markdown reference guide */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Markdown reference</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-2">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
                       A full guide to note formatting, verse references, wikilinks, and all supported book names.
                     </p>
                     <MarkdownRefButton onClose={closeSettings} />
+                  </div>
+
+                  {/* ── Bullet list style ── */}
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Bullet list style</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Symbol used at each indent level in unordered lists</p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {Object.entries(BULLET_STYLE_DEFS).map(([id, def]) => (
+                        <button
+                          key={id}
+                          onClick={() => setNoteBulletStyle(id)}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-colors cursor-pointer ${
+                            noteBulletStyle === id
+                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                              : 'border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))]'
+                          }`}
+                        >
+                          <span className={`text-xs font-medium w-16 flex-shrink-0 ${noteBulletStyle === id ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+                            {def.label}
+                          </span>
+                          {/* Preview: 3 indent levels */}
+                          <span className="flex items-center gap-3 font-mono text-[11px] text-[rgb(var(--color-text-secondary))]">
+                            {def.symbols.slice(0, 3).map((sym, i) => (
+                              <span key={i} className="flex items-center gap-1">
+                                <span className="text-[rgb(var(--color-text-muted))] text-[9px]" style={{ marginLeft: `${i * 10}px` }}>{sym}</span>
+                                <span className="text-[rgb(var(--color-text-muted))] opacity-50 text-[9px]">item</span>
+                              </span>
+                            ))}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Heading divider lines ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Heading divider lines</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a subtle separator line below each heading. Also affects how sections collapse — the divider marks where each section ends.</p>
+                    </div>
+                    <button
+                      onClick={() => setNoteHeadingDivider(!noteHeadingDivider)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteHeadingDivider ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteHeadingDivider ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Spell check in notes ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Spell check</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Underline misspelled words in the notes editor</p>
+                    </div>
+                    <button
+                      onClick={() => setNoteSpellCheck(!noteSpellCheck)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteSpellCheck ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteSpellCheck ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Auto-copy on highlight ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Copy verse on highlight</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Automatically copy the verse text to clipboard when a highlight color is applied</p>
+                    </div>
+                    <button
+                      onClick={() => setAutoCopyOnHighlight(!autoCopyOnHighlight)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${autoCopyOnHighlight ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoCopyOnHighlight ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Default editor mode ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Default editor mode</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Starting view when opening a note — Raw shows all syntax, Edit hides markers while typing, View is read-only</p>
+                    </div>
+                    <div className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 gap-px flex-shrink-0">
+                      {(['raw', 'wysiwyg', 'preview'] as const).map((m) => {
+                        const labels: Record<string, string> = { raw: 'Raw', wysiwyg: 'Edit', preview: 'View' }
+                        const isActive = defaultNoteEditorMode === m
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => setDefaultNoteEditorMode(m)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer select-none ${
+                              isActive
+                                ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm'
+                                : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                            }`}
+                          >
+                            {labels[m]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ── Confirm before deleting notes ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Confirm before deleting notes</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a prompt when deleting a note that has content</p>
+                    </div>
+                    <button
+                      onClick={() => setConfirmNoteDelete(!confirmNoteDelete)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                        confirmNoteDelete ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${confirmNoteDelete ? 'translate-x-5' : ''}`} />
+                    </button>
                   </div>
 
                 </div>
@@ -979,7 +1320,7 @@ export default function SettingsModal() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Markdown vault sync</p>
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
                         Write notes to a local Markdown folder. Changes made externally are synced back. Works with Obsidian, Logseq, iA Writer, or any Markdown app.
                       </p>
                     </div>
@@ -995,7 +1336,7 @@ export default function SettingsModal() {
 
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Vault folder</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-2">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
                       Choose the root folder where Berean will read and write <span className="font-mono">.md</span> files
                     </p>
                     <div className="flex gap-2 items-center">
@@ -1030,7 +1371,7 @@ export default function SettingsModal() {
                   )}
 
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
                       Notes are always stored in Berean's internal database. The vault folder is a sync destination — Berean writes <span className="font-mono">.md</span> files there and watches for external edits. Changing the folder path does not change which notes appear in Berean.
                     </p>
                   </div>
@@ -1043,11 +1384,18 @@ export default function SettingsModal() {
 
               {section === 'youtube' && (
                 <>
+                  {/* Default YouTube layout */}
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default layout</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout when a YouTube tab opens a video</p>
+                    <YtLayoutSetting />
+                  </div>
+
                   {/* Auto PiP */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto Picture-in-Picture</p>
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
                         Float the video in PiP automatically when switching away from the YouTube space
                       </p>
                     </div>
@@ -1074,11 +1422,11 @@ export default function SettingsModal() {
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
                       Videos you've watched and where you left off.
                     </p>
                     {watchHistory.length === 0 ? (
-                      <p className="text-xs text-[rgb(var(--color-text-muted))] italic">No watch history yet.</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] italic">No watch history yet.</p>
                     ) : (() => {
                       // Group by month then day
                       const byMonth: Record<string, Record<string, typeof watchHistory>> = {}
@@ -1194,7 +1542,7 @@ export default function SettingsModal() {
                   {/* YouTube Account / Sign In */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">YouTube account</p>
-                    <p className="text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
                       Sign in to YouTube to sync your subscriptions, history, and watch-later list across sessions.
                       Your login is stored in the app's persistent YouTube session and shared with the YouTube tab.
                     </p>
@@ -1209,7 +1557,7 @@ export default function SettingsModal() {
                         </div>
                         <button
                           onClick={() => setShowYTSignIn(false)}
-                          className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+                          className="s-desc text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
                         >
                           Close
                         </button>
@@ -1233,7 +1581,7 @@ export default function SettingsModal() {
                           Sign out
                         </button>
                         {ytSignedOut && (
-                          <span className="text-xs text-[rgb(var(--color-text-muted))]">Session cleared.</span>
+                          <span className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Session cleared.</span>
                         )}
                       </div>
                     )}
@@ -1325,7 +1673,7 @@ function VaultReconcileButton() {
         {status === 'running' ? 'Scanning…' : 'Reconcile now'}
       </button>
       {status === 'done' && result && (
-        <p className="text-xs text-[rgb(var(--color-text-muted))]">
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
           {result.updated} updated · {result.skipped} unchanged
         </p>
       )}
@@ -1397,7 +1745,7 @@ function WorkspacesSection() {
     <div className="space-y-5">
       <div>
         <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Saved workspaces</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))]">
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
           Save a named snapshot of the current panel layout. Load it later to restore that arrangement. Tab contents are not restored — only the panel split configuration.
         </p>
       </div>
@@ -1423,7 +1771,7 @@ function WorkspacesSection() {
 
       {/* List */}
       {savedWorkspaces.length === 0 ? (
-        <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-4">No saved workspaces yet</p>
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] text-center py-4">No saved workspaces yet</p>
       ) : (
         <div className="space-y-1.5">
           {savedWorkspaces.map((ws) => (
@@ -1613,6 +1961,7 @@ function AboutSection() {
   const [version, setVersion] = useState('')
   const [isDev, setIsDev] = useState(false)
   const [showDevGuide, setShowDevGuide] = useState(false)
+  const [recreating, setRecreating] = useState(false)
 
   useEffect(() => {
     window.app.getVersion().then(setVersion).catch(() => {})
@@ -1621,7 +1970,6 @@ function AboutSection() {
 
   function handleReplayOnboarding() {
     closeSettings()
-    // Small delay so the settings modal closes before onboarding opens
     setTimeout(() => {
       window.settings?.set('onboardingCompleted', false).catch(() => {})
       resetTasks()
@@ -1629,12 +1977,22 @@ function AboutSection() {
     }, 200)
   }
 
+  async function handleRecreateNotes() {
+    setRecreating(true)
+    try {
+      const { createGettingStartedNotes } = await import('@/components/shell/Onboarding')
+      await createGettingStartedNotes()
+    } catch { /* non-fatal */ } finally {
+      setRecreating(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
         <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Desktop Bible study for Yehovah's servants</p>
-        <span className="text-xs text-[rgb(var(--color-text-muted))] font-mono mt-2 block">
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Desktop Bible study for Yehovah's servants</p>
+        <span className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-2 block">
           {version ? `v${version}` : '—'}{isDev ? ' (dev)' : ''}
         </span>
       </div>
@@ -1647,8 +2005,18 @@ function AboutSection() {
         <RotateCcw size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
         Replay getting started walkthrough
       </button>
+
+      {/* Recreate Getting Started notes */}
+      <button
+        onClick={handleRecreateNotes}
+        disabled={recreating}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left disabled:opacity-50"
+      >
+        <BookOpen size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+        {recreating ? 'Creating…' : 'Recreate Getting Started notes'}
+      </button>
       <div className="p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-        <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
           Texts included: KJV, KJVA (with Apocrypha), Brenton LXX, 1 Enoch, Jubilees, Apocalypse of Elijah,
           Ascension of Isaiah, Epistle of Barnabas (Sharpe 1880), Testaments of the Twelve Patriarchs,
           Recognitions of Clement, and Shepherd of Hermas — all public domain.
@@ -1738,7 +2106,7 @@ function DangerCard({ action }: { action: DangerAction }) {
       {/* Header */}
       <div className="px-4 py-3 bg-red-500/8 border-b border-red-500/20">
         <p className="text-sm font-semibold text-red-400">{action.title}</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5">{action.description}</p>
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">{action.description}</p>
       </div>
       {/* Confirmation input + button */}
       <div className="px-4 py-3 bg-[rgb(var(--color-surface-3))] flex items-center gap-3">
@@ -1828,7 +2196,7 @@ function DangerSection() {
     <div className="space-y-5">
       <div>
         <p className="text-sm font-semibold text-red-400 mb-0.5">Danger zone</p>
-        <p className="text-xs text-[rgb(var(--color-text-muted))]">
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
           These actions are permanent and cannot be undone. Each action requires you to type a confirmation word before the button activates.
         </p>
       </div>
