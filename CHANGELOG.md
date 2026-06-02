@@ -8,15 +8,30 @@ Format: `## [version] — YYYY-MM-DD` with bullet points below each entry.
   RELEASE WORKFLOW — for Michael's reference (not shown to users)
 ════════════════════════════════════════════════════════════════
 
-STEP 1 — Move items from [Unreleased] into a new version block in this file.
-STEP 2 — Run the tag command. It checks the tree is clean, shows you the
-         version change, and asks for confirmation before tagging.
+FULL STABLE RELEASE STEPS
+─────────────────────────
+1. Edit this file — move [Unreleased] bullet points into a new version block:
+      ## [0.2.9] — 2026-06-15
+      - what changed
 
-  npm run tag:stable    # finalises current version as a stable release
-  npm run tag:beta      # cuts a new beta build
+2. Bump version in package.json to match (e.g. "0.2.9").
+   tag:stable uses whatever package.json says — they must agree.
 
-After tagging, GitHub Actions builds Mac + Windows in ~10 min and publishes
+3. Commit both files together (tree must be clean before tagging):
+      git add CHANGELOG.md package.json
+      git commit -m "chore: release 0.2.9"
+
+4. Tag and push:
+      npm run tag:stable
+
+GitHub Actions then builds Mac DMG + Windows NSIS (~10 min) and publishes
 to GitHub Releases. The download page updates automatically.
+
+BETA STEPS (no manual version bump needed)
+───────────────────────────────────────────
+  npm run tag:beta    ← bumps patch, appends -beta.1, commits, tags, pushes
+  (repeat for more betas — each call increments the beta number)
+  npm run tag:stable  ← after committing changelog, strips suffix and ships
 
 ────────────────────────────────────────────────────────────────
 SCENARIO 1 — Feature release: beta testing then ship
@@ -93,7 +108,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.2.8] - 2026-06-01
 
 - Getting Started folder: 10 linked guide notes created on onboarding
 - Settings → Updates: beta channel toggle, GitHub Pages link, cleaner MAS build UI
@@ -101,10 +116,18 @@ SCENARIO 5 — Abandon a beta series and restart
 - Windows: native OS window chrome (title bar on right), platform-conditional traffic light spacer
 - GitHub Actions CI: automated Mac + Windows builds on version tag push
 - GitHub Pages: download landing page with dynamic release version detection
+- Added escape character `\` to disable markdown when needed
+
+Bug Fixes:
+- Fixed markdown not working in tables
+- Fixed scroll position retaining when going to different notes
+- Fixed system them auto-switcher
+- Fixed advanced scripture tab opening existing tab instead of a new tab
+- Fixed edit view of note showing raw markdown
 
 ---
 
-## [0.2.7] — 2026-06-01
+## [0.2.7] - 2026-06-01
 
 - Full Berean app — Bible reader, notes, lexicon, YouTube, search, MAS build config
 - Notes: WYSIWYG markdown editor with live rendering (CodeMirror 6)
