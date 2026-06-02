@@ -14,24 +14,21 @@ FULL STABLE RELEASE STEPS
       ## [0.2.9] — 2026-06-15
       - what changed
 
-2. Bump version in package.json to match (e.g. "0.2.9").
-   tag:stable uses whatever package.json says — they must agree.
-
-3. Commit both files together (tree must be clean before tagging):
-      git add CHANGELOG.md package.json
-      git commit -m "chore: release 0.2.9"
-
-4. Tag and push:
+2. Run the tag command — it will prompt for the version number,
+   then commit CHANGELOG.md + package.json together and push the tag:
       npm run tag:stable
+
+   At the prompt, type the version you want (e.g. 0.2.9) or press Enter
+   to accept the suggestion. No need to edit package.json manually.
 
 GitHub Actions then builds Mac DMG + Windows NSIS (~10 min) and publishes
 to GitHub Releases. The download page updates automatically.
 
-BETA STEPS (no manual version bump needed)
+BETA STEPS (no manual steps needed at all)
 ───────────────────────────────────────────
-  npm run tag:beta    ← bumps patch, appends -beta.1, commits, tags, pushes
-  (repeat for more betas — each call increments the beta number)
-  npm run tag:stable  ← after committing changelog, strips suffix and ships
+  npm run tag:beta    ← auto-bumps version, commits, tags, pushes
+  (repeat — each call increments the beta number: beta.1 → beta.2 → …)
+  npm run tag:stable  ← edit changelog first, then run — handles everything
 
 ────────────────────────────────────────────────────────────────
 SCENARIO 1 — Feature release: beta testing then ship
