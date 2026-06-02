@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -25,6 +25,12 @@ jobs:
 
       - name: Rebuild native modules for Electron
         run: npm run rebuild
+
+      - name: Create YouTube API key file
+        shell: bash
+        env:
+          YT_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: echo "export const YOUTUBE_API_KEY = '${YT_KEY}'" > electron/youtube-key.ts
 
       - name: Build renderer + main
         run: npm run build
@@ -46,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -54,6 +60,30 @@ jobs:
 
       - name: Rebuild native modules for Electron
         run: npm run rebuild
+
+      - name: Create YouTube API key file
+        shell: bash
+        env:
+          YT_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: echo "export const YOUTUBE_API_KEY = '${YT_KEY}'" > electron/youtube-key.ts
+
+      - name: Generate Windows icon (fallback if icon.ico is missing)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "assets/icon.ico")) {
+            Write-Host "icon.ico not found, generating from icon.png..."
+            Add-Type -AssemblyName System.Drawing
+            $img = [System.Drawing.Image]::FromFile((Resolve-Path "assets/icon.png").Path)
+            $ico = [System.Drawing.Icon]::FromHandle($img.GetHicon())
+            $fs = [System.IO.File]::OpenWrite("assets/icon.ico")
+            $ico.Save($fs)
+            $fs.Close()
+            $ico.Dispose()
+            $img.Dispose()
+            Write-Host "icon.ico generated"
+          } else {
+            Write-Host "icon.ico already present"
+          }
 
       - name: Build renderer + main
         run: npm run build
