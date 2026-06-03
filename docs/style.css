@@ -186,24 +186,6 @@ nav {
   margin-top: 0.5rem;
 }
 
-.gatekeeper-note {
-  font-size: 0.75rem;
-  color: var(--text-3);
-  margin-top: 1.1rem;
-  max-width: 520px;
-  margin-left: auto;
-  margin-right: auto;
-  line-height: 1.65;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 1rem;
-  background: var(--bg-3);
-  text-align: left;
-}
-
-.gatekeeper-note strong { color: var(--text-2); font-weight: 600; }
-.gatekeeper-note em { font-style: normal; color: var(--text-2); font-weight: 500; }
-
 /* ── Beta section ──────────────────────────────────────────────────────────── */
 .beta-section {
   margin-top: 1rem;

@@ -43,6 +43,7 @@
     "@codemirror/view": "^6.26.3",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@electron/notarize": "^3.1.1",
     "@electron/rebuild": "^3.6.0",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-tooltip": "^1.0.7",
@@ -72,6 +73,7 @@
     "appId": "com.berean.app",
     "productName": "Berean",
     "afterPack": "build/afterPack.js",
+    "afterSign": "build/notarize.js",
     "directories": {
       "output": "release"
     },
@@ -111,9 +113,10 @@
       ],
       "category": "public.app-category.reference",
       "icon": "assets/icon.icns",
-      "identity": null,
-      "hardenedRuntime": false,
-      "gatekeeperAssess": false
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "mas": {
       "target": [

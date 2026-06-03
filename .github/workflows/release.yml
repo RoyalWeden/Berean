@@ -44,18 +44,16 @@ jobs:
       - name: Build renderer + main
         run: npm run build
 
-      - name: Package macOS DMG
+      - name: Package macOS DMG (sign + notarize)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Explicitly disable signing — no Developer ID cert available.
-          # Without this, electron-builder does an ad-hoc signature with
-          # hardenedRuntime entitlements, which macOS 13+ Gatekeeper treats
-          # as "damaged and can't be opened". A fully unsigned app instead
-          # shows the right-click → Open / Privacy & Security bypass path.
-          # Re-enable by uncommenting CSC_LINK/CSC_KEY_PASSWORD when a cert is ready.
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          # CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # Developer ID Application certificate (base64-encoded .p12 + password)
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # Apple notarization credentials (app-specific password from appleid.apple.com)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           npx electron-builder --mac dmg --publish always
 
