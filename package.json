@@ -21,7 +21,8 @@
     "build:mac:x64": "npm run build && electron-builder --mac --config.mac.target.arch=x64 --publish never",
     "tag:stable": "node scripts/tag-release.js stable",
     "tag:beta": "node scripts/tag-release.js beta",
-    "convert-dbs": "node scripts/convert-dbs.js"
+    "convert-dbs": "node scripts/convert-dbs.js",
+    "data:publish": "node scripts/publish-data.js"
   },
   "dependencies": {
     "@codemirror/language": "^6.12.3",
@@ -147,8 +148,7 @@
         {
           "target": "nsis",
           "arch": [
-            "x64",
-            "arm64"
+            "x64"
           ]
         }
       ],

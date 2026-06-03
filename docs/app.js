@@ -23,9 +23,13 @@ async function loadReleases() {
 
     const releases = await res.json()
 
+    // Only consider app releases (tag like v1.2.3) — excludes the data-v1
+    // bundle release that hosts the database assets for CI.
+    const appReleases = releases.filter(r => /^v\d/.test(r.tag_name))
+
     // Separate stable and pre-release
-    const stable = releases.find(r => !r.prerelease && !r.draft)
-    const beta   = releases.find(r =>  r.prerelease && !r.draft)
+    const stable = appReleases.find(r => !r.prerelease && !r.draft)
+    const beta   = appReleases.find(r =>  r.prerelease && !r.draft)
 
     if (!stable) {
       showFallback(grid)

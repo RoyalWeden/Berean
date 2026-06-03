@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download Bible/lexicon databases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download data-v1 --dir data --pattern "*.db" --clobber
+
       - name: Convert databases to DELETE journal mode
         run: node scripts/convert-dbs.js
 
@@ -60,6 +66,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Download Bible/lexicon databases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download data-v1 --dir data --pattern "*.db" --clobber
 
       - name: Convert databases to DELETE journal mode
         run: node scripts/convert-dbs.js
