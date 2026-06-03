@@ -266,13 +266,42 @@ export default function App() {
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
   useEffect(() => {
-    // IPC path (authoritative in Electron — nativeTheme fires on OS change)
-    window.app?.onNativeThemeChanged?.((isDark) => setSystemIsDark(isDark))
-    // matchMedia path (fallback for dev / non-Electron environments)
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+
+    function applyDark(isDark: boolean) {
+      setSystemIsDark((prev) => (prev === isDark ? prev : isDark))
+    }
+
+    // 1. IPC path — authoritative Electron signal from nativeTheme.on('updated')
+    window.app?.onNativeThemeChanged?.((isDark) => applyDark(isDark))
+
+    // 2. matchMedia change event — catches dev/non-Electron environments
+    const mqHandler = (e: MediaQueryListEvent) => applyDark(e.matches)
+    mq.addEventListener('change', mqHandler)
+
+    // 3. Polling fallback — Electron's nativeTheme event and matchMedia 'change'
+    //    can both be delayed by up to several seconds on macOS. Polling matchMedia
+    //    at 250ms guarantees the theme snaps within a quarter-second of the OS change.
+    let lastPoll = mq.matches
+    const pollId = setInterval(() => {
+      const current = mq.matches
+      if (current !== lastPoll) {
+        lastPoll = current
+        applyDark(current)
+      }
+    }, 250)
+
+    // 4. Focus sync — when the window regains focus after the user has been in
+    //    System Preferences or another app, re-read immediately so the theme is
+    //    already correct before any polling tick fires.
+    const focusHandler = () => applyDark(mq.matches)
+    window.addEventListener('focus', focusHandler)
+
+    return () => {
+      mq.removeEventListener('change', mqHandler)
+      clearInterval(pollId)
+      window.removeEventListener('focus', focusHandler)
+    }
   }, [])
 
   // Sync theme class on <html>; 'system' follows the OS preference
