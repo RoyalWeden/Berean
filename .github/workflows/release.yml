@@ -47,7 +47,13 @@ jobs:
       - name: Package macOS DMG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing — set these secrets if you have a Developer ID cert
+          # Explicitly disable signing — no Developer ID cert available.
+          # Without this, electron-builder does an ad-hoc signature with
+          # hardenedRuntime entitlements, which macOS 13+ Gatekeeper treats
+          # as "damaged and can't be opened". A fully unsigned app instead
+          # shows the right-click → Open / Privacy & Security bypass path.
+          # Re-enable by uncommenting CSC_LINK/CSC_KEY_PASSWORD when a cert is ready.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
           # CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
           # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
         run: |

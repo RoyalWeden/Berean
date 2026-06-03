@@ -13,6 +13,7 @@
     <span class="nav-logo">Berean</span>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
       <a href="#download">Download</a>
       <a href="https://github.com/RoyalWeden/Berean" target="_blank" rel="noopener">GitHub</a>
       <a href="privacy.html">Privacy</a>
@@ -44,6 +45,13 @@
         <p class="download-note" id="download-note"></p>
       </div>
 
+      <!-- macOS first-launch note -->
+      <p class="gatekeeper-note">
+        <strong>macOS first launch:</strong> right-click the app → <em>Open</em> → <em>Open</em> in the dialog,
+        or go to System Settings → Privacy &amp; Security → <em>Open Anyway</em>.
+        This is a one-time step while the app is unsigned.
+      </p>
+
       <!-- Beta section -->
       <div class="beta-section" id="beta-section" style="display:none">
         <button class="beta-toggle" id="beta-toggle" onclick="toggleBeta()">
@@ -53,6 +61,62 @@
           <p class="beta-note">Beta builds include new features that are still being tested. They may contain bugs.</p>
           <div class="download-grid" id="beta-grid"></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Screenshots ──────────────────────────────────────────────────────── -->
+  <section class="screenshots" id="screenshots">
+    <div class="screenshots-inner">
+      <h2>See it in action</h2>
+      <p class="screenshots-sub">macOS · Windows support coming</p>
+
+      <div class="ss-tabs" role="tablist">
+        <button class="ss-tab active" role="tab" aria-selected="true"
+          data-img="screenshots/bible-reader.png"
+          data-caption="Scripture Reader — verse action popover with inline highlights and color picker">
+          Scripture Reader
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/lexicon.png"
+          data-caption="Strong's Lexicon — full BDB/BDAG entry for G5485 (χάρις) with every occurrence in Scripture">
+          Lexicon
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/compare.png"
+          data-caption="Verse Compare — side-by-side Isaiah with keyword search highlighting across both panels">
+          Compare
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/crossrefs.png"
+          data-caption="Cross-References — Isaiah 52 with the cross-ref panel open showing linked passages">
+          Cross-Refs
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/strongs.png"
+          data-caption="Inline Strong's — hover any Strong's chip to see the original word, transliteration, and gloss">
+          Strong's
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/youtube.png"
+          data-caption="YouTube Study — embedded browser with your channel allowlist, auto PiP, and timestamp note insertion">
+          YouTube
+        </button>
+        <button class="ss-tab" role="tab" aria-selected="false"
+          data-img="screenshots/settings.png"
+          data-caption="Themes &amp; Settings — dark, light, system, or one of 15 preset color themes">
+          Themes
+        </button>
+      </div>
+
+      <div class="ss-display">
+        <img
+          id="ss-image"
+          src="screenshots/bible-reader.png"
+          alt="Berean screenshot"
+          loading="lazy"
+        />
+        <p id="ss-caption" class="ss-caption">Scripture Reader — verse action popover with inline highlights and color picker</p>
       </div>
     </div>
   </section>
@@ -125,5 +189,27 @@
   </footer>
 
   <script src="app.js"></script>
+  <script>
+    // ── Screenshot tab switcher ───────────────────────────────────────────────
+    document.querySelectorAll('.ss-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.ss-tab').forEach(function(b) {
+          b.classList.remove('active')
+          b.setAttribute('aria-selected', 'false')
+        })
+        btn.classList.add('active')
+        btn.setAttribute('aria-selected', 'true')
+        var img = document.getElementById('ss-image')
+        var cap = document.getElementById('ss-caption')
+        img.style.opacity = '0'
+        setTimeout(function() {
+          img.src = btn.dataset.img
+          img.alt = btn.textContent.trim() + ' screenshot'
+          cap.textContent = btn.dataset.caption
+          img.style.opacity = '1'
+        }, 120)
+      })
+    })
+  </script>
 </body>
 </html>
