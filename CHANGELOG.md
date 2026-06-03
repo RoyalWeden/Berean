@@ -105,7 +105,14 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.2.13] - 2026-06-02
+## [0.3.1] - 2026-06-02
+
+Bug Fixes:
+- Fixed Mac build
+
+---
+
+## [0.3.0] - 2026-06-02
 
 Bug Fixes:
 - Mac app opens
