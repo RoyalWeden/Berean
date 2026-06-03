@@ -4,7 +4,9 @@ import { useAppStore } from '@/store'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
+import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { LexiconEntry } from '@/types'
+import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; matchWordIndices?: number[] }
 
@@ -168,6 +170,7 @@ function EntryView({
   scrollRef,
   onScroll,
   floating = false,
+  wordReplacerRules = [],
 }: {
   entry: LexiconEntry
   backLabel: string
@@ -183,7 +186,10 @@ function EntryView({
   scrollRef?: React.Ref<HTMLDivElement>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   floating?: boolean
+  wordReplacerRules?: WordReplacerRule[]
 }) {
+  // Helper: apply word replacer if rules are present
+  const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
   const [adjacent, setAdjacent] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
@@ -299,9 +305,10 @@ function EntryView({
           <div className="text-sm text-[rgb(var(--color-text-primary))] font-medium bg-[rgb(var(--color-surface-4))] px-3 py-2 rounded-lg">
             {(() => {
               const isUnrepresented = entry.gloss.toLowerCase().includes('unrepresented in english')
-              const displayGloss = isUnrepresented
+              const rawGloss = isUnrepresented
                 ? `Untranslated particle (${entry.strongsNum}) — marks the definite direct object in Hebrew; has no English equivalent and is not rendered in translation`
                 : entry.gloss
+              const displayGloss = wr(rawGloss)
               return findQuery ? applyFindHighlight(displayGloss, findQuery) : displayGloss
             })()}
           </div>
@@ -311,7 +318,7 @@ function EntryView({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Definition</p>
             <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">
-              {findQuery ? applyFindHighlight(entry.definition, findQuery) : entry.definition}
+              {(() => { const t = wr(entry.definition); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
             </p>
           </div>
         )}
@@ -320,7 +327,7 @@ function EntryView({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Derivation</p>
             <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed italic">
-              <DerivationText text={entry.derivation} onNav={onNav} />
+              <DerivationText text={wr(entry.derivation)} onNav={onNav} />
             </p>
           </div>
         )}
@@ -331,7 +338,7 @@ function EntryView({
               {entry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
             </p>
             <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-              {findQuery ? applyFindHighlight(entry.extendedDef, findQuery) : entry.extendedDef}
+              {(() => { const t = wr(entry.extendedDef); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
             </p>
           </div>
         )}
@@ -403,7 +410,7 @@ function EntryView({
                     </div>
                     <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed mt-0.5">
                       {occ.text
-                        ? <VerseWithMatchedWords text={occ.text} matchWordIndices={occ.matchWordIndices} />
+                        ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
                         : <span className="italic text-[rgb(var(--color-text-muted))]">—</span>
                       }
                     </p>
@@ -439,7 +446,8 @@ function EntryView({
   )
 }
 
-function SearchView({ onSelect, findQuery, onFindOpen, floating = false }: { onSelect: (entry: LexiconEntry) => void; findQuery?: string; onFindOpen?: () => void; floating?: boolean }) {
+function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordReplacerRules = [] }: { onSelect: (entry: LexiconEntry) => void; findQuery?: string; onFindOpen?: () => void; floating?: boolean; wordReplacerRules?: WordReplacerRule[] }) {
+  const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   const [query, setQuery] = useState('')
   const [lang, setLang] = useState<'H' | 'G' | 'all'>('all')
   const [infoOpen, setInfoOpen] = useState(false)
@@ -554,7 +562,7 @@ function SearchView({ onSelect, findQuery, onFindOpen, floating = false }: { onS
                     )}
                   </div>
                   <p className="text-xs text-[rgb(var(--color-text-secondary))] truncate">
-                    {findQuery ? applyFindHighlight(entry.gloss, findQuery) : entry.gloss}
+                    {(() => { const t = wr(entry.gloss); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
                   </p>
                 </div>
               </button>
@@ -581,6 +589,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const setLexiconNoteBack = useAppStore((s) => s.setLexiconNoteBack)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const ensureTab = useAppStore((s) => s.ensureTab)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const activeWordReplacerRules = wordReplacerEnabled && wordReplacerRules.length > 0 ? wordReplacerRules : []
 
   // ── Find bar — local state, per-panel routing ─────────────────────────────
   // App.tsx dispatches 'berean:openLexiconFindBar' when Cmd+F is pressed while
@@ -812,6 +823,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
           onNavigateToVerse={navToVerse}
           scrollRef={entryScrollRef}
           floating={floating}
+          wordReplacerRules={activeWordReplacerRules}
           onScroll={(e) => {
             const el = e.currentTarget
             if (lexScrollSaveTimer.current) clearTimeout(lexScrollSaveTimer.current)
@@ -825,6 +837,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
           onSelect={(entry) => { setHistory([]); setActiveEntry(entry) }}
           findQuery={activeFindQuery}
           floating={floating}
+          wordReplacerRules={activeWordReplacerRules}
         />
       )}
     </div>

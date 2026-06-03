@@ -103,6 +103,20 @@ SCENARIO 5 — Abandon a beta series and restart
 ════════════════════════════════════════════════════════════════
 -->
 
+
+---
+
+## [0.2.13] - 2026-06-02
+
+- Word replacer works in lexicon
+
+---
+
+## [0.2.12] - 2026-06-02
+
+Bug Fixes:
+- Fixed Windows show bible/lexicon data
+
 ---
 
 ## [0.2.11] - 2026-06-02

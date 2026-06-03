@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
+import { applyWordReplacer } from '@/lib/wordReplacer'
 
 interface StrongsTooltipProps {
   children: React.ReactNode
@@ -12,6 +13,9 @@ interface StrongsTooltipProps {
 export default function StrongsTooltip({ children, strongsNum, onClickEntry }: StrongsTooltipProps) {
   const [entry, setEntry] = useState<LexiconEntry | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const wr = (t: string) => wordReplacerEnabled && wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
 
   const handleOpenChange = useCallback((open: boolean) => {
     if (open) {
@@ -58,7 +62,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry }: S
                   )}
                 </div>
                 {entry.gloss && (
-                  <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-snug">{entry.gloss}</p>
+                  <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-snug">{wr(entry.gloss)}</p>
                 )}
               </div>
             ) : (
