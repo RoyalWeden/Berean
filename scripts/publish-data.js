@@ -44,32 +44,49 @@ for (const f of dbFiles) {
   console.log(`  ${f.split('/').pop()}  (${mb} MB)`)
 }
 
-// 3. Create the release if missing, otherwise upload with --clobber
+// 3. Create/refresh the release.
+//
+// CRITICAL: the release MUST be a DRAFT. electron-updater scans all *published*
+// GitHub releases (including prereleases on the beta channel) to find the latest
+// app version. A published data-v1 gets mistaken for an app release and the
+// updater 404s looking for latest.yml inside it. Draft releases are invisible to
+// electron-updater but still downloadable in CI via the authenticated token.
+// GitHub does NOT allow converting a published release back to a draft, so if an
+// existing data-v1 is published we delete and recreate it as a draft.
+const notes = 'Database assets (Bible texts, lexicons, cross-references, YouTube seed) ' +
+  'downloaded automatically by CI builds. Kept as a DRAFT so the in-app updater ' +
+  'ignores it. Install Berean from the latest v* release instead.'
+
 let exists = false
+let isDraft = false
 try {
-  execSync(`gh release view ${TAG}`, { stdio: 'ignore' })
+  const out = execSync(`gh release view ${TAG} --json isDraft`, { encoding: 'utf8' })
   exists = true
+  isDraft = JSON.parse(out).isDraft === true
 } catch { /* not found */ }
 
-const notes = 'Database assets (Bible texts, lexicons, cross-references, YouTube seed) ' +
-  'downloaded automatically by CI builds. Not intended for direct download — ' +
-  'install Berean from the latest v* release instead.'
-
-if (!exists) {
-  console.log(`[data:publish] creating release ${TAG}…`)
+function createDraft() {
+  console.log(`[data:publish] creating DRAFT release ${TAG}…`)
   execFileSync('gh', [
     'release', 'create', TAG,
+    '--draft',
     '--title', 'Berean data bundle (CI use)',
     '--notes', notes,
     ...dbFiles,
   ], { stdio: 'inherit' })
-} else {
-  console.log(`[data:publish] release ${TAG} exists — uploading with --clobber…`)
-  execFileSync('gh', [
-    'release', 'upload', TAG, '--clobber',
-    ...dbFiles,
-  ], { stdio: 'inherit' })
 }
 
-console.log(`\n[data:publish] ✓ done — assets live at the ${TAG} release`)
-console.log('CI builds will now download these before packaging.')
+if (!exists) {
+  createDraft()
+} else if (isDraft) {
+  console.log(`[data:publish] draft release ${TAG} exists — uploading with --clobber…`)
+  execFileSync('gh', ['release', 'upload', TAG, '--clobber', ...dbFiles], { stdio: 'inherit' })
+} else {
+  // Published release found — must recreate as draft so the updater ignores it.
+  console.log(`[data:publish] ${TAG} is published (breaks auto-updater) — deleting and recreating as draft…`)
+  execSync(`gh release delete ${TAG} --yes --cleanup-tag`, { stdio: 'inherit' })
+  createDraft()
+}
+
+console.log(`\n[data:publish] ✓ done — assets live at the ${TAG} DRAFT release`)
+console.log('CI builds download these before packaging; the in-app updater ignores drafts.')
