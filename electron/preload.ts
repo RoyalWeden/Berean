@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('app', {
   openFloatingTab: (type: string, state: unknown) => ipcRenderer.invoke('app:openFloatingTab', type, state),
   // Print / export a rendered note (full HTML document string)
   printNote: (html: string) => ipcRenderer.invoke('app:printNote', html),
-  exportNotePDF: (html: string, suggestedName: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName),
+  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName, downloadLocation ?? ''),
   // Cross-window tab sync
   broadcastTabState: (payload: unknown) => ipcRenderer.send('app:broadcastTabState', payload),
   onTabStateUpdate: (cb: (payload: unknown) => void) => {

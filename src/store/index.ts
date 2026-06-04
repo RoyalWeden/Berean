@@ -181,6 +181,26 @@ export interface AppState {
   setWordReplacerRules: (rules: WordReplacerRule[]) => void
   toggleWordReplacerRule: (id: string) => void
 
+  // Print & Export settings
+  printMarginPreset: 'none' | 'narrow' | 'normal' | 'wide'
+  printMarginCustomIn: number
+  printPaperSize: 'letter' | 'a4' | 'legal'
+  printFontSizePt: number
+  printFontFamily: 'system' | 'serif' | 'sansserif'
+  printIncludeTitle: boolean
+  printColorMode: 'color' | 'grayscale'
+  printTheme: 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night'
+  pdfDownloadLocation: string  // '' = prompt each time
+  setPrintTheme: (v: 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night') => void
+  setPrintMarginPreset: (v: 'none' | 'narrow' | 'normal' | 'wide') => void
+  setPrintMarginCustomIn: (v: number) => void
+  setPrintPaperSize: (v: 'letter' | 'a4' | 'legal') => void
+  setPrintFontSizePt: (v: number) => void
+  setPrintFontFamily: (v: 'system' | 'serif' | 'sansserif') => void
+  setPrintIncludeTitle: (v: boolean) => void
+  setPrintColorMode: (v: 'color' | 'grayscale') => void
+  setPdfDownloadLocation: (v: string) => void
+
   // Note editor preferences
   defaultNoteEditorMode: 'raw' | 'wysiwyg' | 'preview'
   setDefaultNoteEditorMode: (m: 'raw' | 'wysiwyg' | 'preview') => void
@@ -577,6 +597,17 @@ export const useAppStore = create<AppState>()(
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
       noteScriptureBlockThreshold: 0.9,
+      // Print & Export defaults
+      printMarginPreset: 'normal' as const,
+      printMarginCustomIn: 1,
+      printPaperSize: 'letter' as const,
+      printFontSizePt: 12,
+      printFontFamily: 'system' as const,
+      printIncludeTitle: true,
+      printColorMode: 'color' as const,
+      printTheme: 'classic' as const,
+      pdfDownloadLocation: '',
+
       defaultNoteEditorMode: 'wysiwyg' as const,
       confirmNoteDelete: false,
       noteSpellCheck: true,
@@ -1001,6 +1032,17 @@ export const useAppStore = create<AppState>()(
         })
       },
 
+      // Print & Export setters
+      setPrintMarginPreset: (v) => set({ printMarginPreset: v }),
+      setPrintMarginCustomIn: (v) => set({ printMarginCustomIn: v }),
+      setPrintPaperSize: (v) => set({ printPaperSize: v }),
+      setPrintFontSizePt: (v) => set({ printFontSizePt: v }),
+      setPrintFontFamily: (v) => set({ printFontFamily: v }),
+      setPrintIncludeTitle: (v) => set({ printIncludeTitle: v }),
+      setPrintColorMode: (v) => set({ printColorMode: v }),
+      setPrintTheme: (v) => set({ printTheme: v }),
+      setPdfDownloadLocation: (v) => set({ pdfDownloadLocation: v }),
+
       setNoteVerseRefsEnabled: (v) => set({ noteVerseRefsEnabled: v }),
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
@@ -1114,6 +1156,16 @@ export const useAppStore = create<AppState>()(
         tasksMinimized: state.tasksMinimized,
         completedTaskIds: state.completedTaskIds,
         completedStepIds: state.completedStepIds,
+        // Print & Export settings
+        printMarginPreset: state.printMarginPreset,
+        printMarginCustomIn: state.printMarginCustomIn,
+        printPaperSize: state.printPaperSize,
+        printFontSizePt: state.printFontSizePt,
+        printFontFamily: state.printFontFamily,
+        printIncludeTitle: state.printIncludeTitle,
+        printColorMode: state.printColorMode,
+        printTheme: state.printTheme,
+        pdfDownloadLocation: state.pdfDownloadLocation,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

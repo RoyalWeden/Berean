@@ -105,7 +105,20 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.4] - 2026-06-03
+
+- Ability to use special characters in note names
+- Print and download settings
+- Default download setting
+
+Bug Fixes:
+- Fixed download and print view
+
+---
+
 ## [0.3.3] - 2026-06-03
+
+- Changelog now visible on website
 
 Bug Fixes:
 - Fixed download and print view

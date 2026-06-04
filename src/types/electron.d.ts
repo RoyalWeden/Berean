@@ -165,7 +165,7 @@ interface AppAPI {
   newWindow: () => Promise<void>
   openFloatingTab: (type: string, state: unknown) => Promise<void>
   printNote: (html: string) => Promise<{ success: boolean }>
-  exportNotePDF: (html: string, suggestedName: string) => Promise<{ success: boolean; canceled?: boolean }>
+  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => Promise<{ success: boolean; canceled?: boolean }>
   broadcastTabState: (payload: unknown) => void
   onTabStateUpdate: (cb: (payload: unknown) => void) => void
   returnFloatTab: (payload: { type: string; state: Record<string, unknown> }) => void

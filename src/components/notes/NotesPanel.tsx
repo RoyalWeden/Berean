@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine } from 'lucide-react'
 import NotesList from './NotesList'
-import NoteEditor, { buildPrintHTML } from './NoteEditor'
+import NoteEditor from './NoteEditor'
+import PrintPreviewModal from './PrintPreviewModal'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
@@ -61,6 +62,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // App.tsx dispatches 'berean:openNotesFindBar' when Cmd+F is pressed while this
   // panel was the last-focused panel (tracked via activePanelId in the store).
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
+  // Print preview modal
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false)
   const notesContentRef = useRef<HTMLDivElement>(null)
   const activeNoteRef = useRef<Note | null>(null)
   const [localFindOpen, setLocalFindOpen] = useState(false)
@@ -748,15 +751,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               ))}
             </div>
             <button
-              onClick={() => { if (activeNote) window.app.printNote(buildPrintHTML(activeNote.title || 'Untitled', activeNote.content)).catch(() => {}) }}
-              title="Print note"
+              onClick={() => { if (activeNote) setPrintPreviewOpen(true) }}
+              title="Print / export note (preview)"
               className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
             >
               <Printer size={15} />
             </button>
             <button
-              onClick={() => { if (activeNote) window.app.exportNotePDF(buildPrintHTML(activeNote.title || 'Untitled', activeNote.content), activeNote.title || 'note').catch(() => {}) }}
-              title="Export note as PDF"
+              onClick={() => { if (activeNote) setPrintPreviewOpen(true) }}
+              title="Export note as PDF (preview)"
               className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
             >
               <FileDown size={15} />
@@ -1127,6 +1130,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           </>
         )}
       </div>
+
+      {printPreviewOpen && activeNote && (
+        <PrintPreviewModal
+          title={activeNote.title || 'Untitled'}
+          content={activeNote.content}
+          onClose={() => setPrintPreviewOpen(false)}
+        />
+      )}
     </div>
   )
 }

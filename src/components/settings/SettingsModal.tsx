@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword, Printer, Eye } from 'lucide-react'
+import { buildPrintHTML, PRINT_THEMES } from '@/components/notes/NoteEditor'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import { YOUTUBE_LAYOUTS } from '@/lib/youtubeLayouts'
@@ -504,7 +505,244 @@ function UpdatesSection() {
   )
 }
 
-type Section = 'appearance' | 'display' | 'notes' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
+// ── Print & Export settings ──────────────────────────────────────────────────
+const PRINT_PRESETS: { id: 'compact' | 'standard' | 'spacious' | 'manuscript'; label: string; desc: string;
+  margin: 'none' | 'narrow' | 'normal' | 'wide'; fontSize: number; fontFamily: 'system' | 'serif' | 'sansserif' }[] = [
+  { id: 'compact',    label: 'Compact',    desc: 'Narrow margins, 10pt sans — fit more per page', margin: 'narrow', fontSize: 10, fontFamily: 'sansserif' },
+  { id: 'standard',   label: 'Standard',   desc: 'Normal margins, 12pt system font',               margin: 'normal', fontSize: 12, fontFamily: 'system' },
+  { id: 'spacious',   label: 'Spacious',   desc: 'Wide margins, 13pt — easy reading',              margin: 'wide',   fontSize: 13, fontFamily: 'system' },
+  { id: 'manuscript', label: 'Manuscript', desc: 'Wide margins, 13pt serif — study printout',      margin: 'wide',   fontSize: 13, fontFamily: 'serif' },
+]
+
+function PrintExportSection() {
+  const printMarginPreset    = useAppStore((s) => s.printMarginPreset)
+  const printFontSizePt      = useAppStore((s) => s.printFontSizePt)
+  const printFontFamily      = useAppStore((s) => s.printFontFamily)
+  const printPaperSize       = useAppStore((s) => s.printPaperSize)
+  const printIncludeTitle    = useAppStore((s) => s.printIncludeTitle)
+  const printColorMode       = useAppStore((s) => s.printColorMode)
+  const printTheme           = useAppStore((s) => s.printTheme)
+  const pdfDownloadLocation  = useAppStore((s) => s.pdfDownloadLocation)
+  const setPrintMarginPreset = useAppStore((s) => s.setPrintMarginPreset)
+  const setPrintFontSizePt   = useAppStore((s) => s.setPrintFontSizePt)
+  const setPrintFontFamily   = useAppStore((s) => s.setPrintFontFamily)
+  const setPrintPaperSize    = useAppStore((s) => s.setPrintPaperSize)
+  const setPrintIncludeTitle = useAppStore((s) => s.setPrintIncludeTitle)
+  const setPrintColorMode    = useAppStore((s) => s.setPrintColorMode)
+  const setPrintTheme        = useAppStore((s) => s.setPrintTheme)
+  const setPdfDownloadLocation = useAppStore((s) => s.setPdfDownloadLocation)
+
+  // Which preset (if any) matches the current granular settings
+  const activePreset = PRINT_PRESETS.find(p =>
+    p.margin === printMarginPreset && p.fontSize === printFontSizePt && p.fontFamily === printFontFamily
+  )
+
+  function applyPreset(p: typeof PRINT_PRESETS[number]) {
+    setPrintMarginPreset(p.margin)
+    setPrintFontSizePt(p.fontSize)
+    setPrintFontFamily(p.fontFamily)
+  }
+
+  const SAMPLE = `# Sample Note
+
+Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
+
+- A *formatted* list item
+- [x] A completed task
+
+> [!NOTE] Callout
+> Keep the **Sabbath** holy.`
+
+  const previewHtml = buildPrintHTML('Sample Note', SAMPLE, {
+    theme: printTheme, marginPreset: printMarginPreset, fontSize: printFontSizePt,
+    fontFamily: printFontFamily, includeTitle: printIncludeTitle, colorMode: printColorMode,
+  })
+
+  const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
+  const segBtn = (active: boolean) =>
+    `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
+      ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
+      : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <Printer size={14} className="text-[rgb(var(--color-text-muted))]" />
+        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Print &amp; Export</p>
+      </div>
+      <p className="text-xs text-[rgb(var(--color-text-muted))] -mt-3">
+        Controls how notes look when printed or exported to PDF. Applies to the Print and Export-PDF buttons in the notes editor.
+      </p>
+
+      {/* Presets */}
+      <div>
+        <p className={labelCls}>Presets</p>
+        <div className="grid grid-cols-2 gap-2">
+          {PRINT_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => applyPreset(p)}
+              className={`text-left px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
+                activePreset?.id === p.id
+                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                  : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] hover:border-[rgb(var(--color-accent))/50]'
+              }`}
+            >
+              <div className="text-xs font-medium text-[rgb(var(--color-text-primary))]">{p.label}</div>
+              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 leading-snug">{p.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Theme & style */}
+      <div>
+        <p className={labelCls}>Theme &amp; style</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {Object.values(PRINT_THEMES).map((th) => (
+            <button
+              key={th.id}
+              onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont) }}
+              className={`flex items-center gap-2 text-left px-2 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                printTheme === th.id
+                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                  : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50]'
+              }`}
+            >
+              <span className="w-6 h-6 rounded flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
+                <span className="block w-full h-1.5" style={{ background: th.verseBorder }} />
+                <span className="block mx-0.5 mt-1 h-1 rounded" style={{ background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{th.label}</span>
+                <span className="block text-[9px] text-[rgb(var(--color-text-muted))] leading-tight truncate">{th.desc}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Live preview */}
+      <div>
+        <p className={labelCls}>Live preview</p>
+        <div className="rounded-lg border border-[rgb(var(--color-surface-4))] overflow-hidden bg-[rgb(var(--color-surface-1))]">
+          <iframe
+            title="Print sample preview"
+            srcDoc={previewHtml}
+            className="w-full bg-white"
+            style={{ height: 260, border: 'none' }}
+          />
+        </div>
+      </div>
+
+      {/* Margins */}
+      <div>
+        <p className={labelCls}>Margins</p>
+        <div className="flex gap-1.5">
+          {(['none', 'narrow', 'normal', 'wide'] as const).map((m) => (
+            <button key={m} onClick={() => setPrintMarginPreset(m)} className={segBtn(printMarginPreset === m)}>
+              {m === 'none' ? 'None' : m.charAt(0).toUpperCase() + m.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Font size */}
+      <div>
+        <p className={labelCls}>Font size — {printFontSizePt}pt</p>
+        <input
+          type="range" min={8} max={18} step={1} value={printFontSizePt}
+          onChange={(e) => setPrintFontSizePt(parseInt(e.target.value))}
+          className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
+        />
+      </div>
+
+      {/* Font family */}
+      <div>
+        <p className={labelCls}>Font family</p>
+        <div className="flex gap-1.5">
+          {([['system', 'System'], ['serif', 'Serif'], ['sansserif', 'Sans-serif']] as const).map(([id, lbl]) => (
+            <button key={id} onClick={() => setPrintFontFamily(id)} className={segBtn(printFontFamily === id)}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Paper size */}
+      <div>
+        <p className={labelCls}>Paper size</p>
+        <div className="flex gap-1.5">
+          {([['letter', 'Letter'], ['a4', 'A4'], ['legal', 'Legal']] as const).map(([id, lbl]) => (
+            <button key={id} onClick={() => setPrintPaperSize(id)} className={segBtn(printPaperSize === id)}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Color mode */}
+      <div>
+        <p className={labelCls}>Color</p>
+        <div className="flex gap-1.5">
+          {([['color', 'Color'], ['grayscale', 'Grayscale']] as const).map(([id, lbl]) => (
+            <button key={id} onClick={() => setPrintColorMode(id)} className={segBtn(printColorMode === id)}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Include title toggle */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-[rgb(var(--color-text-primary))]">Include note title</p>
+          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5">Print the note title as a heading at the top</p>
+        </div>
+        <button
+          onClick={() => setPrintIncludeTitle(!printIncludeTitle)}
+          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${printIncludeTitle ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${printIncludeTitle ? 'translate-x-5' : ''}`} />
+        </button>
+      </div>
+
+      {/* Default download location */}
+      <div>
+        <p className={labelCls}>Default download location</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={pdfDownloadLocation}
+            onChange={(e) => setPdfDownloadLocation(e.target.value)}
+            placeholder="Ask each time (system default)"
+            className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+          />
+          <button
+            onClick={async () => { const picked = await window.app.openFolderDialog(); if (picked) setPdfDownloadLocation(picked) }}
+            title="Choose folder"
+            className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+          >
+            <FolderOpen size={14} />
+          </button>
+          {pdfDownloadLocation && (
+            <button
+              onClick={() => setPdfDownloadLocation('')}
+              title="Clear (ask each time)"
+              className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+          When set, exported PDFs default to this folder. Leave empty to be prompted each time.
+        </p>
+      </div>
+
+      <p className="text-[10px] text-[rgb(var(--color-text-muted))] flex items-center gap-1.5">
+        <Eye size={11} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
+        These settings are the defaults. You can also adjust them per-note in the print preview (the Print / Export buttons in the notes editor).
+      </p>
+    </div>
+  )
+}
+
+type Section = 'appearance' | 'display' | 'notes' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -692,6 +930,7 @@ export default function SettingsModal() {
     { id: 'workspaces',    label: 'Workspaces' },
     { id: 'youtube',       label: 'YouTube' },
     { id: 'word-replacer', label: 'Word Replacer' },
+    { id: 'print',         label: 'Print & Export' },
     { id: 'shortcuts',     label: 'Shortcuts' },
     { id: 'updates',       label: 'Updates' },
     { id: 'import',        label: 'Import' },
@@ -1647,6 +1886,8 @@ export default function SettingsModal() {
                   </div>
                 </div>
               )}
+
+              {section === 'print' && <PrintExportSection />}
 
               {section === 'updates' && <UpdatesSection />}
 

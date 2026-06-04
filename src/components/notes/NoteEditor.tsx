@@ -2126,12 +2126,39 @@ function escapeHtmlBasic(s: string): string {
 const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:0 4px 4px 0;margin:8px 0'
 const VERSE_BLOCK_REF_STYLE = 'font-weight:700'
 
-export function wrapVerseBlocksForPreview(content: string): string {
+/**
+ * Render a verse-body line: strip nothing, but run inline markdown so **bold**,
+ * *italic*, <u>underline</u>, ==highlight== etc. inside scripture blocks are
+ * formatted instead of showing raw markers. marked.parseInline passes raw HTML
+ * (like <u>) through and renders markdown emphasis correctly.
+ */
+function renderVerseBodyLine(line: string): string {
+  // Convert ==highlight== first (marked doesn't know it), then inline-render.
+  const withMarks = line.replace(/==([^=\n]+?)==/g, '<mark style="background:rgba(234,179,8,0.38);border-radius:2px;padding:0 1px">$1</mark>')
+  return marked.parseInline(withMarks) as string
+}
+
+/**
+ * Wrap detected verse blocks into styled HTML.
+ *
+ * @param stash  Optional callback. When provided, each emitted block is handed to
+ *   stash() which returns a placeholder token; this keeps the raw HTML out of the
+ *   markdown string so marked() can't absorb following headings/paragraphs into it.
+ *   When omitted (standalone/legacy calls), blocks are emitted inline, padded with
+ *   blank lines so marked treats each as an isolated HTML block.
+ */
+export function wrapVerseBlocksForPreview(content: string, stash?: (html: string) => string): string {
   const st = (typeof useAppStore?.getState === 'function') ? useAppStore.getState() : null
   if (!st?.noteScriptureBlock) return content
   const threshold = st.noteScriptureBlockThreshold ?? 0.9
   const lines = content.split('\n')
   const out: string[] = []
+  const emit = (blockHtml: string) => {
+    if (stash) { out.push(stash(blockHtml)); return }
+    // Pad with blank lines so marked isolates this HTML block (prevents the next
+    // heading/paragraph from being swallowed into the raw-HTML block).
+    out.push('', blockHtml, '')
+  }
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
@@ -2145,8 +2172,8 @@ export function wrapVerseBlocksForPreview(content: string): string {
       const candidate = bodyLines.map(l => l.replace(/^\s*\d{1,3}[ \t]+/, '')).join(' ')
       if (verseTextAcceptedSync(trimmed, candidate, threshold)) {
         const ref = `<a href="#verse-ref-${encodeURIComponent(trimmed)}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(trimmed)}</a>`
-        const body = bodyLines.map(l => escapeHtmlBasic(l)).join('<br>')
-        out.push(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}"><div>${ref}</div>${body}</div>`)
+        const body = bodyLines.map(l => renderVerseBodyLine(l)).join('<br>')
+        emit(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}"><div>${ref}</div>${body}</div>`)
         i = j + 1
         continue
       }
@@ -2155,7 +2182,7 @@ export function wrapVerseBlocksForPreview(content: string): string {
     const m = SINGLE_VERSE_LINE_RE.exec(line)
     if (m && parseRef(m[2]) && verseTextAcceptedSync(m[2], m[3], threshold)) {
       const ref = `<a href="#verse-ref-${encodeURIComponent(m[2])}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(m[2])}</a>`
-      out.push(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}">${ref} ${escapeHtmlBasic(m[3])}</div>`)
+      emit(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}">${ref} ${renderVerseBodyLine(m[3])}</div>`)
       i++
       continue
     }
@@ -2166,12 +2193,31 @@ export function wrapVerseBlocksForPreview(content: string): string {
 }
 
 export function renderPreviewContent(content: string): string {
-  // Wrap verse blocks first (when enabled) so subsequent markdown passes leave them intact.
-  content = wrapVerseBlocksForPreview(content)
+  // ── Stash mechanism ───────────────────────────────────────────────────────
+  // Complex HTML blocks (verse blocks, callouts) are pre-rendered to final HTML
+  // and replaced with an inert alphanumeric placeholder token BEFORE marked runs.
+  // This prevents two classes of bug:
+  //   1. marked HTML-escaping / mangling the raw HTML we emit.
+  //   2. marked's HTML-block rule absorbing following headings/paragraphs into the
+  //      raw <div> (which made "# Abraham" render as literal text in PDFs).
+  // After marked finishes, the placeholders are swapped back for the real HTML.
+  const stashed: string[] = []
+  const stash = (htmlBlock: string): string => {
+    const token = `BEREANSTASHBLOCK${stashed.length}ENDSTASH`
+    stashed.push(htmlBlock)
+    // Surround with blank lines so marked treats the token as its own paragraph.
+    return `\n\n${token}\n\n`
+  }
+
+  // Wrap verse blocks first (when enabled). Bodies are inline-markdown-rendered
+  // inside wrapVerseBlocksForPreview; the whole block is stashed.
+  content = wrapVerseBlocksForPreview(content, stash)
+
+  // Normalise blank lines hugging a stash token to exactly one on each side, so the
+  // <br>-spacing step below doesn't add spurious <br> runs around scripture blocks.
+  content = content.replace(/\n{2,}(BEREANSTASHBLOCK\d+ENDSTASH)\n{2,}/g, '\n\n$1\n\n')
+
   // Preserve intentional extra blank lines as explicit <br> elements.
-  // Each <br> is surrounded by blank lines so it forms its own block — otherwise
-  // a <br> placed on the line directly after a blockquote/list would be absorbed
-  // into it via markdown's lazy continuation (making the blockquote span the blanks).
   const withSpacing = content.replace(/\n(\n{2,})/g, (_, extra: string) => {
     const count = extra.length - 1
     return '\n\n' + Array(count).fill('<br>').join('\n\n') + '\n\n'
@@ -2181,7 +2227,7 @@ export function renderPreviewContent(content: string): string {
   // ==highlight== → <mark>
   processed = processed.replace(/==([^=\n]+?)==/g, '<mark style="background:rgba(234,179,8,0.38);border-radius:2px;padding:0 1px">$1</mark>')
   // Callout boxes: > [!NOTE], > [!TIP], > [!WARNING], > [!IMPORTANT], > [!CAUTION]
-  // Must run before task-list / dash-list processing so the `>` lines are still intact.
+  // Stashed so marked can't absorb following content into the raw <div>.
   processed = processed.replace(
     /^> \[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([^\n]*)\n((?:> ?[^\n]*(?:\n|$))*)/gim,
     (_, type: string, titleExtra: string, body: string) => {
@@ -2194,16 +2240,16 @@ export function renderPreviewContent(content: string): string {
         .map(l => l.replace(/^> ?/, ''))
         .join('\n')
         .trim()
-      // Render body markdown inline (bold, italic, links, etc.)
+      // Render body markdown (bold, italic, links, lists, etc.)
       const bodyHtml = bodyLines ? marked.parse(bodyLines) as string : ''
-      return (
-        `\n<div style="border-left:3px solid ${meta.border};background:${meta.bg};border-radius:0 6px 6px 0;` +
+      const calloutHtml =
+        `<div style="border-left:3px solid ${meta.border};background:${meta.bg};border-radius:0 6px 6px 0;` +
         `padding:10px 14px;margin:12px 0">` +
         `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;` +
         `color:${meta.color};margin-bottom:5px;display:flex;align-items:center;gap:5px">${meta.icon} ${title}</div>` +
         `<div style="font-size:0.875rem">${bodyHtml}</div>` +
-        `</div>\n`
-      )
+        `</div>`
+      return stash(calloutHtml)
     }
   )
   // Task lists — convert consecutive - [ ] and - [x] lines into a proper <ul>.
@@ -2235,32 +2281,124 @@ export function renderPreviewContent(content: string): string {
     })
     return `\n<ul class="berean-dash-list">${items.join('')}</ul>\n`
   })
-  const html = marked(processed) as string
+  let html = marked(processed) as string
+  // Restore stashed blocks — handle both the <p>-wrapped and bare token forms.
+  html = html.replace(/<p>\s*BEREANSTASHBLOCK(\d+)ENDSTASH\s*<\/p>/g, (_, n) => stashed[+n] ?? '')
+  html = html.replace(/BEREANSTASHBLOCK(\d+)ENDSTASH/g, (_, n) => stashed[+n] ?? '')
   return addVerseLinksToHtml(html)
 }
 
+export type PrintThemeId = 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night'
+
+export interface PrintExportOptions {
+  marginPreset?: 'none' | 'narrow' | 'normal' | 'wide'
+  marginCustomIn?: number
+  fontSize?: number
+  fontFamily?: 'system' | 'serif' | 'sansserif'
+  includeTitle?: boolean
+  colorMode?: 'color' | 'grayscale'
+  theme?: PrintThemeId
+}
+
+const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
+const FONT_STACK: Record<string, string> = {
+  system:    "-apple-system, system-ui, 'Segoe UI', sans-serif",
+  serif:     "Georgia, 'Times New Roman', Times, serif",
+  sansserif: "Inter, 'Helvetica Neue', Arial, sans-serif",
+}
+
+// Visual themes for printed / exported notes. Each restyles colors, verse blocks,
+// headings, links and rules. Verse-block colors use !important to override the inline
+// styles that renderPreviewContent emits (kept so the in-app preview also looks right).
+export interface PrintTheme {
+  id: PrintThemeId
+  label: string
+  desc: string
+  bg: string
+  text: string
+  heading: string
+  accent: string          // links
+  h2Border: string
+  verseBg: string
+  verseBorder: string
+  verseRef: string
+  mark: string            // highlight background
+  codeBg: string
+  thBg: string
+  suggestedFont: 'system' | 'serif' | 'sansserif'
+}
+
+export const PRINT_THEMES: Record<PrintThemeId, PrintTheme> = {
+  classic: {
+    id: 'classic', label: 'Classic', desc: 'Indigo accents, soft lavender scripture blocks',
+    bg: '#ffffff', text: '#111111', heading: '#0f172a', accent: '#2563eb', h2Border: '#e5e7eb',
+    verseBg: '#f5f4fb', verseBorder: '#6366f1', verseRef: '#312e81',
+    mark: 'rgba(234,179,8,0.35)', codeBg: '#f3f4f6', thBg: '#f9fafb', suggestedFont: 'system',
+  },
+  manuscript: {
+    id: 'manuscript', label: 'Manuscript', desc: 'Warm cream, serif — like a study printout',
+    bg: '#fffdf8', text: '#1c1917', heading: '#1c1917', accent: '#b45309', h2Border: '#ece3d2',
+    verseBg: '#fbf3e4', verseBorder: '#b45309', verseRef: '#78350f',
+    mark: 'rgba(217,119,6,0.28)', codeBg: '#f5efe2', thBg: '#f7f1e3', suggestedFont: 'serif',
+  },
+  minimal: {
+    id: 'minimal', label: 'Minimal', desc: 'Black & white, thin borders, no fills',
+    bg: '#ffffff', text: '#000000', heading: '#000000', accent: '#000000', h2Border: '#000000',
+    verseBg: 'transparent', verseBorder: '#000000', verseRef: '#000000',
+    mark: 'rgba(0,0,0,0.10)', codeBg: '#f4f4f4', thBg: '#ffffff', suggestedFont: 'system',
+  },
+  ocean: {
+    id: 'ocean', label: 'Ocean', desc: 'Teal accents, sans-serif, fresh look',
+    bg: '#ffffff', text: '#0f172a', heading: '#0f766e', accent: '#0d9488', h2Border: '#ccfbf1',
+    verseBg: '#f0fdfa', verseBorder: '#14b8a6', verseRef: '#0f766e',
+    mark: 'rgba(20,184,166,0.22)', codeBg: '#f0fdfa', thBg: '#f0fdfa', suggestedFont: 'sansserif',
+  },
+  night: {
+    id: 'night', label: 'Night', desc: 'Dark background, light text — screen reading',
+    bg: '#1a1d21', text: '#e6e8eb', heading: '#f8fafc', accent: '#7dd3fc', h2Border: '#334155',
+    verseBg: '#22272e', verseBorder: '#6366f1', verseRef: '#c7d2fe',
+    mark: 'rgba(234,179,8,0.30)', codeBg: '#2a2f36', thBg: '#22272e', suggestedFont: 'system',
+  },
+}
+
 // Build a standalone, print-ready HTML document for a note (used by print + PDF export).
-export function buildPrintHTML(title: string, content: string): string {
+export function buildPrintHTML(title: string, content: string, opts: PrintExportOptions = {}): string {
+  const {
+    marginPreset = 'normal',
+    marginCustomIn = 1,
+    fontSize = 12,
+    fontFamily = 'system',
+    includeTitle = true,
+    colorMode = 'color',
+    theme: themeId = 'classic',
+  } = opts
+  const t = PRINT_THEMES[themeId] ?? PRINT_THEMES.classic
+  const marginIn = MARGIN_INCHES[marginPreset] ?? marginCustomIn
   const body = renderPreviewContent(content)
   const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const grayscaleFilter = colorMode === 'grayscale' ? 'filter: grayscale(100%);' : ''
+  const darkBg = themeId === 'night' ? `print-color-adjust: exact; -webkit-print-color-adjust: exact;` : ''
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>${safeTitle}</title>
 <style>
-  @page { margin: 1in; }
+  @page { margin: ${marginIn}in; }
   *, *::before, *::after { box-sizing: border-box; }
+  html { background: ${t.bg}; ${darkBg} }
   body {
-    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
-    font-size: 12pt; line-height: 1.65; color: #111;
-    max-width: 7in; margin: 0 auto; padding: 0.5in 0;
+    font-family: ${FONT_STACK[fontFamily] ?? FONT_STACK.system};
+    font-size: ${fontSize}pt; line-height: 1.65; color: ${t.text};
+    background: ${t.bg};
+    max-width: 7in; margin: 0 auto; padding: 0.25in 0;
+    ${grayscaleFilter}
   }
   /* Headings */
-  h1 { font-size: 1.9em; font-weight: 800; margin: 0.7em 0 0.3em; }
-  h2 { font-size: 1.5em; font-weight: 700; margin: 0.7em 0 0.3em; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.2em; }
-  h3 { font-size: 1.2em; font-weight: 700; margin: 0.6em 0 0.25em; }
-  h4, h5, h6 { font-size: 1em; font-weight: 700; margin: 0.5em 0 0.2em; }
+  h1 { font-size: 1.9em; font-weight: 800; margin: 0.7em 0 0.3em; color: ${t.heading}; }
+  h2 { font-size: 1.5em; font-weight: 700; margin: 0.7em 0 0.3em; border-bottom: 1px solid ${t.h2Border}; padding-bottom: 0.2em; color: ${t.heading}; }
+  h3 { font-size: 1.2em; font-weight: 700; margin: 0.6em 0 0.25em; color: ${t.heading}; }
+  h4, h5, h6 { font-size: 1em; font-weight: 700; margin: 0.5em 0 0.2em; color: ${t.heading}; }
   /* Paragraphs & spacing */
   p { margin: 0.5em 0; }
   /* Lists */
@@ -2271,48 +2409,50 @@ export function buildPrintHTML(title: string, content: string): string {
   input[type="checkbox"] { margin-right: 0.4em; vertical-align: middle; }
   /* Blockquote */
   blockquote {
-    border-left: 3px solid #d1d5db; margin: 0.7em 0;
-    padding: 0.25em 0 0.25em 1em; color: #374151;
+    border-left: 3px solid ${t.verseBorder}; margin: 0.7em 0;
+    padding: 0.25em 0 0.25em 1em; color: ${t.text}; opacity: 0.92;
   }
   /* Inline code */
   code {
-    background: #f3f4f6; padding: 0.1em 0.35em;
+    background: ${t.codeBg}; padding: 0.1em 0.35em;
     border-radius: 3px; font-family: ui-monospace, 'Menlo', monospace;
-    font-size: 0.88em; color: #1f2937;
+    font-size: 0.88em; color: ${t.text};
   }
   /* Code blocks */
   pre {
-    background: #f3f4f6; padding: 0.85em 1em;
-    border-radius: 6px; overflow-x: auto; margin: 0.7em 0;
+    background: ${t.codeBg}; padding: 0.85em 1em;
+    border-radius: 6px; overflow-x: auto; margin: 0.7em 0; color: ${t.text};
   }
   pre code { background: none; padding: 0; font-size: 0.88em; }
   /* Tables */
   table { border-collapse: collapse; margin: 0.7em 0; width: 100%; }
-  th { background: #f9fafb; font-weight: 700; }
-  th, td { border: 1px solid #d1d5db; padding: 0.35em 0.7em; text-align: left; font-size: 0.92em; }
+  th { background: ${t.thBg}; font-weight: 700; }
+  th, td { border: 1px solid ${t.h2Border}; padding: 0.35em 0.7em; text-align: left; font-size: 0.92em; }
   /* Horizontal rule */
-  hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+  hr { border: none; border-top: 1px solid ${t.h2Border}; margin: 1.2em 0; }
   /* Text formatting */
   strong { font-weight: 700; }
   em { font-style: italic; }
   u { text-decoration: underline; }
-  del, s { text-decoration: line-through; color: #6b7280; }
-  mark { background: rgba(234,179,8,0.35); border-radius: 2px; padding: 0 2px; }
+  del, s { text-decoration: line-through; opacity: 0.6; }
+  mark { background: ${t.mark}; border-radius: 2px; padding: 0 2px; color: ${t.text}; }
   /* Links */
-  a { color: #2563eb; text-decoration: underline; }
-  a.berean-verse-ref { color: #4f46e5; font-weight: 500; }
-  /* Verse blocks */
+  a { color: ${t.accent}; text-decoration: underline; }
+  a.berean-verse-ref { color: ${t.verseRef}; font-weight: 500; }
+  /* Verse blocks — !important overrides the inline styles from renderPreviewContent */
   .berean-verse-block {
-    border-left: 3px solid #6366f1; background: #f5f4fb;
-    padding: 0.4em 0.85em; border-radius: 0 4px 4px 0; margin: 0.7em 0;
+    border-left: 3px solid ${t.verseBorder} !important;
+    background: ${t.verseBg} !important;
+    padding: 0.4em 0.85em !important; border-radius: 0 4px 4px 0 !important; margin: 0.7em 0 !important;
+    color: ${t.text} !important;
   }
-  .berean-verse-block a.berean-verse-ref { font-weight: 700; color: #312e81; text-decoration: none; }
+  .berean-verse-block a.berean-verse-ref { font-weight: 700; color: ${t.verseRef} !important; text-decoration: none; }
   /* Images */
   img { max-width: 100%; height: auto; }
   /* Note title */
   h1.note-doc-title {
-    font-size: 2em; font-weight: 800;
-    border-bottom: 2px solid #e5e7eb; padding-bottom: 0.25em; margin-bottom: 0.6em;
+    font-size: 2em; font-weight: 800; color: ${t.heading};
+    border-bottom: 2px solid ${t.h2Border}; padding-bottom: 0.25em; margin-bottom: 0.6em;
   }
   /* Print: avoid breaking inside blocks */
   pre, blockquote, table, .berean-verse-block { page-break-inside: avoid; }
@@ -2320,7 +2460,7 @@ export function buildPrintHTML(title: string, content: string): string {
 </style>
 </head>
 <body>
-<h1 class="note-doc-title">${safeTitle}</h1>
+${includeTitle ? `<h1 class="note-doc-title">${safeTitle}</h1>` : ''}
 ${body}
 </body>
 </html>`

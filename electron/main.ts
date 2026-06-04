@@ -529,8 +529,8 @@ app.whenReady().then(async () => {
   })
 
   // Export a note to PDF: render HTML offscreen, printToPDF, save via dialog.
-  ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string) => {
-    const { writeFile, unlink, mkdtemp } = await import('fs/promises')
+  ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string, downloadLocation?: string) => {
+    const { writeFile, unlink, mkdtemp, access } = await import('fs/promises')
     const { tmpdir } = await import('os')
     const tmpDir = await mkdtemp(join(tmpdir(), 'berean-pdf-'))
     const tmpFile = join(tmpDir, 'note.html')
@@ -538,12 +538,17 @@ app.whenReady().then(async () => {
     try {
       await writeFile(tmpFile, html, 'utf8')
       await win.loadURL(`file://${tmpFile}`)
-      // Wait for render before capturing PDF
       await new Promise<void>((resolve) => setTimeout(resolve, 300))
       const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } })
       const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+      const safeName = `${(suggestedName || 'note').replace(/[/\\:*?"<>|]/g, '-')}.pdf`
+      // Use the configured download location as the default directory if set and exists
+      let defaultDir = ''
+      if (downloadLocation) {
+        try { await access(downloadLocation); defaultDir = downloadLocation } catch { /* ignore — dir may not exist */ }
+      }
       const result = await dialog.showSaveDialog(parent!, {
-        defaultPath: `${(suggestedName || 'note').replace(/[/\\:]/g, '-')}.pdf`,
+        defaultPath: defaultDir ? join(defaultDir, safeName) : safeName,
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       })
       if (result.canceled || !result.filePath) return { success: false, canceled: true }
