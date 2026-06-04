@@ -504,24 +504,42 @@ app.whenReady().then(async () => {
 
   // Print a note: load its HTML into an offscreen window and invoke the print dialog.
   ipcMain.handle('app:printNote', async (_e, html: string) => {
+    const { writeFile, unlink, mkdtemp } = await import('fs/promises')
+    const { tmpdir } = await import('os')
+    // Write to a temp file so large notes work without data-URL size limits
+    const tmpDir = await mkdtemp(join(tmpdir(), 'berean-print-'))
+    const tmpFile = join(tmpDir, 'note.html')
     const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
     try {
-      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      await writeFile(tmpFile, html, 'utf8')
+      await win.loadURL(`file://${tmpFile}`)
+      // Small delay to ensure full render before print dialog opens
+      await new Promise<void>((resolve) => setTimeout(resolve, 300))
       await new Promise<void>((resolve) => {
         win.webContents.print({ silent: false, printBackground: true }, () => resolve())
       })
       return { success: true }
     } finally {
-      // Delay close so the print dialog can read the contents
-      setTimeout(() => { if (!win.isDestroyed()) win.close() }, 60000)
+      // Delay close so print dialog can read; then clean up temp file
+      setTimeout(async () => {
+        if (!win.isDestroyed()) win.close()
+        try { await unlink(tmpFile) } catch { /* ignore */ }
+      }, 60000)
     }
   })
 
   // Export a note to PDF: render HTML offscreen, printToPDF, save via dialog.
   ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string) => {
+    const { writeFile, unlink, mkdtemp } = await import('fs/promises')
+    const { tmpdir } = await import('os')
+    const tmpDir = await mkdtemp(join(tmpdir(), 'berean-pdf-'))
+    const tmpFile = join(tmpDir, 'note.html')
     const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
     try {
-      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      await writeFile(tmpFile, html, 'utf8')
+      await win.loadURL(`file://${tmpFile}`)
+      // Wait for render before capturing PDF
+      await new Promise<void>((resolve) => setTimeout(resolve, 300))
       const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } })
       const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
       const result = await dialog.showSaveDialog(parent!, {
@@ -529,11 +547,11 @@ app.whenReady().then(async () => {
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       })
       if (result.canceled || !result.filePath) return { success: false, canceled: true }
-      const { writeFile } = await import('fs/promises')
       await writeFile(result.filePath, pdf)
       return { success: true }
     } finally {
       if (!win.isDestroyed()) win.close()
+      try { await unlink(tmpFile) } catch { /* ignore */ }
     }
   })
 

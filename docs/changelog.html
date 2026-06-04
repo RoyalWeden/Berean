@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Berean — Changelog</title>
+  <meta name="description" content="Release history and changelog for the Berean Bible study app." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .changelog-body {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 3rem 2rem 5rem;
+    }
+    .changelog-body h1 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+    .changelog-sub {
+      font-size: 0.82rem;
+      color: var(--text-3);
+      margin-bottom: 3rem;
+    }
+    .changelog-body h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 2.5rem 0 0.6rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      letter-spacing: -0.01em;
+    }
+    .changelog-body h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 0;
+    }
+    .changelog-body h3 {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-3);
+      margin: 1.1rem 0 0.35rem;
+    }
+    .changelog-body ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.5rem;
+    }
+    .changelog-body ul li {
+      font-size: 0.85rem;
+      color: var(--text-2);
+      line-height: 1.65;
+      padding: 0.18rem 0 0.18rem 1.1rem;
+      position: relative;
+    }
+    .changelog-body ul li::before {
+      content: '–';
+      position: absolute;
+      left: 0;
+      color: var(--text-3);
+    }
+    .changelog-body p {
+      font-size: 0.85rem;
+      color: var(--text-2);
+      line-height: 1.65;
+      margin: 0.4rem 0;
+    }
+    .changelog-body hr {
+      display: none;
+    }
+    .changelog-body code {
+      font-family: ui-monospace, 'Menlo', monospace;
+      font-size: 0.78em;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+      color: var(--accent);
+    }
+    .cl-version-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 0.15rem 0.6rem;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+    .cl-date {
+      font-size: 0.72rem;
+      color: var(--text-3);
+      font-weight: 400;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+    }
+    #cl-loading {
+      text-align: center;
+      color: var(--text-3);
+      font-size: 0.85rem;
+      padding: 4rem 0;
+    }
+    #cl-error {
+      display: none;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 0.85rem;
+      padding: 4rem 0;
+    }
+    @media (max-width: 600px) {
+      .changelog-body { padding: 2rem 1rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="nav-logo">Berean</span>
+    <div class="nav-links">
+      <a href="index.html#features">Features</a>
+      <a href="index.html#screenshots">Screenshots</a>
+      <a href="index.html#download">Download</a>
+      <a href="changelog.html" style="color:var(--text)">Changelog</a>
+      <a href="https://github.com/RoyalWeden/Berean" target="_blank" rel="noopener">GitHub</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+  </nav>
+
+  <div class="changelog-body">
+    <h1>Changelog</h1>
+    <p class="changelog-sub">Release history for Berean. Latest versions first.</p>
+    <div id="cl-loading">Loading changelog…</div>
+    <div id="cl-error">
+      Could not load changelog.
+      <a href="https://github.com/RoyalWeden/Berean/blob/main/CHANGELOG.md" target="_blank" rel="noopener">
+        View on GitHub →
+      </a>
+    </div>
+    <div id="cl-content"></div>
+  </div>
+
+  <!-- marked.js for markdown → HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    async function loadChangelog() {
+      const RAW = 'https://raw.githubusercontent.com/RoyalWeden/Berean/main/CHANGELOG.md'
+      const loadingEl = document.getElementById('cl-loading')
+      const errorEl   = document.getElementById('cl-error')
+      const contentEl = document.getElementById('cl-content')
+
+      try {
+        const res = await fetch(RAW)
+        if (!res.ok) throw new Error('fetch failed')
+        let md = await res.text()
+
+        // Strip the hidden HTML comment block (workflow guide not intended for users)
+        md = md.replace(/<!--[\s\S]*?-->/g, '')
+
+        // Strip leading/trailing horizontal rules that bookend the comment block
+        md = md.replace(/^---\s*\n/gm, '\n')
+
+        // Remove the top-level heading and format blurb (first 3 lines)
+        const lines = md.split('\n')
+        const firstVersionIdx = lines.findIndex(l => /^## \[/.test(l))
+        const visibleLines = firstVersionIdx >= 0 ? lines.slice(firstVersionIdx) : lines
+        md = visibleLines.join('\n').trim()
+
+        // Enhance h2 headings: extract version and date, add badges
+        md = md.replace(/^## \[([^\]]+)\](?:\s*[-–]\s*(.+))?$/gm, (_, version, date) => {
+          const datePart = date ? `<span class="cl-date">${date.trim()}</span>` : ''
+          return `## <span class="cl-version-badge">v${version}</span>${datePart}`
+        })
+
+        // Render markdown to HTML
+        const html = marked.parse(md)
+        loadingEl.style.display = 'none'
+        contentEl.innerHTML = html
+
+        // Make h2s non-link (they have anchors from version references)
+        contentEl.querySelectorAll('h2 a').forEach(a => {
+          const span = document.createElement('span')
+          span.innerHTML = a.innerHTML
+          a.replaceWith(span)
+        })
+      } catch (err) {
+        console.warn('Changelog load failed:', err)
+        loadingEl.style.display = 'none'
+        errorEl.style.display = 'block'
+      }
+    }
+
+    loadChangelog()
+  </script>
+</body>
+</html>

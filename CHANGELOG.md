@@ -105,7 +105,14 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.3.2] - 2026-06-02
+## [0.3.3] - 2026-06-03
+
+Bug Fixes:
+- Fixed download and print view
+
+---
+
+## [0.3.2] - 2026-06-03
 
 - Word replacer now includes LORD → Yehovah
 - Right-click empty space in notes folder view
@@ -116,7 +123,7 @@ Bug Fixes:
 
 ---
 
-## [0.3.1] - 2026-06-02
+## [0.3.1] - 2026-06-03
 
 Bug Fixes:
 - Fixed Mac build

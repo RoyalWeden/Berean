@@ -2206,12 +2206,24 @@ export function renderPreviewContent(content: string): string {
       )
     }
   )
-  // Task lists — convert - [ ] and - [x]
-  // Use marked.parseInline so bold/italic/code inside task text is rendered correctly.
-  processed = processed.replace(/^- \[[ ]\] (.*)/gm, (_, text) =>
-    `<li style="list-style:none"><input type="checkbox" disabled> ${marked.parseInline(text) as string}</li>`)
-  processed = processed.replace(/^- \[[xX]\] (.*)/gm, (_, text) =>
-    `<li style="list-style:none;text-decoration:line-through;opacity:0.55"><input type="checkbox" disabled checked> ${marked.parseInline(text) as string}</li>`)
+  // Task lists — convert consecutive - [ ] and - [x] lines into a proper <ul>.
+  // Group contiguous task-list lines so they share one <ul> wrapper (browsers need
+  // the wrapper to render list-item bullets / indentation correctly in print).
+  processed = processed.replace(
+    /(?:^- \[[ xX]\] [^\n]*(?:\n|$))+/gm,
+    (block) => {
+      const items = block.trimEnd().split('\n').map((line) => {
+        const isChecked = /^- \[[xX]\]/.test(line)
+        const text = line.replace(/^- \[[ xX]\] /, '')
+        const style = isChecked
+          ? 'list-style:none;text-decoration:line-through;opacity:0.55'
+          : 'list-style:none'
+        const checkedAttr = isChecked ? ' checked' : ''
+        return `<li style="${style}"><input type="checkbox" disabled${checkedAttr}> ${marked.parseInline(text) as string}</li>`
+      })
+      return `\n<ul style="list-style:none;padding-left:1.2em;margin:0.5em 0">${items.join('')}</ul>\n`
+    }
+  )
   // Convert `- item` dash lists to a distinct class BEFORE marked processes them.
   // Use marked.parseInline on each item so bold/italic/code renders correctly inside <li>.
   processed = processed.replace(/(?:(?:^|\n)- .+)+/g, (block) => {
@@ -2231,25 +2243,87 @@ export function renderPreviewContent(content: string): string {
 export function buildPrintHTML(title: string, content: string): string {
   const body = renderPreviewContent(content)
   const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title><style>
-    @page { margin: 1in; }
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; font-size: 12pt; line-height: 1.6; color: #111; max-width: 7in; margin: 0 auto; padding: 0.5in 0; }
-    h1 { font-size: 1.9em; margin: 0.6em 0 0.3em; } h2 { font-size: 1.5em; margin: 0.6em 0 0.3em; }
-    h3 { font-size: 1.25em; } h4,h5,h6 { font-size: 1.05em; }
-    p { margin: 0.5em 0; } ul, ol { margin: 0.5em 0; padding-left: 1.5em; }
-    blockquote { border-left: 3px solid #ccc; margin: 0.6em 0; padding: 0.2em 0 0.2em 1em; color: #444; }
-    code { background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 0.9em; }
-    pre { background: #f6f6f6; padding: 0.8em; border-radius: 6px; overflow-x: auto; }
-    pre code { background: none; padding: 0; }
-    table { border-collapse: collapse; margin: 0.6em 0; } th, td { border: 1px solid #ccc; padding: 0.3em 0.6em; text-align: left; }
-    hr { border: none; border-top: 1px solid #ccc; margin: 1em 0; }
-    a { color: #1a4ed8; } img { max-width: 100%; }
-    a.berean-verse-ref { color: #4f46e5; text-decoration: underline; }
-    .berean-verse-block { border-left: 3px solid #6366f1; background: #f4f5fb; padding: 0.4em 0.8em; border-radius: 0 4px 4px 0; margin: 0.6em 0; }
-    .berean-verse-block a.berean-verse-ref { font-weight: 700; color: #312e81; text-decoration: none; }
-    h1.note-doc-title { font-size: 2.1em; border-bottom: 2px solid #eee; padding-bottom: 0.2em; margin-bottom: 0.5em; }
-  </style></head><body><h1 class="note-doc-title">${safeTitle}</h1>${body}</body></html>`
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${safeTitle}</title>
+<style>
+  @page { margin: 1in; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+    font-size: 12pt; line-height: 1.65; color: #111;
+    max-width: 7in; margin: 0 auto; padding: 0.5in 0;
+  }
+  /* Headings */
+  h1 { font-size: 1.9em; font-weight: 800; margin: 0.7em 0 0.3em; }
+  h2 { font-size: 1.5em; font-weight: 700; margin: 0.7em 0 0.3em; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.2em; }
+  h3 { font-size: 1.2em; font-weight: 700; margin: 0.6em 0 0.25em; }
+  h4, h5, h6 { font-size: 1em; font-weight: 700; margin: 0.5em 0 0.2em; }
+  /* Paragraphs & spacing */
+  p { margin: 0.5em 0; }
+  /* Lists */
+  ul, ol { margin: 0.5em 0; padding-left: 1.6em; }
+  li { margin: 0.2em 0; }
+  ul.berean-dash-list { list-style: disc; }
+  /* Task-list checkboxes */
+  input[type="checkbox"] { margin-right: 0.4em; vertical-align: middle; }
+  /* Blockquote */
+  blockquote {
+    border-left: 3px solid #d1d5db; margin: 0.7em 0;
+    padding: 0.25em 0 0.25em 1em; color: #374151;
+  }
+  /* Inline code */
+  code {
+    background: #f3f4f6; padding: 0.1em 0.35em;
+    border-radius: 3px; font-family: ui-monospace, 'Menlo', monospace;
+    font-size: 0.88em; color: #1f2937;
+  }
+  /* Code blocks */
+  pre {
+    background: #f3f4f6; padding: 0.85em 1em;
+    border-radius: 6px; overflow-x: auto; margin: 0.7em 0;
+  }
+  pre code { background: none; padding: 0; font-size: 0.88em; }
+  /* Tables */
+  table { border-collapse: collapse; margin: 0.7em 0; width: 100%; }
+  th { background: #f9fafb; font-weight: 700; }
+  th, td { border: 1px solid #d1d5db; padding: 0.35em 0.7em; text-align: left; font-size: 0.92em; }
+  /* Horizontal rule */
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+  /* Text formatting */
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+  u { text-decoration: underline; }
+  del, s { text-decoration: line-through; color: #6b7280; }
+  mark { background: rgba(234,179,8,0.35); border-radius: 2px; padding: 0 2px; }
+  /* Links */
+  a { color: #2563eb; text-decoration: underline; }
+  a.berean-verse-ref { color: #4f46e5; font-weight: 500; }
+  /* Verse blocks */
+  .berean-verse-block {
+    border-left: 3px solid #6366f1; background: #f5f4fb;
+    padding: 0.4em 0.85em; border-radius: 0 4px 4px 0; margin: 0.7em 0;
+  }
+  .berean-verse-block a.berean-verse-ref { font-weight: 700; color: #312e81; text-decoration: none; }
+  /* Images */
+  img { max-width: 100%; height: auto; }
+  /* Note title */
+  h1.note-doc-title {
+    font-size: 2em; font-weight: 800;
+    border-bottom: 2px solid #e5e7eb; padding-bottom: 0.25em; margin-bottom: 0.6em;
+  }
+  /* Print: avoid breaking inside blocks */
+  pre, blockquote, table, .berean-verse-block { page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+</style>
+</head>
+<body>
+<h1 class="note-doc-title">${safeTitle}</h1>
+${body}
+</body>
+</html>`
 }
 
 export default function NoteEditor({ content, onChange, placeholder, onFocusRef, onCommandsRef, onScrollRef, onScrollPosition, onCursorPosition, initialScrollTop, initialCursorPos, autoFocus, previewMode, wysiwyg, notes, onWikilinkClick, onVerseRefClick, noteId, noteTitle, findQuery = '', importSource, importedAt }: NoteEditorProps) {
