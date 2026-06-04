@@ -4,7 +4,7 @@ import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
-import { applyWordReplacer } from '@/lib/wordReplacer'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
 
@@ -138,10 +138,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!multiToolbar) return
     const mt = multiToolbar
 
-    function applyReplacer(text: string) {
-      return wordReplacerEnabled && wordReplacerRules.length > 0
-        ? applyWordReplacer(text, wordReplacerRules)
-        : text
+    function applyReplacerV(v: Verse) {
+      return buildVerseDisplayText(v.text, v.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules)
     }
 
     function lxxSuffix() { return textId === 'lxx' ? ' LXX' : '' }
@@ -154,7 +152,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         const vns = mt.verseNums
         const lines = vns.map((vn) => {
           const v = versesRef.current.find((v) => v.verse_num === vn)
-          return v ? `${vn} ${applyReplacer(v.text)}` : ''
+          return v ? `${vn} ${applyReplacerV(v)}` : ''
         }).filter(Boolean)
         const bName = bookName(bookId)
         const ref = vns.length === 1
@@ -168,7 +166,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         // Plain text: all verses on one line, no verse numbers
         const text = mt.verseNums.map((vn) => {
           const v = versesRef.current.find((v) => v.verse_num === vn)
-          return v ? applyReplacer(v.text) : ''
+          return v ? applyReplacerV(v) : ''
         }).filter(Boolean).join(' ')
         navigator.clipboard.writeText(text).catch(() => {})
         window.getSelection()?.removeAllRanges()
@@ -209,16 +207,20 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (verseSelections.length < 2) return
     const intersecting = verseSelections.map((s) => s.vn)
 
-    // Smart positioning: avoid viewport edges
+    // Smart positioning: keep menu fully inside the viewport
     const rect = range.getBoundingClientRect()
     const MENU_W = 210
     const MENU_H_EST = 210
     const pad = 8
     const vw = window.innerWidth
+    const vh = window.innerHeight
     let menuX = rect.left + rect.width / 2 - MENU_W / 2
     menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))
+    // Prefer above the selection; flip below if not enough room; clamp either way
     let menuY = rect.top - MENU_H_EST - pad
     if (menuY < pad) menuY = rect.bottom + pad
+    menuY = Math.min(menuY, vh - MENU_H_EST - pad) // never bleed off the bottom
+    menuY = Math.max(pad, menuY)                   // never bleed off the top
 
     setMultiToolbar({ x: menuX, y: menuY, verseNums: intersecting, verseSelections })
   }, [])
@@ -275,10 +277,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     })
   }
 
-  function applyReplacer(text: string) {
-    return wordReplacerEnabled && wordReplacerRules.length > 0
-      ? applyWordReplacer(text, wordReplacerRules)
-      : text
+  function applyReplacer(v: Verse) {
+    return buildVerseDisplayText(v.text, v.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules)
   }
 
   function copyFormatted() {
@@ -287,7 +287,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
     const lines = vns.map((vn) => {
       const v = verses.find((v) => v.verse_num === vn)
-      return v ? `${vn} ${applyReplacer(v.text)}` : ''
+      return v ? `${vn} ${applyReplacer(v)}` : ''
     }).filter(Boolean)
     const bName = bookName(bookId)
     const ref = vns.length === 1
@@ -302,7 +302,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!multiToolbar) return
     const text = multiToolbar.verseNums.map((vn) => {
       const v = verses.find((v) => v.verse_num === vn)
-      return v ? applyReplacer(v.text) : ''
+      return v ? applyReplacer(v) : ''
     }).filter(Boolean).join(' ')
     navigator.clipboard.writeText(text).catch(() => {})
     window.getSelection()?.removeAllRanges()

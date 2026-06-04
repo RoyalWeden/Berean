@@ -47,6 +47,7 @@ interface Props {
   onSelect: (note: Note) => void
   onDelete: (note: Note) => void
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
+  onCreateNote?: () => void
   onCreateFolder: (parentId: string | null) => void
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
@@ -74,7 +75,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
-  onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
+  onCreateNote, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
@@ -92,6 +93,50 @@ export default function NotesFolderView({
     // First launch: all collapsed
     return new Set<string>()
   })
+  // Always-current ref so useEffect closures don't capture stale expanded
+  const expandedRef = useRef(expanded)
+  expandedRef.current = expanded
+  // Snapshot of expanded state before search started — restored when search clears
+  const preSearchExpandedRef = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    if (!searchQuery) {
+      // Search cleared — restore pre-search expansion state
+      if (preSearchExpandedRef.current !== null) {
+        const saved = preSearchExpandedRef.current
+        preSearchExpandedRef.current = null
+        setExpanded(saved)
+        try { localStorage.setItem(EXPAND_KEY, JSON.stringify([...saved])) } catch { /* ignore */ }
+      }
+      return
+    }
+    // Entering or updating search — save state only on first keystroke
+    if (preSearchExpandedRef.current === null) {
+      preSearchExpandedRef.current = new Set(expandedRef.current)
+    }
+    // Auto-expand every user folder that contains a visible (matching) note, and all its ancestors
+    const folderMap = new Map(folders.map(f => [f.id, f]))
+    const toExpand = new Set<string>()
+    function addAncestors(folderId: string) {
+      if (toExpand.has(folderId)) return
+      const folder = folderMap.get(folderId)
+      if (!folder) return
+      toExpand.add(folderId)
+      if (folder.parentId) addAncestors(folder.parentId)
+    }
+    for (const note of notes) {
+      if (note.folderId) addAncestors(note.folderId)
+    }
+    if (toExpand.size > 0) {
+      setExpanded(prev => {
+        let changed = false
+        const next = new Set(prev)
+        for (const id of toExpand) { if (!next.has(id)) { next.add(id); changed = true } }
+        return changed ? next : prev
+      })
+    }
+  }, [searchQuery, notes, folders]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   // Track what's being dragged so we can show "→ FolderName" on the note row
   const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null)
@@ -124,6 +169,9 @@ export default function NotesFolderView({
   const SKIP_CONFIRM_KEY = 'berean:skipFolderDeleteConfirm'
   const [confirmDelete, setConfirmDelete] = useState<{ folder: NoteFolder } | null>(null)
   const [skipConfirmChecked, setSkipConfirmChecked] = useState(false)
+  // Empty-space right-click context menu
+  const [emptyMenu, setEmptyMenu] = useState<{ x: number; y: number } | null>(null)
+  const emptyMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { if (renamingId) { renameRef.current?.focus(); renameRef.current?.select() } }, [renamingId])
   useEffect(() => { if (renamingNoteId) { noteRenameRef.current?.focus(); noteRenameRef.current?.select() } }, [renamingNoteId])
@@ -159,12 +207,25 @@ export default function NotesFolderView({
     return () => { window.removeEventListener('mousedown', onClick, true); window.removeEventListener('keydown', onKey) }
   }, [folderMenu])
 
+  // Dismiss empty-space menu on outside click or Escape
+  useEffect(() => {
+    if (!emptyMenu) return
+    function onClick(e: MouseEvent) {
+      if (emptyMenuRef.current && !emptyMenuRef.current.contains(e.target as Node)) setEmptyMenu(null)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setEmptyMenu(null) }
+    window.addEventListener('mousedown', onClick, true)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mousedown', onClick, true); window.removeEventListener('keydown', onKey) }
+  }, [emptyMenu])
+
   const toggle = (id: string) => setExpanded((prev) => {
     const next = new Set(prev)
     next.has(id) ? next.delete(id) : next.add(id)
-    try {
-      localStorage.setItem(EXPAND_KEY, JSON.stringify([...next]))
-    } catch { /* ignore */ }
+    // Don't persist to localStorage during search mode — we're restoring from preSearchExpandedRef
+    if (!preSearchExpandedRef.current) {
+      try { localStorage.setItem(EXPAND_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
+    }
     return next
   })
 
@@ -313,6 +374,7 @@ export default function NotesFolderView({
         onDrop={(e) => onDropTo(e, note.folderId ?? null)}
       >
       <div
+        data-note-row
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
@@ -433,6 +495,7 @@ export default function NotesFolderView({
     return (
       <div key={folder.id}>
         <div
+          data-folder-row
           draggable={!isRenaming && !selectMode}
           onDragStart={(e) => onFolderDragStart(e, folder.id)}
           onDragEnd={onFolderDragEnd}
@@ -580,8 +643,17 @@ export default function NotesFolderView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderMenu, folders])
 
+  function handleEmptyContextMenu(e: React.MouseEvent) {
+    // Only fire when clicking on the background, not on a note/folder row
+    if ((e.target as HTMLElement).closest('[data-note-row],[data-folder-row]')) return
+    e.preventDefault()
+    setEmptyMenu({ x: e.clientX, y: e.clientY })
+    setNoteMenu(null)
+    setFolderMenu(null)
+  }
+
   return (
-    <div className="py-1 text-sm min-h-full flex flex-col">
+    <div className="py-1 text-sm min-h-full flex flex-col" onContextMenu={handleEmptyContextMenu}>
       {/* System folders (locked) */}
       {SYSTEM_FOLDERS.map(({ key, label, icon: Icon }) => {
         const isOpen = expanded.has(key)
@@ -662,6 +734,31 @@ export default function NotesFolderView({
         {childFolders(null).map((f) => renderUserFolder(f, 0))}
         {rootNotes.map((n) => renderNote(n, 0))}
       </div>
+
+      {/* Empty-space right-click menu — create note or folder */}
+      {emptyMenu && onCreateNote && createPortal(
+        (() => {
+          const MENU_W = 180, MENU_H = 80, pad = 8
+          const left = Math.max(pad, Math.min(emptyMenu.x, window.innerWidth - MENU_W - pad))
+          const top  = Math.max(pad, Math.min(emptyMenu.y, window.innerHeight - MENU_H - pad))
+          return (
+            <div
+              ref={emptyMenuRef}
+              className="fixed z-[9999] min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+              style={{ left, top }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
+                <FileText size={13} className="flex-shrink-0" /> New note
+              </button>
+              <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateFolder(null) }}>
+                <FolderPlus size={13} className="flex-shrink-0" /> New folder
+              </button>
+            </div>
+          )
+        })(),
+        document.body
+      )}
 
       {/* Note context menu (parity with list view + move to folder) */}
       {noteMenu && (

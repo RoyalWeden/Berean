@@ -16,7 +16,8 @@ export function expandQueryForWordReplacer(query: string, rules: WordReplacerRul
 
   const extra: string[] = []
   // Sort rules longest-first so compound replacements are checked before single-word ones
-  const sorted = [...rules].filter(r => r.enabled).sort((a, b) =>
+  // Skip Strong's-number rules — those only apply to tagged KJVA tokens, not FTS queries
+  const sorted = [...rules].filter(r => r.enabled && !r.strongsNum).sort((a, b) =>
     b.replacement.length - a.replacement.length
   )
 
@@ -39,12 +40,35 @@ export function expandQueryForWordReplacer(query: string, rules: WordReplacerRul
 }
 
 /**
+ * Apply Strong's-number-based replacement rules to a single tagged token.
+ * Only rules with `strongsNum` set are checked. Returns the replacement string
+ * if a match is found, or `word` unchanged if no rule applies.
+ *
+ * `tokenStrongsNum` may be a single string (e.g. "H3068"), an array of strings
+ * (multi-Strong's token, e.g. ["H3068", "H430"]), or null.
+ */
+export function applyStrongsWordReplacer(
+  word: string,
+  tokenStrongsNum: string | string[] | null,
+  rules: WordReplacerRule[],
+): string {
+  if (!tokenStrongsNum) return word
+  const nums = Array.isArray(tokenStrongsNum) ? tokenStrongsNum : [tokenStrongsNum]
+  for (const rule of rules) {
+    if (!rule.enabled || !rule.strongsNum) continue
+    if (nums.includes(rule.strongsNum)) return rule.replacement
+  }
+  return word
+}
+
+/**
  * Apply word replacer rules to a string.
  * Multi-word / longer queries are sorted first so compound phrases
  * ("jesus christ" → "Yeshua Messiah") match before their sub-phrases ("jesus" → "Yeshua").
  */
 export function applyWordReplacer(text: string, rules: WordReplacerRule[]): string {
-  const sorted = [...rules].filter(r => r.enabled).sort((a, b) => {
+  // Skip Strong's-number rules — those only apply to KJVA tagged token rendering
+  const sorted = [...rules].filter(r => r.enabled && !r.strongsNum).sort((a, b) => {
     const aMax = Math.max(...a.queries.map(q => q.length))
     const bMax = Math.max(...b.queries.map(q => q.length))
     return bMax - aMax

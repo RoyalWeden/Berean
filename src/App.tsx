@@ -603,7 +603,7 @@ export default function App() {
       } else if (cmd && e.key === 't') {
         e.preventDefault()
         openSearch('new')
-      } else if (cmd && !e.shiftKey && e.key === 'l') {
+      } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         // If on a scripture search tab, focus the search input instead of opening float search
         const store = useAppStore.getState()

@@ -9,9 +9,16 @@ export interface WordReplacerRule {
   replacement: string
   wholeWord: boolean
   enabled: boolean
+  /** When set, this rule matches by Strong's number in KJVA tagged text only.
+   *  It is ignored by the plain-text applyWordReplacer. */
+  strongsNum?: string
 }
 
 const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
+  // Strong's-number-based rules (KJVA tagged text only — precise per-word matching)
+  { id: 'strongs-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
+  { id: 'strongs-h3050', queries: [], strongsNum: 'H3050', replacement: 'Yah',     wholeWord: false, enabled: true },
+  // Text-pattern rules (applied across all texts)
   { id: '3b8e241f', queries: ['elias'],                             replacement: 'Elijah',        wholeWord: false, enabled: true },
   { id: '68d22a2b', queries: ['esaias'],                            replacement: 'Isaiah',        wholeWord: false, enabled: true },
   { id: '7b60a59e', queries: ['osee'],                              replacement: 'Hosea',         wholeWord: false, enabled: true },

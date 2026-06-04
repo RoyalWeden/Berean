@@ -105,6 +105,17 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.2] - 2026-06-02
+
+- Word replacer now includes LORD → Yehovah
+- Right-click empty space in notes folder view
+
+Bug Fixes:
+- Fixed Cmd+L in advanced scripture search tab
+- Verse selection menu off-screen
+
+---
+
 ## [0.3.1] - 2026-06-02
 
 Bug Fixes:

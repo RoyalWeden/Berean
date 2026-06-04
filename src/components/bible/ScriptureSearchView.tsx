@@ -151,11 +151,25 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
     return () => clearTimeout(t)
   }, [])
 
-  // Cmd+L — focus the search input when this tab is active
+  // Cmd+L — focus the search input when this tab is active.
+  // Handles both the routed IPC event (from App.tsx) and a direct keydown listener
+  // as a fallback in case the App.tsx check misses the condition.
   useEffect(() => {
     function onFocus() { inputRef.current?.focus(); inputRef.current?.select() }
+    function onKey(e: KeyboardEvent) {
+      const cmd = e.metaKey || e.ctrlKey
+      if (cmd && !e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault()
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      }
+    }
     window.addEventListener('berean:focusScriptureSearch', onFocus)
-    return () => window.removeEventListener('berean:focusScriptureSearch', onFocus)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('berean:focusScriptureSearch', onFocus)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   // Restore scroll position after results load

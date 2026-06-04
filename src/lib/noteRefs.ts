@@ -8,6 +8,8 @@ export interface NoteVerseRef {
   bookId: string
   chapter: number
   verse: number
+  /** Last verse of a range, e.g. 22 for "Romans 9:21-22". Undefined for single verses. */
+  endVerse?: number
   /** True when the note referenced a whole chapter (no specific verse), e.g. "Genesis 5".
    *  Such a ref should match/indicate every verse in that chapter. */
   isChapter?: boolean
@@ -15,17 +17,24 @@ export interface NoteVerseRef {
   context: string
 }
 
-/** Does a cross-ref point at the given verse? A chapter-level ref matches any verse in its chapter.
- *  Chapter refs are stored with verse === 0 (matching the sidepanel display convention). */
+/** Does a cross-ref point at the given verse?
+ *  - Chapter refs (isChapter / verse 0) match every verse in that chapter.
+ *  - Range refs (endVerse set) match any verse within [verse, endVerse].
+ *  - Single verse refs match only their exact verse. */
 export function refMatchesVerse(ref: NoteVerseRef, bookId: string, chapter: number, verseNum: number): boolean {
   if (ref.bookId !== bookId || ref.chapter !== chapter) return false
-  return ref.isChapter || ref.verse === 0 || ref.verse === verseNum
+  if (ref.isChapter || ref.verse === 0) return true
+  if (ref.endVerse != null && ref.endVerse > ref.verse) {
+    return verseNum >= ref.verse && verseNum <= ref.endVerse
+  }
+  return ref.verse === verseNum
 }
 
 /** Creates a fresh RegExp each call to avoid lastIndex state issues. */
 function makeVerseRefRe() {
-  // Matches things like "Gen 1:1", "genesis 1:1", "1 Kings 4:3", as well as [[wikilinks]]
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*(?:\s+(?:of\s+)?[A-Za-z][a-z]*)*\s+\d{1,3}(?::\d{1,3})?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  // Matches "Gen 1:1", "Genesis 1:1-5", "Romans 9:21–22", "1 Kings 4:3", [[wikilinks]]
+  // The verse-range suffix (?:[-–]\d{1,3})? captures end-verse for ranges like "9:21-22".
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*(?:\s+(?:of\s+)?[A-Za-z][a-z]*)*\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3})?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {
@@ -35,7 +44,8 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
   let m: RegExpExecArray | null
 
   while ((m = re.exec(content)) !== null) {
-    const raw = (m[1] ?? m[2] ?? '').trim().replace(/\[\[|\]\]/g, '')
+    // Strip wikilink brackets and Obsidian display-text suffix ("[[Rom 9:21-22|potter]]" → "Rom 9:21-22")
+    const raw = (m[1] ?? m[2] ?? '').trim().replace(/\[\[|\]\]/g, '').replace(/\|.*$/, '')
     if (!raw) continue
     // The regex can greedily prepend a non-book word ("quotes Genesis 5").
     // Try the full phrase, then drop leading words until parseRef succeeds.
@@ -57,7 +67,7 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
       continue
     }
     const isChapter = parsed.verse == null
-    const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : parsed.verse}`
+    const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : parsed.verse}${parsed.endVerse != null ? `-${parsed.endVerse}` : ''}`
     if (seen.has(key)) continue
     seen.add(key)
     const context = content
@@ -69,6 +79,7 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
       chapter: parsed.chapter,
       // verse 0 = whole chapter (matches the sidepanel RefLabel/VerseText display convention)
       verse: parsed.verse ?? 0,
+      endVerse: parsed.endVerse,
       isChapter,
       sourceNoteTitle: noteTitle,
       context,

@@ -1017,14 +1017,14 @@ function UserNotesChapterView({
         const refList = (
           <div>
             {refs.map((r, i) => (
-              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                 className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/30] group"
               >
                 <p className="text-[10px]" style={{ lineHeight: 1.3 }}>
                   <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">
-                    <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
+                    <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                   </span>
-                  <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
+                  <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                 </p>
                 <p className="text-[8px] text-[rgb(var(--color-text-muted))] mt-0.5 opacity-60">from: {r.sourceNoteTitle}</p>
               </button>

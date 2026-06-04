@@ -5,7 +5,8 @@ import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
-import { applyWordReplacer } from '@/lib/wordReplacer'
+import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { applyFindHighlight } from '@/lib/highlight'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
@@ -80,6 +81,7 @@ interface TaggedToken {
   isItalic: boolean
   isRedLetter: boolean
   isParenthetical: boolean  // true for ~{H853} tokens — grammatical particle, no English word
+  isStrongsBracket: boolean // true for sup>(  sup>) alignment brackets — never rendered as plain text
 }
 
 /**
@@ -98,15 +100,18 @@ function parseTaggedTokens(tagged: string): TaggedToken[] {
     if (!part) continue
 
     // Strip malformed <sup> / </sup> fragments — some KJVA DB entries have `sup>` and
-    // `/sup>` literal text (the '<' was stripped during data import). Remove the prefix
-    // so the actual content (e.g. a parenthesis marker) is still kept if present.
+    // `/sup>` literal text (the '<' was stripped during data import).
+    // Track whether this token came from a sup> wrapper: if so, and the remaining
+    // word is only a bracket char (( ) [ ]), it's a Strong's alignment marker that
+    // must NOT render as visible text (it doesn't appear in the plain verse text).
+    const wasSupWrapped = /^\/sup>|^sup>/i.test(part)
     part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
     if (!part) continue
 
     // Parenthetical token: ~{H853} — no associated English word
     if (part.startsWith('~{') && part.endsWith('}')) {
       const strongsRaw = part.slice(2, -1).trim()
-      tokens.push({ word: '', strongsNum: strongsRaw || null, isItalic: false, isRedLetter: false, isParenthetical: true })
+      tokens.push({ word: '', strongsNum: strongsRaw || null, isItalic: false, isRedLetter: false, isParenthetical: true, isStrongsBracket: false })
       continue
     }
 
@@ -121,9 +126,11 @@ function parseTaggedTokens(tagged: string): TaggedToken[] {
       // Multi-Strongs: split on '|' to get primary + secondary numbers
       const parts = strongsRaw ? strongsRaw.split('|') : []
       const strongsNum = parts.length > 1 ? parts : (parts[0] || null)
-      tokens.push({ word, strongsNum, isItalic, isRedLetter, isParenthetical: false })
+      // A sup>-wrapped bare bracket with no Strongs is a pure alignment marker, not text
+      const isStrongsBracket = wasSupWrapped && !strongsNum && /^[()[\]]+$/.test(word)
+      tokens.push({ word, strongsNum, isItalic, isRedLetter, isParenthetical: false, isStrongsBracket })
     } else {
-      tokens.push({ word: raw, strongsNum: null, isItalic, isRedLetter, isParenthetical: false })
+      tokens.push({ word: raw, strongsNum: null, isItalic, isRedLetter, isParenthetical: false, isStrongsBracket: false })
     }
   }
   return tokens
@@ -315,7 +322,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const verseRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}${lxxSuffix}`
 
   function copyVerse() {
-    const displayText = shouldReplace ? applyWordReplacer(verse.text, wordReplacerRules) : verse.text
+    const displayText = buildVerseDisplayText(verse.text, verse.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules)
     navigator.clipboard.writeText(`${verseRef} ${displayText}`).catch(() => {})
     setPopoverOpen(false)
   }
@@ -624,22 +631,57 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       let charPos = 0
       const tokensWithCharPos = tokens.map(t => {
         const charStart = charPos
-        if (!t.isParenthetical) charPos += t.word.length + 1 // word + trailing space
+        // Parenthetical (~{}) and Strong's-bracket (sup>() sup>)) tokens have no plain-text word
+        if (!t.isParenthetical && !t.isStrongsBracket) charPos += t.word.length + 1 // word + trailing space
         return { ...t, charStart }
       })
 
       const hideItalics = hiddenAnnotations.includes('kjva_italics')
       const baseTokens = hideItalics ? tokensWithCharPos.filter(t => !t.isItalic) : tokensWithCharPos
-      // Apply word replacer to each token's word (parenthetical tokens have no word)
+      // Apply word replacer to each token's word:
+      //  1. Text-pattern rules (applyWordReplacer) — skips rules with strongsNum
+      //  2. Strong's-number rules (applyStrongsWordReplacer) — KJVA-precise divine name substitution
       const displayTokens = shouldReplace
-        ? baseTokens.map(t => t.isParenthetical ? t : { ...t, word: applyWordReplacer(t.word, wordReplacerRules) })
+        ? baseTokens.map(t => {
+            if (t.isParenthetical || t.isStrongsBracket) return t
+            let word = applyWordReplacer(t.word, wordReplacerRules)
+            word = applyStrongsWordReplacer(word, t.strongsNum, wordReplacerRules)
+            return { ...t, word }
+          })
         : baseTokens
+
+      // When a token is replaced by a Strong's rule (e.g. LORD→Yehovah), the English
+      // definite article "the"/"The" that preceded it is now grammatically wrong ("the Yehovah").
+      // Build a set of token indices to suppress so neither "the" nor "The" renders.
+      const suppressedIndices = new Set<number>()
+      if (shouldReplace) {
+        const activeStrongsRules = wordReplacerRules.filter(r => r.enabled && r.strongsNum)
+        if (activeStrongsRules.length > 0) {
+          displayTokens.forEach((t, i) => {
+            if (t.isParenthetical || t.isStrongsBracket || !t.strongsNum) return
+            const nums = Array.isArray(t.strongsNum) ? t.strongsNum : [t.strongsNum]
+            if (!activeStrongsRules.some(r => nums.includes(r.strongsNum!))) return
+            // Walk backwards past brackets/parentheticals to find the nearest real token
+            for (let j = i - 1; j >= 0; j--) {
+              const prev = displayTokens[j]
+              if (prev.isParenthetical || prev.isStrongsBracket) continue
+              // Strip trailing punctuation then check for definite article
+              if (prev.word.replace(/[,;:.!?]+$/, '').toLowerCase() === 'the') {
+                suppressedIndices.add(j)
+              }
+              break
+            }
+          })
+        }
+      }
 
       if (showStrongs) {
         const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
         return (
           <span>
             {displayTokens.map((token, i) => {
+              // Suppress "the"/"The" that preceded a Strong's-replaced divine name
+              if (suppressedIndices.has(i)) return null
               // Build per-character highlight segments for this word (null = no overlap = plain)
               const wordSegs = token.isParenthetical
                 ? null
@@ -652,7 +694,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               return (
                 <Fragment key={i}>
                   <StrongsInline
-                    word={token.word}
+                    word={token.isStrongsBracket ? '' : token.word}
                     strongsNum={token.strongsNum}
                     isItalic={token.isItalic}
                     isRedLetter={token.isRedLetter}
@@ -676,8 +718,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
         )
       }
 
-      // Plain text (no Strong's): skip parenthetical tokens (no English word to display)
-      const plainTokens = displayTokens.filter(t => !t.isParenthetical)
+      // Plain text (no Strong's): skip parenthetical, bracket, and "the"-before-divine-name tokens
+      const plainTokens = displayTokens.filter((t, i) => !t.isParenthetical && !t.isStrongsBracket && !suppressedIndices.has(i))
       return (
         <span>
           {plainTokens.map((token, i) => {

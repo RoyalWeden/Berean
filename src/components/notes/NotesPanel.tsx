@@ -1087,6 +1087,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onSelect={navigateToNote}
                   onDelete={(note) => deleteNote(note)}
                   onSetNoteFolder={handleSetNoteFolder}
+                  onCreateNote={createNote}
                   onCreateFolder={handleCreateFolder}
                   onRenameFolder={handleRenameFolder}
                   onDeleteFolder={handleDeleteFolder}
