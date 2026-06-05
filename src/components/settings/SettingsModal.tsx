@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword, Printer, Eye } from 'lucide-react'
-import { buildPrintHTML, PRINT_THEMES } from '@/components/notes/NoteEditor'
+import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/components/notes/NoteEditor'
+import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
 import { YOUTUBE_LAYOUTS } from '@/lib/youtubeLayouts'
@@ -516,6 +517,7 @@ const PRINT_PRESETS: { id: 'compact' | 'standard' | 'spacious' | 'manuscript'; l
 
 function PrintExportSection() {
   const printMarginPreset    = useAppStore((s) => s.printMarginPreset)
+  const printCustomMargins   = useAppStore((s) => s.printCustomMargins)
   const printFontSizePt      = useAppStore((s) => s.printFontSizePt)
   const printFontFamily      = useAppStore((s) => s.printFontFamily)
   const printPaperSize       = useAppStore((s) => s.printPaperSize)
@@ -524,6 +526,7 @@ function PrintExportSection() {
   const printTheme           = useAppStore((s) => s.printTheme)
   const pdfDownloadLocation  = useAppStore((s) => s.pdfDownloadLocation)
   const setPrintMarginPreset = useAppStore((s) => s.setPrintMarginPreset)
+  const setPrintCustomMargins = useAppStore((s) => s.setPrintCustomMargins)
   const setPrintFontSizePt   = useAppStore((s) => s.setPrintFontSizePt)
   const setPrintFontFamily   = useAppStore((s) => s.setPrintFontFamily)
   const setPrintPaperSize    = useAppStore((s) => s.setPrintPaperSize)
@@ -531,6 +534,19 @@ function PrintExportSection() {
   const setPrintColorMode    = useAppStore((s) => s.setPrintColorMode)
   const setPrintTheme        = useAppStore((s) => s.setPrintTheme)
   const setPdfDownloadLocation = useAppStore((s) => s.setPdfDownloadLocation)
+
+  // Theme picker popover
+  const [themeOpen, setThemeOpen] = useState(false)
+  const themePickerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!themeOpen) return
+    function onDown(e: MouseEvent) {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) setThemeOpen(false)
+    }
+    document.addEventListener('mousedown', onDown, true)
+    return () => document.removeEventListener('mousedown', onDown, true)
+  }, [themeOpen])
+  const currentTheme = PRINT_THEMES[printTheme] ?? PRINT_THEMES.classic
 
   // Which preset (if any) matches the current granular settings
   const activePreset = PRINT_PRESETS.find(p =>
@@ -554,8 +570,9 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
 > Keep the **Sabbath** holy.`
 
   const previewHtml = buildPrintHTML('Sample Note', SAMPLE, {
-    theme: printTheme, marginPreset: printMarginPreset, fontSize: printFontSizePt,
-    fontFamily: printFontFamily, includeTitle: printIncludeTitle, colorMode: printColorMode,
+    theme: printTheme, marginPreset: printMarginPreset, customMargins: printCustomMargins,
+    fontSize: printFontSizePt, fontFamily: printFontFamily,
+    includeTitle: printIncludeTitle, colorMode: printColorMode,
   })
 
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
@@ -595,56 +612,76 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
         </div>
       </div>
 
-      {/* Theme & style */}
+      {/* Theme & style — button + popover grid */}
       <div>
         <p className={labelCls}>Theme &amp; style</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {Object.values(PRINT_THEMES).map((th) => (
-            <button
-              key={th.id}
-              onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont) }}
-              className={`flex items-center gap-2 text-left px-2 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-                printTheme === th.id
-                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                  : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50]'
-              }`}
-            >
-              <span className="w-6 h-6 rounded flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
-                <span className="block w-full h-1.5" style={{ background: th.verseBorder }} />
-                <span className="block mx-0.5 mt-1 h-1 rounded" style={{ background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{th.label}</span>
-                <span className="block text-[9px] text-[rgb(var(--color-text-muted))] leading-tight truncate">{th.desc}</span>
-              </span>
-            </button>
-          ))}
+        <div className="relative" ref={themePickerRef}>
+          <button
+            onClick={() => setThemeOpen(v => !v)}
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left cursor-pointer transition-colors ${
+              themeOpen
+                ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
+            }`}
+          >
+            <span className="w-6 h-6 rounded flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
+              <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
+              <span className="block mx-0.5 mt-1 h-1 rounded" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{currentTheme.label}</span>
+              <span className="block text-[9px] text-[rgb(var(--color-text-muted))] truncate leading-tight">{currentTheme.desc}</span>
+            </span>
+            <ChevronDown size={13} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {themeOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
+              {Object.values(PRINT_THEMES).map((th) => (
+                <button
+                  key={th.id}
+                  onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont); setThemeOpen(false) }}
+                  title={th.desc}
+                  className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border cursor-pointer transition-colors text-center ${
+                    printTheme === th.id
+                      ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                      : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
+                    <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
+                    <span className="block mx-0.5 mt-0.5 rounded-sm" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+                  </span>
+                  <span className="text-[9px] font-medium text-[rgb(var(--color-text-secondary))] leading-none">{th.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Live preview */}
+      {/* Live preview — scaled to true page proportions so margins look accurate */}
       <div>
         <p className={labelCls}>Live preview</p>
-        <div className="rounded-lg border border-[rgb(var(--color-surface-4))] overflow-hidden bg-[rgb(var(--color-surface-1))]">
-          <iframe
-            title="Print sample preview"
-            srcDoc={previewHtml}
-            className="w-full bg-white"
-            style={{ height: 260, border: 'none' }}
-          />
-        </div>
+        <ScaledPagePreview html={previewHtml} />
       </div>
 
       {/* Margins */}
       <div>
         <p className={labelCls}>Margins</p>
-        <div className="flex gap-1.5">
-          {(['none', 'narrow', 'normal', 'wide'] as const).map((m) => (
-            <button key={m} onClick={() => setPrintMarginPreset(m)} className={segBtn(printMarginPreset === m)}>
+        <div className="flex flex-wrap gap-1.5">
+          {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
+            <button key={m} onClick={() => {
+              if (m === 'custom' && printMarginPreset !== 'custom') setPrintCustomMargins(presetToSides(printMarginPreset))
+              setPrintMarginPreset(m)
+            }} className={segBtn(printMarginPreset === m)}>
               {m === 'none' ? 'None' : m.charAt(0).toUpperCase() + m.slice(1)}
             </button>
           ))}
         </div>
+        {printMarginPreset === 'custom' && (
+          <CustomMarginInputs value={printCustomMargins} onChange={setPrintCustomMargins} />
+        )}
       </div>
 
       {/* Font size */}

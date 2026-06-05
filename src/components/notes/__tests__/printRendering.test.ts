@@ -268,40 +268,75 @@ describe('callout blocks', () => {
 // ── 5. buildPrintHTML — margin presets ────────────────────────────────────────
 
 describe('buildPrintHTML — margins', () => {
-  it('none preset → 0in margin', () => {
-    expect(buildPrintHTML('T', 'body', { marginPreset: 'none' })).toContain('@page { margin: 0in; }')
+  // Margins are controlled by body padding (uniform), with @page margin zeroed so the
+  // iframe preview and the printed PDF match exactly.
+  it('@page margin is always 0', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'wide' })).toContain('@page { margin: 0; }')
   })
 
-  it('narrow preset → 0.5in margin', () => {
-    expect(buildPrintHTML('T', 'body', { marginPreset: 'narrow' })).toContain('@page { margin: 0.5in; }')
+  it('none preset → 0in body padding (edge to edge)', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'none' })).toMatch(/body\s*\{[^}]*padding: 0in/)
   })
 
-  it('normal preset → 1in margin', () => {
-    expect(buildPrintHTML('T', 'body', { marginPreset: 'normal' })).toContain('@page { margin: 1in; }')
+  it('narrow preset → 0.5in body padding', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'narrow' })).toMatch(/body\s*\{[^}]*padding: 0\.5in/)
   })
 
-  it('wide preset → 1.5in margin', () => {
-    expect(buildPrintHTML('T', 'body', { marginPreset: 'wide' })).toContain('@page { margin: 1.5in; }')
+  it('normal preset → 1in body padding', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'normal' })).toMatch(/body\s*\{[^}]*padding: 1in/)
   })
 
-  it('default (no opts) → 1in margin', () => {
-    expect(buildPrintHTML('T', 'body')).toContain('@page { margin: 1in; }')
+  it('wide preset → 1.5in body padding', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'wide' })).toMatch(/body\s*\{[^}]*padding: 1\.5in/)
   })
 
-  it('custom margin used when preset omitted but custom given', () => {
-    // marginPreset defaults to 'normal' so custom only applies if preset is not a known key.
-    // Verify the normal default still wins when both unspecified.
-    expect(buildPrintHTML('T', 'body', {})).toContain('@page { margin: 1in; }')
+  it('default (no opts) → 1in body padding', () => {
+    expect(buildPrintHTML('T', 'body')).toMatch(/body\s*\{[^}]*padding: 1in/)
   })
 
-  it('margin appears exactly once', () => {
-    const out = buildPrintHTML('T', 'body', { marginPreset: 'wide' })
-    expect((out.match(/@page \{ margin:/g) || []).length).toBe(1)
+  it('body has no max-width centering (margins fully control width)', () => {
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'narrow' })).not.toMatch(/body\s*\{[^}]*max-width/)
   })
 
   it('none margin still produces valid doc', () => {
     const out = buildPrintHTML('T', '# Heading', { marginPreset: 'none' })
     expect(out).toContain('<!DOCTYPE html>')
+  })
+
+  // ── Custom per-side margins ──────────────────────────────────────────────
+  it('custom preset applies per-side margins (top right bottom left)', () => {
+    const out = buildPrintHTML('T', 'body', {
+      marginPreset: 'custom', customMargins: { top: 0.5, right: 1, bottom: 1.5, left: 0.75 },
+    })
+    expect(out).toMatch(/body\s*\{[^}]*padding: 0\.5in 1in 1\.5in 0\.75in/)
+  })
+
+  it('custom preset with zero margins → edge to edge', () => {
+    const out = buildPrintHTML('T', 'body', {
+      marginPreset: 'custom', customMargins: { top: 0, right: 0, bottom: 0, left: 0 },
+    })
+    expect(out).toMatch(/body\s*\{[^}]*padding: 0in 0in 0in 0in/)
+  })
+
+  it('custom preset clamps negative values to 0', () => {
+    const out = buildPrintHTML('T', 'body', {
+      marginPreset: 'custom', customMargins: { top: -2, right: 1, bottom: 1, left: 1 },
+    })
+    expect(out).toMatch(/body\s*\{[^}]*padding: 0in 1in 1in 1in/)
+  })
+
+  it('custom preset without customMargins falls back to uniform 1in', () => {
+    const out = buildPrintHTML('T', 'body', { marginPreset: 'custom' })
+    expect(out).toMatch(/body\s*\{[^}]*padding: 1in/)
+  })
+
+  it('custom margins do not break verse blocks or theme', () => {
+    const out = buildPrintHTML('T', 'Genesis 1:1 In the **beginning** Yehovah created', {
+      marginPreset: 'custom', customMargins: { top: 1, right: 0.5, bottom: 1, left: 0.5 }, theme: 'ocean',
+    })
+    expect(out).toContain('<strong>beginning</strong>')
+    expect(out).toContain('class="berean-verse-block"')
+    expect(out).toContain('#0d9488')
   })
 })
 
@@ -424,7 +459,7 @@ describe('buildPrintHTML — combined options', () => {
       marginPreset: 'wide', fontSize: 14, fontFamily: 'serif', includeTitle: true, colorMode: 'grayscale',
     })
     expect(out).toContain('<!DOCTYPE html>')
-    expect(out).toContain('@page { margin: 1.5in; }')
+    expect(out).toMatch(/body\s*\{[^}]*padding: 1\.5in/)
     expect(out).toContain('font-size: 14pt')
     expect(out).toContain('Georgia')
     expect(out).toContain('grayscale')
@@ -792,8 +827,66 @@ Deuteronomy 5:12 Keep the sabbath day to ==sanctify== it`
 describe('buildPrintHTML — themes', () => {
   const sample = 'Genesis 1:1 In the **beginning** Yehovah created'
 
-  it('exports 5 themes', () => {
-    expect(Object.keys(PRINT_THEMES)).toHaveLength(5)
+  it('exports 15 themes', () => {
+    expect(Object.keys(PRINT_THEMES)).toHaveLength(15)
+  })
+
+  it('includes the 10 additional themes', () => {
+    const ids = Object.keys(PRINT_THEMES)
+    for (const id of ['parchment', 'forest', 'royal', 'ember', 'arctic', 'slate', 'rose', 'dawn', 'midnight', 'ivory']) {
+      expect(ids).toContain(id)
+    }
+  })
+
+  it('every theme id matches its key', () => {
+    for (const [key, t] of Object.entries(PRINT_THEMES)) {
+      expect(t.id).toBe(key)
+    }
+  })
+
+  it('verse blocks use 8px rounded corners in print CSS', () => {
+    const out = buildPrintHTML('T', 'Genesis 1:1 In the beginning Yehovah created', { theme: 'classic' })
+    expect(out).toMatch(/\.berean-verse-block\s*\{[^}]*border-radius: 8px !important/)
+  })
+
+  it('strips internal anchor links but keeps external links', () => {
+    // Wikilink → internal #anchor (should lose href); explicit external link keeps href
+    const md = 'See [[My Note]] and [YouTube](https://youtu.be/abc)'
+    const out = buildPrintHTML('T', md)
+    expect(out).not.toContain('href="#note-my-note"')
+    expect(out).toContain('href="https://youtu.be/abc"')
+  })
+
+  it('strips verse-ref internal anchors in a verse block', () => {
+    const out = buildPrintHTML('T', 'Matthew 22:37 quoting Deuteronomy 6:5')
+    // No internal #verse-ref- href should remain
+    expect(out).not.toMatch(/href="#verse-ref-/)
+    expect(out).not.toMatch(/href="#lxx-verse-ref-/)
+  })
+
+  it('verse-ref links are styled without underline (not clickable-looking)', () => {
+    const out = buildPrintHTML('T', 'body')
+    expect(out).toMatch(/a\.berean-verse-ref\s*\{[^}]*text-decoration: none/)
+  })
+
+  it('stripped non-verse internal links fall back to plain text', () => {
+    const out = buildPrintHTML('T', 'body')
+    expect(out).toContain('a:not([href]):not(.berean-verse-ref)')
+  })
+
+  it('margin preset is reflected in uniform body padding; none = 0', () => {
+    const wide = buildPrintHTML('T', 'body', { marginPreset: 'wide' })
+    const none = buildPrintHTML('T', 'body', { marginPreset: 'none' })
+    expect(wide).toMatch(/body\s*\{[^}]*padding: 1\.5in/)
+    expect(none).toMatch(/body\s*\{[^}]*padding: 0in/)
+    // none should NOT have any leftover floor like 0.25in
+    expect(none).not.toMatch(/body\s*\{[^}]*padding: 0\.25in/)
+  })
+
+  it('midnight is a dark theme with color-adjust exact', () => {
+    const out = buildPrintHTML('T', 'body', { theme: 'midnight' })
+    expect(out).toContain('print-color-adjust: exact')
+    expect(out).toContain('#0d1117')
   })
 
   it('every theme has required color fields', () => {
@@ -875,7 +968,7 @@ describe('buildPrintHTML — themes', () => {
 
   it('theme combines with margin and font options', () => {
     const out = buildPrintHTML('T', sample, { theme: 'manuscript', marginPreset: 'wide', fontSize: 14, fontFamily: 'serif' })
-    expect(out).toContain('@page { margin: 1.5in; }')
+    expect(out).toMatch(/body\s*\{[^}]*padding: 1\.5in/)
     expect(out).toContain('font-size: 14pt')
     expect(out).toContain('Georgia')
     expect(out).toContain('#b45309')

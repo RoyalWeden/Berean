@@ -105,6 +105,23 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.5] - 2026-06-04
+
+- Added Elseus → Elisha in word replacer
+- Strong's toggle now doesn't jump scripture
+- Decreased verse spacing on Strong's toggle
+- Added 10 new print/download themes
+- Verse blocks are now rounded
+
+Bug Fixes:
+- Removed random paranthesses from scripture
+- Fixed occurrences not all showing in lexicon
+- Added back `'s` for the word replacer of 'Yehovah'
+- Fixed margin adjustment for print/downloads
+- Stripped internal links when printing/downloading note
+
+---
+
 ## [0.3.4] - 2026-06-03
 
 - Ability to use special characters in note names

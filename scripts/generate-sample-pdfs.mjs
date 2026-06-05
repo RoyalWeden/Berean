@@ -195,7 +195,12 @@ Grace = ==divine influence upon the heart==.
 - [x] Read Genesis 1
 - [ ] Study the creation account`
 
-for (const theme of ['classic', 'manuscript', 'minimal', 'ocean', 'night']) {
+const ALL_THEMES = [
+  'classic', 'manuscript', 'minimal', 'ocean', 'night',
+  'parchment', 'forest', 'royal', 'ember', 'arctic',
+  'slate', 'rose', 'dawn', 'midnight', 'ivory',
+]
+for (const theme of ALL_THEMES) {
   samples.push({
     name: `06-theme-${theme}`,
     title: `Theme — ${theme}`,
@@ -203,6 +208,24 @@ for (const theme of ['classic', 'manuscript', 'minimal', 'ocean', 'night']) {
     content: THEME_NOTE,
   })
 }
+
+// Margin comparison — same note at each margin preset
+for (const margin of ['none', 'narrow', 'normal', 'wide']) {
+  samples.push({
+    name: `07-margin-${margin}`,
+    title: `Margin — ${margin}`,
+    opts: { marginPreset: margin, theme: 'classic' },
+    content: THEME_NOTE,
+  })
+}
+
+// Custom asymmetric margins: small top, large left, medium right, small bottom
+samples.push({
+  name: '08-margin-custom',
+  title: 'Margin — custom (top .25, right 1, bottom .5, left 2)',
+  opts: { marginPreset: 'custom', customMargins: { top: 0.25, right: 1, bottom: 0.5, left: 2 }, theme: 'classic' },
+  content: THEME_NOTE,
+})
 
 const pdfPaths = []
 for (const s of samples) {

@@ -58,9 +58,9 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
       const tables = (lexDb as any).prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='occurrences'").get()
       if (!tables) { console.log('[lexicon:getOccurrences] no occurrences table'); return [] }
 
-      // Get occurrence refs (limited to first 200 for performance)
+      // Get occurrence refs (capped at 1000 — shows all for most words; very common ones like H3068 have 5000+ but the UI toggle handles that)
       const rawRows = (lexDb as any).prepare(
-        'SELECT book_num, chapter, verse FROM occurrences WHERE strongs_id = ? ORDER BY book_num, chapter, verse LIMIT 200'
+        'SELECT book_num, chapter, verse FROM occurrences WHERE strongs_id = ? ORDER BY book_num, chapter, verse LIMIT 1000'
       ).all(num) as Array<{ book_num: number; chapter: number; verse: number }>
       console.log(`[lexicon:getOccurrences] ${num} → ${rawRows.length} raw rows, first 3:`, rawRows.slice(0, 3))
       if (!rawRows.length) return []

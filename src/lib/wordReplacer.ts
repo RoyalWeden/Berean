@@ -56,7 +56,20 @@ export function applyStrongsWordReplacer(
   const nums = Array.isArray(tokenStrongsNum) ? tokenStrongsNum : [tokenStrongsNum]
   for (const rule of rules) {
     if (!rule.enabled || !rule.strongsNum) continue
-    if (nums.includes(rule.strongsNum)) return rule.replacement
+    if (!nums.includes(rule.strongsNum)) continue
+    // Preserve possessive suffix ('s/'S) and/or trailing punctuation that was
+    // part of the token word (punctuation attaches to the word in text_tagged).
+    // e.g. "LORD'S{H3068}"   word="LORD'S"   → "Yehovah's"
+    //      "LORD'S.{H3068}"  word="LORD'S."  → "Yehovah's."
+    //      "LORD,{H3068}"    word="LORD,"    → "Yehovah,"
+    //      "LORD.{H3068}"    word="LORD."    → "Yehovah."
+    const m = word.match(/^[A-Za-z]+('[Ss])?([\W]*)$/)
+    if (m) {
+      const possessive = m[1] ? "'s" : ''
+      const trailing   = m[2] ?? ''
+      return rule.replacement + possessive + trailing
+    }
+    return rule.replacement
   }
   return word
 }

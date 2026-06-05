@@ -19,6 +19,7 @@ const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
   { id: 'strongs-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
   { id: 'strongs-h3050', queries: [], strongsNum: 'H3050', replacement: 'Yah',     wholeWord: false, enabled: true },
   // Text-pattern rules (applied across all texts)
+  { id: 'a1c3e5f7', queries: ['elseus'],                             replacement: 'Elisha',        wholeWord: false, enabled: true },
   { id: '3b8e241f', queries: ['elias'],                             replacement: 'Elijah',        wholeWord: false, enabled: true },
   { id: '68d22a2b', queries: ['esaias'],                            replacement: 'Isaiah',        wholeWord: false, enabled: true },
   { id: '7b60a59e', queries: ['osee'],                              replacement: 'Hosea',         wholeWord: false, enabled: true },
@@ -182,18 +183,18 @@ export interface AppState {
   toggleWordReplacerRule: (id: string) => void
 
   // Print & Export settings
-  printMarginPreset: 'none' | 'narrow' | 'normal' | 'wide'
-  printMarginCustomIn: number
+  printMarginPreset: 'none' | 'narrow' | 'normal' | 'wide' | 'custom'
+  printCustomMargins: { top: number; right: number; bottom: number; left: number }  // inches
   printPaperSize: 'letter' | 'a4' | 'legal'
   printFontSizePt: number
   printFontFamily: 'system' | 'serif' | 'sansserif'
   printIncludeTitle: boolean
   printColorMode: 'color' | 'grayscale'
-  printTheme: 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night'
+  printTheme: import('@/components/notes/NoteEditor').PrintThemeId
   pdfDownloadLocation: string  // '' = prompt each time
-  setPrintTheme: (v: 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night') => void
-  setPrintMarginPreset: (v: 'none' | 'narrow' | 'normal' | 'wide') => void
-  setPrintMarginCustomIn: (v: number) => void
+  setPrintTheme: (v: import('@/components/notes/NoteEditor').PrintThemeId) => void
+  setPrintMarginPreset: (v: 'none' | 'narrow' | 'normal' | 'wide' | 'custom') => void
+  setPrintCustomMargins: (v: { top: number; right: number; bottom: number; left: number }) => void
   setPrintPaperSize: (v: 'letter' | 'a4' | 'legal') => void
   setPrintFontSizePt: (v: number) => void
   setPrintFontFamily: (v: 'system' | 'serif' | 'sansserif') => void
@@ -599,7 +600,7 @@ export const useAppStore = create<AppState>()(
       noteScriptureBlockThreshold: 0.9,
       // Print & Export defaults
       printMarginPreset: 'normal' as const,
-      printMarginCustomIn: 1,
+      printCustomMargins: { top: 1, right: 1, bottom: 1, left: 1 },
       printPaperSize: 'letter' as const,
       printFontSizePt: 12,
       printFontFamily: 'system' as const,
@@ -1034,7 +1035,7 @@ export const useAppStore = create<AppState>()(
 
       // Print & Export setters
       setPrintMarginPreset: (v) => set({ printMarginPreset: v }),
-      setPrintMarginCustomIn: (v) => set({ printMarginCustomIn: v }),
+      setPrintCustomMargins: (v) => set({ printCustomMargins: v }),
       setPrintPaperSize: (v) => set({ printPaperSize: v }),
       setPrintFontSizePt: (v) => set({ printFontSizePt: v }),
       setPrintFontFamily: (v) => set({ printFontFamily: v }),
@@ -1158,7 +1159,7 @@ export const useAppStore = create<AppState>()(
         completedStepIds: state.completedStepIds,
         // Print & Export settings
         printMarginPreset: state.printMarginPreset,
-        printMarginCustomIn: state.printMarginCustomIn,
+        printCustomMargins: state.printCustomMargins,
         printPaperSize: state.printPaperSize,
         printFontSizePt: state.printFontSizePt,
         printFontFamily: state.printFontFamily,

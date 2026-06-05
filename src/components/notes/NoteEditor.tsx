@@ -2123,7 +2123,7 @@ function escapeHtmlBasic(s: string): string {
 // Wrap detected verse blocks in styled HTML divs so the "view"/preview and the
 // printed/PDF output show the same scripture-block styling as the editor. Gated
 // on the noteScriptureBlock setting and the verse-text match threshold.
-const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:0 4px 4px 0;margin:8px 0'
+const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:8px;margin:8px 0'
 const VERSE_BLOCK_REF_STYLE = 'font-weight:700'
 
 /**
@@ -2288,11 +2288,15 @@ export function renderPreviewContent(content: string): string {
   return addVerseLinksToHtml(html)
 }
 
-export type PrintThemeId = 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night'
+export type PrintThemeId =
+  | 'classic' | 'manuscript' | 'minimal' | 'ocean' | 'night'
+  | 'parchment' | 'forest' | 'royal' | 'ember' | 'arctic'
+  | 'slate' | 'rose' | 'dawn' | 'midnight' | 'ivory'
 
 export interface PrintExportOptions {
-  marginPreset?: 'none' | 'narrow' | 'normal' | 'wide'
-  marginCustomIn?: number
+  marginPreset?: 'none' | 'narrow' | 'normal' | 'wide' | 'custom'
+  /** Per-side margins in inches; used only when marginPreset === 'custom'. */
+  customMargins?: { top: number; right: number; bottom: number; left: number }
   fontSize?: number
   fontFamily?: 'system' | 'serif' | 'sansserif'
   includeTitle?: boolean
@@ -2300,7 +2304,13 @@ export interface PrintExportOptions {
   theme?: PrintThemeId
 }
 
-const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
+export const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
+
+/** Expand a preset margin to per-side inches (used to seed custom margins). */
+export function presetToSides(preset: string): { top: number; right: number; bottom: number; left: number } {
+  const v = MARGIN_INCHES[preset] ?? 1
+  return { top: v, right: v, bottom: v, left: v }
+}
 const FONT_STACK: Record<string, string> = {
   system:    "-apple-system, system-ui, 'Segoe UI', sans-serif",
   serif:     "Georgia, 'Times New Roman', Times, serif",
@@ -2359,13 +2369,74 @@ export const PRINT_THEMES: Record<PrintThemeId, PrintTheme> = {
     verseBg: '#22272e', verseBorder: '#6366f1', verseRef: '#c7d2fe',
     mark: 'rgba(234,179,8,0.30)', codeBg: '#2a2f36', thBg: '#22272e', suggestedFont: 'system',
   },
+  // ── 10 additional themes ──────────────────────────────────────────────────
+  parchment: {
+    id: 'parchment', label: 'Parchment', desc: 'Antique sepia paper, timeless study feel',
+    bg: '#f9f3e8', text: '#3b2f1a', heading: '#2c1f0e', accent: '#8b5e2a', h2Border: '#d4b896',
+    verseBg: '#f3e9d0', verseBorder: '#a07840', verseRef: '#6b4315',
+    mark: 'rgba(160,120,64,0.28)', codeBg: '#ede3d0', thBg: '#f0e4cc', suggestedFont: 'serif',
+  },
+  forest: {
+    id: 'forest', label: 'Forest', desc: 'Deep green tones, earthy and grounded',
+    bg: '#f7faf7', text: '#1a2e1a', heading: '#163d1a', accent: '#2d6a4f', h2Border: '#b7d9c0',
+    verseBg: '#eaf4ec', verseBorder: '#2d7d4e', verseRef: '#1a5c35',
+    mark: 'rgba(45,125,78,0.22)', codeBg: '#e8f5ec', thBg: '#dff0e4', suggestedFont: 'system',
+  },
+  royal: {
+    id: 'royal', label: 'Royal', desc: 'Rich purple accents, regal and dignified',
+    bg: '#fdfcff', text: '#1a0a2e', heading: '#150824', accent: '#6d28d9', h2Border: '#ddd6fe',
+    verseBg: '#f3eeff', verseBorder: '#7c3aed', verseRef: '#4c1d95',
+    mark: 'rgba(109,40,217,0.20)', codeBg: '#f5f3ff', thBg: '#ede9fe', suggestedFont: 'system',
+  },
+  ember: {
+    id: 'ember', label: 'Ember', desc: 'Warm red-orange tones, bold and striking',
+    bg: '#fff8f5', text: '#1c0f08', heading: '#7c2d12', accent: '#c2410c', h2Border: '#fed7aa',
+    verseBg: '#fff0e8', verseBorder: '#ea580c', verseRef: '#9a3412',
+    mark: 'rgba(194,65,12,0.20)', codeBg: '#fff1eb', thBg: '#ffe4cc', suggestedFont: 'system',
+  },
+  arctic: {
+    id: 'arctic', label: 'Arctic', desc: 'Icy cool blue-white, crisp and clear',
+    bg: '#f5faff', text: '#0a1929', heading: '#0c2340', accent: '#0369a1', h2Border: '#bae6fd',
+    verseBg: '#e8f4fd', verseBorder: '#0284c7', verseRef: '#075985',
+    mark: 'rgba(3,105,161,0.18)', codeBg: '#e0f2fe', thBg: '#dbeafe', suggestedFont: 'sansserif',
+  },
+  slate: {
+    id: 'slate', label: 'Slate', desc: 'Modern cool gray, professional and clean',
+    bg: '#f8f9fa', text: '#1e2433', heading: '#0f172a', accent: '#3b4f6b', h2Border: '#cbd5e1',
+    verseBg: '#f1f5f9', verseBorder: '#64748b', verseRef: '#334155',
+    mark: 'rgba(71,85,105,0.18)', codeBg: '#e2e8f0', thBg: '#e8edf4', suggestedFont: 'system',
+  },
+  rose: {
+    id: 'rose', label: 'Rose', desc: 'Soft rose and mauve, warm and gentle',
+    bg: '#fff5f7', text: '#2d0a14', heading: '#4a0820', accent: '#be185d', h2Border: '#fce7f3',
+    verseBg: '#ffe4ed', verseBorder: '#db2777', verseRef: '#9d174d',
+    mark: 'rgba(190,24,93,0.18)', codeBg: '#ffe8f0', thBg: '#fce7f3', suggestedFont: 'system',
+  },
+  dawn: {
+    id: 'dawn', label: 'Dawn', desc: 'Warm gold sunrise, hopeful and bright',
+    bg: '#fffbf0', text: '#1c1205', heading: '#451a03', accent: '#b45309', h2Border: '#fde68a',
+    verseBg: '#fef3c7', verseBorder: '#d97706', verseRef: '#92400e',
+    mark: 'rgba(217,119,6,0.25)', codeBg: '#fef9e8', thBg: '#fef3c7', suggestedFont: 'system',
+  },
+  midnight: {
+    id: 'midnight', label: 'Midnight', desc: 'Deep navy dark mode, focused and immersive',
+    bg: '#0d1117', text: '#c9d1d9', heading: '#e6edf3', accent: '#58a6ff', h2Border: '#21262d',
+    verseBg: '#161b22', verseBorder: '#3b82f6', verseRef: '#79b8ff',
+    mark: 'rgba(88,166,255,0.22)', codeBg: '#161b22', thBg: '#161b22', suggestedFont: 'system',
+  },
+  ivory: {
+    id: 'ivory', label: 'Ivory', desc: 'Soft off-white, gentle and easy on the eyes',
+    bg: '#fafaf8', text: '#1a1a1a', heading: '#111111', accent: '#555577', h2Border: '#ddddd8',
+    verseBg: '#f2f2ee', verseBorder: '#9ca3af', verseRef: '#4b5563',
+    mark: 'rgba(107,114,128,0.18)', codeBg: '#f0f0ec', thBg: '#ededea', suggestedFont: 'serif',
+  },
 }
 
 // Build a standalone, print-ready HTML document for a note (used by print + PDF export).
 export function buildPrintHTML(title: string, content: string, opts: PrintExportOptions = {}): string {
   const {
     marginPreset = 'normal',
-    marginCustomIn = 1,
+    customMargins,
     fontSize = 12,
     fontFamily = 'system',
     includeTitle = true,
@@ -2373,25 +2444,40 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
     theme: themeId = 'classic',
   } = opts
   const t = PRINT_THEMES[themeId] ?? PRINT_THEMES.classic
-  const marginIn = MARGIN_INCHES[marginPreset] ?? marginCustomIn
-  const body = renderPreviewContent(content)
-  const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // Resolve body padding: a custom preset uses per-side values; otherwise a uniform preset.
+  let bodyPadding: string
+  if (marginPreset === 'custom' && customMargins) {
+    const cl = (n: number) => Math.max(0, n)
+    bodyPadding = `${cl(customMargins.top)}in ${cl(customMargins.right)}in ${cl(customMargins.bottom)}in ${cl(customMargins.left)}in`
+  } else {
+    bodyPadding = `${MARGIN_INCHES[marginPreset] ?? 1}in`
+  }
   const grayscaleFilter = colorMode === 'grayscale' ? 'filter: grayscale(100%);' : ''
-  const darkBg = themeId === 'night' ? `print-color-adjust: exact; -webkit-print-color-adjust: exact;` : ''
+  const isDarkTheme = ['night', 'midnight'].includes(themeId)
+  const colorAdjust = isDarkTheme ? `print-color-adjust: exact; -webkit-print-color-adjust: exact;` : ''
+  // Margins are controlled ENTIRELY by the body padding (uniform on all four sides),
+  // and @page margin is zeroed. This keeps the iframe preview (where @page has no effect)
+  // identical to the printed PDF. The Electron print/PDF handlers also pass margin:0 so the
+  // body padding is the single source of truth. "none" therefore truly means edge-to-edge.
+  // Strip internal anchor hrefs (verse-refs, wikilinks, lexicon refs) that would become
+  // broken links in PDF. External http(s) links (YouTube etc.) are left untouched.
+  let body = renderPreviewContent(content)
+  body = body.replace(/(<a\b[^>]*?)\s+href="#[^"]*"([^>]*>)/g, '$1$2')
+  const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>${safeTitle}</title>
 <style>
-  @page { margin: ${marginIn}in; }
+  @page { margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
-  html { background: ${t.bg}; ${darkBg} }
+  html { background: ${t.bg}; ${colorAdjust} }
   body {
     font-family: ${FONT_STACK[fontFamily] ?? FONT_STACK.system};
     font-size: ${fontSize}pt; line-height: 1.65; color: ${t.text};
     background: ${t.bg};
-    max-width: 7in; margin: 0 auto; padding: 0.25in 0;
+    margin: 0; padding: ${bodyPadding};
     ${grayscaleFilter}
   }
   /* Headings */
@@ -2436,14 +2522,18 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
   u { text-decoration: underline; }
   del, s { text-decoration: line-through; opacity: 0.6; }
   mark { background: ${t.mark}; border-radius: 2px; padding: 0 2px; color: ${t.text}; }
-  /* Links */
+  /* Links — external (real href) keep accent + underline; internal links had their
+     href stripped (broken in PDF) so they're styled to NOT look clickable.
+     Verse refs keep their distinct color (valuable scripture marker) but no underline.
+     Other stripped internal links (wikilinks) fall back to plain body text. */
   a { color: ${t.accent}; text-decoration: underline; }
-  a.berean-verse-ref { color: ${t.verseRef}; font-weight: 500; }
+  a.berean-verse-ref { color: ${t.verseRef}; font-weight: 500; text-decoration: none; }
+  a:not([href]):not(.berean-verse-ref) { color: inherit; text-decoration: none; }
   /* Verse blocks — !important overrides the inline styles from renderPreviewContent */
   .berean-verse-block {
     border-left: 3px solid ${t.verseBorder} !important;
     background: ${t.verseBg} !important;
-    padding: 0.4em 0.85em !important; border-radius: 0 4px 4px 0 !important; margin: 0.7em 0 !important;
+    padding: 0.4em 0.85em !important; border-radius: 8px !important; margin: 0.7em 0 !important;
     color: ${t.text} !important;
   }
   .berean-verse-block a.berean-verse-ref { font-weight: 700; color: ${t.verseRef} !important; text-decoration: none; }

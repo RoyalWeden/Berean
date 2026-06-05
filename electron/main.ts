@@ -516,7 +516,9 @@ app.whenReady().then(async () => {
       // Small delay to ensure full render before print dialog opens
       await new Promise<void>((resolve) => setTimeout(resolve, 300))
       await new Promise<void>((resolve) => {
-        win.webContents.print({ silent: false, printBackground: true }, () => resolve())
+        // marginType 'none' — the note's body padding is the single source of margin truth
+        // (matches the on-screen preview). The user can still override in the print dialog.
+        win.webContents.print({ silent: false, printBackground: true, margins: { marginType: 'none' } }, () => resolve())
       })
       return { success: true }
     } finally {
@@ -539,7 +541,9 @@ app.whenReady().then(async () => {
       await writeFile(tmpFile, html, 'utf8')
       await win.loadURL(`file://${tmpFile}`)
       await new Promise<void>((resolve) => setTimeout(resolve, 300))
-      const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' } })
+      // marginType 'none' — body padding (set per the chosen margin preset) is the sole margin,
+      // so the exported PDF matches the on-screen preview exactly.
+      const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'none' } })
       const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
       const safeName = `${(suggestedName || 'note').replace(/[/\\:*?"<>|]/g, '-')}.pdf`
       // Use the configured download location as the default directory if set and exists

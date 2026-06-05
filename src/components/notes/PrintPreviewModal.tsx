@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import type { ChangeEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Printer, FileDown, Eye } from 'lucide-react'
+import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { buildPrintHTML, PRINT_THEMES } from './NoteEditor'
+import { buildPrintHTML, PRINT_THEMES, presetToSides } from './NoteEditor'
 import type { PrintThemeId } from './NoteEditor'
 
 interface Props {
@@ -11,57 +12,192 @@ interface Props {
   onClose: () => void
 }
 
-type Margin = 'none' | 'narrow' | 'normal' | 'wide'
+type Margin = 'none' | 'narrow' | 'normal' | 'wide' | 'custom'
 type FontFam = 'system' | 'serif' | 'sansserif'
 type ColorMode = 'color' | 'grayscale'
+type Sides = { top: number; right: number; bottom: number; left: number }
+
+/** Compact colour swatch showing a theme's background + verse-block accent. */
+function ThemeSwatch({ th, size = 'md' }: { th: (typeof PRINT_THEMES)[PrintThemeId]; size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 20 : 26
+  return (
+    <span
+      className="flex-shrink-0 rounded border overflow-hidden"
+      style={{ width: dim, height: dim, background: th.bg, borderColor: th.h2Border }}
+    >
+      <span className="block w-full" style={{ height: size === 'sm' ? 5 : 7, background: th.verseBorder }} />
+      <span className="block mx-0.5 mt-0.5 rounded-sm" style={{ height: size === 'sm' ? 3 : 4, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
+    </span>
+  )
+}
+
+const PAGE_W_PX = 816 // US Letter width: 8.5in @ 96dpi
+
+/**
+ * Renders print HTML at true page width (8.5in) then scales it down to fit the
+ * container, so margins/layout are PROPORTIONALLY ACCURATE (unlike a width:100%
+ * iframe which exaggerates inch-based padding). Auto-heights to content; the page
+ * is scrolling="no" so it never shows its own scrollbar.
+ */
+export function ScaledPagePreview({ html, maxHeight = 360 }: { html: string; maxHeight?: number }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [scale, setScale] = useState(0.5)
+  const [contentH, setContentH] = useState(1056)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const update = () => setScale(el.clientWidth / PAGE_W_PX)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  function syncHeight() {
+    const doc = iframeRef.current?.contentWindow?.document
+    if (doc) setContentH(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
+  }
+  useEffect(() => { const id = setTimeout(syncHeight, 60); return () => clearTimeout(id) }, [html])
+
+  const scaledH = Math.min(contentH * scale, maxHeight)
+  return (
+    <div
+      ref={wrapRef}
+      className="w-full overflow-hidden rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      style={{ height: scaledH || 180 }}
+    >
+      <iframe
+        ref={iframeRef}
+        title="Print sample preview"
+        srcDoc={html}
+        onLoad={syncHeight}
+        scrolling="no"
+        style={{ width: PAGE_W_PX, height: contentH, border: 'none', transformOrigin: 'top left', transform: `scale(${scale})` }}
+      />
+    </div>
+  )
+}
+
+/** 2×2 grid of per-side margin inputs (inches). Shared by the modal and Settings. */
+export function CustomMarginInputs({
+  value, onChange,
+}: { value: Sides; onChange: (v: Sides) => void }) {
+  const set = (side: keyof Sides) => (e: ChangeEvent<HTMLInputElement>) => {
+    const n = parseFloat(e.target.value)
+    onChange({ ...value, [side]: isNaN(n) ? 0 : Math.max(0, Math.min(4, n)) })
+  }
+  const field = (side: keyof Sides, label: string) => (
+    <label className="flex items-center gap-1">
+      <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">{label}</span>
+      <input
+        type="number" min={0} max={4} step={0.25} value={value[side]}
+        onChange={set(side)}
+        className="w-full min-w-0 px-1.5 py-1 text-xs text-center rounded border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">in</span>
+    </label>
+  )
+  return (
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-2">
+      {field('top', 'Top')}
+      {field('bottom', 'Bottom')}
+      {field('left', 'Left')}
+      {field('right', 'Right')}
+    </div>
+  )
+}
 
 export default function PrintPreviewModal({ title, content, onClose }: Props) {
-  // Persisted defaults
   const store = useAppStore()
 
-  // Live-editable local copies (seeded from saved settings)
+  // Live-editable local copies seeded from saved settings
   const [theme, setTheme] = useState<PrintThemeId>(store.printTheme)
   const [margin, setMargin] = useState<Margin>(store.printMarginPreset)
+  const [customMargins, setCustomMargins] = useState<Sides>(store.printCustomMargins)
   const [fontSize, setFontSize] = useState(store.printFontSizePt)
   const [fontFamily, setFontFamily] = useState<FontFam>(store.printFontFamily)
   const [colorMode, setColorMode] = useState<ColorMode>(store.printColorMode)
   const [includeTitle, setIncludeTitle] = useState(store.printIncludeTitle)
 
-  const opts = { theme, marginPreset: margin, fontSize, fontFamily, includeTitle, colorMode }
+  // Auto-size the preview iframe to its content so there's a single (outer) scrollbar.
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [iframeHeight, setIframeHeight] = useState(1056) // 11in @ 96dpi initial
+
+  // Preview zoom: fit-to-width by default (no horizontal scroll); user can zoom in/out.
+  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const [fitScale, setFitScale] = useState(1)
+  const [userZoom, setUserZoom] = useState<number | null>(null) // null = fit-to-width
+  const scale = userZoom ?? fitScale
+  useEffect(() => {
+    const el = previewWrapRef.current
+    if (!el) return
+    const update = () => {
+      // clientWidth already excludes any vertical scrollbar; subtract the p-4 padding
+      // (16px each side) plus a 2px buffer so rounding never spills into a horizontal scrollbar.
+      const avail = el.clientWidth - 32 - 2
+      setFitScale(Math.min(1, Math.max(0.2, avail / PAGE_W_PX)))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Theme picker popover
+  const [themeOpen, setThemeOpen] = useState(false)
+  const themePickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!themeOpen) return
+    function onDown(e: MouseEvent) {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) setThemeOpen(false)
+    }
+    document.addEventListener('mousedown', onDown, true)
+    return () => document.removeEventListener('mousedown', onDown, true)
+  }, [themeOpen])
+
+  const currentTheme = PRINT_THEMES[theme] ?? PRINT_THEMES.classic
+  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode }
 
   const html = useMemo(
     () => buildPrintHTML(title || 'Untitled', content, opts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, content, theme, margin, fontSize, fontFamily, colorMode, includeTitle]
+    [title, content, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle]
   )
 
-  // Persist the chosen settings so they become the new defaults
+  // Measure rendered content height and size the iframe to it (removes the iframe's own scrollbar)
+  function syncIframeHeight() {
+    const doc = iframeRef.current?.contentWindow?.document
+    if (doc) setIframeHeight(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
+  }
+  useEffect(() => {
+    // Re-measure shortly after the srcDoc updates (layout needs a tick to settle)
+    const id = setTimeout(syncIframeHeight, 60)
+    return () => clearTimeout(id)
+  }, [html])
+
   function persist() {
     store.setPrintTheme(theme)
     store.setPrintMarginPreset(margin)
+    store.setPrintCustomMargins(customMargins)
     store.setPrintFontSizePt(fontSize)
     store.setPrintFontFamily(fontFamily)
     store.setPrintColorMode(colorMode)
     store.setPrintIncludeTitle(includeTitle)
   }
 
-  function doPrint() {
-    persist()
-    window.app.printNote(html).catch(() => {})
-    onClose()
-  }
-
-  function doDownload() {
-    persist()
-    window.app.exportNotePDF(html, title || 'note', store.pdfDownloadLocation).catch(() => {})
-    onClose()
-  }
+  function doPrint() { persist(); window.app.printNote(html).catch(() => {}); onClose() }
+  function doDownload() { persist(); window.app.exportNotePDF(html, title || 'note', store.pdfDownloadLocation).catch(() => {}); onClose() }
 
   const segBtn = (active: boolean) =>
     `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
       ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
       : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
+
+  const themeList = Object.values(PRINT_THEMES)
 
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
@@ -87,49 +223,72 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
 
           {/* Body: controls + preview */}
           <div className="flex-1 flex min-h-0">
-            {/* Controls */}
-            <div className="w-60 flex-shrink-0 border-r border-[rgb(var(--color-surface-4))] overflow-y-auto p-4 space-y-5">
-              {/* Theme cards */}
+            {/* Controls sidebar */}
+            <div className="w-56 flex-shrink-0 border-r border-[rgb(var(--color-surface-4))] overflow-y-auto p-4 space-y-4">
+
+              {/* ── Theme picker button + popover ── */}
               <div>
                 <p className={labelCls}>Theme &amp; style</p>
-                <div className="space-y-1.5">
-                  {Object.values(PRINT_THEMES).map((th) => (
-                    <button
-                      key={th.id}
-                      onClick={() => { setTheme(th.id); setFontFamily(th.suggestedFont) }}
-                      className={`w-full text-left px-2.5 py-2 rounded-lg border transition-colors cursor-pointer flex items-center gap-2.5 ${
-                        theme === th.id
-                          ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                          : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50]'
-                      }`}
+                <div className="relative" ref={themePickerRef}>
+                  <button
+                    onClick={() => setThemeOpen(v => !v)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left cursor-pointer transition-colors ${
+                      themeOpen
+                        ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+                        : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
+                    }`}
+                  >
+                    <ThemeSwatch th={currentTheme} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{currentTheme.label}</span>
+                      <span className="block text-[9px] text-[rgb(var(--color-text-muted))] truncate leading-tight">{currentTheme.desc}</span>
+                    </span>
+                    <ChevronDown size={13} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Popover — 3-column grid of all themes */}
+                  {themeOpen && (
+                    <div
+                      className="absolute left-0 right-0 top-full mt-1.5 z-50
+                        bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]
+                        rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1"
                     >
-                      {/* swatch */}
-                      <span
-                        className="w-7 h-7 rounded flex-shrink-0 border"
-                        style={{ background: th.bg, borderColor: th.h2Border }}
-                      >
-                        <span className="block w-full h-1.5 rounded-t" style={{ background: th.verseBorder }} />
-                        <span className="block mx-1 mt-1 h-1 rounded" style={{ background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{th.label}</span>
-                        <span className="block text-[9px] text-[rgb(var(--color-text-muted))] leading-tight truncate">{th.desc}</span>
-                      </span>
-                    </button>
-                  ))}
+                      {themeList.map((th) => (
+                        <button
+                          key={th.id}
+                          onClick={() => { setTheme(th.id); setFontFamily(th.suggestedFont); setThemeOpen(false) }}
+                          title={th.desc}
+                          className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border cursor-pointer transition-colors text-center ${
+                            theme === th.id
+                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                              : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
+                          }`}
+                        >
+                          <ThemeSwatch th={th} size="sm" />
+                          <span className="text-[9px] font-medium text-[rgb(var(--color-text-secondary))] leading-none">{th.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Margins */}
               <div>
                 <p className={labelCls}>Margins</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(['none', 'narrow', 'normal', 'wide'] as const).map((m) => (
-                    <button key={m} onClick={() => setMargin(m)} className={segBtn(margin === m)}>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
+                    <button key={m} onClick={() => {
+                      if (m === 'custom' && margin !== 'custom') setCustomMargins(presetToSides(margin))
+                      setMargin(m)
+                    }} className={segBtn(margin === m)}>
                       {m.charAt(0).toUpperCase() + m.slice(1)}
                     </button>
                   ))}
                 </div>
+                {margin === 'custom' && (
+                  <CustomMarginInputs value={customMargins} onChange={setCustomMargins} />
+                )}
               </div>
 
               {/* Font size */}
@@ -143,7 +302,7 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
               {/* Font family */}
               <div>
                 <p className={labelCls}>Font</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {([['system', 'System'], ['serif', 'Serif'], ['sansserif', 'Sans']] as const).map(([id, lbl]) => (
                     <button key={id} onClick={() => setFontFamily(id)} className={segBtn(fontFamily === id)}>{lbl}</button>
                   ))}
@@ -153,14 +312,14 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
               {/* Color */}
               <div>
                 <p className={labelCls}>Color</p>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1">
                   {([['color', 'Color'], ['grayscale', 'Gray']] as const).map(([id, lbl]) => (
                     <button key={id} onClick={() => setColorMode(id)} className={segBtn(colorMode === id)}>{lbl}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Include title */}
+              {/* Include title toggle */}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[rgb(var(--color-text-secondary))]">Include title</span>
                 <button
@@ -172,21 +331,69 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
               </div>
             </div>
 
-            {/* Preview iframe */}
-            <div className="flex-1 min-w-0 bg-[rgb(var(--color-surface-1))] p-4 overflow-auto flex justify-center">
-              <iframe
-                title="Print preview"
-                srcDoc={html}
-                className="bg-white shadow-xl rounded"
-                style={{ width: '8.5in', minHeight: '11in', border: 'none' }}
-              />
+            {/* Preview — fits to width by default (no horizontal scroll); the iframe is
+                sized to its content so it never shows its own (second) scrollbar. */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              {/* Zoom toolbar */}
+              <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
+                <button
+                  title="Zoom out"
+                  onClick={() => setUserZoom(Math.max(0.25, Math.round((scale - 0.1) * 100) / 100))}
+                  className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                >
+                  <Minus size={13} />
+                </button>
+                <span className="text-[11px] tabular-nums text-[rgb(var(--color-text-secondary))] w-10 text-center">
+                  {Math.round(scale * 100)}%
+                </span>
+                <button
+                  title="Zoom in"
+                  onClick={() => setUserZoom(Math.min(2, Math.round((scale + 0.1) * 100) / 100))}
+                  className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                >
+                  <Plus size={13} />
+                </button>
+                <button
+                  title="Fit to width"
+                  onClick={() => setUserZoom(null)}
+                  className={`ml-1 px-2 h-6 flex items-center justify-center rounded text-[11px] cursor-pointer transition-colors ${
+                    userZoom === null
+                      ? 'bg-[rgb(var(--color-accent))] text-white'
+                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                  }`}
+                >
+                  Fit
+                </button>
+              </div>
+              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-[rgb(var(--color-surface-1))] p-4 overflow-auto">
+                <div
+                  className="shadow-xl rounded"
+                  style={{ width: Math.floor(PAGE_W_PX * scale), height: Math.ceil(iframeHeight * scale), marginInline: 'auto', overflow: 'hidden' }}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    title="Print preview"
+                    srcDoc={html}
+                    onLoad={syncIframeHeight}
+                    scrolling="no"
+                    style={{
+                      width: PAGE_W_PX,
+                      height: iframeHeight,
+                      border: 'none',
+                      display: 'block',
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top left',
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Footer */}
           <div className="flex items-center gap-2 px-4 py-3 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
-              {store.pdfDownloadLocation ? `Saves to: ${store.pdfDownloadLocation}` : 'You’ll be asked where to save'}
+              {store.pdfDownloadLocation ? `Saves to: ${store.pdfDownloadLocation}` : 'You\'ll be asked where to save'}
             </p>
             <div className="flex-1" />
             <button onClick={onClose}

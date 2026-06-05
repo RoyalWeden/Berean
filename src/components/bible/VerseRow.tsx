@@ -862,7 +862,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   return (
     <div
       data-verse={verse.verse_num}
-      className="flex gap-3 mb-3 group leading-relaxed relative"
+      className={`flex gap-3 group relative ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;

@@ -369,7 +369,7 @@ function EntryView({
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
-              Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 200 ? '+' : ''})` : ''}
+              Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </p>
             {occurrences.length > 10 && (
               <button

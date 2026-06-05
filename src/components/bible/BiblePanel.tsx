@@ -67,6 +67,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Stores a scroll position to apply after ChapterView finishes loading its verses async.
   // The double-RAF approach is insufficient because IPC data arrives much later than 2 frames.
   const pendingScrollRef = useRef<number | null>(null)
+  // Stores the top-visible verse anchor before a Strong's toggle so the same verse stays
+  // visible at roughly the same screen position after the layout reflows.
+  const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   const compareColRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -249,17 +252,62 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:openScriptureSearch', onOpenFloating)
   }, [activeSpace])
 
+  // ── Strong's scroll-anchor helpers ───────────────────────────────────────
+  // Find the topmost verse whose top edge is at or below the container's visible top,
+  // then record how far its top edge is from the container's top (the "offset").
+  // After the layout reflows (Strong's chips add/remove height), we scroll so that
+  // same verse's top edge is back at the same offset — preventing the jump.
+  function captureStrongsAnchor() {
+    const container = chapterViewRef.current
+    if (!container) return
+    const containerTop = container.getBoundingClientRect().top
+    const verseEls = container.querySelectorAll<HTMLElement>('[data-verse]')
+    for (const el of verseEls) {
+      const rect = el.getBoundingClientRect()
+      if (rect.top >= containerTop - 4) {
+        strongsAnchorRef.current = {
+          verseNum: parseInt(el.dataset.verse ?? '0', 10),
+          offsetPx: rect.top - containerTop,
+        }
+        return
+      }
+    }
+    strongsAnchorRef.current = null
+  }
+
+  function restoreStrongsAnchor() {
+    const anchor = strongsAnchorRef.current
+    if (!anchor) return
+    strongsAnchorRef.current = null
+    const container = chapterViewRef.current
+    if (!container) return
+    // Use double-RAF to ensure the layout (new chip heights) has settled.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = container.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
+      if (!el) return
+      const containerTop = container.getBoundingClientRect().top
+      const elTop = el.getBoundingClientRect().top
+      container.scrollTop += elTop - containerTop - anchor.offsetPx
+    }))
+  }
+
   // ── Cmd+G → toggle Strong's numbers ─────────────────────────────────────
   useEffect(() => {
     function onToggleStrongs() {
       const tab = activeTabRef.current
       if (!tab) return
+      captureStrongsAnchor()
       const state = tab.state as import('@/types').BibleTabState
       updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs })
     }
     window.addEventListener('berean:toggleStrongs', onToggleStrongs)
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
-  }, [updateTabState])
+  }, [updateTabState]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore scroll anchor after the Strong's layout reflow settles
+  useEffect(() => {
+    restoreStrongsAnchor()
+  }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Type-anywhere digit → go to verse ────────────────────────────────────
   // Accumulate typed digits and navigate after a short pause.
@@ -993,7 +1041,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <Columns2 size={15} />
         </button>
         <button
-          onClick={() => activeTab && updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs })}
+          onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
           title="Toggle Strong's numbers"
           className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
             tabState.showStrongs
