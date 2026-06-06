@@ -17,6 +17,9 @@ export interface WordReplacerRule {
 const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
   // Strong's-number-based rules (KJVA tagged text only — precise per-word matching)
   { id: 'strongs-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
+  // H3069 (Yᵊhōvih) is the divine name pointed to read "Elohim" — KJV renders it "GOD"
+  // (all-caps, e.g. "Lord GOD"). It is YHWH, so it is restored to Yehovah as well.
+  { id: 'strongs-h3069', queries: [], strongsNum: 'H3069', replacement: 'Yehovah', wholeWord: false, enabled: true },
   { id: 'strongs-h3050', queries: [], strongsNum: 'H3050', replacement: 'Yah',     wholeWord: false, enabled: true },
   // Text-pattern rules (applied across all texts)
   { id: 'a1c3e5f7', queries: ['elseus'],                             replacement: 'Elisha',        wholeWord: false, enabled: true },
@@ -328,6 +331,13 @@ export interface AppState {
   historyOpen: boolean
   historySeenLength: number
   historyLoaded: boolean  // true once the SQLite load completes on mount
+  // History collapse memory — days/sessions are collapsed by default; these persist the
+  // keys the user has explicitly EXPANDED so the state survives reopening / restart.
+  historyExpandedDays: string[]
+  historyExpandedSessions: string[]
+  toggleHistoryExpandedDay: (key: string) => void
+  toggleHistoryExpandedSession: (key: string) => void
+  setHistoryExpanded: (days: string[], sessions: string[]) => void
   addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'sessionId' | 'sessionName'>) => void
   setHistory: (entries: HistoryEntry[]) => void
   deleteHistoryEntry: (id: string) => void
@@ -487,6 +497,19 @@ export const useAppStore = create<AppState>()(
       historyOpen: false,
       historySeenLength: 0,
       historyLoaded: false,
+      historyExpandedDays: [] as string[],
+      historyExpandedSessions: [] as string[],
+      toggleHistoryExpandedDay: (key) => set((s) => ({
+        historyExpandedDays: s.historyExpandedDays.includes(key)
+          ? s.historyExpandedDays.filter(k => k !== key)
+          : [...s.historyExpandedDays, key],
+      })),
+      toggleHistoryExpandedSession: (key) => set((s) => ({
+        historyExpandedSessions: s.historyExpandedSessions.includes(key)
+          ? s.historyExpandedSessions.filter(k => k !== key)
+          : [...s.historyExpandedSessions, key],
+      })),
+      setHistoryExpanded: (days, sessions) => set({ historyExpandedDays: days, historyExpandedSessions: sessions }),
       addHistoryEntry: (entry) => {
         const state = get()
         const currentSession = state.sessions.find(s => s.id === state.currentSessionId)
@@ -1255,6 +1278,8 @@ export const useAppStore = create<AppState>()(
         tasksMinimized: state.tasksMinimized,
         completedTaskIds: state.completedTaskIds,
         completedStepIds: state.completedStepIds,
+        historyExpandedDays: state.historyExpandedDays,
+        historyExpandedSessions: state.historyExpandedSessions,
         // Print & Export settings
         printMarginPreset: state.printMarginPreset,
         printCustomMargins: state.printCustomMargins,

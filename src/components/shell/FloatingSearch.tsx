@@ -3,7 +3,7 @@ import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube } from 'lucide-
 import * as Dialog from '@radix-ui/react-dialog'
 import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook } from '@/lib/parseRef'
-import { applyFindHighlight } from '@/lib/highlight'
+import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import type { Book, LexiconEntry, Note } from '@/types'
 
@@ -354,7 +354,9 @@ export default function FloatingSearch() {
     const book = books.find((b) => b.id === v.book_id)
     const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
     const rawText = wr(v.text)
-    const subText = rawText.length > subLen ? rawText.slice(0, subLen) + '…' : rawText
+    // Window the snippet around the match so the highlighted term is visible,
+    // not just the verse opening.
+    const subText = makeSnippet(rawText, cleanQuery, subLen, searchWordMode)
     results.push({
       type: 'verse',
       label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
@@ -374,7 +376,7 @@ export default function FloatingSearch() {
     results.push({
       type: 'note' as const,
       label: wr(note.title || 'Untitled note'),
-      sub: snippet.length > subLen ? snippet.slice(0, subLen) + '…' : snippet || 'Empty note',
+      sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
       action: () => {
         ensureTab('note')
         setActiveSpace('notes')
@@ -465,7 +467,13 @@ export default function FloatingSearch() {
 
           {/* Results */}
           {results.length > 0 && (
-            <div className="overflow-y-auto py-1" style={{ maxHeight: DENSITY_HEIGHT[floatingSearchDensity] }}>
+            <div
+              className="overflow-y-auto py-1"
+              // Cap to the density preference, but never taller than the space between the
+              // modal's top offset (12vh) and the bottom of the viewport, minus the input
+              // header + footer chrome (~7rem). Keeps the modal fully on-screen and scrolls.
+              style={{ maxHeight: `min(${DENSITY_HEIGHT[floatingSearchDensity]}, calc(88vh - 7rem))` }}
+            >
               {results.map((r, i) => {
                 // Only highlight matches on verse/note sub-text, not ref labels
                 const highlightQ = (r.type === 'verse' || r.type === 'note' || r.type === 'youtube') ? cleanQuery : ''

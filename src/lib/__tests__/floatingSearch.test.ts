@@ -220,3 +220,36 @@ describe('parseRef — chapter sweeps', () => {
     }
   }
 })
+
+// ── makeSnippet — windows truncated text around the query match ─────────────────
+import { makeSnippet } from '../highlight'
+
+describe('makeSnippet', () => {
+  const long = 'In the beginning God created the heaven and the earth and the deep waters covered everything below the firmament of the sky'
+  it('returns text unchanged when within maxLen', () => {
+    expect(makeSnippet('short text', 'text', 100)).toBe('short text')
+  })
+  it('shows the opening when match is near the start', () => {
+    const s = makeSnippet(long, 'beginning', 40)
+    expect(s.startsWith('In the beginning')).toBe(true)
+    expect(s.endsWith('…')).toBe(true)
+  })
+  it('windows around a match deep in the text (phrase)', () => {
+    const s = makeSnippet(long, 'firmament', 40, 'phrase')
+    expect(s.toLowerCase()).toContain('firmament')
+    expect(s.startsWith('…')).toBe(true)
+  })
+  it('windows around the earliest matching word (all/any)', () => {
+    const s = makeSnippet(long, 'sky firmament', 40, 'all')
+    expect(s.toLowerCase()).toContain('firmament')
+  })
+  it('falls back to the opening when there is no match', () => {
+    const s = makeSnippet(long, 'zzzznotpresent', 40)
+    expect(s.startsWith('In the beginning')).toBe(true)
+  })
+  it('falls back to the opening when query is empty', () => {
+    const s = makeSnippet(long, '', 30)
+    expect(s.startsWith('In the beginning')).toBe(true)
+    expect(s.endsWith('…')).toBe(true)
+  })
+})

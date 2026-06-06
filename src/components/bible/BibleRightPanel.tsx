@@ -1156,6 +1156,9 @@ interface Props {
   onNoteChange?: (noteId: string | null) => void
   /** Cursor offset to restore in the side-panel note editor (on tab return). */
   initialNoteCursor?: number | null
+  /** True only if the user was actively editing the note when they left this tab —
+   *  gates auto-focus + cursor restore so we never steal focus into the note panel. */
+  autoFocusNote?: boolean
   /** Called as the side-panel note cursor moves; parent persists it for tab restore. */
   onNoteCursorChange?: (pos: number) => void
   openLexiconEntry?: string | null
@@ -1169,7 +1172,7 @@ interface Props {
 export default function BibleRightPanel({
   bookId, chapter, activeTab, onTabChange,
   openNoteId, onNoteChange,
-  initialNoteCursor, onNoteCursorChange,
+  initialNoteCursor, autoFocusNote, onNoteCursorChange,
   openLexiconEntry: initialLexiconEntry, onLexiconEntryChange,
   verseFilter: initialVerseFilter, onVerseFilterChange,
   forcedTab,
@@ -1200,6 +1203,7 @@ export default function BibleRightPanel({
   const createNoteTab = useAppStore((s) => s.createTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const bumpFloatingTabToken = useAppStore((s) => s.bumpFloatingTabToken)
+  const defaultNoteEditorMode = useAppStore((s) => s.defaultNoteEditorMode)
 
   // Track the current sidebar note in a ref so the unmount cleanup can access it
   const sidebarNoteRef = useRef<Note | null>(null)
@@ -1466,8 +1470,16 @@ export default function BibleRightPanel({
               onChange={handleNoteChange}
               onVerseRefClick={handleVerseRefClick}
               onCursorPosition={onNoteCursorChange}
-              initialCursorPos={initialNoteCursorRef.current}
-              autoFocus
+              // Only restore the cursor + steal focus when the user was actually editing
+              // this note when they left the tab (autoFocusNote). Otherwise opening the
+              // scripture tab leaves focus on the reader, not the note.
+              initialCursorPos={autoFocusNote ? initialNoteCursorRef.current : undefined}
+              autoFocus={autoFocusNote}
+              // Hide markdown syntax markers (** * <u>) unless the user prefers raw mode.
+              // Without this the side-panel editor runs in live mode, where auto-focusing
+              // on tab-return would reveal the cursor line's raw markers. The side panel
+              // stays editable (no previewMode) since it's a quick-edit surface.
+              wysiwyg={defaultNoteEditorMode !== 'raw'}
             />
           </div>
         </div>

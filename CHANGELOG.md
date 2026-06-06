@@ -103,6 +103,21 @@ SCENARIO 5 — Abandon a beta series and restart
 ════════════════════════════════════════════════════════════════
 -->
 
+
+---
+
+## [0.3.7] - 2026-06-05
+
+- Better tooltips
+
+Bug Fixes:
+- Findbar fixes
+- Notes fixes
+- 'GOD' is also replaced to 'Yehovah'
+- Jubilees text rendering fixes
+- History modal bug fixes
+- Floating search bar fixes
+
 ---
 
 ## [0.3.6] - 2026-06-05
@@ -113,9 +128,10 @@ SCENARIO 5 — Abandon a beta series and restart
 - New tabs open below active tab
 - Right-click options in scripture search to open in new/floating tab
 - Lexicon copy button
+- Archive tabs
 
 Bug Fixes:
-- Various pdf/print issues
+- Various pdf/print issue fixes
 - Hebrew lexicon not linking to other hebrew strongs numbers
 - Empty notes no longer delete when switching tabs
 - Word replacer now edits cross reference verse text

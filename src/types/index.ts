@@ -38,6 +38,7 @@ export interface BibleTabState {
   rightPanelTab?: 'notes' | 'lexicon' | 'crossrefs'
   rightPanelNoteId?: string | null
   rightPanelNoteCursor?: number | null   // cursor offset in the side-panel note editor
+  rightPanelNoteFocused?: boolean        // was the side-panel note editor focused when the tab was left?
   rightPanelLexiconEntry?: string | null
   rightPanelVerseFilter?: string | null
   noteBack?: { noteId: string; title: string } | null

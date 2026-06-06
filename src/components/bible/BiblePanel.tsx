@@ -11,6 +11,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import ScriptureSearchFloating from './ScriptureSearchFloating'
 import LayoutPicker from './LayoutPicker'
+import { HintTooltip } from '@/components/shell/HintTooltip'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 
 import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
@@ -112,6 +113,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Live cursor offset of the side-panel note editor — written via a ref (no re-render),
   // persisted to tab state on tab switch so it can be restored on return.
   const lastNoteCursorRef = useRef<number | null>(tabState.rightPanelNoteCursor ?? null)
+  const panelRootRef = useRef<HTMLDivElement>(null)
+  // True only when the keyboard focus is inside the side-panel note editor (CodeMirror).
+  // In a scripture tab the side-panel note is the only CodeMirror editor, so checking
+  // for a focused .cm-content within this panel reliably detects "user was in the note".
+  function isSidePanelNoteFocused(): boolean {
+    const el = document.activeElement
+    if (!el || !(el instanceof HTMLElement)) return false
+    const cm = el.closest('.cm-content')
+    return !!cm && (panelRootRef.current?.contains(cm) ?? false)
+  }
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
 
@@ -172,8 +183,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el && pos > 0) updates.scrollPosition = pos
-      if (lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
-      if (tab && Object.keys(updates).length > 0) {
+      // Only remember the note cursor (and re-focus on return) if the user was actually
+      // typing in the side-panel note editor when they left this tab.
+      const noteFocused = isSidePanelNoteFocused()
+      updates.rightPanelNoteFocused = noteFocused
+      if (noteFocused && lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
+      if (tab) {
         useAppStore.getState().updateTabState('scripture', tab.id, updates)
       }
     }
@@ -189,10 +204,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (!tab) return
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el) updates.scrollPosition = el.scrollTop
-      if (lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
-      if (Object.keys(updates).length > 0) {
-        useAppStore.getState().updateTabState('scripture', tab.id, updates)
-      }
+      const noteFocused = isSidePanelNoteFocused()
+      updates.rightPanelNoteFocused = noteFocused
+      if (noteFocused && lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
+      useAppStore.getState().updateTabState('scripture', tab.id, updates)
     }
     window.addEventListener('berean:saveScrollBeforeTabChange', onSave)
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
@@ -754,6 +769,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   return (
     <div
+      ref={panelRootRef}
       className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]"
       onMouseDown={() => setActivePanelId('bible')}
     >
@@ -1013,6 +1029,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
         <div className="flex-1" />
         {/* Find in chapter (Cmd+F) */}
+        <HintTooltip label="Find in chapter" shortcut="⌘F">
         <button
           onClick={() => {
             setActivePanelId('bible')
@@ -1022,7 +1039,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               openFindBar(false, '')
             }
           }}
-          title="Find in chapter (⌘F)"
           className={`p-1 rounded transition-colors cursor-pointer ${
             findBarOpen && activePanelId === 'bible'
               ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
@@ -1031,10 +1047,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         >
           <ScanSearch size={15} />
         </button>
+        </HintTooltip>
         {/* Scripture floating search */}
+        <HintTooltip label="Search scripture" shortcut="⌘/">
         <button
           onClick={() => { setScriptureFloatingOpen((v) => !v); if (!scriptureFloatingOpen) closeFindBar() }}
-          title="Search scripture"
           className={`p-1 rounded transition-colors cursor-pointer ${
             scriptureFloatingOpen
               ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
@@ -1043,6 +1060,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         >
           <SearchIcon size={15} />
         </button>
+        </HintTooltip>
+        <HintTooltip label="Compare translations">
         <button
           onClick={() => {
             if (activeTab) {
@@ -1059,7 +1078,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               }
             }
           }}
-          title="Compare translations"
           className={`p-1 rounded transition-colors cursor-pointer ${
             tabState.compareMode
               ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
@@ -1068,9 +1086,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         >
           <Columns2 size={15} />
         </button>
+        </HintTooltip>
+        <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
         <button
           onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
-          title="Toggle Strong's numbers"
           className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
             tabState.showStrongs
               ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
@@ -1080,12 +1099,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <Layers size={14} />
           <span>Strong's</span>
         </button>
+        </HintTooltip>
         {/* Layout picker — hidden in floating windows (layout is locked to 'reading') */}
         {!floating && (
           <div ref={layoutPickerRef} className="relative">
+            <HintTooltip label="Change layout">
             <button
               onClick={() => setLayoutPickerOpen((v) => !v)}
-              title="Change layout"
               className={`p-1 rounded transition-colors cursor-pointer ${
                 layoutPickerOpen
                   ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
@@ -1094,6 +1114,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             >
               <LayoutDashboard size={15} />
             </button>
+            </HintTooltip>
             {layoutPickerOpen && (
               <LayoutPicker
                 current={currentLayout}
@@ -1107,9 +1128,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )}
         {/* Toggle right panel — hidden in floating windows (no side panel there) */}
         {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
+          <HintTooltip label={rightPanelOpen ? 'Close side panel' : 'Open side panel'}>
           <button
             onClick={toggleRightPanel}
-            title={rightPanelOpen ? 'Close side panel' : 'Open side panel'}
             className={`p-1 rounded transition-colors cursor-pointer ${
               rightPanelOpen
                 ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
@@ -1118,6 +1139,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           >
             <PanelRight size={15} />
           </button>
+          </HintTooltip>
         )}
       </div>
 
@@ -1258,6 +1280,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           openNoteId={rightPanelNoteId}
           onNoteChange={handleRightPanelNoteChange}
           initialNoteCursor={tabState.rightPanelNoteCursor}
+          autoFocusNote={tabState.rightPanelNoteFocused === true}
           onNoteCursorChange={handleRightPanelNoteCursorChange}
           openLexiconEntry={rightPanelLexiconEntry}
           onLexiconEntryChange={handleRightPanelLexiconChange}

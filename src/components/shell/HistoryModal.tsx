@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useMemo, memo } from 'react'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
+
+// Gap (ms) between consecutive entries that starts a new activity "session".
+const SESSION_GAP_MS = 30 * 60 * 1000  // 30 minutes
 
 function formatTime(ts: number): string {
   const d = new Date(ts)
@@ -23,6 +26,15 @@ function dayLabel(ts: number): string {
   yesterday.setDate(yesterday.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** Compact time-range label for a session, e.g. "3:40 – 4:15 pm" or "3:40 pm". */
+function sessionTimeRange(entries: { timestamp: number }[]): string {
+  if (entries.length === 0) return ''
+  const times = entries.map(e => e.timestamp)
+  const lo = Math.min(...times)
+  const hi = Math.max(...times)
+  return lo === hi ? formatTime(lo) : `${formatTime(lo)} – ${formatTime(hi)}`
 }
 
 /** Returns "YYYY-MM-DD" for a timestamp (local time) */
@@ -215,6 +227,13 @@ export default function HistoryModal() {
   const history          = useAppStore((s) => s.history)
   const closeHistory     = useAppStore((s) => s.closeHistory)
   const deleteEntry      = useAppStore((s) => s.deleteHistoryEntry)
+  // Persisted collapse memory — days & sessions are collapsed by default; these hold the
+  // keys the user has explicitly expanded (survives reopening and app restart).
+  const expandedDayList     = useAppStore((s) => s.historyExpandedDays)
+  const expandedSessionList = useAppStore((s) => s.historyExpandedSessions)
+  const toggleExpandedDay     = useAppStore((s) => s.toggleHistoryExpandedDay)
+  const toggleExpandedSession = useAppStore((s) => s.toggleHistoryExpandedSession)
+  const setHistoryExpanded    = useAppStore((s) => s.setHistoryExpanded)
   const overlayRef       = useRef<HTMLDivElement>(null)
   const navigate         = useNavigate()
 
@@ -224,9 +243,13 @@ export default function HistoryModal() {
   const [typeFilters, setTypeFilters]     = useState<Set<EntryType>>(new Set())
   const [sortNewest, setSortNewest]       = useState(true)
   const [showFilters, setShowFilters]     = useState(false)
+  // Days/sessions are collapsed by default; the expanded keys live in the store so the
+  // memory persists across reopening and restarts. Collapsed groups render header-only.
+  const expandedDays     = useMemo(() => new Set(expandedDayList), [expandedDayList])
+  const expandedSessions = useMemo(() => new Set(expandedSessionList), [expandedSessionList])
   const searchRef                         = useRef<HTMLInputElement>(null)
 
-  // Reset filters when modal opens + autofocus search
+  // Reset filters when modal opens + autofocus search (collapse memory is preserved).
   useEffect(() => {
     if (historyOpen) {
       setSearchQuery('')
@@ -236,7 +259,7 @@ export default function HistoryModal() {
       setShowFilters(false)
       setTimeout(() => searchRef.current?.focus(), 50)
     }
-  }, [historyOpen])
+  }, [historyOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Escape: clear search first, then close
   useEffect(() => {
@@ -273,17 +296,33 @@ export default function HistoryModal() {
     return entries
   }, [history, searchQuery, dateFilter, typeFilters, sortNewest])
 
-  // Build groups (preserve sort order — first entry in group gives the label)
-  const groups = useMemo(() => {
-    type Group = { label: string; entries: HistoryEntry[] }
-    const out: Group[] = []
+  // Build day groups, each split into activity "sessions" — runs of entries with
+  // no gap larger than SESSION_GAP_MS between consecutive items. A larger gap means
+  // the user stepped away and started a fresh study session.
+  const dayGroups = useMemo(() => {
+    type Session = { key: string; entries: HistoryEntry[] }
+    type Day = { label: string; key: string; sessions: Session[]; count: number }
+    const days: Day[] = []
     for (const entry of filtered) {
-      const label = dayLabel(entry.timestamp)
-      const last = out[out.length - 1]
-      if (last && last.label === label) last.entries.push(entry)
-      else out.push({ label, entries: [entry] })
+      const dayKey = toDateStr(entry.timestamp)
+      let day = days[days.length - 1]
+      if (!day || day.key !== dayKey) {
+        day = { label: dayLabel(entry.timestamp), key: dayKey, sessions: [], count: 0 }
+        days.push(day)
+      }
+      const lastSession = day.sessions[day.sessions.length - 1]
+      const lastEntry = lastSession?.entries[lastSession.entries.length - 1]
+      const gap = lastEntry ? Math.abs(lastEntry.timestamp - entry.timestamp) : Infinity
+      if (lastSession && gap <= SESSION_GAP_MS) {
+        lastSession.entries.push(entry)
+      } else {
+        // Stable key from the session's anchor timestamp so collapse memory survives
+        // re-grouping when new entries arrive (positional keys would shift).
+        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry] })
+      }
+      day.count++
     }
-    return out
+    return days
   }, [filtered])
 
   // Build a Set of IDs that are chains (have a parentId present in the current filtered set)
@@ -298,6 +337,26 @@ export default function HistoryModal() {
       return next
     })
   }
+
+  // When a search or filter is active, expand everything so every match is visible.
+  // Otherwise a group is collapsed unless its key is in the persisted expanded set.
+  const filtersActive = !!(searchQuery.trim() || dateFilter || typeFilters.size > 0)
+  const isDayCollapsed = (key: string) => !filtersActive && !expandedDays.has(key)
+  const isSessionCollapsed = (key: string) => !filtersActive && !expandedSessions.has(key)
+
+  function toggleDay(key: string) { toggleExpandedDay(key) }
+  function toggleSession(key: string) { toggleExpandedSession(key) }
+  function setAllCollapsed(collapsed: boolean) {
+    if (collapsed) {
+      setHistoryExpanded([], [])
+    } else {
+      // Expand every currently-shown day and session.
+      const dayKeys = dayGroups.map(d => d.key)
+      const sessionKeys = dayGroups.flatMap(d => d.sessions.map(s => s.key))
+      setHistoryExpanded(dayKeys, sessionKeys)
+    }
+  }
+  const allCollapsed = expandedDays.size === 0
 
   if (!historyOpen) return null
 
@@ -317,7 +376,12 @@ export default function HistoryModal() {
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
           <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
           <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">History</span>
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1">{filtered.length}/{history.length}</span>
+          <span
+            className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1"
+            title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
+          >
+            {filtersActive ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
+          </span>
           <button
             onClick={closeHistory}
             className="p-1 rounded-md text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
@@ -351,6 +415,14 @@ export default function HistoryModal() {
                 className="text-[9px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer px-1 tabular-nums"
               >
                 {sortNewest ? '↓ New' : '↑ Old'}
+              </button>
+              <button
+                onClick={() => setAllCollapsed(!allCollapsed)}
+                title={allCollapsed ? 'Expand all days' : 'Collapse all days'}
+                disabled={filtersActive}
+                className={`p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default`}
+              >
+                {allCollapsed ? <ChevronsUpDown size={11} /> : <ChevronsDownUp size={11} />}
               </button>
               <button
                 onClick={() => setShowFilters(v => !v)}
@@ -425,27 +497,64 @@ export default function HistoryModal() {
             </div>
           ) : (
             <div className="py-1">
-              {groups.map((group) => (
-                <div key={group.label} style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${group.entries.length * 30 + 24}px` }}>
-                  {/* Day header */}
-                  <div className="sticky top-0 px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))] border-b border-[rgb(var(--color-surface-4))] z-10 flex items-center gap-2">
-                    <span>{group.label}</span>
-                    <span className="opacity-50 font-normal normal-case tracking-normal">({group.entries.length})</span>
-                  </div>
-                  {/* Entries */}
-                  <div className="py-0.5">
-                    {group.entries.map((entry) => (
-                      <HistoryItem
-                        key={entry.id}
-                        entry={entry}
-                        isChained={chainedIds.has(entry.id)}
-                        onNavigate={navigate}
-                        onDelete={deleteEntry}
-                      />
-                    ))}
-                  </div>
+              {dayGroups.map((day) => {
+                const dayCollapsed = isDayCollapsed(day.key)
+                return (
+                <div key={day.key} style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${(dayCollapsed ? 0 : day.count * 30 + day.sessions.length * 22) + 24}px` }}>
+                  {/* Day header — click to collapse/expand */}
+                  <button
+                    onClick={() => toggleDay(day.key)}
+                    className="sticky top-0 w-full px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))] border-b border-[rgb(var(--color-surface-4))] z-10 flex items-center gap-2 hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
+                  >
+                    <ChevronDown size={11} className={`transition-transform ${dayCollapsed ? '-rotate-90' : ''}`} />
+                    <span>{day.label}</span>
+                    <span className="opacity-50 font-normal normal-case tracking-normal">({day.count})</span>
+                    {!dayCollapsed && day.sessions.length > 1 && (
+                      <span className="opacity-40 font-normal normal-case tracking-normal ml-auto">{day.sessions.length} sessions</span>
+                    )}
+                  </button>
+                  {/* Sessions */}
+                  {!dayCollapsed && day.sessions.map((session) => {
+                    const sessionCollapsed = isSessionCollapsed(session.key)
+                    // Distinct activity types in this session (for at-a-glance icons)
+                    const types = Array.from(new Set(session.entries.map(e => e.type)))
+                    return (
+                      <div key={session.key}>
+                        {/* Session sub-header — only show when there's more than one session that day */}
+                        {day.sessions.length > 1 && (
+                          <button
+                            onClick={() => toggleSession(session.key)}
+                            className="w-full flex items-center gap-2 pl-4 pr-3 py-1 text-[9px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
+                          >
+                            <ChevronDown size={9} className={`transition-transform opacity-60 ${sessionCollapsed ? '-rotate-90' : ''}`} />
+                            <span className="tabular-nums">{sessionTimeRange(session.entries)}</span>
+                            <span className="opacity-50">· {session.entries.length}</span>
+                            <span className="flex items-center gap-1 ml-auto">
+                              {types.slice(0, 5).map(t => (
+                                <span key={t} className={TYPE_COLOR[t]}><EntryIcon type={t} size={9} /></span>
+                              ))}
+                            </span>
+                          </button>
+                        )}
+                        {!(day.sessions.length > 1 && sessionCollapsed) && (
+                          <div className="py-0.5">
+                            {session.entries.map((entry) => (
+                              <HistoryItem
+                                key={entry.id}
+                                entry={entry}
+                                isChained={chainedIds.has(entry.id)}
+                                onNavigate={navigate}
+                                onDelete={deleteEntry}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

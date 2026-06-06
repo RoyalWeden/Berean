@@ -572,24 +572,31 @@ export default function App() {
 
       // ── Cmd+F → route find bar to the last-focused panel ───────────────
       if (cmd && !e.shiftKey && e.key.toLowerCase() === 'f') {
-        // If focus is inside a CodeMirror editor, let it handle Cmd+F natively
+        const pid = activePanelIdRef.current
+        // Notes & lexicon panels have their own FindBar component — route to it even
+        // when focus is inside their CodeMirror editor (the editor has no native search
+        // panel wired up, so relying on CodeMirror would do nothing).
+        if (pid === 'notes') {
+          e.preventDefault()
+          window.dispatchEvent(new CustomEvent('berean:openNotesFindBar'))
+          return
+        }
+        if (pid === 'lexicon') {
+          e.preventDefault()
+          window.dispatchEvent(new CustomEvent('berean:openLexiconFindBar'))
+          return
+        }
+        // Bible panel (default). If focus is inside a CodeMirror editor (e.g. the
+        // scripture-tab side-panel note), don't hijack Cmd+F.
         const activeEl = document.activeElement
         if (activeEl && (activeEl.classList.contains('cm-content') || activeEl.closest?.('.cm-content'))) {
           return
         }
         e.preventDefault()
-        const pid = activePanelIdRef.current
-        if (pid === 'notes') {
-          window.dispatchEvent(new CustomEvent('berean:openNotesFindBar'))
-        } else if (pid === 'lexicon') {
-          window.dispatchEvent(new CustomEvent('berean:openLexiconFindBar'))
+        if (findBarOpenRef.current) {
+          window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
         } else {
-          // bible panel (default)
-          if (findBarOpenRef.current) {
-            window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
-          } else {
-            openFindBar(false, '')
-          }
+          openFindBar(false, '')
         }
         return
       }
@@ -626,6 +633,14 @@ export default function App() {
         // ── Cmd+/ → open scripture floating search ──────────────────────
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('berean:openScriptureSearch'))
+      } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'g') {
+        // ── Cmd+G → toggle Strong's numbers in the active scripture tab ──
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('berean:toggleStrongs'))
+      } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'h') {
+        // ── Cmd+H → open History (app 'hide' is remapped to ⌘⇧H) ────────
+        e.preventDefault()
+        useAppStore.getState().openHistory()
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('berean:togglePiP'))

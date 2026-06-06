@@ -1,6 +1,51 @@
 import React from 'react'
 
 /**
+ * Build a truncated snippet of `text` (max `maxLen` chars) windowed around the first
+ * occurrence of `query` so the matched term is visible — instead of always showing the
+ * verse/note's opening. Adds leading/trailing "…" when the window is clipped.
+ *
+ * wordMode 'phrase' looks for the whole query; 'all'/'any' look for the earliest of the
+ * individual query words.
+ */
+export function makeSnippet(
+  text: string,
+  query: string,
+  maxLen: number,
+  wordMode: 'phrase' | 'all' | 'any' = 'phrase',
+): string {
+  if (text.length <= maxLen) return text
+  const q = query.trim()
+  const fromStart = () => text.slice(0, maxLen).trimEnd() + '…'
+  if (!q) return fromStart()
+
+  const lower = text.toLowerCase()
+  let idx = -1
+  if (wordMode === 'phrase') {
+    idx = lower.indexOf(q.toLowerCase())
+  } else {
+    let best = Infinity
+    for (const w of q.toLowerCase().split(/\s+/).filter(Boolean)) {
+      const i = lower.indexOf(w)
+      if (i >= 0 && i < best) best = i
+    }
+    idx = best === Infinity ? -1 : best
+  }
+  if (idx < 0 || idx < maxLen * 0.55) return fromStart()  // match already near the start
+
+  // Window the snippet so the match sits ~30% in from the left edge.
+  const lead = Math.floor(maxLen * 0.3)
+  let start = Math.max(0, idx - lead)
+  // Snap the start to the next word boundary so we don't cut a word in half.
+  const sp = text.indexOf(' ', start)
+  if (sp >= 0 && sp < idx) start = sp + 1
+  let snip = text.slice(start, start + maxLen)
+  if (start > 0) snip = '…' + snip.trimStart()
+  if (start + maxLen < text.length) snip = snip.trimEnd() + '…'
+  return snip
+}
+
+/**
  * Splits `text` on every occurrence of `query` (case-insensitive) and returns
  * a React node where each match is wrapped in a <mark> element styled for the
  * Berean find-bar. Marks receive the `berean-find-mark` class so the panel can
