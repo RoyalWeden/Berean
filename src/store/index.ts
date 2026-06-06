@@ -51,6 +51,13 @@ function updateMRU(
   return [{ spaceId, tabId }, ...list.filter(item => !(item.spaceId === spaceId && item.tabId === tabId))].slice(0, 100)
 }
 
+export interface ArchivedGroup {
+  id: string
+  label: string          // e.g. "Gen 1" or "Archive — Jun 5 2025 3:42 PM"
+  archivedAt: number     // Date.now()
+  tabs: Tab[]            // flat list regardless of space
+}
+
 export interface Session {
   id: string
   name: string
@@ -174,6 +181,12 @@ export interface AppState {
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
+  // Suggest inserting a scripture block when user types a verse ref in notes
+  noteVerseBlockSuggest: boolean
+  setNoteVerseBlockSuggest: (v: boolean) => void
+  // Suggest inserting a Strong's block when user types H/G number in notes
+  noteStrongsBlockSuggest: boolean
+  setNoteStrongsBlockSuggest: (v: boolean) => void
 
   // Word replacer
   wordReplacerEnabled: boolean
@@ -265,6 +278,13 @@ export interface AppState {
   // MRU tab list (most-recently-used order, used by Ctrl+Tab switcher)
   tabMRUList: Array<{ spaceId: SpaceId; tabId: string }>
 
+  // Archived tabs — closed tabs kept for later recovery
+  archivedGroups: ArchivedGroup[]
+  archiveTab: (spaceId: SpaceId, tabId: string) => void
+  archiveAllTabs: (label?: string) => void
+  restoreArchivedGroup: (groupId: string) => void
+  dismissArchivedGroup: (groupId: string) => void
+
   // Sessions
   sessions: Session[]
   currentSessionId: string
@@ -306,6 +326,7 @@ export interface AppState {
   // Stored in SQLite (history table); the in-memory array is the UI view.
   history: HistoryEntry[]
   historyOpen: boolean
+  historySeenLength: number
   historyLoaded: boolean  // true once the SQLite load completes on mount
   addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'sessionId' | 'sessionName'>) => void
   setHistory: (entries: HistoryEntry[]) => void
@@ -464,6 +485,7 @@ export const useAppStore = create<AppState>()(
 
       history: [] as HistoryEntry[],
       historyOpen: false,
+      historySeenLength: 0,
       historyLoaded: false,
       addHistoryEntry: (entry) => {
         const state = get()
@@ -503,7 +525,7 @@ export const useAppStore = create<AppState>()(
         set({ history: [] })
         window.appHistory?.clear().catch(() => {})
       },
-      openHistory: () => set((s) => ({ historyOpen: !s.historyOpen })),
+      openHistory: () => set((s) => ({ historyOpen: !s.historyOpen, historySeenLength: s.history.length })),
       closeHistory: () => set({ historyOpen: false }),
 
       onboardingOpen: false,
@@ -598,6 +620,8 @@ export const useAppStore = create<AppState>()(
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
       noteScriptureBlockThreshold: 0.9,
+      noteVerseBlockSuggest: true,
+      noteStrongsBlockSuggest: true,
       // Print & Export defaults
       printMarginPreset: 'normal' as const,
       printCustomMargins: { top: 1, right: 1, bottom: 1, left: 1 },
@@ -620,6 +644,7 @@ export const useAppStore = create<AppState>()(
       wordReplacerEnabled: true,
       wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
 
+      archivedGroups: [] as ArchivedGroup[],
       sessions: [DEFAULT_SESSION] as Session[],
       currentSessionId: 'default',
       sessionTabFilters: {} as Record<string, TabType | 'all'>,
@@ -820,8 +845,13 @@ export const useAppStore = create<AppState>()(
             tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
           })
         } else {
+          const currentTabs = state.tabs[tab.spaceId]
+          const activeId = state.activeTabId[tab.spaceId]
+          const activeIdx = activeId ? currentTabs.findIndex((t) => t.id === activeId) : -1
+          const insertAt = activeIdx >= 0 ? activeIdx + 1 : currentTabs.length
+          const newTabs = [...currentTabs.slice(0, insertAt), tab, ...currentTabs.slice(insertAt)]
           set({
-            tabs: { ...state.tabs, [tab.spaceId]: [...state.tabs[tab.spaceId], tab] },
+            tabs: { ...state.tabs, [tab.spaceId]: newTabs },
             activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },
             activeSpace: tab.spaceId,
             tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
@@ -912,8 +942,8 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
       openSearch: (mode = 'current') => {
+        window.dispatchEvent(new Event('berean:closeMenus'))
         set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
-        window.dispatchEvent(new CustomEvent('berean:closeContextMenus'))
       },
       closeSearch: () => set({ searchOpen: false }),
       requestOpenNote: (noteId) => set({ pendingNoteId: noteId }),
@@ -929,7 +959,7 @@ export const useAppStore = create<AppState>()(
         set(update)
       },
 
-      openSettings: () => set({ settingsOpen: true }),
+      openSettings: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true }) },
       closeSettings: () => set({ settingsOpen: false }),
       toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
 
@@ -1048,6 +1078,73 @@ export const useAppStore = create<AppState>()(
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
+      setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),
+      setNoteStrongsBlockSuggest: (v) => set({ noteStrongsBlockSuggest: v }),
+
+      archiveTab: (spaceId, tabId) => {
+        const state = get()
+        const tab = state.tabs[spaceId].find(t => t.id === tabId)
+        if (!tab) return
+        const group: ArchivedGroup = {
+          id: `arch-${Date.now()}`,
+          label: tab.title,
+          archivedAt: Date.now(),
+          tabs: [tab],
+        }
+        set({ archivedGroups: [group, ...state.archivedGroups] })
+        // Also close the tab
+        state.closeTab(spaceId, tabId)
+      },
+
+      archiveAllTabs: (label) => {
+        const state = get()
+        const allTabs: Tab[] = []
+        for (const space of Object.values(state.tabs)) {
+          allTabs.push(...(space as Tab[]))
+        }
+        if (allTabs.length === 0) return
+        const ts = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        const group: ArchivedGroup = {
+          id: `arch-${Date.now()}`,
+          label: label ?? `Archive — ${ts}`,
+          archivedAt: Date.now(),
+          tabs: allTabs,
+        }
+        // Close all tabs in all spaces
+        const newTabs: Record<string, Tab[]> = {}
+        for (const spaceId of Object.keys(state.tabs)) newTabs[spaceId] = []
+        const newActiveId: Record<string, string | null> = {}
+        for (const spaceId of Object.keys(state.activeTabId)) newActiveId[spaceId] = null
+        set({
+          archivedGroups: [group, ...state.archivedGroups],
+          tabs: newTabs as typeof state.tabs,
+          activeTabId: newActiveId as typeof state.activeTabId,
+        })
+      },
+
+      restoreArchivedGroup: (groupId) => {
+        const state = get()
+        const group = state.archivedGroups.find(g => g.id === groupId)
+        if (!group) return
+        // Re-add each tab to its space
+        let newTabs = { ...state.tabs }
+        let newActiveId = { ...state.activeTabId }
+        for (const tab of group.tabs) {
+          const existing = newTabs[tab.spaceId] ?? []
+          if (!existing.find(t => t.id === tab.id)) {
+            newTabs = { ...newTabs, [tab.spaceId]: [...existing, tab] }
+            newActiveId = { ...newActiveId, [tab.spaceId]: tab.id }
+          }
+        }
+        set({
+          archivedGroups: state.archivedGroups.filter(g => g.id !== groupId),
+          tabs: newTabs,
+          activeTabId: newActiveId,
+        })
+      },
+
+      dismissArchivedGroup: (groupId) =>
+        set(s => ({ archivedGroups: s.archivedGroups.filter(g => g.id !== groupId) })),
       setDefaultNoteEditorMode: (m) => set({ defaultNoteEditorMode: m }),
       setConfirmNoteDelete: (v) => set({ confirmNoteDelete: v }),
       setNoteSpellCheck: (v) => set({ noteSpellCheck: v }),
@@ -1149,6 +1246,7 @@ export const useAppStore = create<AppState>()(
         noteTransformLayout: state.noteTransformLayout,
         floatingSearchDensity: state.floatingSearchDensity,
         defaultYoutubeLayout: state.defaultYoutubeLayout,
+        archivedGroups: state.archivedGroups,
         sessions: state.sessions,
         currentSessionId: state.currentSessionId,
         sessionTabFilters: state.sessionTabFilters,

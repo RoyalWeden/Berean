@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme } from 'electron'
+import type Electron from 'electron'
 import { join } from 'path'
 import { appendFileSync, mkdirSync } from 'fs'
 import os from 'os'
@@ -393,6 +394,25 @@ function createWindow(): void {
   mainWindow.webContents.on('responsive', () => {
     earlyLog('[responsive]')
     log.info('[responsive]')
+  })
+  // Show a native spell-check context menu when the user right-clicks a misspelled word.
+  mainWindow.webContents.on('context-menu', (_e, params) => {
+    const { misspelledWord, dictionarySuggestions } = params
+    if (!misspelledWord) return
+    const items: Electron.MenuItemConstructorOptions[] = dictionarySuggestions.length > 0
+      ? dictionarySuggestions.slice(0, 8).map(s => ({
+          label: s,
+          click: () => mainWindow!.webContents.replaceMisspelling(s),
+        }))
+      : [{ label: 'No suggestions', enabled: false }]
+    items.push(
+      { type: 'separator' },
+      {
+        label: 'Add to Dictionary',
+        click: () => mainWindow!.session.addWordToSpellCheckerDictionary(misspelledWord),
+      },
+    )
+    Menu.buildFromTemplate(items).popup({ window: mainWindow! })
   })
   log.info('mainWindow created, loading renderer...')
 }

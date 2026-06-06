@@ -25,6 +25,7 @@ import type { Note } from '@/types'
 import { parseRef, getTranslationForBook } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
+import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 
 const PERSISTENT_TOOLBAR_MIN_WIDTH = 380
 
@@ -254,6 +255,13 @@ const bereanTheme = EditorView.theme({
   '.cm-live-verse-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
   '.cm-live-verse-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
   '.cm-live-verse-block-ref': { fontWeight: '700', color: 'rgb(var(--color-text-primary)) !important' },
+  // Lexicon block — same left-accent treatment as verse blocks, but uses the lexicon-ref color
+  '.cm-live-lexicon-block': { borderLeft: '3px solid rgba(99,102,241,0.7)', paddingLeft: '0.75em', backgroundColor: 'rgba(99,102,241,0.05)', color: 'rgb(var(--color-text-secondary))' },
+  '.cm-live-lexicon-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
+  '.cm-live-lexicon-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
+  '.cm-live-lexicon-block-header': { fontWeight: '600', color: 'rgb(var(--color-text-primary)) !important' },
+  '.cm-live-lexicon-block-num': { fontFamily: 'monospace', color: 'rgb(129,140,248) !important', fontWeight: '700' },
+  '.cm-live-lexicon-block-def': { paddingLeft: '0.8em', opacity: '0.85' },
   '.cm-live-callout-header': { borderLeft: '3px solid rgba(168,85,247,0.7)', paddingLeft: '0.75em', color: 'rgba(192,132,252,0.9) !important', fontWeight: '600' },
   '.cm-live-underline': { textDecoration: 'underline' },
   // Horizontal rule: draw a centred 1 px line using a background gradient so the
@@ -1570,6 +1578,38 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
     }
   }
 
+  // Lexicon blocks — two-line format pasted from the copy button:
+  //   G5485 χάρις cháris;
+  //   from G5463; graciousness...
+  // Line 1 matches LEXICON_BLOCK_HEADER_RE; line 2 is any non-empty non-heading line.
+  {
+    let ln = doc.lineAt(vpFrom).number
+    const lastLn = doc.lineAt(Math.min(vpTo, doc.length > 0 ? doc.length - 1 : 0)).number
+    while (ln <= lastLn) {
+      const line = doc.line(ln)
+      if (LEXICON_BLOCK_HEADER_RE.test(line.text.trim()) && ln + 1 <= doc.lines) {
+        const defLine = doc.line(ln + 1)
+        if (defLine.text.trim().length > 0 && !defLine.text.trim().startsWith('#')) {
+          // Style both lines as the block
+          const firstCls = 'cm-live-lexicon-block cm-live-lexicon-block-first'
+          const lastCls  = 'cm-live-lexicon-block cm-live-lexicon-block-last cm-live-lexicon-block-def'
+          decos.push({ from: line.from, to: line.from, deco: Decoration.line({ class: firstCls }), kind: 'line' })
+          decos.push({ from: defLine.from, to: defLine.from, deco: Decoration.line({ class: lastCls }), kind: 'line' })
+          // Highlight the Strong's number in the header
+          const numM = /^([HG]\d{1,5})/.exec(line.text.trim())
+          if (numM) {
+            const numStart = line.from + (line.text.length - line.text.trimStart().length)
+            decos.push({ from: numStart, to: numStart + numM[1].length, deco: Decoration.mark({ class: 'cm-live-lexicon-block-num' }), kind: 'mark' })
+            decos.push({ from: numStart, to: line.to, deco: Decoration.mark({ class: 'cm-live-lexicon-block-header' }), kind: 'mark' })
+          }
+          ln += 2
+          continue
+        }
+      }
+      ln++
+    }
+  }
+
   // Bible verse refs — uses findVerseRefMatches so a single line can hold any
   // number of references (e.g. "Romans 10:1-2 vs Deuteronomy 18:15-19").
   if (noteVerseRefsEnabled) {
@@ -2123,6 +2163,9 @@ function escapeHtmlBasic(s: string): string {
 // Wrap detected verse blocks in styled HTML divs so the "view"/preview and the
 // printed/PDF output show the same scripture-block styling as the editor. Gated
 // on the noteScriptureBlock setting and the verse-text match threshold.
+// Detects a lexicon block header line (defined here so buildLiveDecorations can use it)
+const LEXICON_BLOCK_HEADER_RE = /^([HG]\d{1,5})\s+\S/
+
 const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:8px;margin:8px 0'
 const VERSE_BLOCK_REF_STYLE = 'font-weight:700'
 
@@ -2192,6 +2235,70 @@ export function wrapVerseBlocksForPreview(content: string, stash?: (html: string
   return out.join('\n')
 }
 
+// Regex matching standalone Strong's numbers — H or G followed by 1–5 digits,
+// surrounded by word boundaries (not embedded mid-word).
+export const STRONGS_REF_RE = /(?<![A-Za-z])([HG]\d{1,5})(?![A-Za-z0-9])/g
+
+// Inline style for a Strong's reference in preview / print HTML — matches the
+// note editor's cm-live-lexicon-ref color but without the box (no background/border).
+const STRONGS_CHIP_STYLE =
+  'font-family:monospace;font-size:1em;font-weight:700;color:rgb(99,102,241)'
+
+/** Replace inline Strong's numbers (H1234 / G5678) with styled chips for preview & print. */
+export function wrapStrongsRefsForPreview(content: string): string {
+  return content.replace(STRONGS_REF_RE, (_, num: string) =>
+    `<span class="berean-strongs-chip" style="${STRONGS_CHIP_STYLE}" title="Strong's ${num}">${num}</span>`)
+}
+
+// Detects a lexicon block header line: starts with H/G number then at least one
+// non-digit/non-space character (the lemma or transliteration). Semicolon optional
+// so blocks without pronunciation data still render correctly.
+const LEXICON_BLOCK_STYLE =
+  'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);' +
+  'padding:6px 12px;border-radius:8px;margin:8px 0'
+
+const LEXICON_BLOCK_DEF_STYLE =
+  'font-size:0.9em;margin-top:4px;padding-left:0.8em'
+
+/**
+ * Detect two-line lexicon blocks in notes (pasted from the copy button):
+ *   G5485 χάρις cháris, khar'-ece;
+ *   from G5463; graciousness (as gratifying)...
+ *
+ * Renders them as a styled block where the definition line is visually indented.
+ * Stashes the HTML so marked doesn't interfere.
+ */
+export function wrapLexiconBlocksForPreview(content: string, stash?: (html: string) => string): string {
+  const lines = content.split('\n')
+  const out: string[] = []
+  const emit = (html: string) => {
+    if (stash) { out.push(stash(html)); return }
+    out.push('', html, '')
+  }
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (LEXICON_BLOCK_HEADER_RE.test(line.trim()) && i + 1 < lines.length) {
+      const defLine = lines[i + 1]
+      if (defLine.trim().length > 0 && !defLine.trim().startsWith('#')) {
+        // Strong's numbers in the header and definition lines will be colored by
+        // wrapStrongsRefsForPreview after the stash is restored — no extra span needed.
+        const block =
+          `<div class="berean-lexicon-block" style="${LEXICON_BLOCK_STYLE}">` +
+          `<div style="font-size:1em;font-weight:600">${escapeHtmlBasic(line.trim())}</div>` +
+          `<div class="berean-lexicon-def" style="${LEXICON_BLOCK_DEF_STYLE}">${escapeHtmlBasic(defLine.trim())}</div>` +
+          `</div>`
+        emit(block)
+        i += 2
+        continue
+      }
+    }
+    out.push(line)
+    i++
+  }
+  return out.join('\n')
+}
+
 export function renderPreviewContent(content: string): string {
   // ── Stash mechanism ───────────────────────────────────────────────────────
   // Complex HTML blocks (verse blocks, callouts) are pre-rendered to final HTML
@@ -2210,6 +2317,10 @@ export function renderPreviewContent(content: string): string {
   }
 
   // Wrap verse blocks first (when enabled). Bodies are inline-markdown-rendered
+  // Lexicon blocks (pasted from copy button) are stashed before verse blocks
+  // so their Strong's number chips don't get double-processed.
+  content = wrapLexiconBlocksForPreview(content, stash)
+
   // inside wrapVerseBlocksForPreview; the whole block is stashed.
   content = wrapVerseBlocksForPreview(content, stash)
 
@@ -2285,6 +2396,7 @@ export function renderPreviewContent(content: string): string {
   // Restore stashed blocks — handle both the <p>-wrapped and bare token forms.
   html = html.replace(/<p>\s*BEREANSTASHBLOCK(\d+)ENDSTASH\s*<\/p>/g, (_, n) => stashed[+n] ?? '')
   html = html.replace(/BEREANSTASHBLOCK(\d+)ENDSTASH/g, (_, n) => stashed[+n] ?? '')
+  html = wrapStrongsRefsForPreview(html)
   return addVerseLinksToHtml(html)
 }
 
@@ -2479,6 +2591,7 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
     background: ${t.bg};
     margin: 0; padding: ${bodyPadding};
     ${grayscaleFilter}
+    position: relative;
   }
   /* Headings */
   h1 { font-size: 1.9em; font-weight: 800; margin: 0.7em 0 0.3em; color: ${t.heading}; }
@@ -2529,6 +2642,22 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
   a { color: ${t.accent}; text-decoration: underline; }
   a.berean-verse-ref { color: ${t.verseRef}; font-weight: 500; text-decoration: none; }
   a:not([href]):not(.berean-verse-ref) { color: inherit; text-decoration: none; }
+  /* Strong's numbers — colored monospace text, no box (matches live editor appearance) */
+  .berean-strongs-chip {
+    font-family: monospace; font-size: 1em; font-weight: 700;
+    color: ${t.accent} !important;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  /* Lexicon blocks — no border in print, subtle background, smaller indent */
+  .berean-lexicon-block {
+    background: ${t.verseBg} !important; padding: 0.4em 0.85em !important;
+    border-radius: 8px !important; margin: 0.7em 0 !important; color: ${t.text} !important;
+    border-left: none !important;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  .berean-lexicon-def {
+    padding-left: 0.8em !important; margin-top: 4px !important;
+  }
   /* Verse blocks — !important overrides the inline styles from renderPreviewContent */
   .berean-verse-block {
     border-left: 3px solid ${t.verseBorder} !important;
@@ -2583,6 +2712,12 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
 
   const [backlinkInfo, setBacklinkInfo] = useState<{ x: number; y: number; query: string; from: number; to: number } | null>(null)
   const [backlinkIdx, setBacklinkIdx] = useState(0)
+  // Strong's block suggestion popup — appears when user types a complete H/G number
+  const [strongsSuggest, setStrongsSuggest] = useState<{ num: string; from: number; to: number; x: number; y: number } | null>(null)
+  // Verse block suggestion popup — appears when user types a complete verse reference
+  const [verseSuggest, setVerseSuggest] = useState<{ ref: string; from: number; to: number; x: number; y: number } | null>(null)
+  const noteStrongsBlockSuggest = useAppStore((s) => s.noteStrongsBlockSuggest)
+  const noteVerseBlockSuggest = useAppStore((s) => s.noteVerseBlockSuggest)
   // Hover preview for existing [[wikilinks]]
   const [wikiHover, setWikiHover] = useState<{ note: Note; x: number; y: number } | null>(null)
   const wikiHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2612,6 +2747,56 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     ? (notes ?? []).filter(n => (n.title || 'Untitled').toLowerCase().includes(backlinkInfo.query.toLowerCase())).slice(0, 8)
     : []
 
+  async function insertStrongsBlock(num: string, from: number, to: number) {
+    const view = viewRef.current
+    if (!view) return
+    setStrongsSuggest(null)
+    const entry = await window.lexicon.getEntry(num).catch(() => null)
+    if (!entry) { view.focus(); return }
+    const block = buildLexiconCopyText(entry)
+    view.dispatch({
+      changes: { from, to, insert: block },
+      selection: EditorSelection.cursor(from + block.length),
+    })
+    view.focus()
+  }
+
+  async function insertVerseBlock(ref: string, from: number, to: number) {
+    const view = viewRef.current
+    if (!view) return
+    setVerseSuggest(null)
+    const parsed = parseRef(ref)
+    if (!parsed?.verse) { view.focus(); return }
+    const tid = getTranslationForBook(parsed.bookId) ?? 'kjva'
+    const isRange = parsed.endVerse && parsed.endVerse > parsed.verse
+    let block: string
+    if (isRange) {
+      // Multi-line block: ref line, then numbered verse lines
+      const nums = Array.from(
+        { length: Math.min(parsed.endVerse! - parsed.verse + 1, 20) },
+        (_, i) => parsed.verse! + i
+      )
+      const rows = await Promise.all(
+        nums.map(vn => window.bible.queryVerse(parsed.bookId, parsed.chapter, vn, tid).catch(() => null))
+      )
+      const bodyLines = rows
+        .map((v, i) => v?.text ? `${nums[i]} ${v.text}` : null)
+        .filter(Boolean) as string[]
+      if (bodyLines.length === 0) { view.focus(); return }
+      block = [ref, ...bodyLines].join('\n')
+    } else {
+      // Single verse: ref + space + text on the same line
+      const v = await window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, tid).catch(() => null)
+      if (!v?.text) { view.focus(); return }
+      block = `${ref} ${v.text}`
+    }
+    view.dispatch({
+      changes: { from, to, insert: block },
+      selection: EditorSelection.cursor(from + block.length),
+    })
+    view.focus()
+  }
+
   function insertBacklink(note: Note) {
     const view = viewRef.current
     if (!view || !backlinkInfo) return
@@ -2637,10 +2822,61 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     return () => document.removeEventListener('keydown', onKey, { capture: true })
   }, [backlinkInfo, backlinkIdx, filteredNotes]) // eslint-disable-line
 
+  // Keyboard handler for Strong's block suggestion popup
+  useEffect(() => {
+    if (!strongsSuggest) return
+    const snap = strongsSuggest
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        insertStrongsBlock(snap.num, snap.from, snap.to)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setStrongsSuggest(null)
+        viewRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, { capture: true })
+    return () => document.removeEventListener('keydown', onKey, { capture: true })
+  }, [strongsSuggest]) // eslint-disable-line
+
+  // Keyboard handler for verse block suggestion popup
+  useEffect(() => {
+    if (!verseSuggest) return
+    const snap = verseSuggest
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        insertVerseBlock(snap.ref, snap.from, snap.to)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setVerseSuggest(null)
+        viewRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, { capture: true })
+    return () => document.removeEventListener('keydown', onKey, { capture: true })
+  }, [verseSuggest]) // eslint-disable-line
+
   // Clear popups when previewMode changes
   useEffect(() => {
     if (previewMode) { setBacklinkInfo(null); setSelToolbar(null) }
   }, [previewMode])
+
+  // Dismiss selection toolbar on mousedown outside the editor + toolbar
+  const selToolbarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!selToolbar) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (selToolbarRef.current?.contains(t)) return
+      setSelToolbar(null)
+    }
+    document.addEventListener('mousedown', onDown, { capture: true })
+    return () => document.removeEventListener('mousedown', onDown, { capture: true })
+  }, [selToolbar])
 
   // Re-decorate when note display settings change so the live plugin picks up new values
   useEffect(() => {
@@ -2832,11 +3068,74 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             }
             // Table context — show table toolbar when cursor is on a table row
             setIsInTable(line.text.trim().startsWith('|'))
+
+            // ── Strong's block suggestion ────────────────────────────────────
+            // Show "Insert Strong's block?" popup when cursor is right after a
+            // complete H/G number (not already inside a lexicon block header).
+            if (noteStrongsBlockSuggest && update.docChanged && !previewModeRef.current) {
+              // Accept lowercase h/g too; the inserted block always uses the uppercase form.
+              const m = textBefore.match(/([HGhg]\d{1,5})$/)
+              if (m && !/[A-Za-z]$/.test(update.state.doc.sliceString(cursor.head, cursor.head + 1))) {
+                const numStart = line.from + textBefore.length - m[1].length
+                const coords = update.view.coordsAtPos(numStart)
+                if (coords) {
+                  setStrongsSuggest({ num: m[1].toUpperCase(), from: numStart, to: cursor.head, x: coords.left, y: coords.bottom + 4 })
+                }
+              } else {
+                setStrongsSuggest(null)
+              }
+            } else if (!update.docChanged) {
+              setStrongsSuggest(null)
+            }
+
+            // ── Verse block suggestion ───────────────────────────────────────
+            // Show "Insert scripture block?" popup when cursor is right after a
+            // verse reference with a verse number (e.g. "Gen 1:1").
+            if (noteVerseBlockSuggest && update.docChanged && !previewModeRef.current) {
+              const verseRefM = textBefore.match(/(\b\w[\w.]*(?: \d+):\d+(?:-\d+)?)$/)
+              if (verseRefM && parseRef(verseRefM[1])?.verse) {
+                const refStart = line.from + textBefore.length - verseRefM[1].length
+                const coords = update.view.coordsAtPos(refStart)
+                if (coords) {
+                  setVerseSuggest({ ref: verseRefM[1], from: refStart, to: cursor.head, x: coords.left, y: coords.bottom + 4 })
+                }
+              } else {
+                setVerseSuggest(null)
+              }
+            } else if (!update.docChanged) {
+              setVerseSuggest(null)
+            }
           }
 
           // Detect selection for toolbar + active formats
           // In view/preview mode: selection is allowed for copy but no toolbar appears
           // and no formatting shortcuts should apply.
+          if (update.selectionSet && !update.docChanged) {
+            // Auto-fix heading lines: if cursor enters a line that starts with '#' but
+            // has no space after the hashes, insert the space. Also move cursor to end
+            // when the line is ONLY the heading prefix (nothing typed yet).
+            const sel = update.state.selection.main
+            if (sel.empty && !previewModeRef.current) {
+              const ln = update.state.doc.lineAt(sel.head)
+              const m = ln.text.match(/^(#{1,6})([^ #\n]|$)/)
+              if (m) {
+                // Line is `#text` or bare `#` — insert space after hashes
+                const hashEnd = ln.from + m[1].length
+                update.view.dispatch({
+                  changes: { from: hashEnd, to: hashEnd, insert: ' ' },
+                  selection: EditorSelection.cursor(
+                    ln.text.length === m[1].length
+                      ? hashEnd + 1          // bare `#` — put cursor after space
+                      : ln.from + ln.text.length + 1  // `#text` — put at new end
+                  ),
+                })
+              } else if (/^#{1,6} $/.test(ln.text)) {
+                // Line is `# ` (prefix only, no content) — cursor to end
+                update.view.dispatch({ selection: EditorSelection.cursor(ln.to) })
+              }
+            }
+          }
+
           if (update.selectionSet) {
             const sel = update.state.selection.main
             // Report cursor head position to parent so it can persist it
@@ -3006,13 +3305,22 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     view.focus()
   }
 
-  // Shared heading handler
+  // Shared heading handler — prefix should include trailing space (e.g. '# ').
+  // After applying, cursor is placed: at end of line if there's content, or right
+  // after the prefix if the line is empty (ready to type the heading).
   function applyHeading(prefix: string) {
     const view = viewRef.current
     if (!view) return
     const ln = view.state.doc.lineAt(view.state.selection.main.head)
-    const stripped = ln.text.replace(/^#{1,6}\s/, '')
-    view.dispatch({ changes: { from: ln.from, to: ln.to, insert: prefix + stripped } })
+    const stripped = ln.text.replace(/^#{1,6} ?/, '')
+    const newText = prefix + stripped
+    const cursorPos = stripped.length === 0
+      ? ln.from + prefix.length   // empty line — cursor after prefix
+      : ln.from + newText.length  // has content — cursor at end
+    view.dispatch({
+      changes: { from: ln.from, to: ln.to, insert: newText },
+      selection: EditorSelection.cursor(cursorPos),
+    })
     view.focus()
   }
 
@@ -3225,7 +3533,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           <div ref={pHeadingRef} className="relative">
             <TBtn
               title="Text style"
-              onMouseDown={() => setPHeadingOpen((v) => !v)}
+              onMouseDown={() => { setPHeadingOpen((v) => !v); setSelToolbar(null) }}
               className="text-[10px] font-mono px-1.5 gap-0.5"
             >
               <span>
@@ -3251,7 +3559,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
                   return (
                     <button
                       key={label}
-                      onMouseDown={(e) => { e.preventDefault(); applyHeading(prefix.trimEnd()); setPHeadingOpen(false) }}
+                      onMouseDown={(e) => { e.preventDefault(); applyHeading(prefix); setPHeadingOpen(false) }}
                       className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors flex items-center gap-2 ${
                         isActive
                           ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-3))] font-semibold'
@@ -3448,6 +3756,56 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
         </div>
       )}
 
+      {/* Strong's block suggestion popup */}
+      {strongsSuggest && (
+        <div
+          style={{ position: 'fixed', left: strongsSuggest.x, top: strongsSuggest.y, zIndex: 60 }}
+          className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{strongsSuggest.num}</span>
+          <button
+            className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
+            onMouseDown={() => insertStrongsBlock(strongsSuggest.num, strongsSuggest.from, strongsSuggest.to)}
+          >
+            Insert Strong&apos;s block
+            <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+          </button>
+          <button
+            className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+            onMouseDown={() => setStrongsSuggest(null)}
+            title="Dismiss (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Verse block suggestion popup */}
+      {verseSuggest && (
+        <div
+          style={{ position: 'fixed', left: verseSuggest.x, top: verseSuggest.y, zIndex: 60 }}
+          className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{verseSuggest.ref}</span>
+          <button
+            className="text-[10px] text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] cursor-pointer transition-colors font-medium flex items-center gap-1"
+            onMouseDown={() => insertVerseBlock(verseSuggest.ref, verseSuggest.from, verseSuggest.to)}
+          >
+            Insert scripture block
+            <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+          </button>
+          <button
+            className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+            onMouseDown={() => setVerseSuggest(null)}
+            title="Dismiss (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Backlink popup — list on left, content preview on right */}
       {backlinkInfo && filteredNotes.length > 0 && (
         <div
@@ -3511,6 +3869,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       {/* Selection formatting toolbar */}
       {selToolbar && !backlinkInfo && (
         <div
+          ref={selToolbarRef}
           style={{ position: 'fixed', left: selToolbar.x, top: selToolbar.y, transform: 'translateX(-50%)', zIndex: 60 }}
           className="flex items-center gap-0 rounded-lg shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
           onMouseDown={(e) => e.preventDefault()}

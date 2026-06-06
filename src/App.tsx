@@ -604,17 +604,10 @@ export default function App() {
         e.preventDefault()
         openSearch('new')
       } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'l') {
+        // Cmd+L always opens the main floating search bar — even on the advanced
+        // scripture search tab (where it previously just focused the local input).
         e.preventDefault()
-        // If on a scripture search tab, focus the search input instead of opening float search
-        const store = useAppStore.getState()
-        const scriptureTabId = store.activeTabId['scripture']
-        const scriptureTab = store.tabs['scripture'].find(t => t.id === scriptureTabId)
-        const scriptureTabState = scriptureTab?.state as import('@/types').BibleTabState | undefined
-        if (store.activeSpace === 'scripture' && scriptureTabState?.searchMode) {
-          window.dispatchEvent(new CustomEvent('berean:focusScriptureSearch'))
-        } else {
-          openSearch('current')
-        }
+        openSearch('current')
       } else if (cmd && e.key === ',') {
         e.preventDefault()
         toggleSettings()

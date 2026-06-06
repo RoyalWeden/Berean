@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Check as CheckIcon } from 'lucide-react'
+import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
+import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/NoteEditor'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, parseRef } from '@/lib/parseRef'
@@ -127,6 +129,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   const [occurrencesLoading, setOccurrencesLoading] = useState(false)
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
   const [selectedResultIdx, setSelectedResultIdx] = useState(-1)
+  const [copiedLexicon, setCopiedLexicon] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Track the current entry num in a ref so the initialEntry effect can skip feedback-loop
@@ -259,7 +262,8 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     const hasExtended = (activeEntry.extendedDef?.trim().length ?? 0) > 0
     // Match explicit H/G-prefixed numbers AND bare numbers (prefix inferred from entry language)
     const langPrefix = activeEntry.strongsNum.startsWith('H') ? 'H' : 'G'
-    const derivParts = hasDerivation ? activeEntry.derivation.split(/(\b[HG]\d+\b|\b\d{3,}\b)/g) : []
+    const derivParts = hasDerivation ? activeEntry.derivation.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g) : []
+    const extDefNorm = hasExtended ? normalizeStrongsNums(activeEntry.extendedDef, langPrefix) : ''
 
     return (
       <div className="flex flex-col h-full">
@@ -273,13 +277,28 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           </button>
           <span className="text-xs font-semibold font-mono text-[rgb(var(--color-text-primary))]">{activeEntry.strongsNum}</span>
           <LangBadge num={activeEntry.strongsNum} />
-          <button
-            onClick={() => navToEntry(activeEntry.strongsNum, true)}
-            title="Open in lexicon tab"
-            className="ml-auto p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-          >
-            <ExternalLink size={11} />
-          </button>
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              onClick={() => {
+                const text = buildLexiconCopyText(activeEntry)
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopiedLexicon(true)
+                  setTimeout(() => setCopiedLexicon(false), 1800)
+                }).catch(() => {})
+              }}
+              title="Copy Strong's number and definition"
+              className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+            >
+              {copiedLexicon ? <CheckIcon size={11} className="text-green-400" /> : <Copy size={11} />}
+            </button>
+            <button
+              onClick={() => navToEntry(activeEntry.strongsNum, true)}
+              title="Open in lexicon tab"
+              className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+            >
+              <ExternalLink size={11} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {activeEntry.lemma && (
@@ -315,8 +334,8 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                       >{part}</button>
                     )
                   }
-                  // Bare number (e.g. 7225) — prefix with entry's language
-                  if (/^\d{3,}$/.test(part)) {
+                  // Bare number (e.g. 7225 or 26) — prefix with entry's language
+                  if (/^\d{1,5}$/.test(part)) {
                     const num = `${langPrefix}${part}`
                     return (
                       <button key={i} onClick={(e) => navToEntry(num, e.metaKey || e.ctrlKey)}
@@ -334,7 +353,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">
                 {activeEntry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
               </p>
-              <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-relaxed">{activeEntry.extendedDef}</p>
+              <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-relaxed">{extDefNorm}</p>
             </div>
           )}
           {related.length > 0 && (
@@ -546,6 +565,8 @@ type UserNoteRef = import('@/lib/noteRefs').NoteVerseRef
  */
 function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapter: number; verse: number; endVerse?: number | null }) {
   const [text, setText] = useState('')
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   useEffect(() => {
     const textId = getTranslationForBook(bookId) ?? 'kjva'
     if (verse === 0) {
@@ -566,7 +587,9 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
     }
   }, [bookId, chapter, verse, endVerse])
   if (!text) return null
-  return <span className="text-[rgb(var(--color-text-muted))]"> {text}</span>
+  const display = wordReplacerEnabled && wordReplacerRules.length > 0
+    ? applyWordReplacer(text, wordReplacerRules) : text
+  return <span className="text-[rgb(var(--color-text-muted))]"> {display}</span>
 }
 
 // ─── Chapter-level TSKe view ─────────────────────────────────────────────────
@@ -1131,6 +1154,10 @@ interface Props {
   onTabChange: (tab: PanelTab) => void
   openNoteId?: string | null
   onNoteChange?: (noteId: string | null) => void
+  /** Cursor offset to restore in the side-panel note editor (on tab return). */
+  initialNoteCursor?: number | null
+  /** Called as the side-panel note cursor moves; parent persists it for tab restore. */
+  onNoteCursorChange?: (pos: number) => void
   openLexiconEntry?: string | null
   onLexiconEntryChange?: (entry: string | null) => void
   verseFilter?: string | null
@@ -1142,10 +1169,14 @@ interface Props {
 export default function BibleRightPanel({
   bookId, chapter, activeTab, onTabChange,
   openNoteId, onNoteChange,
+  initialNoteCursor, onNoteCursorChange,
   openLexiconEntry: initialLexiconEntry, onLexiconEntryChange,
   verseFilter: initialVerseFilter, onVerseFilterChange,
   forcedTab,
 }: Props) {
+  // Captured once when the side-panel note editor first mounts, so cursor restoration
+  // uses the value saved before this tab was switched away (not a live-updating prop).
+  const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
   const visibleTab = forcedTab ?? activeTab
   const [scope, setScope] = useState<NoteScope>('chapter')
   const [sort, setSort] = useState<NoteSort>('verse')
@@ -1174,29 +1205,15 @@ export default function BibleRightPanel({
   const sidebarNoteRef = useRef<Note | null>(null)
 
   // ── Side-panel item right-click context menu ──
-  const [sideCtxMenu, setSideCtxMenu] = useState<
-    | { type: 'note'; note: Note; x: number; y: number }
-    | { type: 'verse'; bookId: string; chapter: number; verse: number; x: number; y: number }
-    | null
-  >(null)
-  const sideCtxMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!sideCtxMenu) return
-    function onDown(e: MouseEvent) {
-      if (sideCtxMenuRef.current && !sideCtxMenuRef.current.contains(e.target as Node)) setSideCtxMenu(null)
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setSideCtxMenu(null) }
-    window.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onEsc)
-    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
-  }, [sideCtxMenu])
+  type SideCtxData = { type: 'note'; note: Note } | { type: 'verse'; bookId: string; chapter: number; verse: number }
+  const { menu: sideCtxMenu, menuRef: sideCtxMenuRef, openMenu: openSideCtxMenu, closeMenu: closeSideCtxMenu } =
+    usePositionedMenu<SideCtxData>()
 
   // Register the module-level verse context menu callback so inner cross-ref components can call it
   useEffect(() => {
-    _onVerseCtxMenu = (bId, ch, vs, x, y) => setSideCtxMenu({ type: 'verse', bookId: bId, chapter: ch, verse: vs, x, y })
+    _onVerseCtxMenu = (bId, ch, vs, x, y) => openSideCtxMenu({ type: 'verse', bookId: bId, chapter: ch, verse: vs, x, y })
     return () => { _onVerseCtxMenu = null }
-  }, [])
+  }, [openSideCtxMenu])
 
   // Handle verse ref clicks in the right-panel note editor — navigates the main
   // Bible panel to the referenced verse, switching translation as needed.
@@ -1444,7 +1461,14 @@ export default function BibleRightPanel({
             </button>
           </div>
           <div className="flex-1 overflow-hidden">
-            <NoteEditor content={sidebarNote.content ?? ''} onChange={handleNoteChange} onVerseRefClick={handleVerseRefClick} />
+            <NoteEditor
+              content={sidebarNote.content ?? ''}
+              onChange={handleNoteChange}
+              onVerseRefClick={handleVerseRefClick}
+              onCursorPosition={onNoteCursorChange}
+              initialCursorPos={initialNoteCursorRef.current}
+              autoFocus
+            />
           </div>
         </div>
       )}
@@ -1594,7 +1618,7 @@ export default function BibleRightPanel({
                       >
                         <button
                           onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
-                          onContextMenu={(e) => { e.preventDefault(); setSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+                          onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                           className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
                         >
                           <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
@@ -1649,7 +1673,7 @@ export default function BibleRightPanel({
                           >
                             <button
                               onClick={() => openSidebarNote(note)}
-                              onContextMenu={(e) => { e.preventDefault(); setSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+                              onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                               className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
                             >
                               <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
@@ -1720,7 +1744,7 @@ export default function BibleRightPanel({
             <>
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { setSideCtxMenu(null); openSidebarNote(sideCtxMenu.note) }}
+                onClick={() => { closeSideCtxMenu(); openSidebarNote(sideCtxMenu.note) }}
               >
                 <StickyNote size={12} />
                 Open in panel
@@ -1728,7 +1752,7 @@ export default function BibleRightPanel({
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setSideCtxMenu(null)
+                  closeSideCtxMenu()
                   createNoteTab('note')
                   setActiveSpace('notes')
                   requestOpenNote(sideCtxMenu.note.id)
@@ -1740,7 +1764,7 @@ export default function BibleRightPanel({
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setSideCtxMenu(null)
+                  closeSideCtxMenu()
                   window.app.openFloatingTab('notes', { noteId: sideCtxMenu.note.id })
                   bumpFloatingTabToken()
                 }}
@@ -1753,7 +1777,7 @@ export default function BibleRightPanel({
             <>
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { setSideCtxMenu(null); navToVerseFromPanel(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
+                onClick={() => { closeSideCtxMenu(); navToVerseFromPanel(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
               >
                 <BookOpen size={12} />
                 Open verse
@@ -1761,7 +1785,7 @@ export default function BibleRightPanel({
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setSideCtxMenu(null)
+                  closeSideCtxMenu()
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   window.app.openFloatingTab('bible', { bookId: bId, chapter: String(ch), targetVerse: String(vs) })
                   bumpFloatingTabToken()

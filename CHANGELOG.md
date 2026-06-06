@@ -105,6 +105,23 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.6] - 2026-06-05
+
+- Scripture & strong's auto formatted blocks
+- Print and download settings
+- Default download setting
+- New tabs open below active tab
+- Right-click options in scripture search to open in new/floating tab
+- Lexicon copy button
+
+Bug Fixes:
+- Various pdf/print issues
+- Hebrew lexicon not linking to other hebrew strongs numbers
+- Empty notes no longer delete when switching tabs
+- Word replacer now edits cross reference verse text
+
+---
+
 ## [0.3.5] - 2026-06-04
 
 - Added Elseus → Elisha in word replacer

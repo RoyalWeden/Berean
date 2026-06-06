@@ -8,6 +8,7 @@ import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { applyFindHighlight } from '@/lib/highlight'
+import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import type { Verse, HighlightColor, Note } from '@/types'
@@ -225,9 +226,31 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
   return -1
 }
 
+// Cap how many items a hover popup shows so it never grows unmanageably tall.
+const MAX_HOVER_ITEMS = 8
+
+/**
+ * Decide whether a hover popup should open above or below its trigger, and return the
+ * y anchor. `estItemPx` is the approximate height of a single row. Popup is capped to
+ * MAX_HOVER_ITEMS so the estimate stays bounded.
+ */
+function computeHoverPlacement(rect: DOMRect, itemCount: number, estItemPx: number, headerPx = 48): { y: number; placeUp: boolean } {
+  const shown = Math.min(itemCount, MAX_HOVER_ITEMS)
+  const estHeight = shown * estItemPx + headerPx
+  const pad = 8
+  const spaceBelow = window.innerHeight - rect.bottom
+  // Flip up only if there isn't room below AND there's more room above.
+  if (spaceBelow < estHeight + pad && rect.top > spaceBelow) {
+    return { y: Math.max(pad, rect.top - estHeight - 4), placeUp: true }
+  }
+  return { y: rect.bottom + 4, placeUp: false }
+}
+
 /** Fetches verse text — renders inline so ref label and text sit on the same line. */
 function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: number; verse: number }) {
   const [text, setText] = useState<string | null>(null)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   useEffect(() => {
     const textId = getTranslationForBook(bookId) ?? 'kjva'
     // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
@@ -237,7 +260,9 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
       .catch(() => {})
   }, [bookId, chapter, verse])
   if (!text) return null
-  return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {text}</span>
+  const display = wordReplacerEnabled && wordReplacerRules.length > 0
+    ? applyWordReplacer(text, wordReplacerRules) : text
+  return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {display}</span>
 }
 
 export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
@@ -258,12 +283,13 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const openCrossRefsInBiblePanel = useAppStore((s) => s.openCrossRefsInBiblePanel)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
   const [popoverOpen, setPopoverOpen] = useState(false)
-  const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number } | null>(null)
+  const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number } | null>(null)
+  const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean } | null>(null)
   const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [indicatorMenu, setIndicatorMenu] = useState<{ type: 'note'; note: Note; x: number; y: number } | { type: 'verse'; ref: NoteVerseRef; x: number; y: number } | null>(null)
-  const indicatorMenuRef = useRef<HTMLDivElement>(null)
+  type IndicatorMenuData = { type: 'note'; note: Note } | { type: 'verse'; ref: NoteVerseRef }
+  const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenu, closeMenu: closeIndicatorMenu } =
+    usePositionedMenu<IndicatorMenuData>()
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
@@ -307,16 +333,6 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     return () => document.removeEventListener('mousedown', onDown)
   }, [popoverOpen])
 
-  useEffect(() => {
-    if (!indicatorMenu) return
-    function onDown(e: MouseEvent) {
-      if (indicatorMenuRef.current && !indicatorMenuRef.current.contains(e.target as Node)) setIndicatorMenu(null)
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setIndicatorMenu(null) }
-    window.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onEsc)
-    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
-  }, [indicatorMenu])
 
   const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
   const verseRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}${lxxSuffix}`
@@ -383,7 +399,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           }
         }
         if (all.length > 0) {
-          setCrossRefHover({ refs: all, x: rect.left, y: rect.bottom + 4 })
+          const { y, placeUp } = computeHoverPlacement(rect, all.length, 40)
+          setCrossRefHover({ refs: all, x: rect.left, y, placeUp })
         }
       } catch { /* ignore */ }
     }, 300)
@@ -414,7 +431,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           }
         }
         if (verseNotes.length > 0 || refNotes.length > 0) {
-          setNoteHover({ verseNotes, refNotes, x: rect.left, y: rect.bottom + 4 })
+          const { y, placeUp } = computeHoverPlacement(rect, verseNotes.length + refNotes.length, 32)
+          setNoteHover({ verseNotes, refNotes, x: rect.left, y, placeUp })
         }
       } catch { /* ignore */ }
     }, 250)
@@ -1007,16 +1025,24 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
 
           {/* Note hover popup */}
           {noteHover && createPortal(
+            (() => {
+              // Cap total items across both sections, prioritizing direct verse notes.
+              const vnShown = noteHover.verseNotes.slice(0, MAX_HOVER_ITEMS)
+              const rnBudget = Math.max(0, MAX_HOVER_ITEMS - vnShown.length)
+              const rnShown = noteHover.refNotes.slice(0, rnBudget)
+              const total = noteHover.verseNotes.length + noteHover.refNotes.length
+              const hiddenCount = total - vnShown.length - rnShown.length
+              return (
             <div
-              className="fixed z-[9999] w-[260px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden"
+              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
             >
               {/* Note hover header */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-3))]">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-3))] sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
                 <p className="text-[9px] text-[rgb(var(--color-text-muted))] font-semibold uppercase tracking-wide">
-                  {noteHover.verseNotes.length + noteHover.refNotes.length === 1 ? '1 Note' : `${noteHover.verseNotes.length + noteHover.refNotes.length} Notes`}
+                  {total === 1 ? '1 Note' : `${total} Notes`}
                 </p>
                 <button
                   onClick={() => { setNoteHover(null); openVerseNotes() }}
@@ -1028,11 +1054,11 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               </div>
 
               {/* Direct verse notes */}
-              {noteHover.verseNotes.map((note) => (
+              {vnShown.map((note) => (
                 <button
                   key={note.id}
                   onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
-                  onContextMenu={(e) => { e.preventDefault(); const MENU_W=200,MENU_H=280,pad=8; setIndicatorMenu({ type: 'note', note, x: Math.max(pad,Math.min(e.clientX,window.innerWidth-MENU_W-pad)), y: Math.max(pad,Math.min(e.clientY,window.innerHeight-MENU_H-pad)) }) }}
+                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                   className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
                   <p className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
@@ -1047,7 +1073,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               ))}
 
               {/* Referencing general notes — separated by a labelled divider */}
-              {noteHover.refNotes.length > 0 && (
+              {rnShown.length > 0 && (
                 <>
                   <div className="flex items-center gap-2 px-3 py-1 bg-[rgb(var(--color-surface-2))]">
                     <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
@@ -1056,11 +1082,11 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                     </span>
                     <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
                   </div>
-                  {noteHover.refNotes.map((note) => (
+                  {rnShown.map((note) => (
                     <button
                       key={note.id}
                       onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
-                      onContextMenu={(e) => { e.preventDefault(); const MENU_W=200,MENU_H=280,pad=8; setIndicatorMenu({ type: 'note', note, x: Math.max(pad,Math.min(e.clientX,window.innerWidth-MENU_W-pad)), y: Math.max(pad,Math.min(e.clientY,window.innerHeight-MENU_H-pad)) }) }}
+                      onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                       className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                     >
                       <p className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
@@ -1075,7 +1101,17 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   ))}
                 </>
               )}
-            </div>,
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => { setNoteHover(null); openVerseNotes() }}
+                  className="w-full text-center px-3 py-1.5 text-[9px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors sticky bottom-0 bg-[rgb(var(--color-surface-1))]"
+                >
+                  +{hiddenCount} more — open all in panel
+                </button>
+              )}
+            </div>
+              )
+            })(),
             document.body
           )}
 
@@ -1099,10 +1135,10 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   Open in panel
                 </button>
               </div>
-              {crossRefHover.refs.map((r, i) => (
+              {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
                 <button
                   key={i}
-                  onContextMenu={(e) => { e.preventDefault(); const MENU_W=200,MENU_H=280,pad=8; setIndicatorMenu({ type: 'verse', ref: r, x: Math.max(pad,Math.min(e.clientX,window.innerWidth-MENU_W-pad)), y: Math.max(pad,Math.min(e.clientY,window.innerHeight-MENU_H-pad)) }) }}
+                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }) }}
                   onClick={() => {
                     setCrossRefHover(null)
                     const s = useAppStore.getState()
@@ -1126,6 +1162,14 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   </p>
                 </button>
               ))}
+              {crossRefHover.refs.length > MAX_HOVER_ITEMS && (
+                <button
+                  onClick={() => { setCrossRefHover(null); openNoteCrossRefs() }}
+                  className="w-full text-center px-3 py-1.5 text-[9px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+                >
+                  +{crossRefHover.refs.length - MAX_HOVER_ITEMS} more — open all in panel
+                </button>
+              )}
             </div>,
             document.body
           )}
@@ -1213,7 +1257,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
             <>
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { setIndicatorMenu(null); openNoteInBiblePanel(indicatorMenu.note.id) }}
+                onClick={() => { closeIndicatorMenu(); openNoteInBiblePanel(indicatorMenu.note.id) }}
               >
                 <StickyNote size={12} />
                 Open in panel
@@ -1221,7 +1265,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setIndicatorMenu(null)
+                  closeIndicatorMenu()
                   useAppStore.getState().requestOpenNote(indicatorMenu.note.id)
                   useAppStore.getState().setActiveSpace('notes')
                 }}
@@ -1232,7 +1276,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setIndicatorMenu(null)
+                  closeIndicatorMenu()
                   window.app.openFloatingTab('notes', { noteId: indicatorMenu.note.id })
                   useAppStore.getState().bumpFloatingTabToken()
                 }}
@@ -1246,7 +1290,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setIndicatorMenu(null)
+                  closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const s = useAppStore.getState()
                   s.ensureTab('bible')
@@ -1268,7 +1312,24 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
-                  setIndicatorMenu(null)
+                  closeIndicatorMenu()
+                  const r = indicatorMenu.ref
+                  const s = useAppStore.getState()
+                  const translation = (getTranslationForBook(r.bookId) ?? textId ?? 'kjva').toUpperCase()
+                  const title = `${bookName(r.bookId)} ${r.chapter}`
+                  s.addTab({
+                    id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+                    state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
+                  })
+                }}
+              >
+                <BookOpen size={12} />
+                Open in new tab
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => {
+                  closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const s = useAppStore.getState()
                   s.ensureTab('bible')

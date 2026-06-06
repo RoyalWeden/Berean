@@ -129,21 +129,39 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
   const previewWrapRef = useRef<HTMLDivElement>(null)
   const [fitScale, setFitScale] = useState(1)
   const [userZoom, setUserZoom] = useState<number | null>(null) // null = fit-to-width
+  const [zoomEditing, setZoomEditing] = useState(false)
+  const [zoomInputVal, setZoomInputVal] = useState('')
+  const zoomInputRef = useRef<HTMLInputElement>(null)
   const scale = userZoom ?? fitScale
+
+  function calcFitScale(el: HTMLDivElement) {
+    // p-4 = 16px each side (32 total). Extra 8px buffer ensures the scaled page
+    // never triggers a horizontal scrollbar even with sub-pixel rounding.
+    const avail = el.clientWidth - 32 - 8
+    return Math.min(1, Math.max(0.2, avail / PAGE_W_PX))
+  }
+
+  // ResizeObserver fires when the element reaches its final size (including after dialog animations).
+  // It fires immediately on observation if the element already has a non-zero size.
   useEffect(() => {
     const el = previewWrapRef.current
     if (!el) return
-    const update = () => {
-      // clientWidth already excludes any vertical scrollbar; subtract the p-4 padding
-      // (16px each side) plus a 2px buffer so rounding never spills into a horizontal scrollbar.
-      const avail = el.clientWidth - 32 - 2
-      setFitScale(Math.min(1, Math.max(0.2, avail / PAGE_W_PX)))
-    }
-    update()
+    const update = () => { if (el.clientWidth > 0) setFitScale(calcFitScale(el)) }
     const ro = new ResizeObserver(update)
     ro.observe(el)
+    // Also try immediately in case the element already has its size
+    update()
     return () => ro.disconnect()
   }, [])
+
+  function commitZoomInput() {
+    const n = parseInt(zoomInputVal, 10)
+    if (!isNaN(n)) {
+      const clamped = Math.max(50, Math.min(250, n))
+      setUserZoom(clamped / 100)
+    }
+    setZoomEditing(false)
+  }
 
   // Theme picker popover
   const [themeOpen, setThemeOpen] = useState(false)
@@ -188,8 +206,14 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
     store.setPrintIncludeTitle(includeTitle)
   }
 
-  function doPrint() { persist(); window.app.printNote(html).catch(() => {}); onClose() }
-  function doDownload() { persist(); window.app.exportNotePDF(html, title || 'note', store.pdfDownloadLocation).catch(() => {}); onClose() }
+  // Strip interactive styling (strongs chip spans) from the PDF/print output.
+  // The preview keeps them for reference, but the exported document should be clean.
+  function stripForExport(h: string) {
+    return h.replace(/<span class="berean-strongs-chip"[^>]*>(.*?)<\/span>/g, '$1')
+  }
+
+  function doPrint() { persist(); window.app.printNote(stripForExport(html)).catch(() => {}); onClose() }
+  function doDownload() { persist(); window.app.exportNotePDF(stripForExport(html), title || 'note', store.pdfDownloadLocation).catch(() => {}); onClose() }
 
   const segBtn = (active: boolean) =>
     `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
@@ -337,25 +361,51 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
               {/* Zoom toolbar */}
               <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
                 <button
-                  title="Zoom out"
-                  onClick={() => setUserZoom(Math.max(0.25, Math.round((scale - 0.1) * 100) / 100))}
+                  title="Zoom out (10%)"
+                  onClick={() => setUserZoom(Math.max(0.5, Math.round((scale * 100 - 10)) / 100))}
                   className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                 >
                   <Minus size={13} />
                 </button>
-                <span className="text-[11px] tabular-nums text-[rgb(var(--color-text-secondary))] w-10 text-center">
-                  {Math.round(scale * 100)}%
-                </span>
+                {zoomEditing ? (
+                  <input
+                    ref={zoomInputRef}
+                    type="number"
+                    min={50}
+                    max={250}
+                    value={zoomInputVal}
+                    onChange={(e) => setZoomInputVal(e.target.value)}
+                    onBlur={commitZoomInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitZoomInput()
+                      if (e.key === 'Escape') setZoomEditing(false)
+                    }}
+                    className="w-14 text-center text-[11px] tabular-nums rounded border border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] outline-none px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                ) : (
+                  <button
+                    title="Click to set custom zoom (50%–250%)"
+                    onClick={() => { setZoomInputVal(String(Math.round(scale * 100))); setZoomEditing(true); setTimeout(() => zoomInputRef.current?.select(), 10) }}
+                    className="text-[11px] tabular-nums text-[rgb(var(--color-text-secondary))] w-12 text-center hover:bg-[rgb(var(--color-surface-4))] rounded cursor-pointer transition-colors px-1 py-0.5"
+                  >
+                    {Math.round(scale * 100)}%
+                  </button>
+                )}
                 <button
-                  title="Zoom in"
-                  onClick={() => setUserZoom(Math.min(2, Math.round((scale + 0.1) * 100) / 100))}
+                  title="Zoom in (10%)"
+                  onClick={() => setUserZoom(Math.min(2.5, Math.round((scale * 100 + 10)) / 100))}
                   className="w-6 h-6 flex items-center justify-center rounded text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                 >
                   <Plus size={13} />
                 </button>
                 <button
                   title="Fit to width"
-                  onClick={() => setUserZoom(null)}
+                  onClick={() => {
+                    // Recalculate from the live container size so the displayed % is always accurate.
+                    const el = previewWrapRef.current
+                    if (el) setFitScale(calcFitScale(el))
+                    setUserZoom(null)
+                  }}
                   className={`ml-1 px-2 h-6 flex items-center justify-center rounded text-[11px] cursor-pointer transition-colors ${
                     userZoom === null
                       ? 'bg-[rgb(var(--color-accent))] text-white'
@@ -365,10 +415,11 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
                   Fit
                 </button>
               </div>
-              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-[rgb(var(--color-surface-1))] p-4 overflow-auto">
+              <div ref={previewWrapRef} className={`flex-1 min-w-0 bg-[rgb(var(--color-surface-1))] p-4 overflow-y-auto ${userZoom === null ? 'overflow-x-hidden' : 'overflow-x-auto'}`}>
+                {/* Page wrapper — includes the iframe and page-break overlay lines */}
                 <div
                   className="shadow-xl rounded"
-                  style={{ width: Math.floor(PAGE_W_PX * scale), height: Math.ceil(iframeHeight * scale), marginInline: 'auto', overflow: 'hidden' }}
+                  style={{ width: Math.floor(PAGE_W_PX * scale), height: Math.ceil(iframeHeight * scale), marginInline: 'auto', overflow: 'hidden', position: 'relative' }}
                 >
                   <iframe
                     ref={iframeRef}
@@ -385,6 +436,25 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
                       transformOrigin: 'top left',
                     }}
                   />
+                  {/* Page break lines — rendered over the iframe so they're scale-accurate */}
+                  {Array.from(
+                    { length: Math.max(0, Math.ceil(iframeHeight / 1056) - 1) },
+                    (_, i) => (i + 1) * 1056 * scale
+                  ).map((y) => (
+                    <div
+                      key={y}
+                      style={{
+                        position: 'absolute',
+                        top: Math.round(y) - 1,
+                        left: 0,
+                        right: 0,
+                        height: 3,
+                        background: 'rgba(80,80,80,0.45)',
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Folder, FolderOpen, FolderPlus, ChevronRight, FileText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
@@ -737,26 +738,17 @@ export default function NotesFolderView({
 
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
-        (() => {
-          const MENU_W = 180, MENU_H = 80, pad = 8
-          const left = Math.max(pad, Math.min(emptyMenu.x, window.innerWidth - MENU_W - pad))
-          const top  = Math.max(pad, Math.min(emptyMenu.y, window.innerHeight - MENU_H - pad))
-          return (
-            <div
-              ref={emptyMenuRef}
-              className="fixed z-[9999] min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-              style={{ left, top }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
-                <FileText size={13} className="flex-shrink-0" /> New note
-              </button>
-              <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateFolder(null) }}>
-                <FolderPlus size={13} className="flex-shrink-0" /> New folder
-              </button>
-            </div>
-          )
-        })(),
+        <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
+          className="min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+          onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+        >
+          <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
+            <FileText size={13} className="flex-shrink-0" /> New note
+          </button>
+          <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateFolder(null) }}>
+            <FolderPlus size={13} className="flex-shrink-0" /> New folder
+          </button>
+        </MenuPositioner>,
         document.body
       )}
 
@@ -783,16 +775,9 @@ export default function NotesFolderView({
 
       {/* Folder context menu */}
       {folderMenu && createPortal(
-        (() => {
-          const MENU_W = 200, MENU_H = 240, pad = 8
-          const left = Math.max(pad, Math.min(folderMenu.x, window.innerWidth - MENU_W - pad))
-          const top  = Math.max(pad, Math.min(folderMenu.y, window.innerHeight - MENU_H - pad))
-          return (
-            <div
-              ref={folderMenuRef}
-              className="fixed z-[9999] min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-              style={{ left, top }}
-            >
+        <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
+          className="min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+        >
               <button className={MENU_ITEM} onClick={() => { onCreateFolder(folderMenu.folder.id); setFolderMenu(null) }}>
                 <FolderPlus size={13} className="flex-shrink-0" /> New subfolder
               </button>
@@ -843,9 +828,7 @@ export default function NotesFolderView({
               >
                 <Trash2 size={13} className="flex-shrink-0" /> Delete folder & contents
               </button>
-            </div>
-          )
-        })(),
+        </MenuPositioner>,
         document.body
       )}
       {/* Custom confirm dialog for "Delete folder & contents" */}

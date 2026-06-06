@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
   Monitor, FolderInput, FolderMinus,
@@ -73,18 +74,12 @@ export default function NoteContextMenu({
     }
   }, [onClose])
 
-  const MENU_W = 200, MENU_H = 320, pad = 8
-  const left = Math.max(pad, Math.min(x, window.innerWidth - MENU_W - pad))
-  const top  = Math.max(pad, Math.min(y, window.innerHeight - MENU_H - pad))
-
   const canRename = !isSystemNote(note) && !!onRename
   const showMove  = !!folders && !!onMoveToFolder && !!canMove
 
   return createPortal(
-    <div
-      ref={ref}
-      className="fixed z-[9999] min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-      style={{ left, top }}
+    <MenuPositioner ref={ref} x={x} y={y}
+      className="min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
     >
       {onOpenNewTab && (
         <button className={MENU_ITEM} onClick={() => { onOpenNewTab(note); onClose() }}>
@@ -182,7 +177,7 @@ export default function NoteContextMenu({
           </button>
         </>
       )}
-    </div>,
+    </MenuPositioner>,
     document.body
   )
 }

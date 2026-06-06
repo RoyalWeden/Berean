@@ -1,11 +1,12 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, type LucideIcon } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import type { Book } from '@/types'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
@@ -48,8 +49,18 @@ export default function Sidebar() {
   const sessionDisplayOrders = useAppStore((s) => s.sessionDisplayOrders)
   const reorderTabDisplay    = useAppStore((s) => s.reorderTabDisplay)
   const sidebarNewTabIconOnly = useAppStore((s) => s.sidebarNewTabIconOnly)
-  const openHistory  = useAppStore((s) => s.openHistory)
-  const historyCount = useAppStore((s) => s.history.length)
+  const openHistory            = useAppStore((s) => s.openHistory)
+  const historyCount           = useAppStore((s) => s.history.length)
+  const historySeenLength      = useAppStore((s) => s.historySeenLength)
+  const hasUnseenHistory       = historyCount > historySeenLength
+  const archivedGroups         = useAppStore((s) => s.archivedGroups)
+  const archiveAllTabs         = useAppStore((s) => s.archiveAllTabs)
+  const restoreArchivedGroup   = useAppStore((s) => s.restoreArchivedGroup)
+  const dismissArchivedGroup   = useAppStore((s) => s.dismissArchivedGroup)
+
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const archivePanelRef = useRef<HTMLDivElement>(null)
+  const archiveBtnRef   = useRef<HTMLButtonElement>(null)
 
   const [sessionPopoverOpen, setSessionPopoverOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -60,6 +71,23 @@ export default function Sidebar() {
   // ── Tab-bar right-click context menu ──
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
+
+  // ── Archive panel close-on-outside-click ──
+  useEffect(() => {
+    if (!archiveOpen) return
+    function onDown(e: MouseEvent) {
+      // Ignore clicks on the button itself — onClick handles the toggle
+      if (archiveBtnRef.current?.contains(e.target as Node)) return
+      if (archivePanelRef.current && !archivePanelRef.current.contains(e.target as Node)) setArchiveOpen(false)
+    }
+    function onClose() { setArchiveOpen(false) }
+    document.addEventListener('mousedown', onDown, true)
+    window.addEventListener('berean:closeMenus', onClose)
+    return () => {
+      document.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('berean:closeMenus', onClose)
+    }
+  }, [archiveOpen])
 
   // ── Space-button drag-to-float tracking ──
   const spaceLeftWindowRef  = useRef(false)
@@ -110,12 +138,7 @@ export default function Sidebar() {
         if (!seen.has(book.id)) { seen.add(book.id); entries.push({ book, textId: r.value.id }) }
       }
     }
-    const MENU_W = 240
-    const MENU_H = 380
-    const pad = 8
-    const bx = Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad))
-    const by = Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad))
-    setBookMenu({ x: bx, y: by, books: entries, filter: '' })
+    setBookMenu({ x: e.clientX, y: e.clientY, books: entries, filter: '' })
   }
 
   function openTabFromBook(entry: { book: Book; textId: string }) {
@@ -219,11 +242,7 @@ export default function Sidebar() {
       <aside
         onContextMenu={sidebarCollapsed ? (e) => {
           e.preventDefault()
-          const MENU_W = 208; const MENU_H = 160; const pad = 8
-          setTabBarMenu({
-            x: Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad)),
-            y: Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad)),
-          })
+          setTabBarMenu({ x: e.clientX, y: e.clientY })
         } : undefined}
         className={`
           flex flex-col flex-shrink-0 h-full
@@ -661,7 +680,7 @@ export default function Sidebar() {
                   className="no-drag relative flex items-center justify-center w-10 h-8 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer select-none"
                 >
                   <History size={15} />
-                  {historyCount > 0 && (
+                  {hasUnseenHistory && (
                     <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] opacity-70" />
                   )}
                 </button>
@@ -735,7 +754,7 @@ export default function Sidebar() {
                   className="no-drag relative p-1.5 rounded flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 >
                   <History size={14} />
-                  {historyCount > 0 && (
+                  {hasUnseenHistory && (
                     <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] opacity-70" />
                   )}
                 </button>
@@ -747,6 +766,78 @@ export default function Sidebar() {
                 </Tooltip.Content>
               </Tooltip.Portal>
             </Tooltip.Root>
+            {/* Archive button — always visible in expanded bar */}
+            <div className="relative">
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    ref={archiveBtnRef}
+                    onClick={() => setArchiveOpen(v => !v)}
+                    className={`no-drag relative p-1.5 rounded flex-shrink-0 transition-colors cursor-pointer ${
+                      archiveOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
+                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                    }`}
+                  >
+                    <Archive size={14} />
+                    {archivedGroups.length > 0 && (
+                      <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] opacity-70" />
+                    )}
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+                    Archived tabs{archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ''}
+                    <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+              {archiveOpen && createPortal(
+                <div
+                  ref={archivePanelRef}
+                  className="fixed z-[9999] w-72 max-h-96 overflow-y-auto rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] py-1"
+                  style={{ bottom: 48, left: 8 }}
+                >
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Archived tabs</span>
+                    <button
+                      onClick={() => { archiveAllTabs(); setArchiveOpen(false) }}
+                      className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+                    >
+                      Archive current tabs
+                    </button>
+                  </div>
+                  {archivedGroups.length === 0 && (
+                    <p className="px-3 py-4 text-xs text-[rgb(var(--color-text-muted))] text-center">No archived tabs yet</p>
+                  )}
+                  {archivedGroups.map(group => (
+                    <div key={group.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] group">
+                      <Archive size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-[rgb(var(--color-text-primary))] truncate">{group.label}</p>
+                        <p className="text-[9px] text-[rgb(var(--color-text-muted))]">
+                          {group.tabs.length} tab{group.tabs.length !== 1 ? 's' : ''} · {new Date(group.archivedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => { restoreArchivedGroup(group.id); setArchiveOpen(false) }}
+                        title="Restore tabs"
+                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-all"
+                      >
+                        <ArchiveRestore size={12} />
+                      </button>
+                      <button
+                        onClick={() => dismissArchivedGroup(group.id)}
+                        title="Delete permanently"
+                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-all"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>,
+                document.body
+              )}
+            </div>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <button
@@ -769,9 +860,7 @@ export default function Sidebar() {
 
       {/* ── Tab-bar right-click context menu ── */}
       {tabBarMenu && createPortal(
-        <div
-          ref={tabBarMenuRef}
-          style={{ position: 'fixed', left: tabBarMenu.x, top: tabBarMenu.y, zIndex: 9999 }}
+        <MenuPositioner ref={tabBarMenuRef} x={tabBarMenu.x} y={tabBarMenu.y}
           className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
         >
           <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Open new tab</div>
@@ -800,15 +889,13 @@ export default function Sidebar() {
             <Settings size={12} />
             Theme settings
           </button>
-        </div>,
+        </MenuPositioner>,
         document.body
       )}
 
       {/* ── Scripture right-click → book list ── */}
       {bookMenu && createPortal(
-        <div
-          ref={bookMenuRef}
-          style={{ position: 'fixed', left: bookMenu.x, top: bookMenu.y, zIndex: 9999 }}
+        <MenuPositioner ref={bookMenuRef} x={bookMenu.x} y={bookMenu.y}
           className="w-56 max-h-[70vh] flex flex-col rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl text-xs"
         >
           {/* Filter input — sticky at top */}
@@ -869,7 +956,7 @@ export default function Sidebar() {
               })
             })()}
           </div>
-        </div>,
+        </MenuPositioner>,
         document.body
       )}
     </Tooltip.Provider>

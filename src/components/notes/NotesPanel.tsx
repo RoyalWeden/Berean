@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine } from 'lucide-react'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
@@ -354,13 +355,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [notesTabId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save scroll + cursor position when this panel unmounts (space switch).
-  // Also delete any empty note the user created but didn't write anything in.
+  // Empty notes are NOT deleted here — only goBack() deletes them so that switching
+  // tabs or spaces preserves the note for the user to return to.
   useEffect(() => {
     return () => {
-      const note = activeNoteRef.current
-      if (note && note.content.trim() === '') {
-        window.notes.deleteNote(note.id).catch(() => {})
-      }
       const id = notesTabId
       if (!id) return
       useAppStore.getState().updateTabState('notes', id, {
@@ -877,8 +875,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onClick={createNote}
               onContextMenu={(e) => {
                 e.preventDefault()
-                const MENU_W = 160, pad = 8
-                setPlusMenu({ x: Math.min(e.clientX, window.innerWidth - MENU_W - pad), y: e.clientY })
+                setPlusMenu({ x: e.clientX, y: e.clientY })
               }}
               title="New note (⌘⇧N) · right-click for more"
               className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -893,9 +890,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       {plusMenu && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setPlusMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPlusMenu(null) }} />
-          <div
-            className="fixed z-[9999] min-w-[160px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-            style={{ left: plusMenu.x, top: plusMenu.y }}
+          <MenuPositioner x={plusMenu.x} y={plusMenu.y}
+            className="min-w-[160px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
           >
             <button
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -913,7 +909,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             >
               <FolderPlus size={13} className="flex-shrink-0" /> New folder
             </button>
-          </div>
+          </MenuPositioner>
         </>
       )}
 

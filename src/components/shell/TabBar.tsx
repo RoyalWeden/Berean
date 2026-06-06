@@ -1,8 +1,9 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
+import { usePositionedMenu } from '@/lib/usePositionedMenu'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -33,15 +34,18 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   const activeYouTubeTabId = useAppStore((s) => s.activeTabId['youtube'])
   const sessions           = useAppStore((s) => s.sessions)
   const currentSessionId   = useAppStore((s) => s.currentSessionId)
-  const moveTabToSession   = useAppStore((s) => s.moveTabToSession)
+  const moveTabToSession       = useAppStore((s) => s.moveTabToSession)
+  const archiveTab             = useAppStore((s) => s.archiveTab)
+  const archiveAllTabs         = useAppStore((s) => s.archiveAllTabs)
+  const archivedGroups         = useAppStore((s) => s.archivedGroups)
 
   // Visual-only drag state (drives the insert-line indicator)
   const [draggingIdx,       setDraggingIdx]       = useState<number | null>(null)
   const [dragOverIdx,       setDragOverIdx]        = useState<number | null>(null)
   const [dragInsertBefore,  setDragInsertBefore]  = useState(true)
   const [crossSpaceHoverIdx, setCrossSpaceHoverIdx] = useState<number | null>(null)
-  const [contextMenu,       setContextMenu]       = useState<ContextMenuState | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const { menu: contextMenu, menuRef, openMenu: openContextMenu, closeMenu: closeContextMenu } =
+    usePositionedMenu<{ tab: Tab }>()
 
   // Only ref needed: which tab is being dragged (used in handleTabDragOver
   // to skip cross-space visual indicator, and in handleContainerDrop)
@@ -50,19 +54,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   // Track whether cursor left the window during drag — for "drag off app → float" feature
   const leftWindowRef  = useRef(false)
 
-  useEffect(() => {
-    if (!contextMenu) return
-    function onClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setContextMenu(null)
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setContextMenu(null) }
-    window.addEventListener('mousedown', onClickOutside, true)
-    window.addEventListener('keydown', onEsc)
-    return () => {
-      window.removeEventListener('mousedown', onClickOutside, true)
-      window.removeEventListener('keydown', onEsc)
-    }
-  }, [contextMenu])
 
   // Detect when the drag cursor leaves the browser window (for "drag off → float" feature)
   useEffect(() => {
@@ -453,12 +444,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   function handleContextMenu(e: React.MouseEvent, tab: Tab) {
     e.preventDefault()
     e.stopPropagation()
-    const MENU_W = 208
-    const MENU_H = 300
-    const pad = 8
-    const x = Math.max(pad, Math.min(e.clientX, window.innerWidth  - MENU_W - pad))
-    const y = Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad))
-    setContextMenu({ tab, x, y })
+    openContextMenu({ tab, x: e.clientX, y: e.clientY })
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -573,7 +559,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               window.app.openFloatingTab(floatType, floatState)
               useAppStore.getState().bumpFloatingTabToken()
               onTabClose(contextMenu.tab)
-              setContextMenu(null)
+              closeContextMenu()
             }}
           >
             <ExternalLink size={12} />
@@ -590,7 +576,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 state: JSON.parse(JSON.stringify(contextMenu.tab.state)),
               }
               store.addTab(newTab)
-              setContextMenu(null)
+              closeContextMenu()
             }}
           >
             <Copy size={12} />
@@ -598,8 +584,15 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           </button>
           <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
           <button
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            onClick={() => { archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id); closeContextMenu() }}
+          >
+            <Archive size={12} />
+            Archive tab
+          </button>
+          <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
-            onClick={() => { onTabClose(contextMenu.tab); setContextMenu(null) }}
+            onClick={() => { onTabClose(contextMenu.tab); closeContextMenu() }}
           >
             <Trash2 size={12} />
             Close tab
@@ -614,7 +607,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                   onClick={() => {
                     moveTabToSession(contextMenu.tab.spaceId, contextMenu.tab.id, session.id)
-                    setContextMenu(null)
+                    closeContextMenu()
                   }}
                 >
                   <Layers size={12} />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
@@ -2037,12 +2038,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     onClick={() => setActiveVideoId(video.videoId)}
                     onContextMenu={(e) => {
                       e.preventDefault()
-                      const MENU_W = 230, MENU_H = 176, pad = 8
-                      setVideoMenu({
-                        video,
-                        x: Math.max(pad, Math.min(e.clientX, window.innerWidth - MENU_W - pad)),
-                        y: Math.max(pad, Math.min(e.clientY, window.innerHeight - MENU_H - pad)),
-                      })
+                      setVideoMenu({ video, x: e.clientX, y: e.clientY })
                     }}
                     className="text-left group rounded-xl overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] transition-all cursor-pointer relative"
                   >
@@ -2145,9 +2141,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       {videoMenu && (
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setVideoMenu(null)} onContextMenu={(e) => { e.preventDefault(); setVideoMenu(null) }} />
-          <div
-            className="fixed z-[9999] min-w-[230px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
-            style={{ left: videoMenu.x, top: videoMenu.y }}
+          <MenuPositioner x={videoMenu.x} y={videoMenu.y}
+            className="min-w-[230px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
           >
             {[
               {
@@ -2182,7 +2177,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 {item.label}
               </button>
             ))}
-          </div>
+          </MenuPositioner>
         </>
       )}
     </div>

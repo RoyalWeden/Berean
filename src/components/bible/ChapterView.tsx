@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Copy, StickyNote, X } from 'lucide-react'
+import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
@@ -207,22 +208,9 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (verseSelections.length < 2) return
     const intersecting = verseSelections.map((s) => s.vn)
 
-    // Smart positioning: keep menu fully inside the viewport
+    // Pass cursor-adjacent position; MenuPositioner clamps all 4 corners.
     const rect = range.getBoundingClientRect()
-    const MENU_W = 210
-    const MENU_H_EST = 210
-    const pad = 8
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let menuX = rect.left + rect.width / 2 - MENU_W / 2
-    menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))
-    // Prefer above the selection; flip below if not enough room; clamp either way
-    let menuY = rect.top - MENU_H_EST - pad
-    if (menuY < pad) menuY = rect.bottom + pad
-    menuY = Math.min(menuY, vh - MENU_H_EST - pad) // never bleed off the bottom
-    menuY = Math.max(pad, menuY)                   // never bleed off the top
-
-    setMultiToolbar({ x: menuX, y: menuY, verseNums: intersecting, verseSelections })
+    setMultiToolbar({ x: rect.left + rect.width / 2, y: rect.top, verseNums: intersecting, verseSelections })
   }, [])
 
   // Remove/split highlights that overlap [sc, ec] in a single verse
@@ -379,10 +367,9 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
       {/* Multi-verse selection toolbar — context menu */}
       {multiToolbar && (
-        <div
-          className="fixed z-50 min-w-[200px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden py-1"
-          style={{ left: multiToolbar.x, top: multiToolbar.y }}
-          onMouseDown={(e) => e.stopPropagation()}
+        <MenuPositioner x={multiToolbar.x} y={multiToolbar.y}
+          className="min-w-[200px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden py-1"
+          onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           {/* Color grid: 3 rows × 5 colors */}
           <div className="px-3 py-2 space-y-1.5">
@@ -437,7 +424,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
             <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Add note on range
           </button>
-        </div>
+        </MenuPositioner>
       )}
     </div>
   )

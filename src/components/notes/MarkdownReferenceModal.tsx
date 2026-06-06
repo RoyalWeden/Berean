@@ -482,6 +482,42 @@ const REFERENCE_ITEMS: RefItem[] = [
     notes: 'The lxx:/LXX suffix overrides whatever translation is currently active.',
   },
   {
+    id: 'scripture-block',
+    syntax: 'Genesis 1:1\nIn the beginning…',
+    label: 'Scripture block',
+    description: 'When you type a verse reference followed by its actual verse text, Berean recognises the passage and renders it as a styled scripture block with a left accent bar. Multi-verse ranges become numbered blocks. The underlying text stays plain so it copies cleanly.',
+    why: 'Quote scripture in your notes with clear visual separation from your own commentary.',
+    examples: [
+      { input: 'Genesis 1:1 In the beginning Yehovah created the heavens and the earth', output: 'Single-line scripture block' },
+      { input: 'Gen 1:1-3\n1 In the beginning…\n2 And the earth…\n3 And Yehovah said…', output: 'Multi-line numbered block' },
+    ],
+    notes: 'Enable auto-formatting in Settings → Notes → Scripture blocks. A line only formats when its text closely matches the real verse, so commentary like "Genesis 5:4 my thoughts" stays plain.',
+  },
+  {
+    id: 'verse-suggestion',
+    syntax: 'Type "Gen 1:1" → popup',
+    label: 'Verse block suggestion',
+    description: 'When you type a complete verse reference (or range), a small popup offers to expand it into a full scripture block — fetching the verse text for you. Press Enter to insert, or Esc to dismiss.',
+    why: 'Pull in scripture text without leaving the editor or copy-pasting from the reader.',
+    examples: [
+      { input: 'Gen 1:1',     output: 'Popup → Insert scripture block (single verse, inline)' },
+      { input: 'John 1:1-3',  output: 'Popup → Insert scripture block (range, numbered lines)' },
+    ],
+    notes: 'Toggle in Settings → Notes → Verse block suggestion. Press Enter to accept, Esc to dismiss.',
+  },
+  {
+    id: 'strongs-block',
+    syntax: 'Type "H7225" → popup',
+    label: 'Strong\'s block suggestion',
+    description: 'When you type a Strong\'s number, a popup offers to expand it into a full lexicon block — the number, lemma, transliteration and definition, formatted across two lines. Press Enter to insert, or Esc to dismiss.',
+    why: 'Drop a complete lexicon entry into your study notes in one keystroke.',
+    examples: [
+      { input: 'H7225', output: 'Popup → Insert Strong\'s block (בְּרֵאשִׁית rêʼshîyth; the beginning…)' },
+      { input: 'g5485', output: 'Lowercase works too → G5485 χάρις cháris; grace…' },
+    ],
+    notes: 'Toggle in Settings → Notes → Strong\'s block suggestion. Lowercase h/g is accepted; the inserted block always uses the uppercase form. You can also copy a block from the Lexicon panel\'s copy button.',
+  },
+  {
     id: 'shortcuts',
     syntax: '⌘⇧N  ⌘⇧M  ⌘Z',
     label: 'Keyboard shortcuts',

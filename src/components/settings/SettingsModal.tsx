@@ -830,6 +830,10 @@ export default function SettingsModal() {
   const setNoteScriptureBlock = useAppStore((s) => s.setNoteScriptureBlock)
   const noteScriptureBlockThreshold = useAppStore((s) => s.noteScriptureBlockThreshold)
   const setNoteScriptureBlockThreshold = useAppStore((s) => s.setNoteScriptureBlockThreshold)
+  const noteVerseBlockSuggest = useAppStore((s) => s.noteVerseBlockSuggest)
+  const setNoteVerseBlockSuggest = useAppStore((s) => s.setNoteVerseBlockSuggest)
+  const noteStrongsBlockSuggest = useAppStore((s) => s.noteStrongsBlockSuggest)
+  const setNoteStrongsBlockSuggest = useAppStore((s) => s.setNoteStrongsBlockSuggest)
   const sidebarNewTabIconOnly = useAppStore((s) => s.sidebarNewTabIconOnly)
   const setSidebarNewTabIconOnly = useAppStore((s) => s.setSidebarNewTabIconOnly)
   const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
@@ -1486,6 +1490,36 @@ export default function SettingsModal() {
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <kbd className="font-mono text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧R</kbd> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
+                  </div>
+
+                  {/* Strong's block suggestion */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
+                    </div>
+                    <button
+                      role="switch" aria-checked={noteStrongsBlockSuggest}
+                      onClick={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteStrongsBlockSuggest ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteStrongsBlockSuggest ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Verse block suggestion */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
+                    </div>
+                    <button
+                      role="switch" aria-checked={noteVerseBlockSuggest}
+                      onClick={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteVerseBlockSuggest ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteVerseBlockSuggest ? 'translate-x-5' : ''}`} />
+                    </button>
                   </div>
 
                   {/* Markdown reference guide */}

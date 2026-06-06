@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, Search, X, ArrowLeft, Home, ChevronLeft, ChevronRight, ScanSearch, Info } from 'lucide-react'
+import { BookMarked, Search, X, ArrowLeft, Home, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
@@ -9,6 +9,87 @@ import type { LexiconEntry } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; matchWordIndices?: number[] }
+
+/**
+ * Strip BDB/scholarly bracket notation from lexicon text.
+ * BDB entries contain patterns like `[ בָּשַׂר ] vb .` that look like Markdown links
+ * and add visual noise when inserted into notes.
+ */
+export function stripBracketNotation(text: string): string {
+  // Remove any [ ... ] group whose contents include a Hebrew (U+0590-U+05FF) or
+  // Greek (U+0370-U+03FF) character - these BDB bracket annotations otherwise look
+  // like Markdown links and get rendered as broken links inside notes.
+  return text
+    .replace(/\[[^\]]*[\u0590-\u05FF\u0370-\u03FF][^\]]*\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/**
+ * Normalize a Strong's text field: bare numbers (1–5 digits) that appear in the
+ * Strong's derivation / definition data without a H/G prefix get the prefix added.
+ * All numbers in these fields are Strong's cross-references, not arbitrary numbers.
+ */
+export function normalizeStrongsNums(text: string, lang: 'H' | 'G'): string {
+  return text.replace(/(?<![HGa-zA-Z/])(\b\d{1,5}\b)(?!\s*[:.])/g, `${lang}$1`)
+}
+
+/** Build the plain-text string that the copy button places on the clipboard.
+ *
+ * Format (matches Strong's dictionary style) — NO leading indent in the raw copy:
+ *   G5485 χάρις cháris, khar'-ece;
+ *   from G5463; graciousness (as gratifying)...:—acceptable, benefit, favour, gift, grace...
+ *
+ * Line 2 is `{derivation} {definition}:—{occurrence words}` where the occurrence words
+ * (how the term is actually rendered in scripture, e.g. the KJV translations) come from
+ * the gloss/short_def, separated by the standard Strong's colon + em-dash.
+ *
+ * The notes renderer adds visual indentation on line 2 when it detects this as a
+ * lexicon block — the copy text itself stays plain so it pastes cleanly anywhere.
+ */
+export function buildLexiconCopyText(
+  entry: Pick<LexiconEntry, 'strongsNum' | 'lemma' | 'transliteration' | 'pronunciation' | 'definition' | 'gloss' | 'derivation'> & { extendedDef?: string }
+): string {
+  const lang: 'H' | 'G' = entry.strongsNum.startsWith('H') ? 'H' : 'G'
+
+  // ── Line 1: number lemma transliteration, pronunciation; ─────────────────────
+  const line1Parts: string[] = [entry.strongsNum]
+  if (entry.lemma?.trim()) line1Parts.push(entry.lemma.trim())
+  const trans = entry.transliteration?.trim() ?? ''
+  const pron  = entry.pronunciation?.trim() ?? ''
+  if (trans && pron) line1Parts.push(`${trans}, ${pron}`)
+  else if (trans)    line1Parts.push(trans)
+  else if (pron)     line1Parts.push(pron)
+  // Line 1 always ends with semicolon so the notes lexicon-block detector matches
+  const line1 = line1Parts.join(' ') + ';'
+
+  // ── Line 2: derivation + definition :— occurrence words ──────────────────────
+  // Body = the meaning: prefer `definition` (clean full_def) over `extendedDef`
+  // (BDB scholarly notes full of Hebrew bracket notation / "vb.", "Pi.", "Hithp.").
+  const derivation = normalizeStrongsNums(entry.derivation?.trim() ?? '', lang)
+  const def        = (entry.definition ?? '').trim() || stripBracketNotation((entry.extendedDef ?? '').trim())
+  const bodyDef    = normalizeStrongsNums(def, lang)
+  // Occurrence words — how the term is rendered in scripture (KJV translations).
+  const occurrences = (entry.gloss ?? '').trim()
+
+  // Assemble derivation + definition into the body.
+  let body = ''
+  if (derivation && bodyDef) {
+    const sep = derivation.endsWith(';') ? '' : ';'
+    body = `${derivation}${sep} ${bodyDef}`
+  } else {
+    body = derivation || bodyDef
+  }
+
+  // Append the occurrence words after a colon + em-dash (standard Strong's notation).
+  let line2 = body
+  if (occurrences) {
+    const trimmedBody = body.replace(/[;,\s]+$/, '')
+    line2 = trimmedBody ? `${trimmedBody}:—${occurrences}` : occurrences
+  }
+
+  return line2 ? `${line1}\n${line2}` : line1
+}
 
 /** Render verse text with matched words (by index) bolded/highlighted */
 function VerseWithMatchedWords({ text, matchWordIndices }: { text: string; matchWordIndices?: number[] }) {
@@ -50,19 +131,22 @@ function LangBadge({ num }: { num: string }) {
   )
 }
 
-function DerivationText({ text, onNav }: { text: string; onNav: (num: string, newTab: boolean) => void }) {
-  const parts = text.split(/(\b[HG]\d+\b)/g)
+function DerivationText({ text, lang, onNav }: { text: string; lang: 'H' | 'G'; onNav: (num: string, newTab: boolean) => void }) {
+  // Split on H/G-prefixed numbers OR bare numbers (1–5 digits) so that
+  // derivations stored without the prefix (e.g. "from 2165") still link.
+  const parts = text.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g)
   return (
     <span>
       {parts.map((part, i) => {
-        if (/^[HG]\d+$/.test(part)) {
+        const prefixed = /^[HG]\d{1,5}$/.test(part) ? part : /^\d{1,5}$/.test(part) ? `${lang}${part}` : null
+        if (prefixed) {
           return (
             <button
               key={i}
-              onClick={(e) => onNav(part, e.metaKey || e.ctrlKey)}
+              onClick={(e) => onNav(prefixed, e.metaKey || e.ctrlKey)}
               className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
             >
-              {part}
+              {prefixed}
             </button>
           )
         }
@@ -225,6 +309,14 @@ function EntryView({
 
   const hasExtended = (entry.extendedDef?.trim().length ?? 0) > 0
   const hasDerivation = (entry.derivation?.trim().length ?? 0) > 0
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(buildLexiconCopyText(entry)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    }).catch(() => {})
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -259,6 +351,13 @@ function EntryView({
         <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))] font-mono">{entry.strongsNum}</span>
         <LangBadge num={entry.strongsNum} />
         <div className="flex-1" />
+        <button
+          onClick={handleCopy}
+          title="Copy Strong's number and definition"
+          className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+        >
+          {copied ? <CheckIcon size={14} className="text-green-400" /> : <Copy size={14} />}
+        </button>
         {onFindOpen && (
           <button
             onClick={onFindOpen}
@@ -327,7 +426,7 @@ function EntryView({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Derivation</p>
             <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed italic">
-              <DerivationText text={wr(entry.derivation)} onNav={onNav} />
+              <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} />
             </p>
           </div>
         )}

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, ArrowLeft, GitFork } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, ArrowLeft, GitFork, ExternalLink } from 'lucide-react'
+import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
@@ -100,13 +102,17 @@ interface PersistedState {
 
 interface Props {
   onNavigate: (bookId: string, chapter: number, verse: number, textId: string) => void
+  onOpenInNewTab?: (bookId: string, chapter: number, verse: number, textId: string) => void
+  onOpenInFloating?: (bookId: string, chapter: number, verse: number) => void
   onClose: () => void
   initialQuery?: string
   persistedState?: PersistedState
   onStateChange?: (state: PersistedState) => void
 }
 
-export default function ScriptureSearchView({ onNavigate, onClose, initialQuery, persistedState, onStateChange }: Props) {
+type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; x: number; y: number }
+
+export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange }: Props) {
   const [query, setQuery] = useState(initialQuery ?? '')
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
@@ -129,6 +135,8 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
   const translationRef = useRef<HTMLDivElement>(null)
   const bookPickerRef = useRef<HTMLDivElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  type CtxData = Omit<CtxItem, 'x' | 'y'>
+  const { menu: ctxMenu, menuRef: ctxMenuRef, openMenu: openCtxMenu, closeMenu: closeCtxMenu } = usePositionedMenu<CtxData>()
   const onStateChangeRef = useRef(onStateChange)
   useEffect(() => { onStateChangeRef.current = onStateChange }, [onStateChange])
 
@@ -151,25 +159,13 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
     return () => clearTimeout(t)
   }, [])
 
-  // Cmd+L — focus the search input when this tab is active.
-  // Handles both the routed IPC event (from App.tsx) and a direct keydown listener
-  // as a fallback in case the App.tsx check misses the condition.
+  // Focus the search input only on an explicit request (berean:focusScriptureSearch).
+  // Cmd+L is intentionally NOT handled here — it opens the main floating search bar
+  // (handled globally in App.tsx) so the shortcut behaves the same everywhere.
   useEffect(() => {
     function onFocus() { inputRef.current?.focus(); inputRef.current?.select() }
-    function onKey(e: KeyboardEvent) {
-      const cmd = e.metaKey || e.ctrlKey
-      if (cmd && !e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault()
-        inputRef.current?.focus()
-        inputRef.current?.select()
-      }
-    }
     window.addEventListener('berean:focusScriptureSearch', onFocus)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('berean:focusScriptureSearch', onFocus)
-      window.removeEventListener('keydown', onKey)
-    }
+    return () => window.removeEventListener('berean:focusScriptureSearch', onFocus)
   }, [])
 
   // Restore scroll position after results load
@@ -564,6 +560,7 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
                 <button
                   key={i}
                   onClick={() => onNavigate(r.bookId, r.chapter, r.verse, 'kjva')}
+                  onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', x: e.clientX, y: e.clientY }) }}
                   className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
                 >
                   <span className="text-xs font-mono text-[rgb(var(--color-accent))] w-28 flex-shrink-0 pt-0.5 group-hover:underline">{ref}</span>
@@ -627,6 +624,7 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
                   <button
                     key={`${r._textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
+                    onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, x: e.clientX, y: e.clientY }) }}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
                   >
                     <span className="text-xs font-mono text-[rgb(var(--color-text-muted))] w-14 flex-shrink-0 pt-0.5">
@@ -657,6 +655,42 @@ export default function ScriptureSearchView({ onNavigate, onClose, initialQuery,
           </div>
         )}
       </div>
+
+      {/* Right-click context menu for search results */}
+      {ctxMenu && createPortal(
+        <div
+          ref={ctxMenuRef}
+          className="fixed z-[9999] min-w-[190px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] py-1 overflow-hidden"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+        >
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+            onClick={() => { onNavigate(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
+          >
+            <ChevronRight size={12} />
+            Open here
+          </button>
+          {onOpenInNewTab && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+              onClick={() => { onOpenInNewTab(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
+            >
+              <BookOpen size={12} />
+              Open in new tab
+            </button>
+          )}
+          {onOpenInFloating && (
+            <button
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+              onClick={() => { onOpenInFloating(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse); closeCtxMenu() }}
+            >
+              <ExternalLink size={12} />
+              Open in floating tab
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

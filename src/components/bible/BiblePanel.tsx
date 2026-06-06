@@ -109,6 +109,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [rightPanelTab, setRightPanelTab] = useState<'notes' | 'lexicon' | 'crossrefs'>(() => tabState.rightPanelTab ?? 'notes')
   // Persisted right-panel content (survives collapse/expand)
   const [rightPanelNoteId, setRightPanelNoteId] = useState<string | null>(() => tabState.rightPanelNoteId ?? null)
+  // Live cursor offset of the side-panel note editor — written via a ref (no re-render),
+  // persisted to tab state on tab switch so it can be restored on return.
+  const lastNoteCursorRef = useRef<number | null>(tabState.rightPanelNoteCursor ?? null)
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
 
@@ -167,8 +170,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const tab = activeTabRef.current
       const el = chapterViewRef.current
       const pos = el?.scrollTop ?? 0
-      if (tab && el && pos > 0) {
-        useAppStore.getState().updateTabState('scripture', tab.id, { scrollPosition: pos })
+      const updates: Partial<import('@/types').BibleTabState> = {}
+      if (el && pos > 0) updates.scrollPosition = pos
+      if (lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
+      if (tab && Object.keys(updates).length > 0) {
+        useAppStore.getState().updateTabState('scripture', tab.id, updates)
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,8 +186,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     function onSave() {
       const tab = activeTabRef.current
       const el = chapterViewRef.current
-      if (tab && el) {
-        useAppStore.getState().updateTabState('scripture', tab.id, { scrollPosition: el.scrollTop })
+      if (!tab) return
+      const updates: Partial<import('@/types').BibleTabState> = {}
+      if (el) updates.scrollPosition = el.scrollTop
+      if (lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
+      if (Object.keys(updates).length > 0) {
+        useAppStore.getState().updateTabState('scripture', tab.id, updates)
       }
     }
     window.addEventListener('berean:saveScrollBeforeTabChange', onSave)
@@ -537,7 +547,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   function handleRightPanelNoteChange(noteId: string | null) {
     setRightPanelNoteId(noteId)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelNoteId: noteId })
+    // A different note is now open — the remembered cursor was for the previous note,
+    // so reset it to avoid restoring a stale offset.
+    lastNoteCursorRef.current = null
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelNoteId: noteId, rightPanelNoteCursor: null })
+  }
+
+  function handleRightPanelNoteCursorChange(pos: number) {
+    lastNoteCursorRef.current = pos
   }
 
   function handleRightPanelLexiconChange(entry: string | null) {
@@ -709,6 +726,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               searchBack: savedQuery ? { query: savedQuery } : null,
             })
             renameTab('scripture', activeTab.id, title)
+          }}
+          onOpenInNewTab={(bookId, chapter, verse, tid) => {
+            const book = books.find((b) => b.id === bookId)
+            const title = isHermasBook(bookId)
+              ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
+              : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
+            addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+              state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
+          }}
+          onOpenInFloating={(bookId, chapter, verse) => {
+            window.app.openFloatingTab('bible', { bookId, chapter: String(chapter), targetVerse: String(verse) })
           }}
           onClose={() => {
             if (isDedicatedSearchTab && activeTab) {
@@ -1229,6 +1257,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           onTabChange={handleRightPanelTabChange}
           openNoteId={rightPanelNoteId}
           onNoteChange={handleRightPanelNoteChange}
+          initialNoteCursor={tabState.rightPanelNoteCursor}
+          onNoteCursorChange={handleRightPanelNoteCursorChange}
           openLexiconEntry={rightPanelLexiconEntry}
           onLexiconEntryChange={handleRightPanelLexiconChange}
           verseFilter={rightPanelVerseFilter}
