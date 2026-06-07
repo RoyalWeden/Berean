@@ -19,7 +19,6 @@ export function mergeYouTubeSeed(db: DB): void {
     : join(app.getAppPath(), 'data', 'youtube_seed.db')
 
   if (!existsSync(seedPath)) {
-    console.log('[berean-db] youtube_seed.db not found, skipping seed')
     return
   }
 
@@ -49,10 +48,8 @@ export function mergeYouTubeSeed(db: DB): void {
 
     db.exec('DETACH seed')
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('youtubeSeedVersion', ?)").run(String(SEED_VERSION))
-    console.log(`[berean-db] youtube seed merged: ${result.videos} videos, ${result.syncs} channels`)
   } catch (err) {
     try { db.exec('DETACH seed') } catch { /* ignore */ }
-    console.error('[berean-db] youtube seed merge failed:', err)
   }
 }
 
@@ -260,7 +257,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
         const canonical = toCanonical(verse_ref)
         if (canonical) { update.run(canonical, id); fixed++ }
       }
-      console.log(`[berean-db] v6: canonicalised ${fixed} imported note verse_refs`)
     }
   },
   {
@@ -282,7 +278,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
           .trimEnd()
         if (cleaned !== content) { update.run(cleaned, id); fixed++ }
       }
-      console.log(`[berean-db] v7: stripped import footers from ${fixed} notes`)
     }
   },
   {
@@ -292,7 +287,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
     version: 8,
     up: (db) => {
       db.exec(`ALTER TABLE notes ADD COLUMN imported_at INTEGER`)
-      console.log(`[berean-db] v8: added imported_at column to notes`)
     }
   },
   {
@@ -326,7 +320,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       try { db.exec(`ALTER TABLE workspaces ADD COLUMN state_json TEXT`) } catch {}
       // Onboarding flag
       db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run('onboardingCompleted', 'false')
-      console.log('[berean-db] v9: history table, workspaces.state_json, onboarding setting')
     }
   },
   {
@@ -344,7 +337,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
         CREATE INDEX IF NOT EXISTS idx_note_folders_parent ON note_folders(parent_id);
       `)
       try { db.exec(`ALTER TABLE notes ADD COLUMN folder_id TEXT`) } catch {}
-      console.log('[berean-db] v10: note_folders table + notes.folder_id')
     }
   },
   {
@@ -371,7 +363,6 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
         );
         CREATE INDEX IF NOT EXISTS idx_pdf_hl_pdf ON pdf_highlights(pdf_id);
       `)
-      console.log('[berean-db] v11: pdfs + pdf_highlights tables')
     }
   },
   {
@@ -395,7 +386,73 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       if (!cols.some(c => c.name === 'text_id')) {
         db.exec(`ALTER TABLE notes ADD COLUMN text_id TEXT DEFAULT 'kjva'`)
       }
-      console.log('[berean-db] v12: note_versions table + notes.text_id column')
+    }
+  },
+  {
+    version: 13,
+    up: (db) => {
+      db.exec(`
+        -- Transcript metadata (one row per video)
+        CREATE TABLE IF NOT EXISTS youtube_transcripts (
+          video_id      TEXT PRIMARY KEY,
+          lang          TEXT NOT NULL DEFAULT 'en',
+          source        TEXT NOT NULL DEFAULT 'timedtext',
+          fetched_at    INTEGER NOT NULL,
+          segment_count INTEGER NOT NULL DEFAULT 0,
+          duration_ms   INTEGER NOT NULL DEFAULT 0,
+          error         TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_yt_transcripts_fetched
+          ON youtube_transcripts(fetched_at DESC);
+
+        -- Individual caption cues
+        CREATE TABLE IF NOT EXISTS youtube_transcript_segments (
+          id       INTEGER PRIMARY KEY,
+          video_id TEXT NOT NULL
+            REFERENCES youtube_transcripts(video_id) ON DELETE CASCADE,
+          start_ms INTEGER NOT NULL,
+          dur_ms   INTEGER NOT NULL DEFAULT 0,
+          text     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_yt_seg_video
+          ON youtube_transcript_segments(video_id, start_ms);
+
+        -- FTS5 content-table (index only; triggers keep in sync with segments)
+        CREATE VIRTUAL TABLE IF NOT EXISTS youtube_transcripts_fts USING fts5(
+          text,
+          content='youtube_transcript_segments',
+          content_rowid='id',
+          tokenize='unicode61'
+        );
+
+        -- Keep FTS5 in sync with segment rows
+        CREATE TRIGGER IF NOT EXISTS yt_seg_ai
+        AFTER INSERT ON youtube_transcript_segments BEGIN
+          INSERT INTO youtube_transcripts_fts(rowid, text)
+          VALUES (new.id, new.text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS yt_seg_ad
+        AFTER DELETE ON youtube_transcript_segments BEGIN
+          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)
+          VALUES ('delete', old.id, old.text);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS yt_seg_au
+        AFTER UPDATE ON youtube_transcript_segments BEGIN
+          INSERT INTO youtube_transcripts_fts(youtube_transcripts_fts, rowid, text)
+          VALUES ('delete', old.id, old.text);
+          INSERT INTO youtube_transcripts_fts(rowid, text)
+          VALUES (new.id, new.text);
+        END;
+      `)
+
+      // Seed transcript feature defaults
+      const ins = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
+      ins.run('transcriptAutoFetch', 'true')
+      ins.run('transcriptStorageLimitMb', '200')
+
+      console.log('[berean-db] v13: youtube_transcripts + FTS5 + triggers + setting seeds')
     }
   }
 ]
@@ -412,7 +469,6 @@ function runMigrations(db: DB): void {
         migration.up(db)
         db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version)
       })()
-      console.log(`[berean-db] migrated to v${migration.version}`)
     }
   }
 }

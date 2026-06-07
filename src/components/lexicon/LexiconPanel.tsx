@@ -826,7 +826,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         if (activeEntry) setHistory((h) => [...h, activeEntry])
         setActiveEntry(entry)
       })
-      .catch(console.error)
+      .catch(() => {})
   }, [pendingLexiconEntry, clearLexiconEntry])
 
   // Keep tab title in sync
@@ -850,7 +850,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         // Track in the app-level history so Cmd+H / history modal shows this navigation
         addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
       })
-      .catch(console.error)
+      .catch(() => {})
   }
 
   const navToVerse = useCallback((bookId: string, chapter: number, verse: number) => {

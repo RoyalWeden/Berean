@@ -22,7 +22,6 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error) {
-    console.error('[ErrorBoundary]', this.props.label, error)
     saveCrashInfo(error, this.props.label)
   }
 

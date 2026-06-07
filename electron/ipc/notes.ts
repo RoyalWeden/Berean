@@ -68,7 +68,6 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 }
 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
-  console.log('[berean-ipc] registerNotesHandlers: registering notes + folders IPC handlers')
 
   ipcMain.handle('notes:create', (_event, data: {
     type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string
@@ -216,15 +215,23 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:getByVerse', (_event, verseRef: string, textId = 'kjva') => {
-    // KJV: include notes attached to this verse via KJVA *and* any LXX notes for the same
-    // reference, so Septuagint study notes surface while reading the KJV panel.
-    // LXX notes come after KJV notes in the result (ORDER BY CASE).
-    const sql = textId === 'kjva'
-      ? `SELECT * FROM notes WHERE verse_ref = ?
-           AND (text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')
-         ORDER BY CASE WHEN text_id = 'lxx' THEN 1 ELSE 0 END, created_at ASC`
-      : 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? ORDER BY created_at ASC'
-    const rows = (textId === 'kjva'
+    // KJV and LXX are cross-linked: each shows the other's notes with a translation badge
+    // so study connections are always visible. Own-translation notes come first, then cross.
+    let sql: string
+    if (textId === 'kjva') {
+      // Reading KJV → own notes first, then LXX notes
+      sql = `SELECT * FROM notes WHERE verse_ref = ?
+               AND (text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')
+             ORDER BY CASE WHEN text_id = 'lxx' THEN 1 ELSE 0 END, created_at ASC`
+    } else if (textId === 'lxx') {
+      // Reading LXX → own notes first, then KJV notes
+      sql = `SELECT * FROM notes WHERE verse_ref = ?
+               AND (text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)
+             ORDER BY CASE WHEN text_id != 'lxx' THEN 1 ELSE 0 END, created_at ASC`
+    } else {
+      sql = 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? ORDER BY created_at ASC'
+    }
+    const rows = (textId === 'kjva' || textId === 'lxx'
       ? getBereanDb().prepare(sql).all(verseRef)
       : getBereanDb().prepare(sql).all(verseRef, textId)
     ) as NoteRow[]
@@ -252,18 +259,19 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true, deleted: (result as { changes: number }).changes }
   })
 
-  // Returns all notes whose verse_ref belongs to a specific chapter (e.g. "MAT.5.*")
-  // When reading KJV, also includes LXX notes for the same chapter so they surface in the panel.
+  // Returns all notes for a chapter. KJV and LXX are cross-linked (each sees the other's notes).
   ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
     const prefix = `${bookId}.${chapter}.`
     const tidClause = textId === 'kjva'
       ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
+      : textId === 'lxx'
+      ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
     const stmt = getBereanDb().prepare(
       `SELECT * FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}
        ORDER BY verse_ref ASC`
     )
-    const rows = (textId === 'kjva'
+    const rows = (textId === 'kjva' || textId === 'lxx'
       ? stmt.all(`${prefix}%`, `${prefix}%.%`)
       : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
     ) as NoteRow[]
@@ -271,16 +279,18 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   // Returns { [verseNum]: count } for all verses in a chapter that have notes.
-  // When reading KJV, counts include LXX notes (so dots appear on verses with Septuagint notes).
+  // KJV and LXX are cross-linked so dots appear for both translations' notes.
   ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number, textId = 'kjva') => {
     const prefix = `${bookId}.${chapter}.`
     const tidClause = textId === 'kjva'
       ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
+      : textId === 'lxx'
+      ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
     const stmt = getBereanDb().prepare(
       `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}`
     )
-    const rows = (textId === 'kjva'
+    const rows = (textId === 'kjva' || textId === 'lxx'
       ? stmt.all(`${prefix}%`, `${prefix}%.%`)
       : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
     ) as Array<{ verse_ref: string }>
@@ -329,5 +339,4 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true, content: ver.content }
   })
 
-  console.log('[berean-ipc] registerNotesHandlers: ALL handlers registered OK (notes:create, notes:update, notes:delete, folders:create, folders:getAll, folders:rename, folders:delete, folders:deleteDeep, folders:setParent, notes:setFolder, notes:deleteAll, notes:getAll, notes:getByVerse, notes:getOne, notes:search, notes:deleteByTag, notes:getByChapter, notes:getChapterCounts)')
 }

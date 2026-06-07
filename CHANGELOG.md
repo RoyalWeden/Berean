@@ -106,6 +106,27 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.9] - 2026-06-07
+
+- General bug fixes
+
+---
+
+## [0.3.8] - 2026-06-06
+
+- Note history
+- See LXX connections in KJV
+
+Bug Fixes:
+- LXX verse block fixes
+- Notes fixes
+- 'GOD' is also replaced to 'Yehovah'
+- Jubilees text rendering fixes
+- History modal bug fixes
+- Floating search bar fixes
+
+---
+
 ## [0.3.7] - 2026-06-06
 
 - Better tooltips

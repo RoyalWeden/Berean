@@ -23,7 +23,7 @@ export default function PdfPicker({ anchor, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   function reload() {
-    window.pdf.list().then(setPdfs).catch((e) => console.error('[pdf-picker] list error', e))
+    window.pdf.list().then(setPdfs).catch(() => {})
   }
   useEffect(() => { reload() }, [])
 
@@ -37,18 +37,15 @@ export default function PdfPicker({ anchor, onClose }: Props) {
   }, [onClose])
 
   async function handleImport() {
-    console.log('[pdf-picker] import clicked')
     setImporting(true)
     try {
       const res = await window.pdf.import()
-      console.log('[pdf-picker] import result', res)
       if (res.success && res.pdf) {
         reload()
         window.dispatchEvent(new CustomEvent('berean:pdfsChanged'))
         openPdf(res.pdf.id, res.pdf.title)
         onClose()
       } else if (res.error) {
-        console.error('[pdf-picker] import error', res.error)
       }
     } finally {
       setImporting(false)
@@ -95,7 +92,7 @@ export default function PdfPicker({ anchor, onClose }: Props) {
           </div>
         )}
         {filtered.map((p) => (
-          <button key={p.id} onClick={() => { console.log('[pdf-picker] open', p.id); openPdf(p.id, p.title); onClose() }}
+          <button key={p.id} onClick={() => { openPdf(p.id, p.title); onClose() }}
             className="w-full flex items-center gap-2.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left group">
             <FileText size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
             <div className="flex-1 min-w-0">

@@ -50,14 +50,13 @@ const BG_PARTITION = 'persist:biblegateway-import'
 const BG_ORIGIN    = 'https://www.biblegateway.com'
 const LOGIN_URL    = `${BG_ORIGIN}/login/`
 
-const LOG = (...args: unknown[]) => console.log('[BG-IMPORT]', ...args)
+const LOG = (..._args: unknown[]) => {}
 
 // ── Message relay ──────────────────────────────────────────────────────────────
 
 const MESSAGE_RELAY = `
   window.addEventListener('message', function(e) {
     if (e.data && (e.data.type === 'bg-progress' || e.data.type === 'bg-error')) {
-      console.log('BG:' + JSON.stringify(e.data));
     }
   });
 `

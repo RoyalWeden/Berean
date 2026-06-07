@@ -41,7 +41,6 @@ export function getTextDb(textId: string): DB | null {
 
   const path = dataPath(filename)
   if (!existsSync(path)) {
-    console.warn(`[bible-db] not found: ${path}`)
     return null
   }
 

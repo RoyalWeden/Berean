@@ -46,7 +46,7 @@ export default function PdfPage({
       setViewportSize({ w: vp.width, h: vp.height })
       const base = page.getViewport({ scale: 1 })
       onSize?.(pageNumber, base.width, base.height)
-    }).catch((e) => console.error('[pdf-page] getPage size error', pageNumber, e))
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [doc, pageNumber, scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -90,7 +90,7 @@ export default function PdfPage({
       try {
         await task.promise
       } catch (e) {
-        if ((e as { name?: string })?.name !== 'RenderingCancelledException') console.error('[pdf-page] render error', pageNumber, e)
+        /* render cancellations are expected; other errors are ignored */
         return
       }
 
@@ -102,10 +102,9 @@ export default function PdfPage({
         const tl = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textDiv, viewport: vp })
         await tl.render()
       } catch (e) {
-        console.error('[pdf-page] text layer error', pageNumber, e)
       }
       if (!cancelled) setRendered(true)
-    }).catch((e) => console.error('[pdf-page] getPage render error', pageNumber, e))
+    }).catch(() => {})
 
     return () => { cancelled = true; try { renderTaskRef.current?.cancel() } catch { /* ignore */ } }
   }, [visible, doc, pageNumber, scale])

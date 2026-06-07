@@ -182,7 +182,6 @@ export default function App() {
   useEffect(() => {
     // Listen for broadcasts from other windows
     window.app.onTabStateUpdate?.((payload) => {
-      console.log('[cross-win] received tabStateUpdate', payload)
       isBroadcastingRef.current = true
       applyExternalTabSync(payload as { tabs: typeof storeTabs; theme?: string; themePreset?: string })
       setTimeout(() => { isBroadcastingRef.current = false }, 0)
@@ -195,7 +194,6 @@ export default function App() {
     if (isBroadcastingRef.current) return // skip if we're applying an external update
     const timer = setTimeout(() => {
       const payload = { tabs: storeTabs, theme, themePreset }
-      console.log('[cross-win] broadcasting tabState + theme to other windows')
       window.app.broadcastTabState?.(payload)
     }, 150) // debounce
     return () => clearTimeout(timer)
@@ -479,14 +477,11 @@ export default function App() {
   // Cmd+W: close active tab — exactly the same action as clicking the X on a tab.
   // Registered once on mount; uses getState() so it always reads latest store values.
   useEffect(() => {
-    console.log('[App] mounting — registering onCloseTab, window.app defined:', !!window.app)
     window.app?.onCloseTab?.(() => {
-      console.log('[Cmd+W] IPC received')
       window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))
       const store = useAppStore.getState()
       const spaceId = store.activeSpace
       const tabId = store.activeTabId[spaceId]
-      console.log('[Cmd+W] closing tab — space:', spaceId, 'tabId:', tabId)
       if (tabId) store.closeTab(spaceId, tabId)
     })
     // macOS app menu "Preferences…" opens the settings modal

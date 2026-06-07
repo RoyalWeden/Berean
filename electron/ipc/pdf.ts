@@ -42,7 +42,6 @@ function rowToHl(r: HlRow) {
 }
 
 export function registerPdfHandlers(ipcMain: IpcMain): void {
-  console.log('[berean-pdf] registering PDF IPC handlers')
 
   // Import: open a file dialog, copy the chosen PDF into userData/pdfs, insert a row.
   ipcMain.handle('pdf:import', async () => {
@@ -62,7 +61,6 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     try {
       copyFileSync(srcPath, destPath)
     } catch (err) {
-      console.error('[berean-pdf] copy failed', err)
       return { error: String(err) }
     }
     const size = statSync(destPath).size
@@ -71,7 +69,6 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     getBereanDb().prepare(
       `INSERT INTO pdfs (id, title, filename, page_count, file_size, imported_at) VALUES (?, ?, ?, ?, ?, ?)`
     ).run(id, title, storedName, 0, size, now)
-    console.log('[berean-pdf] imported', title, id, size, 'bytes')
     return { success: true, pdf: { id, title, filename: storedName, pageCount: 0, fileSize: size, importedAt: now } }
   })
 
@@ -88,11 +85,10 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
   // Read the raw bytes for rendering in the renderer (avoids file:// CSP issues)
   ipcMain.handle('pdf:readBytes', (_e, id: string) => {
     const row = getBereanDb().prepare('SELECT filename FROM pdfs WHERE id = ?').get(id) as { filename: string } | undefined
-    if (!row) { console.error('[berean-pdf] readBytes: no row for', id); return null }
+    if (!row) { return null }
     const path = join(pdfsDir(), row.filename)
-    if (!existsSync(path)) { console.error('[berean-pdf] readBytes: file missing', path); return null }
+    if (!existsSync(path)) { return null }
     const buf = readFileSync(path)
-    console.log('[berean-pdf] readBytes', id, buf.length, 'bytes')
     // Return as a transferable Uint8Array
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
   })
@@ -113,7 +109,7 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     const row = db.prepare('SELECT filename FROM pdfs WHERE id = ?').get(id) as { filename: string } | undefined
     if (row) {
       const path = join(pdfsDir(), row.filename)
-      try { if (existsSync(path)) unlinkSync(path) } catch (err) { console.error('[berean-pdf] delete file err', err) }
+      try { if (existsSync(path)) unlinkSync(path) } catch { /* ignore */ }
     }
     db.transaction(() => {
       db.prepare('DELETE FROM pdf_highlights WHERE pdf_id = ?').run(id)
@@ -153,5 +149,4 @@ export function registerPdfHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
-  console.log('[berean-pdf] all PDF handlers registered')
 }

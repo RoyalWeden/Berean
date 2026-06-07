@@ -30,7 +30,7 @@ export interface ESwordReviewNote {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const LOG = (...args: unknown[]) => console.log('[ESWORD-IMPORT]', ...args)
+const LOG = (..._args: unknown[]) => {}
 
 // Berean book IDs → full English names (for human-readable titles)
 const BEREAN_ID_TO_NAME: Record<string, string> = {

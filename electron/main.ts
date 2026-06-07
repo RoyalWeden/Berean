@@ -276,7 +276,6 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   floatWin.setAlwaysOnTop(true, 'screen-saver')
   // Show on all macOS Spaces so it follows the user across desktops
   floatWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  console.log('[main] Float window created — id:', floatWin.id, '| alwaysOnTop:', floatWin.isAlwaysOnTop(), '| level: screen-saver | type:', type)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     floatWin.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
@@ -346,7 +345,6 @@ function createWindow(): void {
   const thisWin = mainWindow
   thisWin.webContents.on('before-input-event', (event, input) => {
     if (input.meta && !input.shift && !input.alt && input.key.toLowerCase() === 'w') {
-      console.log('[main] Cmd+W before-input-event — sending app:closeTab to window id:', thisWin.id)
       event.preventDefault()
       thisWin.webContents.send('app:closeTab')
     }
@@ -480,6 +478,34 @@ app.whenReady().then(async () => {
   session.fromPartition('persist:youtube')
   log.info('youtube session created')
 
+  // ── Content-Security-Policy (default session = main app window only) ─────────
+  // The YouTube <webview> uses the separate 'persist:youtube' session, so this
+  // does not touch it. Dev needs 'unsafe-eval' + ws: for Vite HMR; the packaged
+  // build is locked down (script-src 'self', no eval) — which resolves Electron's
+  // "Insecure Content-Security-Policy" warning for production users.
+  const cspValue = [
+    "default-src 'self'",
+    is.dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "media-src 'self' blob: data: https:",
+    is.dev ? "connect-src 'self' ws: http: https:" : "connect-src 'self' https:",
+    "frame-src 'self' https://www.youtube.com data:",
+    "worker-src 'self' blob:",
+  ].join('; ')
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const headers = { ...details.responseHeaders }
+    // Drop any existing CSP header (any case) so we don't emit duplicates
+    for (const k of Object.keys(headers)) {
+      if (k.toLowerCase() === 'content-security-policy') delete headers[k]
+    }
+    headers['Content-Security-Policy'] = [cspValue]
+    callback({ responseHeaders: headers })
+  })
+  log.info('CSP header handler registered')
+
   registerBibleHandlers(ipcMain)
   registerNotesHandlers(ipcMain)
   log.info('[berean-main] Notes handlers registered')
@@ -589,10 +615,8 @@ app.whenReady().then(async () => {
   ipcMain.on('app:broadcastTabState', (event, payload: unknown) => {
     const sender = event.sender
     const allWins = BrowserWindow.getAllWindows()
-    console.log('[main] app:broadcastTabState — total windows:', allWins.length, '| sender id:', sender.id)
     allWins.forEach((win) => {
       if (win.webContents !== sender) {
-        console.log('[main]   → forwarding to window id:', win.id)
         win.webContents.send('app:tabStateUpdate', payload)
       }
     })
@@ -600,7 +624,6 @@ app.whenReady().then(async () => {
 
   // Return a floating tab back to the main window tab bar
   ipcMain.on('app:returnFloatTab', (event, payload: { type: string; state: Record<string, unknown> }) => {
-    console.log('[main] app:returnFloatTab — type:', payload.type, '| returning to main windows')
     const sender = event.sender
     BrowserWindow.getAllWindows().forEach((win) => {
       // Send to all non-float windows that aren't the sender

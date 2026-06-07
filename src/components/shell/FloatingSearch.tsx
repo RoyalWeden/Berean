@@ -213,10 +213,9 @@ export default function FloatingSearch() {
         : []
 
       const ftsQ = buildFTSQuery(trimmed, mode)
-      console.log('[float-search] running search', { ftsQ, tid, hasYtSearch: typeof window.youtube?.searchVideos })
       try {
         const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
-          ? window.youtube.searchVideos(trimmed, 5).catch((e) => { console.error('[float-search] youtube search failed', e); return [] })
+          ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
           : Promise.resolve([])
 
         const [verses, notes, ytVideos, ...extraAll] = await Promise.allSettled([
@@ -226,19 +225,12 @@ export default function FloatingSearch() {
           ...extraSearches,
         ])
 
-        console.log('[float-search] results', {
-          verses: verses.status, notes: notes.status, yt: ytVideos.status,
-          verseCount: verses.status === 'fulfilled' ? (verses.value as unknown[]).length : 0,
-          ytCount: ytVideos.status === 'fulfilled' ? (ytVideos.value as unknown[]).length : 0,
-        })
-
         const primaryVerse = verses.status === 'fulfilled' ? verses.value as unknown as VerseResult[] : []
         const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
         setVerseResults([...primaryVerse, ...extraVerses])
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
         setYoutubeResults(ytVideos.status === 'fulfilled' ? (ytVideos.value as Array<{ videoId: string; title: string; channelName: string }>).slice(0, 4) : [])
       } catch (err) {
-        console.error('[float-search] search threw', err)
       }
     }, 350)
   }, [])
@@ -273,25 +265,33 @@ export default function FloatingSearch() {
       : `${bookLabel} ${chapter}`
     const translation = (translationOverride ?? searchTextId).toUpperCase()
 
-    if (searchMode === 'new') {
-      const id = `bible-${Date.now()}`
+    const title = targetVerse ? `${chapterLabel}:${targetVerse}` : chapterLabel
+
+    // In 'current' mode, reuse the active (or first) bible tab. If none exists,
+    // fall through to creating a new tab — opening "in current tab" when there is
+    // no current tab should still open the verse, not do nothing.
+    const targetTab = searchMode === 'current'
+      ? (() => {
+          const activeId = activeTabId['scripture']
+          return activeId
+            ? tabs['scripture'].find((t) => t.id === activeId)
+            : tabs['scripture'].find((t) => t.type === 'bible')
+        })()
+      : undefined
+
+    if (targetTab) {
+      updateTabState('scripture', targetTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation })
+      renameTab('scripture', targetTab.id, title)
+    } else {
+      // 'new' mode, or 'current' mode with no existing bible tab
+      const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       addTab({
         id,
         spaceId: 'scripture',
         type: 'bible',
-        title: targetVerse ? `${chapterLabel}:${targetVerse}` : chapterLabel,
+        title,
         state: { bookId, chapter, endChapter, translation, showStrongs: false, scrollPosition: 0, targetVerse, endVerse },
       })
-    } else {
-      const activeId = activeTabId['scripture']
-      const scriptureTab = activeId
-        ? tabs['scripture'].find((t) => t.id === activeId)
-        : tabs['scripture'].find((t) => t.type === 'bible')
-      if (scriptureTab) {
-        const title = targetVerse ? `${chapterLabel}:${targetVerse}` : chapterLabel
-        updateTabState('scripture', scriptureTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation })
-        renameTab('scripture', scriptureTab.id, title)
-      }
     }
     setActiveSpace('scripture')
     closeSearch()
@@ -309,7 +309,12 @@ export default function FloatingSearch() {
   }
 
   // Build result list for keyboard nav
-  const results: Array<{ type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube'; label: string; sub: string; action: () => void }> = []
+  const results: Array<{
+    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube'
+    label: string
+    sub: string
+    action: () => void
+  }> = []
 
   if (parsedRef) {
     const book = books.find((b) => b.id === parsedRef.bookId)
@@ -386,7 +391,7 @@ export default function FloatingSearch() {
     })
   }
 
-  // YouTube videos last — external media is lowest priority.
+  // YouTube videos
   for (const vid of youtubeResults) {
     results.push({
       type: 'youtube' as const,
@@ -477,17 +482,20 @@ export default function FloatingSearch() {
               {results.map((r, i) => {
                 // Only highlight matches on verse/note sub-text, not ref labels
                 const highlightQ = (r.type === 'verse' || r.type === 'note' || r.type === 'youtube') ? cleanQuery : ''
+                const isSelected = i === selectedIdx
+                const sharedStyle = isSelected ? {
+                  backgroundColor: 'rgb(var(--color-accent) / 0.18)',
+                  borderLeft: '2px solid rgb(var(--color-accent))',
+                  paddingLeft: '14px',
+                } : { borderLeft: '2px solid transparent', paddingLeft: '14px' }
+
                 return (
                   <button
                     key={i}
                     ref={i === selectedIdx ? selectedItemRef : undefined}
                     onClick={r.action}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer hover:bg-[rgb(var(--color-surface-3))]"
-                    style={i === selectedIdx ? {
-                      backgroundColor: 'rgb(var(--color-accent) / 0.18)',
-                      borderLeft: '2px solid rgb(var(--color-accent))',
-                      paddingLeft: '14px',
-                    } : { borderLeft: '2px solid transparent', paddingLeft: '14px' }}
+                    style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
                       {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : <Hash size={14} />}

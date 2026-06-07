@@ -611,7 +611,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     await window.highlights.toggle({
       bookId: verse.book_id, chapter: verse.chapter, verseNum: verse.verse_num, color, textId,
       startChar: sc, endChar: ec,
-    }).catch(console.error)
+    }).catch(() => {})
     bumpHighlightToken()
   }
 
@@ -1054,29 +1054,40 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 </button>
               </div>
 
-              {/* Direct verse notes (KJV + any cross-translation LXX notes) */}
-              {vnShown.map((note) => (
-                <button
-                  key={note.id}
-                  onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
-                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
-                >
-                  <p className="flex items-center gap-1 text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
-                    {note.textId === 'lxx' && (
-                      <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                        LXX
-                      </span>
-                    )}
-                    {note.title || 'Untitled'}
-                  </p>
-                  {note.content && (
-                    <p className="text-[9px] text-[rgb(var(--color-text-muted))] line-clamp-1 mt-px">
-                      {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
+              {/* Direct verse notes — cross-translation badges show which version a note belongs to */}
+              {vnShown.map((note) => {
+                // Show a translation badge when the note is from a different translation than the current view.
+                // LXX badge: KJV view showing an LXX note.  KJV badge: LXX view showing a KJV note.
+                const isCrossLxx  = note.textId === 'lxx'  && textId !== 'lxx'
+                const isCrossKjva = (note.textId === 'kjva' || note.textId == null) && textId === 'lxx'
+                return (
+                  <button
+                    key={note.id}
+                    onClick={() => { setNoteHover(null); openNoteInBiblePanel(note.id) }}
+                    onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
+                  >
+                    <p className="flex items-center gap-1 text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
+                      {isCrossLxx && (
+                        <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                          LXX
+                        </span>
+                      )}
+                      {isCrossKjva && (
+                        <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          KJV
+                        </span>
+                      )}
+                      {note.title || 'Untitled'}
                     </p>
-                  )}
-                </button>
-              ))}
+                    {note.content && (
+                      <p className="text-[9px] text-[rgb(var(--color-text-muted))] line-clamp-1 mt-px">
+                        {note.content.replace(/^---[\s\S]*?---\s*/m, '').replace(/[#*`>\[\]]/g, '').slice(0, 80)}
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
 
               {/* Referencing general notes — separated by a labelled divider */}
               {rnShown.length > 0 && (

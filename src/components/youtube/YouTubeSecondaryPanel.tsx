@@ -27,8 +27,7 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
   // Load the selected note
   useEffect(() => {
     if (!noteId) { setNote(null); return }
-    console.log('[yt-panel] notes: loading', noteId)
-    window.notes.getNote(noteId).then(setNote).catch((e) => console.error('[yt-panel] notes load error', e))
+    window.notes.getNote(noteId).then(setNote).catch(() => {})
   }, [noteId])
 
   // Search / recent when no note selected
@@ -57,7 +56,7 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
         </div>
         <div className="flex-1 overflow-y-auto">
           {results.map((n) => (
-            <button key={n.id} onClick={() => { console.log('[yt-panel] notes: selected', n.id); onUpdate({ ...panel, noteId: n.id }) }}
+            <button key={n.id} onClick={() => { onUpdate({ ...panel, noteId: n.id }) }}
               className="w-full text-left text-xs px-3 py-2 border-b border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer truncate">
               {n.title}
             </button>
@@ -269,7 +268,6 @@ interface Props {
 }
 
 export default function YouTubeSecondaryPanel({ panel, onUpdate, onBack, onClose, label = 'panel' }: Props) {
-  console.log('[yt-panel]', label, 'render', panel.type, panel.noteId ?? panel.bookId ?? panel.strongsNum ?? '(empty)')
   if (panel.type === 'notes')     return <NotePanel panel={panel} onUpdate={onUpdate} onBack={onBack} onClose={onClose} />
   if (panel.type === 'scripture') {
     // Apply book-specific translation override if the book requires one (e.g. LXX)

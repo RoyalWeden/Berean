@@ -12,6 +12,7 @@ import type { ParsedRef } from '@/lib/parseRef'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { YOUTUBE_LAYOUTS, getLayoutStyle, needsPanelWrapper, panelSide, suggestLayout, type LayoutDef } from '@/lib/youtubeLayouts'
+import { progressWidth } from '@/lib/progressBar'
 import type { YouTubeLayout, YouTubePanelState, YouTubeTabState } from '@/types'
 
 interface VideoNoteLink {
@@ -192,7 +193,7 @@ function PanelSlot({
           <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center mb-1">Choose what this panel shows</p>
           {TYPES.map(({ type, label: tl, icon: Icon, desc }) => (
             <button key={type}
-              onClick={() => { console.log('[yt-panel-slot] type chosen', type, 'for', label); onSet({ type } as YouTubePanelState) }}
+              onClick={() => { onSet({ type } as YouTubePanelState) }}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/8] transition-all cursor-pointer text-left group"
             >
               <div className="w-9 h-9 rounded-lg bg-[rgb(var(--color-surface-4))] group-hover:bg-[rgb(var(--color-accent))/15] flex items-center justify-center flex-shrink-0 transition-colors">
@@ -267,6 +268,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [watchFilter, setWatchFilter] = useState<WatchFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
   const [page, setPage] = useState(1)
+  // Additional filters panel
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   // playerSrc is locked in once per video open — never updated by poll — prevents auto-resume bug
   const [playerSrc, setPlayerSrc] = useState<string>('')
@@ -293,6 +296,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [inlinePanelEditing, setInlinePanelEditing] = useState(false)
   const inlineSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inlinePanelCommandsRef = useRef<{ undo: () => void; redo: () => void } | null>(null)
+
   const webviewRef = useRef<HTMLElement>(null)
   const hasLoadedRef = useRef(false)
   const positionPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -365,22 +369,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:openYouTubeVideo', handler)
   }, [])
 
-  // Persist activeVideoId + layout + panels to tab state
-  const updateTabState = useAppStore((s) => s.updateTabState)
-  useEffect(() => {
-    if (!ytTabId) return
-    updateTabState('youtube', ytTabId, { videoId: activeVideoId ?? undefined })
-  }, [activeVideoId, ytTabId, updateTabState])
-
-  useEffect(() => {
-    if (!ytTabId) return
-    console.log('[yt-layout] persisting layout to tab state', ytTabId, ytLayout, { panelA, panelB })
-    updateTabState('youtube', ytTabId, {
-      youtubeLayout: ytLayout,
-      panelA: panelA ?? null,
-      panelB: panelB ?? null,
-    })
-  }, [ytLayout, panelA, panelB, ytTabId, updateTabState])
 
   // Sync layout+panels from tab state when the active YouTube tab changes
   useEffect(() => {
@@ -388,7 +376,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
     const state = tab?.state as YouTubeTabState | undefined
     if (!state) return
-    console.log('[yt-layout] syncing from tab state on tab change', ytTabId, state.youtubeLayout, state.panelA)
     if (state.youtubeLayout) setYtLayout(state.youtubeLayout)
     setPanelA(state.panelA ?? null)
     setPanelB(state.panelB ?? null)
@@ -408,7 +395,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // Close panel A: if panel B exists, promote it to A and collapse to a single-panel layout.
   function closePanelA() {
-    console.log('[yt-layout] closePanelA — panelB exists:', !!panelB)
     if (panelB) {
       // Promote B → A, collapse to single-panel layout
       setPanelA(panelB)
@@ -421,28 +407,23 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   }
   // Close panel B: drop it, collapse to a single-panel layout (panelA stays).
   function closePanelB() {
-    console.log('[yt-layout] closePanelB')
     setPanelB(null)
     setYtLayout(suggestLayout(!!panelA, false, 'side-right'))
   }
 
   // Helper to add a panel (A first, B if A is taken, then replace A)
   function addPanel(panel: YouTubePanelState) {
-    console.log('[yt-layout] addPanel', panel, 'current panelA:', panelA, 'panelB:', panelB)
     if (!panelA) {
       setPanelA(panel)
       const next = suggestLayout(true, false, ytLayout)
       setYtLayout(next)
-      console.log('[yt-layout] added as panelA, layout now', next)
     } else if (!panelB) {
       setPanelB(panel)
       const next = suggestLayout(true, true, ytLayout)
       setYtLayout(next)
-      console.log('[yt-layout] added as panelB, layout now', next)
     } else {
       // Both panels taken → replace panelA, keep panelB
       setPanelA(panel)
-      console.log('[yt-layout] replaced panelA (both were full)')
     }
   }
 
@@ -451,7 +432,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     function onAddPanel(e: Event) {
       const detail = (e as CustomEvent<{ tabId: string; panel: YouTubePanelState }>).detail
       if (detail.tabId !== ytTabId) return
-      console.log('[yt-layout] received berean:youtubeAddPanel', detail)
       addPanel(detail.panel)
     }
     window.addEventListener('berean:youtubeAddPanel', onAddPanel)
@@ -561,8 +541,19 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const wv = webviewRef.current
     if (!wv) return
 
+    // ── Fastest signal: Electron fires 'media-started-playing' the instant ─────
+    // audio or video begins. This removes the loading overlay immediately without
+    // waiting for a poll tick (which can take up to 500ms).
+    const onMediaStarted = () => {
+      setPlayerReady(true)
+    }
+    wv.addEventListener('media-started-playing', onMediaStarted)
+
     // Register play/playing event listeners immediately on dom-ready, before the poll interval
     // fires. This captures the 'play' event even if it fires during the poll's first IPC round-trip.
+    const onDomReady = () => {}
+    wv.addEventListener('dom-ready', onDomReady)
+
     const setupPlayMonitor = async () => {
       if (playerSrc.startsWith('data:')) return
       try {
@@ -625,8 +616,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               setWatchFallback(true)
             } else if (state?.playing || (typeof state?.t === 'number' && state.t > 0)) {
               // playing flag OR currentTime advancing — either means the video is live.
-              // The onStateChange "playing" message is sometimes missed, so the
-              // currentTime check (from infoDelivery) is a reliable fallback.
               if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
               setPlayerReady(true)
             } else if (count >= 6) {
@@ -753,19 +742,23 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               setPlayerReady(true)
             }
           }
-        } catch { /* not ready */ }
+        } catch (e) {
+        }
       }
       tick() // run immediately on dom-ready, don't wait for first interval tick
-      pollInterval = setInterval(tick, 500)
+      // 200ms interval (was 500ms) reduces max detection lag from ~500ms to ~200ms
+      pollInterval = setInterval(tick, 200)
     }
 
     wv.addEventListener('dom-ready', setupPlayMonitor)
     wv.addEventListener('dom-ready', injectCSS)
     wv.addEventListener('dom-ready', startPoll)
     return () => {
+      wv.removeEventListener('dom-ready', onDomReady)
       wv.removeEventListener('dom-ready', setupPlayMonitor)
       wv.removeEventListener('dom-ready', injectCSS)
       wv.removeEventListener('dom-ready', startPoll)
+      wv.removeEventListener('media-started-playing', onMediaStarted)
       if (pollInterval) clearInterval(pollInterval)
     }
   }, [activeVideoId, playerSrc, watchFallback])
@@ -1275,7 +1268,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       (watchFilter === 'inprogress' && pos > 0) ||
       (watchFilter === 'unseen'     && pos === 0)
     const q = search.trim().toLowerCase()
-    const matchesSearch  = !q ||
+    const matchesSearch = !q ||
       v.title.toLowerCase().includes(q) ||
       v.channelName.toLowerCase().includes(q) ||
       v.channelHandle.toLowerCase().includes(q)
@@ -1311,7 +1304,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const layoutStyle = getLayoutStyle(effectiveLayout)
     const stackedPanels = needsPanelWrapper(effectiveLayout)
     const panelWrapperSide = panelSide(effectiveLayout)
-    console.log('[yt-layout] render', { effectiveLayout, floating, hasPanelA: !!panelA, hasPanelB: !!panelB, stackedPanels })
 
     return (
       <div className="flex flex-col h-full bg-[rgb(var(--color-surface-1))]">
@@ -1392,12 +1384,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <button
                         key={def.id}
                         onClick={() => {
-                          console.log('[yt-layout] user selected layout', def.id)
                           setYtLayout(def.id)
                           setShowLayoutPicker(false)
                           // If layout requires both panels but we only have A, add a placeholder B
                           if (def.requiresBoth && panelA && !panelB) {
-                            console.log('[yt-layout] layout needs panelB but none set — left empty for user to fill')
                           }
                         }}
                         className={`flex flex-col items-start gap-0.5 px-2 py-1.5 rounded-lg text-left border transition-all cursor-pointer text-[11px]
@@ -1749,6 +1739,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             </div>
           </div>
         )}
+
         </div>{/* end video column */}
 
         {/* ── Secondary panels ─────────────────────────────────────────────── */}
@@ -1791,6 +1782,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // ─── List view ────────────────────────────────────────────────────────────────
 
   const isFiltered = durationFilter !== 'any' || watchFilter !== 'all' || starredOnly || typeFilter !== 'all' || channelFilter !== 'all'
+  const moreFiltersActive = starredOnly || watchFilter !== 'all' || durationFilter !== 'any'
+  const moreFiltersCount = [starredOnly, watchFilter !== 'all', durationFilter !== 'any'].filter(Boolean).length
 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]" onClick={closeMenus}>
@@ -1822,37 +1815,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           ))}
         </div>
 
-        {/* Starred toggle */}
+        {/* More Filters toggle button — shows badge count when filters are active */}
         <button
-          onClick={(e) => { e.stopPropagation(); setStarredOnly((v) => !v); setPage(1) }}
-          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors cursor-pointer flex-shrink-0 ${starredOnly ? 'bg-yellow-500/15 text-yellow-400' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+          onClick={(e) => { e.stopPropagation(); setShowMoreFilters((v) => !v) }}
+          className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded transition-colors cursor-pointer flex-shrink-0 ${moreFiltersActive ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
         >
-          <Star size={10} className={starredOnly ? 'fill-yellow-400' : ''} />
-          Starred
-        </button>
-
-        {/* Watch filter */}
-        <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => { setShowWatchMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowSortMenu(false) }}
-            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer transition-colors ${watchFilter !== 'all' ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-          >
-            {WATCH_LABEL[watchFilter]}
-            <ChevronDown size={10} />
-          </button>
-          {showWatchMenu && (
-            <div className="absolute right-0 top-full mt-1 z-20 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl min-w-[120px] py-1">
-              {(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setWatchFilter(opt); setShowWatchMenu(false); setPage(1) }}
-                  className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${watchFilter === opt ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                >
-                  {WATCH_LABEL[opt]}
-                </button>
-              ))}
-            </div>
+          <LayoutGrid size={10} />
+          Filters
+          {moreFiltersCount > 0 && (
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[rgb(var(--color-accent))] text-white text-[8px] font-bold">
+              {moreFiltersCount}
+            </span>
           )}
-        </div>
+          <ChevronDown size={9} className={`transition-transform ${showMoreFilters ? 'rotate-180' : ''}`} />
+        </button>
 
         {/* Channel filter */}
         <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -1903,28 +1879,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           )}
         </div>
 
-        {/* Duration filter */}
-        <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => { setShowDurationMenu((v) => !v); setShowSortMenu(false); setShowChannelMenu(false); setShowWatchMenu(false) }}
-            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer transition-colors ${durationFilter !== 'any' ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-          >
-            {DURATION_LABEL[durationFilter]}
-            <ChevronDown size={10} />
-          </button>
-          {showDurationMenu && (
-            <div className="absolute right-0 top-full mt-1 z-20 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl min-w-[130px] py-1">
-              {(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => (
-                <button key={opt}
-                  onClick={() => { setDurationFilter(opt); setShowDurationMenu(false); setPage(1) }}
-                  className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${durationFilter === opt ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                >
-                  {DURATION_LABEL[opt]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Duration filter moved to More Filters panel */}
 
         {/* Sort */}
         <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -1986,15 +1941,70 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         )}
       </div>
 
-      {/* Progress bar */}
+      {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
+      {showMoreFilters && (
+        <div className="px-3 py-2.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex flex-wrap gap-x-5 gap-y-2 flex-shrink-0">
+
+          {/* Starred */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Starred</span>
+            <button
+              onClick={() => { setStarredOnly((v) => !v); setPage(1) }}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors cursor-pointer ${starredOnly ? 'bg-yellow-500/15 text-yellow-400' : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+            >
+              <Star size={9} className={starredOnly ? 'fill-yellow-400' : ''} />
+              {starredOnly ? 'Only starred' : 'All'}
+            </button>
+          </div>
+
+          {/* Progress / watch filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Progress</span>
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5">
+              {(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => (
+                <button key={opt}
+                  onClick={() => { setWatchFilter(opt); setPage(1) }}
+                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${watchFilter === opt ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                >
+                  {WATCH_LABEL[opt]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Length / duration filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Length</span>
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-wrap">
+              {(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => (
+                <button key={opt}
+                  onClick={() => { setDurationFilter(opt); setPage(1) }}
+                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${durationFilter === opt ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                >
+                  {DURATION_LABEL[opt]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress bar — only shown while a sync is actively running (total > 0) */}
       {progress && progress.total > 0 && (
         <div className="px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{progress.phase}</span>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 ml-2">{progress.done}/{progress.total}</span>
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate max-w-[75%]">{progress.phase}</span>
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 ml-2 tabular-nums">
+              {progress.done}/{progress.total}
+            </span>
           </div>
-          <div className="h-0.5 bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
-            <div className="h-full bg-[rgb(var(--color-accent))] rounded-full transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+          {/* Track — overflow-hidden clips the fill; no rounded-full on the inner bar
+              to avoid border-radius consuming the visual fill at small percentages */}
+          <div className="h-[3px] bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[rgb(var(--color-accent))] transition-[width] duration-200 ease-out"
+              style={{ width: progressWidth(progress.done, progress.total) }}
+            />
           </div>
         </div>
       )}

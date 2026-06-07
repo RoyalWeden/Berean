@@ -163,7 +163,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   // between tabs where elementFromPoint returns the container, not a tab div.
   function handleContainerDrop(e: React.DragEvent) {
     e.preventDefault()
-    console.log('[berean-tab-drop] container DROP fired, types:', Array.from(e.dataTransfer.types))
 
     const fromIdx = draggingIdxRef.current
     draggingIdxRef.current = null
@@ -245,14 +244,12 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       }
       // ── X → YouTube: note/scripture/lexicon dropped on a YouTube tab ─────────
       if (mySpace === 'youtube') {
-        console.log('[berean-tab-drop] X → youtube:', crossType, crossSpace, 'target:', targetTab?.id)
         if (!targetTab) return
         let panel: import('@/types').YouTubePanelState | null = null
 
         if (crossType === 'note') {
           const noteId = (draggedTab.state as { noteId?: string | null }).noteId ?? null
           panel = { type: 'notes', noteId }
-          console.log('[berean-tab-drop] note panel', panel)
         } else if (crossType === 'bible') {
           const bState = draggedTab.state as import('@/types').BibleTabState
           panel = {
@@ -261,11 +258,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             chapter: bState.chapter,
             translation: bState.translation,
           }
-          console.log('[berean-tab-drop] scripture panel', panel)
         } else if (crossType === 'lexicon') {
           const sNum = (draggedTab.state as { strongsNum?: string | null }).strongsNum ?? null
           panel = { type: 'lexicon', strongsNum: sNum }
-          console.log('[berean-tab-drop] lexicon panel', panel)
         }
 
         if (panel) {
@@ -284,7 +279,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       if (crossSpace === 'youtube') {
         const ytState = draggedTab.state as import('@/types').YouTubeTabState
         const videoId = ytState.videoId ?? null
-        console.log('[berean-tab-drop] youtube → X:', mySpace, 'videoId:', videoId)
 
         if (mySpace === 'scripture' && videoId) {
           // Open the video in a new YouTube tab, don't modify the scripture tab
@@ -327,7 +321,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     // (no berean-tab-id, but has berean-note-id from NotesList/NotesFolderView)
     const noteItemId    = e.dataTransfer.getData('berean-note-id')
     const noteItemTitle = e.dataTransfer.getData('berean-note-title')
-    console.log('[berean-tab-drop] drop event — noteItemId:', noteItemId, 'crossId:', crossId, 'wasCrossSpaceHover:', wasCrossSpaceHover, 'wasCrossSpaceHoverIdx:', wasCrossSpaceHoverIdx)
     if (noteItemId && !crossId) {
       const store = useAppStore.getState()
 
@@ -335,7 +328,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       if (wasCrossSpaceHover && wasCrossSpaceHoverIdx !== null) {
         const targetTab = tabs[wasCrossSpaceHoverIdx]
         if (targetTab && targetTab.spaceId === 'scripture') {
-          console.log('[berean-tab-drop] note → scripture side panel:', targetTab.id)
           store.updateTabState('scripture', targetTab.id, {
             rightPanelOpen:   true,
             rightPanelTab:    'notes',
@@ -348,7 +340,6 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       }
 
       // Default: open as a new note tab
-      console.log('[berean-tab-drop] note → new note tab:', noteItemTitle)
       const tab = {
         id:      `note-${noteItemId}-${Date.now()}`,
         spaceId: 'notes' as const,

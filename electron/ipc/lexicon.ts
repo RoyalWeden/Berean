@@ -49,26 +49,23 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => {
     const num = strongsNum.trim().toUpperCase()
-    console.log('[lexicon:getOccurrences] called with:', num)
     try {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
-      if (!lexDb) { console.log('[lexicon:getOccurrences] no lexDb for', num); return [] }
+      if (!lexDb) { return [] }
 
       // Check table exists
       const tables = (lexDb as any).prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='occurrences'").get()
-      if (!tables) { console.log('[lexicon:getOccurrences] no occurrences table'); return [] }
+      if (!tables) { return [] }
 
       // Get occurrence refs (capped at 1000 — shows all for most words; very common ones like H3068 have 5000+ but the UI toggle handles that)
       const rawRows = (lexDb as any).prepare(
         'SELECT book_num, chapter, verse FROM occurrences WHERE strongs_id = ? ORDER BY book_num, chapter, verse LIMIT 1000'
       ).all(num) as Array<{ book_num: number; chapter: number; verse: number }>
-      console.log(`[lexicon:getOccurrences] ${num} → ${rawRows.length} raw rows, first 3:`, rawRows.slice(0, 3))
       if (!rawRows.length) return []
 
       // Build book_num → book_id map from kjva DB
       const kjva = getTextDb('kjva')
       if (!kjva) {
-        console.log('[lexicon:getOccurrences] kjva DB not found — returning book${num} fallback')
         return rawRows.map((r) => ({ book_id: `book${r.book_num}`, chapter: r.chapter, verse_num: r.verse, text: '', matchWordIndices: [] as number[] }))
       }
 
@@ -145,10 +142,8 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
           matchWordIndices: findMatchWordIndices(verseRow?.text_tagged ?? null, verseRow?.text ?? ''),
         }
       })
-      console.log('[lexicon:getOccurrences] first 2 results:', results.slice(0, 2))
       return results
     } catch (e) {
-      console.error('[lexicon:getOccurrences] error', e)
       return []
     }
   })

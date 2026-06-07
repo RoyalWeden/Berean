@@ -99,7 +99,6 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
   useEffect(() => {
     if (!pdfId) return
     let cancelled = false
-    console.log('[pdf-viewer] loading pdf', pdfId)
     setDoc(null); setLoadError(null); setNumPages(0)
     window.pdf.readBytes(pdfId)
       .then((bytes) => {
@@ -108,18 +107,17 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
       })
       .then((d) => {
         if (cancelled) return
-        console.log('[pdf-viewer] loaded, pages:', d.numPages)
         setDoc(d); setNumPages(d.numPages)
         window.pdf.setPageCount(pdfId, d.numPages).catch(() => {})
       })
-      .catch((e) => { if (!cancelled) { console.error('[pdf-viewer] load failed', e); setLoadError(String(e)) } })
+      .catch((e) => { if (!cancelled) setLoadError(String(e)) })
     return () => { cancelled = true }
   }, [pdfId])
 
   // Load highlights
   useEffect(() => {
     if (!pdfId) return
-    window.pdf.highlightsList(pdfId).then(setHighlights).catch((e) => console.error('[pdf-viewer] highlights load', e))
+    window.pdf.highlightsList(pdfId).then(setHighlights).catch(() => {})
   }, [pdfId])
 
   // Restore page from tab state once doc is ready — only if no exact scrollTop saved
@@ -152,9 +150,8 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
         }
       }
       await walk(outline as RawOutlineNode[], 0)
-      console.log('[pdf-viewer] outline items', items.length)
       setToc(items)
-    }).catch((e) => { console.error('[pdf-viewer] outline error', e); setToc([]) })
+    }).catch(() => { setToc([]) })
     loadBookmarks()
   }, [doc, pdfId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -179,11 +176,9 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
   function scrollToPage(page: number) {
     const el = pageEls.current.get(page)
     if (el && scrollRef.current) {
-      console.log('[pdf-viewer] scroll to page', page)
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       setCurrentPage(page)
     } else {
-      console.warn('[pdf-viewer] page el not ready, retrying', page)
       setTimeout(() => {
         const el2 = pageEls.current.get(page)
         el2?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -320,7 +315,6 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
   async function addHighlight(color: string) {
     if (!selToolbar || !pdfId) return
-    console.log('[pdf-viewer] add highlight', color, 'page', selToolbar.page)
     const res = await window.pdf.highlightsAdd({
       pdfId, page: selToolbar.page, rects: selToolbar.rects, color, text: selToolbar.text,
     })
@@ -343,7 +337,6 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     const quoted = selToolbar.text.length > 120 ? selToolbar.text.slice(0, 120) + '…' : selToolbar.text
     const md = `[${title} — p.${selToolbar.page}](berean-pdf://${pdfId}/${selToolbar.page})\n> ${quoted}`
     navigator.clipboard.writeText(md).catch(() => {})
-    console.log('[pdf-viewer] copied link', md)
     window.getSelection()?.removeAllRanges()
     setSelToolbar(null)
   }
@@ -379,7 +372,6 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     const needle = q.trim().toLowerCase()
     const found: FindMatch[] = []
     const pagesToSearch = scope === 'page' ? [currentPage] : Array.from({ length: numPages }, (_, i) => i + 1)
-    console.log('[pdf-viewer] find', { q, scope, pages: pagesToSearch.length })
     for (const page of pagesToSearch) {
       const text = (await ensurePageText(page)).toLowerCase()
       let from = 0, idx = 0
@@ -390,7 +382,6 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     }
     setMatches(found)
     setMatchIdx(0)
-    console.log('[pdf-viewer] find results', found.length)
     if (found.length > 0) goToMatch(found, 0, needle)
   }, [doc, numPages, currentPage]) // eslint-disable-line react-hooks/exhaustive-deps
 

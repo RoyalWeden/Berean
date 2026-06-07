@@ -725,7 +725,6 @@ async function fullSync(sender: WebContents): Promise<{ added: number }> {
       updateLiveStatus(handle, currentlyLiveIds)
       markSynced(handle, 'full')
     } catch (err) {
-      console.error(`[youtube] fullSync error for ${handle}:`, err)
     }
 
     sender.send('youtube:progress', { done: i + 1, total: CHANNELS.length, phase: `Synced ${handle}` })
@@ -847,7 +846,6 @@ async function refresh(sender: WebContents): Promise<{ added: number; liveUpdate
 
       markSynced(handle, 'refresh')
     } catch (err) {
-      console.error(`[youtube] refresh error for ${handle}:`, err)
     }
 
     done++

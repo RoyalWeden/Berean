@@ -163,7 +163,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
 
   const loadFolders = useCallback(() => {
-    window.notes.getFolders().then(setFolders).catch(console.error)
+    window.notes.getFolders().then(setFolders).catch(() => {})
   }, [])
 
   // Load folders + persisted folder-view preference on mount
@@ -182,7 +182,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   // Folder operation handlers — call IPC then reload folders + notes
   const reloadNotes = useCallback(() => {
-    window.notes.getNotes(100000, 0).then(setNotes).catch(console.error)
+    window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
   }, [])
   const handleCreateFolder = useCallback(async (parentId: string | null) => {
     await window.notes.createFolder('New Folder', parentId); loadFolders()
@@ -318,7 +318,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [activeNote?.id, activeNote?.title, notesTabId, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    window.notes.getNotes(100000, 0).then(setNotes).catch(console.error)
+    window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
   }, [noteChangeToken])
 
   // Restore the note that was open when this tab was last active
@@ -414,7 +414,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         lastScrollTopRef.current = 0
         setRestoredScrollTop(0)
       })
-      .catch(console.error)
+      .catch(() => {})
   }, [pendingNoteId, clearPendingNote])
 
   async function createNote() {
@@ -483,7 +483,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   async function renameNoteCommit(noteId: string, newTitle: string) {
-    await window.notes.updateNote(noteId, { title: newTitle }).catch(console.error)
+    await window.notes.updateNote(noteId, { title: newTitle }).catch(() => {})
     setNotes(prev => prev.map(n => n.id === noteId ? { ...n, title: newTitle, updatedAt: Date.now() } : n))
     if (activeNote?.id === noteId) setActiveNote(prev => prev ? { ...prev, title: newTitle } : prev)
     bumpNoteToken()
@@ -586,7 +586,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       const id = activeNote.id
-      window.notes.updateNote(id, { content }).catch(console.error)
+      window.notes.updateNote(id, { content }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
       maybeSyncNote(id)
     }, 500)
@@ -601,7 +601,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     setActiveNote(updated)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      window.notes.updateNote(activeNote.id, { title }).catch(console.error)
+      window.notes.updateNote(activeNote.id, { title }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? updated : n)))
     }, 500)
   }

@@ -198,7 +198,6 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         setOccurrencesLoading(false)
       })
       .catch((e) => {
-        console.error('[SidebarLexicon] getOccurrences error:', e)
         setOccurrencesLoading(false)
       })
   }, [activeEntry?.strongsNum])
@@ -242,7 +241,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         if (activeEntry) setHistory((h) => [...h, activeEntry])
         setActiveEntry(entry)
       })
-      .catch(console.error)
+      .catch(() => {})
   }, [activeEntry, createTab, openLexiconEntry, setActiveSpace])
 
   function goBack() {
@@ -1293,9 +1292,7 @@ export default function BibleRightPanel({
   useEffect(() => {
     return () => {
       const note = sidebarNoteRef.current
-      console.log('[note] unmount cleanup — sidebarNote:', note?.id ?? 'null', 'content:', JSON.stringify(note?.content?.slice(0, 40)))
       if (note && !note.content?.trim()) {
-        console.log('[note] auto-delete empty note on unmount:', note.id, note.title)
         window.notes.deleteNote(note.id).catch(() => {})
       }
     }
@@ -1360,14 +1357,13 @@ export default function BibleRightPanel({
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      window.notes.updateNote(sidebarNote.id, { content }).catch(console.error)
+      window.notes.updateNote(sidebarNote.id, { content }).catch(() => {})
       bumpNoteToken()
     }, 500)
   }
 
   async function closeSidebarNote() {
     if (sidebarNote && !sidebarNote.content?.trim()) {
-      console.log('[note] auto-delete empty note on close:', sidebarNote.id, sidebarNote.title)
       await window.notes.deleteNote(sidebarNote.id)
       setNotes((prev) => prev.filter((n) => n.id !== sidebarNote.id))
       bumpNoteToken()
@@ -1402,7 +1398,7 @@ export default function BibleRightPanel({
     setNotes((prev) => prev.map((n) => (n.id === sidebarNote.id ? updated : n)))
     if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current)
     titleSaveTimer.current = setTimeout(() => {
-      window.notes.updateNote(sidebarNote.id, { title }).catch(console.error)
+      window.notes.updateNote(sidebarNote.id, { title }).catch(() => {})
       bumpNoteToken()
     }, 500)
   }

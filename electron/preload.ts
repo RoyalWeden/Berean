@@ -88,7 +88,6 @@ contextBridge.exposeInMainWorld('app', {
   onCloseTab: (cb: () => void) => {
     ipcRenderer.removeAllListeners('app:closeTab')
     ipcRenderer.on('app:closeTab', (_evt) => {
-      console.log('[preload] app:closeTab IPC received')
       cb()
     })
   },

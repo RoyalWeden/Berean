@@ -20,7 +20,6 @@ function openDb(): DB | null {
   if (db) return db
   const p = dataPath('cross_references.db')
   if (!existsSync(p)) {
-    console.warn('[crossrefs] cross_references.db not found at', p)
     return null
   }
   db = new (Database as any)(p, { readonly: true }) as DB
@@ -31,7 +30,6 @@ function openTskeDb(): DB | null {
   if (tskeDb) return tskeDb
   const p = dataPath('tske_refs.db')
   if (!existsSync(p)) {
-    console.warn('[crossrefs] tske_refs.db not found at', p)
     return null
   }
   tskeDb = new (Database as any)(p, { readonly: true }) as DB
@@ -74,7 +72,6 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
 
       return { verseRefs, error: false }
     } catch (e) {
-      console.error('[crossrefs:getForChapter]', e)
       return { verseRefs: [], error: true }
     }
   })
@@ -117,7 +114,6 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
 
       return { verseRefs, error: false }
     } catch (e) {
-      console.error('[crossrefs:getTSKeForChapter]', e)
       return { verseRefs: [], error: true }
     }
   })
@@ -154,7 +150,6 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
 
       return { refs, loading: false, error: false }
     } catch (e) {
-      console.error('[crossrefs:getForVerse]', e)
       return { refs: [], loading: false, error: true }
     }
   })
@@ -217,7 +212,6 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       const groups = Array.from(groupMap.values())
       return { groups, loading: false, error: false }
     } catch (e) {
-      console.error('[crossrefs:getTSKeForVerse]', e)
       return { groups: [], loading: false, error: true }
     }
   })

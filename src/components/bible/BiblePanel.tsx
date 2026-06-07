@@ -140,7 +140,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         updateTabState('scripture', latestTab.id, { bookId: first.id, chapter: 1, scrollPosition: 0, targetVerse: undefined, endVerse: undefined })
         renameTab('scripture', latestTab.id, `${first.name} 1`)
       }
-    }).catch(console.error)
+    }).catch(() => {})
   }, [textId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore scroll position when switching back to a tab or back to the scripture space.
