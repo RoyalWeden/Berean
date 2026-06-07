@@ -659,6 +659,60 @@ body {
   left: -1rem;
 }
 
+/* ── berean-preview-prose ────────────────────────────────────────────────────
+   Prose styling for dangerouslySetInnerHTML regions that render the HTML output
+   of renderPreviewContent() (version history diff view, etc.).
+   Mirrors the CodeMirror WYSIWYG appearance as closely as possible.          */
+.berean-preview-prose {
+  line-height: 1.7;
+  color: rgb(var(--color-text-primary));
+  font-family: var(--font-notes, inherit);
+}
+.berean-preview-prose h1 { font-size: 1.65em; font-weight: 800; margin: 0.8em 0 0.3em; color: rgb(var(--color-text-primary)); }
+.berean-preview-prose h2 { font-size: 1.35em; font-weight: 700; margin: 0.75em 0 0.25em; border-bottom: 1px solid rgb(var(--color-surface-4)); padding-bottom: 0.2em; color: rgb(var(--color-text-primary)); }
+.berean-preview-prose h3 { font-size: 1.1em;  font-weight: 700; margin: 0.6em 0 0.2em; color: rgb(var(--color-text-primary)); }
+.berean-preview-prose h4,
+.berean-preview-prose h5,
+.berean-preview-prose h6  { font-size: 1em; font-weight: 700; margin: 0.5em 0 0.15em; color: rgb(var(--color-text-primary)); }
+.berean-preview-prose p   { margin: 0.4em 0; }
+.berean-preview-prose ul,
+.berean-preview-prose ol  { margin: 0.4em 0; padding-left: 1.6em; }
+.berean-preview-prose li  { margin: 0.15em 0; }
+.berean-preview-prose blockquote {
+  border-left: 3px solid rgb(var(--color-accent));
+  margin: 0.6em 0; padding: 0.2em 0 0.2em 1em;
+  opacity: 0.85;
+}
+.berean-preview-prose code {
+  background: rgb(var(--color-surface-3));
+  padding: 0.1em 0.3em; border-radius: 3px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.87em;
+}
+.berean-preview-prose pre {
+  background: rgb(var(--color-surface-2));
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 6px; padding: 0.75em 1em;
+  overflow-x: auto; margin: 0.6em 0;
+}
+.berean-preview-prose pre code { background: none; padding: 0; }
+.berean-preview-prose hr {
+  border: none; border-top: 1px solid rgb(var(--color-surface-4));
+  margin: 1em 0;
+}
+.berean-preview-prose table {
+  border-collapse: collapse; width: 100%; margin: 0.6em 0; font-size: 0.9em;
+}
+.berean-preview-prose th,
+.berean-preview-prose td {
+  border: 1px solid rgb(var(--color-surface-4));
+  padding: 0.35em 0.65em; text-align: left;
+}
+.berean-preview-prose th { background: rgb(var(--color-surface-3)); font-weight: 600; }
+.berean-preview-prose a  { color: rgb(var(--color-accent)); text-decoration: underline; }
+.berean-preview-prose strong { font-weight: 700; }
+.berean-preview-prose em     { font-style: italic; }
+
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }

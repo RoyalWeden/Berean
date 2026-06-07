@@ -1,4 +1,4 @@
-import type { Book, Verse, Note, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight } from './index'
+import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight } from './index'
 
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
@@ -14,12 +14,15 @@ interface NotesAPI {
   deleteAllNotes: () => Promise<{ success: boolean }>
   deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>
   getNotes: (limit?: number, offset?: number) => Promise<Note[]>
-  getVerseNotes: (verseRef: string) => Promise<Note[]>
+  getVerseNotes: (verseRef: string, textId?: string) => Promise<Note[]>
   getNote: (id: string) => Promise<Note | null>
-  getChapterNotes: (bookId: string, chapter: number) => Promise<Note[]>
-  getChapterCounts: (bookId: string, chapter: number) => Promise<Record<number, number>>
+  getChapterNotes: (bookId: string, chapter: number, textId?: string) => Promise<Note[]>
+  getChapterCounts: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, number>>
   searchNotes: (query: string, limit?: number) => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
+  createNoteVersion: (noteId: string, title: string, content: string, kind?: string) => Promise<{ success: boolean; id?: string; skipped?: boolean }>
+  getNoteVersions: (noteId: string) => Promise<NoteVersion[]>
+  restoreNoteVersion: (noteId: string, versionId: string) => Promise<{ success: boolean; content?: string; error?: string }>
   getFolders: () => Promise<NoteFolder[]>
   createFolder: (name: string, parentId?: string | null) => Promise<{ success: boolean; id: string }>
   renameFolder: (id: string, name: string) => Promise<{ success: boolean }>
@@ -126,7 +129,8 @@ interface VaultAPI {
 
 interface AppHistoryAPI {
   add: (entry: import('./index').HistoryEntry) => Promise<{ success: boolean }>
-  getAll: () => Promise<import('./index').HistoryEntry[]>
+  getAll: (limit?: number) => Promise<import('./index').HistoryEntry[]>
+  getPage: (beforeTs: number, limit?: number) => Promise<import('./index').HistoryEntry[]>
   delete: (id: string) => Promise<{ success: boolean }>
   clear: () => Promise<{ success: boolean }>
 }

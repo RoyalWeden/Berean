@@ -88,15 +88,15 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   }, [loading, verses.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    window.notes.getChapterCounts(bookId, chapter)
+    window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva')
       .then(setNoteCounts)
       .catch(() => {})
-  }, [bookId, chapter, noteChangeToken])
+  }, [bookId, chapter, textId, noteChangeToken])
 
   // Cross-ref indicator: flag verses whose notes contain references to other verses.
   // Uses a fresh RegExp each call to avoid lastIndex state issues.
   useEffect(() => {
-    window.notes.getChapterNotes(bookId, chapter)
+    window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva')
       .then((notes) => {
         const flags: Record<number, boolean> = {}
         for (const note of notes) {
@@ -112,7 +112,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         setVerseHasNoteCrossRefs(flags)
       })
       .catch(() => {})
-  }, [bookId, chapter, noteChangeToken])
+  }, [bookId, chapter, textId, noteChangeToken])
 
   useEffect(() => {
     window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
@@ -301,9 +301,10 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!multiToolbar) return
     const vns = multiToolbar.verseNums
     const bName = bookName(bookId)
-    const title = `${bName} ${chapter}:${vns[0]}-${vns[vns.length - 1]}`
+    const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
+    const title = `${bName} ${chapter}:${vns[0]}-${vns[vns.length - 1]}${lxxSuffix}`
     const verseRef = `${bookId}.${chapter}.${vns[0]}`
-    const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '' })
+    const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '', textId: textId ?? 'kjva' })
     window.getSelection()?.removeAllRanges()
     setMultiToolbar(null)
     if (result.success && result.note) {

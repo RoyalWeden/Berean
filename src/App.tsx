@@ -736,7 +736,18 @@ export default function App() {
       <SettingsModal />
       <MarkdownReferenceModal />
       <CrashReport />
-      {switcherOpen && <TabSwitcher tabs={switcherTabs} selectedIndex={switcherIdx} />}
+      {switcherOpen && (
+        <TabSwitcher
+          tabs={switcherTabs}
+          selectedIndex={switcherIdx}
+          onHoverIndex={(i) => updateSwitcher(true, i)}
+          onSelectTab={(spaceId, tabId) => {
+            setActiveTab(spaceId, tabId)
+            updateSwitcher(false, 0)
+          }}
+          onClose={() => updateSwitcher(false, 0)}
+        />
+      )}
       <HistoryModal />
       <ImportModal />
       <BgImportProgress />

@@ -1,6 +1,6 @@
 import type { SpaceId, Tab, BibleTabState, NoteTabState, LexiconTabState, YouTubeTabState, SearchTabState } from '@/types'
 
-interface SwitcherTab {
+export interface SwitcherTab {
   spaceId: SpaceId
   tabId: string
   title: string
@@ -10,6 +10,12 @@ interface SwitcherTab {
 interface TabSwitcherProps {
   tabs: SwitcherTab[]
   selectedIndex: number
+  /** Called when the user clicks or hover-selects a card. Index changes the keyboard highlight. */
+  onHoverIndex: (index: number) => void
+  /** Called when the user clicks a tab card to navigate immediately. */
+  onSelectTab: (spaceId: SpaceId, tabId: string) => void
+  /** Called when the user clicks the backdrop or presses Escape — closes without switching. */
+  onClose: () => void
 }
 
 const SPACE_CONFIG: Record<SpaceId, { abbrev: string; color: string; label: string }> = {
@@ -145,18 +151,25 @@ function TabPreview({ tab }: { tab: Tab }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-export default function TabSwitcher({ tabs, selectedIndex }: TabSwitcherProps) {
+export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelectTab, onClose }: TabSwitcherProps) {
   if (tabs.length === 0) return null
 
   const selected = tabs[selectedIndex]
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none">
+    // Outer overlay: pointer-events-auto so backdrop click closes the switcher.
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-auto"
+      onMouseDown={onClose}
+    >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
 
-      {/* Switcher card */}
-      <div className="relative pointer-events-none bg-[rgb(var(--color-surface-2))]/95 border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]">
+      {/* Switcher card — stop propagation so clicks inside don't trigger backdrop close */}
+      <div
+        className="relative pointer-events-auto bg-[rgb(var(--color-surface-2))]/95 border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
 
         {/* Tab cards row */}
         <div className="flex flex-wrap justify-center gap-2.5">
@@ -164,12 +177,15 @@ export default function TabSwitcher({ tabs, selectedIndex }: TabSwitcherProps) {
             const cfg = SPACE_CONFIG[tab.spaceId]
             const isSelected = i === selectedIndex
             return (
-              <div
+              <button
                 key={`${tab.spaceId}-${tab.tabId}`}
-                className={`flex flex-col w-[96px] rounded-xl overflow-hidden transition-all duration-75 ${
+                type="button"
+                onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
+                onMouseEnter={() => onHoverIndex(i)}
+                className={`flex flex-col w-[96px] rounded-xl overflow-hidden transition-all duration-75 cursor-pointer focus:outline-none ${
                   isSelected
-                    ? 'bg-[rgb(var(--color-surface-4))]'
-                    : 'bg-[rgb(var(--color-surface-3))]'
+                    ? 'bg-[rgb(var(--color-surface-4))] scale-[1.04]'
+                    : 'bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))]/70'
                 }`}
                 style={isSelected ? { outline: `2px solid ${cfg.color}`, outlineOffset: '-2px' } : undefined}
               >
@@ -201,7 +217,7 @@ export default function TabSwitcher({ tabs, selectedIndex }: TabSwitcherProps) {
                     {tab.title}
                   </p>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>

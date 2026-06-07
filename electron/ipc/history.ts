@@ -48,19 +48,23 @@ export function registerHistoryHandlers(ipcMain: IpcMain): void {
       entry.strongsNum ?? null, entry.videoId ?? null, entry.query ?? null,
       entry.parentId ?? null, entry.importSource ?? null, entry.importCount ?? null
     )
-    // Keep only the last 500 entries
-    db.prepare(`
-      DELETE FROM history WHERE id NOT IN (
-        SELECT id FROM history ORDER BY timestamp DESC LIMIT 500
-      )
-    `).run()
+    // History is unbounded (no cap) — entries are small and lazy-loaded in pages.
     return { success: true }
   })
 
-  ipcMain.handle('history:getAll', () => {
+  // First page (most recent). The renderer lazy-loads older pages via history:getPage.
+  ipcMain.handle('history:getAll', (_e, limit = 300) => {
     const rows = getBereanDb()
-      .prepare('SELECT * FROM history ORDER BY timestamp DESC LIMIT 500')
-      .all() as HistoryRow[]
+      .prepare('SELECT * FROM history ORDER BY timestamp DESC LIMIT ?')
+      .all(limit) as HistoryRow[]
+    return rows.map(rowToEntry)
+  })
+
+  // Older page: entries strictly older than `beforeTs`, newest first.
+  ipcMain.handle('history:getPage', (_e, beforeTs: number, limit = 300) => {
+    const rows = getBereanDb()
+      .prepare('SELECT * FROM history WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?')
+      .all(beforeTs, limit) as HistoryRow[]
     return rows.map(rowToEntry)
   })
 

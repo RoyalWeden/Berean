@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine } from 'lucide-react'
+import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History } from 'lucide-react'
+import NoteVersionHistory from './NoteVersionHistory'
+import { HintTooltip } from '@/components/shell/HintTooltip'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import PrintPreviewModal from './PrintPreviewModal'
@@ -65,6 +67,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
   // Print preview modal
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false)
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false)
+  // Version snapshot cadence: consolidate rapid edits into one version on idle / note switch.
+  const lastSnapshotContentRef = useRef<string | null>(null)
+  const snapshotIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
   const notesContentRef = useRef<HTMLDivElement>(null)
   const activeNoteRef = useRef<Note | null>(null)
   const [localFindOpen, setLocalFindOpen] = useState(false)
@@ -359,6 +366,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // tabs or spaces preserves the note for the user to return to.
   useEffect(() => {
     return () => {
+      // Consolidate a final version of whatever note is open when the panel unmounts.
+      if (snapshotIdleTimer.current) clearTimeout(snapshotIdleTimer.current)
+      const note = activeNoteRef.current
+      if (note && note.content.trim() && lastSnapshotContentRef.current !== note.content) {
+        window.notes.createNoteVersion(note.id, note.title || '', note.content, 'auto').catch(() => {})
+      }
       const id = notesTabId
       if (!id) return
       useAppStore.getState().updateTabState('notes', id, {
@@ -426,6 +439,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (!activeNote) return
     if (activeNote.content.trim() === '') {
       await deleteNote(activeNote)
+    } else {
+      snapshotVersion(activeNote, 'auto')   // consolidate a version on leaving the note
     }
     setActiveNote(null)
     setNoteHistory([])
@@ -434,12 +449,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   function navigateToNote(note: Note) {
     if (activeNote && activeNote.id !== note.id) {
+      snapshotVersion(activeNote, 'auto')   // snapshot the outgoing note
       // Save current scroll so back-navigation can restore it
       setNoteHistory(prev => [{ note: activeNote, scrollTop: lastScrollTopRef.current }, ...prev.slice(0, 19)])
       // Reset scroll for the new note
       lastScrollTopRef.current = 0
       setRestoredScrollTop(0)
     }
+    // Baseline the snapshot tracker to the newly-opened content (don't snapshot on open).
+    lastSnapshotContentRef.current = note.content
     setActiveNote(note)
   }
 
@@ -550,6 +568,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     } catch { /* ignore */ }
   }
 
+  // Snapshot the given note's content as a version if it changed since the last snapshot.
+  // Consolidates rapid edits — called on editing idle, note switch, and unmount.
+  function snapshotVersion(note: { id: string; title: string; content: string } | null, kind = 'auto') {
+    if (!note) return
+    if (lastSnapshotContentRef.current === note.content) return
+    lastSnapshotContentRef.current = note.content
+    window.notes.createNoteVersion(note.id, note.title || '', note.content, kind).catch(() => {})
+  }
+
   function handleContentChange(content: string) {
     if (!activeNote) return
     const updated = { ...activeNote, content, updatedAt: Date.now() }
@@ -563,6 +590,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
       maybeSyncNote(id)
     }, 500)
+    // Restart the idle timer; when editing pauses for SNAPSHOT_IDLE_MS, consolidate a version.
+    if (snapshotIdleTimer.current) clearTimeout(snapshotIdleTimer.current)
+    snapshotIdleTimer.current = setTimeout(() => snapshotVersion({ ...updated }, 'auto'), SNAPSHOT_IDLE_MS)
   }
 
   function handleTitleChange(title: string) {
@@ -748,6 +778,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 </button>
               ))}
             </div>
+            <HintTooltip label="Version history">
+            <button
+              onClick={() => { if (activeNote) setVersionHistoryOpen(true) }}
+              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+            >
+              <History size={15} />
+            </button>
+            </HintTooltip>
             <button
               onClick={() => { if (activeNote) setPrintPreviewOpen(true) }}
               title="Print / export note (preview)"
@@ -1132,6 +1170,22 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           title={activeNote.title || 'Untitled'}
           content={activeNote.content}
           onClose={() => setPrintPreviewOpen(false)}
+        />
+      )}
+      {versionHistoryOpen && activeNote && (
+        <NoteVersionHistory
+          noteId={activeNote.id}
+          currentContent={activeNote.content}
+          currentTitle={activeNote.title || 'Untitled'}
+          onClose={() => setVersionHistoryOpen(false)}
+          onRestored={(content) => {
+            const id = activeNote.id
+            setActiveNote(prev => prev ? { ...prev, content, updatedAt: Date.now() } : prev)
+            setNotes(prev => prev.map(n => n.id === id ? { ...n, content, updatedAt: Date.now() } : n))
+            lastSnapshotContentRef.current = content
+            bumpNoteToken()
+            maybeSyncNote(id)
+          }}
         />
       )}
     </div>

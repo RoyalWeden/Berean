@@ -373,6 +373,30 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v11: pdfs + pdf_highlights tables')
     }
+  },
+  {
+    version: 12,
+    up: (db) => {
+      // Per-note version history (Google-Docs-style snapshots).
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS note_versions (
+          id         TEXT PRIMARY KEY,
+          note_id    TEXT NOT NULL,
+          title      TEXT,
+          content    TEXT NOT NULL DEFAULT '',
+          kind       TEXT NOT NULL DEFAULT 'auto',
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_note_versions_note ON note_versions(note_id, created_at DESC);
+      `)
+      // Translation a verse note is attached to (mirrors highlights.text_id). Existing
+      // notes default to 'kjva'.
+      const cols = db.prepare(`PRAGMA table_info(notes)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'text_id')) {
+        db.exec(`ALTER TABLE notes ADD COLUMN text_id TEXT DEFAULT 'kjva'`)
+      }
+      console.log('[berean-db] v12: note_versions table + notes.text_id column')
+    }
   }
 ]
 

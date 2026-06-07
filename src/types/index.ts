@@ -195,6 +195,17 @@ export interface Note {
   tags: string[]
   color?: string
   folderId?: string | null
+  textId?: string   // translation a verse note is attached to ('kjva' | 'lxx' | …)
+}
+
+/** A snapshot in a note's version history. */
+export interface NoteVersion {
+  id: string
+  noteId: string
+  title: string
+  content: string
+  kind: string       // 'auto' | 'manual' | 'pre-restore'
+  createdAt: number
 }
 
 export interface NoteFolder {

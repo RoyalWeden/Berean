@@ -24,6 +24,7 @@ import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethr
 import type { Note } from '@/types'
 import { parseRef, getTranslationForBook } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
+import { applyWordReplacer } from '@/lib/wordReplacer'
 import { useAppStore } from '@/store'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 
@@ -680,6 +681,18 @@ const SINGLE_VERSE_LINE_RE =
 // A body line in a multi-line block: starts with a verse number then text.
 const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
+/**
+ * For a single-line block "Book c:v <body>", if the body begins with an "LXX " marker
+ * (as produced when copying a Septuagint verse), fold it into the reference label and
+ * return the cleaned body. e.g. ("Isaiah 9:12", "LXX But the people…") →
+ * { refLabel: "Isaiah 9:12 LXX", body: "But the people…", lxx: true }.
+ */
+function splitLeadingLxx(refStr: string, body: string): { refLabel: string; body: string; lxx: boolean } {
+  const m = body.match(/^LXX[ \t]+(\S.*)$/i)
+  if (m) return { refLabel: `${refStr} LXX`, body: m[1], lxx: true }
+  return { refLabel: refStr, body, lxx: false }
+}
+
 export interface VerseBlockMatch {
   kind: 'multi' | 'single'
   ref: string         // the reference text, e.g. "Luke 16:29-31"
@@ -804,20 +817,34 @@ const verseRatioCache = new Map<string, number>()
 const versePending = new Set<string>()
 
 function verseCacheKey(refText: string, candidate: string): string {
-  return refText + ' ' + candidate.replace(/\s+/g, ' ').trim().toLowerCase()
+  return refText + ' ' + candidate.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
 interface BibleQueryWindow {
   bible?: { queryChapter?: (b: string, c: number, t?: string) => Promise<Array<{ verse_num: number; text: string }>> }
 }
 
+/**
+ * Strip an LXX marker (trailing " LXX" suffix or leading "lxx:"/"LXX:" prefix) from a
+ * reference string. Returns the bare reference for parseRef plus whether LXX was present.
+ */
+export function stripLxxMarker(refText: string): { ref: string; lxx: boolean } {
+  const suffix = refText.match(/^(.*?)[ \t]+LXX\s*$/i)
+  if (suffix) return { ref: suffix[1].trim(), lxx: true }
+  const prefix = refText.match(/^(?:lxx|LXX):\s*(.*)$/)
+  if (prefix) return { ref: prefix[1].trim(), lxx: true }
+  return { ref: refText, lxx: false }
+}
+
 async function fetchActualVerseText(refText: string): Promise<string | null> {
-  const ref = parseRef(refText)
+  const { ref: bareRef, lxx } = stripLxxMarker(refText)
+  const ref = parseRef(bareRef)
   if (!ref) return null
   const w = (typeof window !== 'undefined' ? (window as unknown as BibleQueryWindow) : null)
   if (!w?.bible?.queryChapter) return null
   const def = useAppStore.getState().defaultBibleTranslation || 'kjva'
-  const textId = (getTranslationForBook(ref.bookId) ?? def).toLowerCase()
+  // LXX-marked refs read from the Septuagint source; otherwise the book's own translation.
+  const textId = (lxx ? 'lxx' : (getTranslationForBook(ref.bookId) ?? def)).toLowerCase()
   const startCh = ref.chapter
   const endCh = ref.endChapter ?? ref.chapter
   const parts: string[] = []
@@ -834,7 +861,15 @@ async function fetchActualVerseText(refText: string): Promise<string | null> {
       }
     }
   }
-  return parts.length ? parts.join(' ') : null
+  if (!parts.length) return null
+  let actual = parts.join(' ')
+  // Match against word-replaced text so a note that shows "Yehovah" still matches the DB
+  // verse that stores "LORD" (the note text the user pasted is already word-replaced).
+  const st = useAppStore.getState()
+  if (st.wordReplacerEnabled && st.wordReplacerRules.length > 0) {
+    actual = applyWordReplacer(actual, st.wordReplacerRules)
+  }
+  return actual
 }
 
 /**
@@ -1540,8 +1575,11 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
       const trimmed = line.text.trim()
       const leadWs = line.text.length - line.text.trimStart().length
 
-      // A) Multi-line block: verse-level ref line + following numbered verse lines
-      if (trimmed.includes(':') && parseRef(trimmed) &&
+      // A) Multi-line block: verse-level ref line + following numbered verse lines.
+      // The ref line may carry an " LXX" marker (Septuagint); strip it for parseRef but
+      // keep `trimmed` (with the marker) as the match key so it reads from the lxx source.
+      const bareRefLine = stripLxxMarker(trimmed).ref
+      if (trimmed.includes(':') && parseRef(bareRefLine) &&
           ln + 1 <= doc.lines && VERSE_BODY_LINE_RE.test(doc.line(ln + 1).text)) {
         let endLn = ln + 1
         while (endLn + 1 <= doc.lines && VERSE_BODY_LINE_RE.test(doc.line(endLn + 1).text)) endLn++
@@ -1563,15 +1601,20 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
         continue
       }
 
-      // B) Single-line block: "Book c:v verse text…"
+      // B) Single-line block: "Book c:v verse text…" (optionally "… LXX <text>")
       const m = SINGLE_VERSE_LINE_RE.exec(line.text)
-      if (m && parseRef(m[2])) {
-        const accepted = verseTextAccepted(m[2], m[3], threshold, onResolved)
-        if (accepted !== false) {
-          decos.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-live-verse-block cm-live-verse-block-first cm-live-verse-block-last' }), kind: 'line' })
-          const refFrom = line.from + m[1].length
-          const refTo = refFrom + m[2].length
-          decos.push({ from: refFrom, to: refTo, deco: Decoration.mark({ class: 'cm-live-verse-block-ref' }), kind: 'mark' })
+      if (m) {
+        const { refLabel, body, lxx } = splitLeadingLxx(m[2], m[3])
+        if (parseRef(stripLxxMarker(refLabel).ref)) {
+          const accepted = verseTextAccepted(refLabel, body, threshold, onResolved)
+          if (accepted !== false) {
+            decos.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-live-verse-block cm-live-verse-block-first cm-live-verse-block-last' }), kind: 'line' })
+            const refFrom = line.from + m[1].length
+            // Extend the ref styling over the " LXX" marker when present.
+            const bodyStart = lxx ? line.text.indexOf(body, m[1].length + m[2].length) : -1
+            const refTo = bodyStart >= 0 ? line.from + line.text.slice(0, bodyStart).trimEnd().length : refFrom + m[2].length
+            decos.push({ from: refFrom, to: refTo, deco: Decoration.mark({ class: 'cm-live-verse-block-ref' }), kind: 'mark' })
+          }
         }
       }
       ln++
@@ -2206,8 +2249,8 @@ export function wrapVerseBlocksForPreview(content: string, stash?: (html: string
   while (i < lines.length) {
     const line = lines[i]
     const trimmed = line.trim()
-    // A) Multi-line block
-    if (trimmed.includes(':') && parseRef(trimmed) &&
+    // A) Multi-line block (ref line may carry an " LXX" marker)
+    if (trimmed.includes(':') && parseRef(stripLxxMarker(trimmed).ref) &&
         i + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[i + 1])) {
       let j = i + 1
       while (j + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[j + 1])) j++
@@ -2221,13 +2264,16 @@ export function wrapVerseBlocksForPreview(content: string, stash?: (html: string
         continue
       }
     }
-    // B) Single-line block
+    // B) Single-line block ("Book c:v <text>" or "Book c:v LXX <text>")
     const m = SINGLE_VERSE_LINE_RE.exec(line)
-    if (m && parseRef(m[2]) && verseTextAcceptedSync(m[2], m[3], threshold)) {
-      const ref = `<a href="#verse-ref-${encodeURIComponent(m[2])}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(m[2])}</a>`
-      emit(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}">${ref} ${renderVerseBodyLine(m[3])}</div>`)
-      i++
-      continue
+    if (m) {
+      const { refLabel, body } = splitLeadingLxx(m[2], m[3])
+      if (parseRef(stripLxxMarker(refLabel).ref) && verseTextAcceptedSync(refLabel, body, threshold)) {
+        const ref = `<a href="#verse-ref-${encodeURIComponent(refLabel)}" class="berean-verse-ref" style="${VERSE_BLOCK_REF_STYLE}">${escapeHtmlBasic(refLabel)}</a>`
+        emit(`<div class="berean-verse-block" style="${VERSE_BLOCK_STYLE}">${ref} ${renderVerseBodyLine(body)}</div>`)
+        i++
+        continue
+      }
     }
     out.push(line)
     i++
@@ -2765,9 +2811,13 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     const view = viewRef.current
     if (!view) return
     setVerseSuggest(null)
-    const parsed = parseRef(ref)
+    // `ref` may carry an " LXX" / "lxx:" marker → pull from the Septuagint and keep the
+    // marker in the inserted label so the block re-detects as LXX.
+    const { ref: bareRef, lxx } = stripLxxMarker(ref)
+    const parsed = parseRef(bareRef)
     if (!parsed?.verse) { view.focus(); return }
-    const tid = getTranslationForBook(parsed.bookId) ?? 'kjva'
+    const tid = lxx ? 'lxx' : (getTranslationForBook(parsed.bookId) ?? 'kjva')
+    const label = lxx ? `${bareRef} LXX` : ref
     const isRange = parsed.endVerse && parsed.endVerse > parsed.verse
     let block: string
     if (isRange) {
@@ -2783,12 +2833,12 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
         .map((v, i) => v?.text ? `${nums[i]} ${v.text}` : null)
         .filter(Boolean) as string[]
       if (bodyLines.length === 0) { view.focus(); return }
-      block = [ref, ...bodyLines].join('\n')
+      block = [label, ...bodyLines].join('\n')
     } else {
       // Single verse: ref + space + text on the same line
       const v = await window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, tid).catch(() => null)
       if (!v?.text) { view.focus(); return }
-      block = `${ref} ${v.text}`
+      block = `${label} ${v.text}`
     }
     view.dispatch({
       changes: { from, to, insert: block },
@@ -3089,15 +3139,17 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             }
 
             // ── Verse block suggestion ───────────────────────────────────────
-            // Show "Insert scripture block?" popup when cursor is right after a
-            // verse reference with a verse number (e.g. "Gen 1:1").
+            // Show "Insert scripture block?" popup when cursor is right after a verse
+            // reference with a verse number (e.g. "Gen 1:1"), optionally with a trailing
+            // " LXX" marker (e.g. "Isaiah 9:12 LXX ") → offers a Septuagint block.
             if (noteVerseBlockSuggest && update.docChanged && !previewModeRef.current) {
-              const verseRefM = textBefore.match(/(\b\w[\w.]*(?: \d+):\d+(?:-\d+)?)$/)
-              if (verseRefM && parseRef(verseRefM[1])?.verse) {
-                const refStart = line.from + textBefore.length - verseRefM[1].length
+              const verseRefM = textBefore.match(/(\b\w[\w.]*(?: \d+):\d+(?:-\d+)?(?:[ \t]+LXX)?)\s?$/)
+              const candidate = verseRefM ? verseRefM[1].trim() : ''
+              if (candidate && parseRef(stripLxxMarker(candidate).ref)?.verse) {
+                const refStart = line.from + textBefore.length - verseRefM![1].length
                 const coords = update.view.coordsAtPos(refStart)
                 if (coords) {
-                  setVerseSuggest({ ref: verseRefM[1], from: refStart, to: cursor.head, x: coords.left, y: coords.bottom + 4 })
+                  setVerseSuggest({ ref: candidate, from: refStart, to: cursor.head, x: coords.left, y: coords.bottom + 4 })
                 }
               } else {
                 setVerseSuggest(null)

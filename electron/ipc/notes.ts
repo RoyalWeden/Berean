@@ -14,6 +14,7 @@ interface NoteRow {
   tags: string
   imported_at: number | null
   folder_id: string | null
+  text_id: string | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -29,6 +30,40 @@ function rowToNote(row: NoteRow) {
     tags:       JSON.parse(row.tags) as string[],
     importedAt: row.imported_at ?? undefined,
     folderId:   row.folder_id ?? null,
+    textId:     row.text_id ?? 'kjva',
+  }
+}
+
+interface VersionRow { id: string; note_id: string; title: string | null; content: string; kind: string; created_at: number }
+function rowToVersion(r: VersionRow) {
+  return { id: r.id, noteId: r.note_id, title: r.title ?? '', content: r.content, kind: r.kind, createdAt: r.created_at }
+}
+
+/**
+ * Prune a note's version history: keep everything from the last 7 days, then keep only
+ * one (the newest) version per calendar day older than that, capped at 50 total. Always
+ * keep the most recent version and any 'pre-restore'/'manual' snapshots within the cap.
+ */
+function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): void {
+  const rows = db.prepare('SELECT id, kind, created_at FROM note_versions WHERE note_id = ? ORDER BY created_at DESC')
+    .all(noteId) as Array<{ id: string; kind: string; created_at: number }>
+  if (rows.length <= 50) return
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const keep = new Set<string>()
+  const seenDay = new Set<string>()
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
+    if (i === 0 || r.kind === 'manual' || r.kind === 'pre-restore' || r.created_at >= weekAgo) { keep.add(r.id); continue }
+    const day = new Date(r.created_at).toISOString().slice(0, 10)
+    if (!seenDay.has(day)) { seenDay.add(day); keep.add(r.id) }
+  }
+  // Enforce the overall cap (keep the newest `keep` up to 50).
+  const ordered = rows.filter(r => keep.has(r.id)).slice(0, 50)
+  const finalKeep = new Set(ordered.map(r => r.id))
+  const toDelete = rows.filter(r => !finalKeep.has(r.id)).map(r => r.id)
+  if (toDelete.length) {
+    const placeholders = toDelete.map(() => '?').join(',')
+    db.prepare(`DELETE FROM note_versions WHERE id IN (${placeholders})`).run(...toDelete)
   }
 }
 
@@ -36,14 +71,14 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   console.log('[berean-ipc] registerNotesHandlers: registering notes + folders IPC handlers')
 
   ipcMain.handle('notes:create', (_event, data: {
-    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]
+    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
     db.prepare(`
-      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.type ?? 'general',
@@ -52,7 +87,8 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       data.verseRef ?? null,
       data.color ?? 'blue',
       now, now,
-      JSON.stringify(data.tags ?? [])
+      JSON.stringify(data.tags ?? []),
+      data.textId ?? 'kjva'
     )
     const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow
     return { success: true, note: rowToNote(row) }
@@ -79,7 +115,9 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:delete', (_event, id: string) => {
-    getBereanDb().prepare('DELETE FROM notes WHERE id = ?').run(id)
+    const db = getBereanDb()
+    db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+    db.prepare('DELETE FROM notes WHERE id = ?').run(id)
     return { success: true }
   })
 
@@ -177,10 +215,19 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return rows.map(rowToNote)
   })
 
-  ipcMain.handle('notes:getByVerse', (_event, verseRef: string) => {
-    const rows = getBereanDb()
-      .prepare('SELECT * FROM notes WHERE verse_ref = ? ORDER BY created_at ASC')
-      .all(verseRef) as NoteRow[]
+  ipcMain.handle('notes:getByVerse', (_event, verseRef: string, textId = 'kjva') => {
+    // KJV: include notes attached to this verse via KJVA *and* any LXX notes for the same
+    // reference, so Septuagint study notes surface while reading the KJV panel.
+    // LXX notes come after KJV notes in the result (ORDER BY CASE).
+    const sql = textId === 'kjva'
+      ? `SELECT * FROM notes WHERE verse_ref = ?
+           AND (text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')
+         ORDER BY CASE WHEN text_id = 'lxx' THEN 1 ELSE 0 END, created_at ASC`
+      : 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? ORDER BY created_at ASC'
+    const rows = (textId === 'kjva'
+      ? getBereanDb().prepare(sql).all(verseRef)
+      : getBereanDb().prepare(sql).all(verseRef, textId)
+    ) as NoteRow[]
     return rows.map(rowToNote)
   })
 
@@ -206,26 +253,80 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   // Returns all notes whose verse_ref belongs to a specific chapter (e.g. "MAT.5.*")
-  ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number) => {
+  // When reading KJV, also includes LXX notes for the same chapter so they surface in the panel.
+  ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
     const prefix = `${bookId}.${chapter}.`
-    const rows = getBereanDb()
-      .prepare(`SELECT * FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? ORDER BY verse_ref ASC`)
-      .all(`${prefix}%`, `${prefix}%.%`) as NoteRow[]
+    const tidClause = textId === 'kjva'
+      ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
+      : 'text_id = ?'
+    const stmt = getBereanDb().prepare(
+      `SELECT * FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}
+       ORDER BY verse_ref ASC`
+    )
+    const rows = (textId === 'kjva'
+      ? stmt.all(`${prefix}%`, `${prefix}%.%`)
+      : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
+    ) as NoteRow[]
     return rows.map(rowToNote)
   })
 
-  // Returns { [verseNum]: count } for all verses in a chapter that have notes
-  ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number) => {
+  // Returns { [verseNum]: count } for all verses in a chapter that have notes.
+  // When reading KJV, counts include LXX notes (so dots appear on verses with Septuagint notes).
+  ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number, textId = 'kjva') => {
     const prefix = `${bookId}.${chapter}.`
-    const rows = getBereanDb()
-      .prepare(`SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ?`)
-      .all(`${prefix}%`, `${prefix}%.%`) as Array<{ verse_ref: string }>
+    const tidClause = textId === 'kjva'
+      ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
+      : 'text_id = ?'
+    const stmt = getBereanDb().prepare(
+      `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}`
+    )
+    const rows = (textId === 'kjva'
+      ? stmt.all(`${prefix}%`, `${prefix}%.%`)
+      : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
+    ) as Array<{ verse_ref: string }>
     const counts: Record<number, number> = {}
     for (const { verse_ref } of rows) {
       const verseNum = parseInt(verse_ref.split('.')[2] ?? '0')
       if (verseNum) counts[verseNum] = (counts[verseNum] ?? 0) + 1
     }
     return counts
+  })
+
+  // ── Note version history (Google-Docs-style snapshots) ─────────────────────
+  ipcMain.handle('notes:createVersion', (_event, noteId: string, title: string, content: string, kind = 'auto') => {
+    const db = getBereanDb()
+    // Skip if identical to the latest snapshot (avoid duplicate consecutive versions).
+    const last = db.prepare('SELECT content FROM note_versions WHERE note_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(noteId) as { content: string } | undefined
+    if (last && last.content === content) return { success: true, skipped: true }
+    const id = randomUUID()
+    db.prepare(`INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(id, noteId, title ?? null, content, kind, Date.now())
+    pruneNoteVersions(db, noteId)
+    return { success: true, id }
+  })
+
+  ipcMain.handle('notes:getVersions', (_event, noteId: string) => {
+    const rows = getBereanDb()
+      .prepare('SELECT * FROM note_versions WHERE note_id = ? ORDER BY created_at DESC')
+      .all(noteId) as VersionRow[]
+    return rows.map(rowToVersion)
+  })
+
+  ipcMain.handle('notes:restoreVersion', (_event, noteId: string, versionId: string) => {
+    const db = getBereanDb()
+    const ver = db.prepare('SELECT * FROM note_versions WHERE id = ?').get(versionId) as VersionRow | undefined
+    if (!ver) return { success: false, error: 'Version not found' }
+    const cur = db.prepare('SELECT title, content FROM notes WHERE id = ?').get(noteId) as { title: string | null; content: string } | undefined
+    if (!cur) return { success: false, error: 'Note not found' }
+    // Snapshot current content first so the restore can be undone with one click.
+    if (cur.content !== ver.content) {
+      db.prepare(`INSERT INTO note_versions (id, note_id, title, content, kind, created_at) VALUES (?, ?, ?, ?, 'pre-restore', ?)`)
+        .run(randomUUID(), noteId, cur.title ?? null, cur.content, Date.now())
+    }
+    db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(ver.content, Date.now(), noteId)
+    pruneNoteVersions(db, noteId)
+    return { success: true, content: ver.content }
   })
 
   console.log('[berean-ipc] registerNotesHandlers: ALL handlers registered OK (notes:create, notes:update, notes:delete, folders:create, folders:getAll, folders:rename, folders:delete, folders:deleteDeep, folders:setParent, notes:setFolder, notes:deleteAll, notes:getAll, notes:getByVerse, notes:getOne, notes:search, notes:deleteByTag, notes:getByChapter, notes:getChapterCounts)')

@@ -14,6 +14,9 @@ export interface WordReplacerRule {
   strongsNum?: string
 }
 
+// History is loaded/paged in chunks of this size (unlimited total, lazy-loaded).
+const HISTORY_PAGE_SIZE = 300
+
 const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
   // Strong's-number-based rules (KJVA tagged text only — precise per-word matching)
   { id: 'strongs-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
@@ -46,7 +49,7 @@ const DEFAULT_WORD_REPLACER_RULES: WordReplacerRule[] = [
   { id: '5a66cdad', queries: ['josias'],                            replacement: 'Josiah',        wholeWord: false, enabled: true },
 ]
 
-function updateMRU(
+export function updateMRU(
   list: Array<{ spaceId: SpaceId; tabId: string }>,
   spaceId: SpaceId,
   tabId: string
@@ -331,13 +334,18 @@ export interface AppState {
   historyOpen: boolean
   historySeenLength: number
   historyLoaded: boolean  // true once the SQLite load completes on mount
+  historyHasMore: boolean       // older pages remain in SQLite
+  historyLoadingMore: boolean
+  loadMoreHistory: () => Promise<void>
   // History collapse memory — days/sessions are collapsed by default; these persist the
   // keys the user has explicitly EXPANDED so the state survives reopening / restart.
   historyExpandedDays: string[]
   historyExpandedSessions: string[]
+  historyAutoExpandedKey: string | null   // most-recent session auto-expanded once
   toggleHistoryExpandedDay: (key: string) => void
   toggleHistoryExpandedSession: (key: string) => void
   setHistoryExpanded: (days: string[], sessions: string[]) => void
+  autoExpandHistorySession: (dayKey: string, sessionKey: string) => void
   addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'sessionId' | 'sessionName'>) => void
   setHistory: (entries: HistoryEntry[]) => void
   deleteHistoryEntry: (id: string) => void
@@ -497,8 +505,11 @@ export const useAppStore = create<AppState>()(
       historyOpen: false,
       historySeenLength: 0,
       historyLoaded: false,
+      historyHasMore: false,
+      historyLoadingMore: false,
       historyExpandedDays: [] as string[],
       historyExpandedSessions: [] as string[],
+      historyAutoExpandedKey: null as string | null,
       toggleHistoryExpandedDay: (key) => set((s) => ({
         historyExpandedDays: s.historyExpandedDays.includes(key)
           ? s.historyExpandedDays.filter(k => k !== key)
@@ -510,6 +521,16 @@ export const useAppStore = create<AppState>()(
           : [...s.historyExpandedSessions, key],
       })),
       setHistoryExpanded: (days, sessions) => set({ historyExpandedDays: days, historyExpandedSessions: sessions }),
+      // Auto-expand the active/most-recent session once. If the user later collapses it,
+      // we won't re-expand because historyAutoExpandedKey still matches sessionKey.
+      autoExpandHistorySession: (dayKey, sessionKey) => set((s) => {
+        if (s.historyAutoExpandedKey === sessionKey) return {}
+        return {
+          historyAutoExpandedKey: sessionKey,
+          historyExpandedDays: s.historyExpandedDays.includes(dayKey) ? s.historyExpandedDays : [...s.historyExpandedDays, dayKey],
+          historyExpandedSessions: s.historyExpandedSessions.includes(sessionKey) ? s.historyExpandedSessions : [...s.historyExpandedSessions, sessionKey],
+        }
+      }),
       addHistoryEntry: (entry) => {
         const state = get()
         const currentSession = state.sessions.find(s => s.id === state.currentSessionId)
@@ -534,18 +555,35 @@ export const useAppStore = create<AppState>()(
             last.query === newEntry.query &&
             last.parentId === newEntry.parentId
           ) return {}
-          return { history: [newEntry, ...prev].slice(0, 500) }
+          // No in-memory cap — history is unbounded; older entries are lazy-loaded.
+          return { history: [newEntry, ...prev] }
         })
         // Persist to SQLite (non-blocking)
         window.appHistory?.add(newEntry).catch(() => {})
       },
-      setHistory: (entries) => set({ history: entries, historyLoaded: true }),
+      setHistory: (entries) => set({ history: entries, historyLoaded: true, historyHasMore: entries.length >= HISTORY_PAGE_SIZE }),
+      loadMoreHistory: async () => {
+        const s = get()
+        if (s.historyLoadingMore || !s.historyHasMore || s.history.length === 0) return
+        set({ historyLoadingMore: true })
+        const oldest = s.history[s.history.length - 1]?.timestamp ?? Date.now()
+        try {
+          const older = await window.appHistory?.getPage(oldest, HISTORY_PAGE_SIZE) ?? []
+          set((cur) => ({
+            history: [...cur.history, ...older],
+            historyHasMore: older.length >= HISTORY_PAGE_SIZE,
+            historyLoadingMore: false,
+          }))
+        } catch {
+          set({ historyLoadingMore: false })
+        }
+      },
       deleteHistoryEntry: (id) => {
         set((s) => ({ history: s.history.filter(e => e.id !== id) }))
         window.appHistory?.delete(id).catch(() => {})
       },
       clearHistory: () => {
-        set({ history: [] })
+        set({ history: [], historyHasMore: false })
         window.appHistory?.clear().catch(() => {})
       },
       openHistory: () => set((s) => ({ historyOpen: !s.historyOpen, historySeenLength: s.history.length })),
@@ -793,7 +831,7 @@ export const useAppStore = create<AppState>()(
 
       createTab: (type) => {
         const spaceId = TYPE_TO_SPACE[type]
-        const id = `${type}-${Date.now()}`
+        const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         let tab: Tab
         if (type === 'bible') {
           const defTranslation = get().defaultBibleTranslation.toUpperCase()
@@ -1062,7 +1100,7 @@ export const useAppStore = create<AppState>()(
         if (query) get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         const state = get()
         // Always create a fresh tab — never reuse an existing search tab
-        const id = `scripture-search-${Date.now()}`
+        const id = `scripture-search-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         const tab: Tab = {
           id,
           spaceId: 'scripture',
@@ -1225,25 +1263,40 @@ export const useAppStore = create<AppState>()(
             state.tabs[spaceId] = state.tabs[spaceId].filter((t) => t != null && typeof t === 'object')
           }
         }
-        // Rebuild MRU list from all persisted tabs so Ctrl+Tab shows all open tabs
-        // on first load. Active tab per space goes first, then others in sidebar order.
-        const mru: Array<{ spaceId: SpaceId; tabId: string }> = []
-        const seen = new Set<string>()
+        // Build the set of all valid (spaceId, tabId) pairs from the persisted tabs.
+        const validKeys = new Set<string>()
+        for (const spaceId of spaces) {
+          for (const tab of (state.tabs[spaceId] ?? [])) {
+            validKeys.add(`${spaceId}:${tab.id}`)
+          }
+        }
+
+        // If we have a persisted MRU list, validate it (drop stale entries for closed tabs)
+        // and keep the true MRU order. Only fall back to the sidebar-order rebuild when
+        // nothing was persisted (e.g. first launch or old data format).
+        const persistedMRU = Array.isArray(state.tabMRUList) ? state.tabMRUList : []
+        const validatedMRU = persistedMRU.filter(
+          (m) => validKeys.has(`${m.spaceId}:${m.tabId}`)
+        )
+        const seenInMRU = new Set(validatedMRU.map((m) => `${m.spaceId}:${m.tabId}`))
+
+        // Append any open tabs that are missing from the persisted MRU
+        // (e.g. tabs opened externally, or a fresh install with no prior MRU).
+        // Active tabs go first within the missing set, then remaining in sidebar order.
+        const missing: Array<{ spaceId: SpaceId; tabId: string }> = []
         for (const spaceId of spaces) {
           const spaceTabs = state.tabs[spaceId] ?? []
           const activeId = state.activeTabId?.[spaceId]
-          // Push active tab for this space first
           if (activeId && spaceTabs.find((t) => t.id === activeId)) {
             const key = `${spaceId}:${activeId}`
-            if (!seen.has(key)) { mru.push({ spaceId, tabId: activeId }); seen.add(key) }
+            if (!seenInMRU.has(key)) { missing.push({ spaceId, tabId: activeId }); seenInMRU.add(key) }
           }
-          // Then remaining tabs in order
           for (const tab of spaceTabs) {
             const key = `${spaceId}:${tab.id}`
-            if (!seen.has(key)) { mru.push({ spaceId, tabId: tab.id }); seen.add(key) }
+            if (!seenInMRU.has(key)) { missing.push({ spaceId, tabId: tab.id }); seenInMRU.add(key) }
           }
         }
-        state.tabMRUList = mru
+        state.tabMRUList = [...validatedMRU, ...missing]
       },
       partialize: (state) => ({
         activeSpace: state.activeSpace,
@@ -1269,6 +1322,7 @@ export const useAppStore = create<AppState>()(
         noteTransformLayout: state.noteTransformLayout,
         floatingSearchDensity: state.floatingSearchDensity,
         defaultYoutubeLayout: state.defaultYoutubeLayout,
+        tabMRUList: state.tabMRUList,
         archivedGroups: state.archivedGroups,
         sessions: state.sessions,
         currentSessionId: state.currentSessionId,
@@ -1280,6 +1334,7 @@ export const useAppStore = create<AppState>()(
         completedStepIds: state.completedStepIds,
         historyExpandedDays: state.historyExpandedDays,
         historyExpandedSessions: state.historyExpandedSessions,
+        historyAutoExpandedKey: state.historyAutoExpandedKey,
         // Print & Export settings
         printMarginPreset: state.printMarginPreset,
         printCustomMargins: state.printCustomMargins,

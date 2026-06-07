@@ -106,7 +106,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.3.7] - 2026-06-05
+## [0.3.7] - 2026-06-06
 
 - Better tooltips
 

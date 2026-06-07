@@ -350,8 +350,9 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
 
   async function addVerseNote() {
     const verseRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
-    const title = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
-    const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '' })
+    // Title carries the LXX marker so it reads as Septuagint; the note is keyed to its translation.
+    const title = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}${lxxSuffix}`
+    const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '', textId })
     setPopoverOpen(false)
     if (result.success && result.note) {
       bumpNoteToken()
@@ -388,7 +389,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
         // the ChapterView cross-ref indicator logic. General notes that merely
         // mention the verse inline are excluded so the hover matches what the
         // side panel's "My Notes" cross-ref view shows.
-        const verseNotes = await window.notes.getVerseNotes(vRef)
+        const verseNotes = await window.notes.getVerseNotes(vRef, textId)
         const all: NoteVerseRef[] = []
         for (const note of verseNotes) {
           for (const ref of extractRefsFromNote(note.content, note.title || 'Untitled')) {
@@ -417,7 +418,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     noteHoverTimerRef.current = setTimeout(async () => {
       const vRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
       try {
-        const verseNotes = await window.notes.getVerseNotes(vRef)
+        const verseNotes = await window.notes.getVerseNotes(vRef, textId)
         // Also find general notes whose content references this verse
         const humanRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
         const candidates = await window.notes.searchNotes(humanRef, 40)
@@ -1053,7 +1054,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 </button>
               </div>
 
-              {/* Direct verse notes */}
+              {/* Direct verse notes (KJV + any cross-translation LXX notes) */}
               {vnShown.map((note) => (
                 <button
                   key={note.id}
@@ -1061,7 +1062,12 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                   className="w-full text-left px-3 py-1.5 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
-                  <p className="text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
+                  <p className="flex items-center gap-1 text-[10px] font-medium text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] line-clamp-1 transition-colors">
+                    {note.textId === 'lxx' && (
+                      <span className="shrink-0 inline-block px-1 py-px text-[7px] font-bold uppercase tracking-wide rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        LXX
+                      </span>
+                    )}
                     {note.title || 'Untitled'}
                   </p>
                   {note.content && (

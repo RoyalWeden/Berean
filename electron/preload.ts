@@ -19,15 +19,21 @@ contextBridge.exposeInMainWorld('notes', {
   deleteByTag: (tag: string) => ipcRenderer.invoke('notes:deleteByTag', tag),
   getNotes: (limit?: number, offset?: number) =>
     ipcRenderer.invoke('notes:getAll', limit, offset),
-  getVerseNotes: (verseRef: string) =>
-    ipcRenderer.invoke('notes:getByVerse', verseRef),
+  getVerseNotes: (verseRef: string, textId?: string) =>
+    ipcRenderer.invoke('notes:getByVerse', verseRef, textId),
   getNote: (id: string) => ipcRenderer.invoke('notes:getOne', id),
-  getChapterNotes: (bookId: string, chapter: number) =>
-    ipcRenderer.invoke('notes:getByChapter', bookId, chapter),
-  getChapterCounts: (bookId: string, chapter: number) =>
-    ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter),
+  getChapterNotes: (bookId: string, chapter: number, textId?: string) =>
+    ipcRenderer.invoke('notes:getByChapter', bookId, chapter, textId),
+  getChapterCounts: (bookId: string, chapter: number, textId?: string) =>
+    ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter, textId),
   searchNotes: (query: string, limit?: number) =>
     ipcRenderer.invoke('notes:search', query, limit),
+  // Version history
+  createNoteVersion: (noteId: string, title: string, content: string, kind?: string) =>
+    ipcRenderer.invoke('notes:createVersion', noteId, title, content, kind),
+  getNoteVersions: (noteId: string) => ipcRenderer.invoke('notes:getVersions', noteId),
+  restoreNoteVersion: (noteId: string, versionId: string) =>
+    ipcRenderer.invoke('notes:restoreVersion', noteId, versionId),
   setNoteFolder: (noteId: string, folderId: string | null) =>
     ipcRenderer.invoke('notes:setFolder', noteId, folderId),
   // Folders
@@ -172,7 +178,8 @@ contextBridge.exposeInMainWorld('vault', {
 
 contextBridge.exposeInMainWorld('appHistory', {
   add: (entry: unknown) => ipcRenderer.invoke('history:add', entry),
-  getAll: () => ipcRenderer.invoke('history:getAll'),
+  getAll: (limit?: number) => ipcRenderer.invoke('history:getAll', limit),
+  getPage: (beforeTs: number, limit?: number) => ipcRenderer.invoke('history:getPage', beforeTs, limit),
   delete: (id: string) => ipcRenderer.invoke('history:delete', id),
   clear: () => ipcRenderer.invoke('history:clear'),
 })

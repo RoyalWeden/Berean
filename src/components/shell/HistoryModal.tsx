@@ -169,53 +169,90 @@ function SessionBadge({ name }: { name: string }) {
 // ── Single history item ────────────────────────────────────────────────────────
 
 const HistoryItem = memo(function HistoryItem({
-  entry,
+  visits,
   isChained,
   onNavigate,
   onDelete,
 }: {
-  entry: HistoryEntry
+  visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
   isChained: boolean
   onNavigate: (e: HistoryEntry) => void
   onDelete: (id: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const entry = visits[0]
+  const repeated = visits.length > 1
   return (
-    <div
-      className={`flex items-center group relative ${isChained ? 'pl-8' : ''}`}
-    >
+    <div className={`group relative ${isChained ? 'pl-8' : ''}`}>
       {isChained && (
         <div className="absolute left-4 top-0 bottom-0 w-px bg-[rgb(var(--color-surface-4))]" />
       )}
-      <button
-        onClick={() => onNavigate(entry)}
-        className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer min-w-0 rounded"
-      >
-        <span className={`${TYPE_COLOR[entry.type]} flex-shrink-0`}>
-          <EntryIcon type={entry.type} size={11} />
-        </span>
-        <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
-          <span className="text-xs text-[rgb(var(--color-text-primary))] truncate leading-tight">
-            {entry.title}
+      <div className="flex items-center">
+        <button
+          onClick={() => onNavigate(entry)}
+          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer min-w-0 rounded"
+        >
+          <span className={`${TYPE_COLOR[entry.type]} flex-shrink-0`}>
+            <EntryIcon type={entry.type} size={11} />
           </span>
-          {entry.translation && (
-            <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
-              {entry.translation.toUpperCase()}
+          <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
+            <span className="text-xs text-[rgb(var(--color-text-primary))] truncate leading-tight">
+              {entry.title}
+            </span>
+            {entry.translation && (
+              <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
+                {entry.translation.toUpperCase()}
+              </span>
+            )}
+          </span>
+          {/* Repeat-visit count badge → click toggles the timestamp list */}
+          {repeated && (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+              title={`Visited ${visits.length} times — show all`}
+              className="flex items-center gap-0.5 text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] rounded-full px-1.5 py-0.5 flex-shrink-0 cursor-pointer hover:text-[rgb(var(--color-text-primary))]"
+            >
+              ×{visits.length}
+              <ChevronDown size={8} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
             </span>
           )}
-        </span>
-        {entry.sessionName && <SessionBadge name={entry.sessionName} />}
-        <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0 tabular-nums">
-          {formatTime(entry.timestamp)}
-        </span>
-      </button>
-      {/* Per-item delete — shown on hover */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
-        title="Remove from history"
-        className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer mr-1"
-      >
-        <X size={10} />
-      </button>
+          {entry.sessionName && <SessionBadge name={entry.sessionName} />}
+          <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0 tabular-nums">
+            {formatTime(entry.timestamp)}
+          </span>
+        </button>
+        {/* Per-item delete — shown on hover (removes the whole group) */}
+        <button
+          onClick={(e) => { e.stopPropagation(); visits.forEach(v => onDelete(v.id)) }}
+          title={repeated ? 'Remove all visits' : 'Remove from history'}
+          className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer mr-1"
+        >
+          <X size={10} />
+        </button>
+      </div>
+      {/* Expanded timestamp list for repeated visits */}
+      {repeated && open && (
+        <div className="ml-9 mr-2 mb-1 border-l border-[rgb(var(--color-surface-4))]">
+          {visits.map((v) => (
+            <div key={v.id} className="flex items-center group/ts">
+              <button
+                onClick={() => onNavigate(v)}
+                className="flex-1 text-left pl-3 py-0.5 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer rounded tabular-nums"
+              >
+                {formatTime(v.timestamp)}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(v.id) }}
+                title="Remove this visit"
+                className="flex-shrink-0 p-1 rounded opacity-0 group-hover/ts:opacity-100 text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer mr-1"
+              >
+                <X size={9} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 })
@@ -234,6 +271,9 @@ export default function HistoryModal() {
   const toggleExpandedDay     = useAppStore((s) => s.toggleHistoryExpandedDay)
   const toggleExpandedSession = useAppStore((s) => s.toggleHistoryExpandedSession)
   const setHistoryExpanded    = useAppStore((s) => s.setHistoryExpanded)
+  const autoExpandSession     = useAppStore((s) => s.autoExpandHistorySession)
+  const loadMoreHistory       = useAppStore((s) => s.loadMoreHistory)
+  const historyHasMore        = useAppStore((s) => s.historyHasMore)
   const overlayRef       = useRef<HTMLDivElement>(null)
   const navigate         = useNavigate()
 
@@ -258,6 +298,12 @@ export default function HistoryModal() {
       setSortNewest(true)
       setShowFilters(false)
       setTimeout(() => searchRef.current?.focus(), 50)
+      // Auto-expand the active/most-recent session (once) so the latest activity is visible.
+      const newest = history[0]
+      if (newest) {
+        const dayKey = toDateStr(newest.timestamp)
+        autoExpandSession(dayKey, `${dayKey}@${newest.timestamp}`)
+      }
     }
   }, [historyOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -298,9 +344,12 @@ export default function HistoryModal() {
 
   // Build day groups, each split into activity "sessions" — runs of entries with
   // no gap larger than SESSION_GAP_MS between consecutive items. A larger gap means
-  // the user stepped away and started a fresh study session.
+  // the user stepped away and started a fresh study session. Within a session, repeated
+  // visits to the SAME target (flip-flopping between pages) collapse into one item that
+  // expands to show every timestamp.
   const dayGroups = useMemo(() => {
-    type Session = { key: string; entries: HistoryEntry[] }
+    type VisitGroup = { key: string; visits: HistoryEntry[] }
+    type Session = { key: string; entries: HistoryEntry[]; items: VisitGroup[] }
     type Day = { label: string; key: string; sessions: Session[]; count: number }
     const days: Day[] = []
     for (const entry of filtered) {
@@ -318,9 +367,26 @@ export default function HistoryModal() {
       } else {
         // Stable key from the session's anchor timestamp so collapse memory survives
         // re-grouping when new entries arrive (positional keys would shift).
-        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry] })
+        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry], items: [] })
       }
       day.count++
+    }
+    // Within each session, collapse repeated visits to the same target into one VisitGroup
+    // (in display order; the group sits at its most-recent visit's position).
+    const targetKey = (e: HistoryEntry) =>
+      `${e.type}|${e.bookId ?? ''}|${e.chapter ?? ''}|${e.noteId ?? ''}|${e.strongsNum ?? ''}|${e.videoId ?? ''}|${e.query ?? ''}`
+    for (const day of days) {
+      for (const session of day.sessions) {
+        const byTarget = new Map<string, VisitGroup>()
+        const order: VisitGroup[] = []
+        for (const e of session.entries) {
+          const tk = targetKey(e)
+          const existing = byTarget.get(tk)
+          if (existing) { existing.visits.push(e) }
+          else { const g: VisitGroup = { key: e.id, visits: [e] }; byTarget.set(tk, g); order.push(g) }
+        }
+        session.items = order
+      }
     }
     return days
   }, [filtered])
@@ -482,7 +548,17 @@ export default function HistoryModal() {
         )}
 
         {/* ── List ── */}
-        <div className="flex-1 overflow-y-auto min-h-0" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
+        <div
+          className="flex-1 overflow-y-auto min-h-0"
+          style={{ transform: 'translateZ(0)', contain: 'paint' }}
+          onScroll={(e) => {
+            // Lazy-load older pages from SQLite as the user nears the bottom.
+            const el = e.currentTarget
+            if (historyHasMore && !filtersActive && el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+              loadMoreHistory()
+            }
+          }}
+        >
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2 text-[rgb(var(--color-text-muted))]">
               <Clock size={26} className="opacity-25" />
@@ -538,11 +614,11 @@ export default function HistoryModal() {
                         )}
                         {!(day.sessions.length > 1 && sessionCollapsed) && (
                           <div className="py-0.5">
-                            {session.entries.map((entry) => (
+                            {session.items.map((g) => (
                               <HistoryItem
-                                key={entry.id}
-                                entry={entry}
-                                isChained={chainedIds.has(entry.id)}
+                                key={g.key}
+                                visits={g.visits}
+                                isChained={g.visits.length === 1 && chainedIds.has(g.visits[0].id)}
                                 onNavigate={navigate}
                                 onDelete={deleteEntry}
                               />
