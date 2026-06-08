@@ -106,6 +106,12 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.10] - 2026-06-08
+
+- Cross ref verse hover improvements
+
+---
+
 ## [0.3.9] - 2026-06-07
 
 - General bug fixes

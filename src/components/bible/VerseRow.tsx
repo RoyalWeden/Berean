@@ -11,6 +11,7 @@ import { applyFindHighlight } from '@/lib/highlight'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
+import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import type { Verse, HighlightColor, Note } from '@/types'
 export type { HighlightColor }
 
@@ -282,6 +283,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const filterBiblePanelByVerse = useAppStore((s) => s.filterBiblePanelByVerse)
   const openCrossRefsInBiblePanel = useAppStore((s) => s.openCrossRefsInBiblePanel)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
+  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -385,20 +387,31 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     crossRefHoverTimerRef.current = setTimeout(async () => {
       const vRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
       try {
-        // Only use verse notes directly attached to this verse — same source as
-        // the ChapterView cross-ref indicator logic. General notes that merely
-        // mention the verse inline are excluded so the hover matches what the
-        // side panel's "My Notes" cross-ref view shows.
-        const verseNotes = await window.notes.getVerseNotes(vRef, textId)
         const all: NoteVerseRef[] = []
-        for (const note of verseNotes) {
-          for (const ref of extractRefsFromNote(note.content, note.title || 'Untitled')) {
-            if (ref.bookId === verse.book_id && ref.chapter === verse.chapter && ref.verse === verse.verse_num) continue
-            if (!all.some(r => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse)) {
-              all.push(ref)
-            }
+        const addRef = (ref: NoteVerseRef) => {
+          if (ref.bookId === verse.book_id && ref.chapter === verse.chapter && ref.verse === verse.verse_num) return
+          if (!all.some(r => r.bookId === ref.bookId && r.chapter === ref.chapter && r.verse === ref.verse)) {
+            all.push(ref)
           }
         }
+
+        // ── Forward: refs that THIS verse's own notes point to ──────────────────
+        const verseNotes = await window.notes.getVerseNotes(vRef, textId)
+        for (const note of verseNotes) {
+          for (const ref of extractRefsFromNote(note.content, note.title || 'Untitled')) addRef(ref)
+        }
+
+        // ── Backward (reciprocal): notes attached to OTHER verses whose content
+        //    references THIS verse → surface those notes' home verses as cross-refs.
+        //    Uses the parsed cross-ref index so it catches every ref form
+        //    (abbreviations, ranges, whole-chapter), not just exact-name matches.
+        try {
+          const sources = await getCrossRefSources(noteChangeToken)
+          for (const ref of reciprocalRefsFor(sources, verse.book_id, verse.chapter, verse.verse_num)) {
+            addRef(ref)
+          }
+        } catch { /* best-effort */ }
+
         if (all.length > 0) {
           const { y, placeUp } = computeHoverPlacement(rect, all.length, 40)
           setCrossRefHover({ refs: all, x: rect.left, y, placeUp })

@@ -4,7 +4,8 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
-import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
+import { extractRefsFromNote } from '@/lib/noteRefs'
+import { getCrossRefSources, flagReciprocalVerses } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
@@ -93,26 +94,39 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
       .catch(() => {})
   }, [bookId, chapter, textId, noteChangeToken])
 
-  // Cross-ref indicator: flag verses whose notes contain references to other verses.
-  // Uses a fresh RegExp each call to avoid lastIndex state issues.
+  // Cross-ref indicator: flag verses that participate in a note-based cross-ref,
+  // in BOTH directions —
+  //   forward:  a note on verse A references another verse  → flag A
+  //   backward: a note on another verse references verse B   → flag B (reciprocal)
   useEffect(() => {
-    window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva')
-      .then((notes) => {
-        const flags: Record<number, boolean> = {}
-        for (const note of notes) {
-          const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
-          if (!vn) continue
-          // A verse note carries a cross-ref indicator if its content references
-          // any OTHER verse or chapter (not just itself). extractRefsFromNote also
-          // recognises chapter-only references like "Genesis 5".
-          const refs = extractRefsFromNote(note.content, note.title || '')
-          const hasOther = refs.some(r => !(r.bookId === bookId && r.chapter === chapter && !r.isChapter && r.verse === vn))
-          if (hasOther) flags[vn] = true
-        }
-        setVerseHasNoteCrossRefs(flags)
-      })
-      .catch(() => {})
-  }, [bookId, chapter, textId, noteChangeToken])
+    let cancelled = false
+    ;(async () => {
+      const flags: Record<number, boolean> = {}
+
+      // Forward: a verse note here references some other verse/chapter
+      const notes = await window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva').catch(() => [])
+      for (const note of notes) {
+        const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
+        if (!vn) continue
+        const refs = extractRefsFromNote(note.content, note.title || '')
+        const hasOther = refs.some(r => !(r.bookId === bookId && r.chapter === chapter && !r.isChapter && r.verse === vn))
+        if (hasOther) flags[vn] = true
+      }
+
+      // Backward: verse notes (anywhere) whose content references a verse in this
+      // chapter → flag the referenced verse so its reciprocal cross-ref shows.
+      // Uses the parsed cross-ref index, so it catches every ref form (abbreviations,
+      // ranges, whole-chapter refs), not just exact-name text matches.
+      try {
+        const sources = await getCrossRefSources(noteChangeToken)
+        const verseNums = versesRef.current.map((v) => v.verse_num)
+        flagReciprocalVerses(sources, bookId, chapter, verseNums, flags)
+      } catch { /* best-effort */ }
+
+      if (!cancelled) setVerseHasNoteCrossRefs(flags)
+    })()
+    return () => { cancelled = true }
+  }, [bookId, chapter, textId, noteChangeToken, verses.length])
 
   useEffect(() => {
     window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
