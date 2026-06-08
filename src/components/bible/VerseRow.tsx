@@ -6,7 +6,7 @@ import type { WordSegment } from './StrongsInline'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
-import { buildVerseDisplayText } from '@/lib/verseUtils'
+import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { applyFindHighlight } from '@/lib/highlight'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -148,14 +148,25 @@ function splitWordByHighlights(
   wordCharStart: number,
   charHighlights: { startChar: number | null; endChar: number | null; color: HighlightColor }[],
   bgMap: Record<HighlightColor, string>,
+  // The word's length in the ORIGINAL verse.text. Differs from word.length when the
+  // word replacer substituted a different-length word (e.g. "LORD" → "Yehovah").
+  // Highlights are stored in original-text coords, so coverage is tested against this.
+  origLen: number = word.length,
 ): WordSegment[] | null {
-  const wordEnd = wordCharStart + word.length
+  const coverEnd = wordCharStart + origLen
   const relevant = charHighlights.filter(
-    h => h.startChar !== null && h.endChar !== null && h.startChar < wordEnd && h.endChar > wordCharStart
+    h => h.startChar !== null && h.endChar !== null && h.startChar < coverEnd && h.endChar > wordCharStart
   )
   if (relevant.length === 0) return null
 
-  // Build boundary set within [0, word.length]
+  // Replaced word: sub-word segmentation is meaningless across a substitution, so it's
+  // all-or-nothing — paint the whole display word when a highlight covers the original word.
+  if (origLen !== word.length) {
+    const hl = relevant.find(h => h.startChar! <= wordCharStart && h.endChar! >= coverEnd)
+    return hl ? [{ text: word, bg: bgMap[hl.color] }] : null
+  }
+
+  // Unchanged word: per-character segmentation (display === original).
   const bounds = new Set<number>([0, word.length])
   for (const hl of relevant) {
     bounds.add(Math.max(0, hl.startChar! - wordCharStart))
@@ -506,8 +517,13 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     }
     const range = sel.getRangeAt(0)
 
-    const startChar = charOffsetInVerse(range.startContainer, range.startOffset, verseTextRef.current)
-    const endChar = charOffsetInVerse(range.endContainer, range.endOffset, verseTextRef.current)
+    // Offsets are measured against the rendered (display) text, which may differ from
+    // verse.text when the word replacer / annotation hiding is active. Map them back to
+    // verse.text positions so the stored char-offset highlight aligns with the selection.
+    const rawStart = charOffsetInVerse(range.startContainer, range.startOffset, verseTextRef.current)
+    const rawEnd = charOffsetInVerse(range.endContainer, range.endOffset, verseTextRef.current)
+    const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(verseForDisplay.text, verse.text, rawStart)
+    const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(verseForDisplay.text, verse.text, rawEnd)
 
     if (startChar < 0 || endChar <= startChar) {
       setSelToolbar(null)
@@ -663,9 +679,10 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       let charPos = 0
       const tokensWithCharPos = tokens.map(t => {
         const charStart = charPos
+        const origLen = t.word.length // length in verse.text, before any word-replacer substitution
         // Parenthetical (~{}) and Strong's-bracket (sup>() sup>)) tokens have no plain-text word
         if (!t.isParenthetical && !t.isStrongsBracket) charPos += t.word.length + 1 // word + trailing space
-        return { ...t, charStart }
+        return { ...t, charStart, origLen }
       })
 
       const hideItalics = hiddenAnnotations.includes('kjva_italics')
@@ -717,9 +734,9 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               // Build per-character highlight segments for this word (null = no overlap = plain)
               const wordSegs = token.isParenthetical
                 ? null
-                : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG)
-              // Space after this token — check if it falls within a charHighlight
-              const spaceCharPos = token.charStart + token.word.length
+                : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+              // Space after this token — check if it falls within a charHighlight (original-text coords)
+              const spaceCharPos = token.charStart + token.origLen
               const spaceHl = !token.isParenthetical && i < displayTokens.length - 1
                 ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
                 : undefined
@@ -757,9 +774,9 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           {plainTokens.map((token, i) => {
             const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
             // Per-character highlight segments (null = no overlap)
-            const wordSegs = splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG)
-            // Space highlight
-            const spaceCharPos = token.charStart + token.word.length
+            const wordSegs = splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+            // Space highlight (original-text coords)
+            const spaceCharPos = token.charStart + token.origLen
             const spaceHl = i < plainTokens.length - 1
               ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
               : undefined
@@ -792,9 +809,37 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     }
 
     // ── Generic paths (non-kjva, or kjva with char highlights) ─────────────────
-    // When hiding annotations, render plain stripped text
+    // When hiding annotations, render the stripped text. Highlights are stored against
+    // verse.text, so map their ranges onto the stripped display text before painting.
     if (hasHidden) {
-      return <span>{isFindMatch ? applyFindHighlight(verseForDisplay.text, findQuery, findWordMode) : verseForDisplay.text}</span>
+      if (charHighlights.length === 0) {
+        return <span>{isFindMatch ? applyFindHighlight(verseForDisplay.text, findQuery, findWordMode) : verseForDisplay.text}</span>
+      }
+      const dispText = verseForDisplay.text
+      const dispHls = charHighlights
+        .map(h => ({
+          s: mapOriginalOffsetToDisplay(dispText, verse.text, h.startChar!),
+          e: mapOriginalOffsetToDisplay(dispText, verse.text, h.endChar!),
+          color: h.color,
+        }))
+        .filter(h => h.e > h.s)
+      const boundaries = [0, ...dispHls.flatMap(h => [h.s, h.e]), dispText.length]
+      const sorted = [...new Set(boundaries)].sort((a, b) => a - b)
+      return (
+        <span>
+          {sorted.slice(0, -1).map((start, i) => {
+            const end = sorted[i + 1]
+            const seg = dispText.slice(start, end)
+            const hl = dispHls.find(h => h.s <= start && h.e >= end)
+            return (
+              <span
+                key={i}
+                style={hl ? { backgroundColor: WORD_HIGHLIGHT_BG[hl.color], borderRadius: '2px' } : undefined}
+              >{seg}</span>
+            )
+          })}
+        </span>
+      )
     }
 
     if (!showStrongs && charHighlights.length > 0) {

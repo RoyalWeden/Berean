@@ -100,6 +100,110 @@ export function buildVerseDisplayText(
   return shouldReplace ? applyWordReplacer(text, wordReplacerRules) : text
 }
 
+// ── Display ⇄ original text offset alignment ──────────────────────────────────
+//
+// The displayed verse text can differ from the stored `verse.text` in two ways:
+//   • word replacer:    a word is substituted ("LORD" → "Yehovah") — 1:1 word count
+//   • annotation hiding: words/parentheticals are removed — display has FEWER words
+// (and both can apply at once). Highlights are stored against `verse.text`, but
+// selections are measured against the displayed text — so we need to translate
+// offsets in either direction.
+//
+// We align the two by their common words (a word-level longest-common-subsequence),
+// which handles substitutions AND deletions/insertions. Matched words map 1:1
+// (exact), and the changed regions between them are interpolated (approximate, but
+// those regions have no well-defined character correspondence anyway).
+
+interface WordSpan { text: string; start: number }
+
+function splitWordSpans(text: string): WordSpan[] {
+  const out: WordSpan[] = []
+  let pos = 0
+  for (const w of text.split(' ')) {
+    out.push({ text: w, start: pos })
+    pos += w.length + 1 // word + the single joining space
+  }
+  return out
+}
+
+/** Indices of words common to both sequences, in order (word-level LCS). */
+function wordLcsPairs(D: WordSpan[], O: WordSpan[]): Array<[number, number]> {
+  const n = D.length, m = O.length
+  // dp[i][j] = LCS length of D[i..] and O[j..]
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = D[i].text === O[j].text ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+  const pairs: Array<[number, number]> = []
+  let i = 0, j = 0
+  while (i < n && j < m) {
+    if (D[i].text === O[j].text) { pairs.push([i, j]); i++; j++ }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++
+    else j++
+  }
+  return pairs
+}
+
+interface Alignment { dBreaks: number[]; oBreaks: number[] }
+
+/** Build monotonic breakpoint arrays anchoring matched-word boundaries. */
+function buildAlignment(displayText: string, originalText: string): Alignment {
+  const D = splitWordSpans(displayText)
+  const O = splitWordSpans(originalText)
+  const pairs = wordLcsPairs(D, O)
+  const dBreaks: number[] = [0]
+  const oBreaks: number[] = [0]
+  const push = (dv: number, ov: number) => {
+    if (dv > dBreaks[dBreaks.length - 1] && ov >= oBreaks[oBreaks.length - 1]) {
+      dBreaks.push(dv)
+      oBreaks.push(ov)
+    }
+  }
+  for (const [di, oj] of pairs) {
+    push(D[di].start, O[oj].start)                                  // word start anchor
+    push(D[di].start + D[di].text.length, O[oj].start + O[oj].text.length) // word end anchor
+  }
+  push(displayText.length, originalText.length)
+  return { dBreaks, oBreaks }
+}
+
+/** Piecewise-linear interpolation of `x` from the `from` breakpoints onto `to`. */
+function interp(from: number[], to: number[], x: number): number {
+  if (x <= from[0]) return to[0]
+  const last = from.length - 1
+  if (x >= from[last]) return to[last]
+  for (let k = 0; k < last; k++) {
+    if (x >= from[k] && x <= from[k + 1]) {
+      const span = from[k + 1] - from[k]
+      if (span === 0) return to[k]
+      return Math.round(to[k] + ((x - from[k]) / span) * (to[k + 1] - to[k]))
+    }
+  }
+  return to[last]
+}
+
+/**
+ * Map a character offset in the DISPLAYED verse text back to `verse.text`.
+ * Matched (unchanged) words map exactly; changed regions are interpolated.
+ */
+export function mapDisplayOffsetToOriginal(displayText: string, originalText: string, displayOffset: number): number {
+  if (displayText === originalText) return Math.max(0, Math.min(displayOffset, originalText.length))
+  const { dBreaks, oBreaks } = buildAlignment(displayText, originalText)
+  return interp(dBreaks, oBreaks, displayOffset)
+}
+
+/**
+ * Map a character offset in the ORIGINAL `verse.text` to the DISPLAYED text.
+ * Used to paint stored highlights onto display text that hid annotations / replaced words.
+ */
+export function mapOriginalOffsetToDisplay(displayText: string, originalText: string, originalOffset: number): number {
+  if (displayText === originalText) return Math.max(0, Math.min(originalOffset, displayText.length))
+  const { dBreaks, oBreaks } = buildAlignment(displayText, originalText)
+  return interp(oBreaks, dBreaks, originalOffset)
+}
+
 /** Extracts a 14-word window around the first match index when the match is far from the start.
  *  Returns null when the first match is within the first 10 words (no windowing needed). */
 export function getWordWindow(

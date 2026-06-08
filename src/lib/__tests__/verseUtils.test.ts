@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices } from '../verseUtils'
+import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '../verseUtils'
 
 // ─── getWordWindow ─────────────────────────────────────────────────────────────
 
@@ -185,5 +185,139 @@ describe('findMatchWordIndices', () => {
     const tagged = 'grace{G5485}'
     expect(findMatchWordIndices(tagged, '', 'g5485', [])).toEqual([0])
     expect(findMatchWordIndices(tagged, '', 'G5485', [])).toEqual([0])
+  })
+})
+
+// ─── mapDisplayOffsetToOriginal ────────────────────────────────────────────────
+
+describe('mapDisplayOffsetToOriginal', () => {
+  it('returns the same offset when display === original', () => {
+    const t = 'he hath bid his guests'
+    for (let i = 0; i <= t.length; i++) expect(mapDisplayOffsetToOriginal(t, t, i)).toBe(i)
+  })
+
+  it('maps offsets after a longer replacement back to the original', () => {
+    // "LORD" (4) → "Yehovah" (7): everything after gains +3 in display
+    const orig = 'the LORD hath bid'      // indices: the=0-3, LORD=4-8, hath=9-13, bid=14-17
+    const disp = 'the Yehovah hath bid'   // the=0-3, Yehovah=4-11, hath=12-16, bid=17-20
+    // Start of "hath" in display is index 12 → should map to index 9 in original
+    expect(mapDisplayOffsetToOriginal(disp, orig, 12)).toBe(9)
+    // Start of "bid" in display is 17 → original 14
+    expect(mapDisplayOffsetToOriginal(disp, orig, 17)).toBe(14)
+    // End (after "bid") display 20 → original 17
+    expect(mapDisplayOffsetToOriginal(disp, orig, 20)).toBe(17)
+  })
+
+  it('the reported Zeph 1:7 case: selecting "he hath bid his guests" keeps "he"', () => {
+    // Two LORD→Yehovah replacements before the selection (+6 total)
+    const orig = 'the LORD prepared the LORD he hath bid his guests'
+    const disp = 'the Yehovah prepared the Yehovah he hath bid his guests'
+    const heDisp = disp.indexOf('he hath')       // start of "he" in display
+    const heOrig = orig.indexOf('he hath')        // start of "he" in original
+    expect(mapDisplayOffsetToOriginal(disp, orig, heDisp)).toBe(heOrig)
+    // end (after "guests")
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.length)).toBe(orig.length)
+  })
+
+  it('words before the first replacement are unaffected', () => {
+    const orig = 'the LORD is good'
+    const disp = 'the Yehovah is good'
+    expect(mapDisplayOffsetToOriginal(disp, orig, 0)).toBe(0)
+    expect(mapDisplayOffsetToOriginal(disp, orig, 3)).toBe(3) // end of "the"
+  })
+
+  it('maps a replaced-word boundary to the original word start/end', () => {
+    const orig = 'a LORD b'   // LORD: 2-6
+    const disp = 'a Yehovah b' // Yehovah: 2-9
+    // start of "Yehovah" (2) → start of "LORD" (2); end of "Yehovah" (9) → ~end of "LORD" (6)
+    expect(mapDisplayOffsetToOriginal(disp, orig, 2)).toBe(2)
+    expect(mapDisplayOffsetToOriginal(disp, orig, 9)).toBe(6)
+    // "b" (matched word) stays exact
+    expect(mapDisplayOffsetToOriginal(disp, orig, 10)).toBe(7) // start of "b"
+  })
+
+  it('maps the space between words correctly', () => {
+    const orig = 'the LORD hath'
+    const disp = 'the Yehovah hath'
+    // the space before "hath": display index 11 → original index 8
+    expect(mapDisplayOffsetToOriginal(disp, orig, 11)).toBe(8)
+  })
+
+  it('CASE: annotation hiding (deleted word) — offsets after the gap stay aligned', () => {
+    const orig = 'a b c d'   // b deleted in display
+    const disp = 'a c d'
+    expect(mapDisplayOffsetToOriginal(disp, orig, 0)).toBe(0)        // "a"
+    expect(mapDisplayOffsetToOriginal(disp, orig, 2)).toBe(4)        // start of "c" → orig "c" at 4
+    expect(mapDisplayOffsetToOriginal(disp, orig, 4)).toBe(6)        // start of "d" → orig "d" at 6
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.length)).toBe(orig.length)
+  })
+
+  it('CASE: replacement AND deletion combined', () => {
+    const orig = 'the LORD supplied bread here' // "supplied" deleted, LORD→Yehovah
+    const disp = 'the Yehovah bread here'
+    // "bread" is a matched word — its start must map exactly
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('bread'))).toBe(orig.indexOf('bread'))
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('here'))).toBe(orig.indexOf('here'))
+  })
+
+  it('CASE: multi-word phrase replacement ("jesus christ" → "Yeshua Messiah")', () => {
+    const orig = 'follow jesus christ today'
+    const disp = 'follow Yeshua Messiah today'
+    // "follow" and "today" are matched → exact boundaries
+    expect(mapDisplayOffsetToOriginal(disp, orig, 0)).toBe(0)
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('today'))).toBe(orig.indexOf('today'))
+  })
+
+  it('CASE: offset 0 and offset at/over length clamp correctly', () => {
+    expect(mapDisplayOffsetToOriginal('Yehovah x', 'LORD x', 0)).toBe(0)
+    expect(mapDisplayOffsetToOriginal('Yehovah x', 'LORD x', 999)).toBe('LORD x'.length)
+    expect(mapDisplayOffsetToOriginal('Yehovah x', 'LORD x', -5)).toBe(0)
+  })
+
+  it('CASE: no common words → proportional fallback (never throws / stays in range)', () => {
+    const r = mapDisplayOffsetToOriginal('xx yy', 'aaaa bbbb', 3)
+    expect(r).toBeGreaterThanOrEqual(0)
+    expect(r).toBeLessThanOrEqual('aaaa bbbb'.length)
+  })
+})
+
+// ─── mapOriginalOffsetToDisplay (inverse — used to paint stored highlights) ─────
+
+describe('mapOriginalOffsetToDisplay', () => {
+  it('identity when texts are equal', () => {
+    const t = 'he hath bid his guests'
+    for (let i = 0; i <= t.length; i++) expect(mapOriginalOffsetToDisplay(t, t, i)).toBe(i)
+  })
+
+  it('maps an original-text highlight onto the longer replaced display text', () => {
+    const orig = 'the LORD hath bid'
+    const disp = 'the Yehovah hath bid'
+    // "hath" starts at 9 in original → 12 in display
+    expect(mapOriginalOffsetToDisplay(disp, orig, 9)).toBe(12)
+    // "bid" 14 → 17
+    expect(mapOriginalOffsetToDisplay(disp, orig, 14)).toBe(17)
+  })
+
+  it('maps a highlight onto display text that hid a word (deletion)', () => {
+    const orig = 'a b c d' // b hidden
+    const disp = 'a c d'
+    // "c" at original 4 → display 2; "d" at original 6 → display 4
+    expect(mapOriginalOffsetToDisplay(disp, orig, 4)).toBe(2)
+    expect(mapOriginalOffsetToDisplay(disp, orig, 6)).toBe(4)
+  })
+
+  it('round-trips matched-word boundaries (display→orig→display)', () => {
+    const orig = 'the LORD prepared a feast for guests'
+    const disp = 'the Yehovah prepared a feast for guests'
+    for (const w of ['prepared', 'feast', 'for', 'guests']) {
+      const dPos = disp.indexOf(w)
+      const oPos = mapDisplayOffsetToOriginal(disp, orig, dPos)
+      expect(mapOriginalOffsetToDisplay(disp, orig, oPos)).toBe(dPos)
+    }
+  })
+
+  it('clamps out-of-range offsets', () => {
+    expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', -1)).toBe(0)
+    expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', 99)).toBe('Yehovah'.length)
   })
 })

@@ -5,6 +5,7 @@ import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import type { LexiconEntry } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -131,6 +132,40 @@ function LangBadge({ num }: { num: string }) {
   )
 }
 
+/** Render BDB notes with grammatical abbreviations expanded + tagged (e.g. "vb." → "verb"),
+ *  and bare numbers (occurrence counts / citations — not Strong's) shown muted. */
+function BdbNotesText({ text }: { text: string }) {
+  const tokens = tokenizeBdbNotes(text)
+  return (
+    <span>
+      {tokens.map((t, i) => {
+        if (t.kind === 'abbr') {
+          return (
+            <span
+              key={i}
+              title={t.raw}
+              className="italic text-[rgb(var(--color-accent))] opacity-80"
+            >{t.text}</span>
+          )
+        }
+        if (t.kind === 'num') {
+          return (
+            <span
+              key={i}
+              dir="ltr"
+              title={`${t.text} occurrences in the Hebrew Bible`}
+              className="text-[rgb(var(--color-text-muted))] opacity-70"
+            >
+              {t.text}<span className="text-[0.72em] opacity-60">&nbsp;occ.</span>
+            </span>
+          )
+        }
+        return <span key={i}>{t.text}</span>
+      })}
+    </span>
+  )
+}
+
 function DerivationText({ text, lang, onNav }: { text: string; lang: 'H' | 'G'; onNav: (num: string, newTab: boolean) => void }) {
   // Split on H/G-prefixed numbers OR bare numbers (1–5 digits) so that
   // derivations stored without the prefix (e.g. "from 2165") still link.
@@ -189,8 +224,8 @@ const LEXICON_GUIDE = [
   },
   {
     section: 'BDB Notes / Extended',
-    example: 'Brown-Driver-Briggs commentary',
-    desc: 'Scholarly notes from the standard Hebrew (BDB) or Greek (Thayer/BDAG) lexicons, including nuances and usage notes.',
+    example: 'verb · noun, fem. · Hiphil',
+    desc: 'Scholarly notes from the Hebrew (BDB) lexicon. Grammatical markers (vb., n.f., Hiph.…) are expanded and shown in blue italics. Numbers show as "1101 occ." — that\'s how many times the word appears in the Hebrew Bible, not a Strong\'s number.',
   },
   {
     section: 'Derived terms',
@@ -437,7 +472,7 @@ function EntryView({
               {entry.strongsNum.startsWith('H') ? 'BDB Notes' : 'Extended'}
             </p>
             <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-              {(() => { const t = wr(entry.extendedDef); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
+              <BdbNotesText text={wr(entry.extendedDef)} />
             </p>
           </div>
         )}
