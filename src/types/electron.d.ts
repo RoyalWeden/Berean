@@ -117,6 +117,11 @@ interface YouTubeAPI {
     videoId: string; title: string; channelName: string
     thumbnailUrl: string; type: string; published: string
   }>>
+  fetchTranscripts: (batchSize?: number, workerCount?: number) => Promise<{ fetched: number; skipped: number; errors: number } | { error: string }>
+  clearTranscripts: () => Promise<{ success: boolean } | { error: string }>
+  getTranscriptStatus: () => Promise<string[]>
+  getTranscript: (videoId: string) => Promise<Array<{ startMs: number; durMs: number; text: string }>>
+  searchTranscripts: (query: string, limit?: number) => Promise<Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>>
 }
 
 interface VaultAPI {

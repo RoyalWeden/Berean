@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, memo } from 'react'
+import { useEffect, useRef, useState, useMemo, memo, useDeferredValue, useCallback } from 'react'
 import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
@@ -31,10 +31,18 @@ function dayLabel(ts: number): string {
 /** Compact time-range label for a session, e.g. "3:40 – 4:15 pm" or "3:40 pm". */
 function sessionTimeRange(entries: { timestamp: number }[]): string {
   if (entries.length === 0) return ''
-  const times = entries.map(e => e.timestamp)
-  const lo = Math.min(...times)
-  const hi = Math.max(...times)
+  let lo = entries[0].timestamp, hi = lo
+  for (let i = 1; i < entries.length; i++) {
+    const t = entries[i].timestamp
+    if (t < lo) lo = t
+    if (t > hi) hi = t
+  }
   return lo === hi ? formatTime(lo) : `${formatTime(lo)} – ${formatTime(hi)}`
+}
+
+/** Stable target key — same function reference across renders (no closure over mutable state). */
+function targetKey(e: HistoryEntry): string {
+  return `${e.type}|${e.bookId ?? ''}|${e.chapter ?? ''}|${e.noteId ?? ''}|${e.strongsNum ?? ''}|${e.videoId ?? ''}|${e.query ?? ''}`
 }
 
 /** Returns "YYYY-MM-DD" for a timestamp (local time) */
@@ -257,6 +265,79 @@ const HistoryItem = memo(function HistoryItem({
   )
 })
 
+// ── Session block — memo'd to prevent re-render when unrelated state changes ──
+
+const SESSION_ITEM_CAP = 60  // render at most this many items per session initially
+
+type VisitGroup = { key: string; visits: HistoryEntry[] }
+type SessionData = { key: string; entries: HistoryEntry[]; items: VisitGroup[]; timeRange: string }
+
+const SessionBlock = memo(function SessionBlock({
+  session, multiSession, collapsed, chainedIds, onToggle, onNavigate, onDelete,
+}: {
+  session: SessionData
+  multiSession: boolean
+  collapsed: boolean
+  chainedIds: Set<string>
+  onToggle: (key: string) => void
+  onNavigate: (e: HistoryEntry) => void
+  onDelete: (id: string) => void
+}) {
+  const [showAll, setShowAll] = useState(false)
+  // Stable derived data — computed once per session render
+  const types = useMemo(() => {
+    const seen = new Set<EntryType>()
+    for (const e of session.entries) seen.add(e.type)
+    return Array.from(seen)
+  }, [session.entries])
+
+  const visibleItems = !showAll && session.items.length > SESSION_ITEM_CAP
+    ? session.items.slice(0, SESSION_ITEM_CAP)
+    : session.items
+  const hidden = session.items.length - visibleItems.length
+
+  return (
+    <div>
+      {multiSession && (
+        <button
+          onClick={() => onToggle(session.key)}
+          className="w-full flex items-center gap-2 pl-4 pr-3 py-1 text-[9px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
+        >
+          <ChevronDown size={9} className={`transition-transform opacity-60 ${collapsed ? '-rotate-90' : ''}`} />
+          <span className="tabular-nums">{session.timeRange}</span>
+          <span className="opacity-50">· {session.entries.length}</span>
+          <span className="flex items-center gap-1 ml-auto">
+            {types.slice(0, 5).map(t => (
+              <span key={t} className={TYPE_COLOR[t]}><EntryIcon type={t} size={9} /></span>
+            ))}
+          </span>
+        </button>
+      )}
+      {!(multiSession && collapsed) && (
+        <div className="py-0.5">
+          {visibleItems.map((g) => (
+            <HistoryItem
+              key={g.key}
+              visits={g.visits}
+              isChained={g.visits.length === 1 && chainedIds.has(g.visits[0].id)}
+              onNavigate={onNavigate}
+              onDelete={onDelete}
+            />
+          ))}
+          {hidden > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full text-center py-1 text-[10px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+            >
+              Show {hidden} more in this session
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+})
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function HistoryModal() {
@@ -320,39 +401,52 @@ export default function HistoryModal() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [historyOpen, closeHistory, searchQuery])
 
+  // ── Deferred filter inputs so typing doesn't block the UI thread ────────────
+  const deferredSearch    = useDeferredValue(searchQuery)
+  const deferredDate      = useDeferredValue(dateFilter)
+  const deferredTypes     = useDeferredValue(typeFilters)
+  const deferredSort      = useDeferredValue(sortNewest)
+
   // ── Filtered + sorted entries ───────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let entries = [...history]
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase()
+    let entries = history  // history is already immutable-ish; avoid spreading unless needed
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase()
+      const typeQ = TYPE_LABEL  // stable reference
       entries = entries.filter(e =>
         e.title.toLowerCase().includes(q) ||
-        e.query?.toLowerCase().includes(q) ||
-        e.bookId?.toLowerCase().includes(q) ||
-        e.strongsNum?.toLowerCase().includes(q) ||
-        e.videoId?.toLowerCase().includes(q) ||
-        e.translation?.toLowerCase().includes(q) ||
-        e.sessionName?.toLowerCase().includes(q) ||
-        TYPE_LABEL[e.type].toLowerCase().includes(q)
+        (e.query && e.query.toLowerCase().includes(q)) ||
+        (e.bookId && e.bookId.toLowerCase().includes(q)) ||
+        (e.strongsNum && e.strongsNum.toLowerCase().includes(q)) ||
+        (e.videoId && e.videoId.toLowerCase().includes(q)) ||
+        (e.translation && e.translation.toLowerCase().includes(q)) ||
+        (e.sessionName && e.sessionName.toLowerCase().includes(q)) ||
+        typeQ[e.type].toLowerCase().includes(q)
       )
     }
-    if (dateFilter) entries = entries.filter(e => toDateStr(e.timestamp) === dateFilter)
-    if (typeFilters.size > 0) entries = entries.filter(e => typeFilters.has(e.type))
-    if (!sortNewest) entries = entries.reverse()
+    if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
+    if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
+    if (!deferredSort) entries = [...entries].reverse()
     return entries
-  }, [history, searchQuery, dateFilter, typeFilters, sortNewest])
+  }, [history, deferredSearch, deferredDate, deferredTypes, deferredSort])
 
-  // Build day groups, each split into activity "sessions" — runs of entries with
-  // no gap larger than SESSION_GAP_MS between consecutive items. A larger gap means
-  // the user stepped away and started a fresh study session. Within a session, repeated
-  // visits to the SAME target (flip-flopping between pages) collapse into one item that
-  // expands to show every timestamp.
-  const dayGroups = useMemo(() => {
+  // Build day groups, each split into activity "sessions". Also compute chainedIds
+  // in the same pass (avoids a second O(n) scan with filteredIds → chainedIds).
+  const { dayGroups, chainedIds } = useMemo(() => {
     type VisitGroup = { key: string; visits: HistoryEntry[] }
-    type Session = { key: string; entries: HistoryEntry[]; items: VisitGroup[] }
+    type Session = { key: string; entries: HistoryEntry[]; items: VisitGroup[]; timeRange: string }
     type Day = { label: string; key: string; sessions: Session[]; count: number }
+
+    // Build filtered ID set in one pass for chaining lookup below
+    const idSet = new Set<string>()
+    for (const e of filtered) idSet.add(e.id)
+
+    const chained = new Set<string>()
     const days: Day[] = []
+
     for (const entry of filtered) {
+      if (entry.parentId && idSet.has(entry.parentId)) chained.add(entry.id)
+
       const dayKey = toDateStr(entry.timestamp)
       let day = days[days.length - 1]
       if (!day || day.key !== dayKey) {
@@ -365,18 +459,15 @@ export default function HistoryModal() {
       if (lastSession && gap <= SESSION_GAP_MS) {
         lastSession.entries.push(entry)
       } else {
-        // Stable key from the session's anchor timestamp so collapse memory survives
-        // re-grouping when new entries arrive (positional keys would shift).
-        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry], items: [] })
+        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry], items: [], timeRange: '' })
       }
       day.count++
     }
-    // Within each session, collapse repeated visits to the same target into one VisitGroup
-    // (in display order; the group sits at its most-recent visit's position).
-    const targetKey = (e: HistoryEntry) =>
-      `${e.type}|${e.bookId ?? ''}|${e.chapter ?? ''}|${e.noteId ?? ''}|${e.strongsNum ?? ''}|${e.videoId ?? ''}|${e.query ?? ''}`
+
+    // Within each session: collapse repeat visits, compute time range
     for (const day of days) {
       for (const session of day.sessions) {
+        session.timeRange = sessionTimeRange(session.entries)
         const byTarget = new Map<string, VisitGroup>()
         const order: VisitGroup[] = []
         for (const e of session.entries) {
@@ -388,12 +479,8 @@ export default function HistoryModal() {
         session.items = order
       }
     }
-    return days
+    return { dayGroups: days, chainedIds: chained }
   }, [filtered])
-
-  // Build a Set of IDs that are chains (have a parentId present in the current filtered set)
-  const filteredIds = useMemo(() => new Set(filtered.map(e => e.id)), [filtered])
-  const chainedIds  = useMemo(() => new Set(filtered.filter(e => e.parentId && filteredIds.has(e.parentId)).map(e => e.id)), [filtered, filteredIds])
 
   function toggleType(t: EntryType) {
     setTypeFilters(prev => {
@@ -590,44 +677,18 @@ export default function HistoryModal() {
                     )}
                   </button>
                   {/* Sessions */}
-                  {!dayCollapsed && day.sessions.map((session) => {
-                    const sessionCollapsed = isSessionCollapsed(session.key)
-                    // Distinct activity types in this session (for at-a-glance icons)
-                    const types = Array.from(new Set(session.entries.map(e => e.type)))
-                    return (
-                      <div key={session.key}>
-                        {/* Session sub-header — only show when there's more than one session that day */}
-                        {day.sessions.length > 1 && (
-                          <button
-                            onClick={() => toggleSession(session.key)}
-                            className="w-full flex items-center gap-2 pl-4 pr-3 py-1 text-[9px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
-                          >
-                            <ChevronDown size={9} className={`transition-transform opacity-60 ${sessionCollapsed ? '-rotate-90' : ''}`} />
-                            <span className="tabular-nums">{sessionTimeRange(session.entries)}</span>
-                            <span className="opacity-50">· {session.entries.length}</span>
-                            <span className="flex items-center gap-1 ml-auto">
-                              {types.slice(0, 5).map(t => (
-                                <span key={t} className={TYPE_COLOR[t]}><EntryIcon type={t} size={9} /></span>
-                              ))}
-                            </span>
-                          </button>
-                        )}
-                        {!(day.sessions.length > 1 && sessionCollapsed) && (
-                          <div className="py-0.5">
-                            {session.items.map((g) => (
-                              <HistoryItem
-                                key={g.key}
-                                visits={g.visits}
-                                isChained={g.visits.length === 1 && chainedIds.has(g.visits[0].id)}
-                                onNavigate={navigate}
-                                onDelete={deleteEntry}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                  {!dayCollapsed && day.sessions.map((session) => (
+                    <SessionBlock
+                      key={session.key}
+                      session={session}
+                      multiSession={day.sessions.length > 1}
+                      collapsed={isSessionCollapsed(session.key)}
+                      chainedIds={chainedIds}
+                      onToggle={toggleSession}
+                      onNavigate={navigate}
+                      onDelete={deleteEntry}
+                    />
+                  ))}
                 </div>
                 )
               })}

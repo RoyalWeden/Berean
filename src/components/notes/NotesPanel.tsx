@@ -1125,6 +1125,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onDelete={(note) => deleteNote(note)}
                   onSetNoteFolder={handleSetNoteFolder}
                   onCreateNote={createNote}
+                  onCreateNoteInFolder={async (folderId) => {
+                    const result = await window.notes.createNote({ content: '', folderId })
+                    if (result.success && result.note) {
+                      setNotes((prev) => [result.note!, ...prev])
+                      setActiveNote(result.note!)
+                      bumpNoteToken()
+                    }
+                  }}
                   onCreateFolder={handleCreateFolder}
                   onRenameFolder={handleRenameFolder}
                   onDeleteFolder={handleDeleteFolder}

@@ -418,7 +418,9 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
         //    (abbreviations, ranges, whole-chapter), not just exact-name matches.
         try {
           const sources = await getCrossRefSources(noteChangeToken)
-          for (const ref of reciprocalRefsFor(sources, verse.book_id, verse.chapter, verse.verse_num)) {
+          // excludeChapterRefs=true: chapter-level refs ("see Numbers 5") are shown
+          // in the ChapterView banner, not in the per-verse hover — they'd be noise here.
+          for (const ref of reciprocalRefsFor(sources, verse.book_id, verse.chapter, verse.verse_num, true)) {
             addRef(ref)
           }
         } catch { /* best-effort */ }
@@ -1069,12 +1071,13 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               <div className="w-px h-2.5 bg-[rgb(var(--color-surface-4))] mx-1" />
             )}
 
-            {/* Cross-ref indicator */}
+            {/* Cross-ref indicator — verse/range specific only (chapter refs shown at chapter level) */}
             {hasNoteCrossRef && (
               <button
                 onMouseEnter={handleCrossRefIconMouseEnter}
                 onMouseLeave={handleCrossRefIconMouseLeave}
                 onClick={openNoteCrossRefs}
+                title="A note on another verse cites this verse"
                 className="flex items-center text-[rgb(var(--color-text-muted))] opacity-70 hover:opacity-100 cursor-pointer transition-opacity"
               >
                 <GitFork size={10} strokeWidth={2.5} />

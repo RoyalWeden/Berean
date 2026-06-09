@@ -5,6 +5,7 @@ import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { decodeEntities } from '@/lib/youtubeSearch'
 import type { Book, LexiconEntry, Note } from '@/types'
 
 // How many result-list lines each density shows
@@ -124,7 +125,7 @@ export default function FloatingSearch() {
   const [verseResults, setVerseResults] = useState<VerseResult[]>([])
   const [lexiconResults, setLexiconResults] = useState<LexiconEntry[]>([])
   const [noteResults, setNoteResults] = useState<Note[]>([])
-  const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string }>>([])
+  const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }>>([])
   const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -217,11 +218,15 @@ export default function FloatingSearch() {
         const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
           ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
           : Promise.resolve([])
+        const ytTranscriptSearch = (window.youtube && typeof window.youtube.searchTranscripts === 'function')
+          ? window.youtube.searchTranscripts(trimmed, 5).catch(() => [])
+          : Promise.resolve([])
 
-        const [verses, notes, ytVideos, ...extraAll] = await Promise.allSettled([
+        const [verses, notes, ytVideos, ytTranscripts, ...extraAll] = await Promise.allSettled([
           window.bible.searchText(ftsQ, tid),
           window.notes.searchNotes(trimmed, 5),
           ytSearch,
+          ytTranscriptSearch,
           ...extraSearches,
         ])
 
@@ -229,7 +234,27 @@ export default function FloatingSearch() {
         const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
         setVerseResults([...primaryVerse, ...extraVerses])
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
-        setYoutubeResults(ytVideos.status === 'fulfilled' ? (ytVideos.value as Array<{ videoId: string; title: string; channelName: string }>).slice(0, 4) : [])
+
+        // Merge title/channel hits with transcript hits, deduped by videoId.
+        // Title hits come first; a transcript-only hit shows its matching snippet.
+        const titleHits = ytVideos.status === 'fulfilled'
+          ? (ytVideos.value as Array<{ videoId: string; title: string; channelName: string }>) : []
+        const transcriptHits = ytTranscripts.status === 'fulfilled'
+          ? (ytTranscripts.value as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string }>) : []
+        const transcriptById = new Map(transcriptHits.map((t) => [t.videoId, t]))
+        const seen = new Set<string>()
+        const merged: Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }> = []
+        for (const v of titleHits) {
+          seen.add(v.videoId)
+          const tr = transcriptById.get(v.videoId)
+          merged.push({ ...v, snippet: tr?.snippet, startMs: tr?.startMs })
+        }
+        // Transcript-only matches (title/channel come straight from the joined query).
+        for (const t of transcriptHits) {
+          if (seen.has(t.videoId)) continue
+          merged.push({ videoId: t.videoId, title: t.title, channelName: t.channelName, snippet: t.snippet, startMs: t.startMs })
+        }
+        setYoutubeResults(merged.slice(0, 5))
       } catch (err) {
       }
     }, 350)
@@ -391,12 +416,12 @@ export default function FloatingSearch() {
     })
   }
 
-  // YouTube videos
+  // YouTube videos — transcript hits show the matching line as the sub-label
   for (const vid of youtubeResults) {
     results.push({
       type: 'youtube' as const,
       label: vid.title,
-      sub: vid.channelName,
+      sub: vid.snippet ? `“${decodeEntities(vid.snippet)}”` : vid.channelName,
       action: () => {
         openYouTubeVideoInNewTab(vid.videoId)
         setActiveSpace('youtube')

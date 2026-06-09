@@ -163,6 +163,11 @@ contextBridge.exposeInMainWorld('youtube', {
   clearWatchHistory: () => ipcRenderer.invoke('youtube:clearWatchHistory'),
   fetchDescription: (videoId: string) => ipcRenderer.invoke('youtube:fetchDescription', videoId),
   searchVideos: (query: string, limit?: number) => ipcRenderer.invoke('youtube:searchVideos', query, limit),
+  fetchTranscripts: (batchSize?: number, workerCount?: number) => ipcRenderer.invoke('youtube:fetchTranscripts', batchSize, workerCount),
+  clearTranscripts: () => ipcRenderer.invoke('youtube:clearTranscripts'),
+  getTranscriptStatus: () => ipcRenderer.invoke('youtube:getTranscriptStatus'),
+  getTranscript: (videoId: string) => ipcRenderer.invoke('youtube:getTranscript', videoId),
+  searchTranscripts: (query: string, limit?: number) => ipcRenderer.invoke('youtube:searchTranscripts', query, limit),
 })
 
 contextBridge.exposeInMainWorld('vault', {

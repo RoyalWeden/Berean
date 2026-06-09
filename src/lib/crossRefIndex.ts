@@ -52,12 +52,18 @@ export function reciprocalRefsFor(
   bookId: string,
   chapter: number,
   verseNum: number,
+  /** When true, notes that only reference this verse via a whole-chapter ref are excluded.
+   *  Use this for the per-verse hover tooltip so chapter-level refs don't appear as noise. */
+  excludeChapterRefs = false,
 ): NoteVerseRef[] {
   const out: NoteVerseRef[] = []
   for (const s of sources) {
     // Skip a note pointing at its own verse.
     if (s.homeBookId === bookId && s.homeChapter === chapter && s.homeVerse === verseNum) continue
-    if (!s.refs.some((r) => refMatchesVerse(r, bookId, chapter, verseNum))) continue
+    const matchingRefs = s.refs.filter((r) => refMatchesVerse(r, bookId, chapter, verseNum))
+    if (matchingRefs.length === 0) continue
+    // If excluding chapter refs, require at least one non-chapter match.
+    if (excludeChapterRefs && matchingRefs.every((r) => r.isChapter || r.verse === 0)) continue
     if (!out.some((o) => o.bookId === s.homeBookId && o.chapter === s.homeChapter && o.verse === s.homeVerse)) {
       out.push({
         bookId: s.homeBookId,
@@ -71,11 +77,52 @@ export function reciprocalRefsFor(
   return out
 }
 
+/** Returns the set of source notes that reference a whole chapter (not a specific verse).
+ *  Used to build the chapter-level cross-ref banner in ChapterView. */
+export function chapterCrossRefSources(
+  sources: CrossRefSource[],
+  bookId: string,
+  chapter: number,
+): CrossRefSource[] {
+  return sources.filter((s) =>
+    s.refs.some((r) => r.bookId === bookId && r.chapter === chapter && (r.isChapter || r.verse === 0))
+  )
+}
+
 /**
  * Flag every verse in a chapter that is referenced by some note (backward direction).
  * Mutates and returns `flags`. Handles single verses, ranges, and whole-chapter refs.
  */
 export function flagReciprocalVerses(
+  sources: CrossRefSource[],
+  bookId: string,
+  chapter: number,
+  chapterVerseNums: number[],
+  flags: Record<number, boolean>,
+  /** When true, whole-chapter refs are skipped (they are shown in the chapter banner instead). */
+  excludeChapterRefs = false,
+): Record<number, boolean> {
+  for (const s of sources) {
+    for (const r of s.refs) {
+      if (r.bookId !== bookId || r.chapter !== chapter) continue
+      if (r.isChapter || r.verse === 0) {
+        if (!excludeChapterRefs) for (const vn of chapterVerseNums) flags[vn] = true
+      } else if (r.endVerse != null && r.endVerse > r.verse) {
+        for (let v = r.verse; v <= r.endVerse; v++) flags[v] = true
+      } else {
+        flags[r.verse] = true
+      }
+    }
+  }
+  return flags
+}
+
+/**
+ * Like flagReciprocalVerses but ONLY for whole-chapter references (isChapter / verse === 0).
+ * Use this alongside flagReciprocalVerses to distinguish chapter-level cross-refs from
+ * verse-specific ones so the UI can display them with different indicators.
+ */
+export function flagReciprocalChapterRefs(
   sources: CrossRefSource[],
   bookId: string,
   chapter: number,
@@ -87,10 +134,6 @@ export function flagReciprocalVerses(
       if (r.bookId !== bookId || r.chapter !== chapter) continue
       if (r.isChapter || r.verse === 0) {
         for (const vn of chapterVerseNums) flags[vn] = true
-      } else if (r.endVerse != null && r.endVerse > r.verse) {
-        for (let v = r.verse; v <= r.endVerse; v++) flags[v] = true
-      } else {
-        flags[r.verse] = true
       }
     }
   }

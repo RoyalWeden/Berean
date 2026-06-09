@@ -4,10 +4,12 @@ import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
   FileText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
-  BookOpen, BookMarked,
+  BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/NoteEditor'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
+import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
+import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
 import type { ParsedRef } from '@/lib/parseRef'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
@@ -70,7 +72,7 @@ interface VideoEntry {
 
 const PAGE_SIZE = 30
 
-type SortOption = 'newest' | 'oldest' | 'channel' | 'shortest' | 'longest'
+type SortOption = 'relevance' | 'newest' | 'oldest' | 'channel' | 'shortest' | 'longest'
 type TypeFilter = 'all' | 'video' | 'short' | 'live'
 type DurationFilter = 'any' | 'shorts' | '1to5' | '5to15' | '15to30' | '30to60' | 'over60'
 type WatchFilter = 'all' | 'inprogress' | 'unseen'
@@ -113,7 +115,9 @@ function formatDuration(s: number): string {
 
 function sortVideos(videos: VideoEntry[], sort: SortOption): VideoEntry[] {
   const copy = [...videos]
-  if (sort === 'newest')    copy.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime())
+  // 'relevance' is handled by rankVideosBySearch when a query is active; with no query
+  // there's nothing to rank against, so fall back to newest-first here.
+  if (sort === 'newest' || sort === 'relevance') copy.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime())
   else if (sort === 'oldest')   copy.sort((a, b) => new Date(a.published).getTime() - new Date(b.published).getTime())
   else if (sort === 'shortest') copy.sort((a, b) => (a.durationSeconds || Infinity) - (b.durationSeconds || Infinity))
   else if (sort === 'longest')  copy.sort((a, b) => (b.durationSeconds || 0) - (a.durationSeconds || 0))
@@ -151,8 +155,8 @@ function buildRecommendations(current: VideoEntry, all: VideoEntry[]): VideoEntr
 
 const TYPE_LABEL: Record<TypeFilter, string> = { all: 'All', video: 'Videos', short: 'Shorts', live: 'Lives' }
 const SORT_LABEL: Record<SortOption, string> = {
-  newest: 'Newest first', oldest: 'Oldest first', channel: 'By channel',
-  shortest: 'Shortest first', longest: 'Longest first',
+  relevance: 'Best match', newest: 'Newest first', oldest: 'Oldest first',
+  channel: 'By channel', shortest: 'Shortest first', longest: 'Longest first',
 }
 const DURATION_LABEL: Record<DurationFilter, string> = {
   any:     'Any length',
@@ -260,6 +264,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [syncing, setSyncing] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number; phase: string } | null>(null)
   const [search, setSearch] = useState('')
+  const [searchScope, setSearchScope] = useState<SearchScope>('both')
+  const [transcriptMatchIds, setTranscriptMatchIds] = useState<Set<string>>(new Set())
+  // Per-video transcript match details (bm25 rank, count, snippet) for ranking + display
+  const [transcriptMatchInfo, setTranscriptMatchInfo] = useState<Map<string, { rank: number; matchCount: number; snippet: string; startMs: number }>>(new Map())
   const [sort, setSort] = useState<SortOption>('newest')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [channelFilter, setChannelFilter] = useState<string>('all')
@@ -282,6 +290,19 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [playerReady, setPlayerReady] = useState(false)
   const [watchFallback, setWatchFallback] = useState(false)
   const [isDev, setIsDev] = useState(false)
+  const [transcriptBatchSize, setTranscriptBatchSize] = useState(10)
+  const [transcriptWorkers, setTranscriptWorkers] = useState(3)
+  const [fetchingTranscripts, setFetchingTranscripts] = useState(false)
+  const [transcriptResult, setTranscriptResult] = useState<{ fetched: number; skipped: number; errors: number } | null>(null)
+  const [transcriptIds, setTranscriptIds] = useState<Set<string>>(new Set())
+  const [transcriptOnly, setTranscriptOnly] = useState(false)
+  const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
+  const transcriptMenuRef = useRef<HTMLDivElement>(null)
+  // Active video's transcript + live playback time for the synced transcript panel
+  const [activeTranscript, setActiveTranscript] = useState<TranscriptSegment[]>([])
+  const [currentTimeMs, setCurrentTimeMs] = useState(0)
+  const [showTranscript, setShowTranscript] = useState(true)
+  const timePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [videoDescription, setVideoDescription] = useState('')
   const [historyMap, setHistoryMap] = useState<Record<string, number>>({})
   const [videoEnded, setVideoEnded] = useState(false)
@@ -1022,6 +1043,47 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     }).catch(() => {})
   }, [activeVideoId])
 
+  // Load the downloaded transcript for the active video
+  useEffect(() => {
+    setActiveTranscript([])
+    setCurrentTimeMs(0)
+    if (!activeVideoId) return
+    window.youtube.getTranscript?.(activeVideoId)
+      .then((segs) => setActiveTranscript(segs ?? []))
+      .catch(() => setActiveTranscript([]))
+  }, [activeVideoId])
+
+  // Poll live playback time (~400ms) while a transcript is loaded, to drive the synced
+  // highlight. Reads window.__yt.t (embed wrapper) or video.currentTime (watch fallback).
+  useEffect(() => {
+    if (timePollRef.current) { clearInterval(timePollRef.current); timePollRef.current = null }
+    if (!activeVideoId || !playerReady || activeTranscript.length === 0) return
+    const wv = webviewRef.current
+    if (!wv) return
+    timePollRef.current = setInterval(async () => {
+      try {
+        const t = await (wv as any).executeJavaScript( // eslint-disable-line @typescript-eslint/no-explicit-any
+          watchFallback
+            ? '(()=>{const v=document.querySelector("video");return v?v.currentTime:0;})()'
+            : '(()=>{return (window.__yt&&window.__yt.t)||0;})()'
+        )
+        if (typeof t === 'number') setCurrentTimeMs(Math.round(t * 1000))
+      } catch { /* ignore */ }
+    }, 400)
+    return () => { if (timePollRef.current) { clearInterval(timePollRef.current); timePollRef.current = null } }
+  }, [activeVideoId, playerReady, watchFallback, activeTranscript.length])
+
+  // Seek the player to a given time (seconds) and resume playback.
+  const seekTo = useCallback((seconds: number) => {
+    const wv = webviewRef.current
+    if (!wv) return
+    const js = watchFallback
+      ? `(()=>{var v=document.querySelector("video");if(v){v.currentTime=${seconds};v.play().catch(function(){});}null;})()`
+      : `(()=>{var f=document.querySelector("iframe");if(f&&f.contentWindow){f.contentWindow.postMessage(JSON.stringify({event:"command",func:"seekTo",args:[${seconds},true]}),"*");f.contentWindow.postMessage(JSON.stringify({event:"command",func:"playVideo",args:""}),"*");}null;})()`
+    ;(wv as any).executeJavaScript(js).catch(() => {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+    setCurrentTimeMs(Math.round(seconds * 1000))
+  }, [watchFallback])
+
   // Load inline panel note content when a note is selected
   useEffect(() => {
     setInlinePanelEditing(false)
@@ -1094,10 +1156,44 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // ─── Data loading ────────────────────────────────────────────────────────────
 
+  const refreshTranscriptIds = useCallback(async () => {
+    const ids = await window.youtube.getTranscriptStatus?.().catch(() => [] as string[]) ?? []
+    setTranscriptIds(new Set(ids))
+  }, [])
+
+  // Auto-pick the most useful sort: 'Best match' (relevance) while searching, back to
+  // 'Newest' when the query is cleared. The user can still override via the Sort menu.
+  const prevSearchActive = useRef(false)
+  useEffect(() => {
+    const active = search.trim().length > 0
+    if (active && !prevSearchActive.current) setSort('relevance')
+    else if (!active && prevSearchActive.current && sort === 'relevance') setSort('newest')
+    prevSearchActive.current = active
+  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced transcript FTS search: when the scope includes transcripts, resolve the set
+  // of videoIds whose transcript matches the current query (used by filterVideosBySearch).
+  useEffect(() => {
+    const q = search.trim()
+    if (!q || searchScope === 'title') { setTranscriptMatchIds(new Set()); setTranscriptMatchInfo(new Map()); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        const matches = await window.youtube.searchTranscripts?.(q, 1000) ?? []
+        if (cancelled) return
+        setTranscriptMatchIds(new Set(matches.map((m) => m.videoId)))
+        setTranscriptMatchInfo(new Map(matches.map((m) => [m.videoId, { rank: m.rank, matchCount: m.matchCount, snippet: m.snippet, startMs: m.startMs }])))
+      } catch {
+        if (!cancelled) { setTranscriptMatchIds(new Set()); setTranscriptMatchInfo(new Map()) }
+      }
+    }, 200)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [search, searchScope])
+
   const loadFromDb = useCallback(async () => {
     setLoading(true)
     try {
-      const entries = await window.youtube.loadAll()
+      const [entries] = await Promise.all([window.youtube.loadAll(), refreshTranscriptIds()])
       setVideos(entries)
       if (entries.length === 0) await doRefresh()
     } finally { setLoading(false) }
@@ -1131,6 +1227,24 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       for (const h of history) map[h.videoId] = h.positionSeconds
       setHistoryMap(map)
     } finally { setSyncing(false); setProgress(null) }
+  }, [])
+
+  const doFetchTranscripts = useCallback(async () => {
+    setFetchingTranscripts(true)
+    setTranscriptResult(null)
+    setProgress({ done: 0, total: 0, phase: 'Starting transcript fetch…' })
+    try {
+      const result = await window.youtube.fetchTranscripts(transcriptBatchSize, transcriptWorkers)
+      if ('error' in result) { console.error('fetchTranscripts:', result.error); return }
+      setTranscriptResult(result)
+      await refreshTranscriptIds()
+    } finally { setFetchingTranscripts(false); setProgress(null) }
+  }, [transcriptBatchSize, refreshTranscriptIds])
+
+  const doClearTranscripts = useCallback(async () => {
+    await window.youtube.clearTranscripts()
+    setTranscriptResult(null)
+    setTranscriptIds(new Set())
   }, [])
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
@@ -1258,39 +1372,51 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     [videos]
   )
 
-  const filtered = useMemo(() => videos.filter((v) => {
-    const matchesType    = typeFilter === 'all' || v.type === typeFilter
-    const matchesChannel = channelFilter === 'all' || v.channelHandle === channelFilter
-    const matchesStarred = !starredOnly || v.isStarred
-    const pos = historyMap[v.videoId] ?? 0
-    const matchesWatch   =
-      watchFilter === 'all' ||
-      (watchFilter === 'inprogress' && pos > 0) ||
-      (watchFilter === 'unseen'     && pos === 0)
-    const q = search.trim().toLowerCase()
-    const matchesSearch = !q ||
-      v.title.toLowerCase().includes(q) ||
-      v.channelName.toLowerCase().includes(q) ||
-      v.channelHandle.toLowerCase().includes(q)
-    const d = v.durationSeconds
-    const matchesDuration =
-      durationFilter === 'any'     ||
-      (durationFilter === 'shorts'  && d > 0    && d <= 60)   ||
-      (durationFilter === '1to5'    && d > 60   && d <= 300)  ||
-      (durationFilter === '5to15'   && d > 300  && d <= 900)  ||
-      (durationFilter === '15to30'  && d > 900  && d <= 1800) ||
-      (durationFilter === '30to60'  && d > 1800 && d <= 3600) ||
-      (durationFilter === 'over60'  && d > 3600)
-    return matchesType && matchesChannel && matchesSearch && matchesDuration && matchesStarred && matchesWatch
-  }), [videos, typeFilter, channelFilter, starredOnly, watchFilter, search, durationFilter, historyMap])
+  const filtered = useMemo(() => {
+    // First apply the non-text filters (type, channel, duration, starred, watch, transcript-only).
+    const base = videos.filter((v) => {
+      const matchesType    = typeFilter === 'all' || v.type === typeFilter
+      const matchesChannel = channelFilter === 'all' || v.channelHandle === channelFilter
+      const matchesStarred = !starredOnly || v.isStarred
+      const pos = historyMap[v.videoId] ?? 0
+      const matchesWatch   =
+        watchFilter === 'all' ||
+        (watchFilter === 'inprogress' && pos > 0) ||
+        (watchFilter === 'unseen'     && pos === 0)
+      const d = v.durationSeconds
+      const matchesDuration =
+        durationFilter === 'any'     ||
+        (durationFilter === 'shorts'  && d > 0    && d <= 60)   ||
+        (durationFilter === '1to5'    && d > 60   && d <= 300)  ||
+        (durationFilter === '5to15'   && d > 300  && d <= 900)  ||
+        (durationFilter === '15to30'  && d > 900  && d <= 1800) ||
+        (durationFilter === '30to60'  && d > 1800 && d <= 3600) ||
+        (durationFilter === 'over60'  && d > 3600)
+      const matchesTranscriptOnly = !transcriptOnly || transcriptIds.has(v.videoId)
+      return matchesType && matchesChannel && matchesDuration && matchesStarred && matchesWatch && matchesTranscriptOnly
+    })
+    // Then apply the text search with the chosen scope (title / transcript / both).
+    return filterVideosBySearch(base, search, searchScope, transcriptMatchIds)
+  }, [videos, typeFilter, channelFilter, starredOnly, watchFilter, search, searchScope, transcriptMatchIds, durationFilter, historyMap, transcriptOnly, transcriptIds])
 
-  const sorted = useMemo(() => sortVideos(filtered, sort), [filtered, sort])
+  // 'relevance' sort + an active query → rank by title + transcript bm25. Any other sort
+  // (or no query) uses the plain field sort, so the user can override relevance while searching.
+  const sorted = useMemo(() => {
+    if (search.trim() && sort === 'relevance') {
+      const info: Map<string, TranscriptMatchInfo> = new Map(
+        Array.from(transcriptMatchInfo.entries()).map(([id, m]) => [id, { rank: m.rank, matchCount: m.matchCount }])
+      )
+      return rankVideosBySearch(filtered, search, searchScope, info)
+    }
+    return sortVideos(filtered, sort)
+  }, [filtered, sort, search, searchScope, transcriptMatchInfo])
   const paged  = sorted.slice(0, page * PAGE_SIZE)
   const hasMore = paged.length < sorted.length
 
   const closeMenus = useCallback(() => {
     setShowSortMenu(false); setShowChannelMenu(false)
     setShowDurationMenu(false); setShowWatchMenu(false)
+    setShowTranscriptMenu(false)
     setChannelSearch('')
   }, [])
 
@@ -1586,6 +1712,28 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 </div>
               </div>
             </div>
+            {/* ── Synced transcript — highlights the line at the current playback time ─ */}
+            {!inlinePanelNoteId && activeTranscript.length > 0 && (
+              <div className="border-t border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]">
+                <button
+                  onClick={() => setShowTranscript((v) => !v)}
+                  className="w-full px-4 pt-2.5 pb-1.5 flex items-center gap-2 cursor-pointer hover:bg-[rgb(var(--color-surface-3))] transition-colors"
+                >
+                  <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${showTranscript ? '' : '-rotate-90'}`} />
+                  <Captions size={12} className="text-[rgb(var(--color-text-muted))]" />
+                  <span className="text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
+                    Transcript
+                  </span>
+                  <span className="text-[9px] text-[rgb(var(--color-text-muted))] opacity-60">{activeTranscript.length} lines · click to jump</span>
+                </button>
+                {showTranscript && (
+                  <div style={{ height: '320px' }}>
+                    <TranscriptViewer segments={activeTranscript} currentTimeMs={currentTimeMs} onSeek={seekTo} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Description — hidden while a note is open to free up vertical space */}
             {!inlinePanelNoteId && (
               videoDescription
@@ -1794,13 +1942,28 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           type="text"
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-          placeholder="Search videos and channels…"
+          placeholder="Search title, channel, or transcript…"
           className="flex-1 min-w-[100px] bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
         />
         {search && (
           <button onClick={() => { setSearch(''); setPage(1) }} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
             <X size={13} />
           </button>
+        )}
+
+        {/* Search scope — only shown while searching: Title / Transcript / Both */}
+        {search && (
+          <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-lg p-0.5 flex-shrink-0">
+            {(['title', 'transcript', 'both'] as SearchScope[]).map((s) => (
+              <button key={s}
+                onClick={(e) => { e.stopPropagation(); setSearchScope(s); setPage(1) }}
+                title={s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts'}
+                className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors capitalize ${searchScope === s ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Type filter */}
@@ -1891,7 +2054,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </button>
           {showSortMenu && (
             <div className="absolute right-0 top-full mt-1 z-20 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl min-w-[140px] py-1">
-              {(Object.keys(SORT_LABEL) as SortOption[]).map((opt) => (
+              {(Object.keys(SORT_LABEL) as SortOption[])
+                // 'Best match' only applies while searching — hide it otherwise.
+                .filter((opt) => opt !== 'relevance' || search.trim().length > 0)
+                .map((opt) => (
                 <button key={opt}
                   onClick={() => { setSort(opt); setShowSortMenu(false); setPage(1) }}
                   className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors ${sort === opt ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
@@ -1939,11 +2105,135 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             {syncing ? 'Syncing…' : 'Full Sync'}
           </button>
         )}
+
+        {/* Transcript filter toggle — dev only (a debugging aid for transcript coverage) */}
+        {isDev && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setTranscriptOnly((v) => !v); setPage(1) }}
+            title={transcriptOnly ? 'Showing only videos with transcripts' : 'Show only videos with transcripts'}
+            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer flex-shrink-0 transition-colors ${
+              transcriptOnly
+                ? 'bg-emerald-500/25 text-emerald-400'
+                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-emerald-400'
+            }`}
+          >
+            <Captions size={11} />
+            {transcriptIds.size > 0 ? transcriptIds.size : ''}
+          </button>
+        )}
+
+        {/* Dev transcript tools — collapsed into a single popover to avoid toolbar clutter */}
+        {isDev && (
+          <div className="relative flex-shrink-0" ref={transcriptMenuRef}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
+              title="Transcript tools (dev only)"
+              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer transition-colors ${
+                fetchingTranscripts
+                  ? 'bg-emerald-500/25 text-emerald-400'
+                  : 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25]'
+              }`}
+            >
+              <Captions size={11} />
+              {fetchingTranscripts && progress
+                ? `${progress.done}/${progress.total}`
+                : 'Transcripts'}
+              <ChevronDown size={10} className={`transition-transform ${showTranscriptMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showTranscriptMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-1 z-50 w-64 rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl p-3 space-y-3"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Fetch transcripts</p>
+
+                {/* Batch size */}
+                <label className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-[rgb(var(--color-text-secondary))]">Videos per run</span>
+                  <input
+                    type="number" min={1} max={10000} value={transcriptBatchSize}
+                    onChange={(e) => setTranscriptBatchSize(Math.max(1, Math.min(10000, parseInt(e.target.value) || 1)))}
+                    disabled={fetchingTranscripts}
+                    className="w-20 text-center text-[11px] px-1.5 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none disabled:opacity-40"
+                  />
+                </label>
+
+                {/* Worker count */}
+                <label className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-[rgb(var(--color-text-secondary))]">Parallel workers</span>
+                  <input
+                    type="number" min={1} max={16} value={transcriptWorkers}
+                    onChange={(e) => setTranscriptWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                    disabled={fetchingTranscripts}
+                    className="w-20 text-center text-[11px] px-1.5 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none disabled:opacity-40"
+                  />
+                </label>
+
+                {/* Progress bar while fetching */}
+                {fetchingTranscripts && progress && progress.total > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[9px] text-[rgb(var(--color-text-muted))]">
+                      <span className="truncate">{progress.phase}</span>
+                      <span className="tabular-nums flex-shrink-0">{progress.done}/{progress.total}</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-[rgb(var(--color-surface-4))] overflow-hidden">
+                      <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={doFetchTranscripts}
+                    disabled={loading || syncing || fetchingTranscripts}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] px-2 py-1.5 rounded bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 cursor-pointer disabled:opacity-40 transition-colors"
+                  >
+                    <Captions size={11} />
+                    {fetchingTranscripts ? 'Fetching…' : 'Get transcripts'}
+                  </button>
+                  <button
+                    onClick={doClearTranscripts}
+                    disabled={fetchingTranscripts}
+                    title="Clear all stored transcripts"
+                    className="flex items-center gap-1 text-[11px] px-2 py-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer disabled:opacity-40 transition-colors"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+
+                {/* Status footer */}
+                <div className="flex items-center justify-between text-[9px] text-[rgb(var(--color-text-muted))] pt-1 border-t border-[rgb(var(--color-surface-4))]">
+                  <span>{transcriptIds.size} downloaded</span>
+                  {transcriptResult && (
+                    <span className="tabular-nums">✓{transcriptResult.fetched} · skip {transcriptResult.skipped} · err {transcriptResult.errors}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
       {showMoreFilters && (
         <div className="px-3 py-2.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex flex-wrap gap-x-5 gap-y-2 flex-shrink-0">
+
+          {/* Search scope — where the search box looks (title, transcript text, or both) */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Search in</span>
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5">
+              {([['title', 'Title'], ['transcript', 'Transcript'], ['both', 'Both']] as [SearchScope, string][]).map(([s, lbl]) => (
+                <button key={s}
+                  onClick={() => { setSearchScope(s); setPage(1) }}
+                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${searchScope === s ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Starred */}
           <div className="flex items-center gap-2">
@@ -2065,11 +2355,20 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         <div className="w-full h-full flex items-center justify-center text-[rgb(var(--color-text-muted))] text-xs">No preview</div>
                       )}
 
-                      {video.durationSeconds > 0 && !video.isLiveNow && (
-                        <div className="absolute bottom-1.5 left-1.5">
-                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-black/70 text-white">
-                            {formatDuration(video.durationSeconds)}
-                          </span>
+                      {/* Duration + downloaded-transcript badge. The chip marks that THIS app
+                          has the transcript stored locally (not YouTube's live captions). */}
+                      {((video.durationSeconds > 0 && !video.isLiveNow) || transcriptIds.has(video.videoId)) && (
+                        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                          {video.durationSeconds > 0 && !video.isLiveNow && (
+                            <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-black/70 text-white">
+                              {formatDuration(video.durationSeconds)}
+                            </span>
+                          )}
+                          {transcriptIds.has(video.videoId) && (
+                            <span title="Transcript downloaded" className="flex items-center px-1 py-0.5 rounded bg-emerald-600/80 text-white">
+                              <Captions size={10} />
+                            </span>
+                          )}
                         </div>
                       )}
 
@@ -2113,6 +2412,26 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                           Watched to {formatDuration(Math.floor(watchedPos))}
                         </p>
                       )}
+                      {/* Transcript-match snippet — shows the matching line with terms highlighted */}
+                      {search.trim() && searchScope !== 'title' && transcriptMatchInfo.has(video.videoId) && (() => {
+                        const info = transcriptMatchInfo.get(video.videoId)!
+                        return (
+                          <div className="mt-1.5 flex items-start gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-1">
+                            <Captions size={9} className="text-emerald-400 flex-shrink-0 mt-[1px]" />
+                            <p className="text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] line-clamp-2">
+                              <span className="font-mono text-emerald-400/80 mr-1">{formatDuration(Math.floor(info.startMs / 1000))}</span>
+                              {highlightSnippet(info.snippet, search, 120).map((part, pi) =>
+                                part.match
+                                  ? <mark key={pi} className="bg-emerald-400/30 text-[rgb(var(--color-text-primary))] rounded-sm px-0.5">{part.text}</mark>
+                                  : <span key={pi}>{part.text}</span>
+                              )}
+                              {info.matchCount > 1 && (
+                                <span className="text-[9px] text-emerald-400/70 ml-1">+{info.matchCount - 1} more</span>
+                              )}
+                            </p>
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* Star button (hover) */}

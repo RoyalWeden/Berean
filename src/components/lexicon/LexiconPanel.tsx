@@ -32,7 +32,11 @@ export function stripBracketNotation(text: string): string {
  * All numbers in these fields are Strong's cross-references, not arbitrary numbers.
  */
 export function normalizeStrongsNums(text: string, lang: 'H' | 'G'): string {
-  return text.replace(/(?<![HGa-zA-Z/])(\b\d{1,5}\b)(?!\s*[:.])/g, `${lang}$1`)
+  // Add prefix to bare numbers; also strip leading zeros from already-prefixed ones
+  // (Greek DB stores H07941; Hebrew DB stores H7941 — normalize to the shorter form)
+  return text
+    .replace(/\b([HG])0+(\d)/g, '$1$2')
+    .replace(/(?<![HGa-zA-Z/])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
 }
 
 /** Build the plain-text string that the copy button places on the clipboard.
@@ -173,12 +177,18 @@ function DerivationText({ text, lang, onNav }: { text: string; lang: 'H' | 'G'; 
   return (
     <span>
       {parts.map((part, i) => {
-        const prefixed = /^[HG]\d{1,5}$/.test(part) ? part : /^\d{1,5}$/.test(part) ? `${lang}${part}` : null
+        let prefixed: string | null = null
+        if (/^[HG]\d{1,5}$/.test(part)) {
+          // Strip leading zeros: H07941 → H7941 (Greek DB pads, Hebrew DB does not)
+          prefixed = part[0] + String(parseInt(part.slice(1), 10))
+        } else if (/^\d{1,5}$/.test(part)) {
+          prefixed = `${lang}${parseInt(part, 10)}`
+        }
         if (prefixed) {
           return (
             <button
               key={i}
-              onClick={(e) => onNav(prefixed, e.metaKey || e.ctrlKey)}
+              onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
               className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
             >
               {prefixed}

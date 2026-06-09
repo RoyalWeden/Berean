@@ -982,7 +982,24 @@ export const useAppStore = create<AppState>()(
       setActiveTab: (spaceId, tabId) => {
         const state = get()
         const key = `${spaceId}:${tabId}`
+        const prevTabId = state.activeTabId[spaceId]
+
+        // When leaving a dynamic scripture search tab (searchMode: true), exit its
+        // search mode so re-visiting it shows Bible text and the next search opens fresh.
+        // The dedicated tab ('scripture-search-dedicated') is exempt — it always stays as a search.
+        let tabs = state.tabs[spaceId]
+        if (prevTabId && prevTabId !== tabId && prevTabId !== 'scripture-search-dedicated') {
+          const prevTab = tabs.find((t) => t.id === prevTabId)
+          // BibleTabState carries searchMode; guard with 'searchMode' in check for the union type
+          if (prevTab && 'searchMode' in prevTab.state && prevTab.state.searchMode) {
+            tabs = tabs.map((t) =>
+              t.id === prevTabId ? { ...t, state: { ...t.state, searchMode: false } } : t
+            )
+          }
+        }
+
         set({
+          tabs: { ...state.tabs, [spaceId]: tabs },
           activeTabId: { ...state.activeTabId, [spaceId]: tabId },
           activeSpace: spaceId,
           tabMRUList: updateMRU(state.tabMRUList, spaceId, tabId),

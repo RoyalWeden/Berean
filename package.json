@@ -22,6 +22,7 @@
     "tag:stable": "node scripts/tag-release.js stable",
     "tag:beta": "node scripts/tag-release.js beta",
     "convert-dbs": "node scripts/convert-dbs.js",
+    "transcripts:seed": "node scripts/export-transcript-seed.js",
     "data:publish": "node scripts/publish-data.js"
   },
   "dependencies": {

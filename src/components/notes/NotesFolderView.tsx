@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
-  Folder, FolderOpen, FolderPlus, ChevronRight, FileText, Trash2,
+  Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, CheckSquare, Square, FolderInput, FileType2,
 } from 'lucide-react'
@@ -49,6 +49,7 @@ interface Props {
   onDelete: (note: Note) => void
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
   onCreateNote?: () => void
+  onCreateNoteInFolder?: (folderId: string) => void
   onCreateFolder: (parentId: string | null) => void
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
@@ -76,7 +77,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
-  onCreateNote, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
+  onCreateNote, onCreateNoteInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
@@ -655,13 +656,13 @@ export default function NotesFolderView({
 
   return (
     <div className="py-1 text-sm min-h-full flex flex-col" onContextMenu={handleEmptyContextMenu}>
-      {/* System folders (locked) */}
+      {/* System folders (locked) — entire section blocks context menu to prevent "New note" appearing */}
       {SYSTEM_FOLDERS.map(({ key, label, icon: Icon }) => {
         const isOpen = expanded.has(key)
         const sysNotes = bySystem[key]
         const useSubFolders = key === 'verse' || key === 'esword' || key === 'biblegateway'
         return (
-          <div key={key}>
+          <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
             <div
               onClick={() => toggle(key)}
               className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors"
@@ -682,7 +683,7 @@ export default function NotesFolderView({
       })}
 
       {/* PDFs (locked) — imported PDF documents */}
-      <div>
+      <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <div
           onClick={() => toggle('pdfs')}
           className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors"
@@ -778,6 +779,11 @@ export default function NotesFolderView({
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
           className="min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
         >
+              {onCreateNoteInFolder && (
+                <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
+                  <FilePlus size={13} className="flex-shrink-0" /> New note here
+                </button>
+              )}
               <button className={MENU_ITEM} onClick={() => { onCreateFolder(folderMenu.folder.id); setFolderMenu(null) }}>
                 <FolderPlus size={13} className="flex-shrink-0" /> New subfolder
               </button>

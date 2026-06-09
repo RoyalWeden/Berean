@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Copy, StickyNote, X } from 'lucide-react'
+import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
 import { extractRefsFromNote } from '@/lib/noteRefs'
-import { getCrossRefSources, flagReciprocalVerses } from '@/lib/crossRefIndex'
+import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
+import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
@@ -42,6 +43,101 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
   return -1
 }
 
+/** Single clickable verse chip in the chapter banner — hover shows verse text, click navigates. */
+function ChapterRefChip({ source }: { source: CrossRefSource }) {
+  const [verseText, setVerseText] = useState<string | null>(null)
+  const [tip, setTip] = useState<{ placeBelow: boolean } | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const verseStr = `${bookName(source.homeBookId)} ${source.homeChapter}:${source.homeVerse}`
+  const titleIsRef = !source.title || source.title === 'Untitled' || source.title.trim() === verseStr
+
+  // Tooltip height estimate: reference line + ~4 lines of verse text ≈ 100px
+  const TIP_H = 110
+
+  function handleMouseEnter() {
+    timerRef.current = setTimeout(async () => {
+      const rect = btnRef.current?.getBoundingClientRect()
+      // Place below when there isn't enough room above (with a small buffer)
+      const placeBelow = !rect || rect.top < TIP_H + 12
+      if (!verseText) {
+        const row = await window.bible.queryVerse(source.homeBookId, source.homeChapter, source.homeVerse).catch(() => null)
+        if (row) setVerseText(row.text ?? null)
+      }
+      setTip({ placeBelow })
+    }, 280)
+  }
+
+  function handleMouseLeave() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setTip(null)
+  }
+
+  function handleClick() {
+    const s = useAppStore.getState()
+    s.ensureTab('bible')
+    const fresh = useAppStore.getState()
+    const tabId = fresh.activeTabId['scripture']
+    if (tabId) {
+      fresh.updateTabState('scripture', tabId, {
+        bookId: source.homeBookId,
+        chapter: source.homeChapter,
+        targetVerse: source.homeVerse,
+        scrollPosition: 0,
+      })
+    }
+    fresh.setActiveSpace('scripture')
+  }
+
+  return (
+    <span className="relative inline-block">
+      <button
+        ref={btnRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
+        className="text-[11px] text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
+      >
+        {verseStr}
+        {!titleIsRef && <span className="opacity-50"> — {source.title}</span>}
+      </button>
+      {tip && verseText && (
+        <div
+          className={`absolute left-0 z-[200] w-[260px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] px-3 py-2 pointer-events-none ${
+            tip.placeBelow ? 'top-full mt-1.5' : 'bottom-full mb-1.5'
+          }`}
+        >
+          <p className="text-[9px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{verseStr}</p>
+          <p className="text-[11px] text-[rgb(var(--color-text-primary))] leading-snug line-clamp-4">{verseText}</p>
+        </div>
+      )}
+    </span>
+  )
+}
+
+function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRefSource[]; bookId: string; chapter: number }) {
+  const [open, setOpen] = useState(false)
+  const n = sources.length
+  const label = `${n} note${n === 1 ? '' : 's'} cite${n === 1 ? 's' : ''} ${bookName(bookId)} ${chapter} (chapter)`
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] opacity-55 hover:opacity-85 transition-opacity text-[11px] cursor-pointer select-none"
+      >
+        <BookOpen size={11} strokeWidth={1.8} />
+        <span>{label}</span>
+        <span className="text-[9px] opacity-60 ml-0.5">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 ml-4 flex flex-wrap gap-x-3 gap-y-0.5">
+          {sources.map((s, i) => <ChapterRefChip key={i} source={s} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded }: ChapterViewProps) {
   const bibleFontSize = useAppStore((s) => s.bibleFontSize)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
@@ -57,6 +153,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   const [verses, setVerses] = useState<Verse[]>([])
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
+  const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
   const [loading, setLoading] = useState(true)
   const [multiToolbar, setMultiToolbar] = useState<MultiVerseToolbar | null>(null)
@@ -109,7 +206,12 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
         if (!vn) continue
         const refs = extractRefsFromNote(note.content, note.title || '')
-        const hasOther = refs.some(r => !(r.bookId === bookId && r.chapter === chapter && !r.isChapter && r.verse === vn))
+        // A ref counts as "other" only when it is NOT the note's own verse AND is a specific
+        // verse (not a whole-chapter ref — those are shown in the banner, not per-verse).
+        const hasOther = refs.some(r =>
+          !r.isChapter && r.verse !== 0 &&
+          !(r.bookId === bookId && r.chapter === chapter && r.verse === vn)
+        )
         if (hasOther) flags[vn] = true
       }
 
@@ -120,7 +222,9 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
       try {
         const sources = await getCrossRefSources(noteChangeToken)
         const verseNums = versesRef.current.map((v) => v.verse_num)
-        flagReciprocalVerses(sources, bookId, chapter, verseNums, flags)
+        // excludeChapterRefs=true: chapter-level refs go to the banner, not per-verse GitFork
+        flagReciprocalVerses(sources, bookId, chapter, verseNums, flags, true)
+        if (!cancelled) setChapterSources(chapterCrossRefSources(sources, bookId, chapter))
       } catch { /* best-effort */ }
 
       if (!cancelled) setVerseHasNoteCrossRefs(flags)
@@ -354,6 +458,12 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   return (
     <div ref={containerRef} className="berean-scripture-text px-8 py-6 max-w-3xl" style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
+
+      {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
+      {chapterSources.length > 0 && (
+        <ChapterCrossRefBanner sources={chapterSources} bookId={bookId} chapter={chapter} />
+      )}
+
       {verses.map((verse) => {
         const isHighlighted = targetVerse !== undefined && (
           endVerse !== undefined

@@ -8,6 +8,23 @@ Format: `## [version] — YYYY-MM-DD` with bullet points below each entry.
   RELEASE WORKFLOW — for Michael's reference (not shown to users)
 ════════════════════════════════════════════════════════════════
 
+QUICK COMMAND REFERENCE (the things you usually run)
+────────────────────────────────────────────────────
+  npm run dev               ← run the app in development
+  npm test                  ← run the test suite
+  npm run build             ← type-check + build (sanity check before release)
+
+  Ship a release:
+    1. edit this CHANGELOG (move notes into a new ## [version] block)
+    2. npm run tag:beta     ← cut a beta build (auto-bumps, tags, pushes)
+       npm run tag:stable   ← cut the stable build (after editing changelog)
+
+  Bundled data (Bible texts, lexicon, YouTube seed + transcripts):
+    npm run transcripts:seed ← bake newly-fetched transcripts into youtube_seed.db
+    npm run data:publish     ← upload data/*.db to the data-v1 release for CI
+  (only needed when the bundled data changed — e.g. after fetching more transcripts;
+   run transcripts:seed → data:publish BEFORE tag:stable so the new data ships)
+
 FULL STABLE RELEASE STEPS
 ─────────────────────────
 1. Edit this file — move [Unreleased] bullet points into a new version block:
@@ -103,6 +120,26 @@ SCENARIO 5 — Abandon a beta series and restart
 ════════════════════════════════════════════════════════════════
 -->
 
+---
+
+## [0.3.12] - 2026-06-08
+
+- Reverse cross references
+- Chapter cross references show on chapter
+- **YouTube transcripts** — videos now ship with their full transcript:
+  - Synced transcript panel in the player: the current line highlights as the video
+    plays, auto-scrolls, and clicking any line jumps the video to that moment
+  - Transcript search: the YouTube search box can search title, transcript text, or
+    both (in *More filters → Search in*), ranked by relevance ("Best match" sort)
+  - Transcript matches show the matching line as a highlighted snippet on the card
+  - Floating search (⌘K) surfaces transcript matches with the matching line
+  - Bundled with the app (884k caption lines across 2,059 videos) and merged on first
+    launch; HTML entities in captions are decoded for clean display
+  - Dev-only fetch tooling (tactiq.io, parallel workers, batch size) behind a popover
+
+Bug fixes:
+- Lock creating notes/folders in system folders
+- History modal fixes
 
 ---
 

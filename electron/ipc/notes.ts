@@ -70,14 +70,14 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:create', (_event, data: {
-    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string
+    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string; folderId?: string | null
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
     db.prepare(`
-      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id, folder_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.type ?? 'general',
@@ -87,7 +87,8 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       data.color ?? 'blue',
       now, now,
       JSON.stringify(data.tags ?? []),
-      data.textId ?? 'kjva'
+      data.textId ?? 'kjva',
+      data.folderId ?? null
     )
     const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow
     return { success: true, note: rowToNote(row) }

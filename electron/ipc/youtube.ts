@@ -1,4 +1,4 @@
-import { ipcMain, net } from 'electron'
+import { ipcMain, net, BrowserWindow } from 'electron'
 import type { WebContents } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { getBereanDb } from '../db/berean'
@@ -855,6 +855,279 @@ async function refresh(sender: WebContents): Promise<{ added: number; liveUpdate
   return { added: totalAdded, liveUpdated: totalLiveUpdated }
 }
 
+// ─── Transcript helpers ───────────────────────────────────────────────────────
+
+function parseTsMs(ts: string): number {
+  const [h, m, s] = ts.split(':')
+  return Math.round((parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s)) * 1000)
+}
+
+const ENTITY_MAP: Record<string, string> = { quot: '"', amp: '&', apos: "'", lt: '<', gt: '>', nbsp: ' ' }
+
+/** Decode HTML entities (incl. double-encoded) in caption text before storing. */
+function decodeHtmlEntities(text: string): string {
+  if (!text || text.indexOf('&') === -1) return text
+  const once = (s: string) => s.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, body: string) => {
+    if (body[0] === '#') {
+      const code = body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10)
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole
+    }
+    return ENTITY_MAP[body.toLowerCase()] ?? whole
+  })
+  let out = once(text)
+  if (out.indexOf('&') !== -1) out = once(out)
+  return out
+}
+
+// ─── Transcript extraction JS — runs inside the BrowserWindow renderer ────────
+
+/** Extracts timestamped transcript rows from the tactiq.io result page. */
+const EXTRACT_JS = `
+(function() {
+  const codes = Array.from(document.querySelectorAll('li code')).filter(el =>
+    /^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}$/.test((el.textContent || '').trim())
+  );
+  // tactiq renders an error heading when a video has no captions available.
+  const bodyText = (document.body && document.body.innerText || '');
+  const noTranscript = /Couldn't get transcript|Couldn't video ID|No transcript|transcript is not available/i.test(bodyText);
+  return {
+    count: codes.length,
+    noTranscript,
+    bodyPreview: bodyText.slice(0, 200).replace(/\\s+/g, ' '),
+    rows: codes.map(code => ({
+      ts: code.textContent.trim(),
+      text: (code.parentElement.textContent || '').replace(code.textContent, '').trim()
+    }))
+  };
+})()
+`
+
+type ExtractResult = {
+  count: number
+  noTranscript: boolean
+  bodyPreview: string
+  rows: Array<{ ts: string; text: string }>
+}
+
+type Seg = { start_ms: number; dur_ms: number; text: string }
+
+/** Outcome of one extraction: rows found, permanently absent, or a transient timeout. */
+type ExtractOutcome =
+  | { kind: 'ok'; segs: Seg[] }
+  | { kind: 'none'; reason: string }    // no transcript available — record so it isn't retried
+  | { kind: 'timeout'; reason: string } // transient — leave unrecorded so the next run retries it
+
+/** Run one video through a BrowserWindow worker: load page, poll for rows. */
+async function extractOneVideo(
+  win: BrowserWindow,
+  video_id: string,
+  warmedUp: boolean,
+  apiStatus: { code: number },
+): Promise<ExtractOutcome> {
+  // On first use, warm up by visiting the form page so tactiq.io sets its cookies/session.
+  if (!warmedUp) {
+    await win.loadURL('https://tactiq.io/tools/youtube-transcript').catch(() => {})
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+
+  apiStatus.code = 0 // reset before this video's API call fires
+  const url = `https://tactiq.io/tools/run/youtube_transcript?yt=${encodeURIComponent(`https://www.youtube.com/watch?v=${video_id}`)}`
+  console.log(`[transcript] Loading ${video_id}`)
+
+  await win.loadURL(url)
+  await new Promise((r) => setTimeout(r, 1000))
+
+  const deadline = Date.now() + 30_000
+  let attempt = 0
+
+  while (Date.now() < deadline) {
+    attempt++
+    const result = await win.webContents.executeJavaScript(EXTRACT_JS).catch((e: unknown) => {
+      console.log(`[transcript] ${video_id} JS exec error attempt ${attempt}: ${e}`)
+      return null
+    }) as ExtractResult | null
+
+    if (result) {
+      if (attempt === 1) console.log(`[transcript] ${video_id} attempt 1: rows=${result.count} body="${result.bodyPreview}"`)
+
+      if (result.count > 0) {
+        console.log(`[transcript] ${video_id} ✓ ${result.count} rows — first: [${result.rows[0]?.ts}] "${result.rows[0]?.text?.slice(0, 60)}"`)
+        const segs = result.rows.map((r) => ({ start_ms: parseTsMs(r.ts), dur_ms: 0, text: decodeHtmlEntities(r.text) }))
+        for (let j = 0; j < segs.length - 1; j++) segs[j].dur_ms = segs[j + 1].start_ms - segs[j].start_ms
+        return { kind: 'ok', segs }
+      }
+
+      // tactiq explicitly reported no transcript → permanent, stop polling.
+      if (result.noTranscript) {
+        console.log(`[transcript] ${video_id} ✗ no transcript available (tactiq error state)`)
+        return { kind: 'none', reason: 'no transcript available' }
+      }
+    }
+
+    // The transcript API answered with a non-2xx → this video has no captions
+    // (418 = tactiq's "no transcript" signal). Permanent: record so it isn't retried.
+    if (apiStatus.code >= 400) {
+      console.log(`[transcript] ${video_id} ✗ API returned ${apiStatus.code} — no transcript available`)
+      return { kind: 'none', reason: `no transcript (API ${apiStatus.code})` }
+    }
+
+    await new Promise((r) => setTimeout(r, 800))
+  }
+
+  console.log(`[transcript] ${video_id} ✗ timeout after ${attempt} attempts (retryable on next run)`)
+  return { kind: 'timeout', reason: `timeout after ${attempt} attempts` }
+}
+
+async function fetchTranscripts(
+  sender: WebContents,
+  batchSize: number,
+  workerCount = 3,
+): Promise<{ fetched: number; skipped: number; errors: number }> {
+  const db = getBereanDb()
+  const candidates = db.prepare(`
+    SELECT v.video_id, v.title FROM youtube_videos v
+    LEFT JOIN youtube_transcripts t USING(video_id)
+    WHERE t.video_id IS NULL
+      AND v.type = 'video'
+      AND (v.duration_seconds IS NULL OR v.duration_seconds >= 60)
+    ORDER BY v.published DESC
+    LIMIT ?
+  `).all(batchSize) as Array<{ video_id: string; title: string }>
+
+  console.log(`[transcript] Starting batch: ${candidates.length} candidates, ${workerCount} workers`)
+  if (candidates.length === 0) {
+    console.log('[transcript] No candidates — all eligible videos already have transcript rows in DB (including error rows). Use Clear Transcripts to retry.')
+    sender.send('youtube:progress', { done: 0, total: 0, phase: 'No candidates' })
+    return { fetched: 0, skipped: 0, errors: 0 }
+  }
+  candidates.forEach((c, i) => console.log(`[transcript]   [${i}] ${c.video_id} — ${c.title?.slice(0, 60)}`))
+
+  const insertMeta = db.prepare(
+    'INSERT OR REPLACE INTO youtube_transcripts (video_id, lang, source, fetched_at, segment_count, duration_ms, error) VALUES (?,?,?,?,?,?,?)'
+  )
+  const deleteSeg = db.prepare('DELETE FROM youtube_transcript_segments WHERE video_id = ?')
+  const insertSeg = db.prepare(
+    'INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text) VALUES (?,?,?,?)'
+  )
+
+  // Shared queue and counters (accessed from multiple workers via closure)
+  let queueIdx = 0
+  let fetched = 0, skipped = 0, errors = 0
+  const total = candidates.length
+  const now = Date.now()
+
+  // Worker pool: N hidden BrowserWindows each pulling from the shared queue
+  const actualWorkers = Math.min(workerCount, total)
+  console.log(`[transcript] Spawning ${actualWorkers} BrowserWindow workers`)
+
+  const runWorker = async (workerId: number) => {
+    const win = new BrowserWindow({
+      show: false,
+      width: 1280,
+      height: 900,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: false,
+        javascript: true,
+        // Use a dedicated session partition so the app-wide CSP header handler
+        // (registered on session.defaultSession in main.ts) does NOT apply here.
+        // That CSP injects `script-src 'self'` which blocks tactiq.io from loading
+        // reCAPTCHA/Firebase → AppCheck fails → /transcript API never resolves.
+        partition: `transcript-worker-${workerId}`,
+      },
+    })
+    console.log(`[transcript] Worker ${workerId} ready`)
+    let warmedUp = false
+    // Tracks the status of the latest POST to the tactiq transcript API for the
+    // current video. A non-200 (e.g. 418 = video has no captions) is a permanent
+    // failure: the video should be recorded as "no transcript", never retried.
+    const apiStatus = { code: 0 }
+
+    // Capture the transcript API response status (only the POST, not the OPTIONS preflight).
+    win.webContents.session.webRequest.onCompleted({ urls: ['*://*/*'] }, (details) => {
+      const { url, statusCode, method } = details
+      if (method === 'POST' && url.includes('tactiq-apps-prod.tactiq.io/transcript')) {
+        apiStatus.code = statusCode
+        console.log(`[transcript] W${workerId} API /transcript → ${statusCode}`)
+      }
+    })
+
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // Claim next item from the queue
+        const myIdx = queueIdx++
+        if (myIdx >= total) break
+
+        const { video_id, title } = candidates[myIdx]
+        const doneCount = fetched + skipped + errors
+        sender.send('youtube:progress', {
+          done: doneCount, total,
+          phase: `W${workerId}: ${title?.slice(0, 40) || video_id}`,
+        })
+
+        const result = await extractOneVideo(win, video_id, warmedUp, apiStatus)
+        warmedUp = true
+
+        if (result.kind === 'ok') {
+          const { segs } = result
+          const duration_ms = segs[segs.length - 1]?.start_ms ?? 0
+          db.transaction(() => {
+            insertMeta.run(video_id, 'en', 'tactiq', now, segs.length, duration_ms, null)
+            deleteSeg.run(video_id)
+            for (const seg of segs) insertSeg.run(video_id, seg.start_ms, seg.dur_ms, seg.text)
+          })()
+          fetched++
+          console.log(`[transcript] W${workerId} stored ${segs.length} segs for ${video_id} (${fetched}/${total} done)`)
+        } else if (result.kind === 'none') {
+          // Permanently no transcript — record an error row so it isn't retried every run.
+          insertMeta.run(video_id, 'en', 'tactiq', now, 0, 0, result.reason)
+          skipped++
+        } else {
+          // Transient timeout — do NOT record a row, so the next "Get Transcripts" retries it.
+          errors++
+        }
+
+        sender.send('youtube:progress', { done: fetched + skipped + errors, total, phase: `W${workerId} done: ${video_id}` })
+      }
+    } finally {
+      console.log(`[transcript] Worker ${workerId} finished`)
+      win.destroy()
+    }
+  }
+
+  await Promise.all(Array.from({ length: actualWorkers }, (_, i) => runWorker(i + 1)))
+
+  console.log(`[transcript] Batch complete — fetched=${fetched} skipped=${skipped} errors=${errors}`)
+  sender.send('youtube:progress', { done: total, total, phase: 'Done' })
+  return { fetched, skipped, errors }
+}
+
+function getTranscriptStatus(): Set<string> {
+  const rows = getBereanDb()
+    .prepare('SELECT video_id FROM youtube_transcripts WHERE segment_count > 0')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .all() as Array<{ video_id: string }>
+  return new Set(rows.map((r) => r.video_id))
+}
+
+/** Returns the stored transcript segments for a video (empty array if none). */
+function getTranscript(videoId: string): Array<{ startMs: number; durMs: number; text: string }> {
+  const rows = getBereanDb()
+    .prepare('SELECT start_ms, dur_ms, text FROM youtube_transcript_segments WHERE video_id = ? ORDER BY start_ms ASC')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .all(videoId) as Array<{ start_ms: number; dur_ms: number; text: string }>
+  return rows.map((r) => ({ startMs: r.start_ms, durMs: r.dur_ms, text: r.text }))
+}
+
+function clearTranscripts(): void {
+  const db = getBereanDb()
+  db.transaction(() => {
+    db.prepare('DELETE FROM youtube_transcript_segments').run()
+    db.prepare('DELETE FROM youtube_transcripts').run()
+  })()
+}
+
 // ─── IPC registration ─────────────────────────────────────────────────────────
 
 export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
@@ -886,6 +1159,59 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   ipc.handle('youtube:removeFromHistory', (_e, videoId: string) => { removeFromHistory(videoId) })
   ipc.handle('youtube:clearWatchHistory', () => { clearWatchHistory() })
   ipc.handle('youtube:fetchDescription', async (_e, videoId: string) => fetchDescription(videoId))
+
+  // Transcript fetch: scrapes tactiq.io, dev-only
+  ipc.handle('youtube:fetchTranscripts', async (event, batchSize = 10, workerCount = 3) => {
+    if (!is.dev) return { error: 'unavailable in production' }
+    // Dev-only: allow large batches and up to 16 parallel BrowserWindow workers.
+    return fetchTranscripts(event.sender, Math.max(1, Math.min(10000, batchSize)), Math.max(1, Math.min(16, workerCount)))
+  })
+  ipc.handle('youtube:clearTranscripts', () => {
+    if (!is.dev) return { error: 'unavailable in production' }
+    clearTranscripts()
+    return { success: true }
+  })
+  ipc.handle('youtube:getTranscriptStatus', () => {
+    return Array.from(getTranscriptStatus())
+  })
+  ipc.handle('youtube:getTranscript', (_e, videoId: string) => getTranscript(videoId))
+
+  // Full-text transcript search (FTS5). Returns one row per matching video with a
+  // representative snippet, its timestamp, and how many segments matched.
+  ipc.handle('youtube:searchTranscripts', (_e, query: string, limit = 300) => {
+    // Tokenize to letters/numbers + prefix-match each token (mirrors buildFtsMatch in
+    // src/lib/youtubeSearch.ts, kept in sync; tested there).
+    const tokens = (query.trim().toLowerCase().match(/[\p{L}\p{N}]+/gu)) ?? []
+    if (tokens.length === 0) return []
+    const match = tokens.map((t) => `${t}*`).join(' ')
+    let rows: Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
+    try {
+      // bm25() ranks each matching segment (more negative = stronger match). We order by it
+      // so the FIRST row per video is its best-matching line — used as the snippet + rank.
+      rows = getBereanDb().prepare(`
+        SELECT s.video_id AS videoId, s.text AS snippet, s.start_ms AS startMs,
+               v.title AS title, v.channel_name AS channelName,
+               bm25(youtube_transcripts_fts) AS rank
+        FROM youtube_transcripts_fts
+        JOIN youtube_transcript_segments s ON s.id = youtube_transcripts_fts.rowid
+        JOIN youtube_videos v ON v.video_id = s.video_id
+        WHERE youtube_transcripts_fts MATCH ?
+        ORDER BY rank
+      `).all(match) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
+    } catch {
+      return [] // malformed FTS expression — fail soft
+    }
+    // Collapse to one entry per video: keep the best-ranked segment as the snippet,
+    // count how many segments matched, and remember the best (lowest) bm25 rank.
+    const byVideo = new Map<string, { videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>()
+    for (const r of rows) {
+      const ex = byVideo.get(r.videoId)
+      if (ex) { ex.matchCount++; if (r.rank < ex.rank) { ex.rank = r.rank; ex.snippet = r.snippet; ex.startMs = r.startMs } }
+      else byVideo.set(r.videoId, { videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
+    }
+    // Already roughly ordered by rank since rows came in rank order; sort the aggregates too.
+    return Array.from(byVideo.values()).sort((a, b) => a.rank - b.rank).slice(0, limit)
+  })
 
   // Full-text search over stored video titles/channel names — used by FloatingSearch
   ipc.handle('youtube:searchVideos', (_e, query: string, limit = 8) => {

@@ -8,7 +8,7 @@ import { mkdirSync, existsSync } from 'fs'
 // Runs once (tracked by the 'youtubeSeedVersion' setting) so re-installs or
 // app updates can push a refreshed seed by bumping the seed version number.
 export function mergeYouTubeSeed(db: DB): void {
-  const SEED_VERSION = 1 // bump this when youtube_seed.db is regenerated
+  const SEED_VERSION = 2 // bump this when youtube_seed.db is regenerated (v2 adds transcripts)
 
   // Check if already seeded at this version
   const row = db.prepare("SELECT value FROM settings WHERE key='youtubeSeedVersion'").get() as { value: string } | undefined
@@ -25,8 +25,8 @@ export function mergeYouTubeSeed(db: DB): void {
   try {
     db.exec(`ATTACH '${seedPath.replace(/'/g, "''")}' AS seed`)
 
-    const result = db.transaction(() => {
-      const videos = db.prepare(`
+    db.transaction(() => {
+      db.prepare(`
         INSERT OR IGNORE INTO youtube_videos
           (video_id, title, published, channel_name, channel_handle,
            thumbnail_url, type, is_live_now, fetched_at,
@@ -38,12 +38,35 @@ export function mergeYouTubeSeed(db: DB): void {
         FROM seed.youtube_videos
       `).run()
 
-      const syncs = db.prepare(`
+      db.prepare(`
         INSERT OR IGNORE INTO youtube_sync (channel_handle, last_full_sync, last_refresh)
         SELECT channel_handle, last_full_sync, last_refresh FROM seed.youtube_sync
       `).run()
 
-      return { videos: videos.changes, syncs: syncs.changes }
+      // Transcripts (only present in seed v2+). Guard against an older seed that lacks them.
+      const hasTranscripts = db.prepare(
+        "SELECT name FROM seed.sqlite_master WHERE type='table' AND name='youtube_transcripts'"
+      ).get() as { name: string } | undefined
+
+      if (hasTranscripts) {
+        // Insert segments FIRST, gated on the live table so we only seed videos the user
+        // doesn't already have a transcript row for. We omit the explicit segment `id` so
+        // SQLite assigns fresh rowids and the FTS5 AFTER-INSERT trigger indexes each row.
+        db.prepare(`
+          INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text)
+          SELECT s.video_id, s.start_ms, s.dur_ms, s.text
+          FROM seed.youtube_transcript_segments s
+          WHERE s.video_id NOT IN (SELECT video_id FROM youtube_transcripts)
+        `).run()
+
+        // Then the metadata rows (INSERT OR IGNORE dedupes by video_id).
+        db.prepare(`
+          INSERT OR IGNORE INTO youtube_transcripts
+            (video_id, lang, source, fetched_at, segment_count, duration_ms, error)
+          SELECT video_id, lang, source, fetched_at, segment_count, duration_ms, error
+          FROM seed.youtube_transcripts
+        `).run()
+      }
     })()
 
     db.exec('DETACH seed')
