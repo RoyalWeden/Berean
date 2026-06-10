@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, History } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -48,6 +48,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const closeTab = useAppStore((s) => s.closeTab)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
+  const pushGlobalNav = useAppStore((s) => s.pushGlobalNav)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -101,21 +102,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const infoRef = useRef<HTMLDivElement>(null)
-  // Navigation history dropdown (right-click on back/forward arrows, or history button)
-  const [navHistoryDropdown, setNavHistoryDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
-  const navHistoryDropdownRef = useRef<HTMLDivElement>(null)
-  // Long-press timer refs for back/forward arrows
-  const backLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const forwardLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   // Always-current ref to tabState so async callbacks never read stale values
   const tabStateRef = useRef(tabState)
   const activeTabRef = useRef(activeTab)
   tabStateRef.current = tabState
   activeTabRef.current = activeTab
-  // Stable refs so berean:navBack/navForward listeners never capture stale closures
-  const navBackRef = useRef<(() => void) | null>(null)
-  const navForwardRef = useRef<(() => void) | null>(null)
 
   // Right panel state — initialized from persisted tab state
   const [rightPanelOpen, setRightPanelOpen] = useState(() => tabState.rightPanelOpen ?? false)
@@ -246,18 +237,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return TRANSLATIONS.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
   }, [translationFilter])
 
-  // Close nav history dropdown on outside click
-  useEffect(() => {
-    if (!navHistoryDropdown) return
-    function onDown(e: MouseEvent) {
-      if (navHistoryDropdownRef.current && !navHistoryDropdownRef.current.contains(e.target as Node)) {
-        setNavHistoryDropdown(null)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [navHistoryDropdown])
-
   // Close info popover on outside click
   useEffect(() => {
     if (!infoOpen) return
@@ -354,18 +333,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     window.addEventListener('berean:toggleStrongs', onToggleStrongs)
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
   }, [updateTabState]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Cmd+[ / Cmd+] → per-tab navigation history ───────────────────────────
-  useEffect(() => {
-    function onNavBack() { navBackRef.current?.() }
-    function onNavForward() { navForwardRef.current?.() }
-    window.addEventListener('berean:navBack', onNavBack)
-    window.addEventListener('berean:navForward', onNavForward)
-    return () => {
-      window.removeEventListener('berean:navBack', onNavBack)
-      window.removeEventListener('berean:navForward', onNavForward)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore scroll anchor after the Strong's layout reflow settles
   useEffect(() => {
@@ -574,53 +541,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       navHistory: newHistory,
       navHistoryIdx: newHistory.length - 1,
     })
+    pushGlobalNav({ spaceId: 'scripture', tabId: activeTab.id, type: 'bible', bookId, chapter, translation: textId, title })
     renameTab('scripture', activeTab.id, title)
   }
-
-  /** Navigate backward in this tab's history without adding a new entry. */
-  function navBack() {
-    if (!activeTab) return
-    const history = tabState.navHistory ?? []
-    const idx = tabState.navHistoryIdx ?? (history.length - 1)
-    if (idx <= 0 || history.length === 0) return
-    const entry = history[idx - 1]
-    updateTabState('scripture', activeTab.id, {
-      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
-      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx - 1,
-    })
-    renameTab('scripture', activeTab.id, entry.title)
-  }
-
-  /** Navigate forward in this tab's history without adding a new entry. */
-  function navForward() {
-    if (!activeTab) return
-    const history = tabState.navHistory ?? []
-    const idx = tabState.navHistoryIdx ?? (history.length - 1)
-    if (idx >= history.length - 1) return
-    const entry = history[idx + 1]
-    updateTabState('scripture', activeTab.id, {
-      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
-      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx + 1,
-    })
-    renameTab('scripture', activeTab.id, entry.title)
-  }
-
-  /** Jump directly to a specific index in this tab's nav history. */
-  function navJumpTo(idx: number) {
-    if (!activeTab) return
-    const history = tabState.navHistory ?? []
-    if (idx < 0 || idx >= history.length) return
-    const entry = history[idx]
-    updateTabState('scripture', activeTab.id, {
-      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
-      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx,
-    })
-    renameTab('scripture', activeTab.id, entry.title)
-  }
-
-  // Update stable refs each render so event listeners always see current functions
-  navBackRef.current = navBack
-  navForwardRef.current = navForward
 
   function prevChapter() {
     if (tabState.endChapter) {
@@ -954,251 +877,95 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           />
         ) : (
           <>
-        {/* ── Unified location bar: [Book Ch · TRANS] ── */}
-        <div className="flex items-center text-xs rounded-md bg-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
-          <BookChapterPicker
-            books={books}
-            currentBookId={tabState.bookId}
-            currentChapter={tabState.chapter}
-            onNavigate={navigate}
-            wrapperClassName=""
-            triggerClassName="flex items-center gap-1 px-2 py-1 font-medium text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-l-md"
-          />
-          <span className="text-[rgb(var(--color-text-muted))] select-none text-[10px] opacity-50" aria-hidden>·</span>
-          <div ref={translationRef} className="relative">
-          <button
-            onClick={() => setTranslationOpen((v) => !v)}
-            className="flex items-center px-2 py-1 font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-r-md"
-          >
-            {TRANSLATIONS.find((t) => t.id === textId)?.label ?? tabState.translation.toUpperCase()}
-          </button>
-          {translationOpen && (
-            <div className="absolute top-full left-0 mt-1 z-50 w-[420px] max-h-96 overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl py-1">
-              {/* Type-to-filter input */}
-              <div className="px-2 pb-1 sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
-                <input
-                  autoFocus
-                  value={translationFilter}
-                  onChange={(e) => setTranslationFilter(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') { setTranslationOpen(false); setTranslationFilter('') }
-                    if (e.key === 'Enter' && filteredTranslations.length > 0 && activeTab) {
-                      const t = filteredTranslations[0]
-                      const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
-                      updateTabState('scripture', activeTab.id, {
-                        translation: t.id.toUpperCase(),
-                        ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
-                      })
-                      setTranslationOpen(false); setTranslationFilter('')
-                    }
-                  }}
-                  placeholder="Filter translations…"
-                  className="w-full text-xs bg-[rgb(var(--color-surface-4))] rounded px-2 py-1.5 outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
-                />
-              </div>
-              {filteredTranslations.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    if (activeTab) {
-                      const mappedChapter = mapChapterOnTranslationSwitch(
-                        tabState.bookId,
-                        tabState.chapter,
-                        textId,           // current translation
-                        t.id,             // new translation
-                      )
-                      updateTabState('scripture', activeTab.id, {
-                        translation: t.id.toUpperCase(),
-                        ...(mappedChapter !== tabState.chapter ? {
-                          chapter: mappedChapter,
-                          scrollPosition: 0,
-                          targetVerse: undefined,
-                          endVerse: undefined,
-                        } : {}),
-                      })
-                    }
-                    setTranslationOpen(false)
-                  }}
-                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                    textId === t.id
-                      ? 'text-[rgb(var(--color-accent))]'
-                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                  }`}
-                >
-                  <Check size={12} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs font-medium w-20 flex-shrink-0">{t.label}</span>
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{t.description}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          </div>{/* end translationRef */}
-        </div>{/* end unified location pill */}
-
-        {/* PDF import / library button */}
-        {!floating && (
-          <button
-            onClick={(e) => {
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              setPdfPicker({ x: r.left, y: r.bottom + 4 })
-            }}
-            title="PDF library — import or open a PDF"
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            <FileUp size={14} />
-          </button>
-        )}
-
-        {/* Annotation info button */}
-        {ANNOTATION_KEYS[textId] && (
-          <div ref={infoRef} className="relative">
-            <button
-              onClick={() => setInfoOpen((v) => !v)}
-              title="Text annotations key"
-              className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              <Info size={13} />
-            </button>
-            {infoOpen && (
-              <div className="absolute top-full left-0 mt-1 z-50 w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
-                onMouseDown={(e) => e.stopPropagation()}>
-                {(() => {
-                  const annInfo = ANNOTATION_KEYS[textId]
-                  const hidden = tabState.hiddenAnnotations ?? []
-                  const allKeys = annInfo?.keys.map(k => k.key) ?? []
-                  const allHidden = allKeys.length > 0 && allKeys.every(k => hidden.includes(k))
-
-                  function toggleKey(key: string) {
-                    const curr = tabState.hiddenAnnotations ?? []
-                    const next = curr.includes(key) ? curr.filter(x => x !== key) : [...curr, key]
-                    activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
-                  }
-
-                  function toggleAll() {
-                    const next = allHidden ? [] : allKeys
-                    activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
-                  }
-
-                  const hasKeys = (annInfo?.keys.length ?? 0) > 0
-                  return (
-                    <>
-                      <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
-                          {TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
-                        </span>
-                        {annInfo?.canHide && hasKeys && (
-                          <button
-                            onClick={toggleAll}
-                            className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                              allHidden
-                                ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
-                                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-                            }`}
-                          >
-                            {allHidden ? <Eye size={10} /> : <EyeOff size={10} />}
-                            {allHidden ? 'Show all' : 'Hide all'}
-                          </button>
-                        )}
-                      </div>
-                      {/* Source / edition description — shown above annotation keys */}
-                      {annInfo?.description && (
-                        <p className="px-3 pt-2 pb-1 text-[11px] leading-relaxed text-[rgb(var(--color-text-muted))] italic">
-                          {annInfo.description}
-                        </p>
-                      )}
-                      {hasKeys && (
-                        <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-[rgb(var(--color-surface-4))]' : 'py-2'}`}>
-                          {annInfo?.keys.map((k) => {
-                            const isHidden = hidden.includes(k.key)
-                            return (
-                              <div key={k.key} className="flex gap-2 items-start">
-                                <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
-                                  {annInfo.canHide && (
-                                    <button
-                                      onClick={() => toggleKey(k.key)}
-                                      title={isHidden ? 'Show this annotation' : 'Hide this annotation'}
-                                      className={`cursor-pointer transition-colors ${isHidden ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                                    >
-                                      {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
-                                    </button>
-                                  )}
-                                  <code className={`text-[10px] font-mono px-1.5 py-0.5 rounded text-[rgb(var(--color-text-primary))] ${isHidden ? 'bg-[rgb(var(--color-surface-4))] line-through opacity-50' : 'bg-[rgb(var(--color-surface-4))]'}`}>{k.symbol}</code>
-                                </div>
-                                <span className={`text-[11px] leading-relaxed ${isHidden ? 'text-[rgb(var(--color-text-muted))] line-through' : 'text-[rgb(var(--color-text-secondary))]'}`}>{k.meaning}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                      {!hasKeys && !annInfo?.description && (
-                        <p className="px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))]">No annotation markers in this text.</p>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            )}
-          </div>
-        )}
-          </>
-        )}
-        {isCompareMode ? null : (
-          <>
-            {/* ◄ Prev chapter — right-click / long-press opens back history */}
-            <button
-              onClick={prevChapter}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setNavHistoryDropdown({ x: e.clientX, y: e.clientY, mode: 'back' })
-              }}
-              onMouseDown={(e) => {
-                if (e.button !== 0) return
-                backLongPressRef.current = setTimeout(() => {
-                  const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setNavHistoryDropdown({ x: el.left, y: el.bottom + 4, mode: 'back' })
-                }, 500)
-              }}
-              onMouseUp={() => { if (backLongPressRef.current) { clearTimeout(backLongPressRef.current); backLongPressRef.current = null } }}
-              onMouseLeave={() => { if (backLongPressRef.current) { clearTimeout(backLongPressRef.current); backLongPressRef.current = null } }}
-              title="Previous chapter (right-click for history)"
-              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
+            {/* ◄ prev chapter */}
+            <button onClick={prevChapter} title="Previous chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
               <ChevronLeft size={18} />
             </button>
-            {/* ► Next chapter — right-click / long-press opens forward history */}
-            <button
-              onClick={nextChapter}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setNavHistoryDropdown({ x: e.clientX, y: e.clientY, mode: 'forward' })
-              }}
-              onMouseDown={(e) => {
-                if (e.button !== 0) return
-                forwardLongPressRef.current = setTimeout(() => {
-                  const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setNavHistoryDropdown({ x: el.left, y: el.bottom + 4, mode: 'forward' })
-                }, 500)
-              }}
-              onMouseUp={() => { if (forwardLongPressRef.current) { clearTimeout(forwardLongPressRef.current); forwardLongPressRef.current = null } }}
-              onMouseLeave={() => { if (forwardLongPressRef.current) { clearTimeout(forwardLongPressRef.current); forwardLongPressRef.current = null } }}
-              title="Next chapter (right-click for history)"
-              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            >
+            {/* ── Unified location pill: [Book Ch · TRANS] ── */}
+            <div className="flex items-center text-xs rounded-md bg-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
+              <BookChapterPicker
+                books={books}
+                currentBookId={tabState.bookId}
+                currentChapter={tabState.chapter}
+                onNavigate={navigate}
+                wrapperClassName=""
+                triggerClassName="flex items-center gap-1 px-2 py-1 font-medium text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-l-md"
+              />
+              <span className="text-[rgb(var(--color-text-muted))] select-none text-[10px] opacity-50" aria-hidden>·</span>
+              <div ref={translationRef} className="relative">
+              <button
+                onClick={() => setTranslationOpen((v) => !v)}
+                className="flex items-center px-2 py-1 font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-r-md"
+              >
+                {TRANSLATIONS.find((t) => t.id === textId)?.label ?? tabState.translation.toUpperCase()}
+              </button>
+              {translationOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-[420px] max-h-96 overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl py-1">
+                  {/* Type-to-filter input */}
+                  <div className="px-2 pb-1 sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
+                    <input
+                      autoFocus
+                      value={translationFilter}
+                      onChange={(e) => setTranslationFilter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') { setTranslationOpen(false); setTranslationFilter('') }
+                        if (e.key === 'Enter' && filteredTranslations.length > 0 && activeTab) {
+                          const t = filteredTranslations[0]
+                          const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
+                          updateTabState('scripture', activeTab.id, {
+                            translation: t.id.toUpperCase(),
+                            ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+                          })
+                          setTranslationOpen(false); setTranslationFilter('')
+                        }
+                      }}
+                      placeholder="Filter translations…"
+                      className="w-full text-xs bg-[rgb(var(--color-surface-4))] rounded px-2 py-1.5 outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                    />
+                  </div>
+                  {filteredTranslations.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        if (activeTab) {
+                          const mappedChapter = mapChapterOnTranslationSwitch(
+                            tabState.bookId,
+                            tabState.chapter,
+                            textId,           // current translation
+                            t.id,             // new translation
+                          )
+                          updateTabState('scripture', activeTab.id, {
+                            translation: t.id.toUpperCase(),
+                            ...(mappedChapter !== tabState.chapter ? {
+                              chapter: mappedChapter,
+                              scrollPosition: 0,
+                              targetVerse: undefined,
+                              endVerse: undefined,
+                            } : {}),
+                          })
+                        }
+                        setTranslationOpen(false)
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
+                        textId === t.id
+                          ? 'text-[rgb(var(--color-accent))]'
+                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <Check size={12} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
+                      <span className="text-xs font-medium w-20 flex-shrink-0">{t.label}</span>
+                      <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{t.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              </div>{/* end translationRef */}
+            </div>{/* end unified location pill */}
+            {/* ► next chapter */}
+            <button onClick={nextChapter} title="Next chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
               <ChevronRight size={18} />
             </button>
-            {/* History button — shows full nav history */}
-            {(tabState.navHistory?.length ?? 0) > 0 && (
-              <button
-                onClick={(e) => {
-                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setNavHistoryDropdown({ x: r.left, y: r.bottom + 4, mode: 'all' })
-                }}
-                title="Navigation history"
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              >
-                <History size={14} />
-              </button>
-            )}
+            {/* Add comparison panel */}
             <BookChapterPicker
               books={books}
               currentBookId={tabState.bookId}
@@ -1207,6 +974,110 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               triggerLabel={<SplitSquareHorizontal size={16} />}
               triggerTitle="Add comparison panel (pick a book/chapter)"
             />
+            {/* PDF import / library button */}
+            {!floating && (
+              <button
+                onClick={(e) => {
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setPdfPicker({ x: r.left, y: r.bottom + 4 })
+                }}
+                title="PDF library — import or open a PDF"
+                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer flex-shrink-0"
+              >
+                <FileUp size={14} />
+              </button>
+            )}
+            {/* Annotation info button */}
+            {ANNOTATION_KEYS[textId] && (
+              <div ref={infoRef} className="relative">
+                <button
+                  onClick={() => setInfoOpen((v) => !v)}
+                  title="Text annotations key"
+                  className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                >
+                  <Info size={13} />
+                </button>
+                {infoOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-50 w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
+                    onMouseDown={(e) => e.stopPropagation()}>
+                    {(() => {
+                      const annInfo = ANNOTATION_KEYS[textId]
+                      const hidden = tabState.hiddenAnnotations ?? []
+                      const allKeys = annInfo?.keys.map(k => k.key) ?? []
+                      const allHidden = allKeys.length > 0 && allKeys.every(k => hidden.includes(k))
+
+                      function toggleKey(key: string) {
+                        const curr = tabState.hiddenAnnotations ?? []
+                        const next = curr.includes(key) ? curr.filter(x => x !== key) : [...curr, key]
+                        activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
+                      }
+
+                      function toggleAll() {
+                        const next = allHidden ? [] : allKeys
+                        activeTab && updateTabState('scripture', activeTab.id, { hiddenAnnotations: next })
+                      }
+
+                      const hasKeys = (annInfo?.keys.length ?? 0) > 0
+                      return (
+                        <>
+                          <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
+                            <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
+                              {TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
+                            </span>
+                            {annInfo?.canHide && hasKeys && (
+                              <button
+                                onClick={toggleAll}
+                                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                                  allHidden
+                                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
+                                }`}
+                              >
+                                {allHidden ? <Eye size={10} /> : <EyeOff size={10} />}
+                                {allHidden ? 'Show all' : 'Hide all'}
+                              </button>
+                            )}
+                          </div>
+                          {/* Source / edition description — shown above annotation keys */}
+                          {annInfo?.description && (
+                            <p className="px-3 pt-2 pb-1 text-[11px] leading-relaxed text-[rgb(var(--color-text-muted))] italic">
+                              {annInfo.description}
+                            </p>
+                          )}
+                          {hasKeys && (
+                            <div className={`px-3 space-y-2.5 ${annInfo?.description ? 'pt-1 pb-2 border-t border-[rgb(var(--color-surface-4))]' : 'py-2'}`}>
+                              {annInfo?.keys.map((k) => {
+                                const isHidden = hidden.includes(k.key)
+                                return (
+                                  <div key={k.key} className="flex gap-2 items-start">
+                                    <div className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
+                                      {annInfo.canHide && (
+                                        <button
+                                          onClick={() => toggleKey(k.key)}
+                                          title={isHidden ? 'Show this annotation' : 'Hide this annotation'}
+                                          className={`cursor-pointer transition-colors ${isHidden ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                                        >
+                                          {isHidden ? <EyeOff size={10} /> : <Eye size={10} />}
+                                        </button>
+                                      )}
+                                      <code className={`text-[10px] font-mono px-1.5 py-0.5 rounded text-[rgb(var(--color-text-primary))] ${isHidden ? 'bg-[rgb(var(--color-surface-4))] line-through opacity-50' : 'bg-[rgb(var(--color-surface-4))]'}`}>{k.symbol}</code>
+                                    </div>
+                                    <span className={`text-[11px] leading-relaxed ${isHidden ? 'text-[rgb(var(--color-text-muted))] line-through' : 'text-[rgb(var(--color-text-secondary))]'}`}>{k.meaning}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {!hasKeys && !annInfo?.description && (
+                            <p className="px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))]">No annotation markers in this text.</p>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -1349,69 +1220,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
       {/* PDF library picker */}
       {pdfPicker && <PdfPicker anchor={pdfPicker} onClose={() => setPdfPicker(null)} />}
-
-      {/* ── Nav history dropdown (right-click / long-press on ◄ ► or History button) ── */}
-      {navHistoryDropdown && createPortal(
-        <div
-          ref={navHistoryDropdownRef}
-          style={{ position: 'fixed', left: navHistoryDropdown.x, top: navHistoryDropdown.y, zIndex: 9999, minWidth: 200, maxWidth: 320 }}
-          className="rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl py-1 text-xs"
-        >
-          {(() => {
-            const history = tabState.navHistory ?? []
-            const idx = tabState.navHistoryIdx ?? (history.length - 1)
-            const backItems = history.slice(0, idx).reverse()
-            const forwardItems = history.slice(idx + 1)
-            const allItems = navHistoryDropdown.mode === 'back' ? backItems
-              : navHistoryDropdown.mode === 'forward' ? forwardItems
-              : history
-
-            if (allItems.length === 0) {
-              return <div className="px-3 py-2 text-[rgb(var(--color-text-muted))]">No history yet</div>
-            }
-
-            return (
-              <>
-                {navHistoryDropdown.mode === 'all' && (
-                  <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] sticky top-0 bg-[rgb(var(--color-surface-2))]">
-                    Navigation history
-                  </div>
-                )}
-                {navHistoryDropdown.mode !== 'all' && (
-                  <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
-                    {navHistoryDropdown.mode === 'back' ? 'Back' : 'Forward'}
-                  </div>
-                )}
-                {(navHistoryDropdown.mode === 'all' ? history.slice().reverse() : allItems).map((entry, i) => {
-                  const actualIdx = navHistoryDropdown.mode === 'all'
-                    ? history.length - 1 - i
-                    : navHistoryDropdown.mode === 'back'
-                      ? idx - 1 - i
-                      : idx + 1 + i
-                  const isCurrent = actualIdx === idx
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => { navJumpTo(actualIdx); setNavHistoryDropdown(null) }}
-                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                        isCurrent
-                          ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
-                      {!isCurrent && <span className="w-1.5 h-1.5 flex-shrink-0" />}
-                      <span className="truncate">{entry.title}</span>
-                      <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">{(entry.translation ?? 'KJV').toUpperCase()}</span>
-                    </button>
-                  )
-                })}
-              </>
-            )
-          })()}
-        </div>,
-        document.body
-      )}
 
       {/* Verse digit overlay — shown while accumulating a type-anywhere verse number */}
       {verseDigitAccum && (

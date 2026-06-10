@@ -55,7 +55,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          npx electron-builder --mac dmg zip --config.mac.notarize=true --publish always
+          npx electron-builder --mac dmg zip --config.mac.notarize.teamId="${APPLE_TEAM_ID}" --publish always
 
   build-win:
     name: Build Windows

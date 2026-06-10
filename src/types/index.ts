@@ -267,6 +267,28 @@ export interface Highlight {
 
 export type MosaicKey = 'bible-panel' | 'notes-panel' | 'lexicon-panel' | 'youtube-panel' | 'search-panel'
 
+/** A single entry in the global back/forward navigation stack (all tab types). */
+export interface GlobalNavEntry {
+  id: string
+  spaceId: SpaceId
+  tabId: string
+  type: TabType
+  title: string
+  // bible
+  bookId?: string
+  chapter?: number
+  translation?: string
+  // note
+  noteId?: string
+  // lexicon
+  strongsNum?: string
+  // pdf
+  pdfId?: string
+  page?: number
+  // youtube
+  videoId?: string
+}
+
 export interface HistoryEntry {
   id: string
   timestamp: number

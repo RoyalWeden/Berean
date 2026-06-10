@@ -430,6 +430,14 @@ export interface AppState {
   eSwordReviewNotes: import('@/types/electron').ESwordReviewNote[]
   setESwordProgress: (p: { phase: import('@/types/electron').ESwordPhase; done?: number; total?: number; message?: string; reviewNotes?: import('@/types/electron').ESwordReviewNote[] }) => void
   resetESword: () => void
+
+  // Global navigation stack — browser-style back/forward across all tab types
+  globalNavStack: import('@/types').GlobalNavEntry[]
+  globalNavIdx: number   // index of current position; -1 = nothing pushed yet
+  isGlobalNavJumping: boolean   // suppresses re-push during back/forward navigation
+  pushGlobalNav: (entry: Omit<import('@/types').GlobalNavEntry, 'id'>) => void
+  navGlobalBack: () => void
+  navGlobalForward: () => void
 }
 
 const DEFAULT_TABS: Record<SpaceId, Tab[]> = {
@@ -460,6 +468,32 @@ const DEFAULT_PANEL_LAYOUT: MosaicNode<MosaicKey> = {
   first: 'bible-panel',
   second: 'notes-panel',
   splitPercentage: 58
+}
+
+/** Build a GlobalNavEntry (minus id) from a Tab's current state. */
+function buildNavEntry(tab: import('@/types').Tab): Omit<import('@/types').GlobalNavEntry, 'id'> {
+  const base = { spaceId: tab.spaceId, tabId: tab.id, type: tab.type, title: tab.title } as Omit<import('@/types').GlobalNavEntry, 'id'>
+  if (tab.type === 'bible') {
+    const s = tab.state as import('@/types').BibleTabState
+    return { ...base, bookId: s.bookId, chapter: s.chapter, translation: s.translation }
+  }
+  if (tab.type === 'note') {
+    const s = tab.state as import('@/types').NoteTabState
+    return { ...base, noteId: s.noteId ?? undefined }
+  }
+  if (tab.type === 'lexicon') {
+    const s = tab.state as import('@/types').LexiconTabState
+    return { ...base, strongsNum: s.strongsNum ?? undefined }
+  }
+  if (tab.type === 'youtube') {
+    const s = tab.state as import('@/types').YouTubeTabState
+    return { ...base, videoId: s.videoId ?? undefined }
+  }
+  if (tab.type === 'pdf') {
+    const s = tab.state as import('@/types').PdfTabState
+    return { ...base, pdfId: s.pdfId, page: s.page }
+  }
+  return base
 }
 
 export const useAppStore = create<AppState>()(
@@ -681,6 +715,90 @@ export const useAppStore = create<AppState>()(
         ...(p.reviewNotes !== undefined ? { eSwordReviewNotes: p.reviewNotes } : {}),
       }),
       resetESword: () => set({ eSwordPhase: 'idle', eSwordDone: 0, eSwordTotal: 0, eSwordMessage: '', eSwordReviewNotes: [] }),
+
+      // ── Global navigation stack (browser-style back/forward, all tab types) ──
+      globalNavStack: [] as import('@/types').GlobalNavEntry[],
+      globalNavIdx: -1,
+      isGlobalNavJumping: false,
+
+      pushGlobalNav: (entry) => {
+        if (get().isGlobalNavJumping) return
+        const full: import('@/types').GlobalNavEntry = {
+          id: `gnav-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          ...entry,
+        }
+        set((s) => {
+          // Deduplicate: skip if this is identical to the current entry
+          const cur = s.globalNavStack[s.globalNavIdx]
+          if (cur && cur.type === full.type && cur.tabId === full.tabId &&
+              cur.bookId === full.bookId && cur.chapter === full.chapter &&
+              cur.translation === full.translation &&
+              cur.noteId === full.noteId && cur.strongsNum === full.strongsNum &&
+              cur.videoId === full.videoId &&
+              cur.pdfId === full.pdfId && cur.page === full.page) return {}
+          const base = s.globalNavStack.slice(0, s.globalNavIdx + 1)
+          const newStack = [...base, full].slice(-100)
+          return { globalNavStack: newStack, globalNavIdx: newStack.length - 1 }
+        })
+      },
+
+      navGlobalBack: () => {
+        const s = get()
+        let newIdx = s.globalNavIdx - 1
+        if (newIdx < 0) return
+        // Skip over entries whose tab no longer exists
+        const allTabs = (Object.values(s.tabs) as import('@/types').Tab[][]).flat()
+        while (newIdx >= 0 && !allTabs.find(t => t.id === s.globalNavStack[newIdx].tabId)) newIdx--
+        if (newIdx < 0) return
+        const entry = s.globalNavStack[newIdx]
+        set({ globalNavIdx: newIdx, isGlobalNavJumping: true })
+        set((s2) => ({ activeSpace: entry.spaceId, activeTabId: { ...s2.activeTabId, [entry.spaceId]: entry.tabId } }))
+        if (entry.type === 'bible' && entry.bookId) {
+          get().updateTabState(entry.spaceId, entry.tabId, {
+            bookId: entry.bookId, chapter: entry.chapter ?? 1,
+            ...(entry.translation ? { translation: entry.translation } : {}),
+            scrollPosition: 0, targetVerse: undefined,
+          })
+        } else if (entry.type === 'lexicon' && entry.strongsNum) {
+          set({ pendingLexiconEntry: entry.strongsNum })
+        } else if (entry.type === 'note' && entry.noteId) {
+          get().updateTabState(entry.spaceId, entry.tabId, { noteId: entry.noteId, isNew: false })
+        } else if (entry.type === 'youtube' && entry.videoId) {
+          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
+        } else if (entry.type === 'pdf' && entry.pdfId && entry.page) {
+          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
+        }
+        setTimeout(() => set({ isGlobalNavJumping: false }), 50)
+      },
+
+      navGlobalForward: () => {
+        const s = get()
+        let newIdx = s.globalNavIdx + 1
+        if (newIdx >= s.globalNavStack.length) return
+        const allTabs = (Object.values(s.tabs) as import('@/types').Tab[][]).flat()
+        while (newIdx < s.globalNavStack.length && !allTabs.find(t => t.id === s.globalNavStack[newIdx].tabId)) newIdx++
+        if (newIdx >= s.globalNavStack.length) return
+        const entry = s.globalNavStack[newIdx]
+        set({ globalNavIdx: newIdx, isGlobalNavJumping: true })
+        set((s2) => ({ activeSpace: entry.spaceId, activeTabId: { ...s2.activeTabId, [entry.spaceId]: entry.tabId } }))
+        if (entry.type === 'bible' && entry.bookId) {
+          get().updateTabState(entry.spaceId, entry.tabId, {
+            bookId: entry.bookId, chapter: entry.chapter ?? 1,
+            ...(entry.translation ? { translation: entry.translation } : {}),
+            scrollPosition: 0, targetVerse: undefined,
+          })
+        } else if (entry.type === 'lexicon' && entry.strongsNum) {
+          set({ pendingLexiconEntry: entry.strongsNum })
+        } else if (entry.type === 'note' && entry.noteId) {
+          get().updateTabState(entry.spaceId, entry.tabId, { noteId: entry.noteId, isNew: false })
+        } else if (entry.type === 'youtube' && entry.videoId) {
+          set({ pendingYouTubeVideo: { videoId: entry.videoId, startTime: 0 } })
+        } else if (entry.type === 'pdf' && entry.pdfId && entry.page) {
+          window.dispatchEvent(new CustomEvent('berean:pdfGoToPage', { detail: { pdfId: entry.pdfId, page: entry.page } }))
+        }
+        setTimeout(() => set({ isGlobalNavJumping: false }), 50)
+      },
+
       pendingYouTubeVideo: null,
       autoPiP: true,
       youtubeIsPlaying: false,
@@ -866,6 +984,9 @@ export const useAppStore = create<AppState>()(
       },
 
       activateTab: (tab) => {
+        if (!get().isGlobalNavJumping) {
+          get().pushGlobalNav(buildNavEntry(tab))
+        }
         set((s) => ({
           activeTabId: { ...s.activeTabId, [tab.spaceId]: tab.id },
           activeSpace: tab.spaceId,
@@ -991,6 +1112,10 @@ export const useAppStore = create<AppState>()(
       },
 
       setActiveTab: (spaceId, tabId) => {
+        if (!get().isGlobalNavJumping) {
+          const tab = get().tabs[spaceId].find(t => t.id === tabId)
+          if (tab) get().pushGlobalNav(buildNavEntry(tab))
+        }
         const state = get()
         const key = `${spaceId}:${tabId}`
         const prevTabId = state.activeTabId[spaceId]
@@ -1019,6 +1144,46 @@ export const useAppStore = create<AppState>()(
       },
 
       updateTabState: (spaceId, tabId, newState) => {
+        if (!get().isGlobalNavJumping) {
+          const currentTab = get().tabs[spaceId].find(t => t.id === tabId)
+          if (currentTab) {
+            const ns = newState as unknown as Record<string, unknown>
+            const cur = currentTab.state as unknown as Record<string, unknown>
+            if (currentTab.type === 'bible') {
+              // Translation change (may arrive standalone or bundled with bookId/chapter)
+              if ('translation' in ns && ns.translation && ns.translation !== cur.translation) {
+                get().pushGlobalNav({
+                  spaceId, tabId, type: 'bible', title: currentTab.title,
+                  bookId: (ns.bookId ?? cur.bookId) as string | undefined,
+                  chapter: (ns.chapter ?? cur.chapter) as number | undefined,
+                  translation: ns.translation as string,
+                })
+              }
+              // Compare mode toggle
+              if ('compareMode' in ns && Boolean(ns.compareMode) !== Boolean(cur.compareMode)) {
+                get().pushGlobalNav({
+                  spaceId, tabId, type: 'bible',
+                  title: ns.compareMode ? `Compare — ${currentTab.title}` : currentTab.title,
+                  bookId: (ns.bookId ?? cur.bookId) as string | undefined,
+                  chapter: (ns.chapter ?? cur.chapter) as number | undefined,
+                  translation: (ns.translation ?? cur.translation) as string | undefined,
+                })
+              }
+            } else if (currentTab.type === 'note') {
+              if ('noteId' in ns && ns.noteId && ns.noteId !== cur.noteId) {
+                get().pushGlobalNav({ spaceId, tabId, type: 'note', title: currentTab.title, noteId: ns.noteId as string })
+              }
+            } else if (currentTab.type === 'lexicon') {
+              if ('strongsNum' in ns && ns.strongsNum && ns.strongsNum !== cur.strongsNum) {
+                get().pushGlobalNav({ spaceId, tabId, type: 'lexicon', title: ns.strongsNum as string, strongsNum: ns.strongsNum as string })
+              }
+            } else if (currentTab.type === 'youtube') {
+              if ('videoId' in ns && ns.videoId && ns.videoId !== cur.videoId) {
+                get().pushGlobalNav({ spaceId, tabId, type: 'youtube', title: currentTab.title, videoId: ns.videoId as string })
+              }
+            }
+          }
+        }
         const state = get()
         const tabs = state.tabs[spaceId].map((t) =>
           t.id === tabId ? { ...t, state: { ...t.state, ...newState } } : t
@@ -1035,7 +1200,13 @@ export const useAppStore = create<AppState>()(
         set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
       },
       closeSearch: () => set({ searchOpen: false }),
-      requestOpenNote: (noteId) => set({ pendingNoteId: noteId }),
+      requestOpenNote: (noteId) => {
+        if (!get().isGlobalNavJumping) {
+          const tabId = get().activeTabId['notes']
+          if (tabId) get().pushGlobalNav({ spaceId: 'notes', tabId, type: 'note', noteId, title: 'Note' })
+        }
+        set({ pendingNoteId: noteId })
+      },
       clearPendingNote: () => set({ pendingNoteId: null }),
       filterNotesByVerse: (verseRef) => set({ pendingVerseFilter: verseRef }),
       clearVerseFilter: () => set({ pendingVerseFilter: null }),
@@ -1054,6 +1225,10 @@ export const useAppStore = create<AppState>()(
 
       openLexiconEntry: (strongsNum, fromNote) => {
         get().addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
+        if (!get().isGlobalNavJumping) {
+          const tabId = get().activeTabId['lexicon']
+          if (tabId) get().pushGlobalNav({ spaceId: 'lexicon', tabId, type: 'lexicon', strongsNum, title: strongsNum })
+        }
         set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: fromNote ?? null })
       },
       clearLexiconEntry: () => set({ pendingLexiconEntry: null }),
@@ -1079,10 +1254,14 @@ export const useAppStore = create<AppState>()(
         const state = get()
         if (state.tabs['youtube'].length === 0) get().createTab('youtube')
         const fresh = get()
+        const ytTabId = fresh.tabs['youtube'][0]?.id ?? null
+        if (!get().isGlobalNavJumping && videoId && ytTabId) {
+          get().pushGlobalNav({ spaceId: 'youtube', tabId: ytTabId, type: 'youtube', title: videoId, videoId })
+        }
         set({
           pendingYouTubeVideo: { videoId, startTime },
           activeSpace: 'youtube',
-          activeTabId: { ...fresh.activeTabId, youtube: fresh.tabs['youtube'][0]?.id ?? null },
+          activeTabId: { ...fresh.activeTabId, youtube: ytTabId },
           youtubeNoteBack: fromNote ?? null,
         })
       },
@@ -1098,6 +1277,9 @@ export const useAppStore = create<AppState>()(
           (t) => t.type === 'pdf' && (t.state as { pdfId?: string }).pdfId === pdfId
         )
         if (existing) {
+          if (!get().isGlobalNavJumping) {
+            get().pushGlobalNav({ spaceId: 'scripture', tabId: existing.id, type: 'pdf', title: existing.title, pdfId, page })
+          }
           set({
             activeTabId: { ...state.activeTabId, scripture: existing.id },
             activeSpace: 'scripture',
@@ -1109,6 +1291,9 @@ export const useAppStore = create<AppState>()(
         const id = `pdf-${pdfId}-${Date.now()}`
         const tab: Tab = { id, spaceId: 'scripture', type: 'pdf', title: title || 'PDF', state: { pdfId, title, page } }
         get().addHistoryEntry({ type: 'import', title: title || 'PDF', importSource: 'pdf' })
+        if (!get().isGlobalNavJumping) {
+          get().pushGlobalNav({ spaceId: 'scripture', tabId: id, type: 'pdf', title: title || 'PDF', pdfId, page })
+        }
         set({
           tabs: { ...state.tabs, scripture: [...state.tabs.scripture, tab] },
           activeTabId: { ...state.activeTabId, scripture: id },

@@ -1,6 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, type LucideIcon } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, ArrowLeft, ArrowRight, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
@@ -53,10 +53,25 @@ export default function Sidebar() {
   const historyCount           = useAppStore((s) => s.history.length)
   const historySeenLength      = useAppStore((s) => s.historySeenLength)
   const hasUnseenHistory       = historyCount > historySeenLength
+  const globalNavStack         = useAppStore((s) => s.globalNavStack)
+  const globalNavIdx           = useAppStore((s) => s.globalNavIdx)
+  const navGlobalBack          = useAppStore((s) => s.navGlobalBack)
+  const navGlobalForward       = useAppStore((s) => s.navGlobalForward)
   const archivedGroups         = useAppStore((s) => s.archivedGroups)
   const archiveAllTabs         = useAppStore((s) => s.archiveAllTabs)
   const restoreArchivedGroup   = useAppStore((s) => s.restoreArchivedGroup)
   const dismissArchivedGroup   = useAppStore((s) => s.dismissArchivedGroup)
+
+  // ── Global nav back/forward ──────────────────────────────────────────────
+  const canNavBack    = globalNavIdx > 0
+  const canNavForward = globalNavIdx < globalNavStack.length - 1
+  const [navDropdown, setNavDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
+  const navDropdownRef       = useRef<HTMLDivElement>(null)
+  const navBackLongPress     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navFwdLongPress      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Prevents a click firing navigation after a long-press already showed the dropdown
+  const navBackDidLongPress  = useRef(false)
+  const navFwdDidLongPress   = useRef(false)
 
   const [archiveOpen, setArchiveOpen] = useState(false)
   const archivePanelRef = useRef<HTMLDivElement>(null)
@@ -71,6 +86,16 @@ export default function Sidebar() {
   // ── Tab-bar right-click context menu ──
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
+
+  // ── Nav history dropdown close-on-outside-click ──
+  useEffect(() => {
+    if (!navDropdown) return
+    function onDown(e: MouseEvent) {
+      if (navDropdownRef.current && !navDropdownRef.current.contains(e.target as Node)) setNavDropdown(null)
+    }
+    document.addEventListener('mousedown', onDown, true)
+    return () => document.removeEventListener('mousedown', onDown, true)
+  }, [navDropdown])
 
   // ── Archive panel close-on-outside-click ──
   useEffect(() => {
@@ -252,9 +277,80 @@ export default function Sidebar() {
           ${sidebarCollapsed ? 'w-14' : 'w-56'}
         `}
       >
-        {/* macOS traffic light spacer — hidden on Windows where OS chrome occupies that space */}
+        {/* macOS traffic light spacer — contains right-aligned back/forward nav buttons */}
         {window.__berean_platform !== 'win32' && (
-          <div className="h-9 app-drag-region flex-shrink-0" />
+          <div className="h-9 app-drag-region flex-shrink-0 flex items-center justify-end pr-2">
+            {/* ── Global nav back / forward — distinctive joined pill ── */}
+            <div className="no-drag flex items-center rounded-md border border-[rgb(var(--color-surface-4))] overflow-hidden">
+              {/* Back */}
+              <button
+                onClick={canNavBack ? () => {
+                  if (navBackDidLongPress.current) { navBackDidLongPress.current = false; return }
+                  navGlobalBack()
+                } : undefined}
+                onContextMenu={canNavBack ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'back' }) } : undefined}
+                onMouseDown={canNavBack ? (e) => {
+                  if (e.button !== 0) return
+                  navBackDidLongPress.current = false
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  navBackLongPress.current = setTimeout(() => {
+                    navBackDidLongPress.current = true
+                    setNavDropdown({ x: rect.left, y: rect.bottom + 4, mode: 'back' })
+                  }, 500)
+                } : undefined}
+                onMouseUp={() => { if (navBackLongPress.current) { clearTimeout(navBackLongPress.current); navBackLongPress.current = null } }}
+                onMouseLeave={() => { if (navBackLongPress.current) { clearTimeout(navBackLongPress.current); navBackLongPress.current = null } }}
+                title={canNavBack ? 'Back (⌘[) · hold for history' : 'No back history'}
+                className={`flex items-center justify-center w-6 h-6 transition-colors border-r border-[rgb(var(--color-surface-4))] ${
+                  canNavBack
+                    ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
+                    : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
+                }`}
+              >
+                <ArrowLeft size={12} />
+              </button>
+              {/* Forward */}
+              <button
+                onClick={canNavForward ? () => {
+                  if (navFwdDidLongPress.current) { navFwdDidLongPress.current = false; return }
+                  navGlobalForward()
+                } : undefined}
+                onContextMenu={canNavForward ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'forward' }) } : undefined}
+                onMouseDown={canNavForward ? (e) => {
+                  if (e.button !== 0) return
+                  navFwdDidLongPress.current = false
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  navFwdLongPress.current = setTimeout(() => {
+                    navFwdDidLongPress.current = true
+                    setNavDropdown({ x: rect.left, y: rect.bottom + 4, mode: 'forward' })
+                  }, 500)
+                } : undefined}
+                onMouseUp={() => { if (navFwdLongPress.current) { clearTimeout(navFwdLongPress.current); navFwdLongPress.current = null } }}
+                onMouseLeave={() => { if (navFwdLongPress.current) { clearTimeout(navFwdLongPress.current); navFwdLongPress.current = null } }}
+                title={canNavForward ? 'Forward (⌘]) · hold for history' : 'No forward history'}
+                className={`flex items-center justify-center w-6 h-6 transition-colors border-r border-[rgb(var(--color-surface-4))] ${
+                  canNavForward
+                    ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
+                    : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
+                }`}
+              >
+                <ArrowRight size={12} />
+              </button>
+              {/* Clock — full nav history (shown once something is in the stack) */}
+              {globalNavStack.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setNavDropdown(d => d?.mode === 'all' ? null : { x: rect.left, y: rect.bottom + 4, mode: 'all' })
+                  }}
+                  title="Navigation history"
+                  className="flex items-center justify-center w-6 h-6 transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
+                >
+                  <History size={11} />
+                </button>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ── Search / location bar (ABOVE space buttons) ── */}
@@ -962,6 +1058,63 @@ export default function Sidebar() {
             })()}
           </div>
         </MenuPositioner>,
+        document.body
+      )}
+      {/* ── Global nav history dropdown ── */}
+      {navDropdown && createPortal(
+        <div
+          ref={navDropdownRef}
+          style={{ position: 'fixed', left: navDropdown.x, top: navDropdown.y, zIndex: 9999, minWidth: 220, maxWidth: 340 }}
+          className="rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl py-1 text-xs"
+        >
+          {(() => {
+            const backItems = globalNavStack.slice(0, globalNavIdx).reverse()
+            const fwdItems  = globalNavStack.slice(globalNavIdx + 1)
+            const items     = navDropdown.mode === 'back' ? backItems
+                            : navDropdown.mode === 'forward' ? fwdItems
+                            : [...globalNavStack].reverse()
+            if (items.length === 0) {
+              return <div className="px-3 py-2 text-[rgb(var(--color-text-muted))]">No history yet</div>
+            }
+            const label = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Navigation history'
+            return (
+              <>
+                <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{label}</div>
+                {items.map((entry, i) => {
+                  // Compute the actual stack index so we can jump to it
+                  const stackIdx = navDropdown.mode === 'all'
+                    ? globalNavStack.length - 1 - i
+                    : navDropdown.mode === 'back'
+                      ? globalNavIdx - 1 - i
+                      : globalNavIdx + 1 + i
+                  const isCurrent = stackIdx === globalNavIdx
+                  const typeIcon = entry.type === 'note' ? '📝' : entry.type === 'lexicon' ? '📖' : entry.type === 'pdf' ? '📄' : '📜'
+                  return (
+                    <button
+                      key={entry.id}
+                      onClick={() => {
+                        // Jump directly to this stack position
+                        const delta = stackIdx - globalNavIdx
+                        if (delta < 0) { for (let j = 0; j < -delta; j++) useAppStore.getState().navGlobalBack() }
+                        else            { for (let j = 0; j < delta;  j++) useAppStore.getState().navGlobalForward() }
+                        setNavDropdown(null)
+                      }}
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
+                        isCurrent
+                          ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <span className="text-[11px] flex-shrink-0">{typeIcon}</span>
+                      <span className="truncate">{entry.title}</span>
+                      {isCurrent && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
+                    </button>
+                  )
+                })}
+              </>
+            )
+          })()}
+        </div>,
         document.body
       )}
     </Tooltip.Provider>
