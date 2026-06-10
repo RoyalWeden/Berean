@@ -122,6 +122,12 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.14] - 2026-06-10
+
+- Tab's history updates
+
+---
+
 ## [0.3.13] - 2026-06-09
 
 - Added missing septuagint books
