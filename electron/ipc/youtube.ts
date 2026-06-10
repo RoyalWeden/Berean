@@ -1210,7 +1210,23 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
       else byVideo.set(r.videoId, { videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
     }
     // Already roughly ordered by rank since rows came in rank order; sort the aggregates too.
-    return Array.from(byVideo.values()).sort((a, b) => a.rank - b.rank).slice(0, limit)
+    const results = Array.from(byVideo.values()).sort((a, b) => a.rank - b.rank).slice(0, limit)
+
+    // Widen each snippet with a few neighbouring caption lines for readable context
+    // (tactiq segments are short ~5-10 word lines). Centered on the best-matching line.
+    const ctxStmt = getBereanDb().prepare(`
+      SELECT text FROM youtube_transcript_segments
+      WHERE video_id = ? AND start_ms BETWEEN ? AND ?
+      ORDER BY start_ms
+    `)
+    for (const r of results) {
+      try {
+        const rows2 = ctxStmt.all(r.videoId, Math.max(0, r.startMs - 12000), r.startMs + 12000) as Array<{ text: string }>
+        const joined = rows2.map((x) => x.text).join(' ').replace(/\s+/g, ' ').trim()
+        if (joined.length > r.snippet.length) r.snippet = joined.slice(0, 400)
+      } catch { /* keep single-line snippet */ }
+    }
+    return results
   })
 
   // Full-text search over stored video titles/channel names — used by FloatingSearch

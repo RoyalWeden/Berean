@@ -828,6 +828,8 @@ export default function SettingsModal() {
   const setNoteLexiconRefsEnabled = useAppStore((s) => s.setNoteLexiconRefsEnabled)
   const noteScriptureBlock = useAppStore((s) => s.noteScriptureBlock)
   const setNoteScriptureBlock = useAppStore((s) => s.setNoteScriptureBlock)
+  const autoEmDash = useAppStore((s) => s.autoEmDash)
+  const setAutoEmDash = useAppStore((s) => s.setAutoEmDash)
   const noteScriptureBlockThreshold = useAppStore((s) => s.noteScriptureBlockThreshold)
   const setNoteScriptureBlockThreshold = useAppStore((s) => s.setNoteScriptureBlockThreshold)
   const noteVerseBlockSuggest = useAppStore((s) => s.noteVerseBlockSuggest)
@@ -1443,6 +1445,24 @@ export default function SettingsModal() {
                       }`}
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteLexiconRefsEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Auto em dash toggle */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto em dash</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        Typing two hyphens (--) converts them into an em dash (—) automatically.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setAutoEmDash(!autoEmDash)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                        autoEmDash ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoEmDash ? 'translate-x-5' : ''}`} />
                     </button>
                   </div>
 

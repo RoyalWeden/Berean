@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
+import { clampZoom, adjustZoom, ZOOM_DEFAULT, type ZoomContext } from '@/lib/zoom'
 
 export interface WordReplacerRule {
   id: string
@@ -187,6 +188,9 @@ export interface AppState {
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
+  // Auto-convert "--" into an em dash (—) while typing in notes
+  autoEmDash: boolean
+  setAutoEmDash: (v: boolean) => void
   // Suggest inserting a scripture block when user types a verse ref in notes
   noteVerseBlockSuggest: boolean
   setNoteVerseBlockSuggest: (v: boolean) => void
@@ -245,6 +249,11 @@ export interface AppState {
   bibleFontSize: number
   bibleLineHeight: 'compact' | 'comfortable' | 'spacious'
   defaultBibleTranslation: string
+  // Per-panel zoom multipliers (1 = 100%); driven by Cmd +/- /0 and toolbar buttons
+  panelZoom: Record<ZoomContext, number>
+  setPanelZoom: (ctx: ZoomContext, level: number) => void
+  adjustPanelZoom: (ctx: ZoomContext, dir: 1 | -1) => void
+  resetPanelZoom: (ctx: ZoomContext) => void
   setBibleFontSize: (size: number) => void
   setBibleLineHeight: (h: 'compact' | 'comfortable' | 'spacious') => void
   setDefaultBibleTranslation: (id: string) => void
@@ -487,6 +496,7 @@ export const useAppStore = create<AppState>()(
       activePanelId: 'bible' as 'bible' | 'notes' | 'lexicon',
       setActivePanelId: (id) => set({ activePanelId: id }),
       bibleFontSize: 16,
+      panelZoom: { scripture: ZOOM_DEFAULT, notes: ZOOM_DEFAULT, lexicon: ZOOM_DEFAULT },
       bibleLineHeight: 'comfortable' as const,
       defaultBibleTranslation: 'kjva',
       theme: 'system' as const,
@@ -681,6 +691,7 @@ export const useAppStore = create<AppState>()(
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
       noteScriptureBlockThreshold: 0.9,
+      autoEmDash: true,
       noteVerseBlockSuggest: true,
       noteStrongsBlockSuggest: true,
       // Print & Export defaults
@@ -1156,6 +1167,7 @@ export const useAppStore = create<AppState>()(
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
+      setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),
       setNoteStrongsBlockSuggest: (v) => set({ noteStrongsBlockSuggest: v }),
 
@@ -1239,6 +1251,9 @@ export const useAppStore = create<AppState>()(
       })),
 
       setTheme: (theme) => set({ theme }),
+      setPanelZoom: (ctx, level) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: clampZoom(level) } })),
+      adjustPanelZoom: (ctx, dir) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: adjustZoom(s.panelZoom[ctx] ?? ZOOM_DEFAULT, dir) } })),
+      resetPanelZoom: (ctx) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: ZOOM_DEFAULT } })),
       setBibleFontSize: (size) => set({ bibleFontSize: size }),
       setBibleLineHeight: (h) => set({ bibleLineHeight: h }),
       setDefaultBibleTranslation: (id) => set({ defaultBibleTranslation: id }),
@@ -1323,6 +1338,7 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         theme: state.theme,
         bibleFontSize: state.bibleFontSize,
+        panelZoom: state.panelZoom,
         bibleLineHeight: state.bibleLineHeight,
         defaultBibleTranslation: state.defaultBibleTranslation,
         autoPiP: state.autoPiP,

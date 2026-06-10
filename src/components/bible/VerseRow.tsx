@@ -263,14 +263,20 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
   const [text, setText] = useState<string | null>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  // Use active scripture tab's translation for canonical books (so LXX refs show LXX text)
+  const activeTranslation = useAppStore((s) => {
+    const tabId = s.activeTabId['scripture']
+    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
+    return (tab?.state as import('@/types').BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva'
+  })
   useEffect(() => {
-    const textId = getTranslationForBook(bookId) ?? 'kjva'
+    const textId = getTranslationForBook(bookId) ?? activeTranslation
     // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
     const queryVerse = verse === 0 ? 1 : verse
     window.bible.queryVerse(bookId, chapter, queryVerse, textId)
       .then(v => setText(v?.text ? (verse === 0 ? v.text + '…' : v.text) : null))
       .catch(() => {})
-  }, [bookId, chapter, verse])
+  }, [bookId, chapter, verse, activeTranslation]) // re-fetch when translation changes
   if (!text) return null
   const display = wordReplacerEnabled && wordReplacerRules.length > 0
     ? applyWordReplacer(text, wordReplacerRules) : text
@@ -286,6 +292,16 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
   // verseForDisplay uses displayText for word-split rendering; char-offset rendering always uses original verse.text
   const verseForDisplay = (hasHidden || shouldReplace) ? { ...verse, text: displayText } : verse
+
+  // The TRUE on-screen text used to map a DOM selection back to verse.text offsets.
+  // For KJVA tagged + Strong's replacement (e.g. LORD→Yehovah, with the preceding "the"
+  // suppressed), applyWordReplacer is NOT enough — it skips Strong's-number rules — so the
+  // selection coordinates would be off. buildVerseDisplayText reproduces exactly what renders.
+  const renderedDisplayText = (!hasHidden && textId === 'kjva' && verse.text_tagged && shouldReplace)
+    ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
+    : verseForDisplay.text
+  const renderedDisplayTextRef = useRef(renderedDisplayText)
+  renderedDisplayTextRef.current = renderedDisplayText
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const bumpVerseNoteToken = useAppStore((s) => s.bumpVerseNoteToken)
   const bumpVersePopoverToken = useAppStore((s) => s.bumpVersePopoverToken)
@@ -524,8 +540,9 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     // verse.text positions so the stored char-offset highlight aligns with the selection.
     const rawStart = charOffsetInVerse(range.startContainer, range.startOffset, verseTextRef.current)
     const rawEnd = charOffsetInVerse(range.endContainer, range.endOffset, verseTextRef.current)
-    const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(verseForDisplay.text, verse.text, rawStart)
-    const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(verseForDisplay.text, verse.text, rawEnd)
+    const dispText = renderedDisplayTextRef.current
+    const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawStart)
+    const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawEnd)
 
     if (startChar < 0 || endChar <= startChar) {
       setSelToolbar(null)
@@ -951,13 +968,14 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           onClick={() => popoverOpen ? setPopoverOpen(false) : openPopover()}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
           className={`
-            w-7 text-right text-xs font-medium rounded
+            text-right text-[0.72em] font-medium rounded
             pt-0.5 cursor-pointer select-none transition-colors
             ${isHighlighted
               ? 'text-[rgb(var(--color-accent))] font-semibold'
               : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10]'
             }
           `}
+          style={{ width: '1.9em', minWidth: '1.9em' }}
         >
           {verse.verse_num}
         </button>

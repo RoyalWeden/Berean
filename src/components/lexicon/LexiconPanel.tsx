@@ -4,6 +4,8 @@ import { useAppStore } from '@/store'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
+import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
+import ZoomControls from '@/components/shell/ZoomControls'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import type { LexiconEntry } from '@/types'
@@ -319,12 +321,14 @@ function EntryView({
 }) {
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
+  const lexiconZoom = useAppStore((s) => s.panelZoom.lexicon)
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
   const [adjacent, setAdjacent] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
   const [occurrences, setOccurrences] = useState<OccurrenceRow[]>([])
   const [occurrencesLoading, setOccurrencesLoading] = useState(false)
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
+  const verseCopy = useVerseCopyMenu()
 
   useEffect(() => {
     try {
@@ -365,6 +369,7 @@ function EntryView({
 
   return (
     <div className="flex flex-col h-full">
+      <VerseCopyMenu target={verseCopy.target} onClose={verseCopy.close} />
       {/* Header */}
       <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4 app-drag-region'}`}>
         {noteBack && onNoteBack && (
@@ -412,6 +417,7 @@ function EntryView({
             <ScanSearch size={14} />
           </button>
         )}
+        <ZoomControls context="lexicon" compact />
         <div className="relative">
           <button
             onMouseDown={(e) => e.stopPropagation()}
@@ -425,7 +431,7 @@ function EntryView({
         </div>
       </div>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ zoom: lexiconZoom }}>
         {/* Word + transliteration */}
         <div className="space-y-1">
           {entry.lemma && (
@@ -540,6 +546,7 @@ function EntryView({
                   <button
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num)}
+                    onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: occ.text ?? '' })}
                     className="w-full text-left px-2 py-2 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors group"
                   >
                     <div className="flex items-baseline gap-2 flex-wrap">
@@ -772,12 +779,13 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     function onOpenLexiconFindBar(e: Event) {
       const seedChar = (e as CustomEvent).detail?.seedChar ?? ''
       if (localFindOpen) {
-        closeLocalFind()
-      } else {
-        setLocalFindOpen(true)
-        setLocalFindQuery(seedChar)
-        setFindMatchIdx(0)
+        // Already open — re-focus + select instead of closing.
+        window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
+        return
       }
+      setLocalFindOpen(true)
+      setLocalFindQuery(seedChar)
+      setFindMatchIdx(0)
     }
     window.addEventListener('berean:openLexiconFindBar', onOpenLexiconFindBar)
     return () => window.removeEventListener('berean:openLexiconFindBar', onOpenLexiconFindBar)

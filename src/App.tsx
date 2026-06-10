@@ -410,6 +410,7 @@ export default function App() {
       if (typeof all.wordReplacerEnabled === 'boolean') s.setWordReplacerEnabled(all.wordReplacerEnabled)
       if (typeof all.noteScriptureBlock === 'boolean') s.setNoteScriptureBlock(all.noteScriptureBlock)
       if (typeof all.noteScriptureBlockThreshold === 'number') s.setNoteScriptureBlockThreshold(all.noteScriptureBlockThreshold)
+      if (typeof all.autoEmDash === 'boolean') s.setAutoEmDash(all.autoEmDash)
     }).catch(() => {})
 
     // 3. Check onboarding status
@@ -445,7 +446,8 @@ export default function App() {
         state.autoCloseTabsAfter !== prev.autoCloseTabsAfter ||
         state.wordReplacerEnabled !== prev.wordReplacerEnabled ||
         state.noteScriptureBlock !== prev.noteScriptureBlock ||
-        state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold
+        state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold ||
+        state.autoEmDash !== prev.autoEmDash
       if (!changed) return
       clearTimeout(timer)
       timer = setTimeout(() => {
@@ -467,6 +469,7 @@ export default function App() {
           ['wordReplacerEnabled', s.wordReplacerEnabled],
           ['noteScriptureBlock', s.noteScriptureBlock],
           ['noteScriptureBlockThreshold', s.noteScriptureBlockThreshold],
+          ['autoEmDash', s.autoEmDash],
         ]
         pairs.forEach(([k, v]) => window.settings?.set(k, v).catch(() => {}))
       }, DEBOUNCE)
@@ -593,6 +596,18 @@ export default function App() {
         } else {
           openFindBar(false, '')
         }
+        return
+      }
+
+      // Cmd +/- /0 → zoom the active panel (scripture / notes / lexicon)
+      if (cmd && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '_' || e.key === '0')) {
+        const pid = activePanelIdRef.current
+        const ctx = pid === 'notes' ? 'notes' : pid === 'lexicon' ? 'lexicon' : 'scripture'
+        const st = useAppStore.getState()
+        e.preventDefault()
+        if (e.key === '0') st.resetPanelZoom(ctx)
+        else if (e.key === '-' || e.key === '_') st.adjustPanelZoom(ctx, -1)
+        else st.adjustPanelZoom(ctx, 1)
         return
       }
 

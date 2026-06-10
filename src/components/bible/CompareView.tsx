@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, ChevronRight, X, Info, Check, ArrowLeft, ArrowRight } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
+import ChapterView from './ChapterView'
 import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
+import { zoomedFontSize } from '@/lib/zoom'
 import { useAppStore } from '@/store'
 import type { Verse, Book } from '@/types'
 
@@ -43,13 +46,24 @@ interface ColState {
 interface Props {
   bookId: string
   chapter: number
+  /** Translation the incoming bookId/chapter are expressed in (the source tab's text).
+   *  Used to remap chapters for columns in a different versification (KJV↔LXX Jer/Psalms). */
+  sourceTextId?: string
   targetVerse?: number
   findQuery?: string
   findWordMode?: 'phrase' | 'all' | 'any'
+  showStrongs?: boolean
   onColumnFocus?: (colIdx: number) => void
   onColumnRef?: (colIdx: number, el: HTMLDivElement | null) => void
+  onStrongsClick?: (num: string) => void
+  onWordClick?: (word: string) => void
   books?: Book[]
-  addColRef?: React.MutableRefObject<(() => void) | null>
+  addColRef?: React.MutableRefObject<((target?: { bookId: string; chapter: number; textId?: string }) => void) | null>
+  /** When compare is entered via "Add panel", the picked ref is added as an extra column on mount. */
+  initialAddPanel?: { bookId: string; chapter: number; textId?: string } | null
+  onConsumeInitialPanel?: () => void
+  /** Called when removing a column would leave a single column — lets the host exit compare mode. */
+  onCollapseToSingle?: (last: { bookId: string; chapter: number; textId: string }) => void
 }
 
 // ── Annotation info popover (read-only, per column) ───────────────────────────
@@ -143,15 +157,23 @@ function TranslationDropdown({ textId, onChange }: { textId: string; onChange: (
 
 // ── Main compare view ──────────────────────────────────────────────────────────
 
-export default function CompareView({ bookId, chapter, targetVerse, findQuery = '', findWordMode = 'phrase', onColumnFocus, onColumnRef, books: propBooks, addColRef }: Props) {
+export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle }: Props) {
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
-  const bibleFontSize = useAppStore((s) => s.bibleFontSize)
+  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
   const [booksByText, setBooksByText] = useState<Record<string, Book[]>>({})
-  const [columns, setColumns] = useState<ColState[]>(() => [
-    { id: 'col-0', textId: 'kjva', bookId, chapter, verses: [], loading: true },
-    { id: 'col-1', textId: 'lxx',  bookId, chapter, verses: [], loading: true },
-  ])
+  const [columns, setColumns] = useState<ColState[]>(() => {
+    // Entered via "Add panel": start with just the CURRENT view; the picked ref is appended
+    // by the consume effect → current + picked = 2 columns.
+    if (initialAddPanel) {
+      return [{ id: 'col-0', textId: sourceTextId, bookId, chapter, verses: [], loading: true }]
+    }
+    // Entered via "Compare translations": KJV vs LXX of the same reference.
+    return [
+      { id: 'col-0', textId: 'kjva', bookId, chapter: mapChapterOnTranslationSwitch(bookId, chapter, sourceTextId, 'kjva'), verses: [], loading: true },
+      { id: 'col-1', textId: 'lxx',  bookId, chapter: mapChapterOnTranslationSwitch(bookId, chapter, sourceTextId, 'lxx'),  verses: [], loading: true },
+    ]
+  })
   const [focusedCol, setFocusedCol] = useState(0)
   const [infoOpenFor, setInfoOpenFor] = useState<string | null>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -185,18 +207,29 @@ export default function CompareView({ bookId, chapter, targetVerse, findQuery = 
 
   useEffect(() => {
     if (!addColRef) return
-    addColRef.current = () => {
+    addColRef.current = (target) => {
       const cols = columnsRef.current
       const last = cols[cols.length - 1] ?? { textId: 'kjva', bookId, chapter }
       const newId = `col-${colIdCounter.current++}`
-      const usedIds = new Set(cols.map(c => c.textId))
-      const next = TRANSLATIONS.find(t => !usedIds.has(t.id)) ?? TRANSLATIONS[0]
-      ensureBooksFor(next.id)
+      // If a target ref was supplied (via "add panel" search), use it; otherwise default
+      // to the last column's book/chapter and the next unused translation.
+      let textId: string, bookId2: string, chapter2: number
+      if (target) {
+        textId = target.textId ?? last.textId
+        bookId2 = target.bookId
+        chapter2 = target.chapter
+      } else {
+        const usedIds = new Set(cols.map(c => c.textId))
+        textId = (TRANSLATIONS.find(t => !usedIds.has(t.id)) ?? TRANSLATIONS[0]).id
+        bookId2 = last.bookId
+        chapter2 = last.chapter
+      }
+      ensureBooksFor(textId)
       setColumns(prev => [...prev, {
         id: newId,
-        textId: next.id,
-        bookId: last.bookId,
-        chapter: last.chapter,
+        textId,
+        bookId: bookId2,
+        chapter: chapter2,
         verses: [],
         loading: true,
       }])
@@ -204,35 +237,33 @@ export default function CompareView({ bookId, chapter, targetVerse, findQuery = 
     return () => { if (addColRef) addColRef.current = null }
   }) // runs every render to keep addColumn fresh
 
-  // Fetch verses for columns that need loading
+  // Verse loading + rendering is delegated to <ChapterView> per column (so highlights,
+  // notes, and Strong's all work) — CompareView no longer fetches verse text itself.
+
+  // Consume a pending "Add panel" target once, on mount: append it as an extra column.
+  const consumedInitialRef = useRef(false)
   useEffect(() => {
-    for (const col of columns) {
-      if (!col.loading) continue
-      const key = `${col.id}|${col.textId}|${col.bookId}|${col.chapter}`
-      if (fetchingRef.current.has(key)) continue
-      fetchingRef.current.add(key)
-      window.bible.queryChapter(col.bookId, col.chapter, col.textId)
-        .then(verses => {
-          fetchingRef.current.delete(key)
-          setColumns(prev => prev.map(c =>
-            c.id === col.id && c.textId === col.textId && c.bookId === col.bookId && c.chapter === col.chapter
-              ? { ...c, verses: verses ?? [], loading: false }
-              : c
-          ))
-        })
-        .catch(() => {
-          fetchingRef.current.delete(key)
-          setColumns(prev => prev.map(c =>
-            c.id === col.id && c.textId === col.textId && c.bookId === col.bookId && c.chapter === col.chapter
-              ? { ...c, verses: [], loading: false }
-              : c
-          ))
-        })
-    }
-  }, [columns]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (consumedInitialRef.current || !initialAddPanel) return
+    consumedInitialRef.current = true
+    const t = initialAddPanel
+    const newId = `col-${colIdCounter.current++}`
+    const textId = t.textId ?? 'kjva'
+    ensureBooksFor(textId)
+    setColumns(prev => [...prev, { id: newId, textId, bookId: t.bookId, chapter: t.chapter, verses: [], loading: true }])
+    onConsumeInitialPanel?.()
+  }, [initialAddPanel]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function removeColumn(colId: string) {
-    setColumns(prev => prev.length <= 1 ? prev : prev.filter(c => c.id !== colId))
+    setColumns(prev => {
+      if (prev.length <= 1) return prev
+      const next = prev.filter(c => c.id !== colId)
+      // Removing down to a single column → ask the host to drop back to a normal tab.
+      if (next.length === 1 && onCollapseToSingle) {
+        const c = next[0]
+        onCollapseToSingle({ bookId: c.bookId, chapter: c.chapter, textId: c.textId })
+      }
+      return next
+    })
   }
 
   function moveColumn(colId: string, dir: -1 | 1) {
@@ -255,9 +286,12 @@ export default function CompareView({ bookId, chapter, targetVerse, findQuery = 
 
   function changeTranslation(colId: string, newTextId: string) {
     ensureBooksFor(newTextId)
-    setColumns(prev => prev.map(c =>
-      c.id === colId ? { ...c, textId: newTextId, verses: [], loading: true } : c
-    ))
+    setColumns(prev => prev.map(c => {
+      if (c.id !== colId) return c
+      // Remap the chapter into the new translation's versification (KJV↔LXX Jer/Psalms).
+      const mappedChapter = mapChapterOnTranslationSwitch(c.bookId, c.chapter, c.textId, newTextId)
+      return { ...c, textId: newTextId, chapter: mappedChapter, verses: [], loading: true }
+    }))
   }
 
   // Each column renders its own verse list independently — no shared alignment.
@@ -362,51 +396,19 @@ export default function CompareView({ bookId, chapter, targetVerse, findQuery = 
               </div>
             </div>
 
-            {/* Verse content */}
-            {col.loading ? (
-              <div className="px-3 py-4 space-y-2 animate-pulse">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-3 bg-[rgb(var(--color-surface-4))] rounded w-full" />
-                ))}
-              </div>
-            ) : col.verses.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-[rgb(var(--color-text-muted))] text-center">
-                Not available in this text
-              </div>
-            ) : (
-              <div className="px-3 py-3 space-y-2 berean-scripture-text" style={{ fontSize: bibleFontSize }}>
-                {col.verses.map(verse => {
-                  const vn = verse.verse_num
-                  const isTarget = targetVerse === vn
-                  const isFindMatch = isFocused && !!findQuery.trim() && (() => {
-                    const t = verse.text.toLowerCase(); const q = findQuery.trim().toLowerCase()
-                    if (findWordMode === 'phrase') return t.includes(q)
-                    const ws = q.split(/\s+/).filter(Boolean)
-                    return findWordMode === 'all' ? ws.every(w => t.includes(w)) : ws.some(w => t.includes(w))
-                  })()
-                  return (
-                    <div
-                      key={vn}
-                      data-verse={vn}
-                      className={`flex gap-2 leading-relaxed ${isTarget ? 'bg-[rgb(var(--color-accent))/8] -mx-1 px-1 rounded' : ''}`}
-                      style={isFindMatch ? { borderLeft: '3px solid rgba(234,179,8,0.5)', paddingLeft: '0.375rem', marginLeft: '-0.5rem', borderRadius: '0 3px 3px 0', backgroundColor: 'rgba(234,179,8,0.06)' } : undefined}
-                    >
-                      <span className={`font-mono flex-shrink-0 pt-0.5 w-6 text-right text-[0.8em] ${isTarget ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
-                        {vn}
-                      </span>
-                      <span className="text-[rgb(var(--color-text-primary))]" data-verse-text>
-                        {(() => {
-                          const t = (wordReplacerEnabled && wordReplacerRules.length > 0)
-                            ? applyWordReplacer(verse.text, wordReplacerRules)
-                            : verse.text
-                          return isFocused ? applyFindHighlight(t, findQuery, findWordMode) : t
-                        })()}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+            {/* Verse content — full ChapterView so highlights, notes, and Strong's all work */}
+            <ChapterView
+              bookId={col.bookId}
+              chapter={col.chapter}
+              textId={col.textId}
+              showStrongs={showStrongs}
+              targetVerse={targetVerse}
+              findQuery={isFocused ? findQuery : ''}
+              findWordMode={findWordMode}
+              onStrongsClick={onStrongsClick}
+              onWordClick={onWordClick}
+              compact
+            />
           </div>
         )
       })}

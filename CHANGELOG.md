@@ -122,6 +122,28 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.13] - 2026-06-09
+
+- Added missing septuagint books
+- Daily notes show in year/month folders
+- Copy verses from advanced scripture search
+- Compare shows corresponding septuagint chapter
+- Combine scripture tabs to compare
+- Type '--' to create a dash in notes
+- Compare scripture updates (highlights, notes, etc.)
+- Zoom in tabs and side panels
+- View tab's history
+
+Bug Fixes:
+- Highlight fixes
+- YouTube transcript fixes
+- Findbar fixes
+- Notes formatting fixes
+- Mac updater fixes
+- Slight UI changes
+
+---
+
 ## [0.3.12] - 2026-06-08
 
 - Reverse cross references

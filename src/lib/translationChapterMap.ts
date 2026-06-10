@@ -100,6 +100,25 @@ function jerLxxToKjv(lxxChapter: number): number {
   return JER_LXX_TO_KJV[lxxChapter] ?? lxxChapter
 }
 
+// ── Joel mapping ──────────────────────────────────────────────────────────────
+//
+// The LXX (and Hebrew) split KJV's Joel 2 — KJV 2:28-32 becomes LXX chapter 3,
+// pushing KJV 3 to LXX 4. So the LXX has 4 chapters, the KJV has 3.
+//   KJV 1 = LXX 1
+//   KJV 2 = LXX 2  (KJV 2:1-27)  — and KJV 2:28-32 = LXX 3
+//   KJV 3 = LXX 4
+const JOL_KJV_TO_LXX: Record<number, number> = { 1: 1, 2: 2, 3: 4 }
+const JOL_LXX_TO_KJV: Record<number, number> = { 1: 1, 2: 2, 3: 2, 4: 3 }
+
+// ── Malachi mapping ───────────────────────────────────────────────────────────
+//
+// The LXX/Hebrew have 3 chapters; the KJV splits the last into 3 and 4
+// (KJV 4:1-6 = LXX/Hebrew 3:19-24). So KJV chapter 4 maps onto LXX chapter 3.
+const MAL_KJV_TO_LXX: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 3 }
+const MAL_LXX_TO_KJV: Record<number, number> = { 1: 1, 2: 2, 3: 3 }
+
+const recordMap = (m: Record<number, number>) => (ch: number): number => m[ch] ?? ch
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -133,6 +152,16 @@ export function mapChapterOnTranslationSwitch(
   if (book === 'JER') {
     if (isKjvTranslation(from) && isLxxTranslation(to)) return jerKjvToLxx(chapter)
     if (isLxxTranslation(from) && isKjvTranslation(to)) return jerLxxToKjv(chapter)
+  }
+
+  if (book === 'JOL') {
+    if (isKjvTranslation(from) && isLxxTranslation(to)) return recordMap(JOL_KJV_TO_LXX)(chapter)
+    if (isLxxTranslation(from) && isKjvTranslation(to)) return recordMap(JOL_LXX_TO_KJV)(chapter)
+  }
+
+  if (book === 'MAL') {
+    if (isKjvTranslation(from) && isLxxTranslation(to)) return recordMap(MAL_KJV_TO_LXX)(chapter)
+    if (isLxxTranslation(from) && isKjvTranslation(to)) return recordMap(MAL_LXX_TO_KJV)(chapter)
   }
 
   return chapter

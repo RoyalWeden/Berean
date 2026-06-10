@@ -1,17 +1,29 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Check as CheckIcon } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, Check as CheckIcon } from 'lucide-react'
+import ZoomControls from '@/components/shell/ZoomControls'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/NoteEditor'
+import type { ZoomContext } from '@/lib/zoom'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, parseRef } from '@/lib/parseRef'
+import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
+
+function SidePanelZoom({ activeTab }: { activeTab: 'notes' | 'lexicon' | 'crossrefs' }) {
+  const ctx: ZoomContext = activeTab === 'notes' ? 'notes' : activeTab === 'lexicon' ? 'lexicon' : 'scripture'
+  return (
+    <span className="pr-1.5 flex items-center">
+      <ZoomControls context={ctx} compact />
+    </span>
+  )
+}
 
 type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
 type NoteScope = 'all' | 'chapter'
@@ -404,6 +416,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                     <button
                       key={i}
                       onClick={() => navToVerse(occ.book_id, occ.chapter, occ.verse_num)}
+                      onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
                       className="w-full text-left px-1.5 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors group"
                     >
                       <span className="font-mono text-[9px] text-[rgb(var(--color-accent))] block group-hover:underline">{refLabel}</span>
@@ -566,15 +579,20 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
   const [text, setText] = useState('')
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  // Use the active scripture tab's translation for canonical books (so LXX cross-refs show LXX text)
+  const activeTranslation = useAppStore((s) => {
+    const tabId = s.activeTabId['scripture']
+    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
+    return tab ? (tab.state as BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva' : 'kjva'
+  })
   useEffect(() => {
-    const textId = getTranslationForBook(bookId) ?? 'kjva'
+    // Pseudepigrapha / apocrypha have their own fixed DB; canonical books use the active translation
+    const textId = getTranslationForBook(bookId) ?? activeTranslation
     if (verse === 0) {
-      // Chapter reference — show the opening verse plus an ellipsis
       window.bible.queryVerse(bookId, chapter, 1, textId)
         .then(v => setText(v?.text ? v.text + '…' : ''))
         .catch(() => {})
     } else if (endVerse && endVerse > verse) {
-      // Verse range — fetch up to 6 verses and concatenate
       const nums = Array.from({ length: Math.min(endVerse - verse + 1, 6) }, (_, i) => verse + i)
       Promise.all(nums.map(vn => window.bible.queryVerse(bookId, chapter, vn, textId)))
         .then(results => setText(results.map(v => v?.text ?? '').filter(Boolean).join(' ')))
@@ -584,7 +602,7 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
         .then(v => setText(v?.text ?? ''))
         .catch(() => {})
     }
-  }, [bookId, chapter, verse, endVerse])
+  }, [bookId, chapter, verse, endVerse, activeTranslation]) // re-fetch when translation changes
   if (!text) return null
   const display = wordReplacerEnabled && wordReplacerRules.length > 0
     ? applyWordReplacer(text, wordReplacerRules) : text
@@ -1180,6 +1198,10 @@ export default function BibleRightPanel({
   // uses the value saved before this tab was switched away (not a live-updating prop).
   const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
   const visibleTab = forcedTab ?? activeTab
+  // Per-context zoom for the side panel
+  const sideLexiconZoom = useAppStore((s) => s.panelZoom.lexicon)
+  const sideScriptureZoom = useAppStore((s) => s.panelZoom.scripture)
+  const sideNotesZoom = useAppStore((s) => s.panelZoom.notes)
   const [scope, setScope] = useState<NoteScope>('chapter')
   const [sort, setSort] = useState<NoteSort>('verse')
   const [expandAll, setExpandAll] = useState(false)
@@ -1412,7 +1434,7 @@ export default function BibleRightPanel({
     <div className="flex flex-col h-full">
       {/* Tab strip — hidden when a tab is forced externally */}
       {!forcedTab && (
-        <div className="flex border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+        <div className="flex items-center border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
           {([['notes', 'Notes'], ['lexicon', 'Lexicon'], ['crossrefs', 'Cross Refs']] as [PanelTab, string][]).map(([tab, label]) => (
             <button
               key={tab}
@@ -1428,12 +1450,14 @@ export default function BibleRightPanel({
               {label}
             </button>
           ))}
+          {/* Zoom controls for the active tab context */}
+          <SidePanelZoom activeTab={visibleTab} />
         </div>
       )}
 
       {/* Notes tab — note open */}
       {visibleTab === 'notes' && sidebarNote && (
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideNotesZoom}px` }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <button
               onClick={closeSidebarNote}
@@ -1483,7 +1507,7 @@ export default function BibleRightPanel({
 
       {/* Notes tab — list */}
       {visibleTab === 'notes' && !sidebarNote && (
-        <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideNotesZoom}px` }}>
           {/* Search bar */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -1720,7 +1744,7 @@ export default function BibleRightPanel({
 
       {/* Lexicon tab */}
       {visibleTab === 'lexicon' && (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideLexiconZoom }}>
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
@@ -1730,7 +1754,7 @@ export default function BibleRightPanel({
 
       {/* Cross References tab */}
       {visibleTab === 'crossrefs' && (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideScriptureZoom }}>
           <CrossRefsTab
             bookId={bookId}
             chapter={chapter}
@@ -1789,6 +1813,25 @@ export default function BibleRightPanel({
               >
                 <BookOpen size={12} />
                 Open verse
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={async () => {
+                  const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
+                  closeSideCtxMenu()
+                  const v = await window.bible.queryVerse(bId, ch, vs).catch(() => null)
+                  copyVerse(bId, ch, vs, v?.text ?? '')
+                }}
+              >
+                <Copy size={12} />
+                Copy verse
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => { closeSideCtxMenu(); copyVerseRef(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
+              >
+                <Hash size={12} />
+                Copy reference
               </button>
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"

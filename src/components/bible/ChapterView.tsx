@@ -8,6 +8,7 @@ import { extractRefsFromNote } from '@/lib/noteRefs'
 import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
 import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
+import { zoomedFontSize } from '@/lib/zoom'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
 
@@ -27,6 +28,8 @@ interface ChapterViewProps {
   onStrongsClick?: (num: string) => void
   onWordClick?: (word: string) => void
   onVersesLoaded?: () => void
+  /** Tighter padding + no max width — used for compare columns. */
+  compact?: boolean
 }
 
 interface VerseSelection { vn: number; startChar: number; endChar: number }
@@ -138,8 +141,8 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded }: ChapterViewProps) {
-  const bibleFontSize = useAppStore((s) => s.bibleFontSize)
+export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, compact = false }: ChapterViewProps) {
+  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
   const bumpHighlightToken = useAppStore((s) => s.bumpHighlightToken)
@@ -457,7 +460,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   }
 
   return (
-    <div ref={containerRef} className="berean-scripture-text px-8 py-6 max-w-3xl" style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
+    <div ref={containerRef} className={`berean-scripture-text ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
 
       {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
       {chapterSources.length > 0 && (

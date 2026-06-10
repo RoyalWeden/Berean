@@ -3,6 +3,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import { HintTooltip } from '@/components/shell/HintTooltip'
+import ZoomControls from '@/components/shell/ZoomControls'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import PrintPreviewModal from './PrintPreviewModal'
@@ -87,15 +88,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     function onOpenNotesFindBar(e: Event) {
       const seedChar = (e as CustomEvent).detail?.seedChar ?? ''
       if (localFindOpen) {
-        // already open — close it (Cmd+F or button toggles)
-        setLocalFindOpen(false)
-        setLocalFindQuery('')
-        setFindMatchIdx(0)
-      } else {
-        setLocalFindOpen(true)
-        setLocalFindQuery(seedChar)
-        setFindMatchIdx(0)
+        // Already open — re-focus the input and select its text (don't close).
+        window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
+        return
       }
+      setLocalFindOpen(true)
+      setLocalFindQuery(seedChar)
+      setFindMatchIdx(0)
     }
     window.addEventListener('berean:openNotesFindBar', onOpenNotesFindBar)
     return () => window.removeEventListener('berean:openNotesFindBar', onOpenNotesFindBar)
@@ -778,6 +777,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 </button>
               ))}
             </div>
+            <ZoomControls context="notes" compact />
             <HintTooltip label="Version history">
             <button
               onClick={() => { if (activeNote) setVersionHistoryOpen(true) }}
@@ -893,14 +893,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             >
               <FolderTree size={15} />
             </button>
-            {/* Expand all toggle */}
-            <button
-              onClick={() => setExpandAll(v => !v)}
-              title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-              className={`p-1 rounded cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              <AlignJustify size={15} />
-            </button>
+            {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
+            {!folderView && (
+              <button
+                onClick={() => setExpandAll(v => !v)}
+                title={expandAll ? 'Collapse notes' : 'Expand all notes'}
+                className={`p-1 rounded cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+              >
+                <AlignJustify size={15} />
+              </button>
+            )}
             {/* Select mode toggle */}
             <button
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}

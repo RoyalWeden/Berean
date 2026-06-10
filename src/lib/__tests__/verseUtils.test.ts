@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '../verseUtils'
+import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay, buildVerseDisplayText } from '../verseUtils'
 
 // ─── getWordWindow ─────────────────────────────────────────────────────────────
 
@@ -319,5 +319,29 @@ describe('mapOriginalOffsetToDisplay', () => {
   it('clamps out-of-range offsets', () => {
     expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', -1)).toBe(0)
     expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', 99)).toBe('Yehovah'.length)
+  })
+})
+
+describe('buildVerseDisplayText + selection mapping (2 Kings 23:7 LORD→Yehovah, "the" suppressed)', () => {
+  const tagged = 'And{} he{} brake{} down{H5422} ~{H853} the{} houses{H1004} of{} the{} sodomites,{H6945} that{H834} *were{} by{} the{} house{H1004} of{} the{} LORD,{H3068} where{H834|H8033} the{} women{H802} wove{H707} hangings{H1004} for{} the{} grove.{H842}'
+  const original = 'And he brake down the houses of the sodomites, that were by the house of the LORD, where the women wove hangings for the grove.'
+  const rules = [{ id: 'h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true }]
+
+  it('produces the on-screen text with "the" suppressed and LORD→Yehovah', () => {
+    const disp = buildVerseDisplayText(original, tagged, 'kjva', true, rules)
+    expect(disp).toContain('house of Yehovah, where the women wove hangings for the grove.')
+    expect(disp).not.toContain('the LORD')
+    expect(disp).not.toContain('the Yehovah')
+  })
+
+  it('maps a selection after the replacement to the exact original offsets', () => {
+    const disp = buildVerseDisplayText(original, tagged, 'kjva', true, rules)
+    const sel = 'wove hangings for the grove'
+    const ds = disp.indexOf(sel)
+    const de = ds + sel.length
+    const os = mapDisplayOffsetToOriginal(disp, original, ds)
+    const oe = mapDisplayOffsetToOriginal(disp, original, de)
+    // The mapped range must be exactly the same words in the original (no leading-space / dropped-char drift)
+    expect(original.slice(os, oe)).toBe(sel)
   })
 })

@@ -2418,9 +2418,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         return (
                           <div className="mt-1.5 flex items-start gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-1">
                             <Captions size={9} className="text-emerald-400 flex-shrink-0 mt-[1px]" />
-                            <p className="text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] line-clamp-2">
+                            <p className="text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] line-clamp-4">
                               <span className="font-mono text-emerald-400/80 mr-1">{formatDuration(Math.floor(info.startMs / 1000))}</span>
-                              {highlightSnippet(info.snippet, search, 120).map((part, pi) =>
+                              {highlightSnippet(info.snippet, search, 320).map((part, pi) =>
                                 part.match
                                   ? <mark key={pi} className="bg-emerald-400/30 text-[rgb(var(--color-text-primary))] rounded-sm px-0.5">{part.text}</mark>
                                   : <span key={pi}>{part.text}</span>

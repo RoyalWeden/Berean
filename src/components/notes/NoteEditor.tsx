@@ -188,7 +188,7 @@ const bereanSyntaxOverrides = syntaxHighlighting(HighlightStyle.define([
 const bereanTheme = EditorView.theme({
   '&': {
     height: '100%',
-    fontSize: '14px',
+    fontSize: 'inherit', // inherit from the container so per-panel zoom applies
     fontFamily: 'var(--font-body, system-ui, sans-serif)',
     backgroundColor: 'transparent !important',
     color: 'rgb(var(--color-text-primary))',
@@ -659,6 +659,26 @@ const wrapOnTypeHandler = EditorView.inputHandler.of((view, from, to, text) => {
   const pair = wrapMap[text]
   if (!pair) return false
   wrapWith(pair[0], pair[1])(view)
+  return true
+})
+
+// Auto em dash: typing a second "-" right after an existing "-" replaces both with "—".
+// Gated by the autoEmDash setting (read live). Skips code spans/blocks so "--" stays literal there.
+const autoEmDashHandler = EditorView.inputHandler.of((view, from, to, text) => {
+  if (text !== '-' || from !== to || from === 0) return false
+  if (!useAppStore.getState().autoEmDash) return false
+  const before = view.state.doc.sliceString(from - 1, from)
+  if (before !== '-') return false
+  // Don't convert inside inline code or fenced code blocks (leave "--" literal there).
+  const line = view.state.doc.lineAt(from)
+  const beforeOnLine = line.text.slice(0, from - line.from)
+  const backticks = (beforeOnLine.match(/`/g) ?? []).length
+  if (backticks % 2 === 1) return false // inside an inline code span
+  view.dispatch({
+    changes: { from: from - 1, to: from, insert: '—' },
+    selection: { anchor: from }, // caret lands right after the em dash
+    userEvent: 'input.type',
+  })
   return true
 })
 
@@ -2753,6 +2773,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   onCursorPositionRef.current = onCursorPosition
 
   const noteVerseRefsEnabled = useAppStore((s) => s.noteVerseRefsEnabled)
+  const notesZoom = useAppStore((s) => s.panelZoom.notes)
   const noteLexiconRefsEnabled = useAppStore((s) => s.noteLexiconRefsEnabled)
   const noteHeadingDividerProp = useAppStore((s) => s.noteHeadingDivider)
 
@@ -2764,6 +2785,11 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [verseSuggest, setVerseSuggest] = useState<{ ref: string; from: number; to: number; x: number; y: number } | null>(null)
   const noteStrongsBlockSuggest = useAppStore((s) => s.noteStrongsBlockSuggest)
   const noteVerseBlockSuggest = useAppStore((s) => s.noteVerseBlockSuggest)
+  // Opening the floating search / command bar / settings counts as dismissing the
+  // pending verse/Strong's block suggestion (the user moved on without acting on it).
+  const searchOpen = useAppStore((s) => s.searchOpen)
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
+  useEffect(() => { if (searchOpen || settingsOpen) setVerseSuggest(null) }, [searchOpen, settingsOpen])
   // Hover preview for existing [[wikilinks]]
   const [wikiHover, setWikiHover] = useState<{ note: Note; x: number; y: number } | null>(null)
   const wikiHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2776,6 +2802,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [isSelectionSuppressed, setIsSelectionSuppressed] = useState(false)
   // Persistent toolbar
   const [editorWidth, setEditorWidth] = useState(0)
+  const [narrowToolbarOpen, setNarrowToolbarOpen] = useState(false)
   const outerRef = useRef<HTMLDivElement>(null)
   const [pHeadingOpen, setPHeadingOpen] = useState(false)
   const [pListOpen, setPListOpen] = useState(false)
@@ -3083,6 +3110,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           ...historyKeymap,
         ]),
         wrapOnTypeHandler,
+        autoEmDashHandler,
         pasteHandler,
         markdown({ extensions: { remove: ['SetextHeading'] } }),
         liveMarkdownPlugin,
@@ -3337,7 +3365,10 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     }
   }, [content])
 
-  const showPersistentToolbar = !previewMode && editorWidth >= PERSISTENT_TOOLBAR_MIN_WIDTH
+  // In a narrow editor (e.g. the scripture side panel) the toolbar would overflow, so it
+  // wraps to multiple lines and is collapsed behind a toggle the user reveals on demand.
+  const isNarrowEditor = editorWidth > 0 && editorWidth < PERSISTENT_TOOLBAR_MIN_WIDTH
+  const showPersistentToolbar = !previewMode && (!isNarrowEditor || narrowToolbarOpen)
 
   // Shared alignment handler (used by both toolbars)
   function applyAlignment(align: string) {
@@ -3566,9 +3597,21 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     <div ref={outerRef} className="berean-notes-text h-full w-full flex flex-col relative">
 
       {/* ── Persistent toolbar (Word / Docs-style, shown when editor is wide enough) ── */}
+      {/* Narrow editors (side panel): a toggle reveals the wrapping formatting bar */}
+      {isNarrowEditor && !previewMode && (
+        <button
+          onMouseDown={(e) => { e.preventDefault(); setNarrowToolbarOpen((v) => !v) }}
+          title={narrowToolbarOpen ? 'Hide formatting' : 'Show formatting'}
+          className={`flex items-center gap-1 px-2 py-0.5 text-[10px] border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 w-full cursor-pointer transition-colors ${narrowToolbarOpen ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))]' : 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+        >
+          <Bold size={11} />
+          <span>Formatting</span>
+          <ChevronDown size={11} className={`ml-auto transition-transform ${narrowToolbarOpen ? 'rotate-180' : ''}`} />
+        </button>
+      )}
       {showPersistentToolbar && (
         <div
-          className="flex items-center gap-px px-2 py-0.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-2))] overflow-visible"
+          className={`flex items-center gap-px px-2 py-0.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-2))] overflow-visible ${isNarrowEditor ? 'flex-wrap' : ''}`}
           onMouseDown={(e) => e.preventDefault()}
         >
           {/* Undo / Redo */}
@@ -4317,6 +4360,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       <div
         ref={containerRef}
         className="overflow-hidden flex-1"
+        style={{ fontSize: `${14 * notesZoom}px` }}
         onMouseMove={(e) => {
           const target = e.target as HTMLElement
           const wikiEl = target.closest('.cm-live-wikilink') as HTMLElement | null

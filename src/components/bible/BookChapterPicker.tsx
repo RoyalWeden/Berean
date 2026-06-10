@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, Search } from 'lucide-react'
 import type { Book } from '@/types'
 import { normalizeBookQuery } from '@/lib/verseUtils'
@@ -10,14 +11,41 @@ interface BookChapterPickerProps {
   currentChapter: number
   onNavigate: (bookId: string, chapter: number) => void
   compact?: boolean
+  /** Custom trigger content (e.g. an "add panel" icon) instead of the current book + chapter. */
+  triggerLabel?: ReactNode
+  /** Tooltip for the trigger when a custom triggerLabel is used. */
+  triggerTitle?: string
+  /** Override className for the custom-triggerLabel button (defaults to an icon-sized p-1 button). */
+  triggerClassName?: string
+  /** Override className on the outer wrapper div (default: "relative"). */
+  wrapperClassName?: string
 }
 
-export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact }: BookChapterPickerProps) {
+export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName }: BookChapterPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeBookId, setActiveBookId] = useState(currentBookId)
+  const [pos, setPos] = useState<{ left: number; top: number; openUp: boolean }>({ left: 0, top: 0, openUp: false })
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const PANEL_W = 520
+  const PANEL_H = 380
+
+  // Position the (portaled) dropdown relative to the trigger, clamped to the viewport
+  // so it's never clipped inside narrow/overflow-hidden containers (e.g. compare columns).
+  function recomputePos() {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (!r) return
+    const pad = 8
+    const left = Math.max(pad, Math.min(r.left, window.innerWidth - PANEL_W - pad))
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < PANEL_H + pad && r.top > spaceBelow
+    const top = openUp ? Math.max(pad, r.top - PANEL_H - 4) : r.bottom + 4
+    setPos({ left, top, openUp })
+  }
 
   const currentBook = books.find((b) => b.id === currentBookId)
 
@@ -25,9 +53,22 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
     if (open) {
       setActiveBookId(currentBookId)
       setSearch('')
+      recomputePos()
       setTimeout(() => searchRef.current?.focus(), 30)
     }
   }, [open, currentBookId])
+
+  // Keep the dropdown anchored while open (scroll/resize)
+  useEffect(() => {
+    if (!open) return
+    const onMove = () => recomputePos()
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [open])
 
   // Keep activeBookId synced when currentBookId changes externally
   useEffect(() => {
@@ -37,9 +78,10 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   useEffect(() => {
     if (!open) return
     function onDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      const t = e.target as Node
+      const inTrigger = containerRef.current?.contains(t)
+      const inPanel = panelRef.current?.contains(t)
+      if (!inTrigger && !inPanel) setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -126,9 +168,20 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   )
 
   return (
-    <div className="relative" ref={containerRef}>
-      {/* Trigger */}
+    <div className={wrapperClassName ?? 'relative'} ref={containerRef}>
+      {/* Trigger — custom (e.g. an "add panel" icon) or the default book + chapter label */}
+      {triggerLabel ? (
+        <button
+          ref={triggerRef}
+          onClick={() => setOpen((o) => !o)}
+          title={triggerTitle}
+          className={triggerClassName ?? `p-1 rounded transition-colors cursor-pointer ${open ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'}`}
+        >
+          {triggerLabel}
+        </button>
+      ) : (
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className={`
           flex items-center gap-1 rounded-md cursor-pointer transition-colors border
@@ -156,16 +209,18 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         )}
         <ChevronDown size={compact ? 10 : 12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
       </button>
+      )}
 
-      {/* Dropdown panel */}
-      {open && (
+      {/* Dropdown panel — portaled to body + fixed so it's never clipped by overflow parents */}
+      {open && createPortal(
         <div
+          ref={panelRef}
           className="
-            absolute top-full left-0 mt-1 z-30 flex flex-col
+            fixed z-[9999] flex flex-col
             bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
             rounded-xl shadow-2xl overflow-hidden
           "
-          style={{ width: '520px', maxHeight: '380px' }}
+          style={{ left: pos.left, top: pos.top, width: PANEL_W, maxHeight: PANEL_H }}
         >
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -268,7 +323,8 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
               ) : null}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

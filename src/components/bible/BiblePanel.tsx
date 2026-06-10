@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, History } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
 import ChapterView from './ChapterView'
@@ -8,6 +9,7 @@ import BookChapterPicker from './BookChapterPicker'
 import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import FindBar from '@/components/shell/FindBar'
+import ZoomControls from '@/components/shell/ZoomControls'
 import ScriptureSearchView from './ScriptureSearchView'
 import ScriptureSearchFloating from './ScriptureSearchFloating'
 import LayoutPicker from './LayoutPicker'
@@ -80,7 +82,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false)
   const layoutPickerRef = useRef<HTMLDivElement>(null)
   // Compare mode — ref exposed to CompareView so the + button can add columns
-  const compareAddColRef = useRef<(() => void) | null>(null)
+  const compareAddColRef = useRef<((target?: { bookId: string; chapter: number; textId?: string }) => void) | null>(null)
+  // When "Add panel" is used to enter compare from a normal tab, the picked ref is parked
+  // here so the freshly-mounted CompareView can add it as a column.
+  const pendingComparePanelRef = useRef<{ bookId: string; chapter: number; textId?: string } | null>(null)
 
 
   const activeTab = tabs['scripture'].find((t) => t.id === activeTabId['scripture'])
@@ -96,12 +101,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const infoRef = useRef<HTMLDivElement>(null)
+  // Navigation history dropdown (right-click on back/forward arrows, or history button)
+  const [navHistoryDropdown, setNavHistoryDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
+  const navHistoryDropdownRef = useRef<HTMLDivElement>(null)
+  // Long-press timer refs for back/forward arrows
+  const backLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const forwardLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Always-current ref to tabState so async callbacks never read stale values
   const tabStateRef = useRef(tabState)
   const activeTabRef = useRef(activeTab)
   tabStateRef.current = tabState
   activeTabRef.current = activeTab
+  // Stable refs so berean:navBack/navForward listeners never capture stale closures
+  const navBackRef = useRef<(() => void) | null>(null)
+  const navForwardRef = useRef<(() => void) | null>(null)
 
   // Right panel state — initialized from persisted tab state
   const [rightPanelOpen, setRightPanelOpen] = useState(() => tabState.rightPanelOpen ?? false)
@@ -232,6 +246,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return TRANSLATIONS.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
   }, [translationFilter])
 
+  // Close nav history dropdown on outside click
+  useEffect(() => {
+    if (!navHistoryDropdown) return
+    function onDown(e: MouseEvent) {
+      if (navHistoryDropdownRef.current && !navHistoryDropdownRef.current.contains(e.target as Node)) {
+        setNavHistoryDropdown(null)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [navHistoryDropdown])
+
   // Close info popover on outside click
   useEffect(() => {
     if (!infoOpen) return
@@ -328,6 +354,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     window.addEventListener('berean:toggleStrongs', onToggleStrongs)
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
   }, [updateTabState]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Cmd+[ / Cmd+] → per-tab navigation history ───────────────────────────
+  useEffect(() => {
+    function onNavBack() { navBackRef.current?.() }
+    function onNavForward() { navForwardRef.current?.() }
+    window.addEventListener('berean:navBack', onNavBack)
+    window.addEventListener('berean:navForward', onNavForward)
+    return () => {
+      window.removeEventListener('berean:navBack', onNavBack)
+      window.removeEventListener('berean:navForward', onNavForward)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore scroll anchor after the Strong's layout reflow settles
   useEffect(() => {
@@ -505,17 +543,84 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  function navigate(bookId: string, chapter: number, endChapter?: number) {
-    if (!activeTab) return
+  function makeTitle(bookId: string, chapter: number, endChapter?: number) {
     const book = books.find((b) => b.id === bookId)
-    const title = endChapter
+    return endChapter
       ? (book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
       : isHermasBook(bookId)
         ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
         : (book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`)
-    updateTabState('scripture', activeTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null })
+  }
+
+  function navigate(bookId: string, chapter: number, endChapter?: number) {
+    if (!activeTab) return
+    const title = makeTitle(bookId, chapter, endChapter)
+
+    // ── Per-tab navigation history ──────────────────────────────────────────
+    const currentHistory = tabState.navHistory ?? []
+    const currentIdx = tabState.navHistoryIdx ?? (currentHistory.length - 1)
+    // Slice off any "forward" entries that were superseded
+    let base = currentHistory.slice(0, currentIdx + 1)
+    // Seed with the current position if history is empty (first navigation in this tab)
+    if (base.length === 0) {
+      const currentTitle = makeTitle(tabState.bookId, tabState.chapter, tabState.endChapter)
+      base = [{ bookId: tabState.bookId, chapter: tabState.chapter, translation: textId, title: currentTitle }]
+    }
+    const newHistory = [...base, { bookId, chapter, translation: textId, title }].slice(-50)
+    // ────────────────────────────────────────────────────────────────────────
+
+    updateTabState('scripture', activeTab.id, {
+      bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
+      navHistory: newHistory,
+      navHistoryIdx: newHistory.length - 1,
+    })
     renameTab('scripture', activeTab.id, title)
   }
+
+  /** Navigate backward in this tab's history without adding a new entry. */
+  function navBack() {
+    if (!activeTab) return
+    const history = tabState.navHistory ?? []
+    const idx = tabState.navHistoryIdx ?? (history.length - 1)
+    if (idx <= 0 || history.length === 0) return
+    const entry = history[idx - 1]
+    updateTabState('scripture', activeTab.id, {
+      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
+      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx - 1,
+    })
+    renameTab('scripture', activeTab.id, entry.title)
+  }
+
+  /** Navigate forward in this tab's history without adding a new entry. */
+  function navForward() {
+    if (!activeTab) return
+    const history = tabState.navHistory ?? []
+    const idx = tabState.navHistoryIdx ?? (history.length - 1)
+    if (idx >= history.length - 1) return
+    const entry = history[idx + 1]
+    updateTabState('scripture', activeTab.id, {
+      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
+      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx + 1,
+    })
+    renameTab('scripture', activeTab.id, entry.title)
+  }
+
+  /** Jump directly to a specific index in this tab's nav history. */
+  function navJumpTo(idx: number) {
+    if (!activeTab) return
+    const history = tabState.navHistory ?? []
+    if (idx < 0 || idx >= history.length) return
+    const entry = history[idx]
+    updateTabState('scripture', activeTab.id, {
+      bookId: entry.bookId, chapter: entry.chapter, translation: entry.translation.toUpperCase(),
+      scrollPosition: 0, targetVerse: undefined, navHistoryIdx: idx,
+    })
+    renameTab('scripture', activeTab.id, entry.title)
+  }
+
+  // Update stable refs each render so event listeners always see current functions
+  navBackRef.current = navBack
+  navForwardRef.current = navForward
 
   function prevChapter() {
     if (tabState.endChapter) {
@@ -610,6 +715,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
+  }
+
+  // Add a comparison panel at the picked book/chapter. Enters compare mode (current
+  // view + picked = 2 columns) when not already comparing; otherwise appends a column.
+  function addComparePanel(pickBookId: string, pickChapter: number) {
+    const target = { bookId: pickBookId, chapter: pickChapter, textId }
+    if (tabState.compareMode) {
+      compareAddColRef.current?.(target)
+    } else {
+      pendingComparePanelRef.current = target
+      if (activeTab) updateTabState('scripture', activeTab.id, { compareMode: true })
+    }
   }
 
   function handleWordClick(word: string) {
@@ -709,6 +826,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         <ScriptureSearchView
           initialQuery={tabState.scriptureSearchQuery}
           persistedState={{
+            query: tabState.scriptureSearchQuery,
             textId: tabState.searchTextId,
             wordMode: tabState.searchWordMode,
             testamentFilter: tabState.searchTestamentFilter,
@@ -718,6 +836,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           }}
           onStateChange={(s) => {
             if (activeTab) updateTabState('scripture', activeTab.id, {
+              scriptureSearchQuery: s.query,
               searchTextId: s.textId,
               searchWordMode: s.wordMode,
               searchTestamentFilter: s.testamentFilter,
@@ -824,26 +943,32 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </button>
         )}
         {isCompareMode ? (
-          <button
-            onClick={() => compareAddColRef.current?.()}
-            title="Add compare panel"
-            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors font-medium flex-shrink-0"
-          >
-            <Plus size={12} />
-            <span>Add panel</span>
-          </button>
+          <BookChapterPicker
+            books={books}
+            currentBookId={tabState.bookId}
+            currentChapter={tabState.chapter}
+            onNavigate={addComparePanel}
+            triggerLabel={<><Plus size={12} /><span>Add panel</span></>}
+            triggerTitle="Add comparison panel"
+            triggerClassName="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors font-medium flex-shrink-0"
+          />
         ) : (
           <>
-        <BookChapterPicker
-          books={books}
-          currentBookId={tabState.bookId}
-          currentChapter={tabState.chapter}
-          onNavigate={navigate}
-        />
-        <div ref={translationRef} className="relative">
+        {/* ── Unified location bar: [Book Ch · TRANS] ── */}
+        <div className="flex items-center text-xs rounded-md bg-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
+          <BookChapterPicker
+            books={books}
+            currentBookId={tabState.bookId}
+            currentChapter={tabState.chapter}
+            onNavigate={navigate}
+            wrapperClassName=""
+            triggerClassName="flex items-center gap-1 px-2 py-1 font-medium text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-l-md"
+          />
+          <span className="text-[rgb(var(--color-text-muted))] select-none text-[10px] opacity-50" aria-hidden>·</span>
+          <div ref={translationRef} className="relative">
           <button
             onClick={() => setTranslationOpen((v) => !v)}
-            className="text-xs font-medium px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-5,var(--color-surface-4)))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="flex items-center px-2 py-1 font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-r-md"
           >
             {TRANSLATIONS.find((t) => t.id === textId)?.label ?? tabState.translation.toUpperCase()}
           </button>
@@ -907,7 +1032,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               ))}
             </div>
           )}
-        </div>
+          </div>{/* end translationRef */}
+        </div>{/* end unified location pill */}
 
         {/* PDF import / library button */}
         {!floating && (
@@ -1018,12 +1144,69 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )}
         {isCompareMode ? null : (
           <>
-            <button onClick={prevChapter} className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+            {/* ◄ Prev chapter — right-click / long-press opens back history */}
+            <button
+              onClick={prevChapter}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setNavHistoryDropdown({ x: e.clientX, y: e.clientY, mode: 'back' })
+              }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                backLongPressRef.current = setTimeout(() => {
+                  const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setNavHistoryDropdown({ x: el.left, y: el.bottom + 4, mode: 'back' })
+                }, 500)
+              }}
+              onMouseUp={() => { if (backLongPressRef.current) { clearTimeout(backLongPressRef.current); backLongPressRef.current = null } }}
+              onMouseLeave={() => { if (backLongPressRef.current) { clearTimeout(backLongPressRef.current); backLongPressRef.current = null } }}
+              title="Previous chapter (right-click for history)"
+              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            >
               <ChevronLeft size={18} />
             </button>
-            <button onClick={nextChapter} className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+            {/* ► Next chapter — right-click / long-press opens forward history */}
+            <button
+              onClick={nextChapter}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setNavHistoryDropdown({ x: e.clientX, y: e.clientY, mode: 'forward' })
+              }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                forwardLongPressRef.current = setTimeout(() => {
+                  const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setNavHistoryDropdown({ x: el.left, y: el.bottom + 4, mode: 'forward' })
+                }, 500)
+              }}
+              onMouseUp={() => { if (forwardLongPressRef.current) { clearTimeout(forwardLongPressRef.current); forwardLongPressRef.current = null } }}
+              onMouseLeave={() => { if (forwardLongPressRef.current) { clearTimeout(forwardLongPressRef.current); forwardLongPressRef.current = null } }}
+              title="Next chapter (right-click for history)"
+              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            >
               <ChevronRight size={18} />
             </button>
+            {/* History button — shows full nav history */}
+            {(tabState.navHistory?.length ?? 0) > 0 && (
+              <button
+                onClick={(e) => {
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  setNavHistoryDropdown({ x: r.left, y: r.bottom + 4, mode: 'all' })
+                }}
+                title="Navigation history"
+                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              >
+                <History size={14} />
+              </button>
+            )}
+            <BookChapterPicker
+              books={books}
+              currentBookId={tabState.bookId}
+              currentChapter={tabState.chapter}
+              onNavigate={addComparePanel}
+              triggerLabel={<SplitSquareHorizontal size={16} />}
+              triggerTitle="Add comparison panel (pick a book/chapter)"
+            />
           </>
         )}
 
@@ -1141,6 +1324,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </button>
           </HintTooltip>
         )}
+        <ZoomControls context="scripture" compact />
       </div>
 
       {/* Floating scripture search (SearchIcon toolbar button or Cmd+/) */}
@@ -1165,6 +1349,69 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
       {/* PDF library picker */}
       {pdfPicker && <PdfPicker anchor={pdfPicker} onClose={() => setPdfPicker(null)} />}
+
+      {/* ── Nav history dropdown (right-click / long-press on ◄ ► or History button) ── */}
+      {navHistoryDropdown && createPortal(
+        <div
+          ref={navHistoryDropdownRef}
+          style={{ position: 'fixed', left: navHistoryDropdown.x, top: navHistoryDropdown.y, zIndex: 9999, minWidth: 200, maxWidth: 320 }}
+          className="rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl py-1 text-xs"
+        >
+          {(() => {
+            const history = tabState.navHistory ?? []
+            const idx = tabState.navHistoryIdx ?? (history.length - 1)
+            const backItems = history.slice(0, idx).reverse()
+            const forwardItems = history.slice(idx + 1)
+            const allItems = navHistoryDropdown.mode === 'back' ? backItems
+              : navHistoryDropdown.mode === 'forward' ? forwardItems
+              : history
+
+            if (allItems.length === 0) {
+              return <div className="px-3 py-2 text-[rgb(var(--color-text-muted))]">No history yet</div>
+            }
+
+            return (
+              <>
+                {navHistoryDropdown.mode === 'all' && (
+                  <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] sticky top-0 bg-[rgb(var(--color-surface-2))]">
+                    Navigation history
+                  </div>
+                )}
+                {navHistoryDropdown.mode !== 'all' && (
+                  <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+                    {navHistoryDropdown.mode === 'back' ? 'Back' : 'Forward'}
+                  </div>
+                )}
+                {(navHistoryDropdown.mode === 'all' ? history.slice().reverse() : allItems).map((entry, i) => {
+                  const actualIdx = navHistoryDropdown.mode === 'all'
+                    ? history.length - 1 - i
+                    : navHistoryDropdown.mode === 'back'
+                      ? idx - 1 - i
+                      : idx + 1 + i
+                  const isCurrent = actualIdx === idx
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => { navJumpTo(actualIdx); setNavHistoryDropdown(null) }}
+                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
+                        isCurrent
+                          ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
+                      {!isCurrent && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                      <span className="truncate">{entry.title}</span>
+                      <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">{(entry.translation ?? 'KJV').toUpperCase()}</span>
+                    </button>
+                  )
+                })}
+              </>
+            )
+          })()}
+        </div>,
+        document.body
+      )}
 
       {/* Verse digit overlay — shown while accumulating a type-anywhere verse number */}
       {verseDigitAccum && (
@@ -1209,13 +1456,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <CompareView
         bookId={tabState.bookId}
         chapter={tabState.chapter}
+        sourceTextId={textId}
         targetVerse={tabState.targetVerse}
         findQuery={findQuery}
         findWordMode={findWMode}
+        showStrongs={tabState.showStrongs}
         onColumnFocus={(idx) => { setCompareFocusedCol(idx); setFindMatchVerseNums([]); setFindMatchIdx(0) }}
         onColumnRef={(idx, el) => { compareColRefs.current[idx] = el }}
+        onStrongsClick={handleStrongsClick}
+        onWordClick={handleWordClick}
         books={books}
         addColRef={compareAddColRef}
+        initialAddPanel={pendingComparePanelRef.current}
+        onConsumeInitialPanel={() => { pendingComparePanelRef.current = null }}
+        onCollapseToSingle={(last) => {
+          if (!activeTab) return
+          updateTabState('scripture', activeTab.id, {
+            compareMode: false, bookId: last.bookId, chapter: last.chapter,
+            translation: last.textId.toUpperCase(),
+          })
+        }}
       />
     ) : (
       <div
@@ -1448,10 +1708,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <CompareView
                 bookId={tabState.bookId}
                 chapter={tabState.chapter}
+                sourceTextId={textId}
                 targetVerse={tabState.targetVerse}
                 findQuery={findQuery}
+                showStrongs={tabState.showStrongs}
                 onColumnFocus={(idx) => { setCompareFocusedCol(idx); setFindMatchVerseNums([]); setFindMatchIdx(0) }}
                 onColumnRef={(idx, el) => { compareColRefs.current[idx] = el }}
+                onStrongsClick={handleStrongsClick}
+                onWordClick={handleWordClick}
                 books={books}
                 addColRef={compareAddColRef}
               />

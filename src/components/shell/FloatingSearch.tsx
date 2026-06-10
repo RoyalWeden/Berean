@@ -305,7 +305,8 @@ export default function FloatingSearch() {
       : undefined
 
     if (targetTab) {
-      updateTabState('scripture', targetTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation })
+      // Navigating to a verse exits the advanced-search view if the tab was in it.
+      updateTabState('scripture', targetTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation, searchMode: false })
       renameTab('scripture', targetTab.id, title)
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab

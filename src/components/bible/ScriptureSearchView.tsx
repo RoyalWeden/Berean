@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, ArrowLeft, GitFork, ExternalLink } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, ArrowLeft, GitFork, ExternalLink, Copy, Hash } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
+import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 
@@ -92,6 +93,7 @@ function highlight(text: string, query: string, wordMode: WordMode = 'all'): Rea
 }
 
 interface PersistedState {
+  query?: string
   textId?: string
   wordMode?: WordMode
   testamentFilter?: string
@@ -110,10 +112,10 @@ interface Props {
   onStateChange?: (state: PersistedState) => void
 }
 
-type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; x: number; y: number }
+type CtxItem = { bookId: string; chapter: number; verse: number; textId: string; text: string; x: number; y: number }
 
 export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpenInFloating, onClose, initialQuery, persistedState, onStateChange }: Props) {
-  const [query, setQuery] = useState(initialQuery ?? '')
+  const [query, setQuery] = useState(persistedState?.query ?? initialQuery ?? '')
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
   const [results, setResults] = useState<RawResult[]>([])
@@ -175,18 +177,19 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     }
   }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Persist state whenever filters change
+  // Persist state whenever filters or query change
   useEffect(() => {
-    onStateChangeRef.current?.({ textId, wordMode, testamentFilter, bookFilter, sortMode })
-  }, [textId, wordMode, testamentFilter, bookFilter, sortMode])
+    onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter, sortMode })
+  }, [query, textId, wordMode, testamentFilter, bookFilter, sortMode])
 
-  // If an initial query was provided, run the appropriate search immediately
+  // Run the search on mount if there is an initial/restored query
   useEffect(() => {
-    if (initialQuery && initialQuery.trim().length >= 2) {
-      if (parseRef(initialQuery.trim())) {
-        runCrossRefSearch(initialQuery)
+    const q = persistedState?.query ?? initialQuery ?? ''
+    if (q.trim().length >= 2) {
+      if (parseRef(q.trim())) {
+        runCrossRefSearch(q)
       } else {
-        runSearch(initialQuery, textId)
+        runSearch(q, textId)
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -534,7 +537,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       <div
         ref={resultsRef}
         className="flex-1 overflow-y-auto"
-        onScroll={(e) => onStateChangeRef.current?.({ textId, wordMode, testamentFilter, bookFilter, sortMode, scrollTop: (e.currentTarget as HTMLDivElement).scrollTop })}
+        onScroll={(e) => onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter, sortMode, scrollTop: (e.currentTarget as HTMLDivElement).scrollTop })}
       >
         {/* Cross-ref results */}
         {effectiveMode(query) === 'crossref' && crossRefsLoading && (
@@ -560,7 +563,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 <button
                   key={i}
                   onClick={() => onNavigate(r.bookId, r.chapter, r.verse, 'kjva')}
-                  onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', x: e.clientX, y: e.clientY }) }}
+                  onContextMenu={(e) => { e.preventDefault(); openCtxMenu({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, textId: 'kjva', text: '', x: e.clientX, y: e.clientY }) }}
                   className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
                 >
                   <span className="text-xs font-mono text-[rgb(var(--color-accent))] w-28 flex-shrink-0 pt-0.5 group-hover:underline">{ref}</span>
@@ -624,7 +627,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   <button
                     key={`${r._textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
                     onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, x: e.clientX, y: e.clientY }) }}
+                    onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
                   >
                     <span className="text-xs font-mono text-[rgb(var(--color-text-muted))] w-14 flex-shrink-0 pt-0.5">
@@ -669,6 +672,26 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           >
             <ChevronRight size={12} />
             Open here
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+            onClick={async () => {
+              const { bookId: bId, chapter: ch, verse: vs, textId: tid, text: tx } = ctxMenu
+              closeCtxMenu()
+              let text = tx
+              if (!text) { const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null); text = v?.text ?? '' }
+              copyVerse(bId, ch, vs, text, tid === 'lxx')
+            }}
+          >
+            <Copy size={12} />
+            Copy verse
+          </button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+            onClick={() => { copyVerseRef(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId === 'lxx'); closeCtxMenu() }}
+          >
+            <Hash size={12} />
+            Copy reference
           </button>
           {onOpenInNewTab && (
             <button

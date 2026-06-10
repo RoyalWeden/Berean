@@ -276,6 +276,31 @@ export default function NotesFolderView({
     return result
   }, [bySystem])
 
+  // Daily/journal notes grouped into Year → Month virtual subfolders (newest first).
+  // Date comes from a YYYY-MM-DD in the title, else the note's createdAt.
+  const dailySubGroups = useMemo(() => {
+    const dateOf = (n: Note): Date | null => {
+      const m = (n.title ?? '').match(/(\d{4})-(\d{2})-(\d{2})/)
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3])
+      if (n.createdAt) return new Date(n.createdAt)
+      return null
+    }
+    const withoutDate: Note[] = []
+    // byYear: year("2026") → month("2026-06") → notes
+    const byYear = new Map<string, Map<string, Note[]>>()
+    for (const n of bySystem.daily) {
+      const d = dateOf(n)
+      if (!d || isNaN(d.getTime())) { withoutDate.push(n); continue }
+      const year = String(d.getFullYear())
+      const monthKey = `${year}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (!byYear.has(year)) byYear.set(year, new Map())
+      const months = byYear.get(year)!
+      if (!months.has(monthKey)) months.set(monthKey, [])
+      months.get(monthKey)!.push(n)
+    }
+    return { withoutDate, byYear }
+  }, [bySystem])
+
   const childFolders = (parentId: string | null) => folders.filter((f) => f.parentId === parentId)
 
   // Descendant folder ids (for hiding invalid move targets)
@@ -637,6 +662,68 @@ export default function NotesFolderView({
     )
   }
 
+  // Render the Daily Notes body as Year → Month virtual subfolders (newest first).
+  // Virtual folder IDs: "sys:daily:{year}" and "sys:daily:{year}-{month}".
+  const renderDailyContent = () => {
+    const { withoutDate, byYear } = dailySubGroups
+    const sortedYears = [...byYear.entries()].sort(([a], [b]) => b.localeCompare(a)) // newest year first
+    return (
+      <>
+        {withoutDate.map((n) => renderNote(n, 1))}
+        {sortedYears.map(([year, months]) => {
+          const yearFolderId = `sys:daily:${year}`
+          const yearIsOpen = expanded.has(yearFolderId)
+          const totalNotes = [...months.values()].reduce((sum, ns) => sum + ns.length, 0)
+          const sortedMonths = [...months.entries()].sort(([a], [b]) => b.localeCompare(a)) // newest month first
+          return (
+            <div key={yearFolderId}>
+              {/* Year virtual folder — depth=1 */}
+              <div
+                onClick={() => toggle(yearFolderId)}
+                style={{ paddingLeft: 24 }}
+                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+              >
+                <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${yearIsOpen ? 'rotate-90' : ''}`} />
+                {yearIsOpen
+                  ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
+                <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
+                <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
+              </div>
+              {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
+                const monthFolderId = `sys:daily:${monthKey}`
+                const monthIsOpen = expanded.has(monthFolderId)
+                const monthLabel = new Date(+monthKey.slice(0, 4), +monthKey.slice(5, 7) - 1, 1)
+                  .toLocaleString('default', { month: 'long' })
+                return (
+                  <div key={monthFolderId}>
+                    {/* Month virtual folder — depth=2 */}
+                    <div
+                      onClick={() => toggle(monthFolderId)}
+                      style={{ paddingLeft: 40 }}
+                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                    >
+                      <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${monthIsOpen ? 'rotate-90' : ''}`} />
+                      {monthIsOpen
+                        ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                        : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
+                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
+                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{mNotes.length || ''}</span>
+                    </div>
+                    {/* Notes inside month — depth=3, newest first */}
+                    {monthIsOpen && [...mNotes]
+                      .sort((a, b) => (b.title ?? '').localeCompare(a.title ?? '') || (b.createdAt ?? 0) - (a.createdAt ?? 0))
+                      .map((n) => renderNote(n, 3))}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </>
+    )
+  }
+
   // Folder move targets (exclude self + descendants)
   const folderMoveTargets = useMemo(() => {
     if (!folderMenu) return []
@@ -674,9 +761,11 @@ export default function NotesFolderView({
               <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{sysNotes.length || ''}</span>
             </div>
             {isOpen && (
-              useSubFolders
-                ? renderSystemContent(key)
-                : sysNotes.map((n) => renderNote(n, 1))
+              key === 'daily'
+                ? renderDailyContent()
+                : useSubFolders
+                  ? renderSystemContent(key)
+                  : sysNotes.map((n) => renderNote(n, 1))
             )}
           </div>
         )

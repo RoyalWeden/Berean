@@ -1,0 +1,70 @@
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { Copy, Hash } from 'lucide-react'
+import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
+
+export interface VerseCopyTarget {
+  bookId: string
+  chapter: number
+  verse: number
+  text: string
+  lxx?: boolean
+  x: number
+  y: number
+}
+
+/**
+ * Lightweight right-click "Copy verse / Copy reference" menu for any scripture list
+ * (search results, cross-refs, lexicon occurrences). Pair with `useVerseCopyMenu`.
+ */
+export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | null; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!target) return
+    const close = () => onClose()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // Defer so the opening right-click doesn't immediately close it.
+    const t = setTimeout(() => {
+      window.addEventListener('click', close)
+      window.addEventListener('contextmenu', close)
+      window.addEventListener('keydown', onKey)
+    }, 0)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('click', close)
+      window.removeEventListener('contextmenu', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [target, onClose])
+
+  if (!target) return null
+  const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed z-[10000] min-w-[150px] rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl py-1"
+      style={{ left: target.x, top: target.y }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx); onClose() }}>
+        <Copy size={13} className="flex-shrink-0" /> Copy verse
+      </button>
+      <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx); onClose() }}>
+        <Hash size={13} className="flex-shrink-0" /> Copy reference
+      </button>
+    </div>,
+    document.body,
+  )
+}
+
+/** Hook that manages the menu target + an onContextMenu handler factory. */
+export function useVerseCopyMenu() {
+  const [target, setTarget] = useState<VerseCopyTarget | null>(null)
+  const open = useCallback((e: React.MouseEvent, v: { bookId: string; chapter: number; verse: number; text: string; lxx?: boolean }) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setTarget({ ...v, x: e.clientX, y: e.clientY })
+  }, [])
+  const close = useCallback(() => setTarget(null), [])
+  return { target, open, close }
+}
