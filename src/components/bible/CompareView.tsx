@@ -162,6 +162,16 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
   const [booksByText, setBooksByText] = useState<Record<string, Book[]>>({})
+  // Holds a pending onCollapseToSingle argument — scheduled outside the setColumns updater
+  // to avoid calling parent state-setters during render (React warning + Zustand push).
+  const pendingCollapseRef = useRef<{ bookId: string; chapter: number; textId: string } | null>(null)
+  useEffect(() => {
+    if (pendingCollapseRef.current && onCollapseToSingle) {
+      const arg = pendingCollapseRef.current
+      pendingCollapseRef.current = null
+      onCollapseToSingle(arg)
+    }
+  })
   const [columns, setColumns] = useState<ColState[]>(() => {
     // Entered via "Add panel": start with just the CURRENT view; the picked ref is appended
     // by the consume effect → current + picked = 2 columns.
@@ -257,10 +267,10 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     setColumns(prev => {
       if (prev.length <= 1) return prev
       const next = prev.filter(c => c.id !== colId)
-      // Removing down to a single column → ask the host to drop back to a normal tab.
+      // Removing down to a single column → schedule collapse via ref (not during render).
       if (next.length === 1 && onCollapseToSingle) {
         const c = next[0]
-        onCollapseToSingle({ bookId: c.bookId, chapter: c.chapter, textId: c.textId })
+        pendingCollapseRef.current = { bookId: c.bookId, chapter: c.chapter, textId: c.textId }
       }
       return next
     })

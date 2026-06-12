@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EditorView, keymap, ViewPlugin, Decoration, WidgetType } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { EditorState, EditorSelection, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state'
@@ -674,6 +674,10 @@ const autoEmDashHandler = EditorView.inputHandler.of((view, from, to, text) => {
   const beforeOnLine = line.text.slice(0, from - line.from)
   const backticks = (beforeOnLine.match(/`/g) ?? []).length
   if (backticks % 2 === 1) return false // inside an inline code span
+  // Don't convert at the start of a line — user is likely typing "---" for a horizontal rule.
+  // beforeOnLine ends with the first "-"; everything before it is the leading text.
+  const beforeFirstDash = beforeOnLine.slice(0, -1)
+  if (beforeFirstDash.trim() === '') return false
   view.dispatch({
     changes: { from: from - 1, to: from, insert: '—' },
     selection: { anchor: from }, // caret lands right after the em dash
@@ -2942,8 +2946,40 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     if (previewMode) { setBacklinkInfo(null); setSelToolbar(null) }
   }, [previewMode])
 
+  // Clamp a fixed-position popup element to the viewport (all four edges).
+  // Reads the actual rendered rect (after any CSS transform), then overrides
+  // left/top with exact px values and removes the transform. No-flicker because
+  // callers use useLayoutEffect.
+  function clampEl(el: HTMLDivElement | null) {
+    if (!el) return
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const { left, top, width, height } = el.getBoundingClientRect()
+    let x = left, y = top
+    if (x + width + pad > vw) x = vw - width - pad
+    if (x < pad) x = pad
+    if (y + height + pad > vh) y = vh - height - pad
+    if (y < pad) y = pad
+    el.style.transform = 'none'
+    el.style.left = `${x}px`
+    el.style.top = `${y}px`
+  }
+
+  const strongsSuggestRef = useRef<HTMLDivElement>(null)
+  const verseSuggestRef   = useRef<HTMLDivElement>(null)
+  const backlinkRef       = useRef<HTMLDivElement>(null)
+  const wikiHoverRef      = useRef<HTMLDivElement>(null)
+
+  // Clamp each popup immediately after it first renders (before paint).
+  useLayoutEffect(() => { clampEl(strongsSuggestRef.current) })  // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { clampEl(verseSuggestRef.current) })    // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { clampEl(backlinkRef.current) })        // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { clampEl(wikiHoverRef.current) })       // eslint-disable-line react-hooks/exhaustive-deps
+
   // Dismiss selection toolbar on mousedown outside the editor + toolbar
   const selToolbarRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => { clampEl(selToolbarRef.current) })      // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selToolbar) return
     function onDown(e: MouseEvent) {
@@ -3854,6 +3890,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       {/* Strong's block suggestion popup */}
       {strongsSuggest && (
         <div
+          ref={strongsSuggestRef}
           style={{ position: 'fixed', left: strongsSuggest.x, top: strongsSuggest.y, zIndex: 60 }}
           className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
           onMouseDown={(e) => e.preventDefault()}
@@ -3879,6 +3916,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       {/* Verse block suggestion popup */}
       {verseSuggest && (
         <div
+          ref={verseSuggestRef}
           style={{ position: 'fixed', left: verseSuggest.x, top: verseSuggest.y, zIndex: 60 }}
           className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
           onMouseDown={(e) => e.preventDefault()}
@@ -3904,6 +3942,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       {/* Backlink popup — list on left, content preview on right */}
       {backlinkInfo && filteredNotes.length > 0 && (
         <div
+          ref={backlinkRef}
           style={{ position: 'fixed', left: backlinkInfo.x, top: backlinkInfo.y, zIndex: 60 }}
           className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden"
           onMouseDown={(e) => e.preventDefault()}
@@ -3946,6 +3985,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
       {/* Wikilink hover preview — shown when hovering over [[Note Title]] in the editor */}
       {wikiHover && (
         <div
+          ref={wikiHoverRef}
           style={{ position: 'fixed', left: wikiHover.x, top: wikiHover.y, zIndex: 70 }}
           className="w-72 max-h-64 overflow-y-auto rounded-lg shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] p-3 pointer-events-none"
         >

@@ -167,7 +167,8 @@ contextBridge.exposeInMainWorld('youtube', {
   clearTranscripts: () => ipcRenderer.invoke('youtube:clearTranscripts'),
   getTranscriptStatus: () => ipcRenderer.invoke('youtube:getTranscriptStatus'),
   getTranscript: (videoId: string) => ipcRenderer.invoke('youtube:getTranscript', videoId),
-  searchTranscripts: (query: string, limit?: number) => ipcRenderer.invoke('youtube:searchTranscripts', query, limit),
+  searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => ipcRenderer.invoke('youtube:searchTranscripts', query, videoLimit, perVideoLimit),
+  buildSeed: () => ipcRenderer.invoke('youtube:buildSeed'),
 })
 
 contextBridge.exposeInMainWorld('vault', {
@@ -175,6 +176,10 @@ contextBridge.exposeInMainWorld('vault', {
   readVaultNote: (title: string) => ipcRenderer.invoke('vault:readNote', title),
   watchVault: () => ipcRenderer.invoke('vault:watch'),
   reconcile: () => ipcRenderer.invoke('vault:reconcile'),
+  exportAll: () => ipcRenderer.invoke('vault:exportAll', localStorage.getItem('berean-app-state') ?? undefined),
+  setAutoExport: (intervalMinutes: number) => ipcRenderer.invoke('vault:setAutoExport', intervalMinutes),
+  importAll: () => ipcRenderer.invoke('vault:importAll'),
+  hasData: () => ipcRenderer.invoke('vault:hasData'),
   onVaultChange: (callback: (event: unknown) => void) => {
     ipcRenderer.on('vault:changed', (_, event) => callback(event))
   }

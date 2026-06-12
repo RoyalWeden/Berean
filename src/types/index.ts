@@ -41,12 +41,8 @@ export interface BibleTabState {
   rightPanelNoteFocused?: boolean        // was the side-panel note editor focused when the tab was left?
   rightPanelLexiconEntry?: string | null
   rightPanelVerseFilter?: string | null
-  /** Per-tab navigation history (book+chapter visits, capped at 50). */
-  navHistory?: Array<{ bookId: string; chapter: number; translation: string; title: string }>
-  /** Current position within navHistory (0-based). -1 = before any recorded navigation. */
-  navHistoryIdx?: number
   noteBack?: { noteId: string; title: string } | null
-  scriptureBack?: { bookId: string; chapter: number; verse?: number; label: string } | null
+  scriptureBack?: { bookId: string; chapter: number; verse?: number; label: string; translation?: string } | null
   searchBack?: { query: string } | null
   searchMode?: boolean
   scriptureSearchQuery?: string
@@ -266,6 +262,21 @@ export interface Highlight {
 }
 
 export type MosaicKey = 'bible-panel' | 'notes-panel' | 'lexicon-panel' | 'youtube-panel' | 'search-panel'
+
+/** A single entry in a per-tab navigation stack (back/forward within one tab). */
+export interface TabNavEntry {
+  id: string
+  type: TabType
+  title: string
+  bookId?: string
+  chapter?: number
+  translation?: string
+  noteId?: string
+  strongsNum?: string
+  videoId?: string
+  pdfId?: string
+  page?: number
+}
 
 /** A single entry in the global back/forward navigation stack (all tab types). */
 export interface GlobalNavEntry {

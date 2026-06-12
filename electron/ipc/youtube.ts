@@ -1,6 +1,9 @@
-import { ipcMain, net, BrowserWindow } from 'electron'
+import { ipcMain, net, BrowserWindow, app } from 'electron'
 import type { WebContents } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { existsSync, unlinkSync } from 'fs'
+import { join } from 'path'
+import Database from 'better-sqlite3'
 import { getBereanDb } from '../db/berean'
 
 // API key is in electron/youtube-key.ts (gitignored — never commit that file).
@@ -1160,10 +1163,10 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
   ipc.handle('youtube:clearWatchHistory', () => { clearWatchHistory() })
   ipc.handle('youtube:fetchDescription', async (_e, videoId: string) => fetchDescription(videoId))
 
-  // Transcript fetch: scrapes tactiq.io, dev-only
+  // Transcript fetch: scrapes tactiq.io via hidden BrowserWindows — dev only.
+  // Michael runs this during development; production builds read the already-stored data.
   ipc.handle('youtube:fetchTranscripts', async (event, batchSize = 10, workerCount = 3) => {
     if (!is.dev) return { error: 'unavailable in production' }
-    // Dev-only: allow large batches and up to 16 parallel BrowserWindow workers.
     return fetchTranscripts(event.sender, Math.max(1, Math.min(10000, batchSize)), Math.max(1, Math.min(16, workerCount)))
   })
   ipc.handle('youtube:clearTranscripts', () => {
@@ -1178,7 +1181,7 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
 
   // Full-text transcript search (FTS5). Returns one row per matching video with a
   // representative snippet, its timestamp, and how many segments matched.
-  ipc.handle('youtube:searchTranscripts', (_e, query: string, limit = 300) => {
+  ipc.handle('youtube:searchTranscripts', (_e, query: string, videoLimit = 5, perVideoLimit = 1) => {
     // Tokenize to letters/numbers + prefix-match each token (mirrors buildFtsMatch in
     // src/lib/youtubeSearch.ts, kept in sync; tested there).
     const tokens = (query.trim().toLowerCase().match(/[\p{L}\p{N}]+/gu)) ?? []
@@ -1199,18 +1202,49 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
         ORDER BY rank
       `).all(match) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
     } catch {
-      return [] // malformed FTS expression — fail soft
+      rows = [] // malformed FTS expression — fall through to LIKE fallback
     }
-    // Collapse to one entry per video: keep the best-ranked segment as the snippet,
-    // count how many segments matched, and remember the best (lowest) bm25 rank.
-    const byVideo = new Map<string, { videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>()
+    // Fuzzy fallback: if FTS returns nothing, do token-level LIKE matching so minor typos
+    // and out-of-order words still find results.
+    if (rows.length === 0 && tokens.length > 0) {
+      try {
+        const conditions = tokens.map(() => 'LOWER(s.text) LIKE ?').join(' AND ')
+        const params: string[] = tokens.map((t) => `%${t}%`)
+        rows = getBereanDb().prepare(`
+          SELECT s.video_id AS videoId, s.text AS snippet, s.start_ms AS startMs,
+                 v.title AS title, v.channel_name AS channelName,
+                 0 AS rank
+          FROM youtube_transcript_segments s
+          JOIN youtube_videos v ON v.video_id = s.video_id
+          WHERE ${conditions}
+          ORDER BY s.start_ms
+          LIMIT ${videoLimit * perVideoLimit * 10}
+        `).all(...params) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
+      } catch { rows = [] }
+    }
+    // Collect up to `perVideoLimit` best segments per video, then trim to `videoLimit` distinct videos.
+    const byVideo = new Map<string, { bestRank: number; count: number }>()
+    const results: Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }> = []
     for (const r of rows) {
       const ex = byVideo.get(r.videoId)
-      if (ex) { ex.matchCount++; if (r.rank < ex.rank) { ex.rank = r.rank; ex.snippet = r.snippet; ex.startMs = r.startMs } }
-      else byVideo.set(r.videoId, { videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
+      if (!ex) {
+        if (byVideo.size >= videoLimit) continue
+        byVideo.set(r.videoId, { bestRank: r.rank, count: 1 })
+        results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
+      } else {
+        ex.count++
+        // Update matchCount on the first entry for this video
+        const first = results.find(x => x.videoId === r.videoId)
+        if (first) first.matchCount = ex.count
+        // Add additional segment entries up to perVideoLimit
+        if (perVideoLimit > 1) {
+          const segsForVideo = results.filter(x => x.videoId === r.videoId)
+          if (segsForVideo.length < perVideoLimit) {
+            results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: ex.count, title: r.title, channelName: r.channelName, rank: r.rank })
+          }
+        }
+      }
     }
-    // Already roughly ordered by rank since rows came in rank order; sort the aggregates too.
-    const results = Array.from(byVideo.values()).sort((a, b) => a.rank - b.rank).slice(0, limit)
 
     // Widen each snippet with a few neighbouring caption lines for readable context
     // (tactiq segments are short ~5-10 word lines). Centered on the best-matching line.
@@ -1229,12 +1263,81 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
     return results
   })
 
+  // Rebuild youtube_seed.db from the current dev DB — dev only.
+  // Run after fetchTranscripts to package updated data for the next app release.
+  // After running, bump SEED_VERSION in electron/db/berean.ts before building.
+  ipc.handle('youtube:buildSeed', () => {
+    if (!is.dev) return { error: 'unavailable in production' }
+    try {
+      const seedPath = join(app.getAppPath(), 'data', 'youtube_seed.db')
+      if (existsSync(seedPath)) unlinkSync(seedPath)
+
+      // Create schema in the new seed DB
+      const seed = new Database(seedPath)
+      seed.pragma('journal_mode = WAL')
+      seed.exec(`
+        CREATE TABLE youtube_videos (
+          video_id TEXT PRIMARY KEY, title TEXT NOT NULL, published TEXT NOT NULL,
+          channel_name TEXT NOT NULL, channel_handle TEXT NOT NULL,
+          thumbnail_url TEXT NOT NULL, type TEXT NOT NULL,
+          is_live_now INTEGER NOT NULL DEFAULT 0, fetched_at TEXT NOT NULL,
+          duration_seconds INTEGER NOT NULL DEFAULT 0,
+          is_starred INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE youtube_sync (
+          channel_handle TEXT PRIMARY KEY, last_full_sync TEXT, last_refresh TEXT
+        );
+        CREATE TABLE youtube_transcripts (
+          video_id TEXT PRIMARY KEY, lang TEXT NOT NULL DEFAULT 'en',
+          source TEXT NOT NULL DEFAULT 'timedtext', fetched_at INTEGER NOT NULL,
+          segment_count INTEGER NOT NULL DEFAULT 0, duration_ms INTEGER NOT NULL DEFAULT 0,
+          error TEXT
+        );
+        CREATE TABLE youtube_transcript_segments (
+          id INTEGER PRIMARY KEY, video_id TEXT NOT NULL,
+          start_ms INTEGER NOT NULL, dur_ms INTEGER NOT NULL DEFAULT 0, text TEXT NOT NULL
+        );
+      `)
+      seed.close()
+
+      // Bulk-copy from live DB via ATTACH
+      const db = getBereanDb()
+      const esc = seedPath.replace(/'/g, "''")
+      db.exec(`ATTACH '${esc}' AS newseed`)
+      db.transaction(() => {
+        db.prepare(`INSERT OR IGNORE INTO newseed.youtube_videos
+          SELECT video_id, title, published, channel_name, channel_handle,
+                 thumbnail_url, type, is_live_now, fetched_at,
+                 duration_seconds, is_starred, description
+          FROM youtube_videos`).run()
+        db.prepare(`INSERT OR IGNORE INTO newseed.youtube_sync
+          SELECT channel_handle, last_full_sync, last_refresh FROM youtube_sync`).run()
+        db.prepare(`INSERT OR IGNORE INTO newseed.youtube_transcripts
+          SELECT video_id, lang, source, fetched_at, segment_count, duration_ms, error
+          FROM youtube_transcripts`).run()
+        // Segments: omit the `id` so the seed gets fresh rowids (no FTS triggers in seed)
+        db.prepare(`INSERT INTO newseed.youtube_transcript_segments (video_id, start_ms, dur_ms, text)
+          SELECT video_id, start_ms, dur_ms, text FROM youtube_transcript_segments`).run()
+      })()
+      db.exec('DETACH newseed')
+
+      const videoCount = (db.prepare('SELECT COUNT(*) AS n FROM youtube_videos').get() as { n: number }).n
+      const transcriptCount = (db.prepare('SELECT COUNT(*) AS n FROM youtube_transcripts').get() as { n: number }).n
+      const segmentCount = (db.prepare('SELECT COUNT(*) AS n FROM youtube_transcript_segments').get() as { n: number }).n
+
+      return { success: true, videos: videoCount, transcripts: transcriptCount, segments: segmentCount }
+    } catch (err) {
+      return { error: String(err) }
+    }
+  })
+
   // Full-text search over stored video titles/channel names — used by FloatingSearch
   ipc.handle('youtube:searchVideos', (_e, query: string, limit = 8) => {
     const trimmed = query.trim()
     if (!trimmed) return []
     const pat = `%${trimmed.toLowerCase()}%`
-    const rows = getBereanDb()
+    // Primary: exact substring match anywhere in title or channel name
+    let rows = getBereanDb()
       .prepare(`SELECT video_id, title, channel_name, thumbnail_url, type, published
                 FROM youtube_videos
                 WHERE LOWER(title) LIKE ? OR LOWER(channel_name) LIKE ?
@@ -1242,6 +1345,24 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
                 LIMIT ?`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .all(pat, pat, limit) as any[]
+    // Fuzzy fallback: each whitespace-separated token appears anywhere in title/channel.
+    // This handles "Moses Torah" finding "Torah of Moses" and minor partial-word queries.
+    if (rows.length === 0) {
+      const tokens = trimmed.toLowerCase().split(/\s+/).filter(Boolean)
+      if (tokens.length > 1) {
+        try {
+          const conditions = tokens.map(() => '(LOWER(title) LIKE ? OR LOWER(channel_name) LIKE ?)').join(' AND ')
+          const params = tokens.flatMap((t) => [`%${t}%`, `%${t}%`])
+          rows = getBereanDb()
+            .prepare(`SELECT video_id, title, channel_name, thumbnail_url, type, published
+                      FROM youtube_videos
+                      WHERE ${conditions}
+                      ORDER BY published DESC
+                      LIMIT ${limit}`)
+            .all(...params) as any[]
+        } catch { /* ignore */ }
+      }
+    }
     return rows.map((r) => ({
       videoId:     r.video_id   as string,
       title:       r.title      as string,

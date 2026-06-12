@@ -7,7 +7,7 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/NoteEditor'
 import type { ZoomContext } from '@/lib/zoom'
 import { useAppStore } from '@/store'
-import { bookName, getTranslationForBook, parseRef } from '@/lib/parseRef'
+import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -337,17 +337,18 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Derivation</p>
               <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-relaxed italic">
                 {derivParts.map((part, i) => {
-                  // Already has H/G prefix (e.g. H7225)
+                  // Already has H/G prefix — strip leading zeros (Greek DB pads, e.g. H07386 → H7386)
                   if (/^[HG]\d+$/.test(part)) {
+                    const normalized = part[0] + String(parseInt(part.slice(1), 10))
                     return (
-                      <button key={i} onClick={(e) => navToEntry(part, e.metaKey || e.ctrlKey)}
+                      <button key={i} onClick={(e) => navToEntry(normalized, e.metaKey || e.ctrlKey)}
                         className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                      >{part}</button>
+                      >{normalized}</button>
                     )
                   }
                   // Bare number (e.g. 7225 or 26) — prefix with entry's language
                   if (/^\d{1,5}$/.test(part)) {
-                    const num = `${langPrefix}${part}`
+                    const num = `${langPrefix}${parseInt(part, 10)}`
                     return (
                       <button key={i} onClick={(e) => navToEntry(num, e.metaKey || e.ctrlKey)}
                         className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
@@ -541,14 +542,27 @@ function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVer
   // Capture current position as the back-navigation target
   const curTab = fresh.tabs['scripture'].find(t => t.id === tabId)
   const cur = curTab?.state as BibleTabState | undefined
+  const currentTranslation = cur?.translation ?? 'kjva'
   const scriptureBack = cur
-    ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: `${bookName(cur.bookId)} ${cur.chapter}` }
+    ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: `${bookName(cur.bookId)} ${cur.chapter}`, translation: currentTranslation }
     : null
+
+  // Auto-switch translation:
+  //   • target book has a dedicated translation (e.g. enoch, jubilees) → use it
+  //   • current translation is dedicated but target book is canonical → switch to kjva
+  const dedicatedTarget = getTranslationForBook(bId)
+  let newTranslation: string | undefined
+  if (dedicatedTarget) {
+    newTranslation = dedicatedTarget
+  } else if (isDedicatedTranslation(currentTranslation)) {
+    newTranslation = 'kjva'
+  }
 
   fresh.updateTabState('scripture', tabId, {
     bookId: bId, chapter, targetVerse: verse,
     endVerse: endVerse ?? undefined,
     scrollPosition: 0,
+    ...(newTranslation ? { translation: newTranslation } : {}),
     ...(scriptureBack ? { scriptureBack } : {}),
   })
   s.setActiveSpace('scripture')

@@ -53,18 +53,19 @@ export default function Sidebar() {
   const historyCount           = useAppStore((s) => s.history.length)
   const historySeenLength      = useAppStore((s) => s.historySeenLength)
   const hasUnseenHistory       = historyCount > historySeenLength
-  const globalNavStack         = useAppStore((s) => s.globalNavStack)
-  const globalNavIdx           = useAppStore((s) => s.globalNavIdx)
-  const navGlobalBack          = useAppStore((s) => s.navGlobalBack)
-  const navGlobalForward       = useAppStore((s) => s.navGlobalForward)
+  const tabNavStacks           = useAppStore((s) => s.tabNavStacks)
+  const navTabBack             = useAppStore((s) => s.navTabBack)
+  const navTabForward          = useAppStore((s) => s.navTabForward)
   const archivedGroups         = useAppStore((s) => s.archivedGroups)
   const archiveAllTabs         = useAppStore((s) => s.archiveAllTabs)
   const restoreArchivedGroup   = useAppStore((s) => s.restoreArchivedGroup)
   const dismissArchivedGroup   = useAppStore((s) => s.dismissArchivedGroup)
 
-  // ── Global nav back/forward ──────────────────────────────────────────────
-  const canNavBack    = globalNavIdx > 0
-  const canNavForward = globalNavIdx < globalNavStack.length - 1
+  // ── Per-tab nav back/forward ─────────────────────────────────────────────
+  const currentTabId  = activeTabId[activeSpace]
+  const currentTabNav = currentTabId ? (tabNavStacks[currentTabId] ?? null) : null
+  const canNavBack    = currentTabNav ? currentTabNav.idx > 0 : false
+  const canNavForward = currentTabNav ? currentTabNav.idx < currentTabNav.stack.length - 1 : false
   const [navDropdown, setNavDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
   const navDropdownRef       = useRef<HTMLDivElement>(null)
   const navBackLongPress     = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -286,7 +287,7 @@ export default function Sidebar() {
               <button
                 onClick={canNavBack ? () => {
                   if (navBackDidLongPress.current) { navBackDidLongPress.current = false; return }
-                  navGlobalBack()
+                  navTabBack()
                 } : undefined}
                 onContextMenu={canNavBack ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'back' }) } : undefined}
                 onMouseDown={canNavBack ? (e) => {
@@ -313,7 +314,7 @@ export default function Sidebar() {
               <button
                 onClick={canNavForward ? () => {
                   if (navFwdDidLongPress.current) { navFwdDidLongPress.current = false; return }
-                  navGlobalForward()
+                  navTabForward()
                 } : undefined}
                 onContextMenu={canNavForward ? (e) => { e.preventDefault(); setNavDropdown({ x: e.clientX, y: e.clientY, mode: 'forward' }) } : undefined}
                 onMouseDown={canNavForward ? (e) => {
@@ -336,8 +337,8 @@ export default function Sidebar() {
               >
                 <ArrowRight size={12} />
               </button>
-              {/* Clock — full nav history (shown once something is in the stack) */}
-              {globalNavStack.length > 0 && (
+              {/* Clock — full nav history (shown once something is in the tab's stack) */}
+              {currentTabNav && currentTabNav.stack.length > 0 && (
                 <button
                   onClick={(e) => {
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -1060,7 +1061,7 @@ export default function Sidebar() {
         </MenuPositioner>,
         document.body
       )}
-      {/* ── Global nav history dropdown ── */}
+      {/* ── Per-tab nav history dropdown ── */}
       {navDropdown && createPortal(
         <div
           ref={navDropdownRef}
@@ -1068,35 +1069,38 @@ export default function Sidebar() {
           className="rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl py-1 text-xs"
         >
           {(() => {
-            const backItems = globalNavStack.slice(0, globalNavIdx).reverse()
-            const fwdItems  = globalNavStack.slice(globalNavIdx + 1)
+            const tabStack = currentTabNav?.stack ?? []
+            const tabIdx   = currentTabNav?.idx ?? -1
+            const backItems = tabStack.slice(0, tabIdx).reverse()
+            const fwdItems  = tabStack.slice(tabIdx + 1)
             const items     = navDropdown.mode === 'back' ? backItems
                             : navDropdown.mode === 'forward' ? fwdItems
-                            : [...globalNavStack].reverse()
+                            : [...tabStack].reverse()
             if (items.length === 0) {
               return <div className="px-3 py-2 text-[rgb(var(--color-text-muted))]">No history yet</div>
             }
-            const label = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Navigation history'
+            const label = navDropdown.mode === 'back' ? 'Back' : navDropdown.mode === 'forward' ? 'Forward' : 'Tab history'
             return (
               <>
                 <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{label}</div>
                 {items.map((entry, i) => {
                   // Compute the actual stack index so we can jump to it
                   const stackIdx = navDropdown.mode === 'all'
-                    ? globalNavStack.length - 1 - i
+                    ? tabStack.length - 1 - i
                     : navDropdown.mode === 'back'
-                      ? globalNavIdx - 1 - i
-                      : globalNavIdx + 1 + i
-                  const isCurrent = stackIdx === globalNavIdx
+                      ? tabIdx - 1 - i
+                      : tabIdx + 1 + i
+                  const isCurrent = stackIdx === tabIdx
                   const typeIcon = entry.type === 'note' ? '📝' : entry.type === 'lexicon' ? '📖' : entry.type === 'pdf' ? '📄' : '📜'
                   return (
                     <button
                       key={entry.id}
                       onClick={() => {
-                        // Jump directly to this stack position
-                        const delta = stackIdx - globalNavIdx
-                        if (delta < 0) { for (let j = 0; j < -delta; j++) useAppStore.getState().navGlobalBack() }
-                        else            { for (let j = 0; j < delta;  j++) useAppStore.getState().navGlobalForward() }
+                        // Jump directly to this stack position by stepping back/forward
+                        const delta = stackIdx - tabIdx
+                        const store = useAppStore.getState()
+                        if (delta < 0) { for (let j = 0; j < -delta; j++) store.navTabBack() }
+                        else            { for (let j = 0; j < delta;  j++) store.navTabForward() }
                         setNavDropdown(null)
                       }}
                       className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${

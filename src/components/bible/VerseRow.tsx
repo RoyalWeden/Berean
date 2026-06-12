@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen } from 'lucide-react'
 import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
-import { bookName, getTranslationForBook } from '@/lib/parseRef'
+import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
@@ -101,13 +101,15 @@ function parseTaggedTokens(tagged: string): TaggedToken[] {
   for (let part of tagged.split(' ')) {
     if (!part) continue
 
-    // Strip malformed <sup> / </sup> fragments — some KJVA DB entries have `sup>` and
-    // `/sup>` literal text (the '<' was stripped during data import).
-    // Track whether this token came from a sup> wrapper: if so, and the remaining
-    // word is only a bracket char (( ) [ ]), it's a Strong's alignment marker that
-    // must NOT render as visible text (it doesn't appear in the plain verse text).
+    // Strip malformed markup fragments where '<' was dropped during data import.
+    // <sup>/<blu> wrappers appear in KJVA text_tagged: sup> wraps Strong's alignment
+    // brackets; blu> wraps epistolary subscription notes (e.g. "To the Galatians written
+    // from Rome."). Keep the text content; drop the tag fragments.
+    // Track sup> specifically: if the remaining word is only a bracket char it's a
+    // Strong's alignment marker that must NOT render as visible text.
     const wasSupWrapped = /^\/sup>|^sup>/i.test(part)
     part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
+    part = part.replace(/^\/blu>/i, '').replace(/^blu>/i, '')
     if (!part) continue
 
     // Parenthetical token: ~{H853} — no associated English word
@@ -1242,10 +1244,22 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                     const fresh = useAppStore.getState()
                     const tabId = fresh.activeTabId['scripture']
                     if (tabId) {
+                      const curTab = fresh.tabs['scripture'].find(t => t.id === tabId)
+                      const curState = curTab?.state as import('@/types').BibleTabState | undefined
+                      const currentTranslation = curState?.translation ?? 'kjva'
+                      // Auto-switch translation for cross-book refs
+                      const dedicatedTarget = getTranslationForBook(r.bookId)
+                      let newTranslation: string | undefined
+                      if (dedicatedTarget) {
+                        newTranslation = dedicatedTarget
+                      } else if (isDedicatedTranslation(currentTranslation)) {
+                        newTranslation = 'kjva'
+                      }
                       const originLabel = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
                       fresh.updateTabState('scripture', tabId, {
                         bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
-                        scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label: originLabel },
+                        ...(newTranslation ? { translation: newTranslation } : {}),
+                        scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label: originLabel, translation: currentTranslation },
                       })
                     }
                     fresh.setActiveSpace('scripture')

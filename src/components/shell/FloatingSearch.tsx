@@ -14,6 +14,27 @@ const DENSITY_HEIGHT: Record<'compact' | 'comfortable' | 'spacious', string> = {
   comfortable: '30rem',
   spacious:    '44rem',
 }
+/** Format milliseconds as M:SS or H:MM:SS for transcript timestamp labels. */
+function formatTranscriptTs(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+  return `${m}:${String(sec).padStart(2, '0')}`
+}
+
+/** Fuzzy match: every character of `needle` appears in `haystack` in order (case-insensitive). */
+function fuzzyMatch(needle: string, haystack: string): boolean {
+  const n = needle.toLowerCase()
+  const h = haystack.toLowerCase()
+  let ni = 0
+  for (let hi = 0; hi < h.length && ni < n.length; hi++) {
+    if (n[ni] === h[hi]) ni++
+  }
+  return ni === n.length
+}
+
 // Sub-text truncation per density
 const DENSITY_SUB_LEN: Record<'compact' | 'comfortable' | 'spacious', number> = {
   compact:     80,
@@ -127,6 +148,7 @@ export default function FloatingSearch() {
   const [noteResults, setNoteResults] = useState<Note[]>([])
   const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }>>([])
   const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
+  const openYouTubeVideo         = useAppStore((s) => s.openYouTubeVideo)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -218,8 +240,9 @@ export default function FloatingSearch() {
         const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
           ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
           : Promise.resolve([])
+        // Request up to 3 transcript segments per video for rich results
         const ytTranscriptSearch = (window.youtube && typeof window.youtube.searchTranscripts === 'function')
-          ? window.youtube.searchTranscripts(trimmed, 5).catch(() => [])
+          ? window.youtube.searchTranscripts(trimmed, 5, 3).catch(() => [])
           : Promise.resolve([])
 
         const [verses, notes, ytVideos, ytTranscripts, ...extraAll] = await Promise.allSettled([
@@ -235,26 +258,43 @@ export default function FloatingSearch() {
         setVerseResults([...primaryVerse, ...extraVerses])
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
 
-        // Merge title/channel hits with transcript hits, deduped by videoId.
-        // Title hits come first; a transcript-only hit shows its matching snippet.
+        // Build merged YouTube results:
+        // • Title hits appear first (each with best-matching snippet if a transcript hit exists)
+        // • Transcript-only hits follow
+        // • When perVideoLimit > 1, additional timestamp entries for the same video appear
+        //   after their parent entry (labelled with the timestamp).
         const titleHits = ytVideos.status === 'fulfilled'
           ? (ytVideos.value as Array<{ videoId: string; title: string; channelName: string }>) : []
         const transcriptHits = ytTranscripts.status === 'fulfilled'
           ? (ytTranscripts.value as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string }>) : []
-        const transcriptById = new Map(transcriptHits.map((t) => [t.videoId, t]))
+        // Group transcript hits by videoId for lookup
+        const transcriptByVideo = new Map<string, Array<{ snippet: string; startMs: number }>>()
+        for (const t of transcriptHits) {
+          const arr = transcriptByVideo.get(t.videoId) ?? []
+          arr.push({ snippet: t.snippet, startMs: t.startMs })
+          transcriptByVideo.set(t.videoId, arr)
+        }
         const seen = new Set<string>()
         const merged: Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }> = []
         for (const v of titleHits) {
           seen.add(v.videoId)
-          const tr = transcriptById.get(v.videoId)
-          merged.push({ ...v, snippet: tr?.snippet, startMs: tr?.startMs })
+          const segs = transcriptByVideo.get(v.videoId) ?? []
+          merged.push({ ...v, snippet: segs[0]?.snippet, startMs: segs[0]?.startMs })
+          // Additional timestamp entries for this video (beyond the first)
+          for (let i = 1; i < segs.length; i++) {
+            merged.push({ videoId: v.videoId, title: v.title, channelName: v.channelName, snippet: segs[i].snippet, startMs: segs[i].startMs })
+          }
         }
-        // Transcript-only matches (title/channel come straight from the joined query).
+        // Transcript-only matches
         for (const t of transcriptHits) {
           if (seen.has(t.videoId)) continue
-          merged.push({ videoId: t.videoId, title: t.title, channelName: t.channelName, snippet: t.snippet, startMs: t.startMs })
+          seen.add(t.videoId)
+          const segs = transcriptByVideo.get(t.videoId) ?? []
+          for (const seg of segs) {
+            merged.push({ videoId: t.videoId, title: t.title, channelName: t.channelName, snippet: seg.snippet, startMs: seg.startMs })
+          }
         }
-        setYoutubeResults(merged.slice(0, 5))
+        setYoutubeResults(merged.slice(0, 10))
       } catch (err) {
       }
     }, 350)
@@ -417,14 +457,21 @@ export default function FloatingSearch() {
     })
   }
 
-  // YouTube videos — transcript hits show the matching line as the sub-label
+  // YouTube videos — transcript hits show the matching line + timestamp as the sub-label.
+  // Multiple entries may exist for the same video when perVideoLimit > 1.
   for (const vid of youtubeResults) {
+    const hasTimestamp = vid.startMs !== undefined && vid.startMs !== null
+    const tsLabel = hasTimestamp ? formatTranscriptTs(vid.startMs!) : null
     results.push({
       type: 'youtube' as const,
-      label: vid.title,
-      sub: vid.snippet ? `“${decodeEntities(vid.snippet)}”` : vid.channelName,
+      label: tsLabel ? `${vid.title} — ${tsLabel}` : vid.title,
+      sub: vid.snippet ? `”${decodeEntities(vid.snippet)}”` : vid.channelName,
       action: () => {
-        openYouTubeVideoInNewTab(vid.videoId)
+        if (hasTimestamp) {
+          openYouTubeVideo(vid.videoId, vid.startMs! / 1000)
+        } else {
+          openYouTubeVideoInNewTab(vid.videoId)
+        }
         setActiveSpace('youtube')
         closeSearch()
       },

@@ -32,7 +32,7 @@ import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
 import { registerNotesHandlers } from './ipc/notes'
 import { registerPdfHandlers } from './ipc/pdf'
-import { registerVaultHandlers } from './ipc/vault'
+import { registerVaultHandlers, runExportAll, setupAutoExport } from './ipc/vault'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
 import { registerHighlightHandlers } from './ipc/highlights'
@@ -512,6 +512,12 @@ app.whenReady().then(async () => {
   registerPdfHandlers(ipcMain)
   log.info('[berean-main] PDF handlers registered')
   registerVaultHandlers(ipcMain)
+  // Read saved auto-export interval and start the timer (0 = off)
+  try {
+    const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get('vaultAutoExportMinutes') as { value: string } | undefined
+    const saved = row ? (JSON.parse(row.value) as number) : 0
+    setupAutoExport(saved)
+  } catch { /* ignore — timer stays off if setting unreadable */ }
   registerSettingsHandlers(ipcMain)
   registerLexiconHandlers(ipcMain)
   registerHighlightHandlers(ipcMain)
@@ -737,6 +743,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
+  // Final vault export before shutdown (honours vaultAutoExportMinutes > 0 or any path set)
+  try { runExportAll() } catch { /* never block shutdown */ }
   closeBereanDb()
   closeAllTextDbs()
   closeLexiconDbs()

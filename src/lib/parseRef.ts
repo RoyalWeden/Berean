@@ -218,6 +218,13 @@ export function getTranslationForBook(bookId: string): string | null {
   return BOOK_TRANSLATION[bookId] ?? null
 }
 
+const _DEDICATED_TRANSLATION_IDS = new Set(Object.values(BOOK_TRANSLATION))
+/** Returns true when textId is a non-canonical dedicated translation (e.g. 'asc_isaiah', 'enoch').
+ *  Use to detect when navigating to a canonical book requires a translation switch. */
+export function isDedicatedTranslation(textId: string): boolean {
+  return _DEDICATED_TRANSLATION_IDS.has(textId.toLowerCase())
+}
+
 export interface ParsedRef {
   bookId: string
   chapter: number

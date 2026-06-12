@@ -114,18 +114,36 @@ export default function TranscriptViewer({
               key={i}
               ref={isActive ? activeRef : undefined}
               onClick={() => onSeek(seg.startMs / 1000)}
-              className={`w-full text-left flex gap-2 rounded px-2 py-1 cursor-pointer transition-colors ${
+              title={`Jump to ${formatTs(seg.startMs)}`}
+              className={`group w-full text-left flex gap-2 items-start rounded px-2 py-1 cursor-pointer transition-colors ${
                 isActive
                   ? 'bg-[rgb(var(--color-accent))/20] ring-1 ring-inset ring-[rgb(var(--color-accent))/40]'
-                  : 'hover:bg-[rgb(var(--color-surface-3))]'
+                  : 'hover:bg-[rgb(var(--color-accent))/10]'
               } ${dimmed ? 'opacity-30' : ''}`}
             >
-              <span className={`text-[10px] font-mono flex-shrink-0 tabular-nums pt-0.5 ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
+              {/* Timestamp — turns accent-colored on hover */}
+              <span className={`flex-shrink-0 pt-0.5 text-[10px] font-mono tabular-nums transition-colors min-w-[36px] text-right ${
+                isActive
+                  ? 'text-[rgb(var(--color-accent))]'
+                  : 'text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))]'
+              }`}>
                 {formatTs(seg.startMs)}
               </span>
-              <span className={`text-[12px] leading-snug ${isActive ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+              <span className={`flex-1 text-[12px] leading-snug transition-colors ${
+                isActive
+                  ? 'text-[rgb(var(--color-text-primary))] font-medium'
+                  : 'text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))]'
+              }`}>
                 {decodeEntities(seg.text)}
               </span>
+              {/* Play triangle — visible only on hover for non-active lines */}
+              {!isActive && (
+                <span className="ml-auto flex-shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg width="8" height="9" viewBox="0 0 8 9" fill="currentColor" className="text-[rgb(var(--color-accent))]">
+                    <path d="M0 0L8 4.5L0 9V0Z"/>
+                  </svg>
+                </span>
+              )}
             </button>
           )
         })}

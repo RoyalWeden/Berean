@@ -266,8 +266,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [search, setSearch] = useState('')
   const [searchScope, setSearchScope] = useState<SearchScope>('both')
   const [transcriptMatchIds, setTranscriptMatchIds] = useState<Set<string>>(new Set())
-  // Per-video transcript match details (bm25 rank, count, snippet) for ranking + display
-  const [transcriptMatchInfo, setTranscriptMatchInfo] = useState<Map<string, { rank: number; matchCount: number; snippet: string; startMs: number }>>(new Map())
+  // Per-video transcript match details (bm25 rank, count, segments) for ranking + display
+  // `segments` holds up to 3 matching lines (with their timestamps) for the card list view.
+  const [transcriptMatchInfo, setTranscriptMatchInfo] = useState<Map<string, { rank: number; matchCount: number; segments: Array<{ snippet: string; startMs: number }> }>>(new Map())
   const [sort, setSort] = useState<SortOption>('newest')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [channelFilter, setChannelFilter] = useState<string>('all')
@@ -301,7 +302,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // Active video's transcript + live playback time for the synced transcript panel
   const [activeTranscript, setActiveTranscript] = useState<TranscriptSegment[]>([])
   const [currentTimeMs, setCurrentTimeMs] = useState(0)
-  const [showTranscript, setShowTranscript] = useState(true)
+  const [showTranscript, setShowTranscript] = useState(false)
   const timePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [videoDescription, setVideoDescription] = useState('')
   const [historyMap, setHistoryMap] = useState<Record<string, number>>({})
@@ -1179,10 +1180,22 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     let cancelled = false
     const t = setTimeout(async () => {
       try {
-        const matches = await window.youtube.searchTranscripts?.(q, 1000) ?? []
+        // Request up to 3 matching segments per video so the card can show them all
+        const matches = await window.youtube.searchTranscripts?.(q, 1000, 3) ?? []
         if (cancelled) return
         setTranscriptMatchIds(new Set(matches.map((m) => m.videoId)))
-        setTranscriptMatchInfo(new Map(matches.map((m) => [m.videoId, { rank: m.rank, matchCount: m.matchCount, snippet: m.snippet, startMs: m.startMs }])))
+        // Group multiple segments per video — first entry's rank + matchCount represents the video
+        const infoMap = new Map<string, { rank: number; matchCount: number; segments: Array<{ snippet: string; startMs: number }> }>()
+        for (const m of matches) {
+          const ex = infoMap.get(m.videoId)
+          if (!ex) {
+            infoMap.set(m.videoId, { rank: m.rank, matchCount: m.matchCount, segments: [{ snippet: m.snippet, startMs: m.startMs }] })
+          } else {
+            ex.matchCount = m.matchCount // keep latest (most accurate) count
+            ex.segments.push({ snippet: m.snippet, startMs: m.startMs })
+          }
+        }
+        setTranscriptMatchInfo(infoMap)
       } catch {
         if (!cancelled) { setTranscriptMatchIds(new Set()); setTranscriptMatchInfo(new Map()) }
       }
@@ -2122,9 +2135,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </button>
         )}
 
-        {/* Dev transcript tools — collapsed into a single popover to avoid toolbar clutter */}
-        {isDev && (
-          <div className="relative flex-shrink-0" ref={transcriptMenuRef}>
+        {/* Transcript tools — collapsed into a single popover */}
+        <div className="relative flex-shrink-0" ref={transcriptMenuRef}>
             <button
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
               title="Transcript tools (dev only)"
@@ -2213,7 +2225,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               </div>
             )}
           </div>
-        )}
       </div>
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
@@ -2412,23 +2423,47 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                           Watched to {formatDuration(Math.floor(watchedPos))}
                         </p>
                       )}
-                      {/* Transcript-match snippet — shows the matching line with terms highlighted */}
+                      {/* Transcript-match snippets — one row per matching segment (up to 3),
+                          each clickable to open the video at that exact timestamp */}
                       {search.trim() && searchScope !== 'title' && transcriptMatchInfo.has(video.videoId) && (() => {
                         const info = transcriptMatchInfo.get(video.videoId)!
                         return (
-                          <div className="mt-1.5 flex items-start gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-1">
-                            <Captions size={9} className="text-emerald-400 flex-shrink-0 mt-[1px]" />
-                            <p className="text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] line-clamp-4">
-                              <span className="font-mono text-emerald-400/80 mr-1">{formatDuration(Math.floor(info.startMs / 1000))}</span>
-                              {highlightSnippet(info.snippet, search, 320).map((part, pi) =>
-                                part.match
-                                  ? <mark key={pi} className="bg-emerald-400/30 text-[rgb(var(--color-text-primary))] rounded-sm px-0.5">{part.text}</mark>
-                                  : <span key={pi}>{part.text}</span>
-                              )}
-                              {info.matchCount > 1 && (
-                                <span className="text-[9px] text-emerald-400/70 ml-1">+{info.matchCount - 1} more</span>
-                              )}
-                            </p>
+                          <div className="mt-1.5 rounded border border-emerald-500/20 overflow-hidden">
+                            {info.segments.map((seg, si) => (
+                              <button
+                                key={si}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  // Navigate to video at this timestamp
+                                  const seekSec = Math.floor(seg.startMs / 1000)
+                                  historyMapRef.current = { ...historyMapRef.current, [video.videoId]: seekSec }
+                                  setHistoryMap((prev) => ({ ...prev, [video.videoId]: seekSec }))
+                                  setActiveVideoId(video.videoId)
+                                }}
+                                className="group w-full text-left flex items-start gap-1.5 px-1.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors border-b border-emerald-500/10 last:border-b-0 cursor-pointer"
+                                title={`Jump to ${formatDuration(Math.floor(seg.startMs / 1000))}`}
+                              >
+                                <Captions size={9} className="text-emerald-400 flex-shrink-0 mt-[2px]" />
+                                <p className="flex-1 min-w-0 text-[10px] leading-snug text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))] line-clamp-3 transition-colors">
+                                  <span className="font-mono text-emerald-400/80 mr-1">{formatDuration(Math.floor(seg.startMs / 1000))}</span>
+                                  {highlightSnippet(seg.snippet, search, 240).map((part, pi) =>
+                                    part.match
+                                      ? <mark key={pi} className="bg-emerald-400/30 text-[rgb(var(--color-text-primary))] rounded-sm px-0.5">{part.text}</mark>
+                                      : <span key={pi}>{part.text}</span>
+                                  )}
+                                </p>
+                                {/* Play triangle — visible on hover */}
+                                <svg width="7" height="8" viewBox="0 0 7 8" fill="currentColor"
+                                  className="flex-shrink-0 self-center text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity mt-[1px]">
+                                  <path d="M0 0L7 4L0 8V0Z"/>
+                                </svg>
+                              </button>
+                            ))}
+                            {info.matchCount > info.segments.length && (
+                              <div className="px-1.5 py-0.5 flex items-center gap-1 bg-emerald-500/5">
+                                <span className="text-[9px] text-emerald-400/60">+{info.matchCount - info.segments.length} more matches in this video</span>
+                              </div>
+                            )}
                           </div>
                         )
                       })()}

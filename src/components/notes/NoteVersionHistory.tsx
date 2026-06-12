@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, RotateCcw, History, Eye, GitCompare, Save } from 'lucide-react'
 import { diffWords } from 'diff'
@@ -23,9 +23,24 @@ function fullTime(ts: number): string {
 
 const KIND_LABEL: Record<string, string> = { auto: 'Auto', manual: 'Saved', 'pre-restore': 'Before restore' }
 
-/** Render a past version as fully formatted content (same engine as the diff view). */
+const LOADING_PLACEHOLDER = (
+  <div className="flex items-center justify-center h-32">
+    <div className="w-5 h-5 rounded-full border-2 border-[rgb(var(--color-surface-4))] border-t-[rgb(var(--color-text-muted))] animate-spin" />
+  </div>
+)
+
+/** Render a past version as fully formatted content (same engine as the diff view).
+ *  Defers the heavy renderPreviewContent work to a macro-task so the version list
+ *  stays responsive while the HTML is being computed.
+ */
 function RenderedPreviewView({ content }: { content: string }) {
-  const html = useMemo(() => renderPreviewContent(content), [content])
+  const [html, setHtml] = useState<string | null>(null)
+  useEffect(() => {
+    setHtml(null)
+    const id = setTimeout(() => { setHtml(renderPreviewContent(content)) }, 0)
+    return () => clearTimeout(id)
+  }, [content])
+  if (html === null) return LOADING_PLACEHOLDER
   return (
     <div
       className="berean-preview-prose berean-notes-text px-6 py-4"
@@ -40,25 +55,31 @@ function RenderedPreviewView({ content }: { content: string }) {
  * then renders the whole thing through renderPreviewContent so the user sees
  * properly formatted text (headings, verse blocks, etc.) with diff highlights,
  * not raw markdown syntax.
+ * Deferred to a macro-task so clicking a version item doesn't block the scroll list.
  */
 function RenderedDiffView({ prev, next }: { prev: string; next: string }) {
-  const html = useMemo(() => {
-    const parts = diffWords(prev, next)
-    // Build a single merged markdown string with inline HTML diff markers.
-    // <ins> = words added since this version (exists in current but not here)
-    // <del> = words removed since this version (existed here but not in current)
-    const merged = parts.map((p) => {
-      if (p.added) {
-        return `<ins style="background:rgba(34,197,94,0.18);text-decoration:none;border-radius:2px;padding:0 1px">${p.value}</ins>`
-      }
-      if (p.removed) {
-        return `<del style="background:rgba(239,68,68,0.14);color:rgba(248,113,113,0.9);text-decoration:line-through;border-radius:2px;padding:0 1px">${p.value}</del>`
-      }
-      return p.value
-    }).join('')
-    return renderPreviewContent(merged)
+  const [html, setHtml] = useState<string | null>(null)
+  useEffect(() => {
+    setHtml(null)
+    const id = setTimeout(() => {
+      const parts = diffWords(prev, next)
+      // Build a single merged markdown string with inline HTML diff markers.
+      // <ins> = words added since this version (exists in current but not here)
+      // <del> = words removed since this version (existed here but not in current)
+      const merged = parts.map((p) => {
+        if (p.added) {
+          return `<ins style="background:rgba(34,197,94,0.18);text-decoration:none;border-radius:2px;padding:0 1px">${p.value}</ins>`
+        }
+        if (p.removed) {
+          return `<del style="background:rgba(239,68,68,0.14);color:rgba(248,113,113,0.9);text-decoration:line-through;border-radius:2px;padding:0 1px">${p.value}</del>`
+        }
+        return p.value
+      }).join('')
+      setHtml(renderPreviewContent(merged))
+    }, 0)
+    return () => clearTimeout(id)
   }, [prev, next])
-
+  if (html === null) return LOADING_PLACEHOLDER
   return (
     <div
       className="berean-preview-prose berean-notes-text px-6 py-4 overflow-y-auto"

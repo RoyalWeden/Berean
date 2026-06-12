@@ -121,7 +121,8 @@ interface YouTubeAPI {
   clearTranscripts: () => Promise<{ success: boolean } | { error: string }>
   getTranscriptStatus: () => Promise<string[]>
   getTranscript: (videoId: string) => Promise<Array<{ startMs: number; durMs: number; text: string }>>
-  searchTranscripts: (query: string, limit?: number) => Promise<Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>>
+  searchTranscripts: (query: string, videoLimit?: number, perVideoLimit?: number) => Promise<Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }>>
+  buildSeed: () => Promise<{ success: boolean; videos?: number; transcripts?: number; segments?: number } | { error: string }>
 }
 
 interface VaultAPI {
@@ -129,6 +130,10 @@ interface VaultAPI {
   readVaultNote: (title: string) => Promise<string | null>
   watchVault: () => Promise<{ success: boolean; reason?: string }>
   reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; reason?: string }>
+  exportAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string }>
+  setAutoExport: (intervalMinutes: number) => Promise<{ success: boolean }>
+  importAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; noteVersions?: number; noteFolders?: number; pdfHighlights?: number; workspaces?: number; pdfs?: number; tabState?: string; reason?: string }>
+  hasData: () => Promise<boolean>
   onVaultChange: (callback: (event: unknown) => void) => void
 }
 

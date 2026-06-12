@@ -418,7 +418,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
       {/* Toolbar */}
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] ${floating ? 'pl-[76px] pr-3 app-drag-region' : 'px-3'}`}>
+      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] app-drag-region ${floating ? 'pl-[76px] pr-3' : 'px-3'}`}>
         {/* Title doubles as the PDF switcher / library button */}
         <button
           onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPdfSwitcher({ x: r.left, y: r.bottom + 4 }) }}

@@ -48,7 +48,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const closeTab = useAppStore((s) => s.closeTab)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
-  const pushGlobalNav = useAppStore((s) => s.pushGlobalNav)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -522,26 +521,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function navigate(bookId: string, chapter: number, endChapter?: number) {
     if (!activeTab) return
     const title = makeTitle(bookId, chapter, endChapter)
-
-    // ── Per-tab navigation history ──────────────────────────────────────────
-    const currentHistory = tabState.navHistory ?? []
-    const currentIdx = tabState.navHistoryIdx ?? (currentHistory.length - 1)
-    // Slice off any "forward" entries that were superseded
-    let base = currentHistory.slice(0, currentIdx + 1)
-    // Seed with the current position if history is empty (first navigation in this tab)
-    if (base.length === 0) {
-      const currentTitle = makeTitle(tabState.bookId, tabState.chapter, tabState.endChapter)
-      base = [{ bookId: tabState.bookId, chapter: tabState.chapter, translation: textId, title: currentTitle }]
-    }
-    const newHistory = [...base, { bookId, chapter, translation: textId, title }].slice(-50)
-    // ────────────────────────────────────────────────────────────────────────
-
     updateTabState('scripture', activeTab.id, {
       bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
-      navHistory: newHistory,
-      navHistoryIdx: newHistory.length - 1,
     })
-    pushGlobalNav({ spaceId: 'scripture', tabId: activeTab.id, type: 'bible', bookId, chapter, translation: textId, title })
     renameTab('scripture', activeTab.id, title)
   }
 
@@ -835,12 +817,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <button
             onClick={() => {
               if (!activeTab || !tabState.scriptureBack) return
-              const { bookId, chapter, verse } = tabState.scriptureBack
+              const { bookId, chapter, verse, translation: backTranslation } = tabState.scriptureBack
               updateTabState('scripture', activeTab.id, {
                 bookId, chapter,
                 targetVerse: verse,
                 scrollPosition: 0,
                 scriptureBack: null,
+                ...(backTranslation ? { translation: backTranslation } : {}),
               })
             }}
             title={`Back to ${tabState.scriptureBack.label}`}

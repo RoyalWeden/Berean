@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword, Printer, Eye } from 'lucide-react'
+import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword, Printer, Eye, Search as SearchIcon } from 'lucide-react'
 import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/components/notes/NoteEditor'
 import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
 import { useAppStore } from '@/store'
@@ -293,6 +293,63 @@ function resolvePresetClass(preset: ThemePresetDef, variant: 'dark' | 'light'): 
 }
 
 const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
+
+function HistorySection() {
+  const tabNavMaxStack    = useAppStore((s) => s.tabNavMaxStack)
+  const setTabNavMaxStack = useAppStore((s) => s.setTabNavMaxStack)
+  const historyMaxEntries    = useAppStore((s) => s.historyMaxEntries)
+  const setHistoryMaxEntries = useAppStore((s) => s.setHistoryMaxEntries)
+  const clearAllTabNavStacks = useAppStore((s) => s.clearAllTabNavStacks)
+  const tabNavStacks = useAppStore((s) => s.tabNavStacks)
+  const stackCount = Object.values(tabNavStacks).reduce((acc, s) => acc + s.stack.length, 0)
+  const [cleared, setCleared] = useState(false)
+
+  return (
+    <div className="space-y-5">
+      {/* Tab navigation history */}
+      <div>
+        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">Tab navigation (back / forward)</p>
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">How many pages to remember per tab for the back / forward buttons.</p>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
+            Max entries per tab
+            <input
+              type="number" min={10} max={1000} step={10}
+              value={tabNavMaxStack}
+              onChange={(e) => setTabNavMaxStack(parseInt(e.target.value) || 100)}
+              className="w-20 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
+            />
+          </label>
+          <span className="text-xs text-[rgb(var(--color-text-muted))]">{stackCount} total entries stored</span>
+        </div>
+        <div className="mt-3">
+          <button
+            onClick={() => { clearAllTabNavStacks(); setCleared(true); setTimeout(() => setCleared(false), 2000) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+          >
+            <Trash2 size={12} />
+            {cleared ? 'Cleared ✓' : 'Clear all tab nav history'}
+          </button>
+        </div>
+      </div>
+
+      {/* App history */}
+      <div>
+        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">App history log</p>
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
+        <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
+          Max entries
+          <input
+            type="number" min={50} max={10000} step={50}
+            value={historyMaxEntries}
+            onChange={(e) => setHistoryMaxEntries(parseInt(e.target.value) || 500)}
+            className="w-24 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
 
 function UpdatesSection() {
   const [version, setVersion] = useState('')
@@ -779,7 +836,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
   )
 }
 
-type Section = 'appearance' | 'display' | 'notes' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
+type Section = 'appearance' | 'display' | 'notes' | 'history' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -858,6 +915,7 @@ export default function SettingsModal() {
   const setNoteBulletStyle = useAppStore((s) => s.setNoteBulletStyle)
 
   const [section, setSection] = useState<Section>('appearance')
+  const [settingsSearch, setSettingsSearch] = useState('')
   // Compact mode — hides description text and reduces spacing so more settings
   // fit on screen at once. Default ON; user can toggle to expanded view.
   const [compact, setCompact] = useState(() => {
@@ -890,6 +948,11 @@ export default function SettingsModal() {
 
   const [vaultSync, setVaultSync] = useState(false)
   const [vaultPath, setVaultPath] = useState('')
+  const [exportingAll, setExportingAll] = useState(false)
+  const [exportResult, setExportResult] = useState<{ notes?: number; highlights?: number; history?: number; pdfs?: number } | null>(null)
+  const [vaultAutoExportMinutes, setVaultAutoExportMinutes] = useState(0)
+  const [importingAll, setImportingAll] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: boolean; notes?: number; highlights?: number; noteFolders?: number; pdfs?: number; reason?: string } | null>(null)
   const [watchHistory, setWatchHistory] = useState<WatchHistoryEntry[]>([])
   const [showYTSignIn, setShowYTSignIn] = useState(false)
   const [ytSignedOut, setYtSignedOut] = useState(false)
@@ -901,6 +964,7 @@ export default function SettingsModal() {
     window.settings.getAll().then((all) => {
       if (all.vaultSync != null) setVaultSync(Boolean(all.vaultSync))
       if (all.vaultPath) setVaultPath(all.vaultPath as string)
+      if (all.vaultAutoExportMinutes != null) setVaultAutoExportMinutes(Number(all.vaultAutoExportMinutes) || 0)
     }).catch(() => {})
   }, [settingsOpen])
 
@@ -963,23 +1027,52 @@ export default function SettingsModal() {
   async function saveVaultPath(path: string) {
     setVaultPath(path)
     await window.settings.set('vaultPath', path)
+    if (!path) return
+    // If the vault already has exported data, auto-import it so reinstalls or
+    // machine migrations pick up where the user left off.
+    const hasData = await window.vault.hasData().catch(() => false)
+    if (!hasData) return
+    setImportingAll(true)
+    setImportResult(null)
+    try {
+      const res = await window.vault.importAll()
+      setImportResult(res)
+      if (res.tabState) {
+        try { localStorage.setItem('berean-app-state', res.tabState) } catch { /* ignore */ }
+      }
+      setTimeout(() => setImportResult(null), 10000)
+    } finally {
+      setImportingAll(false)
+    }
   }
 
-  const NAV: { id: Section; label: string }[] = [
-    { id: 'appearance',    label: 'Appearance' },
-    { id: 'display',       label: 'Display' },
-    { id: 'notes',         label: 'Notes' },
-    { id: 'vault',         label: 'Vault Sync' },
-    { id: 'workspaces',    label: 'Workspaces' },
-    { id: 'youtube',       label: 'YouTube' },
-    { id: 'word-replacer', label: 'Word Replacer' },
-    { id: 'print',         label: 'Print & Export' },
-    { id: 'shortcuts',     label: 'Shortcuts' },
-    { id: 'updates',       label: 'Updates' },
-    { id: 'import',        label: 'Import' },
-    { id: 'about',         label: 'About' },
-    { id: 'danger',        label: 'Danger' },
+  const NAV: { id: Section; label: string; keywords?: string[] }[] = [
+    { id: 'appearance',    label: 'Appearance',    keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
+    { id: 'display',       label: 'Display',       keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible'] },
+    { id: 'notes',         label: 'Notes',         keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'codemirror'] },
+    { id: 'history',       label: 'History',       keywords: ['back', 'forward', 'nav', 'stack', 'entries', 'log', 'recent', 'tab history'] },
+    { id: 'vault',         label: 'Vault Sync',    keywords: ['sync', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
+    { id: 'workspaces',    label: 'Workspaces',    keywords: ['workspace', 'saved', 'layout', 'preset', 'panel'] },
+    { id: 'youtube',       label: 'YouTube',       keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions'] },
+    { id: 'word-replacer', label: 'Word Replacer', keywords: ['replace', 'word', 'substitute', 'name', 'yehovah', 'yeshua'] },
+    { id: 'print',         label: 'Print & Export', keywords: ['print', 'export', 'pdf', 'paper', 'margin', 'font size'] },
+    { id: 'shortcuts',     label: 'Shortcuts',     keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
+    { id: 'updates',       label: 'Updates',       keywords: ['update', 'version', 'beta', 'stable', 'auto-update'] },
+    { id: 'import',        label: 'Import',        keywords: ['import', 'esword', 'biblegateway', 'migrate'] },
+    { id: 'about',         label: 'About',         keywords: ['about', 'version', 'reset', 'license'] },
+    { id: 'danger',        label: 'Danger',        keywords: ['reset', 'clear', 'delete', 'wipe', 'factory'] },
   ]
+
+  // Filter nav items by settings search query
+  const filteredNav = settingsSearch.trim()
+    ? NAV.filter((n) => {
+        const q = settingsSearch.trim().toLowerCase()
+        return (
+          n.label.toLowerCase().includes(q) ||
+          (n.keywords ?? []).some((k) => k.toLowerCase().includes(q))
+        )
+      })
+    : NAV
 
   return (
     <Dialog.Root open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>
@@ -1028,11 +1121,45 @@ export default function SettingsModal() {
 
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left nav */}
-            <div className="w-36 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 p-1.5 space-y-px overflow-y-auto">
-              {NAV.map((n) => (
+            <div className="w-36 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 flex flex-col overflow-hidden">
+              {/* Search bar */}
+              <div className="px-1.5 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
+                <div className="flex items-center gap-1 px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+                  <SearchIcon size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                  <input
+                    value={settingsSearch}
+                    onChange={(e) => {
+                      setSettingsSearch(e.target.value)
+                      // Auto-navigate when exactly one section matches
+                      const q = e.target.value.trim().toLowerCase()
+                      if (q) {
+                        const matches = NAV.filter((n) =>
+                          n.label.toLowerCase().includes(q) ||
+                          (n.keywords ?? []).some((k) => k.toLowerCase().includes(q))
+                        )
+                        if (matches.length === 1) {
+                          setSection(matches[0].id)
+                          useAppStore.getState().bumpSettingsNavToken()
+                        }
+                      }
+                    }}
+                    placeholder="Search…"
+                    className="flex-1 min-w-0 bg-transparent text-[10px] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+                  />
+                  {settingsSearch && (
+                    <button onClick={() => setSettingsSearch('')} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+                      <X size={9} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-1.5 space-y-px">
+              {filteredNav.length === 0
+                ? <p className="px-2 py-2 text-[10px] text-[rgb(var(--color-text-muted))]">No matches</p>
+                : filteredNav.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => { setSection(n.id); useAppStore.getState().bumpSettingsNavToken() }}
+                  onClick={() => { setSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
                   className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                     n.id === 'danger'
                       ? section === n.id
@@ -1046,6 +1173,7 @@ export default function SettingsModal() {
                   {n.label}
                 </button>
               ))}
+              </div>
             </div>
 
             {/* Content */}
@@ -1671,6 +1799,8 @@ export default function SettingsModal() {
                 </div>
               )}
 
+              {section === 'history' && <HistorySection />}
+
               {section === 'vault' && (
                 <>
                   <div className="flex items-start justify-between gap-4">
@@ -1726,9 +1856,126 @@ export default function SettingsModal() {
                     <VaultReconcileButton />
                   )}
 
+                  {/* Auto-export interval + manual export trigger */}
+                  {vaultPath && (
+                    <div className="space-y-3">
+                      {/* Interval picker */}
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Auto-export interval</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
+                          Automatically write all data (notes, highlights, history, settings, PDFs) to the vault folder on a schedule. A final export also runs automatically when the app closes.
+                        </p>
+                        <div className="flex items-center gap-1.5 bg-[rgb(var(--color-surface-4))] rounded-lg p-0.5 w-fit flex-wrap">
+                          {([
+                            { label: 'Off',     value: 0  },
+                            { label: '5 min',   value: 5  },
+                            { label: '15 min',  value: 15 },
+                            { label: '30 min',  value: 30 },
+                            { label: '1 hour',  value: 60 },
+                          ] as { label: string; value: number }[]).map(({ label, value }) => (
+                            <button
+                              key={value}
+                              onClick={async () => {
+                                setVaultAutoExportMinutes(value)
+                                await window.settings.set('vaultAutoExportMinutes', value)
+                                await window.vault.setAutoExport(value)
+                              }}
+                              className={`text-[10px] px-3 py-1 rounded cursor-pointer transition-colors ${
+                                vaultAutoExportMinutes === value
+                                  ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm'
+                                  : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {vaultAutoExportMinutes > 0 && (
+                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+                            Exports every {vaultAutoExportMinutes} min · also exports on app close
+                          </p>
+                        )}
+                        {vaultAutoExportMinutes === 0 && (
+                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
+                            Auto-export off · still exports on app close when a vault path is set
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Manual export / import buttons */}
+                      <div className="flex gap-2 flex-wrap items-start">
+                        <div>
+                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                              onClick={async () => {
+                                setExportingAll(true)
+                                setExportResult(null)
+                                try {
+                                  const res = await window.vault.exportAll()
+                                  if (res.success) {
+                                    setExportResult({ notes: res.notes, highlights: res.highlights, history: res.history, pdfs: res.pdfs })
+                                    setTimeout(() => setExportResult(null), 8000)
+                                  }
+                                } finally {
+                                  setExportingAll(false)
+                                }
+                              }}
+                              disabled={exportingAll}
+                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer disabled:opacity-40 transition-colors"
+                            >
+                              {exportingAll ? 'Exporting…' : 'Export all data now'}
+                            </button>
+                            {exportResult && (
+                              <p className="text-[10px] text-emerald-400">
+                                ✓ {exportResult.notes} notes · {exportResult.highlights} highlights · {exportResult.history} history entries · {exportResult.pdfs} PDFs
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                              onClick={async () => {
+                                setImportingAll(true)
+                                setImportResult(null)
+                                try {
+                                  const res = await window.vault.importAll()
+                                  setImportResult(res)
+                                  if (res.tabState) {
+                                    try { localStorage.setItem('berean-app-state', res.tabState) } catch { /* ignore */ }
+                                  }
+                                  setTimeout(() => setImportResult(null), 10000)
+                                } finally {
+                                  setImportingAll(false)
+                                }
+                              }}
+                              disabled={importingAll}
+                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/15] hover:text-[rgb(var(--color-accent))] cursor-pointer disabled:opacity-40 transition-colors"
+                            >
+                              {importingAll ? 'Importing…' : 'Restore from vault'}
+                            </button>
+                            {importResult && (
+                              <p className={`text-[10px] ${importResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {importResult.success
+                                  ? `✓ ${importResult.notes} notes · ${importResult.highlights} highlights · ${importResult.noteFolders} folders · ${importResult.pdfs} PDFs`
+                                  : `Failed: ${importResult.reason}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {importingAll && (
+                        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">Importing from vault — vault data takes precedent over local data…</p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-                      Notes are always stored in Berean's internal database. The vault folder is a sync destination — Berean writes <span className="font-mono">.md</span> files there and watches for external edits. Changing the folder path does not change which notes appear in Berean.
+                      All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there on a schedule and on close. Vault data is never deleted when the app is uninstalled. To restore after a reinstall or on a new machine, point to the same vault folder and click <strong>Restore from vault</strong> (or set the path — it imports automatically if data is found).
                     </p>
                   </div>
                 </>
@@ -2312,6 +2559,47 @@ function SimulateFirstLaunchButton() {
   )
 }
 
+function RebuildSeedButton() {
+  const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
+  const [result, setResult] = useState('')
+
+  async function handleRebuild() {
+    if (status === 'busy') return
+    setStatus('busy')
+    setResult('')
+    try {
+      const res = await window.youtube.buildSeed()
+      if ('error' in res) {
+        setStatus('error')
+        setResult(res.error)
+      } else {
+        setStatus('done')
+        setResult(`${res.videos} videos · ${res.transcripts} transcripts · ${res.segments} segments`)
+      }
+    } catch (err) {
+      setStatus('error')
+      setResult(String(err))
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-2">
+      <button
+        onClick={handleRebuild}
+        disabled={status === 'busy'}
+        className="flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-medium bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/20] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer disabled:opacity-50"
+      >
+        {status === 'busy' ? 'Building…' : 'Rebuild youtube_seed.db'}
+      </button>
+      {status !== 'idle' && status !== 'busy' && (
+        <span className={`text-[11px] mt-0.5 ${status === 'done' ? 'text-green-400' : 'text-red-400'}`}>
+          {status === 'done' ? `Done — ${result}` : `Error: ${result}`}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function AboutSection() {
   const closeSettings = useAppStore((s) => s.closeSettings)
   const openOnboarding = useAppStore((s) => s.openOnboarding)
@@ -2417,6 +2705,14 @@ function AboutSection() {
               <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Data separation</p>
                 <p className="text-xs text-[rgb(var(--color-text-secondary))]">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
+              </div>
+              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Transcript seed workflow</p>
+                <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-2">
+                  After running <span className="font-mono">fetchTranscripts</span> in the YouTube tab, rebuild the seed DB so the next release ships updated data to users.
+                  Then bump <span className="font-mono">SEED_VERSION</span> in <span className="font-mono">electron/db/berean.ts</span> before building.
+                </p>
+                <RebuildSeedButton />
               </div>
             </div>
           )}

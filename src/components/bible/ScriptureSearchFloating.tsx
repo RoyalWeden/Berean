@@ -220,8 +220,13 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
                       const next = !v
                       if (next && textDropBtnRef.current) {
                         const r = textDropBtnRef.current.getBoundingClientRect()
-                        // Align right edge of dropdown (w-44 = 176px) with button's right edge
-                        setTextDropRect({ left: r.right - 176, top: r.bottom + 4 })
+                        const W = 176, MAX_H = window.innerHeight * 0.6, pad = 8
+                        // Align right edge with button; clamp so left edge never goes off-screen
+                        const left = Math.max(pad, Math.min(r.right - W, window.innerWidth - W - pad))
+                        // Open below; flip above if not enough space below
+                        const spaceBelow = window.innerHeight - r.bottom - pad
+                        const top = spaceBelow >= MAX_H / 2 ? r.bottom + 4 : Math.max(pad, r.top - MAX_H - 4)
+                        setTextDropRect({ left, top })
                       }
                       return next
                     })

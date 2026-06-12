@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, Hash } from 'lucide-react'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -36,6 +36,24 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
       window.removeEventListener('keydown', onKey)
     }
   }, [target, onClose])
+
+  // Clamp to viewport after first render so it never overflows in floating windows.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let x = parseFloat(el.style.left) || 0
+    let y = parseFloat(el.style.top) || 0
+    if (x + width + pad > vw) x = Math.max(pad, x - width)
+    if (y + height + pad > vh) y = Math.max(pad, y - height)
+    x = Math.max(pad, Math.min(x, vw - width - pad))
+    y = Math.max(pad, Math.min(y, vh - height - pad))
+    el.style.left = `${x}px`
+    el.style.top = `${y}px`
+  })
 
   if (!target) return null
   const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'

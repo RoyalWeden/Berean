@@ -84,8 +84,8 @@ export default function App() {
       switch (action) {
         case 'openRef':       store.openSearch('new'); break
         case 'searchTexts':   store.openSearchTab(''); break
-        case 'navBack':       store.navGlobalBack(); break
-        case 'navForward':    store.navGlobalForward(); break
+        case 'navBack':       store.navTabBack(); break
+        case 'navForward':    store.navTabForward(); break
         case 'prevChapter':   window.dispatchEvent(new CustomEvent('berean:prevChapter')); break
         case 'nextChapter':   window.dispatchEvent(new CustomEvent('berean:nextChapter')); break
         case 'focusRefBar':   window.dispatchEvent(new CustomEvent('berean:focusRefBar')); break

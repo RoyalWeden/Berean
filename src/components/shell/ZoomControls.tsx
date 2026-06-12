@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ZoomIn } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -15,6 +15,7 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const anchorRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function cancelHide() {
@@ -27,11 +28,30 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
     cancelHide()
     if (anchorRef.current) {
       const r = anchorRef.current.getBoundingClientRect()
-      // popover right-aligns to icon's right edge, drops below
+      // Store anchor right/bottom; MenuPositioner-style clamping runs after render.
       setPos({ x: r.right, y: r.bottom + 4 })
     }
     setOpen(true)
   }
+
+  // Clamp after render: popover right-aligns to anchor's right edge but must stay on-screen.
+  useLayoutEffect(() => {
+    const el = popoverRef.current
+    if (!open || !el) return
+    const { width, height } = el.getBoundingClientRect()
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    // Right-align: left = pos.x - width; flip down/up as needed
+    let x = pos.x - width
+    let y = pos.y
+    if (x < pad) x = pad
+    if (x + width + pad > vw) x = vw - width - pad
+    if (y + height + pad > vh) y = Math.max(pad, pos.y - height - (anchorRef.current?.getBoundingClientRect().height ?? 0) - 4 - 4)
+    el.style.left = `${x}px`
+    el.style.top = `${y}px`
+    el.style.transform = 'none'
+  })
 
   const isNonDefault = level !== ZOOM_DEFAULT
   const iconSize = compact ? 11 : 13
@@ -56,6 +76,7 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
 
       {open && createPortal(
         <div
+          ref={popoverRef}
           style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, transform: 'translateX(-100%)' }}
           className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl"
           onMouseEnter={cancelHide}

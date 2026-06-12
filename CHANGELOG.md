@@ -122,6 +122,17 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.15] - 2026-06-11
+
+- Vault improvements
+
+Bug Fixes:
+- Floating tab fixes
+- Lexicon derivation fixes
+- Scritpure text fixes
+
+---
+
 ## [0.3.14] - 2026-06-10
 
 - Tab's history updates
