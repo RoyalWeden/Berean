@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('notes', {
   deleteFolderDeep: (id: string) => ipcRenderer.invoke('folders:deleteDeep', id),
   setFolderParent: (id: string, parentId: string | null) =>
     ipcRenderer.invoke('folders:setParent', id, parentId),
+  listIdioms: () => ipcRenderer.invoke('notes:listIdioms'),
 })
 
 contextBridge.exposeInMainWorld('lexicon', {
@@ -105,6 +106,24 @@ contextBridge.exposeInMainWorld('app', {
   youTubeSignOut: () => ipcRenderer.invoke('app:youTubeSignOut'),
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
   openFloatingTab: (type: string, state: unknown) => ipcRenderer.invoke('app:openFloatingTab', type, state),
+  openViewerWindow: () => ipcRenderer.invoke('app:openViewerWindow'),
+  isViewerWindowOpen: () => ipcRenderer.invoke('app:isViewerWindowOpen'),
+  pushViewerContent: (payload: unknown) => ipcRenderer.send('app:pushViewerContent', payload),
+  // Push display/format settings (word replacer, note blocks, theme…) to the viewer window
+  pushViewerSettings: (settings: unknown) => ipcRenderer.send('app:pushViewerSettings', settings),
+  // Receive the viewer's currently-visible verse region (for the main-window outline)
+  onViewerVisibleRegion: (cb: (region: unknown) => void) => {
+    ipcRenderer.removeAllListeners('viewer:visibleRegion')
+    ipcRenderer.on('viewer:visibleRegion', (_, region) => cb(region))
+  },
+  onViewerWindowClosed: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('app:viewerWindowClosed')
+    ipcRenderer.on('app:viewerWindowClosed', () => cb())
+  },
+  onViewerReady: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('viewer:ready')
+    ipcRenderer.on('viewer:ready', () => cb())
+  },
   // Print / export a rendered note (full HTML document string)
   printNote: (html: string) => ipcRenderer.invoke('app:printNote', html),
   exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName, downloadLocation ?? ''),
@@ -130,6 +149,27 @@ contextBridge.exposeInMainWorld('app', {
   onUpdateStatus: (cb: (status: unknown) => void) => {
     ipcRenderer.removeAllListeners('app:updateStatus')
     ipcRenderer.on('app:updateStatus', (_, status) => cb(status))
+  },
+})
+
+contextBridge.exposeInMainWorld('viewer', {
+  onContent: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('viewer:content')
+    ipcRenderer.on('viewer:content', (_, payload) => {
+      console.log('[Viewer preload] viewer:content received:', JSON.stringify(payload))
+      cb(payload)
+    })
+  },
+  // Receive display/format settings from the main window
+  onSettings: (cb: (settings: unknown) => void) => {
+    ipcRenderer.removeAllListeners('viewer:settings')
+    ipcRenderer.on('viewer:settings', (_, settings) => cb(settings))
+  },
+  // Report which verses are currently visible in the viewer (drives the main-window outline)
+  reportVisibleRegion: (region: unknown) => ipcRenderer.send('viewer:reportVisibleRegion', region),
+  signalReady: () => {
+    console.log('[Viewer preload] signalReady called — sending viewer:signalReady to main')
+    ipcRenderer.send('viewer:signalReady')
   },
 })
 

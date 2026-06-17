@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, Search, X, ArrowLeft, Home, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
+import { BookMarked, Search, X, ArrowLeft, Home, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon, Monitor } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { HintTooltip } from '@/components/shell/HintTooltip'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
@@ -302,6 +303,8 @@ function EntryView({
   onScroll,
   floating = false,
   wordReplacerRules = [],
+  viewerWindowOpen = false,
+  onPresentLexicon,
 }: {
   entry: LexiconEntry
   backLabel: string
@@ -318,6 +321,8 @@ function EntryView({
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   floating?: boolean
   wordReplacerRules?: WordReplacerRule[]
+  viewerWindowOpen?: boolean
+  onPresentLexicon?: () => void
 }) {
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
@@ -418,6 +423,20 @@ function EntryView({
           </button>
         )}
         <ZoomControls context="lexicon" compact />
+        {onPresentLexicon && (
+          <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
+          <button
+            onClick={onPresentLexicon}
+            className={`p-1 rounded transition-colors cursor-pointer ${
+              viewerWindowOpen
+                ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
+                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+            }`}
+          >
+            <Monitor size={14} />
+          </button>
+          </HintTooltip>
+        )}
         <div className="relative">
           <button
             onMouseDown={(e) => e.stopPropagation()}
@@ -597,7 +616,7 @@ function EntryView({
   )
 }
 
-function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordReplacerRules = [] }: { onSelect: (entry: LexiconEntry) => void; findQuery?: string; onFindOpen?: () => void; floating?: boolean; wordReplacerRules?: WordReplacerRule[] }) {
+function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordReplacerRules = [], viewerWindowOpen = false, onPresentLexicon }: { onSelect: (entry: LexiconEntry) => void; findQuery?: string; onFindOpen?: () => void; floating?: boolean; wordReplacerRules?: WordReplacerRule[]; viewerWindowOpen?: boolean; onPresentLexicon?: () => void }) {
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   const [query, setQuery] = useState('')
   const [lang, setLang] = useState<'H' | 'G' | 'all'>('all')
@@ -664,6 +683,21 @@ function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordRep
             </button>
             {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
           </div>
+          {/* Send to presenter view — only shown when a presenter callback is provided */}
+          {onPresentLexicon && (
+            <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
+            <button
+              onClick={onPresentLexicon}
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                viewerWindowOpen
+                  ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
+                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+              }`}
+            >
+              <Monitor size={13} />
+            </button>
+            </HintTooltip>
+          )}
         </div>
       </div>
 
@@ -748,6 +782,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // App.tsx dispatches 'berean:openLexiconFindBar' when Cmd+F is pressed while
   // this panel was the last-focused panel (activePanelId === 'lexicon').
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
+  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const lexiconContentRef = useRef<HTMLDivElement>(null)
   const [localFindOpen, setLocalFindOpen] = useState(false)
   const [localFindQuery, setLocalFindQuery] = useState('')
@@ -976,6 +1011,15 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
           scrollRef={entryScrollRef}
           floating={floating}
           wordReplacerRules={activeWordReplacerRules}
+          viewerWindowOpen={viewerWindowOpen}
+          onPresentLexicon={async () => {
+            if (!activeEntry) return
+            if (!viewerWindowOpen) {
+              await window.app.openViewerWindow?.()
+              useAppStore.getState().setViewerWindowOpen(true)
+            }
+            window.app.pushViewerContent?.({ kind: 'lexicon', strongsId: activeEntry.strongsNum })
+          }}
           onScroll={(e) => {
             const el = e.currentTarget
             if (lexScrollSaveTimer.current) clearTimeout(lexScrollSaveTimer.current)

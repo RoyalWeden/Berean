@@ -2,7 +2,7 @@
  * Shared utility: extract Bible verse references from note content.
  * Used by BibleRightPanel (cross-ref panel) and VerseRow (hover tooltip).
  */
-import { parseRef } from './parseRef'
+import { parseRef, AMBIGUOUS_PATTERNS } from './parseRef'
 
 export interface NoteVerseRef {
   bookId: string
@@ -45,15 +45,19 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
 
   while ((m = re.exec(content)) !== null) {
     // Strip wikilink brackets and Obsidian display-text suffix ("[[Rom 9:21-22|potter]]" → "Rom 9:21-22")
+    const isWikilink = m[2] != null
     const raw = (m[1] ?? m[2] ?? '').trim().replace(/\[\[|\]\]/g, '').replace(/\|.*$/, '')
     if (!raw) continue
     // The regex can greedily prepend a non-book word ("quotes Genesis 5").
     // Try the full phrase, then drop leading words until parseRef succeeds.
     let parsed = parseRef(raw)
+    let matchedCandidate = parsed ? raw : ''
     if (!parsed) {
       const words = raw.split(/\s+/)
       for (let start = 1; start < words.length && !parsed; start++) {
-        parsed = parseRef(words.slice(start).join(' '))
+        const candidate = words.slice(start).join(' ')
+        parsed = parseRef(candidate)
+        if (parsed) matchedCandidate = candidate
       }
     }
     if (!parsed) {
@@ -65,6 +69,25 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
       const rewind = wordIdx + firstWord.length
       if (rewind > m.index && rewind > re.lastIndex - m[0].length) re.lastIndex = rewind
       continue
+    }
+
+    // ── Ambiguous-pattern guard (plain-text refs only, not [[wikilinks]]) ─────
+    // If the book was matched via a pattern that is also a common English word,
+    // abbreviation, or symbol (e.g. "is", "re", "col", "her", "job"), require
+    // either: (a) the first character of the book portion is uppercase in the
+    // original note content, or (b) the reference contains a colon (chapter:verse).
+    // This prevents "is 99% done" → Isaiah or "her 5 children" → Hermas.
+    if (!isWikilink) {
+      const bookPart = matchedCandidate.replace(/\s*\d[\d:–\-]*$/, '').trimEnd()
+      const lastBookToken = bookPart.split(/\s+/).pop()?.toLowerCase().replace(/\.$/, '') ?? ''
+      if (AMBIGUOUS_PATTERNS.has(lastBookToken)) {
+        const hasColon = matchedCandidate.includes(':')
+        // Find first char of the matched candidate in the original content
+        const candidateStart = content.indexOf(matchedCandidate, m.index)
+        const firstChar = candidateStart >= 0 ? content[candidateStart] : matchedCandidate[0]
+        const isCapitalised = /[A-Z]/.test(firstChar ?? '')
+        if (!hasColon && !isCapitalised) continue
+      }
     }
     const isChapter = parsed.verse == null
     const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : parsed.verse}${parsed.endVerse != null ? `-${parsed.endVerse}` : ''}`

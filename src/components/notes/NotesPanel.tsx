@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History } from 'lucide-react'
+import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History, Monitor } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import ZoomControls from '@/components/shell/ZoomControls'
@@ -17,7 +17,7 @@ import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef } from '@/lib/noteUtils'
 
-type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword'
+type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type NoteSort = 'modified' | 'created' | 'name'
 
 function toDateKey(date: Date): string {
@@ -56,6 +56,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const noteTransformLayout = useAppStore((s) => s.noteTransformLayout)
+  const setIdiomCache = useAppStore((s) => s.setIdiomCache)
+  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
 
   const [notes, setNotes] = useState<Note[]>([])
   const [activeNote, setActiveNote] = useState<Note | null>(null)
@@ -160,6 +162,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [folderView, setFolderView] = useState(false)
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
+  const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string } | null>(null)
+  const [convertIdiomModal, setConvertIdiomModal] = useState<{ note: Note; term: string; meaning: string; keepContent: boolean } | null>(null)
 
   const loadFolders = useCallback(() => {
     window.notes.getFolders().then(setFolders).catch(() => {})
@@ -182,7 +186,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Folder operation handlers — call IPC then reload folders + notes
   const reloadNotes = useCallback(() => {
     window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
-  }, [])
+    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+  }, [setIdiomCache])
   const handleCreateFolder = useCallback(async (parentId: string | null) => {
     await window.notes.createFolder('New Folder', parentId); loadFolders()
   }, [loadFolders])
@@ -431,12 +436,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     await window.notes.deleteNote(target.id)
     setNotes((prev) => prev.filter((n) => n.id !== target.id))
     bumpNoteToken()
+    if (target.type === 'idiom') window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
     if (target.id === activeNote?.id) { setActiveNote(null); setEditorMode('wysiwyg') }
   }
 
   async function goBack() {
     if (!activeNote) return
-    if (activeNote.content.trim() === '') {
+    // Idiom notes may have empty content — keep them if they have a term or meaning
+    const hasIdiomData = activeNote.type === 'idiom' && (activeNote.idiomTerm || activeNote.idiomMeaning || activeNote.title?.trim())
+    if (activeNote.content.trim() === '' && !hasIdiomData) {
       await deleteNote(activeNote)
     } else {
       snapshotVersion(activeNote, 'auto')   // consolidate a version on leaving the note
@@ -667,6 +675,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     else if (noteFilter === 'youtube') filtered = filtered.filter(n => n.type === 'youtube')
     else if (noteFilter === 'biblegateway') filtered = filtered.filter(n => n.tags?.includes('biblegateway'))
     else if (noteFilter === 'esword') filtered = filtered.filter(n => n.tags?.includes('esword'))
+    else if (noteFilter === 'idiom') filtered = filtered.filter(n => n.type === 'idiom')
     // Sort
     if (noteSort === 'modified') filtered.sort((a, b) => b.updatedAt - a.updatedAt)
     else if (noteSort === 'created') filtered.sort((a, b) => b.createdAt - a.createdAt)
@@ -847,6 +856,25 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <BookOpen size={15} />
               </button>
             )}
+            <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
+            <button
+              onClick={async () => {
+                if (!activeNote) return
+                if (!viewerWindowOpen) {
+                  await window.app.openViewerWindow?.()
+                  useAppStore.getState().setViewerWindowOpen(true)
+                }
+                window.app.pushViewerContent?.({ kind: 'note', noteId: activeNote.id })
+              }}
+              className={`p-1 rounded cursor-pointer transition-colors ${
+                viewerWindowOpen
+                  ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
+                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+              }`}
+            >
+              <Monitor size={15} />
+            </button>
+            </HintTooltip>
             <button
               onClick={() => deleteNote()}
               title="Delete note"
@@ -941,6 +969,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
             <button
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { setPlusMenu(null); setIdiomModal({ term: '', meaning: '' }) }}
+            >
+              <BookOpen size={13} className="flex-shrink-0" /> New idiom
+            </button>
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
               onClick={() => {
                 setPlusMenu(null)
                 if (!folderView) { setFolderView(true); window.settings?.set('notesFolderView', true).catch(() => {}) }
@@ -991,6 +1025,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         {editing ? (
           <div className="flex-1 overflow-hidden flex flex-row">
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+              {/* Idiom header strip — shown when editing an idiom note */}
+              {activeNote.type === 'idiom' && (
+                <IdiomHeader
+                  note={activeNote}
+                  onUpdate={async (updates) => {
+                    await window.notes.updateNote(activeNote.id, updates)
+                    const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
+                    setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
+                    setActiveNote(patched)
+                    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+                  }}
+                />
+              )}
               <NoteEditor
                 content={activeNote.content}
                 onChange={handleContentChange}
@@ -1070,6 +1117,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 ['youtube',      'Video'],
                 ['biblegateway', 'BG'],
                 ['esword',       'eSword'],
+                ['idiom',        'Idioms'],
               ] as [NoteFilter, string][]).map(([f, label]) => (
                 <button
                   key={f}
@@ -1157,6 +1205,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   notes={visibleNotes}
                   onSelect={navigateToNote}
                   onDelete={(note) => deleteNote(note)}
+                  onConvertToIdiom={(note) => setConvertIdiomModal({ note, term: note.title || '', meaning: '', keepContent: true })}
                   findQuery={activeListFindQuery}
                   searchQuery={noteSearch}
                   selectMode={selectMode}
@@ -1179,9 +1228,168 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         <PrintPreviewModal
           title={activeNote.title || 'Untitled'}
           content={activeNote.content}
+          notes={notes}
           onClose={() => setPrintPreviewOpen(false)}
         />
       )}
+      {/* Idiom creation modal */}
+      {idiomModal && (
+        <>
+          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setIdiomModal(null)} />
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+            <div
+              className="pointer-events-auto w-80 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">New Idiom Note</div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
+                <input
+                  autoFocus
+                  value={idiomModal.term}
+                  onChange={e => setIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
+                  placeholder="e.g. fox"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
+                  onKeyDown={e => { if (e.key === 'Escape') setIdiomModal(null) }}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning</label>
+                <input
+                  value={idiomModal.meaning}
+                  onChange={e => setIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
+                  placeholder="e.g. cunning, deception, false teachers"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter') {
+                      const term = idiomModal.term.trim()
+                      const meaning = idiomModal.meaning.trim()
+                      if (!term) return
+                      setIdiomModal(null)
+                      const res = await window.notes.createNote({ type: 'idiom', title: term, idiomTerm: term.toLowerCase(), idiomMeaning: meaning, content: '' })
+                      if (res.success && res.note) {
+                        setNotes(prev => [res.note!, ...prev])
+                        setIdiomCache(await window.notes.listIdioms?.() ?? [])
+                        setActiveNote(res.note)
+                      }
+                    } else if (e.key === 'Escape') { setIdiomModal(null) }
+                  }}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
+                <button
+                  disabled={!idiomModal.term.trim()}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
+                  onClick={async () => {
+                    const term = idiomModal.term.trim()
+                    const meaning = idiomModal.meaning.trim()
+                    if (!term) return
+                    setIdiomModal(null)
+                    const res = await window.notes.createNote({ type: 'idiom', title: term, idiomTerm: term.toLowerCase(), idiomMeaning: meaning, content: '' })
+                    if (res.success && res.note) {
+                      setNotes(prev => [res.note!, ...prev])
+                      setIdiomCache(await window.notes.listIdioms?.() ?? [])
+                      setActiveNote(res.note)
+                    }
+                  }}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Convert note to idiom modal */}
+      {convertIdiomModal && (
+        <>
+          <div className="fixed inset-0 z-[9998] bg-black/40" onClick={() => setConvertIdiomModal(null)} />
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+            <div
+              className="pointer-events-auto w-96 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 flex flex-col gap-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <div className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-0.5">Convert to Idiom Note</div>
+                <div className="text-xs text-[rgb(var(--color-text-muted))]">This note will become an idiom entry. Words matching the term will be underlined in verse text.</div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[rgb(var(--color-text-muted))]">Term</label>
+                <input
+                  autoFocus
+                  value={convertIdiomModal.term}
+                  onChange={e => setConvertIdiomModal(m => m ? { ...m, term: e.target.value } : m)}
+                  placeholder="e.g. fox"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs text-[rgb(var(--color-text-muted))]">Meaning <span className="opacity-60">(optional)</span></label>
+                <input
+                  value={convertIdiomModal.meaning}
+                  onChange={e => setConvertIdiomModal(m => m ? { ...m, meaning: e.target.value } : m)}
+                  placeholder="e.g. cunning, deception, false teachers"
+                  className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
+                />
+              </div>
+              {convertIdiomModal.note.content.trim() && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="text-xs text-[rgb(var(--color-text-muted))]">This note has existing content. What should happen to it?</div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
+                      <input
+                        type="radio"
+                        checked={convertIdiomModal.keepContent}
+                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: true } : m)}
+                        className="accent-[rgb(var(--color-accent))]"
+                      />
+                      Keep as body content of the idiom note
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-[rgb(var(--color-text-secondary))]">
+                      <input
+                        type="radio"
+                        checked={!convertIdiomModal.keepContent}
+                        onChange={() => setConvertIdiomModal(m => m ? { ...m, keepContent: false } : m)}
+                        className="accent-[rgb(var(--color-accent))]"
+                      />
+                      Clear body content (idiom term + meaning only)
+                    </label>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setConvertIdiomModal(null)} className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer">Cancel</button>
+                <button
+                  disabled={!convertIdiomModal.term.trim()}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
+                  onClick={async () => {
+                    const { note, term, meaning, keepContent } = convertIdiomModal
+                    if (!term.trim()) return
+                    setConvertIdiomModal(null)
+                    const updates: Record<string, unknown> = {
+                      type: 'idiom',
+                      title: term.trim(),
+                      idiomTerm: term.trim().toLowerCase(),
+                      idiomMeaning: meaning.trim() || undefined,
+                      content: keepContent ? note.content : '',
+                    }
+                    await window.notes.updateNote(note.id, updates)
+                    const updated = { ...note, ...updates, title: term.trim(), updatedAt: Date.now() } as Note
+                    setNotes(prev => prev.map(n => n.id === note.id ? updated : n))
+                    if (activeNote?.id === note.id) setActiveNote(updated)
+                    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+                  }}
+                >
+                  Convert
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {versionHistoryOpen && activeNote && (
         <NoteVersionHistory
           noteId={activeNote.id}
@@ -1198,6 +1406,100 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           }}
         />
       )}
+    </div>
+  )
+}
+
+// ── IdiomHeader ───────────────────────────────────────────────────────────────
+function IdiomHeader({ note, onUpdate }: {
+  note: Note
+  onUpdate: (updates: Partial<Note>) => Promise<void>
+}) {
+  const [aliasInput, setAliasInput] = useState('')
+  const aliases = note.idiomAliases ?? []
+  const autoVariants = note.idiomAutoVariants ?? false
+
+  async function saveAlias(val: string) {
+    const trimmed = val.trim()
+    if (!trimmed || aliases.map(a => a.toLowerCase()).includes(trimmed.toLowerCase())) return
+    await onUpdate({ idiomAliases: [...aliases, trimmed] })
+    setAliasInput('')
+  }
+
+  async function removeAlias(alias: string) {
+    await onUpdate({ idiomAliases: aliases.filter(a => a !== alias) })
+  }
+
+  return (
+    <div className="flex flex-col gap-0 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] flex-shrink-0">
+      {/* Row 1: label | term | — | meaning | auto-variants toggle */}
+      <div className="flex items-center gap-3 px-4 py-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-400 flex-shrink-0">Idiom</span>
+        <input
+          key={note.id + '-term'}
+          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] font-medium text-sm"
+          placeholder="Term…"
+          defaultValue={note.idiomTerm ?? note.title}
+          onBlur={async (e) => {
+            const term = e.target.value.trim()
+            if (!term || term === note.idiomTerm) return
+            await onUpdate({ idiomTerm: term.toLowerCase(), title: term })
+          }}
+        />
+        <span className="text-[rgb(var(--color-text-muted))] flex-shrink-0 text-sm">—</span>
+        <input
+          key={note.id + '-meaning'}
+          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] text-sm"
+          placeholder="Meaning… (optional)"
+          defaultValue={note.idiomMeaning ?? ''}
+          onBlur={async (e) => {
+            const meaning = e.target.value.trim()
+            if (meaning === (note.idiomMeaning ?? '')) return
+            await onUpdate({ idiomMeaning: meaning || undefined })
+          }}
+        />
+        {/* Auto-variants toggle */}
+        <button
+          onClick={() => onUpdate({ idiomAutoVariants: !autoVariants })}
+          title={autoVariants ? 'Auto-matching plurals & caps — click to disable' : 'Click to auto-match plurals, capitals, possessives'}
+          className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${
+            autoVariants
+              ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
+              : 'bg-transparent border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-violet-500/40 hover:text-violet-400'
+          }`}
+        >
+          <span>{autoVariants ? '✓' : '+'}</span>
+          <span>plurals</span>
+        </button>
+      </div>
+      {/* Row 2: alternate terms (aliases) */}
+      <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
+        <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 mr-0.5">Same idiom:</span>
+        {aliases.map((alias) => (
+          <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+            {alias}
+            <button
+              onClick={() => removeAlias(alias)}
+              className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+              title="Remove"
+            >×</button>
+          </span>
+        ))}
+        <input
+          className="text-[11px] bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[120px] max-w-[180px]"
+          placeholder="+ add alternate term…"
+          value={aliasInput}
+          onChange={e => setAliasInput(e.target.value)}
+          onKeyDown={async (e) => {
+            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); await saveAlias(aliasInput) }
+            if (e.key === 'Backspace' && !aliasInput && aliases.length) await removeAlias(aliases[aliases.length - 1])
+          }}
+          onBlur={() => { if (aliasInput.trim()) saveAlias(aliasInput) }}
+        />
+        {aliases.length === 0 && (
+          <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-40 italic">e.g. "herod" for this same idiom</span>
+        )}
+      </div>
     </div>
   )
 }

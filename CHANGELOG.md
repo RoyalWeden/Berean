@@ -122,6 +122,17 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.3.16] - 2026-06-16
+
+- Presenter view
+- Idiom notes
+
+Bug Fixes
+- Easier to open zoom and change it
+
+
+---
+
 ## [0.3.15] - 2026-06-11
 
 - Vault improvements

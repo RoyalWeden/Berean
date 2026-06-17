@@ -836,7 +836,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
   )
 }
 
-type Section = 'appearance' | 'display' | 'notes' | 'history' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
+type Section = 'appearance' | 'display' | 'notes' | 'history' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'viewer' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -913,6 +913,14 @@ export default function SettingsModal() {
   const setNoteHeadingDivider = useAppStore((s) => s.setNoteHeadingDivider)
   const noteBulletStyle = useAppStore((s) => s.noteBulletStyle)
   const setNoteBulletStyle = useAppStore((s) => s.setNoteBulletStyle)
+  const idiomHighlightEnabled = useAppStore((s) => s.idiomHighlightEnabled)
+  const setIdiomHighlightEnabled = useAppStore((s) => s.setIdiomHighlightEnabled)
+  const idiomHoverPreviewEnabled = useAppStore((s) => s.idiomHoverPreviewEnabled)
+  const setIdiomHoverPreviewEnabled = useAppStore((s) => s.setIdiomHoverPreviewEnabled)
+  const viewerFontScale = useAppStore((s) => s.viewerFontScale)
+  const setViewerFontScale = useAppStore((s) => s.setViewerFontScale)
+  const viewerTheme = useAppStore((s) => s.viewerTheme)
+  const setViewerTheme = useAppStore((s) => s.setViewerTheme)
 
   const [section, setSection] = useState<Section>('appearance')
   const [settingsSearch, setSettingsSearch] = useState('')
@@ -1056,6 +1064,7 @@ export default function SettingsModal() {
     { id: 'youtube',       label: 'YouTube',       keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions'] },
     { id: 'word-replacer', label: 'Word Replacer', keywords: ['replace', 'word', 'substitute', 'name', 'yehovah', 'yeshua'] },
     { id: 'print',         label: 'Print & Export', keywords: ['print', 'export', 'pdf', 'paper', 'margin', 'font size'] },
+    { id: 'viewer',        label: 'Viewer Window', keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
     { id: 'shortcuts',     label: 'Shortcuts',     keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
     { id: 'updates',       label: 'Updates',       keywords: ['update', 'version', 'beta', 'stable', 'auto-update'] },
     { id: 'import',        label: 'Import',        keywords: ['import', 'esword', 'biblegateway', 'migrate'] },
@@ -1796,6 +1805,37 @@ export default function SettingsModal() {
                     </button>
                   </div>
 
+                  {/* ── Idiom notes ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Idiom notes</p>
+
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Highlight idiom words in verse text</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Underline words in verse text that match a term in your idiom notes</p>
+                      </div>
+                      <button
+                        onClick={() => setIdiomHighlightEnabled(!idiomHighlightEnabled)}
+                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${idiomHighlightEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomHighlightEnabled ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Show hover tooltip for idiom words</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Display the term and its meaning when hovering an underlined idiom word</p>
+                      </div>
+                      <button
+                        onClick={() => setIdiomHoverPreviewEnabled(!idiomHoverPreviewEnabled)}
+                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${idiomHoverPreviewEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomHoverPreviewEnabled ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
               )}
 
@@ -2226,6 +2266,55 @@ export default function SettingsModal() {
               )}
 
               {section === 'print' && <PrintExportSection />}
+
+              {section === 'viewer' && (
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Viewer window</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-0">
+                      Open a second window to display Bible text on an external monitor or projector. Toggle with <kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧B</kbd>.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Font scale</p>
+                    <div className="flex items-center gap-3">
+                      {[1.0, 1.25, 1.5, 1.75, 2.0].map((scale) => (
+                        <button
+                          key={scale}
+                          onClick={() => setViewerFontScale(scale)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors cursor-pointer ${
+                            viewerFontScale === scale
+                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))]'
+                          }`}
+                        >
+                          {Math.round(scale * 100)}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Theme override</p>
+                    <div className="flex items-center gap-3">
+                      {(['system', 'light', 'dark'] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setViewerTheme(t)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors cursor-pointer capitalize ${
+                            viewerTheme === t
+                              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+                              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))]'
+                          }`}
+                        >
+                          {t === 'system' ? 'Follow app' : t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {section === 'updates' && <UpdatesSection />}
 

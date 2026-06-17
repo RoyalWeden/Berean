@@ -44,6 +44,7 @@ interface NotesListProps {
   onOpenInSession?: (note: Note, sessionId: string) => void
   sessions?: SessionInfo[]
   onOpenInTab?: (note: Note) => void
+  onConvertToIdiom?: (note: Note) => void
 }
 
 function formatDate(ts: number): string {
@@ -80,6 +81,7 @@ function noteTypeBadge(note: Note) {
       (note.type === 'general' && !!(note.title?.startsWith('Daily — ') || note.title?.startsWith('Journal — '))))
     return { label: 'Daily', cls: 'bg-amber-500/15 text-amber-400' }
   if (note.type === 'youtube') return { label: 'Video', cls: 'bg-red-500/15 text-red-400' }
+  if (note.type === 'idiom') return { label: 'Idiom', cls: 'bg-violet-500/15 text-violet-400' }
   if (note.verseRef || note.type === 'verse') return null // shown via verseRef chip
   return null
 }
@@ -96,7 +98,7 @@ export default function NotesList({
   notes, onSelect, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
-  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab,
+  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null)
@@ -136,7 +138,9 @@ export default function NotesList({
     <>
       <div className="flex flex-col divide-y divide-[rgb(var(--color-surface-4))]">
         {notes.map((note) => {
-          const rawSnippet = note.content.replace(/[#*`>\-_~\[\]]/g, '').trim()
+          const rawSnippet = note.type === 'idiom' && note.idiomMeaning
+            ? note.idiomMeaning
+            : note.content.replace(/[#*`>\-_~\[\]]/g, '').trim()
           const snippet = expandAll
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
@@ -311,6 +315,7 @@ export default function NotesList({
           onDelete={onDelete}
           onOpenInSession={onOpenInSession}
           sessions={sessions}
+          onConvertToIdiom={onConvertToIdiom}
         />
       )}
     </>

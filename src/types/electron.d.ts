@@ -29,6 +29,7 @@ interface NotesAPI {
   deleteFolder: (id: string) => Promise<{ success: boolean }>
   deleteFolderDeep: (id: string) => Promise<{ success: boolean }>
   setFolderParent: (id: string, parentId: string | null) => Promise<{ success: boolean; error?: string }>
+  listIdioms: () => Promise<Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>>
 }
 
 type HighlightColor = 'yellow' | 'red' | 'green' | 'blue' | 'purple'
@@ -191,6 +192,37 @@ interface AppAPI {
   installUpdate: () => void
   onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
   onUpdateStatus: (cb: (status: UpdateStatus) => void) => void
+  openViewerWindow: () => Promise<boolean>
+  isViewerWindowOpen: () => Promise<boolean>
+  pushViewerContent: (payload: unknown) => void
+  pushViewerSettings: (settings: unknown) => void
+  onViewerVisibleRegion: (cb: (region: ViewerVisibleRegion) => void) => void
+  onViewerWindowClosed: (cb: () => void) => void
+  onViewerReady: (cb: () => void) => void
+}
+
+export interface ViewerVisibleRegion {
+  bookId: string
+  chapter: number
+  /** Fraction of the chapter content currently visible in the presenter (clientHeight/scrollHeight). */
+  visibleFraction: number
+  /** Map of verse number → that verse's top, as a fraction of the presenter's scrollable
+   *  content height. Lets the main window translate the presenter's visible window onto its
+   *  OWN verse positions — accurate across different window sizes / zoom / text wrapping.
+   *  Sent only on the presenter's load/zoom/resize (not per scroll frame). */
+  verseFracs: Record<number, number>
+}
+
+export interface ViewerSyncedSettings {
+  wordReplacerEnabled: boolean
+  wordReplacerRules: unknown[]
+  noteScriptureBlock: boolean
+  noteScriptureBlockThreshold: number
+  idiomHighlightEnabled: boolean
+  idiomCache: unknown[]
+  theme: 'light' | 'dark' | 'system'
+  themePreset: string | null
+  crossRefSource: 'tske' | 'classic' | 'notes'
 }
 
 interface CrossRefEntry {
@@ -322,6 +354,12 @@ declare global {
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
     workspaces: WorkspacesAPI
+    viewer: {
+      onContent: (cb: (payload: unknown) => void) => void
+      onSettings: (cb: (settings: ViewerSyncedSettings) => void) => void
+      reportVisibleRegion: (region: ViewerVisibleRegion) => void
+      signalReady: () => void
+    }
     // Platform string injected by preload for renderer-side platform detection
     __berean_platform: NodeJS.Platform
 

@@ -1,6 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, ArrowLeft, ArrowRight, type LucideIcon } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, ArrowLeft, ArrowRight, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
@@ -60,6 +60,12 @@ export default function Sidebar() {
   const archiveAllTabs         = useAppStore((s) => s.archiveAllTabs)
   const restoreArchivedGroup   = useAppStore((s) => s.restoreArchivedGroup)
   const dismissArchivedGroup   = useAppStore((s) => s.dismissArchivedGroup)
+  const viewerWindowOpen       = useAppStore((s) => s.viewerWindowOpen)
+  const setViewerWindowOpen    = useAppStore((s) => s.setViewerWindowOpen)
+
+  function openViewerWindow() {
+    window.app.openViewerWindow?.().then(() => setViewerWindowOpen(true))
+  }
 
   // ── Per-tab nav back/forward ─────────────────────────────────────────────
   const currentTabId  = activeTabId[activeSpace]
@@ -793,6 +799,27 @@ export default function Sidebar() {
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <button
+                  onClick={openViewerWindow}
+                  className={`no-drag flex items-center justify-center w-10 h-8 rounded-lg transition-colors cursor-pointer select-none ${
+                    viewerWindowOpen
+                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                  }`}
+                >
+                  <Monitor size={15} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content side="right" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+                  Presenter view
+                  <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘⇧B</kbd>
+                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
                   onClick={openSettings}
                   className="no-drag flex items-center justify-center w-10 h-8 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer select-none"
                 >
@@ -863,6 +890,28 @@ export default function Sidebar() {
                 <Tooltip.Content side="right" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
                   History
                   <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘H</kbd>
+                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+            {/* Presenter view button */}
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  onClick={openViewerWindow}
+                  className={`no-drag p-1.5 rounded flex-shrink-0 transition-colors cursor-pointer ${
+                    viewerWindowOpen
+                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
+                      : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                  }`}
+                >
+                  <Monitor size={14} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content side="top" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+                  Presenter view
+                  <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘⇧B</kbd>
                   <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
                 </Tooltip.Content>
               </Tooltip.Portal>

@@ -272,7 +272,13 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
     return (tab?.state as import('@/types').BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva'
   })
   useEffect(() => {
-    const textId = getTranslationForBook(bookId) ?? activeTranslation
+    // Resolve the text DB for the REFERENCED book, not the active tab:
+    //  - dedicated non-canonical book (Enoch, Jubilees…) → its own DB
+    //  - canonical ref while a dedicated text is active (e.g. Luke ref from 1 Enoch) →
+    //    fall back to KJVA, not the active 'enoch' DB (which has no Luke)
+    //  - canonical ref while a canonical text (KJVA/LXX) is active → keep active (LXX refs show LXX)
+    const dedicated = getTranslationForBook(bookId)
+    const textId = dedicated ?? (isDedicatedTranslation(activeTranslation) ? 'kjva' : activeTranslation)
     // When verse=0 (chapter-level ref), fetch verse 1 and append ellipsis
     const queryVerse = verse === 0 ? 1 : verse
     window.bible.queryVerse(bookId, chapter, queryVerse, textId)
@@ -285,10 +291,87 @@ function HoverVerseText({ bookId, chapter, verse }: { bookId: string; chapter: n
   return <span className="text-[rgb(var(--color-text-muted))] text-[9px]"> {display}</span>
 }
 
+/** Expand idiom cache into a flat list of {term, id, meaning} including aliases. */
+function variantsFor(term: string): string[] {
+  const t = term.trim()
+  if (!t) return []
+  const variants = [t]
+  // possessive
+  variants.push(`${t}'s`)
+  // plurals: words ending in 'y' (after consonant) → 'ies'
+  if (/[^aeiou]y$/i.test(t)) {
+    variants.push(`${t.slice(0, -1)}ies`)
+  } else if (/[sxz]$/i.test(t) || /[cs]h$/i.test(t)) {
+    // ends in s, x, z, ch, sh → add 'es'
+    variants.push(`${t}es`)
+  } else {
+    // default → add 's'
+    variants.push(`${t}s`)
+  }
+  return variants
+}
+
+function expandIdiomPatterns(cache: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) {
+  const entries: Array<{ pattern: string; id: string; meaning: string }> = []
+  for (const e of cache) {
+    const terms = [e.term, ...(e.aliases ?? []).filter(a => a.trim())]
+    for (const t of terms) {
+      const patterns = e.autoVariants ? variantsFor(t) : [t.trim()]
+      for (const p of patterns) {
+        if (p) entries.push({ pattern: p, id: e.id, meaning: e.meaning })
+      }
+    }
+  }
+  return entries
+}
+
+/** Wrap words in `text` that match any idiom term/alias with an underline span. */
+function wrapIdiomTerms(
+  text: string,
+  entries: Array<{ pattern: string; id: string; meaning: string }>,
+  onEnter: (e: React.MouseEvent, pattern: string, meaning: string) => void,
+  onLeave: () => void,
+  onClick: (e: React.MouseEvent, id: string) => void,
+  onContextMenu: (e: React.MouseEvent, id: string) => void,
+): React.ReactNode {
+  if (!entries.length || !text) return text
+  // Sort longest first to avoid partial matches overriding longer terms
+  const sorted = [...entries].sort((a, b) => b.pattern.length - a.pattern.length)
+  const pattern = sorted.map(e => e.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  const re = new RegExp(`\\b(${pattern})\\b`, 'gi')
+  const parts: React.ReactNode[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index))
+    const matched = m[0]
+    const entry = sorted.find(e => e.pattern.toLowerCase() === matched.toLowerCase())
+    parts.push(
+      <span
+        key={m.index}
+        className="underline decoration-dotted decoration-violet-400 underline-offset-2 cursor-pointer"
+        onMouseEnter={(e) => entry && onEnter(e, matched, entry.meaning)}
+        onMouseLeave={onLeave}
+        onClick={(e) => { e.stopPropagation(); entry && onClick(e, entry.id) }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); entry && onContextMenu(e, entry.id) }}
+      >{matched}</span>
+    )
+    last = m.index + matched.length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
+}
+
 export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const idiomHighlightEnabled = useAppStore((s) => s.idiomHighlightEnabled)
+  const idiomHoverPreviewEnabled = useAppStore((s) => s.idiomHoverPreviewEnabled)
+  const idiomCache = useAppStore((s) => s.idiomCache)
+  const [idiomTooltip, setIdiomTooltip] = useState<{ x: number; y: number; term: string; meaning: string } | null>(null)
+  const [idiomContextMenu, setIdiomContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  const expandedIdioms = expandIdiomPatterns(idiomCache)
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -486,6 +569,20 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   function handleNoteIconMouseLeave() {
     if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current)
     noteHoverTimerRef.current = setTimeout(() => setNoteHover(null), 150)
+  }
+
+  function handleIdiomEnter(e: React.MouseEvent, term: string, meaning: string) {
+    const r = (e.target as HTMLElement).getBoundingClientRect()
+    setIdiomTooltip({ x: r.left, y: r.bottom + 4, term, meaning })
+  }
+  function handleIdiomLeave() { setIdiomTooltip(null) }
+  function handleIdiomClick(_e: React.MouseEvent, id: string) {
+    setIdiomTooltip(null)
+    useAppStore.getState().requestOpenNote(id)
+  }
+  function handleIdiomContextMenu(e: React.MouseEvent, id: string) {
+    setIdiomTooltip(null)
+    setIdiomContextMenu({ x: e.clientX, y: e.clientY, id })
   }
 
   async function applyHighlight(color: HighlightColor) {
@@ -803,11 +900,16 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               : undefined
 
             // Word content: segments OR find-highlighted plain text
+            const activeIdioms = idiomHighlightEnabled && expandedIdioms.length > 0 ? expandedIdioms : []
             const wordContent = wordSegs
               ? wordSegs.map((seg, si) => (
                   <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
                 ))
-              : (isFindMatch ? applyFindHighlight(token.word, findQuery, highlightMode) : token.word)
+              : isFindMatch
+              ? applyFindHighlight(token.word, findQuery, highlightMode)
+              : activeIdioms.length
+              ? wrapIdiomTerms(token.word, activeIdioms, handleIdiomEnter, handleIdiomLeave, handleIdiomClick, handleIdiomContextMenu)
+              : token.word
 
             return (
               <Fragment key={i}>
@@ -928,6 +1030,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       )
     }
 
+    const activeIdioms = idiomHighlightEnabled && expandedIdioms.length > 0 ? expandedIdioms : []
+
     // Plain / word-level rendering — apply find highlight
     if (isFindMatch && charHighlights.length === 0) {
       return <span>{applyFindHighlight(verseForDisplay.text, findQuery, findWordMode)}</span>
@@ -938,12 +1042,15 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       <span>
         {words.map((word, i) => {
           const wHL = highlights.find(h => h.startWord !== null && h.startWord <= i && i <= (h.endWord ?? i))
+          const wordContent = activeIdioms.length
+            ? wrapIdiomTerms(word, activeIdioms, handleIdiomEnter, handleIdiomLeave, handleIdiomClick, handleIdiomContextMenu)
+            : word
           return (
             <Fragment key={i}>
               <span
                 data-word={i}
                 style={wHL ? { backgroundColor: WORD_HIGHLIGHT_BG[wHL.color], borderRadius: '2px', padding: '1px 0' } : undefined}
-              >{word}</span>
+              >{wordContent}</span>
               {i < words.length - 1 && (() => {
                 const spaceHL = highlights.find(h => h.startWord !== null && h.startWord! <= i && i < (h.endWord ?? -1))
                 return spaceHL
@@ -1425,7 +1532,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
                   const s = useAppStore.getState()
-                  const translation = (getTranslationForBook(r.bookId) ?? textId ?? 'kjva').toUpperCase()
+                  // Canonical ref opened from a dedicated text (e.g. Luke from 1 Enoch) → KJVA, not 'enoch'
+                  const translation = (getTranslationForBook(r.bookId) ?? (isDedicatedTranslation(textId) ? 'kjva' : textId) ?? 'kjva').toUpperCase()
                   const title = `${bookName(r.bookId)} ${r.chapter}`
                   s.addTab({
                     id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
@@ -1453,6 +1561,57 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
             </>
           )}
         </div>,
+        document.body
+      )}
+
+      {/* Idiom hover tooltip */}
+      {idiomTooltip && idiomHoverPreviewEnabled && createPortal(
+        <div
+          className="fixed z-[9999] max-w-[220px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-3 py-2 pointer-events-none"
+          style={{ left: idiomTooltip.x, top: idiomTooltip.y }}
+        >
+          <div className="text-[10px] font-semibold text-violet-400 mb-0.5">{idiomTooltip.term}</div>
+          {idiomTooltip.meaning && <div className="text-xs text-[rgb(var(--color-text-secondary))]">{idiomTooltip.meaning}</div>}
+          <div className="text-[9px] text-[rgb(var(--color-text-muted))] mt-1 opacity-70">Click to open · Right-click for more</div>
+        </div>,
+        document.body
+      )}
+
+      {/* Idiom word right-click context menu */}
+      {idiomContextMenu && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setIdiomContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setIdiomContextMenu(null) }} />
+          <div
+            className="fixed z-[9999] min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            style={{ left: Math.min(idiomContextMenu.x, window.innerWidth - 200), top: Math.min(idiomContextMenu.y, window.innerHeight - 160) }}
+          >
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { setIdiomContextMenu(null); useAppStore.getState().requestOpenNote(idiomContextMenu.id) }}
+            >
+              Open idiom note
+            </button>
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => {
+                const cid = idiomContextMenu.id; setIdiomContextMenu(null)
+                useAppStore.getState().addTab({ id: `note-${cid}-${Date.now()}`, type: 'note', title: 'Idiom', state: { noteId: cid, isNew: false }, spaceId: 'notes' })
+              }}
+            >
+              Open in new tab
+            </button>
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => {
+                const cid = idiomContextMenu.id; setIdiomContextMenu(null)
+                window.app?.openFloatingTab?.('note', { noteId: cid })
+                useAppStore.getState().bumpFloatingTabToken()
+              }}
+            >
+              Open in floating tab
+            </button>
+          </div>
+        </>,
         document.body
       )}
     </div>

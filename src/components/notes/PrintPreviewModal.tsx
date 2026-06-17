@@ -5,10 +5,12 @@ import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-reac
 import { useAppStore } from '@/store'
 import { buildPrintHTML, PRINT_THEMES, presetToSides } from './NoteEditor'
 import type { PrintThemeId } from './NoteEditor'
+import type { Note } from '@/types'
 
 interface Props {
   title: string
   content: string
+  notes?: Note[]
   onClose: () => void
 }
 
@@ -109,7 +111,7 @@ export function CustomMarginInputs({
   )
 }
 
-export default function PrintPreviewModal({ title, content, onClose }: Props) {
+export default function PrintPreviewModal({ title, content, notes, onClose }: Props) {
   const store = useAppStore()
 
   // Live-editable local copies seeded from saved settings
@@ -120,6 +122,7 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
   const [fontFamily, setFontFamily] = useState<FontFam>(store.printFontFamily)
   const [colorMode, setColorMode] = useState<ColorMode>(store.printColorMode)
   const [includeTitle, setIncludeTitle] = useState(store.printIncludeTitle)
+  const [includeLinkedNotes, setIncludeLinkedNotes] = useState(store.printIncludeLinkedNotes)
 
   // Auto-size the preview iframe to its content so there's a single (outer) scrollbar.
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -177,12 +180,26 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
   }, [themeOpen])
 
   const currentTheme = PRINT_THEMES[theme] ?? PRINT_THEMES.classic
-  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode }
+
+  // Resolve wikilinks in content to their full note objects for linked-note printing.
+  const resolvedLinkedNotes = useMemo(() => {
+    if (!includeLinkedNotes || !notes) return undefined
+    const wikilinkRe = /\[\[([^\]|]+?)(?:\|[^\]]+)?\]\]/g
+    const titles = new Set<string>()
+    let m: RegExpExecArray | null
+    while ((m = wikilinkRe.exec(content)) !== null) titles.add(m[1].trim())
+    return Array.from(titles)
+      .map(t => notes.find(n => (n.title || 'Untitled').toLowerCase() === t.toLowerCase()))
+      .filter((n): n is Note => n != null)
+      .map(n => ({ title: n.title || 'Untitled', content: n.content }))
+  }, [includeLinkedNotes, notes, content])
+
+  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes }
 
   const html = useMemo(
     () => buildPrintHTML(title || 'Untitled', content, opts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, content, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle]
+    [title, content, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle, resolvedLinkedNotes]
   )
 
   // Measure rendered content height and size the iframe to it (removes the iframe's own scrollbar)
@@ -204,6 +221,7 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
     store.setPrintFontFamily(fontFamily)
     store.setPrintColorMode(colorMode)
     store.setPrintIncludeTitle(includeTitle)
+    store.setPrintIncludeLinkedNotes(includeLinkedNotes)
   }
 
   // Strip interactive styling (strongs chip spans) from the PDF/print output.
@@ -353,6 +371,19 @@ export default function PrintPreviewModal({ title, content, onClose }: Props) {
                   <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeTitle ? 'translate-x-4' : ''}`} />
                 </button>
               </div>
+
+              {/* Include linked notes toggle — only shown when notes are available */}
+              {notes && notes.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[rgb(var(--color-text-secondary))]">Include linked notes</span>
+                  <button
+                    onClick={() => setIncludeLinkedNotes(v => !v)}
+                    className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors cursor-pointer ${includeLinkedNotes ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLinkedNotes ? 'translate-x-4' : ''}`} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Preview — fits to width by default (no horizontal scroll); the iframe is

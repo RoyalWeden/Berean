@@ -213,6 +213,7 @@ export interface AppState {
   printFontSizePt: number
   printFontFamily: 'system' | 'serif' | 'sansserif'
   printIncludeTitle: boolean
+  printIncludeLinkedNotes: boolean
   printColorMode: 'color' | 'grayscale'
   printTheme: import('@/components/notes/NoteEditor').PrintThemeId
   pdfDownloadLocation: string  // '' = prompt each time
@@ -223,6 +224,7 @@ export interface AppState {
   setPrintFontSizePt: (v: number) => void
   setPrintFontFamily: (v: 'system' | 'serif' | 'sansserif') => void
   setPrintIncludeTitle: (v: boolean) => void
+  setPrintIncludeLinkedNotes: (v: boolean) => void
   setPrintColorMode: (v: 'color' | 'grayscale') => void
   setPdfDownloadLocation: (v: string) => void
 
@@ -239,6 +241,24 @@ export interface AppState {
   setNoteHeadingDivider: (v: boolean) => void
   noteBulletStyle: string
   setNoteBulletStyle: (s: string) => void
+
+  // Idiom notes
+  idiomHighlightEnabled: boolean
+  setIdiomHighlightEnabled: (v: boolean) => void
+  idiomHoverPreviewEnabled: boolean
+  setIdiomHoverPreviewEnabled: (v: boolean) => void
+  idiomCache: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>
+  setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => void
+
+  // Viewer window state
+  viewerWindowOpen: boolean
+  setViewerWindowOpen: (v: boolean) => void
+  viewerPaused: boolean
+  setViewerPaused: (v: boolean) => void
+  viewerFontScale: number
+  setViewerFontScale: (v: number) => void
+  viewerTheme: 'system' | 'light' | 'dark'
+  setViewerTheme: (v: 'system' | 'light' | 'dark') => void
 
   // Scripture display preferences
   showVerseNumbers: boolean
@@ -806,6 +826,7 @@ export const useAppStore = create<AppState>()(
       printFontSizePt: 12,
       printFontFamily: 'system' as const,
       printIncludeTitle: true,
+      printIncludeLinkedNotes: false,
       printColorMode: 'color' as const,
       printTheme: 'classic' as const,
       pdfDownloadLocation: '',
@@ -816,6 +837,13 @@ export const useAppStore = create<AppState>()(
       autoCopyOnHighlight: false,
       noteHeadingDivider: true,
       noteBulletStyle: 'classic',
+      idiomHighlightEnabled: true,
+      idiomHoverPreviewEnabled: true,
+      idiomCache: [] as Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>,
+      viewerWindowOpen: false,
+      viewerPaused: false,
+      viewerFontScale: 1.5,
+      viewerTheme: 'system' as const,
       showVerseNumbers: true,
       showRedLetters: true,
       wordReplacerEnabled: true,
@@ -1359,6 +1387,7 @@ export const useAppStore = create<AppState>()(
       setPrintFontSizePt: (v) => set({ printFontSizePt: v }),
       setPrintFontFamily: (v) => set({ printFontFamily: v }),
       setPrintIncludeTitle: (v) => set({ printIncludeTitle: v }),
+      setPrintIncludeLinkedNotes: (v) => set({ printIncludeLinkedNotes: v }),
       setPrintColorMode: (v) => set({ printColorMode: v }),
       setPrintTheme: (v) => set({ printTheme: v }),
       setPdfDownloadLocation: (v) => set({ pdfDownloadLocation: v }),
@@ -1441,6 +1470,13 @@ export const useAppStore = create<AppState>()(
       setAutoCopyOnHighlight: (v) => set({ autoCopyOnHighlight: v }),
       setNoteHeadingDivider: (v) => set({ noteHeadingDivider: v }),
       setNoteBulletStyle: (s) => set({ noteBulletStyle: s }),
+      setIdiomHighlightEnabled: (v) => set({ idiomHighlightEnabled: v }),
+      setIdiomHoverPreviewEnabled: (v) => set({ idiomHoverPreviewEnabled: v }),
+      setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => set({ idiomCache: v }),
+      setViewerWindowOpen: (v) => set(v ? { viewerWindowOpen: true } : { viewerWindowOpen: false, viewerPaused: false }),
+      setViewerPaused: (v) => set({ viewerPaused: v }),
+      setViewerFontScale: (v) => set({ viewerFontScale: v }),
+      setViewerTheme: (v) => set({ viewerTheme: v }),
       setShowVerseNumbers: (v) => set({ showVerseNumbers: v }),
       setShowRedLetters: (v) => set({ showRedLetters: v }),
 
@@ -1578,6 +1614,10 @@ export const useAppStore = create<AppState>()(
         printColorMode: state.printColorMode,
         printTheme: state.printTheme,
         pdfDownloadLocation: state.pdfDownloadLocation,
+        idiomHighlightEnabled: state.idiomHighlightEnabled,
+        idiomHoverPreviewEnabled: state.idiomHoverPreviewEnabled,
+        viewerFontScale: state.viewerFontScale,
+        viewerTheme: state.viewerTheme,
         // Per-tab back/forward nav stacks — persisted so history survives restarts.
         tabNavStacks: state.tabNavStacks,
         tabNavMaxStack: state.tabNavMaxStack,

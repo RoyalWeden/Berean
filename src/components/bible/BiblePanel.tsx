@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor, Pause, Play } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -14,7 +14,10 @@ import ScriptureSearchView from './ScriptureSearchView'
 import ScriptureSearchFloating from './ScriptureSearchFloating'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
+import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
+import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
+import type { ViewerVisibleRegion } from '@/types/electron'
 
 import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
@@ -48,6 +51,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const closeTab = useAppStore((s) => s.closeTab)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
+  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
+  const viewerPaused = useAppStore((s) => s.viewerPaused)
+  const setViewerPaused = useAppStore((s) => s.setViewerPaused)
+  // Region of scripture currently visible in the presenter window (for the outline band)
+  const [viewerVisibleRegion, setViewerVisibleRegion] = useState<ViewerVisibleRegion | null>(null)
+  const [presenterBand, setPresenterBand] = useState<{ top: number; height: number } | null>(null)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -67,6 +76,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const viewerScrollRAFRef = useRef<number | null>(null)
   // Stores a scroll position to apply after ChapterView finishes loading its verses async.
   // The double-RAF approach is insufficient because IPC data arrives much later than 2 frames.
   const pendingScrollRef = useRef<number | null>(null)
@@ -157,6 +167,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeSpace !== 'scripture') return
     // Reset to top immediately to avoid flash of old position
     el.scrollTop = 0
+    // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
+    // chapter's position to a freshly-loaded chapter before the new scroll fires.
+    setMainBibleScrollPercent(0)
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
     if (savedPos === 0) return
@@ -175,6 +188,59 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
     }
   }, [activeTabId['scripture']]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Presenter visible-region outline ─────────────────────────────────────────
+  // Subscribe to the presenter's visible fraction (changes only on its load/zoom/resize).
+  useEffect(() => {
+    if (floating) return
+    if (typeof window.app.onViewerVisibleRegion !== 'function') {
+      console.warn('[Presenter outline] onViewerVisibleRegion missing from preload — restart the app')
+      return
+    }
+    window.app.onViewerVisibleRegion((region) => {
+      // Reports arrive only on the presenter's load/zoom/resize, so just take the latest.
+      setViewerVisibleRegion(region as ViewerVisibleRegion)
+    })
+  }, [floating])
+
+  // Compute the band by anchoring the presenter's visible window on shared verse positions,
+  // combined with this panel's OWN live scroll position. Accurate across different window
+  // sizes / zoom / wrapping, and updates instantly while scrolling (no IPC round-trip).
+  const computePresenterBand = useCallback(() => {
+    const region = viewerVisibleRegion
+    const c = chapterViewRef.current
+    if (floating || !viewerWindowOpen || !region || !c) { setPresenterBand(null); return }
+    if (region.bookId !== tabState.bookId || region.chapter !== tabState.chapter) { setPresenterBand(null); return }
+    const f = region.visibleFraction
+    if (!(f > 0) || c.scrollHeight <= 0) { setPresenterBand(null); return }
+
+    // Measure this panel's verse content-tops live (cheap for one chapter) so the band can
+    // never drift from a stale layout cache.
+    const cTop = c.getBoundingClientRect().top
+    const tops: Record<number, number> = {}
+    for (const node of Array.from(c.querySelectorAll('[data-verse]'))) {
+      const elx = node as HTMLElement
+      const n = Number(elx.dataset.verse)
+      if (Number.isFinite(n)) tops[n] = elx.getBoundingClientRect().top - cTop + c.scrollTop
+    }
+
+    setPresenterBand(computeBandGeometry({
+      visibleFraction: f,
+      verseFracs: region.verseFracs,
+      mainTops: tops,
+      mainScrollHeight: c.scrollHeight,
+      mainClientHeight: c.clientHeight,
+      mainScrollTop: c.scrollTop,
+    }))
+  }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter])
+
+  // Recompute on fraction/chapter/layout change (rAF so verses are laid out first).
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      if (!useAppStore.getState().viewerPaused) computePresenterBand()
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [computePresenterBand, tabState.showStrongs, tabState.hiddenAnnotations])
 
   // Save scroll position immediately on unmount (space switch — component unmounts).
   // Guard: only save if scrollTop > 0 to avoid Strict Mode double-invoke writing 0
@@ -1178,6 +1244,63 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </button>
           </HintTooltip>
         )}
+        {/* Send to presenter view */}
+        <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
+        <button
+          onClick={async () => {
+            if (!viewerWindowOpen) {
+              await window.app.openViewerWindow?.()
+              useAppStore.getState().setViewerWindowOpen(true)
+            }
+            // Capture the live scroll position so the explicit push starts at the right place
+            const container = chapterViewRef.current
+            if (container) {
+              const max = container.scrollHeight - container.clientHeight
+              setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0)
+            }
+            // Push this tab's current content explicitly (matches the auto-sync payload)
+            const payload = computeViewerPayload()
+            window.app.pushViewerContent?.(payload)
+          }}
+          className={`p-1 rounded transition-colors cursor-pointer ${
+            viewerWindowOpen
+              ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
+              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+          }`}
+        >
+          <Monitor size={14} />
+        </button>
+        </HintTooltip>
+        {/* Pause/resume presenter sync — only shown while the presenter window is open */}
+        {viewerWindowOpen && (
+          <HintTooltip label={viewerPaused ? 'Resume presenter sync' : 'Pause presenter sync'}>
+          <button
+            onClick={() => {
+              const next = !viewerPaused
+              setViewerPaused(next)
+              // On resume, immediately catch the presenter up to the current view
+              if (!next) {
+                const container = chapterViewRef.current
+                if (container) {
+                  const max = container.scrollHeight - container.clientHeight
+                  setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0)
+                }
+                const payload = computeViewerPayload()
+                window.app.pushViewerContent?.(payload)
+                // Un-freeze the outline band to track live again
+                requestAnimationFrame(() => computePresenterBand())
+              }
+            }}
+            className={`p-1 rounded transition-colors cursor-pointer ${
+              viewerPaused
+                ? 'text-amber-400 hover:bg-[rgb(var(--color-surface-4))]'
+                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+            }`}
+          >
+            {viewerPaused ? <Play size={14} /> : <Pause size={14} />}
+          </button>
+          </HintTooltip>
+        )}
         <ZoomControls context="scripture" compact />
       </div>
 
@@ -1271,7 +1394,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     ) : (
       <div
         ref={chapterViewRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto relative"
         onScroll={(e) => {
           // Capture both values NOW so they survive a tab switch before the timer fires
           const scrollTop = e.currentTarget.scrollTop
@@ -1280,8 +1403,56 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           scrollSaveTimerRef.current = setTimeout(() => {
             if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
           }, 150)
+          // Real-time viewer sync — proportional scroll percentage so zoom differences don't matter
+          {
+            const container = chapterViewRef.current
+            if (container) {
+              const max = container.scrollHeight - container.clientHeight
+              const scrollPercent = max > 0 ? container.scrollTop / max : 0
+              // Always record so a later full re-sync (e.g. opening the viewer) starts here
+              setMainBibleScrollPercent(scrollPercent)
+              const st = useAppStore.getState()
+              if (st.viewerWindowOpen && !st.viewerPaused) {
+                if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
+                viewerScrollRAFRef.current = requestAnimationFrame(() => {
+                  viewerScrollRAFRef.current = null
+                  const base = computeViewerPayload()
+                  if (base.kind === 'bible') {
+                    window.app.pushViewerContent?.({ ...base, scrollPercent })
+                  }
+                })
+              }
+            }
+          }
+          // Update the presenter outline band live as this panel scrolls (cheap, synchronous).
+          // Skip while paused — the presenter is frozen, so the band should stay put.
+          if (!useAppStore.getState().viewerPaused) computePresenterBand()
         }}
       >
+        {/* Presenter visible-region band — outlines the region of scripture currently shown on
+            the presenter window. Scrolls with content (absolute inside the scroll container). */}
+        {presenterBand && (
+          <div
+            className="absolute left-0 right-0 pointer-events-none z-[5]"
+            style={{
+              top: presenterBand.top,
+              height: presenterBand.height,
+              border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
+              background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
+              borderRadius: 6,
+            }}
+          >
+            <span
+              className="absolute top-0.5 right-1 px-1.5 text-[9px] font-bold uppercase tracking-wide rounded"
+              style={{
+                color: '#fff',
+                background: viewerPaused ? 'rgba(251,191,36,0.95)' : 'rgb(var(--color-accent))',
+              }}
+            >
+              {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
+            </span>
+          </div>
+        )}
         {tabState.endChapter && tabState.endChapter > tabState.chapter
           ? Array.from({ length: tabState.endChapter - tabState.chapter + 1 }, (_, i) => tabState.chapter + i).map((ch) => (
               <ChapterView
@@ -1338,6 +1509,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           verseFilter={rightPanelVerseFilter}
           onVerseFilterChange={handleRightPanelVerseFilterChange}
           forcedTab={forcedTab}
+          onScrollPercent={(pct) => {
+            const st = useAppStore.getState()
+            if (!st.viewerWindowOpen || st.viewerPaused) return
+            const base = computeViewerPayload()
+            if (base.kind === 'bible') {
+              window.app.pushViewerContent?.({ ...base, sidePanelScrollPercent: pct })
+            }
+          }}
         />
       </ErrorBoundary>
     )

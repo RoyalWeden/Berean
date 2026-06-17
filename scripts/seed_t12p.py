@@ -425,6 +425,10 @@ def fix_ocr_artifacts(text: str) -> str:
     # --- "the." artifact ---
     text = re.sub(r'\bthe\.\s', 'the ', text)
 
+    # --- Specific OCR word-level corrections ---
+    text = text.replace('smagogues', 'synagogues')  # TBEN 11:3
+    text = text.replace('strainof', 'strain of')    # TBEN 11:3
+
     # --- Normalise whitespace ---
     text = re.sub(r'\s+', ' ', text).strip()
 

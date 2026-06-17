@@ -196,6 +196,10 @@ export interface Note {
   color?: string
   folderId?: string | null
   textId?: string   // translation a verse note is attached to ('kjva' | 'lxx' | …)
+  idiomTerm?: string
+  idiomMeaning?: string
+  idiomAliases?: string[]
+  idiomAutoVariants?: boolean
 }
 
 /** A snapshot in a note's version history. */

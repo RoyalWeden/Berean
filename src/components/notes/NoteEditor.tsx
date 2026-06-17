@@ -16,13 +16,13 @@ export const wysiwygField = StateField.define<boolean>({
 })
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
-import { syntaxHighlighting, HighlightStyle, syntaxTree } from '@codemirror/language'
+import { syntaxHighlighting, HighlightStyle, syntaxTree, ensureSyntaxTree } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { tags } from '@lezer/highlight'
 import { marked } from 'marked'
 import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2, IndentIncrease, IndentDecrease, Copy, Trash2 } from 'lucide-react'
 import type { Note } from '@/types'
-import { parseRef, getTranslationForBook } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { useAppStore } from '@/store'
@@ -674,13 +674,33 @@ const autoEmDashHandler = EditorView.inputHandler.of((view, from, to, text) => {
   const beforeOnLine = line.text.slice(0, from - line.from)
   const backticks = (beforeOnLine.match(/`/g) ?? []).length
   if (backticks % 2 === 1) return false // inside an inline code span
-  // Don't convert at the start of a line — user is likely typing "---" for a horizontal rule.
-  // beforeOnLine ends with the first "-"; everything before it is the leading text.
+  // Don't convert when the line so far is only dashes — user is typing "---" for a horizontal rule.
+  // Also skip if the first dash is at the very start of the line (old heuristic kept for safety).
+  if (/^-+$/.test(beforeOnLine)) return false
   const beforeFirstDash = beforeOnLine.slice(0, -1)
   if (beforeFirstDash.trim() === '') return false
   view.dispatch({
     changes: { from: from - 1, to: from, insert: '—' },
     selection: { anchor: from }, // caret lands right after the em dash
+    userEvent: 'input.type',
+  })
+  return true
+})
+
+// Auto heading space: when cursor is right after the `#` run on a line that is
+// ONLY hashes (e.g. `##` with no trailing space or text), auto-insert a space
+// before the typed character so the markdown parser recognises it as a heading.
+// This lets users type `##` then immediately type their heading text without
+// having to press Space first.  Excludes space, newline, and '#' so the handler
+// doesn't interfere with typing the hashes themselves or indenting.
+const autoHeadingSpaceHandler = EditorView.inputHandler.of((view, from, to, text) => {
+  if (text === ' ' || text === '\n' || text === '#' || from !== to) return false
+  const line = view.state.doc.lineAt(from)
+  if (!/^#{1,6}$/.test(line.text)) return false   // line must be ONLY hashes
+  if (from !== line.from + line.text.length) return false  // cursor must be at end
+  view.dispatch({
+    changes: { from, to, insert: ' ' + text },
+    selection: EditorSelection.cursor(from + 1 + text.length),
     userEvent: 'input.type',
   })
   return true
@@ -789,6 +809,21 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
     for (let start = 0; start < words.length; start++) {
       const candidateRef = words.slice(start).join(' ') + ' ' + numPart
       if (parseRef(candidateRef)) {
+        // ── Ambiguous-pattern guard ────────────────────────────────────────────
+        // If the last word of the book portion is a common English word/abbrev
+        // that also matches a Bible book (e.g. "is", "col", "her", "job", "re"),
+        // require the book token to be capitalised in the source text OR the ref
+        // to include a chapter:verse colon — otherwise skip this start position
+        // and keep trying with the next word dropped. This prevents false links
+        // on phrases like "is 99% fulfilled" or "her 3 children".
+        const bookWords = words.slice(start)
+        const lastBookWord = bookWords[bookWords.length - 1].toLowerCase().replace(/\.$/, '')
+        if (AMBIGUOUS_PATTERNS.has(lastBookWord)) {
+          const hasColon = numPart.includes(':')
+          const firstCharOfBook = bookPhrase[wordStarts[start]] ?? ''
+          const isCapitalised = /[A-Z]/.test(firstCharOfBook)
+          if (!hasColon && !isCapitalised) continue
+        }
         const refStart = m.index + wordStarts[start]
         const fullEnd = m.index + m[0].length
         out.push({ index: refStart, length: fullEnd - refStart, refText: candidateRef, lxx })
@@ -1259,6 +1294,10 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
   const doc = state.doc
   const focused = view.hasFocus
   const wysiwyg = view.state.field(wysiwygField)
+  // Ensure the syntax tree is parsed up to the end of the visible viewport
+  // before iterating it, so decorations are applied immediately without
+  // waiting for the async parse to complete (prevents flash on note switch).
+  ensureSyntaxTree(state, vpTo, 25)
   // In WYSIWYG mode, cursor is never "on" any line for decoration purposes — all
   // syntax markers are hidden globally so the text looks clean while staying editable.
   const col = wysiwyg ? (_: number) => false : (nodeFrom: number) => cursorOnLine(state, nodeFrom, focused)
@@ -1479,6 +1518,59 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
       if (lineEnd > vpTo) break
       decos.push({ from: lineStart, to: lineEnd, deco: Decoration.mark({ class: 'cm-live-hr-mark' }), kind: 'mark' })
       decos.push({ from: lineStart, to: lineStart, deco: Decoration.line({ class: 'cm-live-hr-line' }), kind: 'line' })
+    }
+
+    // ── Regex-based blockquote & callout rendering (flash prevention) ────────
+    // Line-level only — we style each `> ` line before the syntax tree resolves
+    // the full Blockquote node, so callout boxes and blockquotes never flash as
+    // raw `>` characters when switching notes.
+    const bqLineRegex = /^(> ?)/gm
+    let bq: RegExpExecArray | null
+    while ((bq = bqLineRegex.exec(text)) !== null) {
+      const lineAbsFrom = vpFrom + bq.index
+      if (lineAbsFrom > vpTo) break
+      const ln = doc.lineAt(lineAbsFrom)
+      const lineText = doc.sliceString(ln.from, ln.to)
+      const isCalloutHdr = /^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.test(lineText)
+      decos.push({ from: ln.from, to: ln.from, deco: Decoration.line({ class: isCalloutHdr ? 'cm-live-callout-header' : 'cm-live-blockquote' }), kind: 'line' })
+      // Hide the `> ` prefix (QuoteMark + optional space)
+      const markEnd = ln.from + bq[1].length
+      if (markEnd <= ln.to) {
+        decos.push({ from: ln.from, to: Math.min(markEnd, vpTo), deco: hide, kind: 'replace' })
+      }
+    }
+
+    // ── Regex-based bold rendering (flash prevention) ────────────────────────
+    // Hide ** marks and apply bold class so **text** shows as bold immediately
+    // without waiting for the StrongEmphasis syntax node to be parsed.
+    const boldRegex = /\*\*([^*\n]+?)\*\*/g
+    let bm: RegExpExecArray | null
+    boldRegex.lastIndex = 0
+    while ((bm = boldRegex.exec(text)) !== null) {
+      const absFrom = vpFrom + bm.index
+      const absTo   = absFrom + bm[0].length
+      if (absTo > vpTo) break
+      const openEnd  = absFrom + 2
+      const closeStart = absTo - 2
+      decos.push({ from: absFrom, to: closeStart, deco: Decoration.mark({ class: 'cm-live-bold' }), kind: 'mark' })
+      decos.push({ from: absFrom,    to: openEnd,      deco: hide, kind: 'replace' })
+      decos.push({ from: closeStart, to: absTo,        deco: hide, kind: 'replace' })
+    }
+
+    // ── Regex-based italic rendering (flash prevention) ──────────────────────
+    // Single `*text*` (not inside bold) → italic class + hide marks.
+    const italicRegex = /(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g
+    let im: RegExpExecArray | null
+    italicRegex.lastIndex = 0
+    while ((im = italicRegex.exec(text)) !== null) {
+      const absFrom = vpFrom + im.index
+      const absTo   = absFrom + im[0].length
+      if (absTo > vpTo) break
+      const openEnd    = absFrom + 1
+      const closeStart = absTo - 1
+      decos.push({ from: absFrom, to: closeStart, deco: Decoration.mark({ class: 'cm-live-italic' }), kind: 'mark' })
+      decos.push({ from: absFrom,    to: openEnd,     deco: hide, kind: 'replace' })
+      decos.push({ from: closeStart, to: absTo,       deco: hide, kind: 'replace' })
     }
   }
 
@@ -2484,6 +2576,8 @@ export interface PrintExportOptions {
   includeTitle?: boolean
   colorMode?: 'color' | 'grayscale'
   theme?: PrintThemeId
+  /** Additional notes to append after the main note (for linked-notes inclusion). */
+  linkedNotes?: Array<{ title: string; content: string }>
 }
 
 export const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
@@ -2643,8 +2737,20 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
   // body padding is the single source of truth. "none" therefore truly means edge-to-edge.
   // Strip internal anchor hrefs (verse-refs, wikilinks, lexicon refs) that would become
   // broken links in PDF. External http(s) links (YouTube etc.) are left untouched.
+  const { linkedNotes } = opts
   let body = renderPreviewContent(content)
   body = body.replace(/(<a\b[^>]*?)\s+href="#[^"]*"([^>]*>)/g, '$1$2')
+  // Append linked notes (page-break divider + title + body for each)
+  if (linkedNotes && linkedNotes.length > 0) {
+    for (const ln of linkedNotes) {
+      let lnBody = renderPreviewContent(ln.content)
+      lnBody = lnBody.replace(/(<a\b[^>]*?)\s+href="#[^"]*"([^>]*>)/g, '$1$2')
+      const safeLnTitle = (ln.title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      body += `\n<div style="page-break-before:always;padding-top:0.5em;border-top:1px solid ${t.h2Border};margin-top:2em;">`
+      body += `\n<h2 class="note-doc-title">${safeLnTitle}</h2>`
+      body += `\n${lnBody}\n</div>`
+    }
+  }
   const safeTitle = (title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return `<!DOCTYPE html>
 <html>
@@ -3147,6 +3253,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
         ]),
         wrapOnTypeHandler,
         autoEmDashHandler,
+        autoHeadingSpaceHandler,
         pasteHandler,
         markdown({ extensions: { remove: ['SetextHeading'] } }),
         liveMarkdownPlugin,
@@ -3398,6 +3505,13 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     const current = view.state.doc.toString()
     if (current !== content) {
       view.dispatch({ changes: { from: 0, to: current.length, insert: content } })
+      // After content replacement the markdown tree re-parses asynchronously.
+      // Schedule a decoration rebuild one frame later so any elements the tree
+      // didn't finish parsing in time (blockquotes, callouts, bold, etc.) are
+      // decorated correctly before the user sees them.
+      requestAnimationFrame(() => {
+        try { view.dispatch({ effects: refreshDecorationsEffect.of(null) }) } catch { /* view gone */ }
+      })
     }
   }, [content])
 

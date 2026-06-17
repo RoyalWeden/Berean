@@ -1198,6 +1198,8 @@ interface Props {
   onVerseFilterChange?: (filter: string | null) => void
   /** When set, hides the tab strip and forces this tab's content to be shown */
   forcedTab?: PanelTab
+  /** Called with 0–1 scroll percentage whenever any inner scroll container scrolls */
+  onScrollPercent?: (pct: number) => void
 }
 
 export default function BibleRightPanel({
@@ -1207,6 +1209,7 @@ export default function BibleRightPanel({
   openLexiconEntry: initialLexiconEntry, onLexiconEntryChange,
   verseFilter: initialVerseFilter, onVerseFilterChange,
   forcedTab,
+  onScrollPercent,
 }: Props) {
   // Captured once when the side-panel note editor first mounts, so cursor restoration
   // uses the value saved before this tab was switched away (not a live-updating prop).
@@ -1445,7 +1448,14 @@ export default function BibleRightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full"
+      onScroll={(e) => {
+        const el = e.target as HTMLElement
+        const max = el.scrollHeight - el.clientHeight
+        if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
+      }}
+    >
       {/* Tab strip — hidden when a tab is forced externally */}
       {!forcedTab && (
         <div className="flex items-center border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">

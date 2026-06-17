@@ -477,6 +477,28 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
 
       console.log('[berean-db] v13: youtube_transcripts + FTS5 + triggers + setting seeds')
     }
+  },
+  {
+    version: 14,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_term TEXT`) } catch {}
+      try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_meaning TEXT`) } catch {}
+      console.log('[berean-db] v14: idiom_term + idiom_meaning columns on notes')
+    }
+  },
+  {
+    version: 15,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_aliases TEXT`) } catch {}
+      console.log('[berean-db] v15: idiom_aliases column on notes')
+    }
+  },
+  {
+    version: 16,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_auto_variants INTEGER DEFAULT 0`) } catch {}
+      console.log('[berean-db] v16: idiom_auto_variants column on notes')
+    }
   }
 ]
 

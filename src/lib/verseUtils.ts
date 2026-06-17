@@ -7,10 +7,12 @@ type SimpleToken = {
   strongsNum: string | string[] | null
   isParenthetical: boolean  // ~{H853} — grammatical particle, no English word
   isStrongsBracket: boolean // sup>( sup>) — alignment marker, never rendered as text
+  isRedLetter: boolean      // !word — words of Yeshua
+  isItalic: boolean         // *word — translator-supplied (KJV italics)
 }
 
 /** Parse text_tagged into simple tokens. Mirrors parseTaggedTokens in VerseRow but
- *  returns only the fields needed for plain-text output (no charStart, no JSX). */
+ *  returns only the fields needed for plain-text / lightweight rendering (no charStart). */
 function parseTaggedForText(tagged: string): SimpleToken[] {
   const tokens: SimpleToken[] = []
   for (let part of tagged.split(' ')) {
@@ -22,7 +24,7 @@ function parseTaggedForText(tagged: string): SimpleToken[] {
     // Parenthetical Strong's particle: ~{H853}
     if (part.startsWith('~{') && part.endsWith('}')) {
       const sr = part.slice(2, -1).trim()
-      tokens.push({ word: '', strongsNum: sr || null, isParenthetical: true, isStrongsBracket: false })
+      tokens.push({ word: '', strongsNum: sr || null, isParenthetical: true, isStrongsBracket: false, isRedLetter: false, isItalic: false })
       continue
     }
 
@@ -37,9 +39,9 @@ function parseTaggedForText(tagged: string): SimpleToken[] {
       const parts = sr ? sr.split('|') : []
       const strongsNum = parts.length > 1 ? parts : (parts[0] || null)
       const isStrongsBracket = wasSupWrapped && !strongsNum && /^[()[\]]+$/.test(word)
-      tokens.push({ word, strongsNum, isParenthetical: false, isStrongsBracket })
+      tokens.push({ word, strongsNum, isParenthetical: false, isStrongsBracket, isRedLetter, isItalic })
     } else {
-      tokens.push({ word: raw, strongsNum: null, isParenthetical: false, isStrongsBracket: false })
+      tokens.push({ word: raw, strongsNum: null, isParenthetical: false, isStrongsBracket: false, isRedLetter, isItalic })
     }
   }
   return tokens
@@ -98,6 +100,69 @@ export function buildVerseDisplayText(
 
   // All other texts: plain text-pattern replacement only
   return shouldReplace ? applyWordReplacer(text, wordReplacerRules) : text
+}
+
+/** A rendered display token carrying the styling flags needed to show red-letter and
+ *  KJV-italic words (used by the presenter view, which renders without Strong's chips). */
+export interface DisplayToken {
+  word: string
+  isRedLetter: boolean
+  isItalic: boolean
+}
+
+/**
+ * Like {@link buildVerseDisplayText} but returns the display tokens (with red-letter /
+ * italic flags) instead of a flat string, so callers can render Yeshua's words in red.
+ *
+ * For KJVA tagged text the tokens are parsed regardless of whether the word replacer is
+ * on (so red-letter shows either way); the word replacer + "the"-suppression are applied
+ * only when enabled. For all other texts a single token is returned (no red-letter data).
+ * `tokens.map(t => t.word).join(' ')` reproduces the display string for KJVA tagged.
+ */
+export function buildVerseDisplayTokens(
+  text: string,
+  textTagged: string | null | undefined,
+  textId: string,
+  wordReplacerEnabled: boolean,
+  wordReplacerRules: WordReplacerRule[],
+): DisplayToken[] {
+  const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
+
+  if (!(textId === 'kjva' && textTagged)) {
+    const out = shouldReplace ? applyWordReplacer(text, wordReplacerRules) : text
+    return [{ word: out, isRedLetter: false, isItalic: false }]
+  }
+
+  const tokens = parseTaggedForText(textTagged)
+  const processed = tokens.map(t => {
+    if (t.isParenthetical || t.isStrongsBracket || !shouldReplace) return t
+    let word = applyWordReplacer(t.word, wordReplacerRules)
+    word = applyStrongsWordReplacer(word, t.strongsNum, wordReplacerRules)
+    return { ...t, word }
+  })
+
+  // Suppress the definite article preceding a Strong's-replaced divine name ("the Yehovah").
+  const suppressedIndices = new Set<number>()
+  if (shouldReplace) {
+    const activeStrongsRules = wordReplacerRules.filter(r => r.enabled && r.strongsNum)
+    if (activeStrongsRules.length > 0) {
+      processed.forEach((t, i) => {
+        if (t.isParenthetical || t.isStrongsBracket || !t.strongsNum) return
+        const nums = Array.isArray(t.strongsNum) ? t.strongsNum : [t.strongsNum]
+        if (!activeStrongsRules.some(r => nums.includes(r.strongsNum!))) return
+        for (let j = i - 1; j >= 0; j--) {
+          const prev = processed[j]
+          if (prev.isParenthetical || prev.isStrongsBracket) continue
+          if (prev.word.replace(/[,;:.!?]+$/, '').toLowerCase() === 'the') suppressedIndices.add(j)
+          break
+        }
+      })
+    }
+  }
+
+  return processed
+    .filter((t, i) => !t.isParenthetical && !t.isStrongsBracket && !suppressedIndices.has(i) && t.word !== '')
+    .map(t => ({ word: t.word, isRedLetter: t.isRedLetter, isItalic: t.isItalic }))
 }
 
 // ── Display ⇄ original text offset alignment ──────────────────────────────────

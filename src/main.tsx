@@ -2,12 +2,15 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
+import ViewerApp from '@/components/viewer/ViewerApp'
 import './styles/global.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 
 // Very first line of renderer JS — confirms the bundle is executing.
 
-const isFloatMode = new URLSearchParams(window.location.search).get('float') === '1'
+const searchParams = new URLSearchParams(window.location.search)
+const isFloatMode = searchParams.get('float') === '1'
+const isViewerMode = searchParams.get('viewer') === '1'
 
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
@@ -113,6 +116,6 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isFloatMode ? <FloatingShell /> : <App />}
+    {isViewerMode ? <ViewerApp /> : isFloatMode ? <FloatingShell /> : <App />}
   </React.StrictMode>
 )

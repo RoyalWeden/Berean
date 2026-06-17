@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
-  Monitor, FolderInput, FolderMinus,
+  Monitor, FolderInput, FolderMinus, BookOpen,
 } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
@@ -48,12 +48,13 @@ interface Props {
   canMove?: boolean
   currentFolderId?: string | null
   onMoveToFolder?: (note: Note, folderId: string | null) => void
+  onConvertToIdiom?: (note: Note) => void
 }
 
 export default function NoteContextMenu({
   note, x, y, onClose, onSelect,
   onOpenNewTab, onOpenInFloatingTab, onRename, onDelete, onOpenInSession, sessions,
-  folders, canMove, currentFolderId, onMoveToFolder,
+  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [showSessions, setShowSessions] = useState(false)
@@ -163,6 +164,15 @@ export default function NoteContextMenu({
               ))}
             </div>
           )}
+        </>
+      )}
+
+      {onConvertToIdiom && note.type !== 'idiom' && (
+        <>
+          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+          <button className={MENU_ITEM} onClick={() => { onConvertToIdiom(note); onClose() }}>
+            <BookOpen size={13} className="flex-shrink-0" /> Convert to idiom note
+          </button>
         </>
       )}
 

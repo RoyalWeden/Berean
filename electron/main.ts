@@ -131,6 +131,7 @@ if (!isMasBuild) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let viewerWindow: BrowserWindow | null = null
 
 function sendUpdateStatus(status: string, extra?: Record<string, unknown>) {
   mainWindow?.webContents.send('app:updateStatus', { status, ...extra })
@@ -236,6 +237,57 @@ function buildAppMenu(): Electron.Menu {
   ]
 
   return Menu.buildFromTemplate(template)
+}
+
+function createViewerWindow(): void {
+  if (viewerWindow && !viewerWindow.isDestroyed()) {
+    viewerWindow.focus()
+    return
+  }
+  const iconPath = is.dev
+    ? join(app.getAppPath(), 'assets/icon.icns')
+    : join(process.resourcesPath, 'assets/icon.icns')
+  const appIcon = nativeImage.createFromPath(iconPath)
+  const isWin = process.platform === 'win32'
+  viewerWindow = new BrowserWindow({
+    width: 900,
+    height: 700,
+    minWidth: 500,
+    minHeight: 400,
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
+    backgroundColor: '#111114',
+    icon: appIcon,
+    title: is.dev ? 'Berean Viewer [Dev]' : 'Berean Viewer',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  ;(viewerWindow as any).__isViewer = true
+
+  viewerWindow.setAlwaysOnTop(true, 'floating')
+  viewerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  const paramStr = 'viewer=1'
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    viewerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${paramStr}`)
+  } else {
+    viewerWindow.loadFile(join(__dirname, '../renderer/index.html'), { query: { viewer: '1' } })
+  }
+
+  // viewer:ready is now sent from viewer:signalReady (fired by React after onContent listener is registered)
+
+  viewerWindow.on('closed', () => {
+    viewerWindow = null
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !(win as any).__isViewer) {
+        win.webContents.send('app:viewerWindowClosed')
+      }
+    })
+  })
 }
 
 function createFloatingWindow(type: string, state: Record<string, unknown>): void {
@@ -552,6 +604,52 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:newWindow', () => { createWindow() })
   ipcMain.handle('app:openFloatingTab', (_e, type: string, state: Record<string, unknown>) => {
     createFloatingWindow(type, state ?? {})
+  })
+  ipcMain.handle('app:openViewerWindow', () => {
+    if (viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerWindow.focus()
+      return true
+    }
+    createViewerWindow()
+    return true
+  })
+  ipcMain.handle('app:isViewerWindowOpen', () => {
+    return viewerWindow !== null && !viewerWindow.isDestroyed()
+  })
+  // Viewer React app signals ready after registering its onContent listener
+  ipcMain.on('viewer:signalReady', () => {
+    console.log('[Viewer IPC] viewer:signalReady received — broadcasting viewer:ready to main windows')
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !(win as any).__isViewer) {
+        win.webContents.send('viewer:ready')
+      }
+    })
+  })
+
+  ipcMain.on('app:pushViewerContent', (_e, payload: unknown) => {
+    console.log('[Viewer IPC] app:pushViewerContent received — viewerWindow:', !!viewerWindow, '— payload:', JSON.stringify(payload))
+    if (viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerWindow.webContents.send('viewer:content', payload)
+      console.log('[Viewer IPC] viewer:content sent to viewer window')
+    } else {
+      console.log('[Viewer IPC] NO viewer window to send to')
+    }
+  })
+
+  // Relay display/format settings from the main window to the viewer window
+  ipcMain.on('app:pushViewerSettings', (_e, settings: unknown) => {
+    if (viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerWindow.webContents.send('viewer:settings', settings)
+    }
+  })
+
+  // Relay the viewer's visible verse region back to the main (non-viewer) windows
+  ipcMain.on('viewer:reportVisibleRegion', (_e, region: unknown) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed() && !(win as any).__isViewer) {
+        win.webContents.send('viewer:visibleRegion', region)
+      }
+    })
   })
 
   // Print a note: load its HTML into an offscreen window and invoke the print dialog.

@@ -156,18 +156,81 @@ describe('findVerseRefMatches — each book paired with John 3:16', () => {
 })
 
 // ── 4. All books — "vs" recovery (leading word) ───────────────────────────────
+// Single-chapter books (Obadiah, Philemon, 2 John, 3 John, Jude) only have
+// chapter 1, so we use "1:2" for those and "2:2" for multi-chapter books.
+const SINGLE_CHAPTER_BOOKS = new Set(['OBA', 'PHM', '2JN', '3JN', 'JUD'])
 
 describe('findVerseRefMatches — "vs Book" recovery for every book', () => {
   for (const book of SIMPLE_BOOKS) {
-    it(`Gen 1:1 vs ${book.name} 2:2`, () => {
-      const ids = refIds(`Gen 1:1 vs ${book.name} 2:2`)
+    const ref = SINGLE_CHAPTER_BOOKS.has(book.id) ? '1:2' : '2:2'
+    it(`Gen 1:1 vs ${book.name} ${ref}`, () => {
+      const ids = refIds(`Gen 1:1 vs ${book.name} ${ref}`)
       expect(ids).toContain('GEN')
       expect(ids).toContain(book.id)
     })
   }
 })
 
-// ── 5. verseTextMatchRatio ────────────────────────────────────────────────────
+// ── 5. False-positive guard — ambiguous patterns and out-of-range chapters ────
+
+describe('findVerseRefMatches — false-positive guard', () => {
+  // Chapter-count validation
+  it('"is 99% fulfilled" — Isaiah only has 66 chapters', () => {
+    expect(findVerseRefMatches('The OT is 99% fulfilled.')).toHaveLength(0)
+  })
+  it('"am 12 years old" — Amos only has 9 chapters', () => {
+    expect(findVerseRefMatches('I am 12 years old.')).toHaveLength(0)
+  })
+  it('"re 30 items" — Revelation only has 22 chapters', () => {
+    expect(findVerseRefMatches('re 30 items on the list')).toHaveLength(0)
+  })
+  // Ambiguous pattern + lowercase + no colon → skip
+  it('"is 5 times worse" — lowercase "is" without colon', () => {
+    expect(findVerseRefMatches('grace is 5 times greater than sin')).toHaveLength(0)
+  })
+  it('"her 3 children" — "her" is a pronoun, not Hermas', () => {
+    expect(findVerseRefMatches('she gave her 3 children food')).toHaveLength(0)
+  })
+  it('"job 10 applicants" — common English word', () => {
+    expect(findVerseRefMatches('there were job 10 applicants')).toHaveLength(0)
+  })
+  it('"col 3 layout" — spreadsheet column', () => {
+    expect(findVerseRefMatches('see col 3 in the spreadsheet')).toHaveLength(0)
+  })
+  it('"re: 5 points" — email prefix', () => {
+    expect(findVerseRefMatches('re: 5 points from the meeting')).toHaveLength(0)
+  })
+  // Ambiguous + capitalised → ALLOW
+  it('"Is 5" capitalised → Isaiah 5', () => {
+    const m = findVerseRefMatches('see Is 5 for this prophecy')
+    expect(m.length).toBeGreaterThan(0)
+    expect(parseRef(m[0].refText)?.bookId).toBe('ISA')
+  })
+  it('"Job 1" capitalised → Job 1', () => {
+    const m = findVerseRefMatches('read Job 1 today')
+    expect(m.length).toBeGreaterThan(0)
+    expect(parseRef(m[0].refText)?.bookId).toBe('JOB')
+  })
+  // Ambiguous + colon → ALLOW
+  it('"is 5:1" with colon → Isaiah 5:1', () => {
+    const m = findVerseRefMatches('is 5:1 speaks of Yeshua')
+    expect(m.length).toBeGreaterThan(0)
+    expect(parseRef(m[0].refText)?.bookId).toBe('ISA')
+  })
+  it('"col 3:1" with colon → Colossians 3:1', () => {
+    const m = findVerseRefMatches('seek what is above — col 3:1')
+    expect(m.length).toBeGreaterThan(0)
+    expect(parseRef(m[0].refText)?.bookId).toBe('COL')
+  })
+  // Full book names always allowed regardless of case
+  it('"isaiah 5" full name lowercase → allowed', () => {
+    const m = findVerseRefMatches('read isaiah 5 today')
+    expect(m.length).toBeGreaterThan(0)
+    expect(parseRef(m[0].refText)?.bookId).toBe('ISA')
+  })
+})
+
+// ── 6. verseTextMatchRatio ────────────────────────────────────────────────────
 
 describe('verseTextMatchRatio', () => {
   it('identical text → 1', () => {

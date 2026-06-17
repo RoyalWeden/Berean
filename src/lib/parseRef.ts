@@ -225,6 +225,125 @@ export function isDedicatedTranslation(textId: string): boolean {
   return _DEDICATED_TRANSLATION_IDS.has(textId.toLowerCase())
 }
 
+// Maximum chapter count per book. Used to reject out-of-range references that
+// would otherwise match common English words (e.g. "is 99" → Isaiah 99 doesn't exist).
+const MAX_CHAPTERS: Partial<Record<string, number>> = {
+  // OT
+  GEN: 50, EXO: 40, LEV: 27, NUM: 36, DEU: 34,
+  JOS: 24, JDG: 21, RUT: 4,
+  '1SA': 31, '2SA': 24, '1KI': 22, '2KI': 25,
+  '1CH': 29, '2CH': 36,
+  EZR: 10, NEH: 13,
+  JOB: 42, PSA: 150, PRO: 31, ECC: 12, SNG: 8,
+  ISA: 66, JER: 52, LAM: 5, EZK: 48, DAN: 12,
+  HOS: 14, JOL: 3, AMO: 9, OBA: 1, JON: 4,
+  MIC: 7, NAM: 3, HAB: 3, ZEP: 3, HAG: 2, ZEC: 14, MAL: 4,
+  // NT
+  MAT: 28, MRK: 16, LUK: 24, JHN: 21, ACT: 28,
+  ROM: 16, '1CO': 16, '2CO': 13, GAL: 6, EPH: 6,
+  PHP: 4, COL: 4, '1TH': 5, '2TH': 3, '1TI': 6, '2TI': 4,
+  TIT: 3, PHM: 1, HEB: 13, JAS: 5,
+  '1PE': 5, '2PE': 3, '1JN': 5, '2JN': 1, '3JN': 1, JUD: 1, REV: 22,
+  // Apocrypha
+  TOB: 14, JDT: 16, WIS: 19, SIR: 51, BAR: 6,
+  '1MA': 16, '2MA': 15, '1ES': 9, '2ES': 16,
+  // Pseudepigrapha
+  ENO: 108, JUB: 50,
+  AEL: 7, ABR: 32,
+  HER_VIS: 4, HER_MAN: 12, HER_SIM: 10,
+  AIS: 11, EPB: 21,
+  TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
+  TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
+  GAD: 28, TJOB: 53, '1CL': 65,
+}
+
+/**
+ * Patterns that are also common English words, abbreviations, or symbols and
+ * therefore need extra signal to be trusted as Bible book references in prose.
+ *
+ * When a plain-text match resolves via one of these patterns (case-insensitive),
+ * the caller should additionally require:
+ *   - The book token is capitalised in the source text (e.g. "Is 5" not "is 5"), OR
+ *   - The reference includes a chapter:verse colon (e.g. "is 5:1")
+ *
+ * [[Wikilinks]] and full-word book names (Isaiah, Amos…) are never affected.
+ */
+export const AMBIGUOUS_PATTERNS = new Set([
+  // ── Very common verbs / function words ──────────────────────────────────────
+  'is',    // Isaiah    — "salvation is 99% complete", "is 5 times worse"
+  'am',    // Amos      — "I am 3 years old", "there am 5"
+  're',    // Revelation— "re: 5 action items", "RE 22 pending"
+  'her',   // Hermas    — "her 5 children", "gave her 3 books"
+  'da',    // Daniel    — "da 3 guys" (informal definite article in some dialects)
+  'ho',    // Hosea     — "ho 3!" (interjection), "ho ho ho"
+  'la',    // Lamentations — "la 3" (musical solfège), "LA 5" (Los Angeles)
+  'ro',    // Romans    — "ro 5 engine", "RO 3" (reverse osmosis)
+  'le',    // Leviticus — "le 3" (French/Spanish article)
+  'na',    // Nahum     — "na 3" (informal negative / abbreviation)
+  'ec',    // Ecclesiastes — "EC 3" (European Community, electric car)
+  'ne',    // Nehemiah  — "NE 5" (northeast direction / street)
+  'nu',    // Numbers   — "nu 4" (Greek letter ν, or informal "new")
+  'mi',    // Micah     — "mi 3" (musical note, miles abbreviation)
+  'ac',    // Acts      — "AC 12V" (alternating current / air conditioning)
+  'ga',    // Galatians — "GA 3" (US state Georgia, genetic algorithm)
+  'rm',    // Romans    — "rm 5" (Unix remove command, room abbrev)
+  'ru',    // Ruth      — "ru 3" (less common abbrev)
+  'ex',    // Exodus    — "my ex 3 years ago", "ex 5 partners"
+  'pr',    // Proverbs  — "PR 5 campaign" (public relations, Puerto Rico)
+  'ep',    // Ephesians — "ep 3" (episode 3)
+  'ps',    // Psalms    — "PS3" (PlayStation), "ps 5" (postscript)
+  // ── Chemical symbols / units that double as book abbreviations ─────────────
+  'hg',    // Haggai    — Hg (mercury, atomic symbol)
+  'ml',    // Malachi   — ml (milliliters)
+  'ti',    // Titus     — Ti (titanium, Texas Instruments)
+  'nm',    // Numbers   — nm (nanometers)
+  'nb',    // Numbers   — NB: (nota bene), nb (niobium)
+  // ── Short codes used in tech / versioning / grids ─────────────────────────
+  'ss',    // Song of Songs — "SS 5" (steamship, social security)
+  'mk',    // Mark      — "mk3" / "mk 3" (version mark / generation)
+  'mt',    // Matthew   — "MT 5" (Montana, mountain)
+  'lk',    // Luke      — "lk 3" (common abbreviation)
+  'jn',    // John      — "Jn 3" (less ambiguous, but email abbrev)
+  'mr',    // Mark      — "Mr. 3" (honorific)
+  'jl',    // Joel      — "jl 3" (abbreviation)
+  'ob',    // Obadiah   — "ob 3" (abbreviation)
+  'mn',    // abbreviation
+  // ── Common 3–5 letter words that match longer abbreviations ───────────────
+  'col',   // Colossians— "col 3" (spreadsheet column, colonel)
+  'sir',   // Sirach    — "Sir 3" (honorific title)
+  'bar',   // Baruch    — "bar 5" (English word bar, unit of pressure)
+  'wis',   // Wisdom    — "WIS 5" (wisdom stat in RPGs, Wisconsin)
+  'lam',   // Lamentations — "LAM 3" (abbreviation for lambda)
+  'mal',   // Malachi   — "mal 4" (prefix mal- meaning bad)
+  'hag',   // Haggai    — "hag 2" (English: old hag)
+  'gad',   // Gad       — "gad!" (exclamation), "gad 3"
+  'sol',   // Song of Solomon — "sol 3" (musical solfège, Spanish for sun)
+  'mic',   // Micah     — "mic 3" (microphone)
+  'job',   // Job       — "job 10 applicants", "job 3 at the company"
+  'jb',    // Job       — "jb 3" (abbreviation)
+  'num',   // Numbers   — "num 5" (number abbreviation)
+  'nah',   // Nahum     — "nah 3" (informal "no")
+  'lev',   // Leviticus — "lev 5" (abbreviation)
+  'hab',   // Habakkuk  — "hab 3" (abbreviation)
+  'heb',   // Hebrews   — "HEB 5" (supermarket chain in Texas)
+  'rev',   // Revelation— "rev 5" (revision 5, rev count in engines)
+  'phi',   // Philippians — "phi 3" (Greek letter φ)
+  'sng',   // Song of Songs — "sng 3" (abbreviation for "song")
+  'qoh',   // Ecclesiastes — rare, but "Qoh" is unusual
+  'amo',   // Amos      — "amo 3" (Latin "I love")
+  'prv',   // Proverbs  — "PRV 5" (abbreviation)
+  'pss',   // Psalms    — "pss" (abbreviation)
+  'jam',   // James     — "jam 3" (strawberry jam 3 jars, traffic jam)
+  'oba',   // Obadiah   — "oba 3" (abbreviation)
+  'deut',  // Deuteronomy — "deut 34" (less common)
+  'ecc',   // Ecclesiastes — "ECC 5" (abbreviation)
+  'joe',   // Joel      — "joe 3" (common name "Joe", cup of joe)
+  'zph',   // Zephaniah — "ZPH 3" (abbreviation)
+  'hb',    // Habakkuk  — "hb 3" (hardback, abbreviation)
+  'zch',   // Zechariah — "ZCH 3" (abbreviation)
+  'jnh',   // Jonah     — "JNH 4" (abbreviation)
+])
+
 export interface ParsedRef {
   bookId: string
   chapter: number
@@ -264,6 +383,13 @@ export function parseRef(input: string): ParsedRef | null {
 
   const bookId = resolveBookToken(bookRaw)
   if (!bookId) return null
+
+  // Reject chapters beyond the book's known maximum.
+  const maxCh = MAX_CHAPTERS[bookId]
+  if (maxCh !== undefined && chapter > maxCh) return null
+
+  // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
+  if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
 
   return { bookId, chapter, verse, endVerse, endChapter }
 }

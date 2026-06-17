@@ -1,0 +1,149 @@
+import { useEffect } from 'react'
+import { useAppStore } from '@/store'
+import type { BibleTabState, NoteTabState, LexiconTabState } from '@/types'
+import type { ViewerPayload, ViewerSidePanel } from '@/types/viewer'
+
+// Last known proportional scroll position of the main Bible panel (0–1). Updated by
+// BiblePanel on scroll; read here so a full re-sync (e.g. on initial viewer open) carries
+// the current scroll position rather than snapping the viewer back to the top.
+let lastBibleScrollPercent = 0
+export function setMainBibleScrollPercent(p: number) { lastBibleScrollPercent = p }
+
+/** Compute what the viewer should show based on current app state. */
+export function computeViewerPayload(): ViewerPayload {
+  const s = useAppStore.getState()
+  const activeSpace = s.activeSpace
+  const activeId = s.activeTabId[activeSpace]
+  console.log('[ViewerSync] computeViewerPayload — space:', activeSpace, 'activeId:', activeId, 'tabs in space:', s.tabs[activeSpace]?.length)
+  if (!activeId) return { kind: 'idle' }
+  const tab = s.tabs[activeSpace]?.find(t => t.id === activeId)
+  if (!tab) {
+    console.log('[ViewerSync] no tab found for activeId', activeId)
+    return { kind: 'idle' }
+  }
+  console.log('[ViewerSync] active tab type:', tab.type, 'state:', JSON.stringify(tab.state))
+
+  if (tab.type === 'bible') {
+    const bs = tab.state as BibleTabState
+    if (!bs.bookId) return { kind: 'idle' }
+    const textId = (bs.translation ?? 'kjva').toLowerCase()
+    let sidePanel: ViewerSidePanel | undefined
+    if (bs.rightPanelOpen) {
+      if (bs.rightPanelTab === 'notes' && bs.rightPanelNoteId) {
+        sidePanel = { type: 'note', noteId: bs.rightPanelNoteId }
+      } else if (bs.rightPanelTab === 'lexicon' && bs.rightPanelLexiconEntry) {
+        sidePanel = { type: 'lexicon', strongsId: bs.rightPanelLexiconEntry }
+      } else if (bs.rightPanelTab === 'crossrefs') {
+        const activeVerse = bs.rightPanelVerseFilter
+          ? (parseInt(bs.rightPanelVerseFilter.split('.')[2] ?? '0', 10) || undefined)
+          : undefined
+        sidePanel = { type: 'crossrefs', bookId: bs.bookId, chapter: bs.chapter, source: s.crossRefSource, activeVerse }
+      }
+    }
+    console.log('[ViewerSync] bible payload', {
+      textId, rightPanelOpen: bs.rightPanelOpen, rightPanelTab: bs.rightPanelTab,
+      rightPanelNoteId: bs.rightPanelNoteId, rightPanelLexiconEntry: bs.rightPanelLexiconEntry,
+      sidePanel: sidePanel?.type ?? null,
+    })
+    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse, textId, sidePanel, scrollPercent: lastBibleScrollPercent }
+  }
+
+  if (tab.type === 'note') {
+    const ns = tab.state as NoteTabState
+    if (ns.noteId) return { kind: 'note', noteId: ns.noteId }
+    return { kind: 'idle' }
+  }
+
+  if (tab.type === 'lexicon') {
+    const ls = tab.state as LexiconTabState
+    if (ls.strongsNum) return { kind: 'lexicon', strongsId: ls.strongsNum }
+    return { kind: 'idle' }
+  }
+
+  return { kind: 'idle' }
+}
+
+/** Collect the display/format settings the viewer needs to render content identically. */
+function collectViewerSettings() {
+  const s = useAppStore.getState()
+  return {
+    wordReplacerEnabled: s.wordReplacerEnabled,
+    wordReplacerRules: s.wordReplacerRules,
+    noteScriptureBlock: s.noteScriptureBlock,
+    noteScriptureBlockThreshold: s.noteScriptureBlockThreshold,
+    idiomHighlightEnabled: s.idiomHighlightEnabled,
+    idiomCache: s.idiomCache,
+    theme: s.theme,
+    themePreset: s.themePreset,
+    crossRefSource: s.crossRefSource,
+  }
+}
+
+/** Push display/format settings to the viewer (so word replacer, note blocks, theme match). */
+export function pushViewerSettingsToViewer() {
+  const s = useAppStore.getState()
+  if (!s.viewerWindowOpen) return
+  window.app.pushViewerSettings?.(collectViewerSettings())
+}
+
+/** Push the current viewer payload if the viewer is open. */
+export function pushCurrentToViewer() {
+  const s = useAppStore.getState()
+  console.log('[ViewerSync] pushCurrentToViewer — viewerWindowOpen:', s.viewerWindowOpen, 'paused:', s.viewerPaused)
+  if (!s.viewerWindowOpen || s.viewerPaused) return
+  const payload = computeViewerPayload()
+  console.log('[ViewerSync] pushing payload:', JSON.stringify(payload))
+  window.app.pushViewerContent?.(payload)
+}
+
+/** Hook that auto-syncs the viewer whenever active tab/space/state changes. */
+export function useViewerSync() {
+  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
+  const viewerPaused = useAppStore((s) => s.viewerPaused)
+  const setViewerWindowOpen = useAppStore((s) => s.setViewerWindowOpen)
+  const storeTabs = useAppStore((s) => s.tabs)
+  const activeTabId = useAppStore((s) => s.activeTabId)
+  const activeSpace = useAppStore((s) => s.activeSpace)
+  // Settings the viewer needs to mirror rendering (word replacer, note blocks, theme…)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const noteScriptureBlock = useAppStore((s) => s.noteScriptureBlock)
+  const noteScriptureBlockThreshold = useAppStore((s) => s.noteScriptureBlockThreshold)
+  const idiomHighlightEnabled = useAppStore((s) => s.idiomHighlightEnabled)
+  const idiomCache = useAppStore((s) => s.idiomCache)
+  const theme = useAppStore((s) => s.theme)
+  const themePreset = useAppStore((s) => s.themePreset)
+  const crossRefSource = useAppStore((s) => s.crossRefSource)
+
+  // Listen for viewer-ready signal (fired by viewer React app after registering onContent)
+  useEffect(() => {
+    console.log('[ViewerSync] registering onViewerReady listener')
+    window.app.onViewerReady?.(() => {
+      console.log('[ViewerSync] onViewerReady fired — pushing settings + content')
+      pushViewerSettingsToViewer()
+      pushCurrentToViewer()
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Re-push settings to the viewer whenever any mirrored setting changes
+  useEffect(() => {
+    if (!viewerWindowOpen) return
+    pushViewerSettingsToViewer()
+  }, [viewerWindowOpen, wordReplacerEnabled, wordReplacerRules, noteScriptureBlock,
+      noteScriptureBlockThreshold, idiomHighlightEnabled, idiomCache, theme, themePreset, crossRefSource])
+
+  // Listen for viewer window closed
+  useEffect(() => {
+    window.app.onViewerWindowClosed?.(() => setViewerWindowOpen(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-sync whenever tabs/active space changes (skipped while paused). Re-runs when
+  // viewerPaused flips back to false so the viewer immediately catches up to current state.
+  useEffect(() => {
+    if (!viewerWindowOpen || viewerPaused) return
+    pushCurrentToViewer()
+  // Deliberately broad dep list — any tab state change should trigger a sync check
+  }, [viewerWindowOpen, viewerPaused, storeTabs, activeTabId, activeSpace])
+}

@@ -15,22 +15,30 @@ interface NoteRow {
   imported_at: number | null
   folder_id: string | null
   text_id: string | null
+  idiom_term: string | null
+  idiom_meaning: string | null
+  idiom_aliases: string | null
+  idiom_auto_variants: number | null
 }
 
 function rowToNote(row: NoteRow) {
   return {
-    id:         row.id,
-    type:       row.type,
-    title:      row.title ?? '',
-    content:    row.content,
-    verseRef:   row.verse_ref,
-    color:      row.color,
-    createdAt:  row.created_at,
-    updatedAt:  row.updated_at,
-    tags:       JSON.parse(row.tags) as string[],
-    importedAt: row.imported_at ?? undefined,
-    folderId:   row.folder_id ?? null,
-    textId:     row.text_id ?? 'kjva',
+    id:           row.id,
+    type:         row.type,
+    title:        row.title ?? '',
+    content:      row.content,
+    verseRef:     row.verse_ref,
+    color:        row.color,
+    createdAt:    row.created_at,
+    updatedAt:    row.updated_at,
+    tags:         JSON.parse(row.tags) as string[],
+    importedAt:   row.imported_at ?? undefined,
+    folderId:     row.folder_id ?? null,
+    textId:       row.text_id ?? 'kjva',
+    idiomTerm:         row.idiom_term ?? undefined,
+    idiomMeaning:      row.idiom_meaning ?? undefined,
+    idiomAliases:      row.idiom_aliases ? (JSON.parse(row.idiom_aliases) as string[]) : undefined,
+    idiomAutoVariants: row.idiom_auto_variants === 1 ? true : undefined,
   }
 }
 
@@ -70,14 +78,14 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:create', (_event, data: {
-    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string; folderId?: string | null
+    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
     db.prepare(`
-      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id, folder_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id, folder_id, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.type ?? 'general',
@@ -88,14 +96,18 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       now, now,
       JSON.stringify(data.tags ?? []),
       data.textId ?? 'kjva',
-      data.folderId ?? null
+      data.folderId ?? null,
+      data.idiomTerm ?? null,
+      data.idiomMeaning ?? null,
+      data.idiomAliases ? JSON.stringify(data.idiomAliases) : null,
+      data.idiomAutoVariants ? 1 : 0
     )
     const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow
     return { success: true, note: rowToNote(row) }
   })
 
   ipcMain.handle('notes:update', (_event, id: string, data: {
-    title?: string; content?: string; color?: string; tags?: string[]
+    title?: string; content?: string; color?: string; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) => {
     const db = getBereanDb()
     const existing = db.prepare('SELECT id FROM notes WHERE id = ?').get(id)
@@ -108,10 +120,27 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     if (data.content !== undefined) { fields.push('content = ?'); values.push(data.content) }
     if (data.color !== undefined) { fields.push('color = ?'); values.push(data.color) }
     if (data.tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(data.tags)) }
+    if (data.idiomTerm !== undefined) { fields.push('idiom_term = ?'); values.push(data.idiomTerm || null) }
+    if (data.idiomMeaning !== undefined) { fields.push('idiom_meaning = ?'); values.push(data.idiomMeaning || null) }
+    if (data.idiomAliases !== undefined) { fields.push('idiom_aliases = ?'); values.push(data.idiomAliases.length ? JSON.stringify(data.idiomAliases) : null) }
+    if (data.idiomAutoVariants !== undefined) { fields.push('idiom_auto_variants = ?'); values.push(data.idiomAutoVariants ? 1 : 0) }
 
     values.push(id)
     db.prepare(`UPDATE notes SET ${fields.join(', ')} WHERE id = ?`).run(...values)
     return { success: true }
+  })
+
+  ipcMain.handle('notes:listIdioms', () => {
+    const rows = getBereanDb()
+      .prepare(`SELECT id, title, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants FROM notes WHERE type = 'idiom' AND idiom_term IS NOT NULL ORDER BY idiom_term COLLATE NOCASE ASC`)
+      .all() as Array<{ id: string; title: string | null; idiom_term: string; idiom_meaning: string | null; idiom_aliases: string | null; idiom_auto_variants: number | null }>
+    return rows.map(r => ({
+      id: r.id,
+      term: r.idiom_term,
+      meaning: r.idiom_meaning ?? '',
+      aliases: r.idiom_aliases ? (JSON.parse(r.idiom_aliases) as string[]) : [],
+      autoVariants: r.idiom_auto_variants === 1,
+    }))
   })
 
   ipcMain.handle('notes:delete', (_event, id: string) => {

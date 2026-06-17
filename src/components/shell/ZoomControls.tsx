@@ -16,13 +16,16 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverWidthRef = useRef(0)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function cancelHide() {
     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null }
   }
   function scheduleHide() {
-    hideTimer.current = setTimeout(() => setOpen(false), 120)
+    // 350ms gives the cursor enough time to travel diagonally from the icon
+    // to the popover without the menu vanishing in between.
+    hideTimer.current = setTimeout(() => setOpen(false), 350)
   }
   function handleAnchorEnter() {
     cancelHide()
@@ -39,6 +42,7 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
     const el = popoverRef.current
     if (!open || !el) return
     const { width, height } = el.getBoundingClientRect()
+    popoverWidthRef.current = width
     const pad = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -75,23 +79,38 @@ export default function ZoomControls({ context, compact = false }: { context: Zo
       </button>
 
       {open && createPortal(
-        <div
-          ref={popoverRef}
-          style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, transform: 'translateX(-100%)' }}
-          className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl"
-          onMouseEnter={cancelHide}
-          onMouseLeave={scheduleHide}
-        >
-          <button onClick={() => adjust(context, -1)} title="Zoom out (⌘−)" className={popoverBtn}>−</button>
-          <button
-            onClick={() => reset(context)}
-            title="Reset zoom (⌘0)"
-            className={`text-[10px] tabular-nums w-8 text-center cursor-pointer transition-colors leading-none ${isNonDefault ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'} hover:text-[rgb(var(--color-text-primary))]`}
+        <>
+          {/* Invisible bridge: covers the gap between the icon bottom and popover top
+              so diagonal mouse movement doesn't trigger onMouseLeave and close the menu. */}
+          <div
+            style={{
+              position: 'fixed',
+              left: pos.x - (popoverWidthRef.current || 80),
+              top: pos.y - 8,
+              width: popoverWidthRef.current || 80,
+              height: 12,
+              zIndex: 9998,
+            }}
+            onMouseEnter={cancelHide}
+          />
+          <div
+            ref={popoverRef}
+            style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 9999, transform: 'translateX(-100%)' }}
+            className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl"
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
           >
-            {zoomPercent(level)}
-          </button>
-          <button onClick={() => adjust(context, 1)} title="Zoom in (⌘+)" className={popoverBtn}>+</button>
-        </div>,
+            <button onClick={() => adjust(context, -1)} title="Zoom out (⌘−)" className={popoverBtn}>−</button>
+            <button
+              onClick={() => reset(context)}
+              title="Reset zoom (⌘0)"
+              className={`text-[10px] tabular-nums w-8 text-center cursor-pointer transition-colors leading-none ${isNonDefault ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'} hover:text-[rgb(var(--color-text-primary))]`}
+            >
+              {zoomPercent(level)}
+            </button>
+            <button onClick={() => adjust(context, 1)} title="Zoom in (⌘+)" className={popoverBtn}>+</button>
+          </div>
+        </>,
         document.body
       )}
     </>

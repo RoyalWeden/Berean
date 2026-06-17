@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
+import { useViewerSync } from '@/hooks/useViewerSync'
 import Sidebar from '@/components/shell/Sidebar'
 import ActivePanel from '@/components/shell/ActivePanel'
 import WindowControls from '@/components/shell/WindowControls'
@@ -44,6 +45,7 @@ export default function App() {
   const tabMRUList = useAppStore((s) => s.tabMRUList)
   const storeTabs = useAppStore((s) => s.tabs)
   const activeSpace = useAppStore((s) => s.activeSpace)
+  const activeTabId = useAppStore((s) => s.activeTabId)
   const autoCloseTabsAfter = useAppStore((s) => s.autoCloseTabsAfter)
   const createSession = useAppStore((s) => s.createSession)
   const setBgImportProgress = useAppStore((s) => s.setBgImportProgress)
@@ -53,6 +55,9 @@ export default function App() {
   const openImportModal = useAppStore((s) => s.openImportModal)
   const openImportBibleGateway = useAppStore((s) => s.openImportBibleGateway)
   const openImportESword = useAppStore((s) => s.openImportESword)
+
+  // Sync viewer window with active tab state
+  useViewerSync()
 
   // Global import progress listeners — always registered so state persists even when modals are closed
   useEffect(() => {
@@ -199,6 +204,8 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [storeTabs, theme, themePreset])
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Viewer window sync is handled by useViewerSync() above
 
   const closeActiveTabRef = useRef(closeActiveTab)
   useEffect(() => { closeActiveTabRef.current = closeActiveTab }, [closeActiveTab])
@@ -651,6 +658,13 @@ export default function App() {
         // ── Cmd+H → open History (app 'hide' is remapped to ⌘⇧H) ────────
         e.preventDefault()
         useAppStore.getState().openHistory()
+      } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        // Use getState() to avoid stale closure — viewerWindowOpen is not in deps
+        window.app.openViewerWindow?.().then(() => {
+          useAppStore.getState().setViewerWindowOpen(true)
+          // pushCurrentToViewer will be called by onViewerReady signal
+        })
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('berean:togglePiP'))
