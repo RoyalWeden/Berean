@@ -122,14 +122,19 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.3.16] - 2026-06-16
+## [0.4.1] - 2026-06-18
+
+- Presenter view (laser, select, etc)
+
+---
+
+## [0.4.0] - 2026-06-16
 
 - Presenter view
 - Idiom notes
 
 Bug Fixes
 - Easier to open zoom and change it
-
 
 ---
 

@@ -616,6 +616,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('app:isViewerWindowOpen', () => {
     return viewerWindow !== null && !viewerWindow.isDestroyed()
   })
+  ipcMain.handle('app:closeViewerWindow', () => {
+    if (viewerWindow && !viewerWindow.isDestroyed()) viewerWindow.close()
+    return true
+  })
   // Viewer React app signals ready after registering its onContent listener
   ipcMain.on('viewer:signalReady', () => {
     console.log('[Viewer IPC] viewer:signalReady received — broadcasting viewer:ready to main windows')
@@ -640,6 +644,13 @@ app.whenReady().then(async () => {
   ipcMain.on('app:pushViewerSettings', (_e, settings: unknown) => {
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:settings', settings)
+    }
+  })
+
+  // Relay ephemeral overlays (selection mirror + laser pointer) to the viewer window
+  ipcMain.on('app:pushViewerOverlay', (_e, payload: unknown) => {
+    if (viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerWindow.webContents.send('viewer:overlay', payload)
     }
   })
 

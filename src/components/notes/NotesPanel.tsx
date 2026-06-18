@@ -596,6 +596,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       window.notes.updateNote(id, { content }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
       maybeSyncNote(id)
+      bumpNoteToken() // so the presenter window (if open) refetches the updated note
     }, 500)
     // Restart the idle timer; when editing pauses for SNAPSHOT_IDLE_MS, consolidate a version.
     if (snapshotIdleTimer.current) clearTimeout(snapshotIdleTimer.current)
@@ -610,6 +611,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     saveTimer.current = setTimeout(() => {
       window.notes.updateNote(activeNote.id, { title }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? updated : n)))
+      bumpNoteToken()
     }, 500)
   }
 

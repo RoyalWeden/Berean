@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor, Pause, Play } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -16,6 +16,7 @@ import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
+import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
 
@@ -53,10 +54,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
-  const setViewerPaused = useAppStore((s) => s.setViewerPaused)
   // Region of scripture currently visible in the presenter window (for the outline band)
   const [viewerVisibleRegion, setViewerVisibleRegion] = useState<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number } | null>(null)
+  const laserRAFRef = useRef<number | null>(null)
+  const selectionRAFRef = useRef<number | null>(null)
+  const lastSelectionSentRef = useRef(false)
+  // Laser dwell: move freely within the committed word, but require a brief settle before
+  // committing to a different word (so the pointer doesn't dart between words too eagerly).
+  const lastLaserWordRef = useRef<string | null>(null)
+  const pendingLaserWordRef = useRef<string | null>(null)
+  const pendingLaserRef = useRef<{ bookId: string; chapter: number; laser: import('@/lib/presenterOverlay').OverlayLaser } | null>(null)
+  const laserDwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // While a find-bar jump is in flight, suppress proportional scroll sync so the explicit
+  // "center this verse" command drives the presenter cleanly (no tug-of-war).
+  const findScrollSuppressRef = useRef(0)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -169,7 +181,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
     // chapter's position to a freshly-loaded chapter before the new scroll fires.
-    setMainBibleScrollPercent(0)
+    setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
     if (savedPos === 0) return
@@ -241,6 +253,52 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     })
     return () => cancelAnimationFrame(raf)
   }, [computePresenterBand, tabState.showStrongs, tabState.hiddenAnnotations])
+
+  // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
+  // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
+  const currentBibleChapterRef = () => {
+    const s = useAppStore.getState()
+    const id = s.activeTabId['scripture']
+    const t = id ? s.tabs['scripture'].find((x) => x.id === id) : null
+    const bs = t?.state as BibleTabState | undefined
+    return bs?.bookId ? { bookId: bs.bookId, chapter: bs.chapter } : null
+  }
+  const canPushOverlay = () => {
+    const s = useAppStore.getState()
+    return !floating && s.viewerWindowOpen && !s.viewerPaused
+  }
+
+  // Mirror the user's text selection into the presenter.
+  useEffect(() => {
+    if (floating) return
+    function clearMirror(ref: { bookId: string; chapter: number }) {
+      if (lastSelectionSentRef.current) {
+        window.app.pushViewerOverlay?.({ ...ref, selection: null })
+        lastSelectionSentRef.current = false
+      }
+    }
+    function onSelChange() {
+      const c = chapterViewRef.current
+      if (!c || !canPushOverlay()) return
+      const ref = currentBibleChapterRef()
+      if (!ref) return
+      if (!useAppStore.getState().viewerSelectionMirror) { clearMirror(ref); return }
+      const sel = document.getSelection()
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { clearMirror(ref); return }
+      const range = sel.getRangeAt(0)
+      let inside = false
+      try { inside = c.contains(range.commonAncestorContainer) || range.intersectsNode(c) } catch { inside = false }
+      if (!inside) { clearMirror(ref); return } // selection moved to a note / elsewhere
+      if (selectionRAFRef.current) cancelAnimationFrame(selectionRAFRef.current)
+      selectionRAFRef.current = requestAnimationFrame(() => {
+        const ranges = computeSelectionRanges(c, range)
+        window.app.pushViewerOverlay?.({ ...ref, selection: ranges.length ? ranges : null })
+        lastSelectionSentRef.current = ranges.length > 0
+      })
+    }
+    document.addEventListener('selectionchange', onSelChange)
+    return () => document.removeEventListener('selectionchange', onSelChange)
+  }, [floating]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save scroll position immediately on unmount (space switch — component unmounts).
   // Guard: only save if scrollTop > 0 to avoid Strict Mode double-invoke writing 0
@@ -554,8 +612,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (matches.length > 0 && container) {
       const el = container.querySelector<HTMLElement>(`[data-verse="${matches[0]}"]`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      presenterScrollToVerse(matches[0])
     }
   }, [findBarQuery, findBarOpen, findBarWordMode, activeSpace, tabState.bookId, tabState.chapter, tabState.compareMode, compareFocusedCol]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the presenter is open, scroll it to center the same verse the find bar jumped to.
+  function presenterScrollToVerse(verseNum: number) {
+    const st = useAppStore.getState()
+    if (floating || !st.viewerWindowOpen || st.viewerPaused) return
+    const ref = currentBibleChapterRef()
+    if (!ref) return
+    // Suppress proportional sync briefly so only the centering command moves the presenter.
+    findScrollSuppressRef.current = Date.now() + 1100
+    window.app.pushViewerOverlay?.({ ...ref, scrollTo: { verseNum, nonce: Date.now() } })
+  }
 
   function findPrev() {
     if (findMatchVerseNums.length === 0) return
@@ -564,6 +634,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : chapterViewRef.current
     const el = container?.querySelector<HTMLElement>(`[data-verse="${findMatchVerseNums[prev]}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    presenterScrollToVerse(findMatchVerseNums[prev])
   }
 
   function findNext() {
@@ -573,6 +644,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : chapterViewRef.current
     const el = container?.querySelector<HTMLElement>(`[data-verse="${findMatchVerseNums[next]}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    presenterScrollToVerse(findMatchVerseNums[next])
   }
 
   function makeTitle(bookId: string, chapter: number, endChapter?: number) {
@@ -1256,7 +1328,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const container = chapterViewRef.current
             if (container) {
               const max = container.scrollHeight - container.clientHeight
-              setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0)
+              setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0, `${tabState.bookId}:${tabState.chapter}`)
             }
             // Push this tab's current content explicitly (matches the auto-sync payload)
             const payload = computeViewerPayload()
@@ -1271,36 +1343,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <Monitor size={14} />
         </button>
         </HintTooltip>
-        {/* Pause/resume presenter sync — only shown while the presenter window is open */}
-        {viewerWindowOpen && (
-          <HintTooltip label={viewerPaused ? 'Resume presenter sync' : 'Pause presenter sync'}>
-          <button
-            onClick={() => {
-              const next = !viewerPaused
-              setViewerPaused(next)
-              // On resume, immediately catch the presenter up to the current view
-              if (!next) {
-                const container = chapterViewRef.current
-                if (container) {
-                  const max = container.scrollHeight - container.clientHeight
-                  setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0)
-                }
-                const payload = computeViewerPayload()
-                window.app.pushViewerContent?.(payload)
-                // Un-freeze the outline band to track live again
-                requestAnimationFrame(() => computePresenterBand())
-              }
-            }}
-            className={`p-1 rounded transition-colors cursor-pointer ${
-              viewerPaused
-                ? 'text-amber-400 hover:bg-[rgb(var(--color-surface-4))]'
-                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            {viewerPaused ? <Play size={14} /> : <Pause size={14} />}
-          </button>
-          </HintTooltip>
-        )}
+        {/* Pause + laser + selection + close now live in the floating PresenterControls panel */}
         <ZoomControls context="scripture" compact />
       </div>
 
@@ -1395,6 +1438,60 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <div
         ref={chapterViewRef}
         className="flex-1 overflow-y-auto relative"
+        onMouseMove={(e) => {
+          if (!canPushOverlay() || !useAppStore.getState().viewerLaserEnabled) return
+          const c = chapterViewRef.current
+          if (!c) return
+          const x = e.clientX, y = e.clientY
+          if (laserRAFRef.current) cancelAnimationFrame(laserRAFRef.current)
+          laserRAFRef.current = requestAnimationFrame(() => {
+            laserRAFRef.current = null
+            const ref = currentBibleChapterRef()
+            if (!ref) return
+            const hit = pointToLaser(c, x, y)
+            if (!hit) { window.app.pushViewerOverlay?.({ ...ref, laser: null }); return }
+            const { wordKey, ...laser } = hit
+            // Track immediately for the first point, the same word, an ADJACENT word (normal
+            // reading movement — including crossing the space into the next word), a margin, or
+            // a different verse. Only a FAR in-verse jump (>1 word away) waits for a dwell, so
+            // the pointer doesn't dart to distant words but glides smoothly word-to-word.
+            const prev = lastLaserWordRef.current
+            let farJump = false
+            if (prev && prev !== wordKey) {
+              const [pv, pw] = prev.split(':')
+              const [nv, nw] = wordKey.split(':')
+              farJump = pv === nv && pw !== 'frac' && nw !== 'frac' && Math.abs(Number(pw) - Number(nw)) > 1
+            }
+            if (prev === null || !farJump) {
+              if (laserDwellTimerRef.current) { clearTimeout(laserDwellTimerRef.current); laserDwellTimerRef.current = null }
+              pendingLaserWordRef.current = null
+              lastLaserWordRef.current = wordKey
+              window.app.pushViewerOverlay?.({ ...ref, laser })
+              return
+            }
+            // Far in-verse jump → dwell briefly before committing (anti-jitter focus).
+            pendingLaserRef.current = { ...ref, laser }
+            if (wordKey !== pendingLaserWordRef.current) {
+              pendingLaserWordRef.current = wordKey
+              if (laserDwellTimerRef.current) clearTimeout(laserDwellTimerRef.current)
+              laserDwellTimerRef.current = setTimeout(() => {
+                laserDwellTimerRef.current = null
+                const p = pendingLaserRef.current
+                const w = pendingLaserWordRef.current
+                pendingLaserWordRef.current = null
+                if (p && w) { lastLaserWordRef.current = w; window.app.pushViewerOverlay?.({ bookId: p.bookId, chapter: p.chapter, laser: p.laser }) }
+              }, 130)
+            }
+          })
+        }}
+        onMouseLeave={() => {
+          if (floating || !useAppStore.getState().viewerWindowOpen) return
+          if (laserDwellTimerRef.current) { clearTimeout(laserDwellTimerRef.current); laserDwellTimerRef.current = null }
+          lastLaserWordRef.current = null
+          pendingLaserWordRef.current = null
+          const ref = currentBibleChapterRef()
+          if (ref) window.app.pushViewerOverlay?.({ ...ref, laser: null })
+        }}
         onScroll={(e) => {
           // Capture both values NOW so they survive a tab switch before the timer fires
           const scrollTop = e.currentTarget.scrollTop
@@ -1409,10 +1506,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             if (container) {
               const max = container.scrollHeight - container.clientHeight
               const scrollPercent = max > 0 ? container.scrollTop / max : 0
-              // Always record so a later full re-sync (e.g. opening the viewer) starts here
-              setMainBibleScrollPercent(scrollPercent)
+              // Always record (tagged with the chapter) so a later full re-sync starts here
+              setMainBibleScrollPercent(scrollPercent, `${tabState.bookId}:${tabState.chapter}`)
               const st = useAppStore.getState()
-              if (st.viewerWindowOpen && !st.viewerPaused) {
+              // Skip proportional sync during a find-bar jump (the scrollTo command drives it).
+              if (st.viewerWindowOpen && !st.viewerPaused && Date.now() >= findScrollSuppressRef.current) {
                 if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
                 viewerScrollRAFRef.current = requestAnimationFrame(() => {
                   viewerScrollRAFRef.current = null

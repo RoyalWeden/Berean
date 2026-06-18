@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '@/store'
 import { bookName } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import type { ViewerPayload, ViewerSidePanel } from '@/types/viewer'
 import type { Note, LexiconEntry } from '@/types'
 import ViewerBiblePage from './ViewerBiblePage'
+import type { ViewerHighlight } from './ViewerBiblePage'
 import ViewerCrossRefs from './ViewerCrossRefs'
 import { renderPreviewContent } from '@/components/notes/NoteEditor'
 
@@ -24,17 +26,19 @@ const NATURALLY_DARK = new Set([
 // Fetch a note for displaying in the side panel or standalone
 function useNote(noteId: string | undefined) {
   const [data, setData] = useState<{ title: string; html: string } | null>(null)
-  // Re-render the preview when note-format / word-replacer settings change (synced from main)
+  // Re-render the preview when note-format / word-replacer settings change, or when the note
+  // content itself changes in the main window (noteChangeToken, synced via viewer settings).
   const noteScriptureBlock = useAppStore((s) => s.noteScriptureBlock)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   useEffect(() => {
     if (!noteId) { setData(null); return }
     window.notes.getNote(noteId).then((n: Note | null) => {
       if (!n) { setData(null); return }
       setData({ title: n.title ?? '', html: renderPreviewContent(n.content ?? '') })
     }).catch(() => setData(null))
-  }, [noteId, noteScriptureBlock, wordReplacerEnabled, wordReplacerRules])
+  }, [noteId, noteScriptureBlock, wordReplacerEnabled, wordReplacerRules, noteChangeToken])
   return data
 }
 
@@ -68,6 +72,8 @@ function LexiconView({ strongsId, fontScale, muteColor, textColor, accentColor, 
   const labelFs = Math.round(10 * fontScale)
   if (!data) return <div style={{ fontSize: fs, color: muteColor }} className="flex items-center justify-center h-full">{strongsId}</div>
   const isHebrew = data.strongsNum.startsWith('H')
+  // Bare cross-reference numbers in the derivation are Strong's numbers — restore the H/G prefix.
+  const lang: 'H' | 'G' = isHebrew ? 'H' : 'G'
   const sectionLabel = (t: string) => (
     <p style={{ fontSize: labelFs, color: muteColor, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>{t}</p>
   )
@@ -88,7 +94,7 @@ function LexiconView({ strongsId, fontScale, muteColor, textColor, accentColor, 
       {data.derivation && (
         <div>
           {sectionLabel('Derivation')}
-          <p style={{ fontSize: Math.round(13 * fontScale), color: muteColor, lineHeight: 1.6, fontStyle: 'italic' }}>{wr(data.derivation)}</p>
+          <p style={{ fontSize: Math.round(13 * fontScale), color: muteColor, lineHeight: 1.6, fontStyle: 'italic' }}>{normalizeStrongsNums(wr(data.derivation), lang)}</p>
         </div>
       )}
       {data.extendedDef && (
@@ -103,8 +109,11 @@ function LexiconView({ strongsId, fontScale, muteColor, textColor, accentColor, 
 
 export default function ViewerApp() {
   const [payload, setPayload] = useState<ViewerPayload>({ kind: 'idle' })
-  const [showSidePanel, setShowSidePanel] = useState(true)
+  // Side-panel visibility is controlled from the main window's PresenterControls (synced).
+  const showSidePanel = useAppStore((s) => s.viewerSidePanelEnabled)
   const [hovered, setHovered] = useState(false)
+  // Viewer-only highlights, keyed by chapter so they persist until the window closes.
+  const [viewerHls, setViewerHls] = useState<Record<string, Record<number, ViewerHighlight[]>>>({})
   const hideOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidePanelScrollRef = useRef<HTMLDivElement>(null)
   const sidePanelScrollRAFRef = useRef<number | null>(null)
@@ -232,14 +241,6 @@ export default function ViewerApp() {
   const bibleSidePanel: ViewerSidePanel | undefined =
     payload.kind === 'bible' ? payload.sidePanel : undefined
 
-  // Auto-reveal the side panel whenever one appears (e.g. opening the presenter while a
-  // side panel is already open in the main window). Hiding it stays a manual user choice.
-  const hadSidePanelRef = useRef(false)
-  useEffect(() => {
-    if (bibleSidePanel && !hadSidePanelRef.current) setShowSidePanel(true)
-    hadSidePanelRef.current = !!bibleSidePanel
-  }, [bibleSidePanel])
-
   return (
     <div
       className="relative h-screen w-screen overflow-hidden"
@@ -293,16 +294,31 @@ export default function ViewerApp() {
               <p style={{ fontSize: Math.round(14 * localScale), color: muteColor }}>Awaiting navigation…</p>
             </div>
           )}
-          {payload.kind === 'bible' && (
-            <ViewerBiblePage
-              bookId={payload.bookId}
-              chapter={payload.chapter}
-              verse={payload.verse}
-              textId={payload.textId}
-              fontScale={localScale}
-              scrollPercent={payload.scrollPercent}
-            />
-          )}
+          {payload.kind === 'bible' && (() => {
+            const hlKey = `${payload.bookId}:${payload.chapter}:${payload.textId}`
+            return (
+              <ViewerBiblePage
+                bookId={payload.bookId}
+                chapter={payload.chapter}
+                verse={payload.verse}
+                textId={payload.textId}
+                fontScale={localScale}
+                scrollPercent={payload.scrollPercent}
+                viewerHighlights={viewerHls[hlKey] ?? {}}
+                onAddViewerHighlight={(verseNum, hl) => setViewerHls(prev => {
+                  const chap = prev[hlKey] ?? {}
+                  return { ...prev, [hlKey]: { ...chap, [verseNum]: [...(chap[verseNum] ?? []), hl] } }
+                })}
+                onRemoveViewerHighlight={(verseNum, sc, ec) => setViewerHls(prev => {
+                  const chap = prev[hlKey] ?? {}
+                  const verseHls = chap[verseNum] ?? []
+                  // Drop any highlight overlapping the selected range.
+                  const kept = verseHls.filter(h => !(h.startChar < ec && h.endChar > sc))
+                  return { ...prev, [hlKey]: { ...chap, [verseNum]: kept } }
+                })}
+              />
+            )
+          })()}
           {payload.kind === 'note' && (
             <NoteView noteId={payload.noteId} fontScale={localScale} muteColor={muteColor} textColor={textColor} />
           )}
@@ -392,25 +408,7 @@ export default function ViewerApp() {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          {/* Side panel toggle — only show if a side panel exists */}
-          {payload.kind === 'bible' && bibleSidePanel && (
-            <>
-              <button
-                onClick={() => setShowSidePanel(p => !p)}
-                className="text-xs px-2 py-0.5 rounded-full transition-all"
-                style={{
-                  color: showSidePanel ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.45)',
-                  background: showSidePanel ? 'rgba(255,255,255,0.15)' : 'transparent',
-                }}
-                title={showSidePanel ? 'Hide side panel' : 'Show side panel'}
-              >
-                {bibleSidePanel.type === 'note' ? '📝' : bibleSidePanel.type === 'crossrefs' ? '🔗' : '📖'} {showSidePanel ? 'Hide' : 'Show'}
-              </button>
-              <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
-            </>
-          )}
-
-          {/* Zoom controls */}
+          {/* Zoom controls (side-panel visibility is controlled from the main window) */}
           <button
             onClick={() => changeScale(-0.125)}
             className="w-6 h-6 flex items-center justify-center rounded-full text-sm font-bold transition-colors hover:bg-white/20"

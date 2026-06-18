@@ -255,6 +255,12 @@ export interface AppState {
   setViewerWindowOpen: (v: boolean) => void
   viewerPaused: boolean
   setViewerPaused: (v: boolean) => void
+  viewerLaserEnabled: boolean
+  setViewerLaserEnabled: (v: boolean) => void
+  viewerSelectionMirror: boolean
+  setViewerSelectionMirror: (v: boolean) => void
+  viewerSidePanelEnabled: boolean
+  setViewerSidePanelEnabled: (v: boolean) => void
   viewerFontScale: number
   setViewerFontScale: (v: number) => void
   viewerTheme: 'system' | 'light' | 'dark'
@@ -842,6 +848,9 @@ export const useAppStore = create<AppState>()(
       idiomCache: [] as Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>,
       viewerWindowOpen: false,
       viewerPaused: false,
+      viewerLaserEnabled: true,
+      viewerSelectionMirror: true,
+      viewerSidePanelEnabled: true,
       viewerFontScale: 1.5,
       viewerTheme: 'system' as const,
       showVerseNumbers: true,
@@ -1475,6 +1484,9 @@ export const useAppStore = create<AppState>()(
       setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => set({ idiomCache: v }),
       setViewerWindowOpen: (v) => set(v ? { viewerWindowOpen: true } : { viewerWindowOpen: false, viewerPaused: false }),
       setViewerPaused: (v) => set({ viewerPaused: v }),
+      setViewerLaserEnabled: (v) => set({ viewerLaserEnabled: v }),
+      setViewerSelectionMirror: (v) => set({ viewerSelectionMirror: v }),
+      setViewerSidePanelEnabled: (v) => set({ viewerSidePanelEnabled: v }),
       setViewerFontScale: (v) => set({ viewerFontScale: v }),
       setViewerTheme: (v) => set({ viewerTheme: v }),
       setShowVerseNumbers: (v) => set({ showVerseNumbers: v }),
@@ -1618,6 +1630,9 @@ export const useAppStore = create<AppState>()(
         idiomHoverPreviewEnabled: state.idiomHoverPreviewEnabled,
         viewerFontScale: state.viewerFontScale,
         viewerTheme: state.viewerTheme,
+        viewerLaserEnabled: state.viewerLaserEnabled,
+        viewerSelectionMirror: state.viewerSelectionMirror,
+        viewerSidePanelEnabled: state.viewerSidePanelEnabled,
         // Per-tab back/forward nav stacks — persisted so history survives restarts.
         tabNavStacks: state.tabNavStacks,
         tabNavMaxStack: state.tabNavMaxStack,

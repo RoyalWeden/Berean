@@ -107,10 +107,13 @@ contextBridge.exposeInMainWorld('app', {
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
   openFloatingTab: (type: string, state: unknown) => ipcRenderer.invoke('app:openFloatingTab', type, state),
   openViewerWindow: () => ipcRenderer.invoke('app:openViewerWindow'),
+  closeViewerWindow: () => ipcRenderer.invoke('app:closeViewerWindow'),
   isViewerWindowOpen: () => ipcRenderer.invoke('app:isViewerWindowOpen'),
   pushViewerContent: (payload: unknown) => ipcRenderer.send('app:pushViewerContent', payload),
   // Push display/format settings (word replacer, note blocks, theme…) to the viewer window
   pushViewerSettings: (settings: unknown) => ipcRenderer.send('app:pushViewerSettings', settings),
+  // Push ephemeral overlays (text selection mirror + laser pointer) to the viewer window
+  pushViewerOverlay: (payload: unknown) => ipcRenderer.send('app:pushViewerOverlay', payload),
   // Receive the viewer's currently-visible verse region (for the main-window outline)
   onViewerVisibleRegion: (cb: (region: unknown) => void) => {
     ipcRenderer.removeAllListeners('viewer:visibleRegion')
@@ -164,6 +167,11 @@ contextBridge.exposeInMainWorld('viewer', {
   onSettings: (cb: (settings: unknown) => void) => {
     ipcRenderer.removeAllListeners('viewer:settings')
     ipcRenderer.on('viewer:settings', (_, settings) => cb(settings))
+  },
+  // Receive ephemeral overlays (selection mirror + laser pointer)
+  onOverlay: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('viewer:overlay')
+    ipcRenderer.on('viewer:overlay', (_, payload) => cb(payload))
   },
   // Report which verses are currently visible in the viewer (drives the main-window outline)
   reportVisibleRegion: (region: unknown) => ipcRenderer.send('viewer:reportVisibleRegion', region),

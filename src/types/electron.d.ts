@@ -193,9 +193,11 @@ interface AppAPI {
   onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
   onUpdateStatus: (cb: (status: UpdateStatus) => void) => void
   openViewerWindow: () => Promise<boolean>
+  closeViewerWindow: () => Promise<boolean>
   isViewerWindowOpen: () => Promise<boolean>
   pushViewerContent: (payload: unknown) => void
   pushViewerSettings: (settings: unknown) => void
+  pushViewerOverlay: (payload: ViewerOverlay) => void
   onViewerVisibleRegion: (cb: (region: ViewerVisibleRegion) => void) => void
   onViewerWindowClosed: (cb: () => void) => void
   onViewerReady: (cb: () => void) => void
@@ -213,6 +215,22 @@ export interface ViewerVisibleRegion {
   verseFracs: Record<number, number>
 }
 
+/** Ephemeral overlays mirrored to the presenter: the user's text selection and a laser
+ *  pointer tracking the cursor. Offsets are display-char offsets within a verse (which match
+ *  between the two windows when Strong's numbers are hidden — the presentation default).
+ *  A field set to `undefined` means "unchanged"; `null` means "clear". */
+export interface ViewerOverlay {
+  bookId: string
+  chapter: number
+  selection?: { verseNum: number; startChar: number; endChar: number }[] | null
+  // Laser anchor: a precise char offset when the cursor is over text (accurate across the two
+  // windows' wrapping), or a verse-relative xFrac/yFrac fallback when over a margin/gap.
+  laser?: { verseNum: number; charOffset?: number; dxFrac?: number; dyFrac?: number; xFrac?: number; yFrac?: number } | null
+  // Tell the presenter to scroll a verse into center view (used by the find bar). `nonce`
+  // forces a re-scroll even when the same verse is targeted repeatedly.
+  scrollTo?: { verseNum: number; nonce: number } | null
+}
+
 export interface ViewerSyncedSettings {
   wordReplacerEnabled: boolean
   wordReplacerRules: unknown[]
@@ -223,6 +241,9 @@ export interface ViewerSyncedSettings {
   theme: 'light' | 'dark' | 'system'
   themePreset: string | null
   crossRefSource: 'tske' | 'classic' | 'notes'
+  viewerSidePanelEnabled: boolean
+  noteChangeToken: number
+  highlightChangeToken: number
 }
 
 interface CrossRefEntry {
@@ -357,6 +378,7 @@ declare global {
     viewer: {
       onContent: (cb: (payload: unknown) => void) => void
       onSettings: (cb: (settings: ViewerSyncedSettings) => void) => void
+      onOverlay: (cb: (payload: ViewerOverlay) => void) => void
       reportVisibleRegion: (region: ViewerVisibleRegion) => void
       signalReady: () => void
     }

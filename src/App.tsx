@@ -14,6 +14,7 @@ import BgImportProgress from '@/components/shell/BgImportProgress'
 import ImportModal from '@/components/settings/ImportModal'
 import Onboarding from '@/components/shell/Onboarding'
 import TasksPanel from '@/components/shell/TasksPanel'
+import PresenterControls from '@/components/shell/PresenterControls'
 import type { SpaceId, Tab } from '@/types'
 
 interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab }
@@ -757,6 +758,7 @@ export default function App() {
         </main>
       </div>
       <FloatingSearch />
+      <PresenterControls />
       <SettingsModal />
       <MarkdownReferenceModal />
       <CrashReport />

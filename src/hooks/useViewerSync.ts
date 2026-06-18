@@ -7,7 +7,13 @@ import type { ViewerPayload, ViewerSidePanel } from '@/types/viewer'
 // BiblePanel on scroll; read here so a full re-sync (e.g. on initial viewer open) carries
 // the current scroll position rather than snapping the viewer back to the top.
 let lastBibleScrollPercent = 0
-export function setMainBibleScrollPercent(p: number) { lastBibleScrollPercent = p }
+let lastScrollChapterKey = ''
+/** Record the main panel's scroll percent, tagged with the chapter it belongs to, so a stale
+ *  value is never applied to a different chapter (which caused a jump-to-bottom on tab switch). */
+export function setMainBibleScrollPercent(p: number, chapterKey = '') {
+  lastBibleScrollPercent = p
+  lastScrollChapterKey = chapterKey
+}
 
 /** Compute what the viewer should show based on current app state. */
 export function computeViewerPayload(): ViewerPayload {
@@ -45,7 +51,11 @@ export function computeViewerPayload(): ViewerPayload {
       rightPanelNoteId: bs.rightPanelNoteId, rightPanelLexiconEntry: bs.rightPanelLexiconEntry,
       sidePanel: sidePanel?.type ?? null,
     })
-    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse, textId, sidePanel, scrollPercent: lastBibleScrollPercent }
+    // Only carry the scroll percent if it was recorded for THIS chapter; otherwise omit it so
+    // the presenter doesn't apply a stale percent (e.g. a previous tab's near-bottom position).
+    const chapterKey = `${bs.bookId}:${bs.chapter}`
+    const scrollPercent = lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined
+    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse, textId, sidePanel, scrollPercent }
   }
 
   if (tab.type === 'note') {
@@ -76,6 +86,10 @@ function collectViewerSettings() {
     theme: s.theme,
     themePreset: s.themePreset,
     crossRefSource: s.crossRefSource,
+    viewerSidePanelEnabled: s.viewerSidePanelEnabled,
+    // Data-change tokens — bumped when notes/highlights change so the viewer refetches.
+    noteChangeToken: s.noteChangeToken,
+    highlightChangeToken: s.highlightChangeToken,
   }
 }
 
@@ -114,6 +128,9 @@ export function useViewerSync() {
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const crossRefSource = useAppStore((s) => s.crossRefSource)
+  const viewerSidePanelEnabled = useAppStore((s) => s.viewerSidePanelEnabled)
+  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
+  const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
 
   // Listen for viewer-ready signal (fired by viewer React app after registering onContent)
   useEffect(() => {
@@ -131,7 +148,8 @@ export function useViewerSync() {
     if (!viewerWindowOpen) return
     pushViewerSettingsToViewer()
   }, [viewerWindowOpen, wordReplacerEnabled, wordReplacerRules, noteScriptureBlock,
-      noteScriptureBlockThreshold, idiomHighlightEnabled, idiomCache, theme, themePreset, crossRefSource])
+      noteScriptureBlockThreshold, idiomHighlightEnabled, idiomCache, theme, themePreset, crossRefSource,
+      viewerSidePanelEnabled, noteChangeToken, highlightChangeToken])
 
   // Listen for viewer window closed
   useEffect(() => {
@@ -141,9 +159,11 @@ export function useViewerSync() {
 
   // Auto-sync whenever tabs/active space changes (skipped while paused). Re-runs when
   // viewerPaused flips back to false so the viewer immediately catches up to current state.
+  // crossRefSource is included so switching the cross-ref tab (TSKe / Classic / My Notes)
+  // re-pushes the side-panel payload to the presenter.
   useEffect(() => {
     if (!viewerWindowOpen || viewerPaused) return
     pushCurrentToViewer()
   // Deliberately broad dep list — any tab state change should trigger a sync check
-  }, [viewerWindowOpen, viewerPaused, storeTabs, activeTabId, activeSpace])
+  }, [viewerWindowOpen, viewerPaused, storeTabs, activeTabId, activeSpace, crossRefSource])
 }

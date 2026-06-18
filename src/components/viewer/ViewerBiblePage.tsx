@@ -2,7 +2,10 @@ import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
 import { bookName } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
+import { laserToPoint } from '@/lib/presenterOverlay'
+import type { OverlayLaser } from '@/lib/presenterOverlay'
 import type { DisplayToken } from '@/lib/verseUtils'
+import type { ViewerOverlay } from '@/types/electron'
 import type { Verse } from '@/types'
 
 const RED_LETTER_COLOR = 'rgb(248 113 113)' // text-red-400 — words of Yeshua
@@ -25,7 +28,7 @@ interface DBHighlight {
   endChar: number | null
 }
 // Viewer-only highlights are stored in DISPLAY-text char coordinates (what the audience sees).
-interface ViewerHighlight { startChar: number; endChar: number; color: string }
+export interface ViewerHighlight { startChar: number; endChar: number; color: string }
 interface SelectionState { x: number; y: number; verseNum: number; startChar: number; endChar: number }
 
 /**
@@ -37,11 +40,14 @@ interface SelectionState { x: number; y: number; verseNum: number; startChar: nu
  * DB highlights are stored against the ORIGINAL verse text, so their offsets are mapped onto
  * the display text; viewer-only highlights are already in display coords.
  */
+const SELECTION_BG = 'rgba(120,170,255,0.55)' // mirrors the user's text selection
+
 function renderVerseText(
   originalText: string,
   tokens: DisplayToken[],
   dbHls: DBHighlight[],
-  viewerHls: ViewerHighlight[]
+  viewerHls: ViewerHighlight[],
+  selRanges: { startChar: number; endChar: number }[] = []
 ): React.ReactNode {
   const displayText = tokens.map(t => t.word).join(' ')
   const n = displayText.length
@@ -88,6 +94,11 @@ function renderVerseText(
     }
   }
   for (const h of viewerHls) fill(h.startChar, h.endChar, h.color)
+  // The mirrored selection paints last so it reads as a selection over any highlights.
+  for (const sr of selRanges) {
+    const a = Math.max(0, Math.min(sr.startChar, n)), b = Math.max(0, Math.min(sr.endChar, n))
+    for (let i = a; i < b; i++) bg[i] = SELECTION_BG
+  }
 
   // Group consecutive chars sharing the same (bg, red, italic) into spans.
   const out: React.ReactNode[] = []
@@ -124,18 +135,28 @@ interface Props {
   textId: string
   fontScale: number
   scrollPercent?: number
+  // Viewer-only highlights for THIS chapter, owned by ViewerApp so they survive chapter switches.
+  viewerHighlights: Record<number, ViewerHighlight[]>
+  onAddViewerHighlight: (verseNum: number, hl: ViewerHighlight) => void
+  onRemoveViewerHighlight: (verseNum: number, startChar: number, endChar: number) => void
 }
 
-export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent }: Props) {
+export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
   const [verses, setVerses] = useState<Verse[]>([])
   const [loading, setLoading] = useState(true)
   const [dbHighlights, setDbHighlights] = useState<Record<number, DBHighlight[]>>({})
-  const [viewerHighlights, setViewerHighlights] = useState<Record<number, ViewerHighlight[]>>({})
   const [selTb, setSelTb] = useState<SelectionState | null>(null)
+  // Mirrored from the main window: the user's selection and laser-pointer position.
+  const [mirrorSel, setMirrorSel] = useState<{ verseNum: number; startChar: number; endChar: number }[] | null>(null)
+  const [mirrorLaser, setMirrorLaser] = useState<OverlayLaser | null>(null)
+  const [laserPos, setLaserPos] = useState<{ top: number; left: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLDivElement>(null)
   const scrollPercentRAFRef = useRef<number | null>(null)
   const reportRAFRef = useRef<number | null>(null)
+  // Find-bar "scroll to verse" support: briefly ignore proportional sync so the centering sticks.
+  const scrollLockUntilRef = useRef(0)
+  const lastScrollToNonceRef = useRef(0)
 
   // Word replacer (synced from the main window via viewer:settings)
   const wrEnabled = useAppStore((s) => s.wordReplacerEnabled)
@@ -179,7 +200,6 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   // Fetch chapter verses
   useEffect(() => {
     setLoading(true)
-    setViewerHighlights({})
     window.bible.queryChapter(bookId, chapter, textId).then((vs) => {
       setVerses(vs)
       setLoading(false)
@@ -189,12 +209,13 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     })
   }, [bookId, chapter, textId])
 
-  // Fetch DB highlights
+  // Fetch DB highlights (refetched when the main window bumps highlightChangeToken).
+  const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
   useEffect(() => {
     window.highlights.getChapter(bookId, chapter, textId)
       .then((raw) => setDbHighlights(raw as Record<number, DBHighlight[]>))
       .catch(() => {})
-  }, [bookId, chapter, textId])
+  }, [bookId, chapter, textId, highlightChangeToken])
 
   // Scroll to active verse — only when no proportional scroll position is supplied.
   useEffect(() => {
@@ -210,6 +231,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     if (scrollPercentRAFRef.current) cancelAnimationFrame(scrollPercentRAFRef.current)
     scrollPercentRAFRef.current = requestAnimationFrame(() => {
       scrollPercentRAFRef.current = null
+      if (Date.now() < scrollLockUntilRef.current) return // a find-bar centering is in progress
       const el = containerRef.current
       if (!el) return
       const max = el.scrollHeight - el.clientHeight
@@ -226,6 +248,46 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [reportVisible])
+
+  // Receive the mirrored selection + laser pointer + find-bar scroll from the main window.
+  useEffect(() => {
+    window.viewer?.onOverlay?.((raw) => {
+      const o = raw as ViewerOverlay
+      if (o.bookId !== bookId || o.chapter !== chapter) return
+      if (o.selection !== undefined) setMirrorSel(o.selection)
+      if (o.laser !== undefined) setMirrorLaser(o.laser)
+      // Find-bar: center the targeted verse in the presenter (briefly overriding scroll sync).
+      if (o.scrollTo && o.scrollTo.nonce !== lastScrollToNonceRef.current) {
+        lastScrollToNonceRef.current = o.scrollTo.nonce
+        const c = containerRef.current
+        const ve = c?.querySelector(`[data-verse="${o.scrollTo.verseNum}"]`) as HTMLElement | null
+        if (c && ve) {
+          scrollLockUntilRef.current = Date.now() + 800
+          ve.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }
+    })
+  }, [bookId, chapter])
+
+  // Clear stale overlays when the chapter changes.
+  useEffect(() => { setMirrorSel(null); setMirrorLaser(null) }, [bookId, chapter, textId])
+
+  // Resolve the laser anchor (char offset or fraction) to a pixel point that scrolls with content.
+  useEffect(() => {
+    if (!mirrorLaser) { setLaserPos(null); return }
+    const c = containerRef.current
+    if (!c) return
+    setLaserPos(laserToPoint(c, mirrorLaser))
+  }, [mirrorLaser, verses, fontScale])
+
+  // "Focused" = the laser has settled (no movement briefly) → gently pulse to draw the eye.
+  const [laserFocused, setLaserFocused] = useState(false)
+  useEffect(() => {
+    if (!laserPos) { setLaserFocused(false); return }
+    setLaserFocused(false)
+    const t = setTimeout(() => setLaserFocused(true), 260)
+    return () => clearTimeout(t)
+  }, [laserPos])
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection()
@@ -266,13 +328,17 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const applyHighlight = useCallback((color: string) => {
     if (!selTb) return
     const { verseNum, startChar, endChar } = selTb
-    setViewerHighlights(prev => ({
-      ...prev,
-      [verseNum]: [...(prev[verseNum] ?? []), { startChar, endChar, color }],
-    }))
+    onAddViewerHighlight(verseNum, { startChar, endChar, color })
     setSelTb(null)
     window.getSelection()?.removeAllRanges()
-  }, [selTb])
+  }, [selTb, onAddViewerHighlight])
+
+  // Remove any viewer highlights overlapping the current selection (the toolbar's eraser).
+  const removeHighlight = useCallback(() => {
+    if (selTb) onRemoveViewerHighlight(selTb.verseNum, selTb.startChar, selTb.endChar)
+    setSelTb(null)
+    window.getSelection()?.removeAllRanges()
+  }, [selTb, onRemoveViewerHighlight])
 
   const baseFontSize = Math.round(16 * fontScale)
   const muteColor = 'rgb(var(--color-text-muted, 120 120 140))'
@@ -288,7 +354,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto px-10 pb-6 pt-12" onMouseUp={handleMouseUp}>
+    <div ref={containerRef} className="h-full overflow-y-auto px-10 pb-6 pt-12 relative" onMouseUp={handleMouseUp}>
       {/* Chapter header */}
       <div
         className="text-center select-none mb-8"
@@ -320,12 +386,48 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
                 {v.verse_num}
               </span>
               <span className="flex-1" data-verse-text style={{ userSelect: 'text' }}>
-                {renderVerseText(v.text, displayTokens(v), dbHighlights[v.verse_num] ?? [], viewerHighlights[v.verse_num] ?? [])}
+                {renderVerseText(
+                  v.text,
+                  displayTokens(v),
+                  dbHighlights[v.verse_num] ?? [],
+                  viewerHighlights[v.verse_num] ?? [],
+                  mirrorSel?.filter((r) => r.verseNum === v.verse_num) ?? [],
+                )}
               </span>
             </div>
           )
         })}
       </div>
+
+      {/* Laser pointer mirroring the presenter's cursor in the main window */}
+      {laserPos && (
+        <>
+          <style>{`@keyframes berean-laser-pulse {
+            0%,100% { box-shadow: 0 0 9px 2px rgba(255,0,0,0.55); }
+            50% { box-shadow: 0 0 16px 6px rgba(255,0,0,0.85); }
+          }`}</style>
+          <div
+            className="pointer-events-none"
+            style={{
+              position: 'absolute',
+              left: laserPos.left,
+              top: laserPos.top,
+              width: 15,
+              height: 15,
+              transform: 'translate(-50%, -50%)',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,40,40,0.95) 0%, rgba(255,0,0,0.7) 40%, rgba(255,0,0,0) 72%)',
+              boxShadow: '0 0 10px 3px rgba(255,0,0,0.6)',
+              zIndex: 40,
+              // Horizontal eases quickly (within-word glide); vertical eases a bit longer so
+              // jumping to a new line feels smooth rather than snappy.
+              transition: 'left 55ms ease-out, top 120ms ease-out',
+              willChange: 'left, top',
+              animation: laserFocused ? 'berean-laser-pulse 1.3s ease-in-out infinite' : undefined,
+            }}
+          />
+        </>
+      )}
 
       {/* Viewer-only highlight color picker */}
       {selTb && (
@@ -348,9 +450,19 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
               style={{ background: WORD_HIGHLIGHT_BG[id], border: '1.5px solid rgba(255,255,255,0.25)' }}
             />
           ))}
+          {/* Eraser — removes any highlight under the selection */}
           <button
-            onClick={() => setSelTb(null)}
-            className="ml-1 text-xs px-1 rounded opacity-50 hover:opacity-100 transition-opacity"
+            onClick={removeHighlight}
+            title="Remove highlight"
+            className="ml-1 w-4 h-4 rounded-full flex items-center justify-center hover:scale-125 transition-transform flex-shrink-0"
+            style={{ background: 'transparent', border: '1.5px dashed rgba(255,255,255,0.5)', color: textColor, fontSize: 9, lineHeight: 1 }}
+          >
+            ⌫
+          </button>
+          <button
+            onClick={removeHighlight}
+            title="Remove highlight / close"
+            className="ml-0.5 text-xs px-1 rounded opacity-50 hover:opacity-100 transition-opacity"
             style={{ color: textColor }}
           >
             ✕

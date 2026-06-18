@@ -46,7 +46,7 @@ export default function StrongsInline({
           {/* Empty word-height placeholder so the chip row aligns with adjacent chips */}
           <span className="text-[10px] leading-none opacity-0 select-none" aria-hidden>·</span>
           <StrongsTooltip strongsNum={nums[0]} onClickEntry={onStrongsClick}>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
+            <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
               ({nums[0]})
             </span>
           </StrongsTooltip>
@@ -72,6 +72,7 @@ export default function StrongsInline({
             {nums.map((num, i) => (
               <StrongsTooltip key={i} strongsNum={num} onClickEntry={onStrongsClick}>
                 <span
+                  data-strongs-chip
                   className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
                   title={i > 0 ? "Secondary Strong's number" : undefined}
                 >
@@ -100,7 +101,7 @@ export default function StrongsInline({
       <span className="inline-flex flex-col items-start mr-1 gap-0">
         <span className="leading-none">{wContent}</span>
         <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
-          <span className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
+          <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
             {primaryNum}
           </span>
         </StrongsTooltip>
