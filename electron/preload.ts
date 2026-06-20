@@ -190,6 +190,8 @@ contextBridge.exposeInMainWorld('crossrefs', {
     ipcRenderer.invoke('crossrefs:getForChapter', bookId, chapter),
   getTSKeForChapter: (bookId: string, chapter: number) =>
     ipcRenderer.invoke('crossrefs:getTSKeForChapter', bookId, chapter),
+  getHermasTaylorChapter: (bookId: string, chapter: number) =>
+    ipcRenderer.invoke('crossrefs:getHermasTaylorChapter', bookId, chapter),
   status: () => ipcRenderer.invoke('crossrefs:status'),
 })
 

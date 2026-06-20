@@ -36,6 +36,17 @@ function openTskeDb(): DB | null {
   return tskeDb
 }
 
+// Scripture cross-references parsed from Charles Taylor's Shepherd-of-Hermas footnotes.
+// They live in hermas_taylor.db (the Taylor text DB) because they are keyed to Taylor's
+// own versification, and so must only be shown when the Taylor translation is active.
+let hermasTaylorDb: DB | null | undefined
+function openHermasTaylorDb(): DB | null {
+  if (hermasTaylorDb !== undefined) return hermasTaylorDb
+  const p = dataPath('hermas_taylor.db')
+  hermasTaylorDb = existsSync(p) ? (new (Database as any)(p, { readonly: true }) as DB) : null
+  return hermasTaylorDb
+}
+
 export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('crossrefs:status', () => {
     const hasData = existsSync(dataPath('cross_references.db'))
@@ -115,6 +126,30 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       return { verseRefs, error: false }
     } catch (e) {
       return { verseRefs: [], error: true }
+    }
+  })
+
+  // Taylor Hermas footnote cross-references for a chapter (chapter-level: from_verse = 0).
+  ipcMain.handle('crossrefs:getHermasTaylorChapter', (_e, bookId: string, chapter: number) => {
+    try {
+      const database = openHermasTaylorDb()
+      if (!database) return { refs: [], error: true }
+      const rows = (database as any).prepare(
+        'SELECT to_book, to_chapter, to_verse, raw FROM crossrefs WHERE from_book = ? AND from_chapter = ? ORDER BY id ASC'
+      ).all(bookId.toUpperCase(), chapter) as Array<{
+        to_book: string; to_chapter: number; to_verse: number; raw: string
+      }>
+      const kjva = getTextDb('kjva')
+      const verseStmt = kjva
+        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
+        : null
+      const refs = rows.map((r) => ({
+        bookId: r.to_book, chapter: r.to_chapter, verse: r.to_verse, raw: r.raw,
+        text: verseStmt ? ((verseStmt.get(r.to_book, r.to_chapter, r.to_verse) as any)?.text ?? '') : '',
+      }))
+      return { refs, error: false }
+    } catch {
+      return { refs: [], error: true }
     }
   })
 

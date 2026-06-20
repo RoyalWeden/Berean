@@ -867,6 +867,8 @@ export default function SettingsModal() {
   const setBibleFontSize = useAppStore((s) => s.setBibleFontSize)
   const defaultBibleTranslation = useAppStore((s) => s.defaultBibleTranslation)
   const setDefaultBibleTranslation = useAppStore((s) => s.setDefaultBibleTranslation)
+  const hermasTranslation = useAppStore((s) => s.hermasTranslation)
+  const setHermasTranslation = useAppStore((s) => s.setHermasTranslation)
   const bibleLineHeight = useAppStore((s) => s.bibleLineHeight)
   const setBibleLineHeight = useAppStore((s) => s.setBibleLineHeight)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
@@ -1362,6 +1364,19 @@ export default function SettingsModal() {
                       {DEFAULT_TRANSLATIONS.map((t) => (
                         <option key={t.id} value={t.id}>{t.label}</option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Shepherd of Hermas translation</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Which translation to show for the Visions, Mandates, and Similitudes. Taylor uses finer verse divisions and includes Similitude 7; it is a best-effort OCR ingest still being proofread.</p>
+                    <select
+                      value={hermasTranslation}
+                      onChange={(e) => setHermasTranslation(e.target.value)}
+                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
+                    >
+                      <option value="hermas">Roberts-Donaldson (Ante-Nicene Fathers)</option>
+                      <option value="hermas_taylor">Charles Taylor (1903)</option>
                     </select>
                   </div>
 

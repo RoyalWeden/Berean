@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
+import { setHermasTextId } from '@/lib/parseRef'
+import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
 import Sidebar from '@/components/shell/Sidebar'
 import ActivePanel from '@/components/shell/ActivePanel'
@@ -22,6 +24,13 @@ interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab
 export default function App() {
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const hermasTranslation = useAppStore((s) => s.hermasTranslation)
+  // Keep the module-level Hermas prefs (used by getTranslationForBook + hermasMap,
+  // which are pure and called from many places) in sync with the chosen translation.
+  useEffect(() => {
+    setHermasTextId(hermasTranslation)
+    setHermasVariant(hermasVariantForTextId(hermasTranslation))
+  }, [hermasTranslation])
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)
@@ -404,6 +413,7 @@ export default function App() {
       if (typeof all.fontSize === 'number') s.setBibleFontSize(all.fontSize)
       if (typeof all.lineHeight === 'string') s.setBibleLineHeight(all.lineHeight as 'compact' | 'comfortable' | 'spacious')
       if (typeof all.defaultTranslation === 'string') s.setDefaultBibleTranslation(all.defaultTranslation)
+      if (typeof all.hermasTranslation === 'string') s.setHermasTranslation(all.hermasTranslation)
       if (typeof all.scriptureFontFamily === 'string') s.setScriptureFontFamily(all.scriptureFontFamily)
       if (typeof all.notesFontFamily === 'string') s.setNotesFontFamily(all.notesFontFamily)
       if (typeof all.uiFontFamily === 'string') s.setUiFontFamily(all.uiFontFamily)
@@ -442,6 +452,7 @@ export default function App() {
         state.bibleFontSize !== prev.bibleFontSize ||
         state.bibleLineHeight !== prev.bibleLineHeight ||
         state.defaultBibleTranslation !== prev.defaultBibleTranslation ||
+        state.hermasTranslation !== prev.hermasTranslation ||
         state.scriptureFontFamily !== prev.scriptureFontFamily ||
         state.notesFontFamily !== prev.notesFontFamily ||
         state.uiFontFamily !== prev.uiFontFamily ||
@@ -466,6 +477,7 @@ export default function App() {
           ['theme', s.theme], ['themePreset', s.themePreset],
           ['fontSize', s.bibleFontSize], ['lineHeight', s.bibleLineHeight],
           ['defaultTranslation', s.defaultBibleTranslation],
+          ['hermasTranslation', s.hermasTranslation],
           ['scriptureFontFamily', s.scriptureFontFamily],
           ['notesFontFamily', s.notesFontFamily], ['uiFontFamily', s.uiFontFamily],
           ['autoPiP', s.autoPiP],

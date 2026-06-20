@@ -213,9 +213,28 @@ const BOOK_TRANSLATION: Record<string, string> = {
   '1CL':   '1clement',
 }
 
+// The Shepherd of Hermas ships in two translations sharing the same HER_* book ids:
+// 'hermas' (Roberts-Donaldson, default) and 'hermas_taylor' (Charles Taylor). The
+// user picks one in Settings; we hold it in a module-level variable set from the
+// store so every getTranslationForBook call site resolves Hermas books to the
+// chosen text without threading the preference through each signature.
+let hermasTextId = 'hermas'
+
+/** Set the active Hermas translation textId ('hermas' | 'hermas_taylor'). */
+export function setHermasTextId(textId: string): void {
+  hermasTextId = textId === 'hermas_taylor' ? 'hermas_taylor' : 'hermas'
+}
+
+/** The currently selected Hermas translation textId. */
+export function getHermasTextId(): string {
+  return hermasTextId
+}
+
 /** Returns the translation ID to switch to when navigating to this book, or null for canonical books. */
 export function getTranslationForBook(bookId: string): string | null {
-  return BOOK_TRANSLATION[bookId] ?? null
+  const base = BOOK_TRANSLATION[bookId]
+  if (base === 'hermas') return hermasTextId
+  return base ?? null
 }
 
 /** Label for a specific book+chapter. The book of Psalms is plural, but an individual
@@ -225,7 +244,7 @@ export function bookChapterLabel(bookId: string, chapter: number): string {
   return `${bookName(bookId)} ${chapter}`
 }
 
-const _DEDICATED_TRANSLATION_IDS = new Set(Object.values(BOOK_TRANSLATION))
+const _DEDICATED_TRANSLATION_IDS = new Set([...Object.values(BOOK_TRANSLATION), 'hermas_taylor'])
 /** Returns true when textId is a non-canonical dedicated translation (e.g. 'asc_isaiah', 'enoch').
  *  Use to detect when navigating to a canonical book requires a translation switch. */
 export function isDedicatedTranslation(textId: string): boolean {

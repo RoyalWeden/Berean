@@ -294,11 +294,20 @@ export interface ChapterTSKeEntry {
   groups: TSKeGroup[]
 }
 
+interface HermasTaylorRef {
+  bookId: string
+  chapter: number
+  verse: number
+  raw: string
+  text: string
+}
+
 interface CrossRefsAPI {
   getForVerse: (bookId: string, chapter: number, verse: number) => Promise<CrossRefsResult>
   getTSKeForVerse: (bookId: string, chapter: number, verse: number) => Promise<TSKeResult>
   getForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterCrossRefEntry[]; error: boolean }>
   getTSKeForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterTSKeEntry[]; error: boolean }>
+  getHermasTaylorChapter: (bookId: string, chapter: number) => Promise<{ refs: HermasTaylorRef[]; error: boolean }>
   status: () => Promise<{ hasData: boolean; loading: boolean; error: boolean }>
 }
 

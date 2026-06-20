@@ -16,6 +16,7 @@ const TEXT_FILES: Record<string, string> = {
   apoc_elijah:   'apoc_elijah.db',
   recog_clement: 'recog_clement.db',
   hermas:        'hermas.db',
+  hermas_taylor: 'hermas_taylor.db',
   asc_isaiah:    'asc_isaiah.db',
   ep_barnabas:   'ep_barnabas.db',
   t12p:          't12p.db',

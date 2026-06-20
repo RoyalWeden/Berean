@@ -64,7 +64,12 @@ export const ANNOTATION_KEYS: Record<string, { canHide: boolean; description?: s
   },
   hermas: {
     canHide: false,
-    description: 'Ante-Nicene Fathers edition. Divided into Visions, Mandates, and Similitudes. Each "verse" shown here is a paragraph-sized passage — no traditional verse numbers exist in the source.',
+    description: 'Ante-Nicene Fathers edition (Roberts-Donaldson). Divided into Visions, Mandates, and Similitudes. Each "verse" shown here is a paragraph-sized passage — no traditional verse numbers exist in the source.',
+    keys: [],
+  },
+  hermas_taylor: {
+    canHide: false,
+    description: 'Trans. Charles Taylor (1903–1906), from the Greek. Visions, Mandates, and Similitudes with Taylor’s own finer sentence-level verse divisions (Similitude 7 included). Best-effort OCR ingest — some chapters are flagged for proofreading.',
     keys: [],
   },
   gad: {
@@ -105,7 +110,8 @@ export const TRANSLATIONS = [
   { id: 'jubilees',      label: 'Jubilees',        description: 'R.H. Charles' },
   { id: 'apoc_elijah',   label: 'Apoc. Elijah',    description: 'Apocalypse of Elijah' },
   { id: 'recog_clement', label: 'Recog. Clement',  description: 'Recognitions of Clement' },
-  { id: 'hermas',        label: 'Hermas',          description: 'Shepherd of Hermas' },
+  { id: 'hermas',        label: 'Hermas',          description: 'Shepherd of Hermas (Roberts-Donaldson)' },
+  { id: 'hermas_taylor', label: 'Hermas (Taylor)', description: 'Shepherd of Hermas, trans. Charles Taylor (1903)' },
   { id: 'asc_isaiah',    label: 'Asc. Isaiah',     description: 'Ascension of Isaiah, R.H. Charles' },
   { id: 'ep_barnabas',   label: 'Ep. Barnabas',    description: 'Epistle of Barnabas' },
   { id: 't12p',          label: 'T12 Patriarchs',  description: 'Testaments of the Twelve Patriarchs, R.H. Charles' },

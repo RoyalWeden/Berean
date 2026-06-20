@@ -80,10 +80,77 @@ const SIM_SECTIONS: HermasSection[] = [
   { sectionName: 'Similitude 10', sectionNum: 10, chapters: [62,63,64,65] },
 ]
 
-const BOOK_SECTIONS: Record<HermasBookId, HermasSection[]> = {
+const BOOK_SECTIONS_RD: Record<HermasBookId, HermasSection[]> = {
   HER_VIS: VIS_SECTIONS,
   HER_MAN: MAN_SECTIONS,
   HER_SIM: SIM_SECTIONS,
+}
+
+// ── Taylor map ──────────────────────────────────────────────────────────────
+// Charles Taylor (1903–1906) uses finer, sentence-level verse divisions and his
+// own chapter boundaries, which differ from Roberts-Donaldson in several places
+// (e.g. Mandate 3 is undivided, Mandate 10 has 3 chapters, Similitude 6 has 5)
+// and — unlike the RD database — Taylor INCLUDES Similitude 7. The Taylor text DB
+// (hermas_taylor.db) is numbered with its own flat sequence, so navigation and
+// labels must use this map whenever the Taylor translation is active.
+const VIS_SECTIONS_TAYLOR: HermasSection[] = [
+  { sectionName: 'Vision 1', sectionNum: 1, chapters: [1,2,3,4] },
+  { sectionName: 'Vision 2', sectionNum: 2, chapters: [5,6,7,8] },
+  { sectionName: 'Vision 3', sectionNum: 3, chapters: [9,10,11,12,13,14,15,16,17,18,19,20,21] },
+  { sectionName: 'Vision 4', sectionNum: 4, chapters: [22,23,24] },
+  { sectionName: 'Vision 5', sectionNum: 5, chapters: [25] },
+]
+const MAN_SECTIONS_TAYLOR: HermasSection[] = [
+  { sectionName: 'Mandate 1',  sectionNum: 1,  chapters: [1] },
+  { sectionName: 'Mandate 2',  sectionNum: 2,  chapters: [2] },
+  { sectionName: 'Mandate 3',  sectionNum: 3,  chapters: [3] },
+  { sectionName: 'Mandate 4',  sectionNum: 4,  chapters: [4,5,6,7] },
+  { sectionName: 'Mandate 5',  sectionNum: 5,  chapters: [8,9] },
+  { sectionName: 'Mandate 6',  sectionNum: 6,  chapters: [10,11] },
+  { sectionName: 'Mandate 7',  sectionNum: 7,  chapters: [12] },
+  { sectionName: 'Mandate 8',  sectionNum: 8,  chapters: [13] },
+  { sectionName: 'Mandate 9',  sectionNum: 9,  chapters: [14] },
+  { sectionName: 'Mandate 10', sectionNum: 10, chapters: [15,16,17] },
+  { sectionName: 'Mandate 11', sectionNum: 11, chapters: [18] },
+  { sectionName: 'Mandate 12', sectionNum: 12, chapters: [19,20,21,22,23,24] },
+]
+const SIM_SECTIONS_TAYLOR: HermasSection[] = [
+  { sectionName: 'Similitude 1',  sectionNum: 1,  chapters: [1] },
+  { sectionName: 'Similitude 2',  sectionNum: 2,  chapters: [2] },
+  { sectionName: 'Similitude 3',  sectionNum: 3,  chapters: [3] },
+  { sectionName: 'Similitude 4',  sectionNum: 4,  chapters: [4] },
+  { sectionName: 'Similitude 5',  sectionNum: 5,  chapters: [5,6,7,8,9,10,11] },
+  { sectionName: 'Similitude 6',  sectionNum: 6,  chapters: [12,13,14,15,16] },
+  { sectionName: 'Similitude 7',  sectionNum: 7,  chapters: [17] },
+  { sectionName: 'Similitude 8',  sectionNum: 8,  chapters: [18,19,20,21,22,23,24,25,26,27,28] },
+  { sectionName: 'Similitude 9',  sectionNum: 9,  chapters: Array.from({ length: 33 }, (_, i) => 29 + i) },
+  { sectionName: 'Similitude 10', sectionNum: 10, chapters: [62,63,64,65] },
+]
+const BOOK_SECTIONS_TAYLOR: Record<HermasBookId, HermasSection[]> = {
+  HER_VIS: VIS_SECTIONS_TAYLOR,
+  HER_MAN: MAN_SECTIONS_TAYLOR,
+  HER_SIM: SIM_SECTIONS_TAYLOR,
+}
+
+export type HermasVariant = 'rd' | 'taylor'
+
+// Module-level active variant. Set from the store (see App.tsx) so the pure
+// hermasMap helpers — consumed by many call sites — pick the right section map
+// without threading the translation through every signature.
+let activeVariant: HermasVariant = 'rd'
+
+/** Set the active Hermas section map. 'taylor' ↔ textId 'hermas_taylor'. */
+export function setHermasVariant(variant: HermasVariant): void {
+  activeVariant = variant
+}
+
+/** Map a textId to the matching section-map variant. */
+export function hermasVariantForTextId(textId: string | null | undefined): HermasVariant {
+  return textId === 'hermas_taylor' ? 'taylor' : 'rd'
+}
+
+function sectionsFor(bookId: HermasBookId): HermasSection[] {
+  return (activeVariant === 'taylor' ? BOOK_SECTIONS_TAYLOR : BOOK_SECTIONS_RD)[bookId]
 }
 
 /** Returns true if bookId is one of the three Hermas books. */
@@ -91,15 +158,14 @@ export function isHermasBook(bookId: string): bookId is HermasBookId {
   return bookId === 'HER_VIS' || bookId === 'HER_MAN' || bookId === 'HER_SIM'
 }
 
-/** Returns all sections for a Hermas book. */
+/** Returns all sections for a Hermas book (honors the active translation variant). */
 export function getHermasSections(bookId: HermasBookId): HermasSection[] {
-  return BOOK_SECTIONS[bookId]
+  return sectionsFor(bookId)
 }
 
 /** Returns the section containing a given flat db-chapter, or null. */
 export function getHermasSection(bookId: HermasBookId, chapter: number): HermasSection | null {
-  const sections = BOOK_SECTIONS[bookId]
-  return sections.find((s) => s.chapters.includes(chapter)) ?? null
+  return sectionsFor(bookId).find((s) => s.chapters.includes(chapter)) ?? null
 }
 
 /**
@@ -146,10 +212,28 @@ export function getHermasSectionFirstChapter(section: HermasSection): number {
  */
 export function getHermasValidChapters(bookId: HermasBookId): number[] {
   const all: number[] = []
-  for (const section of BOOK_SECTIONS[bookId]) {
+  for (const section of sectionsFor(bookId)) {
     all.push(...section.chapters)
   }
   return all.sort((a, b) => a - b)
+}
+
+/** Valid db-chapters for a book under a specific variant (independent of the active one). */
+export function getHermasValidChaptersFor(bookId: HermasBookId, variant: HermasVariant): number[] {
+  const map = variant === 'taylor' ? BOOK_SECTIONS_TAYLOR : BOOK_SECTIONS_RD
+  return map[bookId].flatMap((s) => s.chapters).sort((a, b) => a - b)
+}
+
+/**
+ * Clamp a flat chapter to one that is valid for the target variant. Used when switching
+ * Hermas translations: the RD and Taylor databases have different valid chapter sets
+ * (e.g. RD HER_MAN has a gap at ch 9 and runs to 25; Taylor is contiguous 1–24). Keeps
+ * the same chapter when valid, otherwise snaps to the nearest valid chapter.
+ */
+export function clampHermasChapter(bookId: HermasBookId, chapter: number, variant: HermasVariant): number {
+  const valid = getHermasValidChaptersFor(bookId, variant)
+  if (valid.includes(chapter)) return chapter
+  return valid.reduce((best, c) => (Math.abs(c - chapter) < Math.abs(best - chapter) ? c : best), valid[0] ?? 1)
 }
 
 /**

@@ -4,6 +4,7 @@ import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, History
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT, type ZoomContext } from '@/lib/zoom'
 import { bookName } from '@/lib/parseRef'
+import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 
 export interface WordReplacerRule {
   id: string
@@ -282,6 +283,10 @@ export interface AppState {
   bibleFontSize: number
   bibleLineHeight: 'compact' | 'comfortable' | 'spacious'
   defaultBibleTranslation: string
+  // Which Shepherd-of-Hermas translation to read: 'hermas' (Roberts-Donaldson) or
+  // 'hermas_taylor' (Charles Taylor 1903). Applied to getTranslationForBook + hermasMap.
+  hermasTranslation: string
+  setHermasTranslation: (id: string) => void
   // Per-panel zoom multipliers (1 = 100%); driven by Cmd +/- /0 and toolbar buttons
   panelZoom: Record<ZoomContext, number>
   setPanelZoom: (ctx: ZoomContext, level: number) => void
@@ -547,6 +552,29 @@ export const useAppStore = create<AppState>()(
       panelZoom: { scripture: ZOOM_DEFAULT, notes: ZOOM_DEFAULT, lexicon: ZOOM_DEFAULT },
       bibleLineHeight: 'comfortable' as const,
       defaultBibleTranslation: 'kjva',
+      hermasTranslation: 'hermas_taylor',
+      setHermasTranslation: (id) => {
+        const textId = id === 'hermas_taylor' ? 'hermas_taylor' : 'hermas'
+        const variant = hermasVariantForTextId(textId)
+        const upper = textId.toUpperCase()
+        set((state) => {
+          // Live-update any open Hermas bible tabs to the new translation, clamping the
+          // chapter to one that's valid in the target db (RD and Taylor differ).
+          let changed = false
+          const tabs = { ...state.tabs }
+          for (const space of Object.keys(tabs) as SpaceId[]) {
+            tabs[space] = tabs[space].map((t) => {
+              if (t.type !== 'bible') return t
+              const st = t.state as BibleTabState
+              if (!isHermasBook(st.bookId)) return t
+              if ((st.translation ?? '').toLowerCase() === textId) return t
+              changed = true
+              return { ...t, state: { ...st, translation: upper, chapter: clampHermasChapter(st.bookId, st.chapter, variant) } }
+            })
+          }
+          return { hermasTranslation: textId, tabs: changed ? tabs : state.tabs }
+        })
+      },
       theme: 'system' as const,
       themePreset: '',
       setThemePreset: (preset) => set({ themePreset: preset }),
@@ -1599,6 +1627,7 @@ export const useAppStore = create<AppState>()(
         panelZoom: state.panelZoom,
         bibleLineHeight: state.bibleLineHeight,
         defaultBibleTranslation: state.defaultBibleTranslation,
+        hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,

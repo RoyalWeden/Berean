@@ -3,7 +3,8 @@ import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
-import { bookName } from '@/lib/parseRef'
+import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
+import { isHermasBook } from '@/lib/hermasMap'
 import { extractRefsFromNote } from '@/lib/noteRefs'
 import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
 import type { CrossRefSource } from '@/lib/crossRefIndex'
@@ -14,6 +15,64 @@ import { HIGHLIGHT_COLORS } from './VerseRow'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
+
+interface TaylorRef { bookId: string; chapter: number; verse: number; raw: string; text: string }
+
+/** Navigate the active scripture tab to a cross-referenced verse, switching translation if needed. */
+function navigateToScriptureRef(target: { bookId: string; chapter: number; verse: number }) {
+  const s = useAppStore.getState()
+  s.ensureTab('bible')
+  const fresh = useAppStore.getState()
+  const tabId = fresh.activeTabId['scripture']
+  if (!tabId) return
+  const curTab = fresh.tabs['scripture'].find((t) => t.id === tabId)
+  const curState = curTab?.state as import('@/types').BibleTabState | undefined
+  const currentTranslation = curState?.translation ?? 'kjva'
+  const dedicatedTarget = getTranslationForBook(target.bookId)
+  const newTranslation = dedicatedTarget ?? (isDedicatedTranslation(currentTranslation) ? 'kjva' : undefined)
+  fresh.updateTabState('scripture', tabId, {
+    bookId: target.bookId, chapter: target.chapter, targetVerse: target.verse, scrollPosition: 0,
+    ...(newTranslation ? { translation: newTranslation } : {}),
+  })
+  fresh.setActiveSpace('scripture')
+}
+
+/**
+ * Chapter-level scripture cross-references parsed from Charles Taylor's footnotes.
+ * Shown beneath the chapter only when the Taylor Hermas translation is active.
+ */
+function HermasTaylorFootnoteRefs({ bookId, chapter, textId }: { bookId: string; chapter: number; textId?: string }) {
+  const [refs, setRefs] = useState<TaylorRef[]>([])
+  const active = textId === 'hermas_taylor' && isHermasBook(bookId)
+  useEffect(() => {
+    if (!active) { setRefs([]); return }
+    let cancelled = false
+    window.crossrefs?.getHermasTaylorChapter?.(bookId, chapter)
+      .then((res) => { if (!cancelled) setRefs(res?.refs ?? []) })
+      .catch(() => { if (!cancelled) setRefs([]) })
+    return () => { cancelled = true }
+  }, [active, bookId, chapter])
+  if (!active || refs.length === 0) return null
+  return (
+    <div className="mt-6 pt-4 border-t border-[rgb(var(--color-surface-3))]">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))] mb-2">
+        Scripture references (Taylor footnotes)
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {refs.map((r, i) => (
+          <button
+            key={i}
+            title={r.text || r.raw}
+            onClick={() => navigateToScriptureRef(r)}
+            className="text-[11px] font-mono px-2 py-0.5 rounded border border-[rgb(var(--color-surface-3))] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+          >
+            {bookName(r.bookId)} {r.chapter}:{r.verse}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 interface ChapterViewProps {
   bookId: string
@@ -492,6 +551,9 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
           />
         )
       })}
+
+      {/* Scripture cross-references from Taylor's footnotes (Taylor Hermas only) */}
+      <HermasTaylorFootnoteRefs bookId={bookId} chapter={chapter} textId={textId} />
 
       {/* Multi-verse selection toolbar — context menu */}
       {multiToolbar && (
