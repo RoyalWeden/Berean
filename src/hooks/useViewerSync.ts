@@ -18,6 +18,8 @@ export function setMainBibleScrollPercent(p: number, chapterKey = '') {
 /** Compute what the viewer should show based on current app state. */
 export function computeViewerPayload(): ViewerPayload {
   const s = useAppStore.getState()
+  // Blank output → present the idle "awaiting navigation" screen.
+  if (s.viewerBlank) return { kind: 'idle' }
   const activeSpace = s.activeSpace
   const activeId = s.activeTabId[activeSpace]
   console.log('[ViewerSync] computeViewerPayload — space:', activeSpace, 'activeId:', activeId, 'tabs in space:', s.tabs[activeSpace]?.length)
@@ -101,10 +103,23 @@ export function pushViewerSettingsToViewer() {
 }
 
 /** Push the current viewer payload if the viewer is open. */
+function activeScriptureTabState(s: ReturnType<typeof useAppStore.getState>): BibleTabState | undefined {
+  if (s.activeSpace !== 'scripture') return undefined
+  const id = s.activeTabId['scripture']
+  const t = id ? s.tabs['scripture'].find((x) => x.id === id) : null
+  return t?.state as BibleTabState | undefined
+}
+
 export function pushCurrentToViewer() {
   const s = useAppStore.getState()
   console.log('[ViewerSync] pushCurrentToViewer — viewerWindowOpen:', s.viewerWindowOpen, 'paused:', s.viewerPaused)
   if (!s.viewerWindowOpen || s.viewerPaused) return
+  const activeBible = activeScriptureTabState(s)
+  // Advanced search open → don't switch the presenter until the user exits.
+  if (activeBible?.searchMode) return
+  // Compare mode → the columns live in CompareView's local state, so ask it to push the
+  // compare payload (we can't build it from store state here).
+  if (activeBible?.compareMode) { window.dispatchEvent(new CustomEvent('berean:requestComparePush')); return }
   const payload = computeViewerPayload()
   console.log('[ViewerSync] pushing payload:', JSON.stringify(payload))
   window.app.pushViewerContent?.(payload)
@@ -114,6 +129,7 @@ export function pushCurrentToViewer() {
 export function useViewerSync() {
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
+  const viewerBlank = useAppStore((s) => s.viewerBlank)
   const setViewerWindowOpen = useAppStore((s) => s.setViewerWindowOpen)
   const storeTabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
@@ -165,5 +181,5 @@ export function useViewerSync() {
     if (!viewerWindowOpen || viewerPaused) return
     pushCurrentToViewer()
   // Deliberately broad dep list — any tab state change should trigger a sync check
-  }, [viewerWindowOpen, viewerPaused, storeTabs, activeTabId, activeSpace, crossRefSource])
+  }, [viewerWindowOpen, viewerPaused, viewerBlank, storeTabs, activeTabId, activeSpace, crossRefSource])
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '@/store'
-import { bookName } from '@/lib/parseRef'
+import { bookChapterLabel } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import type { ViewerPayload, ViewerSidePanel } from '@/types/viewer'
@@ -8,6 +8,7 @@ import type { Note, LexiconEntry } from '@/types'
 import ViewerBiblePage from './ViewerBiblePage'
 import type { ViewerHighlight } from './ViewerBiblePage'
 import ViewerCrossRefs from './ViewerCrossRefs'
+import ViewerCompare from './ViewerCompare'
 import { renderPreviewContent } from '@/components/notes/NoteEditor'
 
 const ALL_PRESETS = [
@@ -51,14 +52,27 @@ function useLexicon(strongsId: string | undefined) {
   return data
 }
 
-function NoteView({ noteId, fontScale, muteColor, textColor, scrollRef }: { noteId: string; fontScale: number; muteColor: string; textColor: string; scrollRef?: React.RefObject<HTMLDivElement> }) {
+function NoteView({ noteId, fontScale, muteColor, textColor, scrollRef, scrollPercent }: { noteId: string; fontScale: number; muteColor: string; textColor: string; scrollRef?: React.RefObject<HTMLDivElement>; scrollPercent?: number }) {
   const data = useNote(noteId)
+  const localRef = useRef<HTMLDivElement>(null)
+  const ref = scrollRef ?? localRef
   const fs = Math.round(14 * fontScale)
+  // Mirror the main window's note scroll position (proportional).
+  useEffect(() => {
+    if (scrollPercent === undefined || scrollPercent === null) return
+    const el = ref.current
+    if (!el) return
+    const raf = requestAnimationFrame(() => {
+      const max = el.scrollHeight - el.clientHeight
+      if (max > 0) el.scrollTop = scrollPercent * max
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [scrollPercent, data, ref])
   if (!data) return <div style={{ fontSize: fs, color: muteColor }} className="flex items-center justify-center h-full">Loading…</div>
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto px-8 pb-6 pt-12" style={{ fontSize: fs, color: textColor }}>
+    <div ref={ref} className="h-full overflow-y-auto px-8 pb-6 pt-12" style={{ fontSize: fs, color: textColor }}>
       {data.title && <h2 style={{ fontSize: Math.round(20 * fontScale), marginBottom: '1rem' }} className="font-semibold">{data.title}</h2>}
-      <div className="note-preview-content" style={{ lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: data.html }} />
+      <div className="berean-preview-prose" style={{ lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: data.html }} />
     </div>
   )
 }
@@ -192,7 +206,7 @@ export default function ViewerApp() {
 
   const changeScale = (delta: number) => {
     setLocalScale(prev => {
-      const next = Math.max(0.5, Math.min(3, Math.round((prev + delta) * 8) / 8))
+      const next = Math.max(0.5, Math.min(6, Math.round((prev + delta) * 8) / 8))
       setViewerFontScale(next)
       return next
     })
@@ -216,9 +230,10 @@ export default function ViewerApp() {
   const titleNote = useNote(payload.kind === 'note' ? payload.noteId : undefined)
   const titleLex = useLexicon(payload.kind === 'lexicon' ? payload.strongsId : undefined)
   let title = 'Berean'
-  if (payload.kind === 'bible') title = `${bookName(payload.bookId)} ${payload.chapter}${payload.textId === 'lxx' ? ' LXX' : ''}`
+  if (payload.kind === 'bible') title = `${bookChapterLabel(payload.bookId, payload.chapter)}${payload.textId === 'lxx' ? ' LXX' : ''}`
   else if (payload.kind === 'note') title = titleNote?.title || 'Note'
   else if (payload.kind === 'lexicon') title = `${titleLex?.strongsNum ?? payload.strongsId}${titleLex?.lemma ? ` · ${titleLex.lemma}` : ''}`
+  else if (payload.kind === 'compare' && payload.columns[0]) title = `Compare — ${bookChapterLabel(payload.columns[0].bookId, payload.columns[0].chapter)}`
 
   // ── Transient "flash" overlay: shows the content label big, then fades ─────────
   // Keyed to the content identity so it re-fires on each navigation (chapter/note/lexicon).
@@ -226,6 +241,7 @@ export default function ViewerApp() {
     payload.kind === 'bible' ? `b:${payload.bookId}:${payload.chapter}`
     : payload.kind === 'note' ? `n:${payload.noteId}`
     : payload.kind === 'lexicon' ? `l:${payload.strongsId}`
+    : payload.kind === 'compare' ? `c:${payload.columns.map(c => `${c.textId}@${c.bookId}.${c.chapter}`).join('|')}`
     : 'idle'
   const [flashVisible, setFlashVisible] = useState(false)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -290,8 +306,12 @@ export default function ViewerApp() {
         <div className="flex-1 min-w-0 h-full overflow-hidden">
           {payload.kind === 'idle' && (
             <div className="flex flex-col items-center justify-center h-full gap-3">
-              <div className="opacity-20 font-serif" style={{ fontSize: Math.round(32 * localScale), color: muteColor }}>✦</div>
-              <p style={{ fontSize: Math.round(14 * localScale), color: muteColor }}>Awaiting navigation…</p>
+              <style>{`@keyframes berean-idle-spin{to{transform:rotate(360deg)}}@keyframes berean-idle-breathe{0%,100%{opacity:.15;transform:scale(.92)}50%{opacity:.4;transform:scale(1.08)}}`}</style>
+              <div
+                className="font-serif"
+                style={{ fontSize: Math.round(40 * localScale), color: 'rgb(var(--color-accent, 100 130 200))', animation: 'berean-idle-spin 9s linear infinite, berean-idle-breathe 3.2s ease-in-out infinite' }}
+              >✦</div>
+              <p style={{ fontSize: Math.round(14 * localScale), color: muteColor, animation: 'berean-idle-breathe 3.2s ease-in-out infinite' }}>Awaiting navigation…</p>
             </div>
           )}
           {payload.kind === 'bible' && (() => {
@@ -320,10 +340,13 @@ export default function ViewerApp() {
             )
           })()}
           {payload.kind === 'note' && (
-            <NoteView noteId={payload.noteId} fontScale={localScale} muteColor={muteColor} textColor={textColor} />
+            <NoteView noteId={payload.noteId} fontScale={localScale} muteColor={muteColor} textColor={textColor} scrollPercent={payload.scrollPercent} />
           )}
           {payload.kind === 'lexicon' && (
             <LexiconView strongsId={payload.strongsId} fontScale={localScale} muteColor={muteColor} textColor={textColor} accentColor={accentColor} />
+          )}
+          {payload.kind === 'compare' && (
+            <ViewerCompare columns={payload.columns} fontScale={localScale} scrollPercents={payload.scrollPercents} muteColor={muteColor} textColor={textColor} accentColor={accentColor} />
           )}
         </div>
 

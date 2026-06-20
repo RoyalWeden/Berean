@@ -298,6 +298,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const noteScrollRAF = useRef<number | null>(null)
   const editorFocusRef = useRef<(() => void) | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   // Track latest scroll position via scroll events (more reliable than reading DOM on unmount)
@@ -1023,7 +1024,22 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div
+        className="flex-1 overflow-hidden flex flex-col"
+        // Mirror note scroll to the presenter (scroll doesn't bubble → capture phase).
+        onScrollCapture={(e) => {
+          const st = useAppStore.getState()
+          if (!st.viewerWindowOpen || st.viewerPaused || st.viewerBlank || st.activeSpace !== 'notes' || !activeNote) return
+          const el = e.target as HTMLElement
+          const max = el.scrollHeight - el.clientHeight
+          if (max <= 0) return
+          const pct = el.scrollTop / max
+          if (noteScrollRAF.current) cancelAnimationFrame(noteScrollRAF.current)
+          noteScrollRAF.current = requestAnimationFrame(() => {
+            window.app.pushViewerContent?.({ kind: 'note', noteId: activeNote.id, scrollPercent: pct })
+          })
+        }}
+      >
         {editing ? (
           <div className="flex-1 overflow-hidden flex flex-row">
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">

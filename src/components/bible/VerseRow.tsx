@@ -110,6 +110,9 @@ function parseTaggedTokens(tagged: string): TaggedToken[] {
     const wasSupWrapped = /^\/sup>|^sup>/i.test(part)
     part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
     part = part.replace(/^\/blu>/i, '').replace(/^blu>/i, '')
+    // <b>/</b> bold wrappers (seen in some Psalms) also lost their '<' — strip the fragments.
+    // '>' never occurs in real verse text, so removing these anywhere is safe.
+    part = part.replace(/<?\/?b>/gi, '')
     if (!part) continue
 
     // Parenthetical token: ~{H853} — no associated English word

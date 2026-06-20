@@ -885,6 +885,8 @@ export default function SettingsModal() {
   const setNoteLexiconRefsEnabled = useAppStore((s) => s.setNoteLexiconRefsEnabled)
   const noteScriptureBlock = useAppStore((s) => s.noteScriptureBlock)
   const setNoteScriptureBlock = useAppStore((s) => s.setNoteScriptureBlock)
+  const sidePanelScriptureBlock = useAppStore((s) => s.sidePanelScriptureBlock)
+  const setSidePanelScriptureBlock = useAppStore((s) => s.setSidePanelScriptureBlock)
   const autoEmDash = useAppStore((s) => s.autoEmDash)
   const setAutoEmDash = useAppStore((s) => s.setAutoEmDash)
   const noteScriptureBlockThreshold = useAppStore((s) => s.noteScriptureBlockThreshold)
@@ -1618,6 +1620,25 @@ export default function SettingsModal() {
                       }`}
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteScriptureBlock ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Side-panel note editor: verse/Strong's block SUGGESTION popups (independent) */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Suggest verse &amp; Strong's blocks in side panel</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        In the scripture tab's side-panel note editor, show the popups that offer to turn a typed reference (e.g. Gen 1:1) or Strong's number into a block. Blocks already in the note still format either way.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSidePanelScriptureBlock(!sidePanelScriptureBlock)}
+                      role="switch" aria-checked={sidePanelScriptureBlock}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
+                        sidePanelScriptureBlock ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sidePanelScriptureBlock ? 'translate-x-5' : ''}`} />
                     </button>
                   </div>
 

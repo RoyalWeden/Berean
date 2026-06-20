@@ -35,22 +35,29 @@ const VIS_SECTIONS: HermasSection[] = [
 ]
 
 // ── Mandate map ─────────────────────────────────────────────────────────────
-// Chapters 1-8, 10-25 (gap at db-ch 9).
-// Mandate 1: ch 1        | Mandate 2: ch 2        | Mandate 3: ch 3
-// Mandate 4: ch 4-7      | Mandate 5: ch 8        | Mandate 6: ch 10-11
-// Mandate 7: ch 12-13    | Mandate 8: ch 14       | Mandate 9: ch 15
-// Mandate 10: ch 16-18   | Mandate 11: ch 19      | Mandate 12: ch 20-25
+// DB chapters 1-8, 10-25 (gap at db-ch 9, at the Mandate 4 → Mandate 5 boundary).
+// Boundaries verified against the actual text (Roberts-Donaldson):
+//   db4  "I have never spoken a true word" → Mandate 3 (truth/lying)
+//   db5  "guard your chastity"             → Mandate 4 (chastity/marriage)
+//   db10 "Be patient"                      → Mandate 5 (patience/anger)
+//   db12 "the first commandment…faith"     → Mandate 6 (the two angels)
+//   db14 "Fear the Lord"                   → Mandate 7
+//   db15 "self-restraint is twofold"       → Mandate 8
+//   db16 "put away doubting"               → Mandate 9
+//   db17 "grief, the sister of doubt"      → Mandate 10
+//   db19 "a false prophet"                 → Mandate 11
+//   db20 "put away wicked desire"          → Mandate 12
 const MAN_SECTIONS: HermasSection[] = [
   { sectionName: 'Mandate 1',  sectionNum: 1,  chapters: [1] },
   { sectionName: 'Mandate 2',  sectionNum: 2,  chapters: [2] },
-  { sectionName: 'Mandate 3',  sectionNum: 3,  chapters: [3] },
-  { sectionName: 'Mandate 4',  sectionNum: 4,  chapters: [4,5,6,7] },
-  { sectionName: 'Mandate 5',  sectionNum: 5,  chapters: [8] },
-  { sectionName: 'Mandate 6',  sectionNum: 6,  chapters: [10,11] },
-  { sectionName: 'Mandate 7',  sectionNum: 7,  chapters: [12,13] },
-  { sectionName: 'Mandate 8',  sectionNum: 8,  chapters: [14] },
-  { sectionName: 'Mandate 9',  sectionNum: 9,  chapters: [15] },
-  { sectionName: 'Mandate 10', sectionNum: 10, chapters: [16,17,18] },
+  { sectionName: 'Mandate 3',  sectionNum: 3,  chapters: [3,4] },
+  { sectionName: 'Mandate 4',  sectionNum: 4,  chapters: [5,6,7,8] },
+  { sectionName: 'Mandate 5',  sectionNum: 5,  chapters: [10,11] },
+  { sectionName: 'Mandate 6',  sectionNum: 6,  chapters: [12,13] },
+  { sectionName: 'Mandate 7',  sectionNum: 7,  chapters: [14] },
+  { sectionName: 'Mandate 8',  sectionNum: 8,  chapters: [15] },
+  { sectionName: 'Mandate 9',  sectionNum: 9,  chapters: [16] },
+  { sectionName: 'Mandate 10', sectionNum: 10, chapters: [17,18] },
   { sectionName: 'Mandate 11', sectionNum: 11, chapters: [19] },
   { sectionName: 'Mandate 12', sectionNum: 12, chapters: [20,21,22,23,24,25] },
 ]

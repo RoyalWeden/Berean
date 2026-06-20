@@ -71,14 +71,17 @@ export interface BandInputs {
   mainScrollHeight: number
   mainClientHeight: number
   mainScrollTop: number
+  /** When the main panel can't scroll (content fits), the virtual scroll percent driving the
+   *  presenter via the wheel. Overrides the scrollTop-derived percent. */
+  scrollPercentOverride?: number
 }
 
 /** Compute the outline band {top,height} in main-content px, or null if not drawable. */
 export function computePresenterBand(inp: BandInputs): { top: number; height: number } | null {
-  const { visibleFraction: f, verseFracs, mainTops, mainScrollHeight: mainH, mainClientHeight, mainScrollTop } = inp
+  const { visibleFraction: f, verseFracs, mainTops, mainScrollHeight: mainH, mainClientHeight, mainScrollTop, scrollPercentOverride } = inp
   if (!(f > 0) || mainH <= 0) return null
   const denom = mainH - mainClientHeight
-  const p = denom > 0 ? mainScrollTop / denom : 0
+  const p = scrollPercentOverride !== undefined ? scrollPercentOverride : (denom > 0 ? mainScrollTop / denom : 0)
   const topFrac = p * (1 - f)
   const botFrac = Math.min(1, topFrac + f)
   const entries = sortVerseFracs(verseFracs)

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Cast, MousePointer2, Highlighter, PanelRight, RefreshCw, X, GripVertical, MonitorPlay, Minus } from 'lucide-react'
+import { Cast, MousePointer2, Highlighter, PanelRight, RefreshCw, X, GripVertical, MonitorPlay, Minus, Eye } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { pushCurrentToViewer } from '@/hooks/useViewerSync'
 import type { BibleTabState } from '@/types'
@@ -53,6 +53,8 @@ export default function PresenterControls() {
   const setSelectionMirror = useAppStore((s) => s.setViewerSelectionMirror)
   const sidePanelEnabled = useAppStore((s) => s.viewerSidePanelEnabled)
   const setSidePanelEnabled = useAppStore((s) => s.setViewerSidePanelEnabled)
+  const blank = useAppStore((s) => s.viewerBlank)
+  const setBlank = useAppStore((s) => s.setViewerBlank)
 
   const [collapsed, setCollapsed] = useState(false)
   // Position: default bottom-right; switches to absolute coords once dragged.
@@ -73,6 +75,7 @@ export default function PresenterControls() {
   if (!viewerWindowOpen) return null
 
   function startDrag(e: React.MouseEvent) {
+    e.preventDefault() // don't start a text selection while dragging
     const root = (e.currentTarget as HTMLElement).closest('[data-presenter-controls]') as HTMLElement
     const r = root.getBoundingClientRect()
     dragRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
@@ -98,6 +101,12 @@ export default function PresenterControls() {
     setSelectionMirror(next)
     if (!next) clearOverlay({ selection: null })
   }
+  function toggleBlank() {
+    const next = !blank
+    setBlank(next)
+    if (next) window.app.pushViewerContent?.({ kind: 'idle' })
+    else pushCurrentToViewer()
+  }
   // Closing the controls closes the presenter window.
   function closePresenter() {
     window.app.closeViewerWindow?.()
@@ -112,7 +121,7 @@ export default function PresenterControls() {
         onMouseDown={startDrag}
         onClick={() => setCollapsed(false)}
         className="fixed z-[9998] flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur cursor-pointer"
-        style={pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }}
+        style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
         title="Expand presenter controls"
       >
         <MonitorPlay size={14} className="text-[rgb(var(--color-accent))]" />
@@ -127,7 +136,7 @@ export default function PresenterControls() {
     <div
       data-presenter-controls
       className="fixed z-[9998] w-[224px] rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur"
-      style={pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }}
+      style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
     >
       {/* Header: drag handle + collapse + close */}
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-[rgb(var(--color-surface-3))]">
@@ -146,6 +155,7 @@ export default function PresenterControls() {
 
       {/* Toggles */}
       <div className="p-1.5 space-y-0.5">
+        <ToggleRow icon={<Eye size={15} />} label="Show output" on={!blank} onClick={toggleBlank} />
         <ToggleRow icon={<Cast size={15} />} label="Live sync" on={!viewerPaused} onClick={toggleSync} />
         <ToggleRow icon={<MousePointer2 size={15} />} label="Laser pointer" on={laserEnabled} onClick={toggleLaser} />
         <ToggleRow icon={<Highlighter size={15} />} label="Selection mirror" on={selectionMirror} onClick={toggleSelection} />
@@ -157,7 +167,7 @@ export default function PresenterControls() {
         <button
           onClick={() => pushCurrentToViewer()}
           className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
-          title="Re-sync the presenter to the current view"
+          title="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
         >
           <RefreshCw size={13} /> Re-sync now
         </button>

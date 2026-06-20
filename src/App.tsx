@@ -417,6 +417,7 @@ export default function App() {
       if (typeof all.autoCloseTabsAfter === 'number') s.setAutoCloseTabsAfter(all.autoCloseTabsAfter)
       if (typeof all.wordReplacerEnabled === 'boolean') s.setWordReplacerEnabled(all.wordReplacerEnabled)
       if (typeof all.noteScriptureBlock === 'boolean') s.setNoteScriptureBlock(all.noteScriptureBlock)
+      if (typeof all.sidePanelScriptureBlock === 'boolean') s.setSidePanelScriptureBlock(all.sidePanelScriptureBlock)
       if (typeof all.noteScriptureBlockThreshold === 'number') s.setNoteScriptureBlockThreshold(all.noteScriptureBlockThreshold)
       if (typeof all.autoEmDash === 'boolean') s.setAutoEmDash(all.autoEmDash)
     }).catch(() => {})
@@ -454,6 +455,7 @@ export default function App() {
         state.autoCloseTabsAfter !== prev.autoCloseTabsAfter ||
         state.wordReplacerEnabled !== prev.wordReplacerEnabled ||
         state.noteScriptureBlock !== prev.noteScriptureBlock ||
+        state.sidePanelScriptureBlock !== prev.sidePanelScriptureBlock ||
         state.noteScriptureBlockThreshold !== prev.noteScriptureBlockThreshold ||
         state.autoEmDash !== prev.autoEmDash
       if (!changed) return
@@ -476,6 +478,7 @@ export default function App() {
           ['autoCloseTabsAfter', s.autoCloseTabsAfter],
           ['wordReplacerEnabled', s.wordReplacerEnabled],
           ['noteScriptureBlock', s.noteScriptureBlock],
+          ['sidePanelScriptureBlock', s.sidePanelScriptureBlock],
           ['noteScriptureBlockThreshold', s.noteScriptureBlockThreshold],
           ['autoEmDash', s.autoEmDash],
         ]

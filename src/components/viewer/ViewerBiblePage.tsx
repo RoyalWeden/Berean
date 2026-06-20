@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
-import { bookName } from '@/lib/parseRef'
+import { bookChapterLabel } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { laserToPoint } from '@/lib/presenterOverlay'
@@ -19,7 +19,7 @@ const WORD_HIGHLIGHT_BG: Record<string, string> = {
 }
 const COLOR_IDS = Object.keys(WORD_HIGHLIGHT_BG)
 
-interface DBHighlight {
+export interface DBHighlight {
   id: string
   color: string
   startWord: number | null
@@ -42,11 +42,11 @@ interface SelectionState { x: number; y: number; verseNum: number; startChar: nu
  */
 const SELECTION_BG = 'rgba(120,170,255,0.55)' // mirrors the user's text selection
 
-function renderVerseText(
+export function renderVerseText(
   originalText: string,
   tokens: DisplayToken[],
   dbHls: DBHighlight[],
-  viewerHls: ViewerHighlight[],
+  viewerHls: ViewerHighlight[] = [],
   selRanges: { startChar: number; endChar: number }[] = []
 ): React.ReactNode {
   const displayText = tokens.map(t => t.word).join(' ')
@@ -360,7 +360,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         className="text-center select-none mb-8"
         style={{ fontSize: Math.round(baseFontSize * 0.75), color: muteColor, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500 }}
       >
-        {bookName(bookId)} {chapter}{textId === 'lxx' ? ' LXX' : ''}
+        {bookChapterLabel(bookId, chapter)}{textId === 'lxx' ? ' LXX' : ''}
       </div>
 
       <div style={{ fontSize: baseFontSize, lineHeight: 1.9, color: textColor }}>

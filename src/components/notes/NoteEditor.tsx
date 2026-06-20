@@ -91,6 +91,8 @@ interface NoteEditorProps {
    *  in the scripture side panel. */
   importSource?: 'biblegateway' | 'esword'
   importedAt?: number   // Unix ms timestamp (note.createdAt)
+  /** Marks this as the scripture-tab side-panel editor → uses sidePanelScriptureBlock. */
+  isSidePanel?: boolean
 }
 
 /** Injects <mark class="berean-find-mark"> wrappers around every text-node
@@ -1309,6 +1311,8 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
   const headingDivider = storeSnapshot.noteHeadingDivider
   const noteVerseRefsEnabled = storeSnapshot.noteVerseRefsEnabled
   const noteLexiconRefsEnabled = storeSnapshot.noteLexiconRefsEnabled
+  // Verse-block STYLING (formatting blocks already present in the text) always follows the
+  // global setting — the side-panel toggle only governs the auto-suggestion popups.
   const noteScriptureBlock = storeSnapshot.noteScriptureBlock
 
   syntaxTree(state).iterate({
@@ -1846,7 +1850,7 @@ const liveMarkdownPlugin = ViewPlugin.fromClass(
       const hasSpecialEffect = u.transactions.some(tr =>
         tr.effects.some(e => e.is(refreshDecorationsEffect) || e.is(setSuppressedEffect) || e.is(wysiwygEffect))
       )
-      if (u.docChanged || u.selectionSet || u.viewportChanged || u.focusChanged || hasSpecialEffect)
+      if (u.docChanged || u.selectionSet || u.viewportChanged || u.geometryChanged || u.focusChanged || hasSpecialEffect)
         this.decorations = buildLiveDecorations(u.view)
     }
   },
@@ -2196,8 +2200,8 @@ function buildTableBlockDecos(state: EditorState): DecorationSet {
 const tableBlockField = StateField.define<DecorationSet>({
   create(state) { return buildTableBlockDecos(state) },
   update(decos, tr) {
-    const wysiwygToggled = tr.effects.some(e => e.is(wysiwygEffect))
-    if (tr.docChanged || wysiwygToggled || !tr.startState.selection.eq(tr.state.selection))
+    const special = tr.effects.some(e => e.is(wysiwygEffect) || e.is(refreshDecorationsEffect))
+    if (tr.docChanged || special || !tr.startState.selection.eq(tr.state.selection))
       return buildTableBlockDecos(tr.state)
     return decos
   },
@@ -2267,7 +2271,8 @@ function buildCalloutBlockDecos(state: EditorState): DecorationSet {
 const calloutBlockField = StateField.define<DecorationSet>({
   create(state) { return buildCalloutBlockDecos(state) },
   update(decos, tr) {
-    if (tr.docChanged || !tr.startState.selection.eq(tr.state.selection)) return buildCalloutBlockDecos(tr.state)
+    const refresh = tr.effects.some(e => e.is(refreshDecorationsEffect))
+    if (refresh || tr.docChanged || !tr.startState.selection.eq(tr.state.selection)) return buildCalloutBlockDecos(tr.state)
     return decos
   },
   provide: f => EditorView.decorations.from(f),
@@ -2861,7 +2866,7 @@ ${body}
 </html>`
 }
 
-export default function NoteEditor({ content, onChange, placeholder, onFocusRef, onCommandsRef, onScrollRef, onScrollPosition, onCursorPosition, initialScrollTop, initialCursorPos, autoFocus, previewMode, wysiwyg, notes, onWikilinkClick, onVerseRefClick, noteId, noteTitle, findQuery = '', importSource, importedAt }: NoteEditorProps) {
+export default function NoteEditor({ content, onChange, placeholder, onFocusRef, onCommandsRef, onScrollRef, onScrollPosition, onCursorPosition, initialScrollTop, initialCursorPos, autoFocus, previewMode, wysiwyg, notes, onWikilinkClick, onVerseRefClick, noteId, noteTitle, findQuery = '', importSource, importedAt, isSidePanel }: NoteEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const findHighlightCompartment = useRef(new Compartment())
@@ -2893,8 +2898,11 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [strongsSuggest, setStrongsSuggest] = useState<{ num: string; from: number; to: number; x: number; y: number } | null>(null)
   // Verse block suggestion popup — appears when user types a complete verse reference
   const [verseSuggest, setVerseSuggest] = useState<{ ref: string; from: number; to: number; x: number; y: number } | null>(null)
-  const noteStrongsBlockSuggest = useAppStore((s) => s.noteStrongsBlockSuggest)
-  const noteVerseBlockSuggest = useAppStore((s) => s.noteVerseBlockSuggest)
+  const sidePanelScriptureBlock = useAppStore((s) => s.sidePanelScriptureBlock)
+  // In the side panel, the single sidePanelScriptureBlock toggle governs both block
+  // suggestions; elsewhere the two global suggestion settings apply.
+  const noteStrongsBlockSuggest = useAppStore((s) => isSidePanel ? s.sidePanelScriptureBlock : s.noteStrongsBlockSuggest)
+  const noteVerseBlockSuggest = useAppStore((s) => isSidePanel ? s.sidePanelScriptureBlock : s.noteVerseBlockSuggest)
   // Opening the floating search / command bar / settings counts as dismissing the
   // pending verse/Strong's block suggestion (the user moved on without acting on it).
   const searchOpen = useAppStore((s) => s.searchOpen)
@@ -3098,9 +3106,10 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   }, [selToolbar])
 
   // Re-decorate when note display settings change so the live plugin picks up new values
+  const noteScriptureBlockSetting = useAppStore((s) => s.noteScriptureBlock)
   useEffect(() => {
     viewRef.current?.dispatch({ effects: refreshDecorationsEffect.of(null) })
-  }, [noteVerseRefsEnabled, noteLexiconRefsEnabled, noteHeadingDividerProp])
+  }, [noteVerseRefsEnabled, noteLexiconRefsEnabled, noteHeadingDividerProp, noteScriptureBlockSetting, sidePanelScriptureBlock])
 
   // Reset heading/list mode when toolbar closes
   useEffect(() => { if (!selToolbar) { setHeadingMode(false); setListMode(false) } }, [selToolbar])
@@ -3426,7 +3435,15 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
     const scrollListener = () => { onScrollPositionRef.current?.(view.scrollDOM.scrollTop) }
     view.scrollDOM.addEventListener('scroll', scrollListener, { passive: true })
 
+    // Decorations built in the plugin/field constructors run before the editor is laid out and
+    // the document is fully parsed, so block formatting (callouts, verse blocks, etc.) wouldn't
+    // appear until the first click/keystroke. Force one rebuild after layout settles.
+    const refreshRaf = requestAnimationFrame(() => {
+      if (viewRef.current === view) view.dispatch({ effects: refreshDecorationsEffect.of(null) })
+    })
+
     return () => {
+      cancelAnimationFrame(refreshRaf)
       view.scrollDOM.removeEventListener('scroll', scrollListener)
       view.destroy()
       viewRef.current = null

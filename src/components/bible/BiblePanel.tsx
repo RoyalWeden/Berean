@@ -69,6 +69,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // While a find-bar jump is in flight, suppress proportional scroll sync so the explicit
   // "center this verse" command drives the presenter cleanly (no tug-of-war).
   const findScrollSuppressRef = useRef(0)
+  // Virtual scroll percent for driving the presenter via the wheel when the main panel's
+  // content fits entirely (so there's no real scroll to mirror).
+  const virtualScrollPctRef = useRef(0)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -182,6 +185,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
     // chapter's position to a freshly-loaded chapter before the new scroll fires.
     setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
+    virtualScrollPctRef.current = 0
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
     if (savedPos === 0) return
@@ -210,8 +214,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     window.app.onViewerVisibleRegion((region) => {
-      // Reports arrive only on the presenter's load/zoom/resize, so just take the latest.
-      setViewerVisibleRegion(region as ViewerVisibleRegion)
+      const r = region as ViewerVisibleRegion
+      // Compare-view columns carry a colIndex — route those to CompareView via an event.
+      if (r.colIndex !== undefined) { window.dispatchEvent(new CustomEvent('berean:compareRegion', { detail: r })); return }
+      setViewerVisibleRegion(r)
     })
   }, [floating])
 
@@ -236,6 +242,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (Number.isFinite(n)) tops[n] = elx.getBoundingClientRect().top - cTop + c.scrollTop
     }
 
+    const fits = c.scrollHeight - c.clientHeight <= 0
     setPresenterBand(computeBandGeometry({
       visibleFraction: f,
       verseFracs: region.verseFracs,
@@ -243,16 +250,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       mainScrollHeight: c.scrollHeight,
       mainClientHeight: c.clientHeight,
       mainScrollTop: c.scrollTop,
+      scrollPercentOverride: fits ? virtualScrollPctRef.current : undefined,
     }))
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter])
 
-  // Recompute on fraction/chapter/layout change (rAF so verses are laid out first).
+  // Recompute on fraction/chapter/layout change, and when live-sync resumes (viewerPaused →
+  // false) so the outline reappears after pausing + switching tabs.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       if (!useAppStore.getState().viewerPaused) computePresenterBand()
     })
     return () => cancelAnimationFrame(raf)
-  }, [computePresenterBand, tabState.showStrongs, tabState.hiddenAnnotations])
+  }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations])
 
   // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
   // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
@@ -649,11 +658,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   function makeTitle(bookId: string, chapter: number, endChapter?: number) {
     const book = books.find((b) => b.id === bookId)
+    // An individual psalm is singular ("Psalm 23"), even though the book is "Psalms".
+    const singular = (n: number) => bookId === 'PSA' ? `Psalm ${n}` : (book ? `${book.name} ${n}` : `${bookId} ${n}`)
     return endChapter
-      ? (book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
+      ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
       : isHermasBook(bookId)
         ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
-        : (book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`)
+        : singular(chapter)
   }
 
   function navigate(bookId: string, chapter: number, endChapter?: number) {
@@ -1438,6 +1449,22 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <div
         ref={chapterViewRef}
         className="flex-1 overflow-y-auto relative"
+        onWheel={(e) => {
+          // When the chapter fits entirely (nothing to scroll), the wheel can't move the main
+          // panel — so translate it into a virtual scroll that drives the presenter, which may
+          // be zoomed in and unable to show everything at once.
+          const c = chapterViewRef.current
+          if (!c || c.scrollHeight - c.clientHeight > 0) return
+          const st = useAppStore.getState()
+          if (!st.viewerWindowOpen || st.viewerPaused || st.viewerBlank) return
+          const next = Math.max(0, Math.min(1, virtualScrollPctRef.current + e.deltaY * 0.0012))
+          if (next === virtualScrollPctRef.current) return
+          virtualScrollPctRef.current = next
+          setMainBibleScrollPercent(next, `${tabState.bookId}:${tabState.chapter}`)
+          const base = computeViewerPayload()
+          if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: next })
+          computePresenterBand()
+        }}
         onMouseMove={(e) => {
           if (!canPushOverlay() || !useAppStore.getState().viewerLaserEnabled) return
           const c = chapterViewRef.current

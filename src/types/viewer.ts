@@ -16,6 +16,13 @@ export type ViewerPayload =
       /** 0–1 proportional scroll position of the side panel */
       sidePanelScrollPercent?: number
     }
-  | { kind: 'note'; noteId: string }
+  | { kind: 'note'; noteId: string; scrollPercent?: number }
   | { kind: 'lexicon'; strongsId: string }
+  | {
+      kind: 'compare'
+      columns: { textId: string; bookId: string; chapter: number }[]
+      /** 0–1 proportional scroll position per column (index-aligned with `columns`), so each
+       *  presenter column mirrors only the main column that was actually scrolled. */
+      scrollPercents?: number[]
+    }
   | { kind: 'idle' }

@@ -218,6 +218,13 @@ export function getTranslationForBook(bookId: string): string | null {
   return BOOK_TRANSLATION[bookId] ?? null
 }
 
+/** Label for a specific book+chapter. The book of Psalms is plural, but an individual
+ *  chapter is a single "Psalm", so show "Psalm 23" rather than "Psalms 23". */
+export function bookChapterLabel(bookId: string, chapter: number): string {
+  if (bookId === 'PSA') return `Psalm ${chapter}`
+  return `${bookName(bookId)} ${chapter}`
+}
+
 const _DEDICATED_TRANSLATION_IDS = new Set(Object.values(BOOK_TRANSLATION))
 /** Returns true when textId is a non-canonical dedicated translation (e.g. 'asc_isaiah', 'enoch').
  *  Use to detect when navigating to a canonical book requires a translation switch. */

@@ -186,6 +186,10 @@ export interface AppState {
   // Auto-format pasted verse blocks into styled blockquotes
   noteScriptureBlock: boolean
   setNoteScriptureBlock: (v: boolean) => void
+  // Same auto verse/Strong's block formatting, but for the scripture tab's SIDE-PANEL note
+  // editor — kept separate so it can be turned off there independently of the main notes.
+  sidePanelScriptureBlock: boolean
+  setSidePanelScriptureBlock: (v: boolean) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -261,6 +265,8 @@ export interface AppState {
   setViewerSelectionMirror: (v: boolean) => void
   viewerSidePanelEnabled: boolean
   setViewerSidePanelEnabled: (v: boolean) => void
+  viewerBlank: boolean            // when true the presenter shows the idle "awaiting" screen
+  setViewerBlank: (v: boolean) => void
   viewerFontScale: number
   setViewerFontScale: (v: number) => void
   viewerTheme: 'system' | 'light' | 'dark'
@@ -821,6 +827,7 @@ export const useAppStore = create<AppState>()(
       noteVerseRefsEnabled: true,
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
+      sidePanelScriptureBlock: true,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -851,6 +858,7 @@ export const useAppStore = create<AppState>()(
       viewerLaserEnabled: true,
       viewerSelectionMirror: true,
       viewerSidePanelEnabled: true,
+      viewerBlank: false,
       viewerFontScale: 1.5,
       viewerTheme: 'system' as const,
       showVerseNumbers: true,
@@ -1404,6 +1412,7 @@ export const useAppStore = create<AppState>()(
       setNoteVerseRefsEnabled: (v) => set({ noteVerseRefsEnabled: v }),
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
+      setSidePanelScriptureBlock: (v) => set({ sidePanelScriptureBlock: v }),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),
@@ -1482,7 +1491,8 @@ export const useAppStore = create<AppState>()(
       setIdiomHighlightEnabled: (v) => set({ idiomHighlightEnabled: v }),
       setIdiomHoverPreviewEnabled: (v) => set({ idiomHoverPreviewEnabled: v }),
       setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => set({ idiomCache: v }),
-      setViewerWindowOpen: (v) => set(v ? { viewerWindowOpen: true } : { viewerWindowOpen: false, viewerPaused: false }),
+      setViewerWindowOpen: (v) => set(v ? { viewerWindowOpen: true } : { viewerWindowOpen: false, viewerPaused: false, viewerBlank: false }),
+      setViewerBlank: (v) => set({ viewerBlank: v }),
       setViewerPaused: (v) => set({ viewerPaused: v }),
       setViewerLaserEnabled: (v) => set({ viewerLaserEnabled: v }),
       setViewerSelectionMirror: (v) => set({ viewerSelectionMirror: v }),

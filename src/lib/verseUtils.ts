@@ -19,6 +19,9 @@ function parseTaggedForText(tagged: string): SimpleToken[] {
     if (!part) continue
     const wasSupWrapped = /^\/sup>|^sup>/i.test(part)
     part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
+    part = part.replace(/^\/blu>/i, '').replace(/^blu>/i, '')
+    // <b>/</b> bold wrappers (seen in some Psalms) lost their '<' — strip the fragments.
+    part = part.replace(/<?\/?b>/gi, '')
     if (!part) continue
 
     // Parenthetical Strong's particle: ~{H853}

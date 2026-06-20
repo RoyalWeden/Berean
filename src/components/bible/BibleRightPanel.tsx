@@ -1450,7 +1450,9 @@ export default function BibleRightPanel({
   return (
     <div
       className="flex flex-col h-full"
-      onScroll={(e) => {
+      // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
+      // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
+      onScrollCapture={(e) => {
         const el = e.target as HTMLElement
         const max = el.scrollHeight - el.clientHeight
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
@@ -1524,6 +1526,7 @@ export default function BibleRightPanel({
               // on tab-return would reveal the cursor line's raw markers. The side panel
               // stays editable (no previewMode) since it's a quick-edit surface.
               wysiwyg={defaultNoteEditorMode !== 'raw'}
+              isSidePanel
             />
           </div>
         </div>

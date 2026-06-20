@@ -213,6 +213,8 @@ export interface ViewerVisibleRegion {
    *  OWN verse positions — accurate across different window sizes / zoom / text wrapping.
    *  Sent only on the presenter's load/zoom/resize (not per scroll frame). */
   verseFracs: Record<number, number>
+  /** Present only for compare-view columns — which column reported this region. */
+  colIndex?: number
 }
 
 /** Ephemeral overlays mirrored to the presenter: the user's text selection and a laser

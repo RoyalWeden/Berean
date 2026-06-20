@@ -122,6 +122,18 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.2] - 2026-06-19
+
+- Compare panels in presenter view
+
+Bug Fixes:
+- Updated Shepherd of Hermas mapping
+- Notes formatting fixes
+- Presenter view fixes
+- Scripture fixes
+
+---
+
 ## [0.4.1] - 2026-06-18
 
 - Presenter view (laser, select, etc)
