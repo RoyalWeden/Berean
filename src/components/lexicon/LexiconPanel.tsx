@@ -543,7 +543,7 @@ function EntryView({
             <div className="flex items-center gap-3">
               {occurrences.length > 0 && (
                 <button
-                  onClick={() => useAppStore.getState().openScriptureSearch(entry.strongsNum)}
+                  onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
                   title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
                   className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
                 >
