@@ -204,13 +204,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // Run the search on mount if there is an initial/restored query
   useEffect(() => {
     const q = persistedState?.query ?? initialQuery ?? ''
-    if (q.trim().length >= 2) {
-      if (parseRef(q.trim())) {
-        runCrossRefSearch(q)
-      } else {
-        runSearch(q, textId)
-      }
-    }
+    if (q.trim().length >= 2) runForMode(q)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -316,17 +310,22 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     finally { setLoading(false) }
   }, [])
 
+  // Dispatch a query to the right search based on its detected mode. Used by every
+  // entry point (typing, Enter, mount/restore) so Strong's queries never fall through
+  // to the keyword search.
+  function runForMode(q: string) {
+    const mode = effectiveMode(q)
+    if (mode === 'crossref') runCrossRefSearch(q)
+    else if (mode === 'strongs') runStrongsSearch(q)
+    else runSearch(q, textId)
+  }
+
   function handleInput(val: string) {
     setQuery(val)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const mode = effectiveMode(val)
-    if (mode === 'crossref') {
-      debounceRef.current = setTimeout(() => runCrossRefSearch(val), 350)
-    } else if (mode === 'strongs') {
-      debounceRef.current = setTimeout(() => runStrongsSearch(val), 250)
-    } else {
-      debounceRef.current = setTimeout(() => runSearch(val, textId), 350)
-    }
+    const delay = mode === 'strongs' ? 250 : 350
+    debounceRef.current = setTimeout(() => runForMode(val), delay)
   }
 
   function selectTranslation(tid: string) {
@@ -420,7 +419,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') onClose()
-    if (e.key === 'Enter') runSearch(query, textId)
+    if (e.key === 'Enter') runForMode(query)
   }
 
   return (
