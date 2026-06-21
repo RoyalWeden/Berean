@@ -540,14 +540,26 @@ function EntryView({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </p>
-            {occurrences.length > 10 && (
-              <button
-                onClick={() => setShowAllOccurrences((v) => !v)}
-                className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-              >
-                {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {occurrences.length > 0 && (
+                <button
+                  onClick={() => useAppStore.getState().openScriptureSearch(entry.strongsNum)}
+                  title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
+                  className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                >
+                  <ScanSearch size={11} />
+                  Open all in a tab
+                </button>
+              )}
+              {occurrences.length > 10 && (
+                <button
+                  onClick={() => setShowAllOccurrences((v) => !v)}
+                  className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                >
+                  {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
+                </button>
+              )}
+            </div>
           </div>
           {occurrencesLoading && (
             <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-2">Loading…</p>

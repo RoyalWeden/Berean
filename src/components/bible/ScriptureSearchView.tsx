@@ -7,6 +7,23 @@ import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight } from '@/lib/strongsSearch'
+
+/** Render a verse with its Strong's-tagged words highlighted (by word index). */
+function highlightStrongs(text: string, matchWordIndices: number[]): React.ReactNode {
+  return (
+    <>
+      {splitStrongsHighlight(text, matchWordIndices).map((seg, i) => (
+        <span key={i}>
+          {seg.match
+            ? <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm font-semibold">{seg.text}</mark>
+            : seg.text}
+          {i < text.split(' ').length - 1 ? ' ' : ''}
+        </span>
+      ))}
+    </>
+  )
+}
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
@@ -119,6 +136,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
   const [results, setResults] = useState<RawResult[]>([])
+  // Strong's-search highlight indices, keyed by "bookId:chapter:verse".
+  const [strongsMatches, setStrongsMatches] = useState<Record<string, number[]>>({})
   const [crossRefs, setCrossRefs] = useState<CrossRef[]>([])
   const [crossRefsLoading, setCrossRefsLoading] = useState(false)
   const [versePreview, setVersePreview] = useState<{ ref: string; text: string } | null>(null)
@@ -270,11 +289,32 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     finally { setCrossRefsLoading(false) }
   }, [])
 
-  function effectiveMode(q: string): 'text' | 'crossref' {
-    if (searchMode === 'text') return 'text'
+  function effectiveMode(q: string): 'text' | 'crossref' | 'strongs' {
     if (searchMode === 'crossref') return 'crossref'
+    if (isStrongsQuery(q)) return 'strongs'                 // "g5485" / "h1319"
+    if (searchMode === 'text') return 'text'
     return parseRef(q.trim()) ? 'crossref' : 'text'
   }
+
+  // Strong's-number search: find every verse whose tagged text carries the number, and
+  // remember which words to highlight. Powered by the same lexicon occurrence data as the
+  // side panel, so "open all occurrences" lands here.
+  const runStrongsSearch = useCallback(async (q: string) => {
+    const num = parseStrongsQuery(q)
+    if (!num) { setResults([]); setStrongsMatches({}); return }
+    setLoading(true)
+    try {
+      const occ = await window.lexicon.getOccurrences(num)
+      const matches: Record<string, number[]> = {}
+      const rows: RawResult[] = occ.map((o) => {
+        matches[`${o.book_id}:${o.chapter}:${o.verse_num}`] = o.matchWordIndices ?? []
+        return { book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' }
+      })
+      setStrongsMatches(matches)
+      setResults(rows)
+    } catch { setResults([]); setStrongsMatches({}) }
+    finally { setLoading(false) }
+  }, [])
 
   function handleInput(val: string) {
     setQuery(val)
@@ -282,6 +322,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const mode = effectiveMode(val)
     if (mode === 'crossref') {
       debounceRef.current = setTimeout(() => runCrossRefSearch(val), 350)
+    } else if (mode === 'strongs') {
+      debounceRef.current = setTimeout(() => runStrongsSearch(val), 250)
     } else {
       debounceRef.current = setTimeout(() => runSearch(val, textId), 350)
     }
@@ -407,7 +449,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         />
 
         {/* Translation selector — hidden in crossref mode */}
-        {effectiveMode(query) !== 'crossref' && <div ref={translationRef} className="relative flex-shrink-0">
+        {effectiveMode(query) === 'text' && <div ref={translationRef} className="relative flex-shrink-0">
           <button
             onClick={() => setTranslationOpen((v) => !v)}
             className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -463,7 +505,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       </div>
 
       {/* Row 2: Word match mode (All / Any / Phrase) — only shown for text search */}
-      {effectiveMode(query) !== 'crossref' && (
+      {effectiveMode(query) === 'text' && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
           <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5 flex-shrink-0">Match</span>
           {(['all', 'any', 'phrase'] as WordMode[]).map((m) => (
@@ -593,22 +635,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           </div>
         )}
 
-        {/* Text search results */}
-        {effectiveMode(query) === 'text' && loading && (
+        {/* Text + Strong's search results */}
+        {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && loading && (
           <div className="px-4 py-6 text-center text-sm text-[rgb(var(--color-text-muted))] animate-pulse">Searching…</div>
         )}
 
-        {effectiveMode(query) === 'text' && !loading && query.trim().length >= 2 && results.length === 0 && (
+        {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && query.trim().length >= 2 && results.length === 0 && (
           <div className="px-4 py-12 text-center">
             <p className="text-sm text-[rgb(var(--color-text-secondary))]">No results for "{query}"</p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">Try a different phrase or text</p>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">{effectiveMode(query) === 'strongs' ? 'No verses carry this Strong’s number' : 'Try a different phrase or text'}</p>
           </div>
         )}
 
-        {effectiveMode(query) === 'text' && !loading && filteredGroups.length > 0 && (
+        {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && filteredGroups.length > 0 && (
           <div>
             <p className="px-4 py-1.5 text-[10px] text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] sticky top-0 z-10">
               {totalCount} result{totalCount !== 1 ? 's' : ''}
+              {effectiveMode(query) === 'strongs' && ` for ${parseStrongsQuery(query)}`}
               {testamentFilter !== 'all' && ` in ${testamentFilter}`}
               {bookFilter !== 'all' && ` in ${selectedBookLabel}`}
               {' '}— click to navigate
@@ -634,13 +677,15 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       {r.chapter}:{r.verse_num}
                     </span>
                     <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] leading-relaxed">
-                      {highlight(
-                        wordReplacerEnabled && wordReplacerRules.length > 0
-                          ? applyWordReplacer(r.text, wordReplacerRules)
-                          : r.text,
-                        query,
-                        wordMode
-                      )}
+                      {effectiveMode(query) === 'strongs'
+                        ? highlightStrongs(r.text, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [])
+                        : highlight(
+                            wordReplacerEnabled && wordReplacerRules.length > 0
+                              ? applyWordReplacer(r.text, wordReplacerRules)
+                              : r.text,
+                            query,
+                            wordMode
+                          )}
                     </span>
                     <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
@@ -650,11 +695,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           </div>
         )}
 
-        {effectiveMode(query) === 'text' && !loading && !query.trim() && (
+        {(effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && !loading && !query.trim() && (
           <div className="flex flex-col items-center justify-center flex-1 px-6 py-16 text-center min-h-[200px]">
             <Search size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
             <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">Search across all scripture texts</p>
-            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Filter by text, book, and section · Esc to return to reader</p>
+            <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader</p>
           </div>
         )}
       </div>

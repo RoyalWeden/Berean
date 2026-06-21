@@ -137,6 +137,9 @@ export interface AppState {
   // Search tab
   pendingSearchQuery: string | null
   openSearchTab: (query: string) => void
+  /** Open the advanced scripture search (in a scripture tab) seeded with a query —
+   *  e.g. a Strong's number, to list every occurrence in one place. */
+  openScriptureSearch: (query: string) => void
   clearSearchQuery: () => void
 
   // Find bar (Cmd+F / type-anywhere in-panel search)
@@ -1329,6 +1332,15 @@ export const useAppStore = create<AppState>()(
       clearRightPanelVerseFilter: () => set({ pendingRightPanelVerseFilter: null }),
       clearRightPanelCrossRef: () => set({ pendingRightPanelCrossRefVerse: null }),
       bumpHighlightToken: () => set((s) => ({ highlightChangeToken: s.highlightChangeToken + 1 })),
+      openScriptureSearch: (query) => {
+        get().ensureTab('bible')
+        const fresh = get()
+        const tabId = fresh.activeTabId['scripture']
+        if (tabId) {
+          fresh.updateTabState('scripture', tabId, { searchMode: true, scriptureSearchQuery: query, searchBack: null })
+        }
+        set({ activeSpace: 'scripture' })
+      },
       openSearchTab: (query) => {
         get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         if (get().tabs['search'].length === 0) get().createTab('search')
