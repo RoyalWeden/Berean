@@ -1289,6 +1289,25 @@ class TaskCheckboxWidget extends WidgetType {
   }
 }
 
+/**
+ * Find bold (`**…**`) spans in a line of text for the live-render fast path.
+ * Exported for testing.
+ *
+ * The content allows single inner `*` (so nested italics like `**<u>*word*</u>**`
+ * match), but the opening and closing markers must be exactly `**` (not `***`).
+ * This prevents two bugs:
+ *   1. Pairing the closing `**` of one bold span with the opening `**` of the
+ *      next — which bolded the plain text in between (e.g. Hosea 6:4 notes).
+ *   2. Mis-handling `***bold italic***`, which is left to the syntax tree.
+ */
+export function findLiveBoldSpans(text: string): Array<{ start: number; end: number }> {
+  const re = /(?<!\*)\*\*(?!\*)((?:[^*\n]|\*(?!\*))+?)\*\*(?!\*)/g
+  const out: Array<{ start: number; end: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) out.push({ start: m.index, end: m.index + m[0].length })
+  return out
+}
+
 function buildLiveDecorations(view: EditorView): DecorationSet {
   const decos: DecoInfo[] = []
   const { from: vpFrom, to: vpTo } = view.viewport
@@ -1547,12 +1566,9 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
     // ── Regex-based bold rendering (flash prevention) ────────────────────────
     // Hide ** marks and apply bold class so **text** shows as bold immediately
     // without waiting for the StrongEmphasis syntax node to be parsed.
-    const boldRegex = /\*\*([^*\n]+?)\*\*/g
-    let bm: RegExpExecArray | null
-    boldRegex.lastIndex = 0
-    while ((bm = boldRegex.exec(text)) !== null) {
-      const absFrom = vpFrom + bm.index
-      const absTo   = absFrom + bm[0].length
+    for (const span of findLiveBoldSpans(text)) {
+      const absFrom = vpFrom + span.start
+      const absTo   = vpFrom + span.end
       if (absTo > vpTo) break
       const openEnd  = absFrom + 2
       const closeStart = absTo - 2
