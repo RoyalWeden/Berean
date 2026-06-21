@@ -66,6 +66,10 @@ interface Props {
   onConsumeInitialPanel?: () => void
   /** Called when removing a column would leave a single column — lets the host exit compare mode. */
   onCollapseToSingle?: (last: { bookId: string; chapter: number; textId: string }) => void
+  /** Columns saved in tab state — restored on mount so chapter navigation survives a tab switch. */
+  initialColumns?: Array<{ textId: string; bookId: string; chapter: number }>
+  /** Persist the current columns to tab state whenever they change. */
+  onColumnsChange?: (cols: Array<{ textId: string; bookId: string; chapter: number }>) => void
 }
 
 // ── Annotation info popover (read-only, per column) ───────────────────────────
@@ -159,7 +163,7 @@ function TranslationDropdown({ textId, onChange }: { textId: string; onChange: (
 
 // ── Main compare view ──────────────────────────────────────────────────────────
 
-export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle }: Props) {
+export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle, initialColumns, onColumnsChange }: Props) {
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
@@ -175,6 +179,13 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     }
   })
   const [columns, setColumns] = useState<ColState[]>(() => {
+    // Restored from tab state (returning to the tab after it was unmounted): rebuild the
+    // exact columns the user left, including any chapter navigation they did.
+    if (initialColumns && initialColumns.length > 0) {
+      return initialColumns.map((c, i) => ({
+        id: `col-${i}`, textId: c.textId, bookId: c.bookId, chapter: c.chapter, verses: [], loading: true,
+      }))
+    }
     // Entered via "Add panel": start with just the CURRENT view; the picked ref is appended
     // by the consume effect → current + picked = 2 columns.
     if (initialAddPanel) {
@@ -194,7 +205,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const fetchingRef = useRef<Set<string>>(new Set())
   const requestedBooksRef = useRef<Set<string>>(new Set())
-  const colIdCounter = useRef(2)
+  const colIdCounter = useRef(initialColumns && initialColumns.length > 0 ? initialColumns.length : 2)
 
   function ensureBooksFor(textId: string) {
     if (requestedBooksRef.current.has(textId)) return
@@ -219,6 +230,15 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   // Keep addColRef pointing at the latest addColumn
   const columnsRef = useRef(columns)
   columnsRef.current = columns
+
+  // Persist columns (text/book/chapter only) to tab state so chapter navigation, column
+  // adds/removes, and translation changes survive leaving and returning to the tab.
+  const persistKey = columns.map(c => `${c.textId}:${c.bookId}:${c.chapter}`).join('|')
+  const onColumnsChangeRef = useRef(onColumnsChange)
+  onColumnsChangeRef.current = onColumnsChange
+  useEffect(() => {
+    onColumnsChangeRef.current?.(columns.map(c => ({ textId: c.textId, bookId: c.bookId, chapter: c.chapter })))
+  }, [persistKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!addColRef) return

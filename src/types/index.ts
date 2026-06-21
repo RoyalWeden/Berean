@@ -31,6 +31,9 @@ export interface BibleTabState {
   showStrongs: boolean
   scrollPosition: number
   compareMode?: boolean
+  // Compare columns (text/book/chapter), persisted so chapter navigation survives
+  // leaving and returning to the tab (which unmounts the panel).
+  compareColumns?: Array<{ textId: string; bookId: string; chapter: number }>
   hiddenAnnotations?: string[]
   rightPanelOpen?: boolean
   rightPanelWidth?: number

@@ -779,7 +779,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       compareAddColRef.current?.(target)
     } else {
       pendingComparePanelRef.current = target
-      if (activeTab) updateTabState('scripture', activeTab.id, { compareMode: true })
+      if (activeTab) updateTabState('scripture', activeTab.id, { compareMode: true, compareColumns: undefined })
     }
   }
 
@@ -1252,7 +1252,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           onClick={() => {
             if (activeTab) {
               const turning = !tabState.compareMode
-              updateTabState('scripture', activeTab.id, { compareMode: turning })
+              // Clear any saved columns when entering fresh so a previous compare
+              // session's columns aren't restored over this one.
+              updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
               if (turning) {
                 useAppStore.getState().addHistoryEntry({
                   type: 'compare',
@@ -1441,9 +1443,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           if (!activeTab) return
           updateTabState('scripture', activeTab.id, {
             compareMode: false, bookId: last.bookId, chapter: last.chapter,
-            translation: last.textId.toUpperCase(),
+            translation: last.textId.toUpperCase(), compareColumns: undefined,
           })
         }}
+        initialColumns={tabState.compareColumns}
+        onColumnsChange={(cols) => { if (activeTab) updateTabState('scripture', activeTab.id, { compareColumns: cols }) }}
       />
     ) : (
       <div
@@ -1813,6 +1817,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onWordClick={handleWordClick}
                 books={books}
                 addColRef={compareAddColRef}
+                initialColumns={tabState.compareColumns}
+                onColumnsChange={(cols) => { if (activeTab) updateTabState('scripture', activeTab.id, { compareColumns: cols }) }}
               />
             </div>
             {vDivider}
