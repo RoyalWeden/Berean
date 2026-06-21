@@ -364,10 +364,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   // Filtered translation list (type-to-filter by label or description)
   const filteredTranslations = useMemo(() => {
+    // The Shepherd of Hermas ships in two editions sharing the HER_* books; while reading
+    // it, the translation picker offers exactly those two so the switch is obvious.
+    const base = isHermasBook(tabState.bookId)
+      ? TRANSLATIONS.filter((t) => t.id === 'hermas' || t.id === 'hermas_taylor')
+      : TRANSLATIONS
     const q = translationFilter.trim().toLowerCase()
-    if (!q) return TRANSLATIONS
-    return TRANSLATIONS.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
-  }, [translationFilter])
+    if (!q) return base
+    return base.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
+  }, [translationFilter, tabState.bookId])
 
   // Close info popover on outside click
   useEffect(() => {
@@ -1043,11 +1048,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                         if (e.key === 'Escape') { setTranslationOpen(false); setTranslationFilter('') }
                         if (e.key === 'Enter' && filteredTranslations.length > 0 && activeTab) {
                           const t = filteredTranslations[0]
-                          const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
-                          updateTabState('scripture', activeTab.id, {
-                            translation: t.id.toUpperCase(),
-                            ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
-                          })
+                          if (isHermasBook(tabState.bookId) && (t.id === 'hermas' || t.id === 'hermas_taylor')) {
+                            useAppStore.getState().setHermasTranslation(t.id)
+                          } else {
+                            const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
+                            updateTabState('scripture', activeTab.id, {
+                              translation: t.id.toUpperCase(),
+                              ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+                            })
+                          }
                           setTranslationOpen(false); setTranslationFilter('')
                         }
                       }}
@@ -1060,21 +1069,27 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       key={t.id}
                       onClick={() => {
                         if (activeTab) {
-                          const mappedChapter = mapChapterOnTranslationSwitch(
-                            tabState.bookId,
-                            tabState.chapter,
-                            textId,           // current translation
-                            t.id,             // new translation
-                          )
-                          updateTabState('scripture', activeTab.id, {
-                            translation: t.id.toUpperCase(),
-                            ...(mappedChapter !== tabState.chapter ? {
-                              chapter: mappedChapter,
-                              scrollPosition: 0,
-                              targetVerse: undefined,
-                              endVerse: undefined,
-                            } : {}),
-                          })
+                          if (isHermasBook(tabState.bookId) && (t.id === 'hermas' || t.id === 'hermas_taylor')) {
+                            // Switch the Shepherd of Hermas edition globally — persists and
+                            // live-updates open Hermas tabs (clamping the chapter to the target).
+                            useAppStore.getState().setHermasTranslation(t.id)
+                          } else {
+                            const mappedChapter = mapChapterOnTranslationSwitch(
+                              tabState.bookId,
+                              tabState.chapter,
+                              textId,           // current translation
+                              t.id,             // new translation
+                            )
+                            updateTabState('scripture', activeTab.id, {
+                              translation: t.id.toUpperCase(),
+                              ...(mappedChapter !== tabState.chapter ? {
+                                chapter: mappedChapter,
+                                scrollPosition: 0,
+                                targetVerse: undefined,
+                                endVerse: undefined,
+                              } : {}),
+                            })
+                          }
                         }
                         setTranslationOpen(false)
                       }}
