@@ -7,7 +7,8 @@ import ZoomControls from '@/components/shell/ZoomControls'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import PrintPreviewModal from './PrintPreviewModal'
-import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity } from '@/lib/idiomsExport'
+import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity, type IdiomsLayout } from '@/lib/idiomsExport'
+import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
@@ -191,6 +192,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     })
   }, [])
 
+  /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
+  function idiomExportEntries() {
+    const fmt = (r: NoteVerseRef): string => {
+      const name = bookName(r.bookId)
+      if (r.isChapter || r.verse === 0) return `${name} ${r.chapter}`
+      return `${name} ${r.chapter}:${r.verse}${r.endVerse ? `-${r.endVerse}` : ''}`
+    }
+    return notes.filter((n) => n.type === 'idiom').map((n) => {
+      const seen = new Set<string>()
+      const verses: string[] = []
+      for (const r of extractRefsFromNote(n.content || '', n.idiomTerm || n.title || '')) {
+        const f = fmt(r)
+        if (!seen.has(f)) { seen.add(f); verses.push(f) }
+      }
+      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, content: n.content, aliases: n.idiomAliases, verses }
+    })
+  }
+
   /** Idioms → single PDF export control (button + options popover). Rendered in the notes
    *  header so it's reachable from both list and folder view; only shown when idioms exist. */
   function renderIdiomsExport() {
@@ -209,11 +228,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             <div className="fixed inset-0 z-[9997]" onClick={() => setIdiomsExportOpen(false)} />
             <div className="absolute right-0 top-full mt-1 z-[9998] w-60 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Columns</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Include</p>
                 {([
-                  ['includeMeaning', 'Meaning'],
-                  ['includeAliases', 'Also known as'],
-                  ['includeNotes', 'Notes'],
+                  ['includeMeaning', 'Definition'],
+                  ['includeExamples', 'Examples (note body)'],
+                  ['includeAliases', 'Compare to (aliases)'],
+                  ['includeReferences', 'Scripture references'],
                 ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
                   <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
                     <input
@@ -224,6 +244,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     {label}
                   </label>
                 ))}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Layout</p>
+                <div className="flex gap-1">
+                  {([['two-column', 'Two columns'], ['single', 'Single']] as [IdiomsLayout, string][]).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, layout: val }))}
+                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.layout === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Organize</p>
@@ -255,15 +289,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </div>
               <button
                 onClick={() => {
-                  const html = buildIdiomsExportHtml(
-                    notes.filter((n) => n.type === 'idiom').map((n) => ({
-                      term: n.idiomTerm || n.title || '',
-                      meaning: n.idiomMeaning,
-                      aliases: n.idiomAliases,
-                      content: n.content,
-                    })),
-                    idiomsExportOpts,
-                  )
+                  const html = buildIdiomsExportHtml(idiomExportEntries(), idiomsExportOpts)
                   if (html) { setIdiomsExportContent(html); setIdiomsExportOpen(false) }
                 }}
                 className="px-2 py-1.5 rounded bg-[rgb(var(--color-accent))] text-white text-xs font-medium cursor-pointer hover:opacity-90"
