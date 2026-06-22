@@ -1,46 +1,68 @@
 import { describe, it, expect } from 'vitest'
-import {
-  buildIdiomsExportMarkdown, COMPACT_IDIOMS_OPTIONS, DETAILED_IDIOMS_OPTIONS,
-} from '../idiomsExport'
+import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions } from '../idiomsExport'
 
 const idioms = [
-  { term: 'gird up your loins', meaning: 'prepare for action', aliases: ['gird your loins'], content: 'See 1 Kings 18:46.' },
+  { term: 'gird up your loins', meaning: 'prepare for action', aliases: ['gird your loins'], content: 'See **1 Kings 18:46**.' },
   { term: 'apple of his eye', meaning: 'cherished', aliases: [], content: '' },
 ]
 
-describe('buildIdiomsExportMarkdown', () => {
+const opts = (o: Partial<IdiomsExportOptions> = {}): IdiomsExportOptions => ({ ...DEFAULT_IDIOMS_OPTIONS, ...o })
+
+describe('buildIdiomsExportHtml', () => {
   it('returns empty string when there are no idioms', () => {
-    expect(buildIdiomsExportMarkdown([], DETAILED_IDIOMS_OPTIONS)).toBe('')
-    expect(buildIdiomsExportMarkdown([{ term: '  ' }], DETAILED_IDIOMS_OPTIONS)).toBe('')
+    expect(buildIdiomsExportHtml([], DEFAULT_IDIOMS_OPTIONS)).toBe('')
+    expect(buildIdiomsExportHtml([{ term: '  ' }], DEFAULT_IDIOMS_OPTIONS)).toBe('')
   })
 
-  it('compact mode includes term + meaning only', () => {
-    const md = buildIdiomsExportMarkdown(idioms, COMPACT_IDIOMS_OPTIONS)
-    expect(md).toContain('# Idioms')
-    expect(md).toContain('## Apple Of His Eye')   // title-cased, sorted first
-    expect(md).toContain('cherished')
-    expect(md).not.toContain('Also:')             // aliases excluded
-    expect(md).not.toContain('1 Kings 18:46')     // content excluded
+  it('renders a table with the requested column headers', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }))
+    expect(html).toContain('<table')
+    expect(html).toContain('>Idiom<')
+    expect(html).toContain('>Meaning<')
+    expect(html).toContain('>Also known as<')
+    expect(html).toContain('>Notes<')
   })
 
-  it('detailed mode includes aliases and full content', () => {
-    const md = buildIdiomsExportMarkdown(idioms, DETAILED_IDIOMS_OPTIONS)
-    expect(md).toContain('*Also:* gird your loins')
-    expect(md).toContain('See 1 Kings 18:46.')
+  it('omits columns that are turned off', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat', includeAliases: false, includeNotes: false }))
+    expect(html).toContain('>Meaning<')
+    expect(html).not.toContain('>Also known as<')
+    expect(html).not.toContain('>Notes<')
   })
 
-  it('sorts alphabetically by term', () => {
-    const md = buildIdiomsExportMarkdown(idioms, DETAILED_IDIOMS_OPTIONS)
-    expect(md.indexOf('Apple Of His Eye')).toBeLessThan(md.indexOf('Gird Up Your Loins'))
+  it('sorts alphabetically and title-cases the term', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }))
+    expect(html.indexOf('Apple Of His Eye')).toBeLessThan(html.indexOf('Gird Up Your Loins'))
   })
 
-  it('keeps order when sortAlphabetical is false', () => {
-    const md = buildIdiomsExportMarkdown(idioms, { ...DETAILED_IDIOMS_OPTIONS, sortAlphabetical: false })
-    expect(md.indexOf('Gird Up Your Loins')).toBeLessThan(md.indexOf('Apple Of His Eye'))
+  it('strips markdown from the Notes cell', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }))
+    expect(html).toContain('See 1 Kings 18:46.')
+    expect(html).not.toContain('**1 Kings')
   })
 
-  it('honors a custom heading', () => {
-    const md = buildIdiomsExportMarkdown(idioms, { ...COMPACT_IDIOMS_OPTIONS, heading: 'Hebrew Idioms' })
-    expect(md).toContain('# Hebrew Idioms')
+  it('grouped organization adds first-letter headings', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'grouped' }))
+    expect(html).toContain('>A</h2>')
+    expect(html).toContain('>G</h2>')
+  })
+
+  it('contents organization adds a Contents index', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'contents' }))
+    expect(html).toContain('Contents')
+    expect(html).toContain('A (1)')
+    expect(html).toContain('G (1)')
+  })
+
+  it('compact density uses smaller padding/font than spacious', () => {
+    const compact = buildIdiomsExportHtml(idioms, opts({ density: 'compact' }))
+    const spacious = buildIdiomsExportHtml(idioms, opts({ density: 'spacious' }))
+    expect(compact).toContain('font-size:11px')
+    expect(spacious).toContain('font-size:13px')
+  })
+
+  it('escapes HTML in cell content', () => {
+    const html = buildIdiomsExportHtml([{ term: 'x', meaning: 'a < b & c' }], opts({ organization: 'flat' }))
+    expect(html).toContain('a &lt; b &amp; c')
   })
 })

@@ -7,7 +7,7 @@ import ZoomControls from '@/components/shell/ZoomControls'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import PrintPreviewModal from './PrintPreviewModal'
-import { buildIdiomsExportMarkdown, COMPACT_IDIOMS_OPTIONS, DETAILED_IDIOMS_OPTIONS, type IdiomsExportOptions } from '@/lib/idiomsExport'
+import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity } from '@/lib/idiomsExport'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
@@ -67,7 +67,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [idiomsExportContent, setIdiomsExportContent] = useState<string | null>(null)
   // A note queued for print/PDF export from the right-click menu (without opening it).
   const [printNote, setPrintNote] = useState<Note | null>(null)
-  const [idiomsExportOpts, setIdiomsExportOpts] = useState<IdiomsExportOptions>(DETAILED_IDIOMS_OPTIONS)
+  const [idiomsExportOpts, setIdiomsExportOpts] = useState<IdiomsExportOptions>(DEFAULT_IDIOMS_OPTIONS)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [noteHistory, setNoteHistory] = useState<Array<{ note: Note; scrollTop: number }>>([])
   const openMarkdownReference = useAppStore((s) => s.openMarkdownReference)
@@ -207,30 +207,55 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         {idiomsExportOpen && (
           <>
             <div className="fixed inset-0 z-[9997]" onClick={() => setIdiomsExportOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 z-[9998] w-56 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl p-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Export idioms — include</p>
-              {([
-                ['includeMeaning', 'Meaning'],
-                ['includeAliases', 'Aliases'],
-                ['includeContent', 'Full note body'],
-                ['sortAlphabetical', 'Sort A–Z'],
-              ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(idiomsExportOpts[key])}
-                    onChange={(e) => setIdiomsExportOpts((o) => ({ ...o, [key]: e.target.checked }))}
-                  />
-                  {label}
-                </label>
-              ))}
-              <div className="flex gap-1 pt-1">
-                <button onClick={() => setIdiomsExportOpts(COMPACT_IDIOMS_OPTIONS)} className="flex-1 text-[10px] px-2 py-1 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">Compact</button>
-                <button onClick={() => setIdiomsExportOpts(DETAILED_IDIOMS_OPTIONS)} className="flex-1 text-[10px] px-2 py-1 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">Detailed</button>
+            <div className="absolute right-0 top-full mt-1 z-[9998] w-60 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Columns</p>
+                {([
+                  ['includeMeaning', 'Meaning'],
+                  ['includeAliases', 'Also known as'],
+                  ['includeNotes', 'Notes'],
+                ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(idiomsExportOpts[key])}
+                      onChange={(e) => setIdiomsExportOpts((o) => ({ ...o, [key]: e.target.checked }))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Organize</p>
+                <div className="flex gap-1">
+                  {([['flat', 'Flat'], ['grouped', 'By letter'], ['contents', 'Contents']] as [IdiomsOrganization, string][]).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, organization: val }))}
+                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.organization === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Density</p>
+                <div className="flex gap-1">
+                  {([['spacious', 'Spacious'], ['compact', 'Compact']] as [IdiomsDensity, string][]).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, density: val }))}
+                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.density === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <button
                 onClick={() => {
-                  const md = buildIdiomsExportMarkdown(
+                  const html = buildIdiomsExportHtml(
                     notes.filter((n) => n.type === 'idiom').map((n) => ({
                       term: n.idiomTerm || n.title || '',
                       meaning: n.idiomMeaning,
@@ -239,9 +264,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     })),
                     idiomsExportOpts,
                   )
-                  if (md) { setIdiomsExportContent(md); setIdiomsExportOpen(false) }
+                  if (html) { setIdiomsExportContent(html); setIdiomsExportOpen(false) }
                 }}
-                className="mt-1 px-2 py-1.5 rounded bg-[rgb(var(--color-accent))] text-white text-xs font-medium cursor-pointer hover:opacity-90"
+                className="px-2 py-1.5 rounded bg-[rgb(var(--color-accent))] text-white text-xs font-medium cursor-pointer hover:opacity-90"
               >
                 Preview &amp; export PDF
               </button>
