@@ -43,9 +43,19 @@ describe('buildIdiomsExportHtml', () => {
     expect(html).not.toContain('<em>')
   })
 
-  it('two-column layout wraps in a column container; single does not', () => {
-    expect(buildIdiomsExportHtml(idioms, opts({ layout: 'two-column' }))).toContain('column-count:2')
-    expect(buildIdiomsExportHtml(idioms, opts({ layout: 'single' }))).not.toContain('column-count:2')
+  it('two-column only when there is enough content; few idioms stay single column', () => {
+    // A handful of idioms should NOT be forced across two columns…
+    expect(buildIdiomsExportHtml(idioms, opts({ layout: 'two-column' }))).not.toContain('column-count:2')
+    // …but a long list should.
+    const many = Array.from({ length: 30 }, (_, i) => ({ term: `idiom ${String.fromCharCode(97 + (i % 26))}${i}`, meaning: 'm', content: 'ex' }))
+    expect(buildIdiomsExportHtml(many, opts({ layout: 'two-column' }))).toContain('column-count:2')
+    expect(buildIdiomsExportHtml(many, opts({ layout: 'single' }))).not.toContain('column-count:2')
+  })
+
+  it('honors theme colours when provided', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }), { term: '#0d9488', rule: '#ccfbf1', muted: '#64748b' })
+    expect(html).toContain('#0d9488')
+    expect(html).not.toContain('#c0392b')
   })
 
   it('grouped adds letter headings; contents adds an index', () => {

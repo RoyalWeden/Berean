@@ -4,6 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { buildPrintHTML, PRINT_THEMES, presetToSides } from './NoteEditor'
+import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomExportEntry, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity, type IdiomsLayout } from '@/lib/idiomsExport'
 import type { PrintThemeId } from './NoteEditor'
 import type { Note } from '@/types'
 
@@ -11,6 +12,9 @@ interface Props {
   title: string
   content: string
   notes?: Note[]
+  /** When provided, the modal is in "idioms" mode: it generates the content from these
+   *  entries using in-modal idiom controls (so options can be tweaked while previewing). */
+  idiomEntries?: IdiomExportEntry[]
   onClose: () => void
 }
 
@@ -111,8 +115,9 @@ export function CustomMarginInputs({
   )
 }
 
-export default function PrintPreviewModal({ title, content, notes, onClose }: Props) {
+export default function PrintPreviewModal({ title, content, notes, idiomEntries, onClose }: Props) {
   const store = useAppStore()
+  const [idiomOpts, setIdiomOpts] = useState<IdiomsExportOptions>(DEFAULT_IDIOMS_OPTIONS)
 
   // Live-editable local copies seeded from saved settings
   const [theme, setTheme] = useState<PrintThemeId>(store.printTheme)
@@ -196,10 +201,18 @@ export default function PrintPreviewModal({ title, content, notes, onClose }: Pr
 
   const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes }
 
+  // In idioms mode, regenerate the body from the entries + in-modal options, colouring it to
+  // match the chosen print theme so the preview updates live as the user tweaks settings.
+  const effectiveContent = useMemo(() => {
+    if (!idiomEntries) return content
+    const th = PRINT_THEMES[theme] ?? PRINT_THEMES.classic
+    return buildIdiomsExportHtml(idiomEntries, idiomOpts, { term: th.verseBorder, rule: th.h2Border, muted: th.verseRef })
+  }, [idiomEntries, idiomOpts, theme, content])
+
   const html = useMemo(
-    () => buildPrintHTML(title || 'Untitled', content, opts),
+    () => buildPrintHTML(title || 'Untitled', effectiveContent, opts),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, content, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle, resolvedLinkedNotes]
+    [title, effectiveContent, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle, resolvedLinkedNotes]
   )
 
   // Measure rendered content height and size the iframe to it (removes the iframe's own scrollbar)
@@ -373,7 +386,7 @@ export default function PrintPreviewModal({ title, content, notes, onClose }: Pr
               </div>
 
               {/* Include linked notes toggle — only shown when notes are available */}
-              {notes && notes.length > 0 && (
+              {!idiomEntries && notes && notes.length > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-[rgb(var(--color-text-secondary))]">Include linked notes</span>
                   <button
@@ -382,6 +395,46 @@ export default function PrintPreviewModal({ title, content, notes, onClose }: Pr
                   >
                     <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${includeLinkedNotes ? 'translate-x-4' : ''}`} />
                   </button>
+                </div>
+              )}
+
+              {/* Idiom-specific options — live-update the preview */}
+              {idiomEntries && (
+                <div className="flex flex-col gap-3 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Idioms — include</span>
+                    {([
+                      ['includeMeaning', 'Definition'],
+                      ['includeExamples', 'Examples (note body)'],
+                      ['includeAliases', 'Compare to (aliases)'],
+                      ['includeReferences', 'Scripture references'],
+                    ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
+                        <input type="checkbox" checked={Boolean(idiomOpts[key])} onChange={(e) => setIdiomOpts((o) => ({ ...o, [key]: e.target.checked }))} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  {([
+                    ['Layout', 'layout', [['two-column', 'Two col'], ['single', 'Single']]],
+                    ['Organize', 'organization', [['flat', 'Flat'], ['grouped', 'By letter'], ['contents', 'Contents']]],
+                    ['Density', 'density', [['spacious', 'Spacious'], ['compact', 'Compact']]],
+                  ] as [string, keyof IdiomsExportOptions, [string, string][]][]).map(([heading, key, choices]) => (
+                    <div key={key} className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{heading}</span>
+                      <div className="flex gap-1">
+                        {choices.map(([val, label]) => (
+                          <button
+                            key={val}
+                            onClick={() => setIdiomOpts((o) => ({ ...o, [key]: val as IdiomsLayout | IdiomsOrganization | IdiomsDensity }))}
+                            className={segBtn(idiomOpts[key] === val) + ' flex-1 !text-[10px]'}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

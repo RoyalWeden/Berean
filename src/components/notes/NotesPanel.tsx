@@ -7,7 +7,6 @@ import ZoomControls from '@/components/shell/ZoomControls'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import PrintPreviewModal from './PrintPreviewModal'
-import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity, type IdiomsLayout } from '@/lib/idiomsExport'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
@@ -62,13 +61,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
 
   const [notes, setNotes] = useState<Note[]>([])
-  // Idioms → single PDF export: the options popover, and the built markdown handed to
-  // the print preview when the user exports.
-  const [idiomsExportOpen, setIdiomsExportOpen] = useState(false)
-  const [idiomsExportContent, setIdiomsExportContent] = useState<string | null>(null)
+  // Idioms → single PDF export: opens the print preview directly (options live in the modal).
+  const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
   // A note queued for print/PDF export from the right-click menu (without opening it).
   const [printNote, setPrintNote] = useState<Note | null>(null)
-  const [idiomsExportOpts, setIdiomsExportOpts] = useState<IdiomsExportOptions>(DEFAULT_IDIOMS_OPTIONS)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   const [noteHistory, setNoteHistory] = useState<Array<{ note: Note; scrollTop: number }>>([])
   const openMarkdownReference = useAppStore((s) => s.openMarkdownReference)
@@ -215,91 +211,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   function renderIdiomsExport() {
     if (!notes.some((n) => n.type === 'idiom')) return null
     return (
-      <div className="relative flex-shrink-0">
-        <button
-          onClick={() => setIdiomsExportOpen((v) => !v)}
-          title="Export all idioms to a single PDF"
-          className={`p-1 rounded cursor-pointer transition-colors ${idiomsExportOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-        >
-          <BookText size={15} />
-        </button>
-        {idiomsExportOpen && (
-          <>
-            <div className="fixed inset-0 z-[9997]" onClick={() => setIdiomsExportOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 z-[9998] w-60 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl p-3 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Include</p>
-                {([
-                  ['includeMeaning', 'Definition'],
-                  ['includeExamples', 'Examples (note body)'],
-                  ['includeAliases', 'Compare to (aliases)'],
-                  ['includeReferences', 'Scripture references'],
-                ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(idiomsExportOpts[key])}
-                      onChange={(e) => setIdiomsExportOpts((o) => ({ ...o, [key]: e.target.checked }))}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Layout</p>
-                <div className="flex gap-1">
-                  {([['two-column', 'Two columns'], ['single', 'Single']] as [IdiomsLayout, string][]).map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, layout: val }))}
-                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.layout === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Organize</p>
-                <div className="flex gap-1">
-                  {([['flat', 'Flat'], ['grouped', 'By letter'], ['contents', 'Contents']] as [IdiomsOrganization, string][]).map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, organization: val }))}
-                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.organization === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Density</p>
-                <div className="flex gap-1">
-                  {([['spacious', 'Spacious'], ['compact', 'Compact']] as [IdiomsDensity, string][]).map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => setIdiomsExportOpts((o) => ({ ...o, density: val }))}
-                      className={`flex-1 text-[10px] px-1.5 py-1 rounded border transition-colors cursor-pointer ${idiomsExportOpts.density === val ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const html = buildIdiomsExportHtml(idiomExportEntries(), idiomsExportOpts)
-                  if (html) { setIdiomsExportContent(html); setIdiomsExportOpen(false) }
-                }}
-                className="px-2 py-1.5 rounded bg-[rgb(var(--color-accent))] text-white text-xs font-medium cursor-pointer hover:opacity-90"
-              >
-                Preview &amp; export PDF
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <button
+        onClick={() => setIdiomsModalOpen(true)}
+        title="Export all idioms to a single PDF"
+        className="flex-shrink-0 p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+      >
+        <BookText size={15} />
+      </button>
     )
   }
 
@@ -1374,11 +1292,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           onClose={() => setPrintPreviewOpen(false)}
         />
       )}
-      {idiomsExportContent && (
+      {idiomsModalOpen && (
         <PrintPreviewModal
           title="Idioms"
-          content={idiomsExportContent}
-          onClose={() => setIdiomsExportContent(null)}
+          content=""
+          idiomEntries={idiomExportEntries()}
+          onClose={() => setIdiomsModalOpen(false)}
         />
       )}
       {printNote && (
