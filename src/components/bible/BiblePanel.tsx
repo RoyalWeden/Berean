@@ -120,9 +120,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   const textId = (tabState.translation ?? 'KJVA').toLowerCase()
   const [books, setBooks] = useState<Book[]>([])
-  const [translationOpen, setTranslationOpen] = useState(false)
-  const [translationFilter, setTranslationFilter] = useState('')
-  const translationRef = useRef<HTMLDivElement>(null)
   const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const infoRef = useRef<HTMLDivElement>(null)
@@ -350,29 +347,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
   }, [])
 
-  // Close translation dropdown on outside click; reset filter when it closes
-  useEffect(() => {
-    if (!translationOpen) { setTranslationFilter(''); return }
-    function onDown(e: MouseEvent) {
-      if (translationRef.current && !translationRef.current.contains(e.target as Node)) {
-        setTranslationOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [translationOpen])
-
-  // Filtered translation list (type-to-filter by label or description)
-  const filteredTranslations = useMemo(() => {
-    // The Shepherd of Hermas ships in two editions sharing the HER_* books; while reading
-    // it, the translation picker offers exactly those two so the switch is obvious.
-    const base = isHermasBook(tabState.bookId)
+  // Editions offered by the unified picker. The Shepherd of Hermas ships in two editions
+  // sharing the HER_* books, so while reading it we offer exactly those two; otherwise all
+  // texts are available.
+  const pickerTranslations = useMemo(() =>
+    isHermasBook(tabState.bookId)
       ? TRANSLATIONS.filter((t) => t.id === 'hermas' || t.id === 'hermas_taylor')
-      : TRANSLATIONS
-    const q = translationFilter.trim().toLowerCase()
-    if (!q) return base
-    return base.filter((t) => t.label.toLowerCase().includes(q) || t.description.toLowerCase().includes(q))
-  }, [translationFilter, tabState.bookId])
+      : TRANSLATIONS,
+    [tabState.bookId])
 
   // Close info popover on outside click
   useEffect(() => {
@@ -1018,96 +1000,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <button onClick={prevChapter} title="Previous chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
               <ChevronLeft size={18} />
             </button>
-            {/* ── Unified location pill: [Book Ch · TRANS] ── */}
-            <div className="flex items-center text-xs rounded-md bg-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
-              <BookChapterPicker
-                books={books}
-                currentBookId={tabState.bookId}
-                currentChapter={tabState.chapter}
-                onNavigate={navigate}
-                wrapperClassName=""
-                triggerClassName="flex items-center gap-1 px-2 py-1 font-medium text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-l-md"
-              />
-              <span className="text-[rgb(var(--color-text-muted))] select-none text-[10px] opacity-50" aria-hidden>·</span>
-              <div ref={translationRef} className="relative">
-              <button
-                onClick={() => setTranslationOpen((v) => !v)}
-                className="flex items-center px-2 py-1 font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer whitespace-nowrap rounded-r-md"
-              >
-                {TRANSLATIONS.find((t) => t.id === textId)?.label ?? tabState.translation.toUpperCase()}
-              </button>
-              {translationOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 w-[420px] max-h-96 overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl py-1">
-                  {/* Type-to-filter input */}
-                  <div className="px-2 pb-1 sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
-                    <input
-                      autoFocus
-                      value={translationFilter}
-                      onChange={(e) => setTranslationFilter(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') { setTranslationOpen(false); setTranslationFilter('') }
-                        if (e.key === 'Enter' && filteredTranslations.length > 0 && activeTab) {
-                          const t = filteredTranslations[0]
-                          if (isHermasBook(tabState.bookId) && (t.id === 'hermas' || t.id === 'hermas_taylor')) {
-                            useAppStore.getState().setHermasTranslation(t.id)
-                          } else {
-                            const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, t.id)
-                            updateTabState('scripture', activeTab.id, {
-                              translation: t.id.toUpperCase(),
-                              ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
-                            })
-                          }
-                          setTranslationOpen(false); setTranslationFilter('')
-                        }
-                      }}
-                      placeholder="Filter translations…"
-                      className="w-full text-xs bg-[rgb(var(--color-surface-4))] rounded px-2 py-1.5 outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
-                    />
-                  </div>
-                  {filteredTranslations.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        if (activeTab) {
-                          if (isHermasBook(tabState.bookId) && (t.id === 'hermas' || t.id === 'hermas_taylor')) {
-                            // Switch the Shepherd of Hermas edition globally — persists and
-                            // live-updates open Hermas tabs (clamping the chapter to the target).
-                            useAppStore.getState().setHermasTranslation(t.id)
-                          } else {
-                            const mappedChapter = mapChapterOnTranslationSwitch(
-                              tabState.bookId,
-                              tabState.chapter,
-                              textId,           // current translation
-                              t.id,             // new translation
-                            )
-                            updateTabState('scripture', activeTab.id, {
-                              translation: t.id.toUpperCase(),
-                              ...(mappedChapter !== tabState.chapter ? {
-                                chapter: mappedChapter,
-                                scrollPosition: 0,
-                                targetVerse: undefined,
-                                endVerse: undefined,
-                              } : {}),
-                            })
-                          }
-                        }
-                        setTranslationOpen(false)
-                      }}
-                      className={`flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
-                        textId === t.id
-                          ? 'text-[rgb(var(--color-accent))]'
-                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <Check size={12} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                      <span className="text-xs font-medium w-20 flex-shrink-0">{t.label}</span>
-                      <span className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{t.description}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              </div>{/* end translationRef */}
-            </div>{/* end unified location pill */}
+            {/* ── Unified book / chapter / translation picker ── */}
+            <BookChapterPicker
+              books={books}
+              currentBookId={tabState.bookId}
+              currentChapter={tabState.chapter}
+              onNavigate={navigate}
+              translations={pickerTranslations}
+              currentTextId={textId}
+              onSelectTranslation={(tid) => {
+                if (!activeTab) return
+                if (isHermasBook(tabState.bookId) && (tid === 'hermas' || tid === 'hermas_taylor')) {
+                  // Switch the Shepherd of Hermas edition globally (persists + live-updates tabs).
+                  useAppStore.getState().setHermasTranslation(tid)
+                } else {
+                  const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, tid)
+                  updateTabState('scripture', activeTab.id, {
+                    translation: tid.toUpperCase(),
+                    ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+                  })
+                }
+              }}
+            />
             {/* ► next chapter */}
             <button onClick={nextChapter} title="Next chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
               <ChevronRight size={18} />

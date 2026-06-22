@@ -19,9 +19,14 @@ interface BookChapterPickerProps {
   triggerClassName?: string
   /** Override className on the outer wrapper div (default: "relative"). */
   wrapperClassName?: string
+  /** Optional translation/edition section shown at the top of the dropdown, turning this
+   *  into a unified book + chapter + translation picker. When omitted, no translation UI. */
+  translations?: { id: string; label: string; description?: string }[]
+  currentTextId?: string
+  onSelectTranslation?: (id: string) => void
 }
 
-export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName }: BookChapterPickerProps) {
+export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, translations, currentTextId, onSelectTranslation }: BookChapterPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeBookId, setActiveBookId] = useState(currentBookId)
@@ -192,9 +197,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           }
         `}
       >
-        <span className="font-medium truncate max-w-[180px]">{currentBook?.name ?? currentBookId}</span>
+        <span className="font-medium whitespace-nowrap">{currentBook?.name ?? currentBookId}</span>
         {currentBook && isHermasBook(currentBook.id) ? (
-          <span className="text-[rgb(var(--color-text-muted))] text-[10px] truncate max-w-[80px]">
+          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">
             {(() => {
               const hid = currentBook.id as HermasBookId
               const sec = getHermasSection(hid, currentChapter)
@@ -206,6 +211,11 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           </span>
         ) : (
           <span className="text-[rgb(var(--color-text-muted))] text-[10px]">{currentChapter}</span>
+        )}
+        {translations && currentTextId && (
+          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap border-l border-[rgb(var(--color-surface-4))] pl-1.5 ml-0.5">
+            {translations.find((t) => t.id === currentTextId)?.label ?? currentTextId.toUpperCase()}
+          </span>
         )}
         <ChevronDown size={compact ? 10 : 12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
       </button>
@@ -240,6 +250,27 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
               </span>
             )}
           </div>
+
+          {/* Translation / edition section — makes this a unified book+chapter+translation picker */}
+          {translations && translations.length > 0 && onSelectTranslation && (
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5">Edition</span>
+              {translations.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { onSelectTranslation(t.id); setOpen(false) }}
+                  title={t.description}
+                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                    t.id === currentTextId
+                      ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
+                      : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Two-column body */}
           <div className="flex flex-1 overflow-hidden min-h-0">
