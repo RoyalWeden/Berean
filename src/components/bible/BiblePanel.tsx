@@ -1485,8 +1485,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               // Always record (tagged with the chapter) so a later full re-sync starts here
               setMainBibleScrollPercent(scrollPercent, `${tabState.bookId}:${tabState.chapter}`)
               const st = useAppStore.getState()
-              // Skip proportional sync during a find-bar jump (the scrollTo command drives it).
-              if (st.viewerWindowOpen && !st.viewerPaused && Date.now() >= findScrollSuppressRef.current) {
+              // Skip proportional sync during a find-bar jump — the verse-centered scrollTo
+              // command drives the presenter. Extend the suppress on each scroll event so it
+              // covers the ENTIRE smooth scroll (which, for a distant match, outlasts a fixed
+              // window); otherwise proportional sync would resume mid-scroll and drift the
+              // outline band off the centered verse.
+              if (Date.now() < findScrollSuppressRef.current) {
+                findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
+              } else if (st.viewerWindowOpen && !st.viewerPaused) {
                 if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
                 viewerScrollRAFRef.current = requestAnimationFrame(() => {
                   viewerScrollRAFRef.current = null
