@@ -177,18 +177,26 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       reportRAFRef.current = null
       const c = containerRef.current
       if (!c || c.scrollHeight <= 0) return
-      const H = c.scrollHeight
-      const visibleFraction = Math.min(1, c.clientHeight / H)
-      // Per-verse top positions as a fraction of total content height (scroll-independent).
       const cTop = c.getBoundingClientRect().top
-      const verseFracs: Record<number, number> = {}
-      for (const node of Array.from(c.querySelectorAll('[data-verse]'))) {
-        const elx = node as HTMLElement
+      // Measure verse positions AND the actual content bottom (last verse's bottom).
+      const verseNodes = Array.from(c.querySelectorAll('[data-verse]')) as HTMLElement[]
+      let contentBottom = 0
+      const verseTops: Record<number, number> = {}
+      for (const elx of verseNodes) {
         const n = Number(elx.dataset.verse)
         if (!Number.isFinite(n)) continue
-        const vTop = elx.getBoundingClientRect().top - cTop + c.scrollTop
-        verseFracs[n] = vTop / H
+        const r = elx.getBoundingClientRect()
+        verseTops[n] = r.top - cTop + c.scrollTop
+        const bottom = r.bottom - cTop + c.scrollTop
+        if (bottom > contentBottom) contentBottom = bottom
       }
+      // Use the content height (bottom of the last verse), not scrollHeight — otherwise the
+      // empty space below the last verse on a short chapter inflates the scrollable region,
+      // so the presenter outline / virtual scroll runs PAST the last verse.
+      const H = contentBottom > 0 ? Math.min(c.scrollHeight, contentBottom + 4) : c.scrollHeight
+      const visibleFraction = Math.min(1, c.clientHeight / H)
+      const verseFracs: Record<number, number> = {}
+      for (const [n, top] of Object.entries(verseTops)) verseFracs[Number(n)] = Math.min(1, top / H)
       if (typeof window.viewer?.reportVisibleRegion !== 'function') {
         console.warn('[ViewerBiblePage] reportVisibleRegion missing from preload — restart the app')
         return

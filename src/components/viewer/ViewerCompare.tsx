@@ -43,14 +43,23 @@ function CompareColumn({ col, colIndex, fontScale, scrollPercent, muteColor, tex
     reportRafRef.current = requestAnimationFrame(() => {
       const el = scrollRef.current
       if (!el || el.scrollHeight <= 0) return
-      const H = el.scrollHeight
       const cTop = el.getBoundingClientRect().top
-      const verseFracs: Record<number, number> = {}
+      const verseTops: Record<number, number> = {}
+      let contentBottom = 0
       for (const node of Array.from(el.querySelectorAll('[data-verse]'))) {
         const ex = node as HTMLElement
         const n = Number(ex.dataset.verse)
-        if (Number.isFinite(n)) verseFracs[n] = (ex.getBoundingClientRect().top - cTop + el.scrollTop) / H
+        if (!Number.isFinite(n)) continue
+        const r = ex.getBoundingClientRect()
+        verseTops[n] = r.top - cTop + el.scrollTop
+        const bottom = r.bottom - cTop + el.scrollTop
+        if (bottom > contentBottom) contentBottom = bottom
       }
+      // Content height (last verse bottom), not scrollHeight — excludes trailing whitespace so
+      // the outline band doesn't run past the last verse on short chapters.
+      const H = contentBottom > 0 ? Math.min(el.scrollHeight, contentBottom + 4) : el.scrollHeight
+      const verseFracs: Record<number, number> = {}
+      for (const [n, top] of Object.entries(verseTops)) verseFracs[Number(n)] = Math.min(1, top / H)
       window.viewer?.reportVisibleRegion?.({ bookId: col.bookId, chapter: col.chapter, visibleFraction: Math.min(1, el.clientHeight / H), verseFracs, colIndex })
     })
   }, [col.bookId, col.chapter, colIndex])

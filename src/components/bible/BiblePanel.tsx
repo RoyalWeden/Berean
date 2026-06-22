@@ -233,18 +233,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // never drift from a stale layout cache.
     const cTop = c.getBoundingClientRect().top
     const tops: Record<number, number> = {}
+    let contentBottom = 0
     for (const node of Array.from(c.querySelectorAll('[data-verse]'))) {
       const elx = node as HTMLElement
       const n = Number(elx.dataset.verse)
-      if (Number.isFinite(n)) tops[n] = elx.getBoundingClientRect().top - cTop + c.scrollTop
+      if (!Number.isFinite(n)) continue
+      const r = elx.getBoundingClientRect()
+      tops[n] = r.top - cTop + c.scrollTop
+      const bottom = r.bottom - cTop + c.scrollTop
+      if (bottom > contentBottom) contentBottom = bottom
     }
+    // Use content height (last verse bottom), matching the presenter's reporting, so the band
+    // doesn't extend into the empty space below the last verse on short chapters.
+    const mainH = contentBottom > 0 ? Math.min(c.scrollHeight, contentBottom + 4) : c.scrollHeight
 
     const fits = c.scrollHeight - c.clientHeight <= 0
     setPresenterBand(computeBandGeometry({
       visibleFraction: f,
       verseFracs: region.verseFracs,
       mainTops: tops,
-      mainScrollHeight: c.scrollHeight,
+      mainScrollHeight: mainH,
       mainClientHeight: c.clientHeight,
       mainScrollTop: c.scrollTop,
       scrollPercentOverride: fits ? virtualScrollPctRef.current : undefined,
