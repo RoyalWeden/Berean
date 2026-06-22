@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import type { Book } from '@/types'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { isHermasBook, getHermasSections, getHermasSection, type HermasBookId } from '@/lib/hermasMap'
+import { editionForTextId, type Edition } from '@/lib/bibleTexts'
 
 interface BookChapterPickerProps {
   books: Book[]
@@ -19,17 +20,34 @@ interface BookChapterPickerProps {
   triggerClassName?: string
   /** Override className on the outer wrapper div (default: "relative"). */
   wrapperClassName?: string
-  /** Optional translation/edition section shown at the top of the dropdown, turning this
-   *  into a unified book + chapter + translation picker. When omitted, no translation UI. */
-  translations?: { id: string; label: string; description?: string }[]
+  /** Optional edition switcher shown in the dropdown, turning this into a unified
+   *  book + chapter + edition/translation picker. When omitted, no edition UI. */
+  editions?: Edition[]
   currentTextId?: string
+  /** Switch to a translation textId (edition or, within a multi-translation edition, a
+   *  specific translation). The popover stays open so the user can keep picking. */
   onSelectTranslation?: (id: string) => void
 }
 
-export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, translations, currentTextId, onSelectTranslation }: BookChapterPickerProps) {
+export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, editions, currentTextId, onSelectTranslation }: BookChapterPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [editionsExpanded, setEditionsExpanded] = useState(false)
   const [activeBookId, setActiveBookId] = useState(currentBookId)
+
+  // Edition / translation model (only when `editions` is provided).
+  const currentEdition = currentTextId ? editionForTextId(currentTextId) : undefined
+  const currentTransLabel = currentEdition?.translations.find((t) => t.id === currentTextId)?.label
+  const currentEditionLabel = currentEdition?.label ?? currentTextId?.toUpperCase()
+  // Typing filters editions too; matching editions auto-reveal even when collapsed.
+  const filteredEditions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const list = editions ?? []
+    if (!q) return list
+    return list.filter((e) => e.label.toLowerCase().includes(q) || e.translations.some((t) => t.label.toLowerCase().includes(q)))
+  }, [editions, search])
+  const editionQueryMatch = search.trim().length > 0 && filteredEditions.length > 0 && filteredEditions.length < (editions?.length ?? 0)
+  const editionsShown = editionsExpanded || editionQueryMatch
   const [pos, setPos] = useState<{ left: number; top: number; openUp: boolean }>({ left: 0, top: 0, openUp: false })
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -58,6 +76,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
     if (open) {
       setActiveBookId(currentBookId)
       setSearch('')
+      setEditionsExpanded(false)
       recomputePos()
       setTimeout(() => searchRef.current?.focus(), 30)
     }
@@ -212,9 +231,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         ) : (
           <span className="text-[rgb(var(--color-text-muted))] text-[10px]">{currentChapter}</span>
         )}
-        {translations && currentTextId && (
+        {currentEdition && currentEdition.translations.length > 1 && currentTransLabel && (
           <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap border-l border-[rgb(var(--color-surface-4))] pl-1.5 ml-0.5">
-            {translations.find((t) => t.id === currentTextId)?.label ?? currentTextId.toUpperCase()}
+            {currentTransLabel}
           </span>
         )}
         <ChevronDown size={compact ? 10 : 12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -251,15 +270,52 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             )}
           </div>
 
-          {/* Translation / edition section — makes this a unified book+chapter+translation picker */}
-          {translations && translations.length > 0 && onSelectTranslation && (
+          {/* Edition switcher — collapsed by default; expand with the round triangle toggle,
+              or it auto-reveals when the search matches an edition name. */}
+          {editions && editions.length > 1 && onSelectTranslation && (
+            <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+              <button
+                onClick={() => setEditionsExpanded((v) => !v)}
+                className="flex items-center gap-1.5 cursor-pointer group"
+              >
+                <span className="flex items-center justify-center w-4 h-4 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] group-hover:border-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-text-primary))] transition-colors">
+                  {editionsShown ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Edition</span>
+                <span className="text-xs text-[rgb(var(--color-text-primary))] font-medium">{currentEditionLabel}</span>
+              </button>
+              {editionsShown && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {filteredEditions.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => onSelectTranslation(e.translations[0].id)}
+                      className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                        e.id === currentEdition?.id
+                          ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
+                          : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                      }`}
+                    >
+                      {e.label}
+                    </button>
+                  ))}
+                  {filteredEditions.length === 0 && (
+                    <span className="text-[11px] text-[rgb(var(--color-text-muted))]">No editions match</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Translation sub-picker — only when the current edition has multiple translations
+              (e.g. Shepherd of Hermas: Roberts-Donaldson / Charles Taylor). */}
+          {currentEdition && currentEdition.translations.length > 1 && onSelectTranslation && (
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 flex-wrap">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5">Edition</span>
-              {translations.map((t) => (
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5">Translation</span>
+              {currentEdition.translations.map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => { onSelectTranslation(t.id); setOpen(false) }}
-                  title={t.description}
+                  onClick={() => onSelectTranslation(t.id)}
                   className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                     t.id === currentTextId
                       ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'

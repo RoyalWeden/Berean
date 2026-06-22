@@ -120,3 +120,33 @@ export const TRANSLATIONS = [
   { id: '1clement',      label: '1 Clement',        description: 'First Epistle of Clement to the Corinthians, trans. J.B. Lightfoot' },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',    description: 'Apocalypse of Abraham, trans. G.H. Box (1918)' },
 ]
+
+// ── Editions ──────────────────────────────────────────────────────────────────
+// An "edition" is a distinct work; most have a single translation (textId), but some
+// (e.g. the Shepherd of Hermas) have several. The reference picker shows editions by
+// their full name and, only when an edition has more than one translation, a separate
+// translation sub-picker.
+export interface EditionTranslation { id: string; label: string }
+export interface Edition { id: string; label: string; translations: EditionTranslation[] }
+
+export const EDITIONS: Edition[] = [
+  { id: 'kjva',          label: 'King James Version (with Apocrypha)', translations: [{ id: 'kjva', label: 'KJV + Apocrypha' }] },
+  { id: 'lxx',           label: 'Septuagint (Brenton)',               translations: [{ id: 'lxx', label: 'Brenton LXX' }] },
+  { id: 'enoch',         label: '1 Enoch',                            translations: [{ id: 'enoch', label: 'R.H. Charles' }] },
+  { id: 'jubilees',      label: 'Jubilees',                           translations: [{ id: 'jubilees', label: 'R.H. Charles' }] },
+  { id: 'apoc_elijah',   label: 'Apocalypse of Elijah',               translations: [{ id: 'apoc_elijah', label: 'O.S. Wintermute' }] },
+  { id: 'recog_clement', label: 'Recognitions of Clement',            translations: [{ id: 'recog_clement', label: 'Ante-Nicene Fathers' }] },
+  { id: 'hermas',        label: 'Shepherd of Hermas',                 translations: [{ id: 'hermas', label: 'Roberts-Donaldson' }, { id: 'hermas_taylor', label: 'Charles Taylor (1903)' }] },
+  { id: 'asc_isaiah',    label: 'Ascension of Isaiah',                translations: [{ id: 'asc_isaiah', label: 'R.H. Charles' }] },
+  { id: 'ep_barnabas',   label: 'Epistle of Barnabas',                translations: [{ id: 'ep_barnabas', label: 'Samuel Sharpe' }] },
+  { id: 't12p',          label: 'Testaments of the Twelve Patriarchs', translations: [{ id: 't12p', label: 'R.H. Charles' }] },
+  { id: 'gad',           label: 'Words of Gad the Seer',              translations: [{ id: 'gad', label: 'Beir Bar-Ilan' }] },
+  { id: 't_job',         label: 'Testament of Job',                   translations: [{ id: 't_job', label: 'M.R. James (1897)' }] },
+  { id: '1clement',      label: 'First Epistle of Clement',           translations: [{ id: '1clement', label: 'J.B. Lightfoot' }] },
+  { id: 'apoc_abraham',  label: 'Apocalypse of Abraham',              translations: [{ id: 'apoc_abraham', label: 'G.H. Box (1918)' }] },
+]
+
+/** The edition that contains a given translation textId. */
+export function editionForTextId(textId: string): Edition | undefined {
+  return EDITIONS.find((e) => e.translations.some((t) => t.id === textId))
+}

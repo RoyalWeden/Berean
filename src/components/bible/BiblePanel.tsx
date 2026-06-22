@@ -20,7 +20,7 @@ import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
 
-import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
+import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter } from '@/lib/hermasMap'
 
@@ -355,14 +355,34 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
   }, [])
 
-  // Editions offered by the unified picker. The Shepherd of Hermas ships in two editions
-  // sharing the HER_* books, so while reading it we offer exactly those two; otherwise all
-  // texts are available.
-  const pickerTranslations = useMemo(() =>
-    isHermasBook(tabState.bookId)
-      ? TRANSLATIONS.filter((t) => t.id === 'hermas' || t.id === 'hermas_taylor')
-      : TRANSLATIONS,
-    [tabState.bookId])
+  // Switch the active text. A switch within the SAME edition (e.g. Hermas Roberts-Donaldson
+  // ↔ Charles Taylor) keeps the book/chapter/verse; a switch to a DIFFERENT edition keeps the
+  // current book if the target has it, otherwise navigates to the target's first book.
+  function selectPickerTranslation(tid: string) {
+    if (!activeTab) return
+    const tgtEdition = editionForTextId(tid)
+    const curEdition = editionForTextId(textId)
+    if (tgtEdition && curEdition && tgtEdition.id === curEdition.id) {
+      if (tid === 'hermas' || tid === 'hermas_taylor') useAppStore.getState().setHermasTranslation(tid)
+      else updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() })
+      return
+    }
+    const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, tid)
+    window.bible.getBooks(tid).then((bks) => {
+      const hasBook = (bks as Book[]).some((b) => b.id === tabState.bookId)
+      if (hasBook) {
+        updateTabState('scripture', activeTab.id, {
+          translation: tid.toUpperCase(),
+          ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+        })
+      } else {
+        const first = (bks as Book[])[0]
+        updateTabState('scripture', activeTab.id, first
+          ? { translation: tid.toUpperCase(), bookId: first.id, chapter: 1, scrollPosition: 0, targetVerse: undefined, endVerse: undefined }
+          : { translation: tid.toUpperCase() })
+      }
+    }).catch(() => updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() }))
+  }
 
   // Close info popover on outside click
   useEffect(() => {
@@ -1008,27 +1028,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <button onClick={prevChapter} title="Previous chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
               <ChevronLeft size={18} />
             </button>
-            {/* ── Unified book / chapter / translation picker ── */}
+            {/* ── Unified book / chapter / edition / translation picker ── */}
             <BookChapterPicker
               books={books}
               currentBookId={tabState.bookId}
               currentChapter={tabState.chapter}
               onNavigate={navigate}
-              translations={pickerTranslations}
+              editions={EDITIONS}
               currentTextId={textId}
-              onSelectTranslation={(tid) => {
-                if (!activeTab) return
-                if (isHermasBook(tabState.bookId) && (tid === 'hermas' || tid === 'hermas_taylor')) {
-                  // Switch the Shepherd of Hermas edition globally (persists + live-updates tabs).
-                  useAppStore.getState().setHermasTranslation(tid)
-                } else {
-                  const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, tid)
-                  updateTabState('scripture', activeTab.id, {
-                    translation: tid.toUpperCase(),
-                    ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
-                  })
-                }
-              }}
+              onSelectTranslation={selectPickerTranslation}
             />
             {/* ► next chapter */}
             <button onClick={nextChapter} title="Next chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
