@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
-  Monitor, FolderInput, FolderMinus, BookOpen,
+  Monitor, FolderInput, FolderMinus, BookOpen, Printer,
 } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
@@ -49,12 +49,14 @@ interface Props {
   currentFolderId?: string | null
   onMoveToFolder?: (note: Note, folderId: string | null) => void
   onConvertToIdiom?: (note: Note) => void
+  /** Open the print/PDF-export preview for this note without opening the note first. */
+  onExportPdf?: (note: Note) => void
 }
 
 export default function NoteContextMenu({
   note, x, y, onClose, onSelect,
   onOpenNewTab, onOpenInFloatingTab, onRename, onDelete, onOpenInSession, sessions,
-  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom,
+  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom, onExportPdf,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [showSessions, setShowSessions] = useState(false)
@@ -95,6 +97,12 @@ export default function NoteContextMenu({
       <button className={MENU_ITEM} onClick={() => { onSelect(note); onClose() }}>
         <PanelRightOpen size={13} className="flex-shrink-0" /> Open in current tab
       </button>
+
+      {onExportPdf && (
+        <button className={MENU_ITEM} onClick={() => { onExportPdf(note); onClose() }}>
+          <Printer size={13} className="flex-shrink-0" /> Export to PDF / Print
+        </button>
+      )}
 
       {canRename && (
         <button className={MENU_ITEM} onClick={() => { onRename!(note); onClose() }}>

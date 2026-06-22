@@ -45,6 +45,7 @@ interface NotesListProps {
   sessions?: SessionInfo[]
   onOpenInTab?: (note: Note) => void
   onConvertToIdiom?: (note: Note) => void
+  onExportPdf?: (note: Note) => void
 }
 
 function formatDate(ts: number): string {
@@ -98,7 +99,7 @@ export default function NotesList({
   notes, onSelect, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
-  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom,
+  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null)
@@ -316,6 +317,7 @@ export default function NotesList({
           onOpenInSession={onOpenInSession}
           sessions={sessions}
           onConvertToIdiom={onConvertToIdiom}
+          onExportPdf={onExportPdf}
         />
       )}
     </>

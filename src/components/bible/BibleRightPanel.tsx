@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, Check as CheckIcon } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, Check as CheckIcon } from 'lucide-react'
 import ZoomControls from '@/components/shell/ZoomControls'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -393,14 +393,25 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
                 Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 200 ? '+' : ''})` : ''}
               </p>
-              {occurrences.length > 8 && (
-                <button
-                  onClick={() => setShowAllOccurrences((v) => !v)}
-                  className="text-[9px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                >
-                  {showAllOccurrences ? 'fewer' : `all ${occurrences.length}`}
-                </button>
-              )}
+              <div className="flex items-center gap-2.5">
+                {occurrences.length > 0 && (
+                  <button
+                    onClick={() => useAppStore.getState().openScriptureSearchTab(activeEntry.strongsNum)}
+                    title={`Open all ${activeEntry.strongsNum} occurrences in a tab, with the words highlighted`}
+                    className="flex items-center gap-1 text-[9px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  >
+                    <ScanSearch size={10} /> open in tab
+                  </button>
+                )}
+                {occurrences.length > 8 && (
+                  <button
+                    onClick={() => setShowAllOccurrences((v) => !v)}
+                    className="text-[9px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  >
+                    {showAllOccurrences ? 'fewer' : `all ${occurrences.length}`}
+                  </button>
+                )}
+              </div>
             </div>
             {occurrencesLoading && (
               <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center py-2">Loading…</p>

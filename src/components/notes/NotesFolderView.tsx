@@ -60,6 +60,7 @@ interface Props {
   onOpenNewTab?: (note: Note) => void
   onOpenInFloatingTab?: (note: Note) => void
   onOpenInSession?: (note: Note, sessionId: string) => void
+  onExportPdf?: (note: Note) => void
   sessions?: SessionInfo[]
   // Select mode
   selectMode?: boolean
@@ -78,7 +79,7 @@ export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
-  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, sessions,
+  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
   searchQuery,
@@ -860,6 +861,7 @@ export default function NotesFolderView({
           canMove={noteIsMovable(noteMenu.note)}
           currentFolderId={noteMenu.note.folderId ?? null}
           onMoveToFolder={(note, fid) => onSetNoteFolder(note.id, fid)}
+          onExportPdf={onExportPdf}
         />
       )}
 
