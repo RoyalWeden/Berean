@@ -271,7 +271,10 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         const ve = c?.querySelector(`[data-verse="${o.scrollTo.verseNum}"]`) as HTMLElement | null
         if (c && ve) {
           scrollLockUntilRef.current = Date.now() + 800
-          ve.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Jump instantly (not smooth): a gliding presenter is still moving when the main
+          // panel computes the outline band, which left the band landing mid-verse on some
+          // matches. Settling immediately makes the band deterministic.
+          ve.scrollIntoView({ behavior: 'auto', block: 'center' })
         }
       }
     })

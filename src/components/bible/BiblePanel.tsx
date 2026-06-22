@@ -69,6 +69,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // While a find-bar jump is in flight, suppress proportional scroll sync so the explicit
   // "center this verse" command drives the presenter cleanly (no tug-of-war).
   const findScrollSuppressRef = useRef(0)
+  // The verse the presenter is currently centered on via a find-bar jump (null when the
+  // presenter is mirroring the main panel proportionally). While set, the outline band is
+  // computed from this verse's centered position instead of the main panel's scroll percent.
+  const findCenterVerseRef = useRef<number | null>(null)
   // Virtual scroll percent for driving the presenter via the wheel when the main panel's
   // content fits entirely (so there's no real scroll to mirror).
   const virtualScrollPctRef = useRef(0)
@@ -248,6 +252,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const mainH = contentBottom > 0 ? Math.min(c.scrollHeight, contentBottom + 4) : c.scrollHeight
 
     const fits = c.scrollHeight - c.clientHeight <= 0
+    // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
+    // mirroring the main panel proportionally — so derive the scroll percent from where that
+    // verse sits, centered, in the presenter's content (otherwise the band lands mid-verse).
+    let scrollPercentOverride = fits ? virtualScrollPctRef.current : undefined
+    const fv = findCenterVerseRef.current
+    if (fv != null && f < 1) {
+      const vf = region.verseFracs[fv]
+      if (vf != null) scrollPercentOverride = Math.max(0, Math.min(1, (vf - f / 2) / (1 - f)))
+    }
     setPresenterBand(computeBandGeometry({
       visibleFraction: f,
       verseFracs: region.verseFracs,
@@ -255,7 +268,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       mainScrollHeight: mainH,
       mainClientHeight: c.clientHeight,
       mainScrollTop: c.scrollTop,
-      scrollPercentOverride: fits ? virtualScrollPctRef.current : undefined,
+      scrollPercentOverride,
     }))
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter])
 
@@ -628,7 +641,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }, [])
 
   useEffect(() => {
-    if (!findBarOpen || activeSpace !== 'scripture') { setFindMatchVerseNums([]); return }
+    if (!findBarOpen || activeSpace !== 'scripture') { setFindMatchVerseNums([]); findCenterVerseRef.current = null; return }
     const matches = findVerses(findBarQuery, !!tabState.compareMode, compareFocusedCol, findBarWordMode)
     setFindMatchVerseNums(matches)
     setFindMatchIdx(0)
@@ -648,6 +661,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (!ref) return
     // Suppress proportional sync briefly so only the centering command moves the presenter.
     findScrollSuppressRef.current = Date.now() + 1100
+    findCenterVerseRef.current = verseNum
     window.app.pushViewerOverlay?.({ ...ref, scrollTo: { verseNum, nonce: Date.now() } })
   }
 
@@ -1493,6 +1507,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               if (Date.now() < findScrollSuppressRef.current) {
                 findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
               } else if (st.viewerWindowOpen && !st.viewerPaused) {
+                // A manual scroll ends the find-centered override → resume proportional mirroring.
+                findCenterVerseRef.current = null
                 if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
                 viewerScrollRAFRef.current = requestAnimationFrame(() => {
                   viewerScrollRAFRef.current = null
