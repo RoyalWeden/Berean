@@ -203,6 +203,15 @@ export interface Note {
   idiomMeaning?: string
   idiomAliases?: string[]
   idiomAutoVariants?: boolean
+  idiomData?: IdiomData
+}
+
+/** Structured idiom fields for the reference-book editor + export. */
+export interface IdiomData {
+  examples?: string[]
+  explanation?: string
+  compare?: string[]
+  verses?: string[]
 }
 
 /** A snapshot in a note's version history. */

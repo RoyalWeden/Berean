@@ -404,10 +404,11 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Idioms — include</span>
                     {([
-                      ['includeMeaning', 'Definition'],
-                      ['includeExamples', 'Examples (note body)'],
-                      ['includeAliases', 'Compare to (aliases)'],
-                      ['includeReferences', 'Scripture references'],
+                      ['includeMeaning',     'Definition'],
+                      ['includeExamples',    'Examples'],
+                      ['includeExplanation', 'Explanation'],
+                      ['includeCompare',     'Compare to'],
+                      ['includeReferences',  'Scripture references'],
                     ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
                       <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
                         <input type="checkbox" checked={Boolean(idiomOpts[key])} onChange={(e) => setIdiomOpts((o) => ({ ...o, [key]: e.target.checked }))} />

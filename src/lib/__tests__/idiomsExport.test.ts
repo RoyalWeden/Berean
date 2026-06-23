@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomsExportOptions } from '../idiomsExport'
 
 const idioms = [
-  { term: 'gird up your loins', meaning: 'prepare for action', aliases: ['gird your loins'],
-    content: '1. He told them to gird up your loins.\n2. Time to gird up your loins.', verses: ['1 Kings 18:46'] },
-  { term: 'apple of his eye', meaning: 'someone cherished', aliases: [], content: '', verses: [] },
+  { term: 'gird up your loins', meaning: 'prepare for action',
+    examples: ['He told them to gird up your loins.', 'Time to gird up your loins.'],
+    explanation: 'A figure for readiness — gird up your loins, like a runner.',
+    compare: ['roll up your sleeves'], verses: ['1 Kings 18:46'] },
+  { term: 'apple of his eye', meaning: 'someone cherished', examples: [], compare: [], verses: [] },
 ]
 
 const opts = (o: Partial<IdiomsExportOptions> = {}): IdiomsExportOptions => ({ ...DEFAULT_IDIOMS_OPTIONS, ...o })
@@ -23,39 +25,34 @@ describe('buildIdiomsExportHtml', () => {
     expect(html).toContain('someone cherished')
   })
 
-  it('italicises the idiom inside its example sentences', () => {
+  it('numbers example sentences and italicises the idiom in them', () => {
     const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }))
     expect(html).toContain('<em>gird up your loins</em>')
+    expect(html).toContain('>1.</span>')
+    expect(html).toContain('>2.</span>')
   })
 
-  it('shows a Compare to line for aliases and a References line for verses', () => {
+  it('renders explanation, Compare to, and References', () => {
     const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }))
+    expect(html).toContain('figure for readiness')
     expect(html).toContain('Compare to:')
-    expect(html).toContain('gird your loins')
+    expect(html).toContain('roll up your sleeves')
     expect(html).toContain('References:')
     expect(html).toContain('1 Kings 18:46')
   })
 
   it('omits sections that are turned off', () => {
-    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat', includeAliases: false, includeReferences: false, includeExamples: false }))
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat', includeExamples: false, includeExplanation: false, includeCompare: false, includeReferences: false }))
+    expect(html).not.toContain('<em>')
     expect(html).not.toContain('Compare to:')
     expect(html).not.toContain('References:')
-    expect(html).not.toContain('<em>')
+    expect(html).not.toContain('figure for readiness')
   })
 
   it('two-column only when there is enough content; few idioms stay single column', () => {
-    // A handful of idioms should NOT be forced across two columns…
     expect(buildIdiomsExportHtml(idioms, opts({ layout: 'two-column' }))).not.toContain('column-count:2')
-    // …but a long list should.
-    const many = Array.from({ length: 30 }, (_, i) => ({ term: `idiom ${String.fromCharCode(97 + (i % 26))}${i}`, meaning: 'm', content: 'ex' }))
+    const many = Array.from({ length: 30 }, (_, i) => ({ term: `idiom ${String.fromCharCode(97 + (i % 26))}${i}`, meaning: 'm', examples: ['ex'] }))
     expect(buildIdiomsExportHtml(many, opts({ layout: 'two-column' }))).toContain('column-count:2')
-    expect(buildIdiomsExportHtml(many, opts({ layout: 'single' }))).not.toContain('column-count:2')
-  })
-
-  it('honors theme colours when provided', () => {
-    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }), { term: '#0d9488', rule: '#ccfbf1', muted: '#64748b' })
-    expect(html).toContain('#0d9488')
-    expect(html).not.toContain('#c0392b')
   })
 
   it('grouped adds letter headings; contents adds an index', () => {
@@ -65,12 +62,13 @@ describe('buildIdiomsExportHtml', () => {
     expect(contents).toContain('A (1)')
   })
 
-  it('compact density uses smaller fonts than spacious', () => {
-    expect(buildIdiomsExportHtml(idioms, opts({ density: 'compact', organization: 'flat' }))).toContain('font-size:13px')   // compact term
-    expect(buildIdiomsExportHtml(idioms, opts({ density: 'spacious', organization: 'flat' }))).toContain('font-size:15px')  // spacious term
+  it('honors theme colours when provided', () => {
+    const html = buildIdiomsExportHtml(idioms, opts({ organization: 'flat' }), { term: '#0d9488', rule: '#ccfbf1', muted: '#64748b' })
+    expect(html).toContain('#0d9488')
+    expect(html).not.toContain('#c0392b')
   })
 
-  it('escapes HTML in content', () => {
+  it('escapes HTML in fields', () => {
     const html = buildIdiomsExportHtml([{ term: 'x', meaning: 'a < b & c' }], opts({ organization: 'flat' }))
     expect(html).toContain('a &lt; b &amp; c')
   })

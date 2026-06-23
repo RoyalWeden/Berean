@@ -499,6 +499,14 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_auto_variants INTEGER DEFAULT 0`) } catch {}
       console.log('[berean-db] v16: idiom_auto_variants column on notes')
     }
+  },
+  {
+    version: 17,
+    up(db) {
+      // Structured idiom fields (JSON): { examples: string[], explanation, compare: string[], verses: string[] }
+      try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_data TEXT`) } catch {}
+      console.log('[berean-db] v17: idiom_data column on notes')
+    }
   }
 ]
 

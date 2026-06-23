@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, ChevronDown, BookOpen, ExternalLink, GitFork } from 'lucide-react'
+import { Search, ChevronDown, BookOpen, ExternalLink, GitFork, Hash } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { Book } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
+import { isStrongsQuery, parseStrongsQuery } from '@/lib/strongsSearch'
+import { useAppStore } from '@/store'
 
 function normalizeBookName(name: string): string {
   return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
 }
 
 type SearchMode = 'auto' | 'text' | 'crossref'
+type ScopeFilter = 'all' | 'ot' | 'nt'
 
 interface CrossRef {
   bookId: string
@@ -46,7 +49,6 @@ interface RawResult {
 
 interface Props {
   onNavigate: (bookId: string, chapter: number, verse: number, textId: string) => void
-  /** Called when the user clicks "Advanced search tab". Receives the current query. */
   onAdvancedSearch: (query: string) => void
   onClose: () => void
   currentTextId?: string
@@ -68,8 +70,13 @@ function highlight(text: string, query: string): React.ReactNode {
 }
 
 export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, onClose, currentTextId = 'kjva' }: Props) {
+  const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
+  const ensureTab = useAppStore((s) => s.ensureTab)
+  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+
   const [query, setQuery] = useState('')
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all')
   const [selectedTextId, setSelectedTextId] = useState(currentTextId)
   const [textDropdownOpen, setTextDropdownOpen] = useState(false)
   const [textDropRect, setTextDropRect] = useState<{ left: number; top: number } | null>(null)
@@ -131,10 +138,11 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
     finally { setCrossRefsLoading(false) }
   }, [])
 
-  function effectiveMode(q: string): 'text' | 'crossref' {
+  function effectiveMode(q: string): 'text' | 'crossref' | 'strongs' {
     if (searchMode === 'text') return 'text'
     if (searchMode === 'crossref') return 'crossref'
-    // auto: if input looks like a verse reference, use crossref
+    // auto: strongs first, then ref, then text
+    if (isStrongsQuery(q)) return 'strongs'
     return parseRef(q.trim()) ? 'crossref' : 'text'
   }
 
@@ -160,15 +168,34 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
     const mode = effectiveMode(val)
     if (mode === 'crossref') {
       debounceRef.current = setTimeout(() => runCrossRefSearch(val), 300)
-    } else {
+    } else if (mode === 'text') {
       debounceRef.current = setTimeout(() => runSearch(val, selectedTextId), 300)
     }
+    // strongs: no inline search — just surface the "Open Lexicon" action
+  }
+
+  function openLexicon(strongsNum: string) {
+    openLexiconEntry(strongsNum)
+    ensureTab('lexicon')
+    setActiveSpace('lexicon')
+    onClose()
   }
 
   const selectedText = ALL_TEXTS.find((t) => t.id === selectedTextId)
-  const filteredResults = results.filter((r) => bookFilter === 'all' || r.book_id === bookFilter)
+
+  // Apply scope filter (OT/NT) then book filter
+  const scopedResults = results.filter((r) => {
+    if (scopeFilter === 'all') return true
+    const bk = books.find((b) => b.id === r.book_id)
+    if (!bk) return true
+    return scopeFilter === 'ot' ? bk.testament === 'OT' : bk.testament === 'NT'
+  })
+  const filteredResults = scopedResults.filter((r) => bookFilter === 'all' || r.book_id === bookFilter)
   const displayResults = filteredResults.slice(0, 30)
-  const availableBooks = books.filter((b) => results.some((r) => r.book_id === b.id))
+  const availableBooks = books.filter((b) => scopedResults.some((r) => r.book_id === b.id))
+
+  const mode = effectiveMode(query)
+  const strongsNum = mode === 'strongs' ? parseStrongsQuery(query) : null
 
   return (
     <Dialog.Root open={true} onOpenChange={(open) => !open && onClose()}>
@@ -196,22 +223,23 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
               onChange={(e) => handleInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') { e.preventDefault(); onClose() }
+                if (e.key === 'Enter' && strongsNum) { e.preventDefault(); openLexicon(strongsNum) }
               }}
-              placeholder={searchMode === 'crossref' ? 'Verse reference… (e.g. Gen 1:1)' : 'Search scripture…'}
+              placeholder={searchMode === 'crossref' ? 'Verse reference… (e.g. Gen 1:1)' : 'Search scripture or Strong’s (H/G)…'}
               spellCheck={false}
               className="flex-1 bg-transparent text-sm outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
             />
             {(loading || crossRefsLoading) && (
               <span className="text-[10px] text-[rgb(var(--color-text-muted))] animate-pulse flex-shrink-0">Searching…</span>
             )}
-            {!loading && !crossRefsLoading && filteredResults.length > 0 && effectiveMode(query) === 'text' && (
+            {!loading && !crossRefsLoading && filteredResults.length > 0 && mode === 'text' && (
               <span className="text-[10px] text-[rgb(var(--color-text-muted))] tabular-nums flex-shrink-0">
                 {filteredResults.length} result{filteredResults.length !== 1 ? 's' : ''}
               </span>
             )}
 
-            {/* Text selector — hidden in crossref mode */}
-            {effectiveMode(query) !== 'crossref' && (
+            {/* Text selector — hidden in crossref and strongs modes */}
+            {mode !== 'crossref' && mode !== 'strongs' && (
               <div ref={textDropRef} className="relative flex-shrink-0">
                 <button
                   ref={textDropBtnRef}
@@ -221,9 +249,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
                       if (next && textDropBtnRef.current) {
                         const r = textDropBtnRef.current.getBoundingClientRect()
                         const W = 176, MAX_H = window.innerHeight * 0.6, pad = 8
-                        // Align right edge with button; clamp so left edge never goes off-screen
                         const left = Math.max(pad, Math.min(r.right - W, window.innerWidth - W - pad))
-                        // Open below; flip above if not enough space below
                         const spaceBelow = window.innerHeight - r.bottom - pad
                         const top = spaceBelow >= MAX_H / 2 ? r.bottom + 4 : Math.max(pad, r.top - MAX_H - 4)
                         setTextDropRect({ left, top })
@@ -236,7 +262,6 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
                   {selectedText?.label ?? selectedTextId.toUpperCase()}
                   <ChevronDown size={10} />
                 </button>
-                {/* Rendered via portal so the dialog's overflow-hidden doesn't clip it */}
                 {textDropdownOpen && textDropRect && createPortal(
                   <div
                     className="fixed z-[9999] w-44 max-h-[60vh] overflow-y-auto bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
@@ -270,7 +295,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
             )}
           </div>
 
-          {/* Search mode toggle */}
+          {/* Mode + scope bar */}
           <div className="flex items-center gap-1 px-4 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))]">
             <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-1">Mode</span>
             {(['auto', 'text', 'crossref'] as SearchMode[]).map((m) => (
@@ -287,10 +312,56 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
                 {m === 'auto' ? 'Auto' : m === 'text' ? 'Text' : 'Cross refs'}
               </button>
             ))}
+
+            {/* Scope chips — only relevant for text search */}
+            {mode === 'text' && (
+              <>
+                <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] mx-1" />
+                {(['all', 'ot', 'nt'] as ScopeFilter[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setScopeFilter(s); setBookFilter('all') }}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                      scopeFilter === s
+                        ? 'bg-[rgb(var(--color-accent))]/20 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]'
+                        : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
+                    }`}
+                  >
+                    {s === 'all' ? 'All' : s === 'ot' ? 'OT' : 'NT'}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
 
+          {/* Strong's detection prompt */}
+          {mode === 'strongs' && strongsNum && (
+            <div className="px-4 py-3 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hash size={13} className="text-[rgb(var(--color-accent))]" />
+                <span className="text-xs font-semibold text-[rgb(var(--color-accent))]">{strongsNum}</span>
+                <span className="text-[11px] text-[rgb(var(--color-text-muted))]">Strong's lexicon entry</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openLexicon(strongsNum)}
+                  className="flex items-center gap-1 text-[11px] px-3 py-1 rounded-lg bg-[rgb(var(--color-accent))] text-white font-medium hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                  Open in Lexicon
+                </button>
+                <button
+                  onClick={() => { onAdvancedSearch(query) }}
+                  className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  title="Search all verses with this number in Advanced Search"
+                >
+                  Search verses →
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Book filter (shown only when there are results with multiple books) */}
-          {availableBooks.length > 1 && (
+          {mode === 'text' && availableBooks.length > 1 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] overflow-x-auto">
               <button
                 onClick={() => setBookFilter('all')}
@@ -311,7 +382,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
           )}
 
           {/* Verse preview */}
-          {effectiveMode(query) === 'crossref' && versePreview && (
+          {mode === 'crossref' && versePreview && (
             <div className="px-4 py-3 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))]">
               <p className="text-[10px] font-semibold text-[rgb(var(--color-accent))] mb-1">{versePreview.ref}</p>
               <p className="text-[11px] text-[rgb(var(--color-text-primary))] leading-relaxed">{versePreview.text}</p>
@@ -319,7 +390,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
           )}
 
           {/* Cross-ref results */}
-          {effectiveMode(query) === 'crossref' && crossRefs.length > 0 && (
+          {mode === 'crossref' && crossRefs.length > 0 && (
             <div className="overflow-y-auto max-h-80">
               {crossRefs.slice(0, 30).map((r, i) => {
                 const ref = r.endVerse
@@ -347,7 +418,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
             </div>
           )}
 
-          {effectiveMode(query) === 'crossref' && !crossRefsLoading && crossRefs.length === 0 && query.trim().length >= 2 && (
+          {mode === 'crossref' && !crossRefsLoading && crossRefs.length === 0 && query.trim().length >= 2 && (
             <div className="px-4 py-5 text-center text-xs text-[rgb(var(--color-text-muted))]">
               {parseRef(query.trim())
                 ? 'No cross-references found for this verse'
@@ -356,7 +427,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
           )}
 
           {/* Text search results */}
-          {effectiveMode(query) === 'text' && displayResults.length > 0 && (
+          {mode === 'text' && displayResults.length > 0 && (
             <div className="overflow-y-auto max-h-80">
               {displayResults.map((r, i) => {
                 const book = books.find((b) => b.id === r.book_id)
@@ -380,7 +451,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
             </div>
           )}
 
-          {effectiveMode(query) === 'text' && query.length >= 2 && !loading && filteredResults.length === 0 && (
+          {mode === 'text' && query.length >= 2 && !loading && filteredResults.length === 0 && (
             <div className="px-4 py-5 text-center text-xs text-[rgb(var(--color-text-muted))]">
               No results for <span className="font-medium text-[rgb(var(--color-text-secondary))]">"{query}"</span>
             </div>
@@ -398,7 +469,7 @@ export default function ScriptureSearchFloating({ onNavigate, onAdvancedSearch, 
               className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
             >
               <BookOpen size={10} />
-              Advanced scripture search tab
+              More filters →
               <ExternalLink size={9} />
             </button>
           </div>

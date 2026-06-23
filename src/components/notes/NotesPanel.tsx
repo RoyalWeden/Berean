@@ -196,13 +196,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       return `${name} ${r.chapter}:${r.verse}${r.endVerse ? `-${r.endVerse}` : ''}`
     }
     return notes.filter((n) => n.type === 'idiom').map((n) => {
+      const d = n.idiomData ?? {}
+      const textForRefs = [...(d.examples ?? []), d.explanation ?? '', n.content ?? ''].join('\n')
       const seen = new Set<string>()
-      const verses: string[] = []
-      for (const r of extractRefsFromNote(n.content || '', n.idiomTerm || n.title || '')) {
-        const f = fmt(r)
-        if (!seen.has(f)) { seen.add(f); verses.push(f) }
-      }
-      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, content: n.content, aliases: n.idiomAliases, verses }
+      const autoVerse = extractRefsFromNote(textForRefs, n.idiomTerm || n.title || '').map(fmt)
+      const verses = [...new Set([...(d.verses ?? []), ...autoVerse])].filter((v) => { const ok = !seen.has(v); seen.add(v); return ok })
+      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, examples: d.examples, explanation: d.explanation, compare: d.compare, verses }
     })
   }
 
@@ -1495,6 +1494,17 @@ function IdiomHeader({ note, onUpdate }: {
   const aliases = note.idiomAliases ?? []
   const autoVariants = note.idiomAutoVariants ?? false
 
+  // Structured reference-book fields (idiomData JSON).
+  const data = note.idiomData ?? {}
+  const examples = data.examples ?? []
+  const compare = data.compare ?? []
+  const verses = data.verses ?? []
+  const [exInput, setExInput] = useState('')
+  const [detailsOpen, setDetailsOpen] = useState(
+    Boolean(examples.length || (data.explanation ?? '').trim() || compare.length || verses.length)
+  )
+  const updateData = (patch: Partial<NonNullable<Note['idiomData']>>) => onUpdate({ idiomData: { ...data, ...patch } })
+
   async function saveAlias(val: string) {
     const trimmed = val.trim()
     if (!trimmed || aliases.map(a => a.toLowerCase()).includes(trimmed.toLowerCase())) return
@@ -1576,6 +1586,85 @@ function IdiomHeader({ note, onUpdate }: {
           <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-40 italic">e.g. "herod" for this same idiom</span>
         )}
       </div>
+
+      {/* Reference-book structured fields */}
+      <div className="px-4 pb-2">
+        <button onClick={() => setDetailsOpen((v) => !v)} className="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))] hover:text-violet-400 cursor-pointer flex items-center gap-1">
+          <span>{detailsOpen ? '▾' : '▸'}</span> Reference details
+        </button>
+        {detailsOpen && (
+          <div className="flex flex-col gap-2.5 mt-2">
+            {/* Examples */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Example sentences</span>
+              {examples.map((ex, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-3 text-right">{i + 1}.</span>
+                  <input
+                    defaultValue={ex}
+                    className="flex-1 text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))]"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim()
+                      const next = [...examples]
+                      if (!v) next.splice(i, 1); else next[i] = v
+                      updateData({ examples: next })
+                    }}
+                  />
+                  <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer text-xs">×</button>
+                </div>
+              ))}
+              <input
+                value={exInput}
+                onChange={(e) => setExInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
+                onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
+                placeholder="+ add an example sentence…"
+                className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] ml-4"
+              />
+            </div>
+            {/* Explanation */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Explanation</span>
+              <textarea
+                key={note.id + '-expl'}
+                defaultValue={data.explanation ?? ''}
+                rows={2}
+                placeholder="What the expression means / where it comes from…"
+                className="text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))] resize-y"
+                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
+              />
+            </div>
+            {/* Compare to + Verses — simple comma chips */}
+            <IdiomChipRow label="Compare to (related idioms)" items={compare} onChange={(next) => updateData({ compare: next })} placeholder="+ related idiom…" />
+            <IdiomChipRow label="Verses" items={verses} onChange={(next) => updateData({ verses: next })} placeholder="+ e.g. Luke 13:32…" />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Small reusable add/remove chip list for the idiom structured fields. */
+function IdiomChipRow({ label, items, onChange, placeholder }: { label: string; items: string[]; onChange: (next: string[]) => void; placeholder: string }) {
+  const [input, setInput] = useState('')
+  const add = (v: string) => { const t = v.trim(); if (t && !items.includes(t)) onChange([...items, t]); setInput('') }
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 mr-0.5">{label}:</span>
+      {items.map((it) => (
+        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+          {it}
+          <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ',') && input.trim()) { e.preventDefault(); add(input) } }}
+        onBlur={() => { if (input.trim()) add(input) }}
+        placeholder={placeholder}
+        className="text-[11px] bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[110px]"
+      />
     </div>
   )
 }

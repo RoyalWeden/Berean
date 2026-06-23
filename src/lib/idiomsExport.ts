@@ -1,17 +1,17 @@
 /**
  * Build a clean, reference-book-style HTML document from all idiom notes, for printing /
- * PDF export. Each idiom is a styled entry — coloured term heading, definition, the note
- * body as numbered examples (with the idiom italicised in context), a "Compare to" line of
- * aliases, and a "References" line of the scripture verses the note cites. Flows in one or
- * two columns. Raw HTML passes through the note print pipeline unchanged.
+ * PDF export. Each idiom is a styled entry — coloured term heading, definition, numbered
+ * example sentences (with the idiom italicised in context), an explanation paragraph, a
+ * "Compare to" line of related idioms, and a "References" line of scripture verses. Flows in
+ * one or two columns. Raw HTML passes through the note print pipeline unchanged.
  */
 
 export interface IdiomExportEntry {
   term: string
   meaning?: string
-  content?: string
-  aliases?: string[]
-  /** Scripture references cited by the note, pre-formatted (e.g. "Genesis 1:1"). */
+  examples?: string[]
+  explanation?: string
+  compare?: string[]
   verses?: string[]
 }
 
@@ -22,7 +22,8 @@ export type IdiomsLayout = 'two-column' | 'single'
 export interface IdiomsExportOptions {
   includeMeaning: boolean
   includeExamples: boolean
-  includeAliases: boolean
+  includeExplanation: boolean
+  includeCompare: boolean
   includeReferences: boolean
   organization: IdiomsOrganization
   density: IdiomsDensity
@@ -30,7 +31,7 @@ export interface IdiomsExportOptions {
 }
 
 export const DEFAULT_IDIOMS_OPTIONS: IdiomsExportOptions = {
-  includeMeaning: true, includeExamples: true, includeAliases: true, includeReferences: true,
+  includeMeaning: true, includeExamples: true, includeExplanation: true, includeCompare: true, includeReferences: true,
   organization: 'grouped', density: 'spacious', layout: 'two-column',
 }
 
@@ -51,41 +52,23 @@ function firstLetter(term: string): string {
   return m ? m[0].toUpperCase() : '#'
 }
 
-/** Escape `text`, then italicise any occurrence of the idiom term or its aliases (in context). */
-function italiciseIdiom(text: string, term: string, aliases: string[]): string {
-  let out = esc(text)
-  const forms = [term, ...aliases].map((s) => s.trim()).filter((s) => s.length >= 2)
-    .sort((a, b) => b.length - a.length)  // longest first so aliases win over substrings
-  for (const form of forms) {
-    const re = new RegExp(`\\b(${esc(form).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi')
-    out = out.replace(re, '<em>$1</em>')
-  }
-  return out
+/** Escape `text`, then italicise any occurrence of the idiom term (in context). */
+function italiciseTerm(text: string, term: string): string {
+  const out = esc(text)
+  const t = term.trim()
+  if (t.length < 2) return out
+  const re = new RegExp(`\\b(${esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi')
+  return out.replace(re, '<em>$1</em>')
 }
 
-/** Render the note body into numbered example rows (hanging indent) / paragraphs. */
-function renderBody(content: string, term: string, aliases: string[], compact: boolean, muted: string): string {
-  const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
-  if (lines.length === 0) return ''
-  const gap = compact ? 2 : 3
-  return lines.map((line) => {
-    const m = line.match(/^(\d{1,3})[.)]\s+(.*)$/)
-    const inner = italiciseIdiom(m ? m[2] : line, term, aliases)
-    if (m) {
-      return `<div style="padding-left:1.5em;text-indent:-1.5em;margin:${gap}px 0"><span style="color:${muted}">${m[1]}.</span> ${inner}</div>`
-    }
-    return `<div style="margin:${gap}px 0">${inner}</div>`
-  }).join('')
-}
-
-/** Estimate how many text rows an entry occupies (term + definition + examples + extras). */
 function estimateRows(e: IdiomExportEntry, opts: IdiomsExportOptions): number {
   let n = 1
   if (opts.includeMeaning && e.meaning?.trim()) n += 1
-  if (opts.includeExamples && e.content?.trim()) n += e.content.split('\n').filter((l) => l.trim()).length
-  if (opts.includeAliases && (e.aliases?.length ?? 0) > 0) n += 1
-  if (opts.includeReferences && (e.verses?.length ?? 0) > 0) n += 1
-  return n + 1 // trailing gap
+  if (opts.includeExamples && e.examples?.length) n += e.examples.length
+  if (opts.includeExplanation && e.explanation?.trim()) n += 2
+  if (opts.includeCompare && e.compare?.length) n += 1
+  if (opts.includeReferences && e.verses?.length) n += 1
+  return n + 1
 }
 
 /** Returns the combined HTML, or '' when there are no idioms. */
@@ -96,28 +79,33 @@ export function buildIdiomsExportHtml(idioms: IdiomExportEntry[], opts: IdiomsEx
 
   const TERM_COLOR = colors.term
   const compact = opts.density === 'compact'
-  // Only spread across two columns when there is enough content to fill more than one column;
-  // a handful of idioms should sit in a single column, not be forced thin across the page.
   const ROWS_PER_COLUMN = compact ? 60 : 44
   const totalRows = entries.reduce((s, e) => s + estimateRows(e, opts), 0)
   const useTwoColumns = opts.layout === 'two-column' && totalRows > ROWS_PER_COLUMN
+
   const termSize = compact ? 13 : 15
   const bodySize = compact ? 11.5 : 13
   const defSize = compact ? 12 : 14
   const entryGap = compact ? 10 : 16
+  const exGap = compact ? 2 : 3
 
   const entryHtml = (e: IdiomExportEntry): string => {
-    const aliases = e.aliases ?? []
     const parts: string[] = []
     parts.push(`<div style="color:${TERM_COLOR};font-weight:700;font-size:${termSize}px;text-transform:uppercase;letter-spacing:.02em;line-height:1.2">${esc(titleCase(e.term.trim()))}</div>`)
     if (opts.includeMeaning && e.meaning && e.meaning.trim()) {
       parts.push(`<div style="font-size:${defSize}px;line-height:1.35;margin:1px 0 ${compact ? 4 : 6}px">${esc(e.meaning.trim())}</div>`)
     }
-    if (opts.includeExamples && e.content && e.content.trim()) {
-      parts.push(`<div style="font-size:${bodySize}px;line-height:1.45">${renderBody(e.content, e.term, aliases, compact, colors.muted)}</div>`)
+    if (opts.includeExamples && e.examples && e.examples.length > 0) {
+      const rows = e.examples.filter((x) => x.trim()).map((ex, i) =>
+        `<div style="padding-left:1.5em;text-indent:-1.5em;margin:${exGap}px 0;font-size:${bodySize}px;line-height:1.45"><span style="color:${colors.muted}">${i + 1}.</span> ${italiciseTerm(ex, e.term)}</div>`,
+      ).join('')
+      parts.push(`<div>${rows}</div>`)
     }
-    if (opts.includeAliases && aliases.length > 0) {
-      parts.push(`<div style="font-size:${bodySize}px;font-style:italic;margin-top:${compact ? 3 : 5}px"><span style="font-style:normal;color:${colors.muted}">Compare to:</span> ${esc(aliases.join('; '))}</div>`)
+    if (opts.includeExplanation && e.explanation && e.explanation.trim()) {
+      parts.push(`<div style="font-size:${bodySize}px;line-height:1.45;margin-top:${compact ? 3 : 5}px">${italiciseTerm(e.explanation.trim(), e.term)}</div>`)
+    }
+    if (opts.includeCompare && e.compare && e.compare.length > 0) {
+      parts.push(`<div style="font-size:${bodySize}px;font-style:italic;margin-top:${compact ? 3 : 5}px"><span style="font-style:normal;color:${colors.muted}">Compare to:</span> ${esc(e.compare.join('; '))}</div>`)
     }
     if (opts.includeReferences && e.verses && e.verses.length > 0) {
       parts.push(`<div style="font-size:${bodySize}px;margin-top:${compact ? 2 : 4}px"><span style="color:${colors.muted}">References:</span> ${esc(e.verses.join(', '))}</div>`)

@@ -156,6 +156,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [bookPickerQuery, setBookPickerQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>(persistedState?.sortMode ?? 'relevance')
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [focusedIdx, setFocusedIdx] = useState(-1)
+  const [showContext, setShowContext] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -163,6 +166,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const translationRef = useRef<HTMLDivElement>(null)
   const bookPickerRef = useRef<HTMLDivElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  const groupHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const resultButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
   type CtxData = Omit<CtxItem, 'x' | 'y'>
   const { menu: ctxMenu, menuRef: ctxMenuRef, openMenu: openCtxMenu, closeMenu: closeCtxMenu } = usePositionedMenu<CtxData>()
   const onStateChangeRef = useRef(onStateChange)
@@ -425,9 +430,46 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
   const selectedBookLabel = bookFilterSummary(selectedBooks, bookNameOf)
 
+  // Flat ordered list of visible results (respects collapsed groups) for keyboard nav
+  const visibleResults: Array<RawResult & { _groupKey: string }> = []
+  for (const g of filteredGroups) {
+    const key = `${g.textId}::${g.bookId}`
+    if (!collapsedGroups.has(key)) {
+      for (const r of g.results) visibleResults.push({ ...r, _groupKey: key })
+    }
+  }
+
+  // Scroll focused result into view when focusedIdx changes
+  useEffect(() => {
+    if (focusedIdx >= 0) resultButtonRefs.current.get(focusedIdx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [focusedIdx])
+
+  // Reset focused index when results change
+  useEffect(() => { setFocusedIdx(-1) }, [results])
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') onClose()
-    if (e.key === 'Enter') runForMode(query)
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return }
+    if (e.key === 'Enter') {
+      if (focusedIdx >= 0 && visibleResults[focusedIdx]) {
+        const r = visibleResults[focusedIdx]
+        onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)
+        return
+      }
+      runForMode(query)
+      return
+    }
+    if ((e.key === 'j' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if (visibleResults.length === 0) return
+      e.preventDefault()
+      setFocusedIdx((i) => Math.min(i + 1, visibleResults.length - 1))
+      return
+    }
+    if ((e.key === 'k' || e.key === 'ArrowUp') && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      if (visibleResults.length === 0) return
+      e.preventDefault()
+      setFocusedIdx((i) => { if (i <= 0) { inputRef.current?.focus(); return -1 } return i - 1 })
+      return
+    }
   }
 
   return (
@@ -611,12 +653,20 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         >
           {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
         </button>
+        <button
+          onClick={() => setShowContext((v) => !v)}
+          title={showContext ? 'Compact view' : 'Expanded view (full verse text)'}
+          className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex-shrink-0 ${showContext ? 'bg-[rgb(var(--color-accent))]/15 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+        >
+          {showContext ? '≡ Full' : '≡ Compact'}
+        </button>
       </div>}
 
-      {/* Results */}
+      {/* Results — scroll list + jump-to-book rail */}
+      <div className="flex-1 flex overflow-hidden">
       <div
         ref={resultsRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto min-w-0"
         onScroll={(e) => onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop: (e.currentTarget as HTMLDivElement).scrollTop })}
       >
         {/* Cross-ref results */}
@@ -694,9 +744,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               {selectedBooks.length > 0 && ` in ${selectedBookLabel}`}
               {' '}— click to navigate
             </p>
-            {filteredGroups.map((group) => (
-              <div key={`${group.textId}::${group.bookId}`}>
-                <div className="flex items-center gap-1.5 px-4 py-1.5 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] sticky top-[29px] z-10">
+            {filteredGroups.map((group) => {
+              const key = `${group.textId}::${group.bookId}`
+              const collapsed = collapsedGroups.has(key)
+              return (
+              <div key={key}>
+                <div
+                  ref={(el) => { if (el) groupHeaderRefs.current.set(key, el); else groupHeaderRefs.current.delete(key) }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] sticky top-[29px] z-10 cursor-pointer select-none hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+                  onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
+                >
+                  <ChevronDown size={11} className={`text-[rgb(var(--color-text-muted))] transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
                   <BookOpen size={11} className="text-[rgb(var(--color-text-muted))]" />
                   <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">{group.bookName}</span>
                   <span className="text-[10px] text-[rgb(var(--color-text-muted))] ml-1">{group.results.length}</span>
@@ -704,17 +762,21 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   {textId === 'all' && <span className="text-[9px] text-[rgb(var(--color-accent))] font-medium uppercase tracking-wide">{group.textLabel}</span>}
                   {group.testament && textId !== 'all' && <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>}
                 </div>
-                {group.results.map((r) => (
+                {!collapsed && group.results.map((r) => {
+                  const flatIdx = visibleResults.findIndex((vr) => vr.book_id === r.book_id && vr.chapter === r.chapter && vr.verse_num === r.verse_num && vr._groupKey === key)
+                  const isFocused = flatIdx === focusedIdx
+                  return (
                   <button
                     key={`${r._textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
+                    ref={(el) => { if (el && flatIdx >= 0) resultButtonRefs.current.set(flatIdx, el) }}
                     onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
                     onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group"
+                    className={`w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/50] group ${isFocused ? 'bg-[rgb(var(--color-accent))]/10 ring-inset ring-1 ring-[rgb(var(--color-accent))]/30' : 'hover:bg-[rgb(var(--color-surface-4))]'}`}
                   >
                     <span className="text-xs font-mono text-[rgb(var(--color-text-muted))] w-14 flex-shrink-0 pt-0.5">
                       {r.chapter}:{r.verse_num}
                     </span>
-                    <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] leading-relaxed">
+                    <span className={`flex-1 text-xs text-[rgb(var(--color-text-primary))] leading-relaxed ${showContext ? '' : 'line-clamp-2'}`}>
                       {effectiveMode(query) === 'strongs'
                         ? highlightStrongs(r.text, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [])
                         : highlight(
@@ -727,9 +789,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     </span>
                     <ChevronRight size={11} className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
-                ))}
+                )})}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -740,6 +803,27 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Keywords, a reference, or a Strong's number (e.g. G5485) · Esc to return to reader</p>
           </div>
         )}
+      </div>
+
+      {/* Jump-to-book rail — shown when there are multiple groups */}
+      {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (
+        <div className="flex-shrink-0 w-9 overflow-y-auto border-l border-[rgb(var(--color-surface-4))] flex flex-col items-center py-1 gap-0.5 bg-[rgb(var(--color-surface-2))]">
+          {filteredGroups.map((g) => {
+            const key = `${g.textId}::${g.bookId}`
+            const abbr = g.bookName.replace(/^(1|2|3|First|Second|Third)\s+/i, (m) => m.trim()[0]).slice(0, 3)
+            return (
+              <button
+                key={key}
+                onClick={() => groupHeaderRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                title={g.bookName}
+                className="text-[8.5px] font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer leading-tight py-0.5 px-0.5 text-center w-full"
+              >
+                {abbr}
+              </button>
+            )
+          })}
+        </div>
+      )}
       </div>
 
       {/* Right-click context menu for search results */}

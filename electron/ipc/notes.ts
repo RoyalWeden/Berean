@@ -19,6 +19,7 @@ interface NoteRow {
   idiom_meaning: string | null
   idiom_aliases: string | null
   idiom_auto_variants: number | null
+  idiom_data: string | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -39,8 +40,11 @@ function rowToNote(row: NoteRow) {
     idiomMeaning:      row.idiom_meaning ?? undefined,
     idiomAliases:      row.idiom_aliases ? (JSON.parse(row.idiom_aliases) as string[]) : undefined,
     idiomAutoVariants: row.idiom_auto_variants === 1 ? true : undefined,
+    idiomData:         row.idiom_data ? safeParse(row.idiom_data) : undefined,
   }
 }
+
+function safeParse(s: string): unknown { try { return JSON.parse(s) } catch { return undefined } }
 
 interface VersionRow { id: string; note_id: string; title: string | null; content: string; kind: string; created_at: number }
 function rowToVersion(r: VersionRow) {
@@ -107,7 +111,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:update', (_event, id: string, data: {
-    title?: string; content?: string; color?: string; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
+    title?: string; content?: string; color?: string; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
   }) => {
     const db = getBereanDb()
     const existing = db.prepare('SELECT id FROM notes WHERE id = ?').get(id)
@@ -124,6 +128,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     if (data.idiomMeaning !== undefined) { fields.push('idiom_meaning = ?'); values.push(data.idiomMeaning || null) }
     if (data.idiomAliases !== undefined) { fields.push('idiom_aliases = ?'); values.push(data.idiomAliases.length ? JSON.stringify(data.idiomAliases) : null) }
     if (data.idiomAutoVariants !== undefined) { fields.push('idiom_auto_variants = ?'); values.push(data.idiomAutoVariants ? 1 : 0) }
+    if (data.idiomData !== undefined) { fields.push('idiom_data = ?'); values.push(data.idiomData ? JSON.stringify(data.idiomData) : null) }
 
     values.push(id)
     db.prepare(`UPDATE notes SET ${fields.join(', ')} WHERE id = ?`).run(...values)
