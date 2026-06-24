@@ -70,6 +70,10 @@ export interface NoteTabState {
 export interface LexiconTabState {
   strongsNum: string | null
   scrollTop?: number
+  lexHistory?: Array<
+    | { kind: 'entry'; strongsNum: string }
+    | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }
+  >
 }
 
 /**

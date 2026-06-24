@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History, Monitor } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
+import ContinuousDailyScroll from './ContinuousDailyScroll'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import ZoomControls from '@/components/shell/ZoomControls'
 import NotesList from './NotesList'
@@ -59,8 +60,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const noteTransformLayout = useAppStore((s) => s.noteTransformLayout)
   const setIdiomCache = useAppStore((s) => s.setIdiomCache)
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
+  const continuousDailyScroll = useAppStore((s) => s.continuousDailyScroll)
 
   const [notes, setNotes] = useState<Note[]>([])
+  const [continuousDailyDate, setContinuousDailyDate] = useState(() => new Date())
   // Idioms → single PDF export: opens the print preview directly (options live in the modal).
   const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
   // A note queued for print/PDF export from the right-click menu (without opening it).
@@ -1222,6 +1225,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </div>
             )}
 
+            {/* Continuous daily scroll mode — replaces the list when toggled on the 'daily' filter */}
+            {continuousDailyScroll && !folderView ? (
+              <ContinuousDailyScroll
+                targetDate={continuousDailyDate}
+                notes={notes}
+                onDateChange={setContinuousDailyDate}
+                onDayOpen={openDailyNote}
+              />
+            ) : (
             <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
               {folderView ? (
                 <NotesFolderView
@@ -1279,6 +1291,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               )}
             </div>
+            )}
           </>
         )}
       </div>

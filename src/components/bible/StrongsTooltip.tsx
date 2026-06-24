@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
@@ -16,6 +16,12 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry }: S
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const wr = (t: string) => wordReplacerEnabled && wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
+
+  // Reset when strongsNum changes so a recycled component instance always re-fetches
+  useEffect(() => {
+    setEntry(null)
+    setLoaded(false)
+  }, [strongsNum])
 
   const handleOpenChange = useCallback((open: boolean) => {
     if (open) {

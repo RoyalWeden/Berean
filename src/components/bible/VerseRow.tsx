@@ -385,7 +385,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   // For KJVA tagged + Strong's replacement (e.g. LORD→Yehovah, with the preceding "the"
   // suppressed), applyWordReplacer is NOT enough — it skips Strong's-number rules — so the
   // selection coordinates would be off. buildVerseDisplayText reproduces exactly what renders.
-  const renderedDisplayText = (!hasHidden && textId === 'kjva' && verse.text_tagged && shouldReplace)
+  const renderedDisplayText = (!hasHidden && (textId === 'kjva' || textId === 'lxx') && verse.text_tagged && shouldReplace)
     ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
     : verseForDisplay.text
   const renderedDisplayTextRef = useRef(renderedDisplayText)
@@ -788,11 +788,11 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
 
   function renderVerseText() {
-    // ── KJVA with text_tagged: unified italic + Strong's + char-highlight rendering ──
+    // ── KJVA / LXX with text_tagged: unified Strong's + char-highlight rendering ──
     // This handles: showStrongs ON/OFF, kjva_italics hidden/shown, find highlights, and
     // char-level highlights — all simultaneously. Char positions are tracked from the
     // raw (pre-filter) token list so they align with verse.text offsets.
-    if (textId === 'kjva' && verse.text_tagged) {
+    if ((textId === 'kjva' || textId === 'lxx') && verse.text_tagged) {
       const tokens = parseTaggedTokens(verse.text_tagged)
 
       // Compute char start position in verse.text for each token (before any filtering).

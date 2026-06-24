@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
 import ChapterView from './ChapterView'
+import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
 import CompareView from './CompareView'
 import BookChapterPicker from './BookChapterPicker'
 import BibleRightPanel from './BibleRightPanel'
@@ -11,7 +12,6 @@ import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import FindBar from '@/components/shell/FindBar'
 import ZoomControls from '@/components/shell/ZoomControls'
 import ScriptureSearchView from './ScriptureSearchView'
-import ScriptureSearchFloating from './ScriptureSearchFloating'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
@@ -49,6 +49,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const addTab = useAppStore((s) => s.addTab)
   const activateTab = useAppStore((s) => s.activateTab)
   const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const openSearch = useAppStore((s) => s.openSearch)
   const closeTab = useAppStore((s) => s.closeTab)
   const defaultScriptureLayout = useAppStore((s) => s.defaultScriptureLayout)
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
@@ -94,6 +95,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchVerseNums, setFindMatchVerseNums] = useState<number[]>([])
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
+  const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
+  const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const viewerScrollRAFRef = useRef<number | null>(null)
   // Stores a scroll position to apply after ChapterView finishes loading its verses async.
@@ -105,8 +108,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   const compareColRefs = useRef<(HTMLDivElement | null)[]>([])
-  // Floating scripture search
-  const [scriptureFloatingOpen, setScriptureFloatingOpen] = useState(false)
   // Layout picker popover
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false)
   const layoutPickerRef = useRef<HTMLDivElement>(null)
@@ -178,6 +179,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // we store the desired position in pendingScrollRef and ChapterView calls onVersesLoaded
   // after data arrives, at which point we apply the scroll.
   useEffect(() => {
+    if (continuousChapterScroll) return  // ContinuousChapterScroll manages its own scroll
     const el = chapterViewRef.current
     if (!el) return
     if (activeSpace !== 'scripture') return
@@ -192,7 +194,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (savedPos === 0) return
     // Store it — will be applied by onVersesLoaded once ChapterView data arrives
     pendingScrollRef.current = savedPos
-  }, [activeSpace, activeTabId['scripture'], tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSpace, activeTabId['scripture'], tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cancel any pending debounced scroll save when the tab changes.
   // The actual save now happens via berean:saveScrollBeforeTabChange (fired synchronously
@@ -227,7 +229,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // sizes / zoom / wrapping, and updates instantly while scrolling (no IPC round-trip).
   const computePresenterBand = useCallback(() => {
     const region = viewerVisibleRegion
-    const c = chapterViewRef.current
+    const c = getScrollEl()
     if (floating || !viewerWindowOpen || !region || !c) { setPresenterBand(null); return }
     if (region.bookId !== tabState.bookId || region.chapter !== tabState.chapter) { setPresenterBand(null); return }
     const f = region.visibleFraction
@@ -270,7 +272,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       mainScrollTop: c.scrollTop,
       scrollPercentOverride,
     }))
-  }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter])
+  }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recompute on fraction/chapter/layout change, and when live-sync resumes (viewerPaused →
   // false) so the outline reappears after pausing + switching tabs.
@@ -305,7 +307,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
     }
     function onSelChange() {
-      const c = chapterViewRef.current
+      const c = getScrollEl()
       if (!c || !canPushOverlay()) return
       const ref = currentBibleChapterRef()
       if (!ref) return
@@ -334,7 +336,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
       const tab = activeTabRef.current
-      const el = chapterViewRef.current
+      const el = getScrollEl()
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el && pos > 0) updates.scrollPosition = pos
@@ -355,7 +357,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     function onSave() {
       const tab = activeTabRef.current
-      const el = chapterViewRef.current
+      const el = getScrollEl()
       if (!tab) return
       const updates: Partial<import('@/types').BibleTabState> = {}
       if (el) updates.scrollPosition = el.scrollTop
@@ -410,6 +412,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const currentBook = books.find((b) => b.id === tabState.bookId)
   const chapterCount = currentBook?.chapters_count ?? 50
 
+  // Returns the active scroll container regardless of mode (normal vs continuous scroll)
+  function getScrollEl(): HTMLDivElement | null {
+    return continuousChapterScroll ? (continuousScrollRef.current?.getScrollEl() ?? null) : chapterViewRef.current
+  }
+
   useEffect(() => {
     if (!activeTab) return
     if (tabState.searchMode) {
@@ -433,22 +440,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     })
   }, [tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for the keyboard shortcut to open the floating scripture search
-  useEffect(() => {
-    function onOpenFloating() {
-      if (activeSpace === 'scripture') setScriptureFloatingOpen(true)
-    }
-    window.addEventListener('berean:openScriptureSearch', onOpenFloating)
-    return () => window.removeEventListener('berean:openScriptureSearch', onOpenFloating)
-  }, [activeSpace])
-
   // ── Strong's scroll-anchor helpers ───────────────────────────────────────
   // Find the topmost verse whose top edge is at or below the container's visible top,
   // then record how far its top edge is from the container's top (the "offset").
   // After the layout reflows (Strong's chips add/remove height), we scroll so that
   // same verse's top edge is back at the same offset — preventing the jump.
   function captureStrongsAnchor() {
-    const container = chapterViewRef.current
+    const container = getScrollEl()
     if (!container) return
     const containerTop = container.getBoundingClientRect().top
     const verseEls = container.querySelectorAll<HTMLElement>('[data-verse]')
@@ -469,7 +467,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const anchor = strongsAnchorRef.current
     if (!anchor) return
     strongsAnchorRef.current = null
-    const container = chapterViewRef.current
+    const container = getScrollEl()
     if (!container) return
     // Use double-RAF to ensure the layout (new chip heights) has settled.
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -513,7 +511,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         verseDigitTimerRef.current = setTimeout(() => {
           const verseNum = parseInt(next, 10)
           if (!isNaN(verseNum) && verseNum > 0 && activeTabRef.current) {
-            const container = chapterViewRef.current
+            const container = getScrollEl()
             if (container) {
               const el = container.querySelector<HTMLElement>(`[data-verse="${verseNum}"]`)
               if (el) {
@@ -613,7 +611,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const findVerses = useCallback((q: string, compareMode: boolean, focusedCol: number, wMode: 'phrase' | 'all' | 'any'): number[] => {
     const container = compareMode
       ? compareColRefs.current[focusedCol]
-      : chapterViewRef.current
+      : getScrollEl()
     if (!q.trim() || !container) return []
     // Build match function based on word mode
     const trimmed = q.trim().toLowerCase()
@@ -645,7 +643,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const matches = findVerses(findBarQuery, !!tabState.compareMode, compareFocusedCol, findBarWordMode)
     setFindMatchVerseNums(matches)
     setFindMatchIdx(0)
-    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : chapterViewRef.current
+    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : getScrollEl()
     if (matches.length > 0 && container) {
       const el = container.querySelector<HTMLElement>(`[data-verse="${matches[0]}"]`)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -669,7 +667,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (findMatchVerseNums.length === 0) return
     const prev = (findMatchIdx - 1 + findMatchVerseNums.length) % findMatchVerseNums.length
     setFindMatchIdx(prev)
-    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : chapterViewRef.current
+    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : getScrollEl()
     const el = container?.querySelector<HTMLElement>(`[data-verse="${findMatchVerseNums[prev]}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     presenterScrollToVerse(findMatchVerseNums[prev])
@@ -679,7 +677,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (findMatchVerseNums.length === 0) return
     const next = (findMatchIdx + 1) % findMatchVerseNums.length
     setFindMatchIdx(next)
-    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : chapterViewRef.current
+    const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : getScrollEl()
     const el = container?.querySelector<HTMLElement>(`[data-verse="${findMatchVerseNums[next]}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     presenterScrollToVerse(findMatchVerseNums[next])
@@ -706,6 +704,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
 
   function prevChapter() {
+    if (continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId)) {
+      if (tabState.chapter > 1) {
+        continuousScrollRef.current?.scrollToChapter(tabState.chapter - 1)
+      }
+      return
+    }
     if (tabState.endChapter) {
       // In multi-chapter mode, go to previous single chapter
       navigate(tabState.bookId, tabState.chapter - 1)
@@ -722,6 +726,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
 
   function nextChapter() {
+    if (continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId)) {
+      if (tabState.chapter < chapterCount) {
+        continuousScrollRef.current?.scrollToChapter(tabState.chapter + 1)
+      }
+      return
+    }
     if (tabState.endChapter) {
       // In multi-chapter mode, go to next single chapter after the range
       navigate(tabState.bookId, tabState.endChapter + 1)
@@ -776,11 +786,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const pos = pendingScrollRef.current
     if (!pos || pos === 0) return
     pendingScrollRef.current = null
-    const el = chapterViewRef.current
+    const el = getScrollEl()
     if (el) {
       el.scrollTop = pos
     }
-  }, []) // refs never change identity
+  }, []) // refs never change identity — getScrollEl reads refs directly
 
   function handleStrongsClick(strongsNum: string) {
     // No side panel in floating windows — skip opening it
@@ -966,6 +976,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </div>
     )
   }
+
+  // Shared scroll handler — used by both the standard div and ContinuousChapterScroll
+  const handleBibleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget
+    const scrollTop = container.scrollTop
+    const tabId = activeTabRef.current?.id
+    if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+    scrollSaveTimerRef.current = setTimeout(() => {
+      if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
+    }, 150)
+    const max = container.scrollHeight - container.clientHeight
+    const scrollPercent = max > 0 ? scrollTop / max : 0
+    setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    const st = useAppStore.getState()
+    if (Date.now() < findScrollSuppressRef.current) {
+      findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
+    } else if (st.viewerWindowOpen && !st.viewerPaused) {
+      findCenterVerseRef.current = null
+      if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
+      viewerScrollRAFRef.current = requestAnimationFrame(() => {
+        viewerScrollRAFRef.current = null
+        const base = computeViewerPayload()
+        if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
+      })
+    }
+    if (!st.viewerPaused) computePresenterBand()
+  }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isCompareMode = tabState.compareMode || currentLayout === 'compare-notes'
 
@@ -1193,15 +1230,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <ScanSearch size={15} />
         </button>
         </HintTooltip>
-        {/* Scripture floating search */}
+        {/* Scripture search — opens unified command palette */}
         <HintTooltip label="Search scripture" shortcut="⌘/">
         <button
-          onClick={() => { setScriptureFloatingOpen((v) => !v); if (!scriptureFloatingOpen) closeFindBar() }}
-          className={`p-1 rounded transition-colors cursor-pointer ${
-            scriptureFloatingOpen
-              ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-          }`}
+          onClick={() => { openSearch('current'); closeFindBar() }}
+          className="p-1 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]"
         >
           <SearchIcon size={15} />
         </button>
@@ -1297,7 +1330,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               useAppStore.getState().setViewerWindowOpen(true)
             }
             // Capture the live scroll position so the explicit push starts at the right place
-            const container = chapterViewRef.current
+            const container = getScrollEl()
             if (container) {
               const max = container.scrollHeight - container.clientHeight
               setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0, `${tabState.bookId}:${tabState.chapter}`)
@@ -1319,25 +1352,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         <ZoomControls context="scripture" compact />
       </div>
 
-      {/* Floating scripture search (SearchIcon toolbar button or Cmd+/) */}
-      {scriptureFloatingOpen && (
-        <ScriptureSearchFloating
-          onNavigate={(bookId, chapter, verse, tid) => {
-            navigate(bookId, chapter)
-            if (activeTab) {
-              const newTranslation = tid.toUpperCase()
-              updateTabState('scripture', activeTab.id, { targetVerse: verse, translation: newTranslation })
-            }
-            setScriptureFloatingOpen(false)
-          }}
-          onAdvancedSearch={(q) => {
-            setScriptureFloatingOpen(false)
-            openScriptureSearchTab(q)
-          }}
-          onClose={() => setScriptureFloatingOpen(false)}
-          currentTextId={textId}
-        />
-      )}
 
       {/* PDF library picker */}
       {pdfPicker && <PdfPicker anchor={pdfPicker} onClose={() => setPdfPicker(null)} />}
@@ -1407,6 +1421,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         }}
         initialColumns={tabState.compareColumns}
         onColumnsChange={(cols) => { if (activeTab) updateTabState('scripture', activeTab.id, { compareColumns: cols }) }}
+      />
+    ) : continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId) ? (
+      <ContinuousChapterScroll
+        ref={continuousScrollRef}
+        bookId={tabState.bookId}
+        chapter={tabState.chapter}
+        totalChapters={chapterCount}
+        showStrongs={tabState.showStrongs}
+        textId={textId}
+        targetVerse={tabState.targetVerse}
+        endVerse={tabState.endVerse}
+        hiddenAnnotations={tabState.hiddenAnnotations}
+        findQuery={findQuery}
+        findWordMode={findWMode}
+        onStrongsClick={handleStrongsClick}
+        onWordClick={handleWordClick}
+        onChapterChange={(ch) => {
+          if (!activeTab) return
+          const book = books.find((b) => b.id === tabState.bookId)
+          const chTitle = book ? `${book.name} ${ch}` : `${tabState.bookId} ${ch}`
+          updateTabState('scripture', activeTab.id, { chapter: ch })
+          renameTab('scripture', activeTab.id, chTitle)
+        }}
+        onVersesLoaded={onVersesLoaded}
+        onScroll={handleBibleScroll}
+        presenterBand={presenterBand}
+        viewerPaused={viewerPaused}
       />
     ) : (
       <div
@@ -1482,48 +1523,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           const ref = currentBibleChapterRef()
           if (ref) window.app.pushViewerOverlay?.({ ...ref, laser: null })
         }}
-        onScroll={(e) => {
-          // Capture both values NOW so they survive a tab switch before the timer fires
-          const scrollTop = e.currentTarget.scrollTop
-          const tabId = activeTabRef.current?.id
-          if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
-          scrollSaveTimerRef.current = setTimeout(() => {
-            if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
-          }, 150)
-          // Real-time viewer sync — proportional scroll percentage so zoom differences don't matter
-          {
-            const container = chapterViewRef.current
-            if (container) {
-              const max = container.scrollHeight - container.clientHeight
-              const scrollPercent = max > 0 ? container.scrollTop / max : 0
-              // Always record (tagged with the chapter) so a later full re-sync starts here
-              setMainBibleScrollPercent(scrollPercent, `${tabState.bookId}:${tabState.chapter}`)
-              const st = useAppStore.getState()
-              // Skip proportional sync during a find-bar jump — the verse-centered scrollTo
-              // command drives the presenter. Extend the suppress on each scroll event so it
-              // covers the ENTIRE smooth scroll (which, for a distant match, outlasts a fixed
-              // window); otherwise proportional sync would resume mid-scroll and drift the
-              // outline band off the centered verse.
-              if (Date.now() < findScrollSuppressRef.current) {
-                findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
-              } else if (st.viewerWindowOpen && !st.viewerPaused) {
-                // A manual scroll ends the find-centered override → resume proportional mirroring.
-                findCenterVerseRef.current = null
-                if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
-                viewerScrollRAFRef.current = requestAnimationFrame(() => {
-                  viewerScrollRAFRef.current = null
-                  const base = computeViewerPayload()
-                  if (base.kind === 'bible') {
-                    window.app.pushViewerContent?.({ ...base, scrollPercent })
-                  }
-                })
-              }
-            }
-          }
-          // Update the presenter outline band live as this panel scrolls (cheap, synchronous).
-          // Skip while paused — the presenter is frozen, so the band should stay put.
-          if (!useAppStore.getState().viewerPaused) computePresenterBand()
-        }}
+        onScroll={handleBibleScroll}
       >
         {/* Presenter visible-region band — outlines the region of scripture currently shown on
             the presenter window. Scrolls with content (absolute inside the scroll container). */}

@@ -8,7 +8,9 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight } from '@/lib/strongsSearch'
-import { CANONICAL_BOOK_GROUPS, toggleBook, toggleGroup, isGroupActive, bookPassesFilter, filterBookList, bookFilterSummary } from '@/lib/scriptureSearchFilters'
+import { toggleBook, bookPassesFilter, bookFilterSummary } from '@/lib/scriptureSearchFilters'
+import { editionForTextId } from '@/lib/bibleTexts'
+import { normalizeBookQuery } from '@/lib/verseUtils'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index). */
 function highlightStrongs(text: string, matchWordIndices: number[]): React.ReactNode {
@@ -144,16 +146,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [versePreview, setVersePreview] = useState<{ ref: string; text: string } | null>(null)
   const [allBooks, setAllBooks] = useState<Record<string, Book[]>>({})
   const [loading, setLoading] = useState(false)
-  const [translationOpen, setTranslationOpen] = useState(false)
   const [testamentFilter, setTestamentFilter] = useState<TestamentFilter>((persistedState?.testamentFilter as TestamentFilter) ?? 'all')
-  // Multi-select book filter (empty = any book). Persisted as a comma-joined string in the
-  // existing searchBookFilter field for back-compat.
+  // Multi-select book filter (empty = any book). Persisted as a comma-joined string.
   const [selectedBooks, setSelectedBooks] = useState<string[]>(() => {
     const s = persistedState?.bookFilter
     return s && s !== 'all' ? s.split(',').filter(Boolean) : []
   })
   const [bookPickerOpen, setBookPickerOpen] = useState(false)
-  const [bookPickerQuery, setBookPickerQuery] = useState('')
+  const [bookPickerPos, setBookPickerPos] = useState<{ left: number; top: number } | null>(null)
+  const [bookSearch, setBookSearch] = useState('')
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['OT', 'NT']))
+  const [wordModeOpen, setWordModeOpen] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>(persistedState?.sortMode ?? 'relevance')
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -163,8 +166,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const translationRef = useRef<HTMLDivElement>(null)
-  const bookPickerRef = useRef<HTMLDivElement>(null)
+  const bookPickerTriggerRef = useRef<HTMLButtonElement>(null)
+  const bookPickerPanelRef = useRef<HTMLDivElement>(null)
+  const bookSearchRef = useRef<HTMLInputElement>(null)
+  const editionStripRef = useRef<HTMLDivElement>(null)
+  const wordModeRef = useRef<HTMLDivElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
   const groupHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const resultButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
@@ -237,16 +243,29 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       .catch(() => setVersePreview(null))
   }, [query, searchMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close dropdowns on outside click
+  // Close book picker on outside click (portaled panel)
   useEffect(() => {
-    if (!translationOpen && !bookPickerOpen) return
+    if (!bookPickerOpen) return
     function onDown(e: MouseEvent) {
-      if (translationRef.current && !translationRef.current.contains(e.target as Node)) setTranslationOpen(false)
-      if (bookPickerRef.current && !bookPickerRef.current.contains(e.target as Node)) setBookPickerOpen(false)
+      const t = e.target as Node
+      if (!bookPickerTriggerRef.current?.contains(t) && !bookPickerPanelRef.current?.contains(t)) {
+        setBookPickerOpen(false)
+        setBookSearch('')
+      }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [translationOpen, bookPickerOpen])
+  }, [bookPickerOpen])
+
+  // Close word-mode dropdown on outside click
+  useEffect(() => {
+    if (!wordModeOpen) return
+    function onDown(e: MouseEvent) {
+      if (wordModeRef.current && !wordModeRef.current.contains(e.target as Node)) setWordModeOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [wordModeOpen])
 
   const runSearch = useCallback(async (q: string, tid: string, wMode?: WordMode) => {
     const trimmed = q.trim()
@@ -343,11 +362,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   function selectTranslation(tid: string) {
     setTextId(tid)
     setSelectedBooks([])
-    setTranslationOpen(false)
     if (query.trim().length >= 2) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       debounceRef.current = setTimeout(() => runSearch(query, tid, wordMode), 100)
     }
+  }
+
+  function openBookPicker() {
+    const r = bookPickerTriggerRef.current?.getBoundingClientRect()
+    if (!r) return
+    const W = 320, H = 380, pad = 8
+    const left = Math.max(pad, Math.min(r.left, window.innerWidth - W - pad))
+    const spaceBelow = window.innerHeight - r.bottom - pad
+    const top = spaceBelow >= H / 2 ? r.bottom + 4 : Math.max(pad, r.top - H - 4)
+    setBookPickerPos({ left, top })
+    setBookPickerOpen((v) => !v)
+    setBookSearch('')
+    setTimeout(() => bookSearchRef.current?.focus(), 30)
   }
 
   function handleWordModeChange(mode: WordMode) {
@@ -426,8 +457,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   })()
 
   const totalCount = filteredGroups.reduce((n, g) => n + g.results.length, 0)
-  const currentTextLabel = textId === 'all' ? 'All texts' : ALL_TEXTS.find((t) => t.id === textId)?.label ?? textId.toUpperCase()
-  const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
+const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
   const selectedBookLabel = bookFilterSummary(selectedBooks, bookNameOf)
 
   // Flat ordered list of visible results (respects collapsed groups) for keyboard nav
@@ -474,9 +504,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
-      {/* Header */}
+      {/* ── Header row: input + controls ─────────────────────── */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-        {/* Back to reader */}
         <button
           onClick={onClose}
           title="Back to reader (Esc)"
@@ -485,7 +514,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           <ArrowLeft size={15} />
         </button>
 
-        {/* Search input */}
         <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           ref={inputRef}
@@ -493,174 +521,305 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           value={query}
           onChange={(e) => handleInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search scripture…"
-          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+          placeholder="Search scripture, Strong's, or verse ref…"
+          className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none min-w-0"
         />
 
-        {/* Translation selector — hidden in crossref mode */}
-        {effectiveMode(query) === 'text' && <div ref={translationRef} className="relative flex-shrink-0">
-          <button
-            onClick={() => setTranslationOpen((v) => !v)}
-            className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            {currentTextLabel}
-            <ChevronDown size={10} className={`transition-transform ${translationOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {translationOpen && (
-            <div className="absolute top-full right-0 mt-1 z-50 min-w-[180px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1 max-h-96 overflow-y-auto">
-              <button onClick={() => selectTranslation('all')} className={`flex items-center gap-2 w-full px-3 py-1.5 text-left cursor-pointer transition-colors ${textId === 'all' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}>
-                <Check size={11} className={textId === 'all' ? 'opacity-100' : 'opacity-0'} />
-                <span className="text-xs font-medium">All texts</span>
-              </button>
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
-              <div className="px-3 py-0.5"><span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Bible</span></div>
-              {ALL_TEXTS.filter((t) => t.category === 'bible').map((t) => (
-                <button key={t.id} onClick={() => selectTranslation(t.id)} className={`flex items-center gap-2 w-full px-3 py-1.5 text-left cursor-pointer transition-colors ${textId === t.id ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}>
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-              <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
-              <div className="px-3 py-0.5"><span className="text-[9px] uppercase tracking-wide text-[rgb(var(--color-text-muted))]">Pseudepigrapha</span></div>
-              {ALL_TEXTS.filter((t) => t.category === 'pseudo').map((t) => (
-                <button key={t.id} onClick={() => selectTranslation(t.id)} className={`flex items-center gap-2 w-full px-3 py-1.5 text-left cursor-pointer transition-colors ${textId === t.id ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}>
-                  <Check size={11} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                  <span className="text-xs">{t.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>}
-
-      </div>
-
-      {/* Row 1: Search mode (Auto / Text / Cross refs) */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] flex-shrink-0 flex-wrap">
-        <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5">Mode</span>
-        {(['auto', 'text', 'crossref'] as SearchMode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => { setSearchMode(m); setResults([]); setCrossRefs([]) }}
-            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
-              searchMode === m
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
-            }`}
-          >
-            {m === 'crossref' && <GitFork size={9} />}
-            {m === 'auto' ? 'Auto' : m === 'text' ? 'Text' : 'Cross refs'}
-          </button>
-        ))}
-      </div>
-
-      {/* Row 2: Word match mode (All / Any / Phrase) — only shown for text search */}
-      {effectiveMode(query) === 'text' && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
-          <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] mr-0.5 flex-shrink-0">Match</span>
-          {(['all', 'any', 'phrase'] as WordMode[]).map((m) => (
+        {/* Match mode dropdown — text mode only */}
+        {effectiveMode(query) === 'text' && (
+          <div ref={wordModeRef} className="relative flex-shrink-0">
             <button
-              key={m}
-              onClick={() => handleWordModeChange(m)}
-              className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
-                wordMode === m
-                  ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                  : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
+              onClick={() => setWordModeOpen((v) => !v)}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                wordMode !== 'all'
+                  ? 'bg-[rgb(var(--color-accent))]/15 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]'
+                  : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
               }`}
             >
-              {m === 'all' ? 'All words' : m === 'any' ? 'Any word' : 'Phrase'}
+              {wordMode === 'phrase' ? '" Phrase' : wordMode === 'any' ? 'Any word' : 'All words'}
+              <ChevronDown size={9} className={`transition-transform ${wordModeOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
-        </div>
-      )}
-
-      {/* Filter + sort bar — hidden in crossref mode */}
-      {effectiveMode(query) !== 'crossref' && <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap">
-        {/* Book filter */}
-        <div ref={bookPickerRef} className="relative">
-          <button
-            onClick={() => setBookPickerOpen((v) => !v)}
-            className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer"
-          >
-            {selectedBookLabel}
-            <ChevronDown size={9} />
-          </button>
-          {bookPickerOpen && (
-            <div className="absolute top-full left-0 mt-1 z-50 w-64 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl flex flex-col max-h-80">
-              {/* Type-to-filter */}
-              <div className="p-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                <input
-                  autoFocus
-                  value={bookPickerQuery}
-                  onChange={(e) => setBookPickerQuery(e.target.value)}
-                  placeholder="Filter books…"
-                  className="w-full text-xs bg-[rgb(var(--color-surface-4))] rounded px-2 py-1.5 outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
-                />
-              </div>
-              {/* Canonical group chips */}
-              <div className="flex flex-wrap gap-1 p-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                {CANONICAL_BOOK_GROUPS.map((g) => (
+            {wordModeOpen && (
+              <div className="absolute top-full right-0 mt-1 z-50 min-w-[130px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1">
+                {([['all', 'All words'], ['any', 'Any word'], ['phrase', '" Phrase']] as [WordMode, string][]).map(([m, label]) => (
                   <button
-                    key={g.id}
-                    onClick={() => setSelectedBooks((cur) => toggleGroup(cur, g))}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                      isGroupActive(selectedBooks, g)
-                        ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                        : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-                    }`}
+                    key={m}
+                    onClick={() => { handleWordModeChange(m); setWordModeOpen(false) }}
+                    className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left cursor-pointer transition-colors ${wordMode === m ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
                   >
-                    {g.label}
+                    <Check size={10} className={wordMode === m ? 'opacity-100' : 'opacity-0'} />
+                    {label}
                   </button>
                 ))}
               </div>
-              {/* Book checklist */}
-              <div className="overflow-y-auto py-1 flex-1">
-                {selectedBooks.length > 0 && (
-                  <button onClick={() => setSelectedBooks([])} className="w-full px-3 py-1 text-[10px] text-left text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer">Clear all ({selectedBooks.length})</button>
-                )}
-                {filterBookList(availableBooks, bookPickerQuery).map((b) => {
-                  const on = selectedBooks.includes(b.id)
-                  return (
-                    <button key={`${b.textId}::${b.id}`} onClick={() => setSelectedBooks((cur) => toggleBook(cur, b.id))} className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left cursor-pointer ${on ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}>
-                      <Check size={10} className={on ? 'opacity-100' : 'opacity-0'} />
-                      <span className="flex-1 truncate">{b.name}</span>
-                      {textId === 'all' && <span className="text-[9px] text-[rgb(var(--color-text-muted))] ml-1 flex-shrink-0">{b.textLabel}</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* Testament filter chips */}
-        {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as TestamentFilter[]).map((f) => (
-          <button
-            key={f}
-            onClick={() => setTestamentFilter(f)}
-            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
-              testamentFilter === f
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
-                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            {f === 'all' ? 'All sections' : f}
-          </button>
-        ))}
-        <div className="flex-1 min-w-0" />
-        <button
-          onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-          className="text-[10px] px-2 py-0.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-        >
-          {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
-        </button>
-        <button
-          onClick={() => setShowContext((v) => !v)}
-          title={showContext ? 'Compact view' : 'Expanded view (full verse text)'}
-          className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex-shrink-0 ${showContext ? 'bg-[rgb(var(--color-accent))]/15 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-        >
-          {showContext ? '≡ Full' : '≡ Compact'}
-        </button>
-      </div>}
+      </div>
+
+      {/* ── Filter area — three distinct axes, hidden in crossref mode ── */}
+      {effectiveMode(query) !== 'crossref' && (() => {
+        const isFiltered = textId !== 'all' || testamentFilter !== 'all' || selectedBooks.length > 0
+        const currentEdition = textId !== 'all' ? editionForTextId(textId) : undefined
+
+        // Books filtered by currently-selected edition and corpus (for the book picker + quick strip)
+        const booksForCurrentContext = availableBooks.filter((b) => {
+          if (testamentFilter !== 'all') {
+            if (testamentFilter === 'Pseudepigrapha') {
+              const t = ALL_TEXTS.find((t) => t.id === b.textId)
+              if (t?.category !== 'pseudo') return false
+            } else {
+              if (b.testament !== testamentFilter) return false
+            }
+          }
+          return true
+        })
+
+        const booksForEdition = textId !== 'all' ? (allBooks[textId] ?? []) : []
+        const otBooks = booksForEdition.filter((b) => b.testament === 'OT')
+        const ntBooks = booksForEdition.filter((b) => b.testament === 'NT')
+        const apoBooks = booksForEdition.filter((b) => b.testament === 'Apocrypha')
+
+        // Filtered book list for search in picker
+        const bq = normalizeBookQuery(bookSearch.trim().toLowerCase())
+        const filteredPickerBooks = bq
+          ? booksForCurrentContext.filter((b) => b.name.toLowerCase().includes(bq) || b.id.toLowerCase().includes(bq))
+          : booksForCurrentContext
+
+        // Short label for edition button
+        const editionChipLabel = (t: typeof ALL_TEXTS[0]) =>
+          t.id === 'kjva' ? 'KJVa' : t.id === 'lxx' ? 'LXX' : t.label
+
+        return (
+          <div className="flex-shrink-0 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]">
+
+            {/* Row A — Edition chips */}
+            <div
+              ref={editionStripRef}
+              className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto border-b border-[rgb(var(--color-surface-4))]/40 scrollbar-none"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] font-semibold flex-shrink-0 mr-1">Edition</span>
+              {/* All */}
+              <button
+                onClick={() => selectTranslation('all')}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${textId === 'all' ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              >All</button>
+              {/* Bible editions */}
+              {ALL_TEXTS.filter((t) => t.category === 'bible').map((t) => {
+                const isActive = textId === t.id || (currentEdition?.id === t.id)
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => selectTranslation(t.id)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${isActive ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  >
+                    {editionChipLabel(t)}
+                  </button>
+                )
+              })}
+              <span className="text-[rgb(var(--color-surface-4))] flex-shrink-0 mx-0.5 select-none">·</span>
+              {/* Pseudepigrapha editions */}
+              {ALL_TEXTS.filter((t) => t.category === 'pseudo').map((t) => {
+                const isActive = textId === t.id
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => selectTranslation(t.id)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${isActive ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  >
+                    {editionChipLabel(t)}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Row B — Book quick-strip (only when a specific edition is selected) */}
+            {textId !== 'all' && (otBooks.length > 0 || ntBooks.length > 0 || apoBooks.length > 0) && (
+              <div className="border-b border-[rgb(var(--color-surface-4))]/40 px-3 py-1.5 space-y-1">
+                {otBooks.length > 0 && (
+                  <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] w-6 flex-shrink-0">OT</span>
+                    {otBooks.map((b) => {
+                      const on = selectedBooks.includes(b.id)
+                      const abbr = b.name.length > 5 ? b.name.slice(0, 3) : b.name
+                      return (
+                        <button
+                          key={b.id}
+                          title={b.name}
+                          onClick={() => { setTestamentFilter('all'); setSelectedBooks((cur) => toggleBook(cur, b.id)) }}
+                          className={`text-[9px] px-1 py-0.5 rounded border cursor-pointer transition-colors flex-shrink-0 whitespace-nowrap ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        >{abbr}</button>
+                      )
+                    })}
+                  </div>
+                )}
+                {ntBooks.length > 0 && (
+                  <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] w-6 flex-shrink-0">NT</span>
+                    {ntBooks.map((b) => {
+                      const on = selectedBooks.includes(b.id)
+                      const abbr = b.name.length > 5 ? b.name.slice(0, 3) : b.name
+                      return (
+                        <button
+                          key={b.id}
+                          title={b.name}
+                          onClick={() => { setTestamentFilter('all'); setSelectedBooks((cur) => toggleBook(cur, b.id)) }}
+                          className={`text-[9px] px-1 py-0.5 rounded border cursor-pointer transition-colors flex-shrink-0 whitespace-nowrap ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        >{abbr}</button>
+                      )
+                    })}
+                  </div>
+                )}
+                {apoBooks.length > 0 && (
+                  <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] w-6 flex-shrink-0">Apo</span>
+                    {apoBooks.map((b) => {
+                      const on = selectedBooks.includes(b.id)
+                      const abbr = b.name.length > 5 ? b.name.slice(0, 3) : b.name
+                      return (
+                        <button
+                          key={b.id}
+                          title={b.name}
+                          onClick={() => { setTestamentFilter('all'); setSelectedBooks((cur) => toggleBook(cur, b.id)) }}
+                          className={`text-[9px] px-1 py-0.5 rounded border cursor-pointer transition-colors flex-shrink-0 whitespace-nowrap ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        >{abbr}</button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Row C — Corpus chips + Book picker trigger + controls */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
+              <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] font-semibold flex-shrink-0 mr-0.5">Corpus</span>
+              {(['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as const).map((s) => {
+                const isActive = testamentFilter === s && selectedBooks.length === 0 || (s === 'all' && testamentFilter === 'all' && selectedBooks.length === 0)
+                const label = s === 'all' ? 'All' : s === 'OT' ? 'OT' : s === 'NT' ? 'NT' : s === 'Apocrypha' ? 'Apoc' : 'Pseud'
+                return (
+                  <button
+                    key={s}
+                    onClick={() => { setTestamentFilter(s === 'all' ? 'all' : s as TestamentFilter); setSelectedBooks([]) }}
+                    className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex-shrink-0 ${isActive ? 'bg-[rgb(var(--color-accent))]/20 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  >{label}</button>
+                )
+              })}
+
+              {/* Book picker — simplified, shows only books filtered by edition+corpus */}
+              <button
+                ref={bookPickerTriggerRef}
+                onClick={openBookPicker}
+                className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex-shrink-0 ${selectedBooks.length > 0 ? 'bg-[rgb(var(--color-accent))]/10 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              >
+                {selectedBooks.length > 0
+                  ? bookFilterSummary(selectedBooks, (id) => availableBooks.find((b) => b.id === id)?.name ?? id)
+                  : 'Book ▾'}
+              </button>
+
+              {/* Clear active filters */}
+              {isFiltered && (
+                <button
+                  onClick={() => { setTextId('all'); setTestamentFilter('all'); setSelectedBooks([]) }}
+                  className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer flex-shrink-0"
+                  title="Clear all filters"
+                >×</button>
+              )}
+
+              <div className="flex-1 min-w-0" />
+              <button
+                onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
+                className="text-[10px] px-2 py-0.5 rounded border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+              >
+                {sortMode === 'relevance' ? '↕ Relevance' : '↕ Book order'}
+              </button>
+              <button
+                onClick={() => setShowContext((v) => !v)}
+                title={showContext ? 'Compact view' : 'Full verse text'}
+                className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer flex-shrink-0 ${showContext ? 'bg-[rgb(var(--color-accent))]/15 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              >
+                {showContext ? '≡ Full' : '≡ Compact'}
+              </button>
+            </div>
+
+            {/* Simplified book picker portal (books only, no edition section) */}
+            {bookPickerOpen && bookPickerPos && createPortal(
+              <div
+                ref={bookPickerPanelRef}
+                className="fixed z-[9999] flex flex-col bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden"
+                style={{ left: bookPickerPos.left, top: bookPickerPos.top, width: 320, maxHeight: 380 }}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+                  <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                  <input
+                    ref={bookSearchRef}
+                    type="text"
+                    value={bookSearch}
+                    onChange={(e) => setBookSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') { setBookPickerOpen(false); setBookSearch('') } }}
+                    placeholder={textId === 'all' ? 'Search books…' : `Search ${currentEdition?.label ?? textId.toUpperCase()} books…`}
+                    className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
+                  />
+                  {selectedBooks.length > 0 && (
+                    <button
+                      onClick={() => setSelectedBooks([])}
+                      className="flex-shrink-0 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                    >Clear</button>
+                  )}
+                </div>
+                <div className="overflow-y-auto flex-1 py-1">
+                  {(['OT', 'NT', 'Apocrypha', 'Pseudepigrapha'] as const).map((section) => {
+                    const sectionBooks = filteredPickerBooks.filter((b) => b.testament === section)
+                    if (sectionBooks.length === 0) return null
+                    const sectionLabel = section === 'OT' ? 'Old Testament' : section === 'NT' ? 'New Testament' : section
+                    const expanded = expandedSections.has(section)
+                    return (
+                      <div key={section}>
+                        <div className="flex items-center gap-1 px-2 py-1 select-none">
+                          <button
+                            onClick={() => setExpandedSections((prev) => { const s = new Set(prev); s.has(section) ? s.delete(section) : s.add(section); return s })}
+                            className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] flex-shrink-0 cursor-pointer"
+                          >
+                            {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                          </button>
+                          <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
+                            {sectionLabel}
+                            <span className="ml-1.5 font-normal normal-case text-[9px]">{sectionBooks.length}</span>
+                          </span>
+                        </div>
+                        {expanded && sectionBooks.map((book) => {
+                          const on = selectedBooks.includes(book.id)
+                          return (
+                            <button
+                              key={`${book.textId}::${book.id}`}
+                              onClick={() => {
+                                setTestamentFilter('all')
+                                setSelectedBooks((cur) => toggleBook(cur, book.id))
+                              }}
+                              className={`flex items-center gap-2 w-full pl-6 pr-3 py-1.5 text-sm text-left cursor-pointer transition-colors rounded-sm mx-1 ${on ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/8' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+                            >
+                              <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
+                                {on && <Check size={9} className="text-white" />}
+                              </span>
+                              <span className="flex-1 truncate">{book.name}</span>
+                              {textId === 'all' && <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 ml-1">{book.textLabel}</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                  {filteredPickerBooks.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-center text-[rgb(var(--color-text-muted))]">No books found</div>
+                  )}
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+        )
+      })()}
 
       {/* Results — scroll list + jump-to-book rail */}
       <div className="flex-1 flex overflow-hidden">

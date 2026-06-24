@@ -909,6 +909,10 @@ export default function SettingsModal() {
   const setShowVerseNumbers = useAppStore((s) => s.setShowVerseNumbers)
   const showRedLetters = useAppStore((s) => s.showRedLetters)
   const setShowRedLetters = useAppStore((s) => s.setShowRedLetters)
+  const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
+  const setContinuousChapterScroll = useAppStore((s) => s.setContinuousChapterScroll)
+  const continuousDailyScroll = useAppStore((s) => s.continuousDailyScroll)
+  const setContinuousDailyScroll = useAppStore((s) => s.setContinuousDailyScroll)
   const autoCopyOnHighlight = useAppStore((s) => s.autoCopyOnHighlight)
   const setAutoCopyOnHighlight = useAppStore((s) => s.setAutoCopyOnHighlight)
   const noteSpellCheck = useAppStore((s) => s.noteSpellCheck)
@@ -1555,6 +1559,34 @@ export default function SettingsModal() {
                       className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${showRedLetters ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showRedLetters ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Continuous chapter scroll ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous chapter scroll</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Load the next and previous chapters automatically as you scroll, with chapter heading dividers</p>
+                    </div>
+                    <button
+                      onClick={() => setContinuousChapterScroll(!continuousChapterScroll)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousChapterScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousChapterScroll ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* ── Continuous daily notes scroll ── */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous daily notes scroll</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">In the Daily filter view, scroll through consecutive days as a journal with date dividers — click any day to open it for editing</p>
+                    </div>
+                    <button
+                      onClick={() => setContinuousDailyScroll(!continuousDailyScroll)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousDailyScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousDailyScroll ? 'translate-x-5' : ''}`} />
                     </button>
                   </div>
                 </>

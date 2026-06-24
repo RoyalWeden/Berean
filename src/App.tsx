@@ -663,9 +663,9 @@ export default function App() {
         e.preventDefault()
         openSearchTab('')
       } else if (cmd && !e.shiftKey && e.key === '/') {
-        // ── Cmd+/ → open scripture floating search ──────────────────────
+        // ── Cmd+/ → open unified search palette ─────────────────────────
         e.preventDefault()
-        window.dispatchEvent(new CustomEvent('berean:openScriptureSearch'))
+        openSearch('current')
       } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'g') {
         // ── Cmd+G → toggle Strong's numbers in the active scripture tab ──
         e.preventDefault()

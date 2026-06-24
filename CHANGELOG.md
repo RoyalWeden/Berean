@@ -122,6 +122,15 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.3] - 2026-06-23
+
+- Added strongs for LXX
+- Updated advanced scripture search tab
+- Updated floating search
+- Various bug fixes (Presenter view, etc.)
+
+---
+
 ## [0.4.2] - 2026-06-19
 
 - Compare panels in presenter view

@@ -6,13 +6,14 @@ import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
+import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import ZoomControls from '@/components/shell/ZoomControls'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import type { LexiconEntry } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
-type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; matchWordIndices?: number[] }
+type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
 
 /**
  * Strip BDB/scholarly bracket notation from lexicon text.
@@ -173,7 +174,12 @@ function BdbNotesText({ text }: { text: string }) {
   )
 }
 
-function DerivationText({ text, lang, onNav }: { text: string; lang: 'H' | 'G'; onNav: (num: string, newTab: boolean) => void }) {
+function DerivationText({ text, lang, onNav, onContextMenu }: {
+  text: string
+  lang: 'H' | 'G'
+  onNav: (num: string, newTab: boolean) => void
+  onContextMenu?: (e: React.MouseEvent, num: string) => void
+}) {
   // Split on H/G-prefixed numbers OR bare numbers (1–5 digits) so that
   // derivations stored without the prefix (e.g. "from 2165") still link.
   const parts = text.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g)
@@ -192,6 +198,7 @@ function DerivationText({ text, lang, onNav }: { text: string; lang: 'H' | 'G'; 
             <button
               key={i}
               onClick={(e) => onNav(prefixed!, e.metaKey || e.ctrlKey)}
+              onContextMenu={(e) => onContextMenu?.(e, prefixed!)}
               className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
             >
               {prefixed}
@@ -334,6 +341,7 @@ function EntryView({
   const [occurrencesLoading, setOccurrencesLoading] = useState(false)
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
   const verseCopy = useVerseCopyMenu()
+  const strongsCtx = useStrongsContextMenu()
 
   useEffect(() => {
     try {
@@ -375,6 +383,12 @@ function EntryView({
   return (
     <div className="flex flex-col h-full">
       <VerseCopyMenu target={verseCopy.target} onClose={verseCopy.close} />
+      <StrongsContextMenu
+        target={strongsCtx.target}
+        onClose={strongsCtx.close}
+        onOpen={(num) => onNav(num, false)}
+        onOpenNewTab={(num) => onNav(num, true)}
+      />
       {/* Header */}
       <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4 app-drag-region'}`}>
         {noteBack && onNoteBack && (
@@ -496,7 +510,7 @@ function EntryView({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Derivation</p>
             <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed italic">
-              <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} />
+              <DerivationText text={wr(entry.derivation)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} />
             </p>
           </div>
         )}
@@ -520,6 +534,7 @@ function EntryView({
                 <button
                   key={r.strongsNum}
                   onClick={(e) => onNav(r.strongsNum, e.metaKey || e.ctrlKey)}
+                  onContextMenu={(e) => strongsCtx.open(e, r.strongsNum)}
                   className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-left transition-colors"
                 >
                   <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 w-10">{r.strongsNum}</span>
@@ -584,6 +599,11 @@ function EntryView({
                       <span className="font-mono text-[10px] text-[rgb(var(--color-accent))] flex-shrink-0 group-hover:underline">
                         {refLabel}
                       </span>
+                      {occ.text_id === 'lxx' && (
+                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
+                          LXX
+                        </span>
+                      )}
                       {multipleMatches && (
                         <span className="text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 rounded">
                           ×{occ.matchWordIndices?.length}
@@ -628,19 +648,68 @@ function EntryView({
   )
 }
 
-function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordReplacerRules = [], viewerWindowOpen = false, onPresentLexicon }: { onSelect: (entry: LexiconEntry) => void; findQuery?: string; onFindOpen?: () => void; floating?: boolean; wordReplacerRules?: WordReplacerRule[]; viewerWindowOpen?: boolean; onPresentLexicon?: () => void }) {
+function SearchView({
+  onSelect,
+  onOpenNewTab,
+  onSearchStateChange,
+  initialQuery = '',
+  initialLang = 'all' as 'H' | 'G' | 'all',
+  findQuery,
+  onFindOpen,
+  floating = false,
+  wordReplacerRules = [],
+  viewerWindowOpen = false,
+  onPresentLexicon,
+}: {
+  onSelect: (entry: LexiconEntry) => void
+  onOpenNewTab?: (entry: LexiconEntry) => void
+  onSearchStateChange?: (state: { query: string; lang: 'H' | 'G' | 'all' }) => void
+  initialQuery?: string
+  initialLang?: 'H' | 'G' | 'all'
+  findQuery?: string
+  onFindOpen?: () => void
+  floating?: boolean
+  wordReplacerRules?: WordReplacerRule[]
+  viewerWindowOpen?: boolean
+  onPresentLexicon?: () => void
+}) {
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
-  const [query, setQuery] = useState('')
-  const [lang, setLang] = useState<'H' | 'G' | 'all'>('all')
+  const [query, setQuery] = useState(initialQuery)
+  const [lang, setLang] = useState<'H' | 'G' | 'all'>(initialLang)
   const [infoOpen, setInfoOpen] = useState(false)
   const [results, setResults] = useState<LexiconEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchCtx = useStrongsContextMenu()
+  const [ctxEntry, setCtxEntry] = useState<LexiconEntry | null>(null)
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  // If we were restored from history with a pre-existing query, run it immediately
+  useEffect(() => {
+    inputRef.current?.focus()
+    if (initialQuery.trim().length >= 2) {
+      setLoading(true)
+      const q = initialQuery.trim()
+      if (/^[HhGg]\d+$/i.test(q)) {
+        window.lexicon.getEntry(q)
+          .then((e) => { setResults(e ? [e] : []); setLoading(false) })
+          .catch(() => { setResults([]); setLoading(false) })
+      } else {
+        window.lexicon.search(q, initialLang)
+          .then((r) => { setResults(r); setLoading(false) })
+          .catch(() => { setResults([]); setLoading(false) })
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount only — intentional
+
   useEffect(() => { setSelectedIdx(0) }, [results])
+
+  // Report state changes up so the parent can save them into history
+  useEffect(() => {
+    onSearchStateChange?.({ query, lang })
+  }, [query, lang, onSearchStateChange])
 
   function handleInput(val: string) {
     setQuery(val)
@@ -672,6 +741,12 @@ function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordRep
 
   return (
     <div className="flex flex-col h-full">
+      <StrongsContextMenu
+        target={searchCtx.target}
+        onClose={searchCtx.close}
+        onOpen={() => { if (ctxEntry) { onSelect(ctxEntry); searchCtx.close() } }}
+        onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
+      />
       <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] relative ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4'}`}>
         <BookMarked size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Lexicon</span>
@@ -743,6 +818,7 @@ function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordRep
           <div className="divide-y divide-[rgb(var(--color-surface-4))]">
             {results.map((entry, i) => (
               <button key={entry.strongsNum} onClick={() => onSelect(entry)}
+                onContextMenu={(e) => { setCtxEntry(entry); searchCtx.open(e, entry.strongsNum) }}
                 className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
                   i === selectedIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))]'
                 }`}>
@@ -771,6 +847,10 @@ function SearchView({ onSelect, findQuery, onFindOpen, floating = false, wordRep
   )
 }
 
+type LexHistoryItem =
+  | { kind: 'entry'; entry: LexiconEntry }
+  | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }
+
 export default function LexiconPanel({ floating = false }: { floating?: boolean }) {
   const pendingLexiconEntry = useAppStore((s) => s.pendingLexiconEntry)
   const clearLexiconEntry = useAppStore((s) => s.clearLexiconEntry)
@@ -789,6 +869,11 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const activeWordReplacerRules = wordReplacerEnabled && wordReplacerRules.length > 0 ? wordReplacerRules : []
+
+  // Tracks the current SearchView's query/lang so we can push it into history
+  const searchStateRef = useRef<{ query: string; lang: 'H' | 'G' | 'all' }>({ query: '', lang: 'all' })
+  // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView
+  const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(null)
 
   // ── Find bar — local state, per-panel routing ─────────────────────────────
   // App.tsx dispatches 'berean:openLexiconFindBar' when Cmd+F is pressed while
@@ -841,7 +926,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
 
   // Declare activeEntry here so find effects can reference it in their dependency arrays
   const [activeEntry, setActiveEntry] = useState<LexiconEntry | null>(null)
-  const [history, setHistory] = useState<LexiconEntry[]>([])
+  const [history, setHistory] = useState<LexHistoryItem[]>([])
 
   // After each render: collect inline <mark> elements, manage active-mark class
   useLayoutEffect(() => {
@@ -888,19 +973,37 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const entryScrollRef = useRef<HTMLDivElement>(null)
   const lexScrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Restore the entry that was open when this tab was last active
+  // Restore the entry and history that was open when this tab was last active (also runs after duplication)
   useEffect(() => {
     if (!lexiconTabId) return
     const tab = tabs['lexicon'].find((t) => t.id === lexiconTabId)
-    const state = tab?.state as { strongsNum?: string | null; scrollTop?: number } | undefined
+    const state = tab?.state as {
+      strongsNum?: string | null
+      scrollTop?: number
+      lexHistory?: Array<{ kind: 'entry'; strongsNum: string } | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }>
+    } | undefined
     const savedNum = state?.strongsNum ?? null
     const savedScroll = state?.scrollTop ?? 0
+    const savedHistory = state?.lexHistory ?? []
+
+    // Restore history first
+    if (savedHistory.length > 0) {
+      Promise.all(savedHistory.map(async (h) => {
+        if (h.kind === 'entry') {
+          const e = await window.lexicon.getEntry(h.strongsNum).catch(() => null)
+          return e ? ({ kind: 'entry' as const, entry: e }) : null
+        }
+        return { kind: 'search' as const, query: h.query, lang: h.lang }
+      })).then((items) => {
+        setHistory(items.filter(Boolean) as LexHistoryItem[])
+      })
+    }
+
     if (!savedNum) return
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
         if (entry) {
           setActiveEntry(entry)
-          // Restore scroll after entry renders
           setTimeout(() => {
             if (entryScrollRef.current) entryScrollRef.current.scrollTop = savedScroll
           }, 80)
@@ -910,11 +1013,19 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // mount only
 
-  // Persist open entry to tab state
+  // Persist open entry + history to tab state (used when duplicating the tab)
   useEffect(() => {
     if (!lexiconTabId) return
-    updateTabState('lexicon', lexiconTabId, { strongsNum: activeEntry?.strongsNum ?? null })
-  }, [activeEntry?.strongsNum, lexiconTabId, updateTabState])
+    updateTabState('lexicon', lexiconTabId, {
+      strongsNum: activeEntry?.strongsNum ?? null,
+      lexHistory: history.map((h) =>
+        h.kind === 'entry'
+          ? { kind: 'entry' as const, strongsNum: h.entry.strongsNum }
+          : { kind: 'search' as const, query: h.query, lang: h.lang }
+      ),
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEntry?.strongsNum, history, lexiconTabId, updateTabState])
 
   // Pick up entries opened from FloatingSearch or VerseRow
   useEffect(() => {
@@ -923,7 +1034,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     window.lexicon.getEntry(pendingLexiconEntry)
       .then((entry) => {
         if (!entry) return
-        if (activeEntry) setHistory((h) => [...h, activeEntry])
+        if (activeEntry) {
+          setHistory((h) => [...h, { kind: 'entry', entry: activeEntry }])
+        }
         setActiveEntry(entry)
       })
       .catch(() => {})
@@ -938,16 +1051,15 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   function navToEntry(strongsNum: string, newTab: boolean) {
     if (newTab) {
       createTab('lexicon')
-      openLexiconEntry(strongsNum)  // openLexiconEntry already calls addHistoryEntry
+      openLexiconEntry(strongsNum)
       setActiveSpace('lexicon')
       return
     }
     window.lexicon.getEntry(strongsNum)
       .then((entry) => {
         if (!entry) return
-        if (activeEntry) setHistory((h) => [...h, activeEntry])
+        if (activeEntry) setHistory((h) => [...h, { kind: 'entry', entry: activeEntry }])
         setActiveEntry(entry)
-        // Track in the app-level history so Cmd+H / history modal shows this navigation
         addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
       })
       .catch(() => {})
@@ -972,7 +1084,13 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     if (history.length > 0) {
       const prev = history[history.length - 1]
       setHistory((h) => h.slice(0, -1))
-      setActiveEntry(prev)
+      if (prev.kind === 'entry') {
+        setActiveEntry(prev.entry)
+      } else {
+        // Restore the search view with the saved query
+        setSavedSearch({ query: prev.query, lang: prev.lang })
+        setActiveEntry(null)
+      }
     } else {
       setActiveEntry(null)
     }
@@ -981,9 +1099,15 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   function goHome() {
     setActiveEntry(null)
     setHistory([])
+    setSavedSearch(null)
   }
 
-  const backLabel = history.length > 0 ? history[history.length - 1].strongsNum : 'Lexicon'
+  const lastHistoryItem = history.length > 0 ? history[history.length - 1] : null
+  const backLabel = lastHistoryItem
+    ? lastHistoryItem.kind === 'search'
+      ? `"${lastHistoryItem.query}"`
+      : lastHistoryItem.entry.strongsNum
+    : 'Lexicon'
 
   return (
     <div
@@ -1042,7 +1166,19 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         />
       ) : (
         <SearchView
-          onSelect={(entry) => { setHistory([]); setActiveEntry(entry) }}
+          onSelect={(entry) => {
+            // Push current search state to history so Back returns here
+            const { query, lang } = searchStateRef.current
+            if (query.trim().length >= 2) {
+              setHistory((h) => [...h, { kind: 'search', query, lang }])
+            }
+            setActiveEntry(entry)
+            addHistoryEntry({ type: 'lexicon', title: entry.strongsNum, strongsNum: entry.strongsNum })
+          }}
+          onOpenNewTab={(entry) => navToEntry(entry.strongsNum, true)}
+          onSearchStateChange={(s) => { searchStateRef.current = s }}
+          initialQuery={savedSearch?.query ?? ''}
+          initialLang={savedSearch?.lang ?? 'all'}
           findQuery={activeFindQuery}
           floating={floating}
           wordReplacerRules={activeWordReplacerRules}

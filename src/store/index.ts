@@ -278,6 +278,10 @@ export interface AppState {
   setShowVerseNumbers: (v: boolean) => void
   showRedLetters: boolean
   setShowRedLetters: (v: boolean) => void
+  continuousChapterScroll: boolean
+  setContinuousChapterScroll: (v: boolean) => void
+  continuousDailyScroll: boolean
+  setContinuousDailyScroll: (v: boolean) => void
 
   // Display preferences
   bibleFontSize: number
@@ -368,6 +372,10 @@ export interface AppState {
   toggleSidebar: () => void
   openSearch: (mode?: 'current' | 'new') => void
   closeSearch: () => void
+
+  // Recent search queries (persisted, max 10)
+  recentSearchQueries: string[]
+  addRecentSearchQuery: (q: string) => void
   openSettings: () => void
   closeSettings: () => void
   toggleSettings: () => void
@@ -891,6 +899,8 @@ export const useAppStore = create<AppState>()(
       viewerTheme: 'system' as const,
       showVerseNumbers: true,
       showRedLetters: true,
+      continuousChapterScroll: false,
+      continuousDailyScroll: false,
       wordReplacerEnabled: true,
       wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
 
@@ -1283,6 +1293,15 @@ export const useAppStore = create<AppState>()(
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
+      recentSearchQueries: [] as string[],
+      addRecentSearchQuery: (q) => {
+        const trimmed = q.trim()
+        if (!trimmed || trimmed.length < 2) return
+        set((s) => ({
+          recentSearchQueries: [trimmed, ...s.recentSearchQueries.filter((r) => r !== trimmed)].slice(0, 10),
+        }))
+      },
+
       openSearch: (mode = 'current') => {
         window.dispatchEvent(new Event('berean:closeMenus'))
         set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
@@ -1528,6 +1547,8 @@ export const useAppStore = create<AppState>()(
       setViewerFontScale: (v) => set({ viewerFontScale: v }),
       setViewerTheme: (v) => set({ viewerTheme: v }),
       setShowVerseNumbers: (v) => set({ showVerseNumbers: v }),
+      setContinuousChapterScroll: (v) => set({ continuousChapterScroll: v }),
+      setContinuousDailyScroll: (v) => set({ continuousDailyScroll: v }),
       setShowRedLetters: (v) => set({ showRedLetters: v }),
 
       setWordReplacerEnabled: (v) => set({ wordReplacerEnabled: v }),

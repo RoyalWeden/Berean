@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useAppStore } from '@/store'
-import { parseRef, isStrongsRef, getTranslationForBook } from '@/lib/parseRef'
+import { parseRef, isStrongsRef, getTranslationForBook, bookName } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import type { Book, LexiconEntry, Note } from '@/types'
+
+interface CrossRef {
+  bookId: string
+  chapter: number
+  verse: number
+  endVerse: number | null
+  votes: number
+  text: string
+}
 
 // How many result-list lines each density shows
 const DENSITY_HEIGHT: Record<'compact' | 'comfortable' | 'spacious', string> = {
@@ -134,16 +143,22 @@ export default function FloatingSearch() {
   const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const recentSearchQueries = useAppStore((s) => s.recentSearchQueries)
+  const addRecentSearchQuery = useAppStore((s) => s.addRecentSearchQuery)
 
   type SearchWordMode = 'all' | 'any' | 'phrase'
+  type ScopeFilter = 'all' | 'ot' | 'nt'
 
   const inputRef = useRef<HTMLInputElement>(null)
   const selectedItemRef = useRef<HTMLButtonElement>(null)
   const [query, setQuery] = useState('')
   const [searchWordMode, setSearchWordMode] = useState<SearchWordMode>('all')
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all')
   const [searchTextId, setSearchTextId] = useState(defaultBibleTranslation.toLowerCase())
   const [books, setBooks] = useState<Book[]>([])
   const [verseResults, setVerseResults] = useState<VerseResult[]>([])
+  const [crossRefResults, setCrossRefResults] = useState<CrossRef[]>([])
+  const [crossRefLoading, setCrossRefLoading] = useState(false)
   const [lexiconResults, setLexiconResults] = useState<LexiconEntry[]>([])
   const [noteResults, setNoteResults] = useState<Note[]>([])
   const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }>>([])
@@ -151,6 +166,7 @@ export default function FloatingSearch() {
   const openYouTubeVideo         = useAppStore((s) => s.openYouTubeVideo)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const crossRefDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (searchOpen) {
@@ -160,6 +176,7 @@ export default function FloatingSearch() {
     } else {
       setQuery('')
       setVerseResults([])
+      setCrossRefResults([])
       setLexiconResults([])
       setNoteResults([])
       setYoutubeResults([])
@@ -300,6 +317,27 @@ export default function FloatingSearch() {
     }, 350)
   }, [])
 
+  // Load cross-references when the query is a verse ref with a verse number
+  useEffect(() => {
+    if (!searchOpen) return
+    const det = query.trim() ? detectTranslationPrefix(query) : null
+    const q = (det ? det.cleanQuery : query).trim()
+    const ref = q ? parseRef(q) : null
+    if (!ref?.verse) { setCrossRefResults([]); return }
+    if (crossRefDebounceRef.current) clearTimeout(crossRefDebounceRef.current)
+    setCrossRefLoading(true)
+    crossRefDebounceRef.current = setTimeout(async () => {
+      try {
+        const result = await window.crossrefs.getForVerse(ref.bookId, ref.chapter, ref.verse!)
+        setCrossRefResults(result?.refs ?? [])
+      } catch {
+        setCrossRefResults([])
+      } finally {
+        setCrossRefLoading(false)
+      }
+    }, 250)
+  }, [query, searchOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleInput(val: string) {
     setQuery(val)
     setSelectedIdx(0)
@@ -376,7 +414,7 @@ export default function FloatingSearch() {
 
   // Build result list for keyboard nav
   const results: Array<{
-    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube'
+    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref'
     label: string
     sub: string
     action: () => void
@@ -397,15 +435,38 @@ export default function FloatingSearch() {
       type: 'ref',
       label,
       sub: subLabel,
-      action: () => navigate(
-        parsedRef.bookId,
-        parsedRef.chapter,
-        parsedRef.verse,
-        parsedRef.endVerse,
-        getTranslationForBook(parsedRef.bookId) ?? undefined,
-        parsedRef.endChapter,
-      ),
+      action: () => {
+        addRecentSearchQuery(query.trim())
+        navigate(
+          parsedRef.bookId,
+          parsedRef.chapter,
+          parsedRef.verse,
+          parsedRef.endVerse,
+          getTranslationForBook(parsedRef.bookId) ?? undefined,
+          parsedRef.endChapter,
+        )
+      },
     })
+  }
+
+  // Cross-references — shown when query is a verse ref with a verse number
+  if (parsedRef?.verse && crossRefResults.length > 0) {
+    for (const cr of crossRefResults.slice(0, 5)) {
+      const ref = cr.endVerse
+        ? `${bookName(cr.bookId)} ${cr.chapter}:${cr.verse}–${cr.endVerse}`
+        : `${bookName(cr.bookId)} ${cr.chapter}:${cr.verse}`
+      const strength = Math.max(0, Math.min(Math.ceil(cr.votes / 3), 5))
+      const dots = '●'.repeat(strength) + '○'.repeat(5 - strength)
+      results.push({
+        type: 'crossref',
+        label: ref,
+        sub: cr.text ? `${dots}  ${cr.text.slice(0, 100)}` : dots,
+        action: () => {
+          addRecentSearchQuery(query.trim())
+          navigate(cr.bookId, cr.chapter, cr.verse)
+        },
+      })
+    }
   }
 
   for (const entry of lexiconResults) {
@@ -413,7 +474,7 @@ export default function FloatingSearch() {
       type: 'lexicon',
       label: `${entry.strongsNum}  ${entry.lemma}  (${entry.transliteration})`,
       sub: entry.gloss,
-      action: () => goToLexicon(entry.strongsNum),
+      action: () => { addRecentSearchQuery(query.trim()); goToLexicon(entry.strongsNum) },
     })
   }
 
@@ -421,18 +482,25 @@ export default function FloatingSearch() {
   const wr = (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t
 
   // Scripture verses first — most relevant for a Bible-study keyword search.
-  for (const v of verseResults.slice(0, 12)) {
+  // Apply scope filter (OT/NT) to verse results.
+  const scopedVerseResults = scopeFilter === 'all'
+    ? verseResults
+    : verseResults.filter((v) => {
+        const bk = books.find((b) => b.id === v.book_id)
+        if (!bk) return true
+        return scopeFilter === 'ot' ? bk.testament === 'OT' : bk.testament === 'NT'
+      })
+
+  for (const v of scopedVerseResults.slice(0, 12)) {
     const book = books.find((b) => b.id === v.book_id)
     const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
     const rawText = wr(v.text)
-    // Window the snippet around the match so the highlighted term is visible,
-    // not just the verse opening.
     const subText = makeSnippet(rawText, cleanQuery, subLen, searchWordMode)
     results.push({
       type: 'verse',
       label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
       sub: subText,
-      action: () => navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId),
+      action: () => { addRecentSearchQuery(query.trim()); navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId) },
     })
   }
 
@@ -449,6 +517,7 @@ export default function FloatingSearch() {
       label: wr(note.title || 'Untitled note'),
       sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
       action: () => {
+        addRecentSearchQuery(query.trim())
         ensureTab('note')
         setActiveSpace('notes')
         requestOpenNote(note.id)
@@ -467,6 +536,7 @@ export default function FloatingSearch() {
       label: tsLabel ? `${vid.title} — ${tsLabel}` : vid.title,
       sub: vid.snippet ? `”${decodeEntities(vid.snippet)}”` : vid.channelName,
       action: () => {
+        addRecentSearchQuery(query.trim())
         if (hasTimestamp) {
           openYouTubeVideo(vid.videoId, vid.startMs! / 1000)
         } else {
@@ -536,10 +606,31 @@ export default function FloatingSearch() {
                 placeholder:text-[rgb(var(--color-text-muted))] text-sm outline-none
               "
             />
+            {crossRefLoading && (
+              <span className="text-[10px] text-[rgb(var(--color-text-muted))] animate-pulse flex-shrink-0">…</span>
+            )}
             {isStrongs && (
               <span className="text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] px-1.5 py-0.5 rounded">
                 Strong's
               </span>
+            )}
+            {/* Scope chips — visible when doing a text keyword search */}
+            {!parsedRef && !isStrongs && query.trim().length >= 2 && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {(['all', 'ot', 'nt'] as ScopeFilter[]).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setScopeFilter(s)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                      scopeFilter === s
+                        ? 'bg-[rgb(var(--color-accent))]/20 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]'
+                        : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
+                    }`}
+                  >
+                    {s === 'all' ? 'All' : s.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
@@ -571,7 +662,7 @@ export default function FloatingSearch() {
                     style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : <Hash size={14} />}
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
@@ -587,16 +678,43 @@ export default function FloatingSearch() {
             </div>
           )}
 
-          {/* Hint when empty */}
+          {/* Hint when empty — show recent queries if available */}
           {showHint && (
-            <div className="px-4 py-4 text-center text-xs text-[rgb(var(--color-text-muted))]">
-              Try{' '}
-              <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Gen 1:1</span>
-              {' · '}
-              <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Exodus 20</span>
-              {' · '}
-              <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">in the beginning</span>
-            </div>
+            recentSearchQueries.length > 0 ? (
+              <div
+                className="overflow-y-auto py-1"
+                style={{ maxHeight: `min(${DENSITY_HEIGHT[floatingSearchDensity]}, calc(88vh - 7rem))` }}
+              >
+                <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] font-semibold">
+                  Recent
+                </div>
+                {recentSearchQueries.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setQuery(q)
+                      setSelectedIdx(0)
+                      const det = q.trim() ? detectTranslationPrefix(q) : null
+                      const tid = det ? det.textId : searchTextId
+                      runSearch(det ? det.cleanQuery : q, tid, searchWordMode)
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                  >
+                    <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                    <span className="text-sm text-[rgb(var(--color-text-secondary))]">{q}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-4 text-center text-xs text-[rgb(var(--color-text-muted))]">
+                Try{' '}
+                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Gen 1:1</span>
+                {' · '}
+                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Exodus 20</span>
+                {' · '}
+                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">in the beginning</span>
+              </div>
+            )
           )}
 
           {/* Footer */}
