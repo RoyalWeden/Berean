@@ -445,3 +445,108 @@ export function safeFtsQuery(q: string): string {
   if (clean.length === 0) return ''
   return clean.map((w) => `${w}*`).join(' ')
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * STANDARDIZED FORMAT CONVERSIONS — M7 Task 4
+ *
+ * Canonical formats:
+ * - Machine: "GEN.1.1" (all-caps, dots, used in DB/frontmatter ref field)
+ * - Filename: "Genesis 1.1.md" (title-case, dot separator, human-readable)
+ * - UI Display: "Genesis 1:1" (title-case, colon, display format)
+ * - Wikilink: "[[Verse Notes/Genesis 1:1]]" (full path, colon, for markdown)
+ * - Frontmatter related_verses: ["Genesis 1:1"] (title-case, colon)
+ *
+ * All conversions go through these functions to ensure consistency.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/** Parse any verse reference format and return canonical form (e.g. "GEN.1.1").
+ *  Accepts: "Genesis 1:1", "Gen 1.1", "GEN.1.1", "gen.1.1", etc.
+ */
+export function toCanonical(input: string): string | null {
+  // Parse the input using the same pattern matching as parseVerseRef
+  const parsed = (() => {
+    const norm = (input ?? '').trim()
+    if (!norm) return null
+    const m = norm.match(
+      /^((?:\d\s*)?\w[\w\s]*?)\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
+    )
+    if (!m) return null
+    const bookRaw = m[1].trim().toLowerCase().replace(/\s+/g, ' ')
+    const chapter = parseInt(m[2])
+    const verse = m[3] ? parseInt(m[3]) : undefined
+    if (isNaN(chapter) || chapter < 1) return null
+    const bookId = resolveBookToken(bookRaw)
+    if (!bookId) return null
+    return { bookId, chapter, verse }
+  })()
+  if (!parsed) return null
+  const { bookId, chapter, verse } = parsed
+  return verse ? `${bookId}.${chapter}.${verse}` : `${bookId}.${chapter}.0`
+}
+
+/** Convert canonical form (e.g. "GEN.1.1") to filename format (e.g. "Genesis 1.1.md").
+ *  Handles multi-word book names and numbered books.
+ */
+export function toFilename(canonical: string): string | null {
+  const parts = canonical.split('.')
+  if (parts.length < 2) return null
+  const bookId = parts[0]
+  const chapter = parts[1]
+  const verse = parts[2]
+
+  const name = bookName(bookId)
+  if (!name || name === bookId) return null // Unknown book
+
+  const versionStr = verse && verse !== '0' ? `${chapter}.${verse}` : chapter
+  return `${name} ${versionStr}.md`
+}
+
+/** Convert canonical form to human-readable UI display format (e.g. "Genesis 1:1").
+ */
+export function toUIDisplay(canonical: string): string | null {
+  const parts = canonical.split('.')
+  if (parts.length < 2) return null
+  const bookId = parts[0]
+  const chapter = parts[1]
+  const verse = parts[2]
+
+  const name = bookName(bookId)
+  if (!name || name === bookId) return null // Unknown book
+
+  return verse && verse !== '0' ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
+}
+
+/** Convert canonical form to wikilink format with folder prefix (e.g. "[[Verse Notes/Genesis 1:1]]").
+ */
+export function toWikilink(canonical: string): string | null {
+  const display = toUIDisplay(canonical)
+  if (!display) return null
+  return `[[Verse Notes/${display}]]`
+}
+
+/** Convert canonical form to bare wikilink (no folder, for cross-reference).
+ *  e.g. "GEN.1.1" → "Genesis 1:1" (used in frontmatter related_verses field)
+ */
+export function toRelatedVerse(canonical: string): string | null {
+  return toUIDisplay(canonical)
+}
+
+/** Create a canonical reference from book ID, chapter, and optional verse. */
+export function createCanonical(bookId: string, chapter: number, verse?: number): string {
+  const v = verse ?? 0
+  return `${bookId}.${chapter}.${v}`
+}
+
+/** Extract book ID, chapter, verse from canonical form. */
+export function parseCanonical(canonical: string): { bookId: string; chapter: number; verse?: number } | null {
+  const parts = canonical.split('.')
+  if (parts.length < 2) return null
+  const bookId = parts[0]
+  const chapter = parseInt(parts[1])
+  const verse = parts[2] ? parseInt(parts[2]) : undefined
+  if (isNaN(chapter)) return null
+  if (verse !== undefined && isNaN(verse)) return null
+  return { bookId, chapter, verse: verse && verse !== 0 ? verse : undefined }
+}

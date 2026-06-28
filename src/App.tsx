@@ -437,9 +437,14 @@ export default function App() {
       if (completed !== true) useAppStore.getState().openOnboarding()
     }).catch(() => {})
 
-    // 4. Vault reconcile on startup if sync is enabled
+    // 4. Vault reconcile on startup + start watcher if sync is enabled
     window.settings?.get('vaultSync').then((enabled) => {
-      if (enabled) window.vault?.reconcile().catch(() => {})
+      if (enabled) {
+        // Pull in any changes made in Octarine while app was closed
+        window.vault?.reconcile().catch(() => {})
+        // Start Chokidar watcher for real-time bidirectional sync
+        window.vault?.watchVault().catch(() => {})
+      }
     }).catch(() => {})
 
     // 5. Subscribe to store settings changes → debounce-write to SQLite

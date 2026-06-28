@@ -31,3 +31,15 @@ export function parseVerseRef(ref: string): { bookId: string; chapter: number; v
   }
   return null
 }
+
+/**
+ * Normalize a wikilink target to a bare, lowercased note title for matching.
+ *
+ * Octarine/Obsidian wikilinks are often path-qualified and may carry a heading
+ * anchor or display alias: `[[Daily/2026-01-09#Morning|My Day]]`. Berean note
+ * titles are bare ("2026-01-09"), so strip the leading folder path, the `#anchor`,
+ * and the `|alias` before comparing.
+ */
+export function normalizeWikiTarget(str: string): string {
+  return (str.split('/').pop() ?? '').split('#')[0].split('|')[0].trim().toLowerCase()
+}

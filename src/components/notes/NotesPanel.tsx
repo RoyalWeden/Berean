@@ -12,12 +12,12 @@ import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
-import { bookName, getTranslationForBook } from '@/lib/parseRef'
+import { bookName, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
-import { isSystemNote, parseVerseRef } from '@/lib/noteUtils'
+import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type NoteSort = 'modified' | 'created' | 'name'
@@ -664,7 +664,22 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   function handleWikilinkClick(title: string) {
-    const note = notes.find(n => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+    const target = normalizeWikiTarget(title)
+
+    // Try verse reference first (e.g., "Genesis 1:1", "GEN.1.1", "Verse Notes/Genesis 1:1")
+    // Support formats: "Genesis 1:1" (colon), "GEN.1.1" (canonical), or full path "Verse Notes/Genesis 1:1"
+    const verseMatch = target.match(/^(?:verse\s+notes[\/\s]+)?([A-Za-z0-9\s]+)\s*[:.](\d+)(?:[:.](\d+))?/i)
+    if (verseMatch) {
+      const [, bookStr, chapterStr, verseStr] = verseMatch
+      const bookId = resolveBookToken(bookStr.trim())
+      if (bookId) {
+        const verse = verseStr ? parseInt(verseStr) : undefined
+        return handleVerseRefClick({ bookId, chapter: parseInt(chapterStr), verse })
+      }
+    }
+
+    // Fall back to note title matching
+    const note = notes.find(n => normalizeWikiTarget(n.title || 'Untitled') === target)
     if (note) navigateToNote(note)
   }
 
