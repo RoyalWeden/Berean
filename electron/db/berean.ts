@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, readdirSync, renameSync, statSync } from 'fs'
 
 // Merge YouTube seed data from the bundled youtube_seed.db into the user's
 // berean.db. Uses INSERT OR IGNORE so existing user data is never overwritten.
@@ -506,6 +506,48 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       // Structured idiom fields (JSON): { examples: string[], explanation, compare: string[], verses: string[] }
       try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_data TEXT`) } catch {}
       console.log('[berean-db] v17: idiom_data column on notes')
+    }
+  },
+  {
+    // Octarine vault integration: move JSON sidecars out of the vault root and into
+    // a hidden .berean/ metadata folder, so the vault root holds only user-facing
+    // note folders (Verse Notes/, Notes/, Daily/, Idioms/) — clean for Octarine.
+    version: 18,
+    up(db) {
+      // Read vaultPath straight from the DB. Calling getVaultPath() here would
+      // re-enter getBereanDb() while the singleton (_db) is still being built,
+      // so we must use the db handle passed into the migration.
+      let vaultPath = ''
+      try {
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'vaultPath'").get() as { value: string } | undefined
+        if (row) { const v = JSON.parse(row.value); if (typeof v === 'string') vaultPath = v }
+      } catch { /* no vault configured */ }
+
+      if (!vaultPath || !existsSync(vaultPath)) {
+        console.log('[berean-db] v18: no vault path; sidecar move skipped')
+        return
+      }
+
+      // Filesystem moves are best-effort and intentionally never throw: if any
+      // file can't be moved the migration still records as applied (the export
+      // layer writes future sidecars to .berean/ regardless).
+      try {
+        const metaDir = join(vaultPath, '.berean')
+        mkdirSync(metaDir, { recursive: true })
+        let moved = 0
+        for (const entry of readdirSync(vaultPath)) {
+          if (!/^berean-.*\.json$/.test(entry)) continue // only JSON sidecars; leaves berean-notes/ & berean-pdfs/ dirs alone
+          const src = join(vaultPath, entry)
+          try {
+            if (!statSync(src).isFile()) continue
+            renameSync(src, join(metaDir, entry))
+            moved++
+          } catch { /* skip files that can't be moved */ }
+        }
+        console.log(`[berean-db] v18: moved ${moved} sidecar(s) to .berean/`)
+      } catch (err) {
+        console.log('[berean-db] v18: sidecar move failed:', err)
+      }
     }
   }
 ]
