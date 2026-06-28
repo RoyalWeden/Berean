@@ -17,7 +17,7 @@ import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
-import { isSystemNote, parseVerseRef } from '@/lib/noteUtils'
+import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type NoteSort = 'modified' | 'created' | 'name'
@@ -664,7 +664,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   function handleWikilinkClick(title: string) {
-    const note = notes.find(n => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+    const target = normalizeWikiTarget(title)
+    const note = notes.find(n => normalizeWikiTarget(n.title || 'Untitled') === target)
     if (note) navigateToNote(note)
   }
 

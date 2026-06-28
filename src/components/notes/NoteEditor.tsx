@@ -25,6 +25,7 @@ import type { Note } from '@/types'
 import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { normalizeWikiTarget } from '@/lib/noteUtils'
 import { useAppStore } from '@/store'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 
@@ -267,6 +268,7 @@ const bereanTheme = EditorView.theme({
   '.cm-live-lexicon-block-def': { paddingLeft: '0.8em', opacity: '0.85' },
   '.cm-live-callout-header': { borderLeft: '3px solid rgba(168,85,247,0.7)', paddingLeft: '0.75em', color: 'rgba(192,132,252,0.9) !important', fontWeight: '600' },
   '.cm-live-underline': { textDecoration: 'underline' },
+  '.cm-live-scripture-emph': { textDecoration: 'underline' },
   // Horizontal rule: draw a centred 1 px line using a background gradient so the
   // divider sits at the vertical mid-point of the line rather than at the bottom.
   '.cm-live-hr-line': {
@@ -291,6 +293,11 @@ const NOTE_HL_COLORS: { id: string; dot: string }[] = [
   { id: 'blue',   dot: '#60a5fa' }, { id: 'sky',    dot: '#38bdf8' }, { id: 'cyan',   dot: '#22d3ee' },
   { id: 'teal',   dot: '#2dd4bf' }, { id: 'green',  dot: '#4ade80' }, { id: 'lime',   dot: '#a3e635' },
 ]
+
+// Emoji → highlight color, for Octarine-style ==🟡text== compound highlights.
+const HL_EMOJI_COLOR: Record<string, string> = {
+  '🟡': 'yellow', '🔴': 'red', '🟠': 'orange', '🟢': 'green', '🔵': 'blue', '🟣': 'purple',
+}
 
 function wrapWith(open: string, close: string) {
   return (view: EditorView): boolean => {
@@ -1636,7 +1643,21 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
   addWidgetRegex(/\[\[([^\]\n]+?)\]\]/g, 'cm-live-wikilink')
   // Underline: allow nested HTML tags (e.g. <mark> inside <u>) — prefix=3 (<u>), suffix=4 (</u>)
   addMarkRegex(/<u>((?:[^<]|<(?!\/u)[^>]*>)*)<\/u>/g, 'cm-live-underline', 3, 4)
-  addMarkRegex(/==([^=\n]+?)==/g, 'cm-live-highlight')
+  // Single-tilde scripture emphasis: ~text~ → underline. Negative lookarounds keep
+  // ~~strikethrough~~ (handled above) from being eaten by the single-tilde rule.
+  addMarkRegex(/(?<!~)~([^~\n]+?)~(?!~)/g, 'cm-live-scripture-emph')
+  // Emoji-color compound highlights: ==🟡text== → colored highlight, emoji hidden.
+  // Must run BEFORE the generic ==...== rule (which skips emoji-prefixed spans below).
+  for (const [emoji, color] of Object.entries(HL_EMOJI_COLOR)) {
+    addMarkRegex(
+      new RegExp(`==${emoji}([^=\\n]+?)==`, 'g'),
+      `cm-live-hl-${color}`,
+      2 + emoji.length,  // hide '==' + emoji
+      2,                 // hide closing '=='
+    )
+  }
+  // Generic highlight: ==text== → yellow. Skip emoji-prefixed spans (handled above).
+  addMarkRegex(/==(?![🟡🔴🟠🟢🔵🟣])([^=\n]+?)==/g, 'cm-live-highlight')
   // Colored highlight marks: allow nested HTML (e.g. <u>, <b> inside <mark class="hl-X">)
   // The inner pattern `((?:[^<]|<(?!\/?mark)[^>]*>)*)` matches any content that isn't
   // a nested <mark> or </mark>, including simple inline tags like <u>, <b>, <i>.
@@ -4554,8 +4575,8 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
           if (wikiEl) {
             if (wikiHoverTimerRef.current) clearTimeout(wikiHoverTimerRef.current)
             wikiHoverTimerRef.current = setTimeout(() => {
-              const title = wikiEl.textContent?.replace(/\[\[|\]\]/g, '').trim() ?? ''
-              const match = (notes ?? []).find(n => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+              const title = normalizeWikiTarget(wikiEl.textContent?.replace(/\[\[|\]\]/g, '') ?? '')
+              const match = (notes ?? []).find(n => normalizeWikiTarget(n.title || 'Untitled') === title)
               if (match) {
                 const rect = wikiEl.getBoundingClientRect()
                 setWikiHover({ note: match, x: rect.left, y: rect.bottom + 6 })
