@@ -386,9 +386,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     window.bible.getBooks(tid).then((bks) => {
       const hasBook = (bks as Book[]).some((b) => b.id === tabState.bookId)
       if (hasBook) {
+        // Always reset scroll position on an edition switch — even when the chapter number
+        // is unchanged (e.g. KJVA <-> LXX Genesis 3), the two editions can have a different
+        // verse layout, so carrying over the old pixel offset lands on the wrong verse.
         updateTabState('scripture', activeTab.id, {
           translation: tid.toUpperCase(),
-          ...(mappedChapter !== tabState.chapter ? { chapter: mappedChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined } : {}),
+          chapter: mappedChapter,
+          scrollPosition: 0,
+          targetVerse: undefined,
+          endVerse: undefined,
         })
       } else {
         const first = (bks as Book[])[0]
