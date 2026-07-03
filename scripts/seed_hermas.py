@@ -44,6 +44,11 @@ SECTION_RE = re.compile(
 )
 
 CHAP_RE = re.compile(r"^CHAP\.\s+[IVXLC]+\s*$")
+# KNOWN QUIRK: the source has a `CHAP. II` marker inserted mid-paragraph inside
+# Mandate 3 (splitting one sentence across two db chapters). This script honors
+# every CHAP. marker as a hard break, so a from-scratch reseed will reproduce that
+# split — run scripts/fix_hermas_mandate3.py afterward to correct it (also updates
+# src/lib/hermasMap.ts's MAN_SECTIONS numbering to match).
 
 # Vision Fifth has no "CHAP." header — it's a single-section, single-chapter block
 VISION_FIFTH_RE = re.compile(r"^Vision Fifth", re.IGNORECASE)

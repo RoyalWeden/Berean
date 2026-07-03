@@ -8,7 +8,7 @@
  *
  * Database chapter counts:
  *   HER_VIS: 25 chapters  (Visions 1–5)
- *   HER_MAN: 24 chapters  (Mandates 1–12; gap at db-ch 9)
+ *   HER_MAN: 24 chapters  (Mandates 1–12; gap at db-ch 8)
  *   HER_SIM: 65 chapters  (Similitudes 1–10; Sim 7 absent)
  */
 
@@ -35,31 +35,34 @@ const VIS_SECTIONS: HermasSection[] = [
 ]
 
 // ── Mandate map ─────────────────────────────────────────────────────────────
-// DB chapters 1-8, 10-25 (gap at db-ch 9, at the Mandate 4 → Mandate 5 boundary).
+// DB chapters 1-7, 9-24 (gap at db-ch 8, at the Mandate 4 → Mandate 5 boundary).
+// Mandate 3 was previously split across db-ch 3/4 by a mid-paragraph `CHAP.` marker in the
+// RD source; scripts/fix_hermas_mandate3.py merged it back into one chapter and shifted every
+// subsequent chapter down by 1 (see that script's docstring for details).
 // Boundaries verified against the actual text (Roberts-Donaldson):
-//   db4  "I have never spoken a true word" → Mandate 3 (truth/lying)
-//   db5  "guard your chastity"             → Mandate 4 (chastity/marriage)
-//   db10 "Be patient"                      → Mandate 5 (patience/anger)
-//   db12 "the first commandment…faith"     → Mandate 6 (the two angels)
-//   db14 "Fear the Lord"                   → Mandate 7
-//   db15 "self-restraint is twofold"       → Mandate 8
-//   db16 "put away doubting"               → Mandate 9
-//   db17 "grief, the sister of doubt"      → Mandate 10
-//   db19 "a false prophet"                 → Mandate 11
-//   db20 "put away wicked desire"          → Mandate 12
+//   db3  "I have never spoken a true word" → Mandate 3 (truth/lying, now a single chapter)
+//   db4  "guard your chastity"             → Mandate 4 (chastity/marriage)
+//   db9  "Be patient"                      → Mandate 5 (patience/anger)
+//   db11 "the first commandment…faith"     → Mandate 6 (the two angels)
+//   db13 "Fear the Lord"                   → Mandate 7
+//   db14 "self-restraint is twofold"       → Mandate 8
+//   db15 "put away doubting"               → Mandate 9
+//   db16 "grief, the sister of doubt"      → Mandate 10
+//   db18 "a false prophet"                 → Mandate 11
+//   db19 "put away wicked desire"          → Mandate 12
 const MAN_SECTIONS: HermasSection[] = [
   { sectionName: 'Mandate 1',  sectionNum: 1,  chapters: [1] },
   { sectionName: 'Mandate 2',  sectionNum: 2,  chapters: [2] },
-  { sectionName: 'Mandate 3',  sectionNum: 3,  chapters: [3,4] },
-  { sectionName: 'Mandate 4',  sectionNum: 4,  chapters: [5,6,7,8] },
-  { sectionName: 'Mandate 5',  sectionNum: 5,  chapters: [10,11] },
-  { sectionName: 'Mandate 6',  sectionNum: 6,  chapters: [12,13] },
-  { sectionName: 'Mandate 7',  sectionNum: 7,  chapters: [14] },
-  { sectionName: 'Mandate 8',  sectionNum: 8,  chapters: [15] },
-  { sectionName: 'Mandate 9',  sectionNum: 9,  chapters: [16] },
-  { sectionName: 'Mandate 10', sectionNum: 10, chapters: [17,18] },
-  { sectionName: 'Mandate 11', sectionNum: 11, chapters: [19] },
-  { sectionName: 'Mandate 12', sectionNum: 12, chapters: [20,21,22,23,24,25] },
+  { sectionName: 'Mandate 3',  sectionNum: 3,  chapters: [3] },
+  { sectionName: 'Mandate 4',  sectionNum: 4,  chapters: [4,5,6,7] },
+  { sectionName: 'Mandate 5',  sectionNum: 5,  chapters: [9,10] },
+  { sectionName: 'Mandate 6',  sectionNum: 6,  chapters: [11,12] },
+  { sectionName: 'Mandate 7',  sectionNum: 7,  chapters: [13] },
+  { sectionName: 'Mandate 8',  sectionNum: 8,  chapters: [14] },
+  { sectionName: 'Mandate 9',  sectionNum: 9,  chapters: [15] },
+  { sectionName: 'Mandate 10', sectionNum: 10, chapters: [16,17] },
+  { sectionName: 'Mandate 11', sectionNum: 11, chapters: [18] },
+  { sectionName: 'Mandate 12', sectionNum: 12, chapters: [19,20,21,22,23,24] },
 ]
 
 // ── Similitude map ──────────────────────────────────────────────────────────

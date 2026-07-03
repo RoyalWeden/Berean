@@ -53,8 +53,8 @@ describe('Taylor section map', () => {
 
   it('does not mutate the RD map (default variant still has the gap + no Sim 7)', () => {
     setHermasVariant('rd')
-    expect(getHermasValidChapters('HER_MAN')).toContain(25)
-    expect(getHermasValidChapters('HER_MAN')).not.toContain(9)
+    expect(getHermasValidChapters('HER_MAN')).toContain(24)
+    expect(getHermasValidChapters('HER_MAN')).not.toContain(8)
     expect(getHermasSection('HER_SIM', 17)!.sectionName).toBe('Similitude 6')
   })
 })
@@ -63,7 +63,7 @@ describe('getHermasValidChaptersFor (variant-independent of active state)', () =
   it('returns each variant\'s chapters regardless of the active variant', () => {
     setHermasVariant('rd')
     expect(getHermasValidChaptersFor('HER_MAN', 'taylor')).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
-    expect(getHermasValidChaptersFor('HER_MAN', 'rd')).toContain(25)
+    expect(getHermasValidChaptersFor('HER_MAN', 'rd')).toContain(24)
   })
 })
 
@@ -72,12 +72,9 @@ describe('clampHermasChapter (used when switching translations)', () => {
     expect(clampHermasChapter('HER_VIS', 12, 'taylor')).toBe(12)
     expect(clampHermasChapter('HER_SIM', 40, 'rd')).toBe(40)
   })
-  it('snaps RD chapter 25 to Taylor max 24', () => {
-    expect(clampHermasChapter('HER_MAN', 25, 'taylor')).toBe(24)
-  })
-  it('snaps into the RD gap (chapter 9) to the nearest valid chapter', () => {
-    expect(clampHermasChapter('HER_MAN', 9, 'rd')).not.toBe(9)
-    expect([8, 10]).toContain(clampHermasChapter('HER_MAN', 9, 'rd'))
+  it('snaps a Taylor-valid chapter that falls in the RD gap (chapter 8) to the nearest valid RD chapter', () => {
+    expect(clampHermasChapter('HER_MAN', 8, 'rd')).not.toBe(8)
+    expect([7, 9]).toContain(clampHermasChapter('HER_MAN', 8, 'rd'))
   })
 })
 
