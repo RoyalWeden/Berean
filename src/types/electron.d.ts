@@ -201,6 +201,10 @@ interface AppAPI {
   onViewerVisibleRegion: (cb: (region: ViewerVisibleRegion) => void) => void
   onViewerWindowClosed: (cb: () => void) => void
   onViewerReady: (cb: () => void) => void
+  /** Ask the presenter to re-report its visible region even if its content hasn't changed —
+   *  used after unpausing / "Re-sync now" so a stale region (from tab switches that happened
+   *  while paused) can't silently block the outline band forever. */
+  requestViewerVisibleRegion: () => void
 }
 
 export interface ViewerVisibleRegion {
@@ -391,6 +395,7 @@ declare global {
       onSettings: (cb: (settings: ViewerSyncedSettings) => void) => void
       onOverlay: (cb: (payload: ViewerOverlay) => void) => void
       reportVisibleRegion: (region: ViewerVisibleRegion) => void
+      onRequestVisibleRegion: (cb: () => void) => void
       signalReady: () => void
     }
     // Platform string injected by preload for renderer-side platform detection

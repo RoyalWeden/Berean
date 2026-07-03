@@ -119,6 +119,9 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('viewer:visibleRegion')
     ipcRenderer.on('viewer:visibleRegion', (_, region) => cb(region))
   },
+  // Ask the presenter to re-report its visible region even if its content hasn't changed
+  // (e.g. after unpausing live sync, so a stale region can't permanently hide the outline band)
+  requestViewerVisibleRegion: () => ipcRenderer.send('app:requestViewerVisibleRegion'),
   onViewerWindowClosed: (cb: () => void) => {
     ipcRenderer.removeAllListeners('app:viewerWindowClosed')
     ipcRenderer.on('app:viewerWindowClosed', () => cb())
@@ -175,6 +178,11 @@ contextBridge.exposeInMainWorld('viewer', {
   },
   // Report which verses are currently visible in the viewer (drives the main-window outline)
   reportVisibleRegion: (region: unknown) => ipcRenderer.send('viewer:reportVisibleRegion', region),
+  // Main window asking us to re-report our visible region right now (see requestViewerVisibleRegion)
+  onRequestVisibleRegion: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('viewer:requestVisibleRegion')
+    ipcRenderer.on('viewer:requestVisibleRegion', () => cb())
+  },
   signalReady: () => {
     console.log('[Viewer preload] signalReady called — sending viewer:signalReady to main')
     ipcRenderer.send('viewer:signalReady')

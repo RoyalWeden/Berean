@@ -89,7 +89,15 @@ export default function PresenterControls() {
   function toggleSync() {
     const nowPaused = !viewerPaused
     setViewerPaused(nowPaused)
-    if (!nowPaused) pushCurrentToViewer()
+    if (!nowPaused) {
+      pushCurrentToViewer()
+      // The presenter's last-reported visible region may be stale relative to tab switches
+      // that happened in the main window while paused. If the landed-on chapter happens to be
+      // the same one the presenter was frozen on, the content push above is a no-op for the
+      // viewer (no reload → no fresh report) — force one explicitly so the outline band can't
+      // get stuck hidden.
+      window.app.requestViewerVisibleRegion?.()
+    }
   }
   function toggleLaser() {
     const next = !laserEnabled
@@ -165,7 +173,7 @@ export default function PresenterControls() {
       {/* Action */}
       <div className="p-1.5 border-t border-[rgb(var(--color-surface-3))]">
         <button
-          onClick={() => pushCurrentToViewer()}
+          onClick={() => { pushCurrentToViewer(); window.app.requestViewerVisibleRegion?.() }}
           className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
           title="Force the presenter to jump to exactly what the main window is showing right now (use if it ever looks out of sync)"
         >

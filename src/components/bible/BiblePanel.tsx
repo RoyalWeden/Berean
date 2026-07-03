@@ -283,6 +283,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => cancelAnimationFrame(raf)
   }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations])
 
+  // Recompute on any size change of the scroll container's content — covers zoom (font-size
+  // driven reflow), window resize, and anything else that reflows verse layout without
+  // otherwise changing computePresenterBand's dependencies (which only track region/chapter).
+  useEffect(() => {
+    if (floating) return
+    const el = getScrollEl()
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      if (!useAppStore.getState().viewerPaused) computePresenterBand()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [floating, computePresenterBand, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
   // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
   const currentBibleChapterRef = () => {

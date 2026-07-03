@@ -256,6 +256,11 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [reportVisible])
+  // Main window can explicitly ask for a fresh report (after unpausing / "Re-sync now") even
+  // when our content hasn't changed — see requestViewerVisibleRegion for why this is needed.
+  useEffect(() => {
+    window.viewer?.onRequestVisibleRegion?.(() => reportVisible())
+  }, [reportVisible])
 
   // Receive the mirrored selection + laser pointer + find-bar scroll from the main window.
   useEffect(() => {

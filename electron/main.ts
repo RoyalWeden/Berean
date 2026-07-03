@@ -663,6 +663,19 @@ app.whenReady().then(async () => {
     })
   })
 
+  // Ask the viewer window to re-report its visible region right now, even if its content
+  // hasn't changed since the last report. Needed after unpausing live sync / "Re-sync now":
+  // the presenter can go several tab switches "behind" while paused (main window navigation
+  // isn't paused, only the presenter push is), and if the user lands back on the same chapter
+  // the presenter was already frozen on, pushing content again is a no-op for the viewer (no
+  // reload → no fresh report) — so the outline band's stale region never gets corrected without
+  // this explicit nudge.
+  ipcMain.on('app:requestViewerVisibleRegion', () => {
+    if (viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerWindow.webContents.send('viewer:requestVisibleRegion')
+    }
+  })
+
   // Print a note: load its HTML into an offscreen window and invoke the print dialog.
   ipcMain.handle('app:printNote', async (_e, html: string) => {
     const { writeFile, unlink, mkdtemp } = await import('fs/promises')
