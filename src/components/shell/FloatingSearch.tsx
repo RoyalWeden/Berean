@@ -597,13 +597,13 @@ export default function FloatingSearch() {
         >
           <motion.div
             className="
-              fixed left-1/2 top-[12%] -translate-x-1/2
+              fixed left-1/2 top-[12%]
               z-50 w-full max-w-2xl
               glass-panel rounded-shell-lg overflow-hidden
             "
-            initial={{ opacity: 0, scale: 0.96, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -8 }}
+            initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           >
           <Dialog.Title className="sr-only">Search</Dialog.Title>

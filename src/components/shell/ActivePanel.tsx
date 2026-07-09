@@ -59,7 +59,7 @@ export default function ActivePanel() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: 'easeOut' }}
+              transition={{ duration: 0.07, ease: 'easeOut' }}
             >
               {!tab && <EmptyState />}
               {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}

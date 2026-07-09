@@ -788,13 +788,19 @@ body {
 /* Radix Tooltip/Popover entrance — driven by data-state rather than a JS
    mount/unmount boolean (Radix owns open/closed timing internally for
    uncontrolled tooltips), so this is plain CSS rather than framer-motion.
-   See Radix's own docs pattern: animate off data-[state=...] attributes. */
+   See Radix's own docs pattern: animate off data-[state=...] attributes.
+   Opacity-only: Radix Popper sets its own inline `transform` for
+   positioning (translate to place the tooltip near its trigger); a CSS
+   animation touching `transform` here would fight that positioning
+   transform for the animation's duration (CSS animations take priority
+   over inline styles for the properties they animate), so this must not
+   animate transform/scale. */
 @keyframes radix-popup-in {
-  from { opacity: 0; transform: scale(0.94); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .animate-radix-popup-in {
-  animation: radix-popup-in 0.12s ease-out;
+  animation: radix-popup-in 0.1s ease-out;
 }
 
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────

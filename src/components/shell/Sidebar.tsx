@@ -452,7 +452,7 @@ export default function Sidebar() {
                         <motion.div
                           layoutId="active-space-pill"
                           className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
-                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                          transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                         />
                       )}
                       {/* On hover: icon fades and Plus appears */}
@@ -516,7 +516,7 @@ export default function Sidebar() {
                             <motion.div
                               layoutId="active-space-pill"
                               className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
-                              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                              transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                             />
                           )}
                           <Icon size={16} className="relative z-10 flex-shrink-0" />
@@ -589,7 +589,7 @@ export default function Sidebar() {
                         <motion.div
                           layoutId="active-space-pill"
                           className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
-                          transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                          transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                         />
                       )}
                       <Icon size={16} className="relative z-10 flex-shrink-0" />
