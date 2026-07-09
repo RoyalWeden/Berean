@@ -1032,7 +1032,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
            right-clicking the verse text still opens the popover in that case */}
       <div className={`relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
         <button
-          onClick={() => popoverOpen ? setPopoverOpen(false) : openPopover()}
+          onClick={(e) => popoverOpen ? setPopoverOpen(false) : openPopover(e)}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
           className={`
             text-right text-[0.72em] font-medium rounded
@@ -1163,8 +1163,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 onMouseEnter={handleCrossRefIconMouseEnter}
                 onMouseLeave={handleCrossRefIconMouseLeave}
                 onClick={openNoteCrossRefs}
-                title="A note on another verse cites this verse"
-                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-70 hover:opacity-100 cursor-pointer transition-opacity"
+                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-opacity"
               >
                 <GitFork size={10} strokeWidth={2.5} />
               </button>

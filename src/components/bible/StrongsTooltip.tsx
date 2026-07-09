@@ -8,9 +8,12 @@ interface StrongsTooltipProps {
   children: React.ReactNode
   strongsNum: string
   onClickEntry?: (strongsNum: string) => void
+  /** Extra context line shown above the entry (e.g. "Secondary Strong's number",
+   *  "Parenthetical — grammatical particle..."). Replaces a native title="" tooltip. */
+  contextNote?: string
 }
 
-export default function StrongsTooltip({ children, strongsNum, onClickEntry }: StrongsTooltipProps) {
+export default function StrongsTooltip({ children, strongsNum, onClickEntry, contextNote }: StrongsTooltipProps) {
   const [entry, setEntry] = useState<LexiconEntry | null>(null)
   const [loaded, setLoaded] = useState(false)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
@@ -60,6 +63,11 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry }: S
                 animate-radix-popup-in
               "
             >
+              {contextNote && (
+                <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic leading-snug mb-1.5 pb-1.5 border-b border-[rgb(var(--color-surface-4))]">
+                  {contextNote}
+                </p>
+              )}
               {!loaded ? (
                 <span className="text-xs text-[rgb(var(--color-text-muted))]">Loading…</span>
               ) : entry ? (

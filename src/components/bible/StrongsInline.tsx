@@ -40,13 +40,14 @@ export default function StrongsInline({
     // Rendered as a chip-only row with a muted parenthesised number.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span
-          className="inline-flex flex-col items-start mr-0.5"
-          title="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker). Click to view the lexicon entry."
-        >
+        <span className="inline-flex flex-col items-start mr-0.5">
           {/* Empty word-height placeholder so the chip row aligns with adjacent chips */}
           <span className="text-[10px] leading-none opacity-0 select-none" aria-hidden>·</span>
-          <StrongsTooltip strongsNum={nums[0]} onClickEntry={onStrongsClick}>
+          <StrongsTooltip
+            strongsNum={nums[0]}
+            onClickEntry={onStrongsClick}
+            contextNote="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker)."
+          >
             <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
               ({nums[0]})
             </span>
@@ -71,11 +72,16 @@ export default function StrongsInline({
         {nums.length > 0 ? (
           <>
             {nums.map((num, i) => (
-              <StrongsTooltip key={i} strongsNum={num} onClickEntry={onStrongsClick}>
+              <StrongsTooltip
+                key={i}
+                strongsNum={num}
+                onClickEntry={onStrongsClick}
+                contextNote={i > 0 ? "Secondary Strong's number" : undefined}
+              >
                 <span
                   data-strongs-chip
                   className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
-                  title={i > 0 ? "Secondary Strong's number" : undefined}
+                  style={i > 0 ? { marginTop: -3 } : undefined}
                 >
                   {num}
                 </span>
