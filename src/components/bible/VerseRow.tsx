@@ -57,6 +57,15 @@ const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> = {
   teal:   'rgba(45,212,191,0.5)',  green:  'rgba(74,222,128,0.5)',  lime:   'rgba(163,230,53,0.5)',
 }
 
+// Full-opacity colors for note indicator dots — mirrors HIGHLIGHT_COLORS palette
+const NOTE_DOT_COLOR: Record<string, string> = {
+  yellow: '#facc15', orange: '#fb923c', amber:  '#fbbf24',
+  red:    '#f87171', rose:   '#fb7185', pink:   '#f472b6',
+  violet: '#a78bfa', purple: '#c084fc', indigo: '#818cf8',
+  blue:   '#60a5fa', sky:    '#38bdf8', cyan:   '#22d3ee',
+  teal:   '#2dd4bf', green:  '#4ade80', lime:   '#a3e635',
+}
+
 interface SelToolbarPos { x: number; y: number; startChar: number; endChar: number }
 
 type HighlightEntry = { id: string; color: HighlightColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
@@ -66,6 +75,7 @@ interface VerseRowProps {
   showStrongs: boolean
   showVerseNumber?: boolean
   noteCount?: number
+  notePrimaryColor?: string
   hasNoteCrossRef?: boolean
   isHighlighted?: boolean
   highlights?: HighlightEntry[]
@@ -365,7 +375,7 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
+export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -1183,13 +1193,14 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               : 'flex items-center'
           }>
 
-            {/* Note indicator */}
+            {/* Note indicator — color reflects the first note's assigned color */}
             {noteCount > 0 && (
               <button
                 onMouseEnter={handleNoteIconMouseEnter}
                 onMouseLeave={handleNoteIconMouseLeave}
                 onClick={openVerseNotes}
-                className="flex items-center gap-0.5 text-[rgb(var(--color-accent))] opacity-75 hover:opacity-100 cursor-pointer leading-none select-none transition-opacity"
+                className="flex items-center gap-0.5 opacity-75 hover:opacity-100 cursor-pointer leading-none select-none transition-opacity"
+                style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
               >
                 <span className="text-[10px] font-bold">●</span>
                 {noteCount > 1 && <span className="text-[9px] font-semibold">{noteCount}</span>}

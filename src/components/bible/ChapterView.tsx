@@ -214,6 +214,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   const [verses, setVerses] = useState<Verse[]>([])
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
+  const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
@@ -264,9 +265,11 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
       // Forward: a verse note here references some other verse/chapter
       const notes = await window.notes.getChapterNotes(bookId, chapter, textId ?? 'kjva').catch(() => [])
+      const colorMap: Record<number, string> = {}
       for (const note of notes) {
         const vn = parseInt((note.verseRef ?? '').split('.')[2] ?? '0', 10)
         if (!vn) continue
+        if (note.color && !colorMap[vn]) colorMap[vn] = note.color
         const refs = extractRefsFromNote(note.content, note.title || '')
         // A ref counts as "other" only when it is NOT the note's own verse AND is a specific
         // verse (not a whole-chapter ref — those are shown in the banner, not per-verse).
@@ -289,7 +292,10 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
         if (!cancelled) setChapterSources(chapterCrossRefSources(sources, bookId, chapter))
       } catch { /* best-effort */ }
 
-      if (!cancelled) setVerseHasNoteCrossRefs(flags)
+      if (!cancelled) {
+        setVerseHasNoteCrossRefs(flags)
+        setNoteColorsMap(colorMap)
+      }
     })()
     return () => { cancelled = true }
   }, [bookId, chapter, textId, noteChangeToken, verses.length])
@@ -539,6 +545,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
             showStrongs={showStrongs}
             showVerseNumber={showVerseNumbers}
             noteCount={noteCounts[verse.verse_num] ?? 0}
+            notePrimaryColor={noteColorsMap[verse.verse_num]}
             hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
             isHighlighted={isHighlighted}
             highlights={highlights[verse.verse_num] ?? []}
