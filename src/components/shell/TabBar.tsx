@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
 import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
@@ -477,20 +478,27 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 onDragEnd={handleDragEnd}
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
-                  group flex items-center gap-2 rounded-md px-2 py-1.5
+                  group relative flex items-center gap-2 rounded-shell px-2 py-1.5
                   cursor-grab select-none transition-colors duration-100
                   ${isDragging ? 'opacity-40 scale-95' : ''}
                   ${isCrossSpaceTarget
                     ? 'ring-2 ring-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
                     : isActive
-                      ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
+                      ? 'text-[rgb(var(--color-text-primary))]'
                       : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
                   }
                 `}
               >
+                {isActive && !isCrossSpaceTarget && (
+                  <motion.div
+                    layoutId="active-tab-pill"
+                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))]"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
                 <button
                   onClick={() => onTabClick(tab)}
-                  className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
+                  className="relative z-10 flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
                 >
                   <span className="relative flex-shrink-0">
                     <Icon size={13} className="opacity-60" />
@@ -508,7 +516,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onTabClose(tab) }}
-                  className={`flex-shrink-0 rounded p-0.5
+                  className={`relative z-10 flex-shrink-0 rounded p-0.5
                     text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]
                     hover:bg-[rgb(var(--color-surface-4))] transition-opacity cursor-pointer
                     ${isActive ? 'opacity-40 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
@@ -529,7 +537,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         <div
           ref={menuRef}
           style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
-          className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
+          className="min-w-44 rounded-shell glass-panel p-1 text-xs"
         >
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
