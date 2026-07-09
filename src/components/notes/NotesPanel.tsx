@@ -63,6 +63,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const continuousDailyScroll = useAppStore((s) => s.continuousDailyScroll)
 
   const [notes, setNotes] = useState<Note[]>([])
+  // Scroll container for the list-view NotesList — read by its virtualizer so
+  // only visible rows are mounted regardless of total note count.
+  const notesListScrollRef = useRef<HTMLDivElement>(null)
   const [continuousDailyDate, setContinuousDailyDate] = useState(() => new Date())
   // Idioms → single PDF export: opens the print preview directly (options live in the modal).
   const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
@@ -1261,7 +1264,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onDayOpen={openDailyNote}
               />
             ) : (
-            <div className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
+            <div ref={notesListScrollRef} className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
               {folderView ? (
                 <NotesFolderView
                   notes={visibleNotes}
@@ -1299,6 +1302,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 />
               ) : (
                 <NotesList
+                  scrollParentRef={notesListScrollRef}
                   notes={visibleNotes}
                   onSelect={navigateToNote}
                   onDelete={(note) => deleteNote(note)}

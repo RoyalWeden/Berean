@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileText, Trash2, CheckSquare, Square } from 'lucide-react'
 import { bookName } from '@/lib/parseRef'
 import { applyFindHighlight } from '@/lib/highlight'
@@ -30,6 +31,9 @@ export function contentSnippets(content: string, query: string, max = 3): string
 
 interface NotesListProps {
   notes: Note[]
+  /** Ref to the scrollable ancestor (owned by NotesPanel) — read by the virtualizer
+   *  so only visible rows are mounted regardless of total note count. */
+  scrollParentRef: React.RefObject<HTMLDivElement>
   onSelect: (note: Note) => void
   onDelete?: (note: Note) => void
   findQuery?: string
@@ -96,7 +100,7 @@ function noteSourceBadge(note: Note): { label: string; cls: string } | null {
 }
 
 export default function NotesList({
-  notes, onSelect, onDelete, findQuery, searchQuery,
+  notes, scrollParentRef, onSelect, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
   onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf,
@@ -121,6 +125,17 @@ export default function NotesList({
     setRenamingNoteId(null)
   }
 
+  // Only visible rows are mounted, regardless of total note count — mounting/
+  // unmounting a fully flat DOM list of every note (no windowing at all before
+  // this) is what made switching into list view feel like a multi-second stall
+  // once a note collection grew into the hundreds.
+  const virtualizer = useVirtualizer({
+    count: notes.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => 78,
+    overscan: 8,
+  })
+
   if (notes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
@@ -137,8 +152,9 @@ export default function NotesList({
 
   return (
     <>
-      <div className="flex flex-col divide-y divide-[rgb(var(--color-surface-4))]">
-        {notes.map((note) => {
+      <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const note = notes[virtualRow.index]
           const rawSnippet = note.type === 'idiom' && note.idiomMeaning
             ? note.idiomMeaning
             : note.content.replace(/[#*`>\-_~\[\]]/g, '').trim()
@@ -152,7 +168,13 @@ export default function NotesList({
           const snippets = searchQuery ? contentSnippets(note.content, searchQuery) : []
 
           return (
-            <div key={note.id}>
+            <div
+              key={note.id}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className="absolute top-0 left-0 w-full border-b border-[rgb(var(--color-surface-4))]"
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
             <div
               draggable={!selectMode && !renamingNoteId}
               onDragStart={(e) => {
