@@ -1316,7 +1316,7 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
           const blkFrom = doc.lineAt(from)
           const blkTo = doc.lineAt(Math.min(to, vpTo))
           const firstLineText = doc.sliceString(blkFrom.from, blkFrom.to)
-          const calloutMatch = firstLineText.match(/^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i)
+          const calloutMatch = firstLineText.match(/^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([^\n]*)/i)
 
           if (calloutMatch) {
             // Check if cursor is inside this callout block
@@ -1328,18 +1328,41 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
               // Skip all child-node decorations (QuoteMark, etc.) for this block.
               return false
             }
-            // Cursor inside — fall through to per-line styled rendering
+            // Cursor is inside the block — keep the box chrome (tinted background,
+            // colored left border, rounded card) on every line EXCEPT the one the
+            // cursor is actually on, so only that line's raw markdown is exposed
+            // for editing instead of the whole callout reverting to plain text.
+            // (The header line's "> [!NOTE]" marker still hides its leading ">"
+            // via the existing QuoteMark handling below — only the [!NOTE] Title
+            // text itself stays visible as a hint of what block this is, which
+            // is an acceptable trade-off against replacing it with a widget: a
+            // Decoration.replace here would overlap the QuoteMark/inline mark
+            // decorations produced by continuing to walk this same subtree.)
+            const calloutType = calloutMatch[1].toUpperCase()
+            const meta = CALLOUT_META[calloutType] ?? CALLOUT_META.NOTE
+            const chromeStyle = `border-left:3px solid ${meta.border};background:${meta.bg};`
+            for (let lineNum = blkFrom.number; lineNum <= blkTo.number; lineNum++) {
+              const ln = doc.line(lineNum)
+              const isHeaderLine = lineNum === blkFrom.number
+              const isLastLine = lineNum === blkTo.number
+              if (col(ln.from)) continue // cursor's own line — leave fully raw/editable
+              const radius = `${isHeaderLine ? '4px 4px' : '0 0'} ${isLastLine ? '4px 4px' : '0 0'}`
+              decos.push({
+                from: ln.from, to: ln.from,
+                deco: Decoration.line({ attributes: { style: `${chromeStyle}padding-left:0.75em;border-radius:${radius};${isHeaderLine ? 'font-weight:600;' : ''}` } }),
+                kind: 'line'
+              })
+            }
+            break
           }
 
-          // Regular blockquote OR cursor-inside callout: per-line styling
+          // Regular (non-callout) blockquote: per-line styling
           for (let lineNum = blkFrom.number; lineNum <= blkTo.number; lineNum++) {
             const ln = doc.line(lineNum)
             if (!col(ln.from)) {
-              const lineText = doc.sliceString(ln.from, ln.to)
-              const isCalloutHeader = /^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.test(lineText)
               decos.push({
                 from: ln.from, to: ln.from,
-                deco: Decoration.line({ class: isCalloutHeader ? 'cm-live-callout-header' : 'cm-live-blockquote' }),
+                deco: Decoration.line({ class: 'cm-live-blockquote' }),
                 kind: 'line'
               })
             }

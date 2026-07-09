@@ -302,7 +302,20 @@ export default function NotesFolderView({
     return { withoutDate, byYear }
   }, [bySystem])
 
-  const childFolders = (parentId: string | null) => folders.filter((f) => f.parentId === parentId)
+  // Grouped once per `folders` change instead of re-filtering the full array on
+  // every recursive call — this is called once per rendered folder, so on a
+  // deep/wide tree the naive filter() was effectively O(n^2).
+  const childFoldersByParent = useMemo(() => {
+    const map = new Map<string | null, NoteFolder[]>()
+    for (const f of folders) {
+      const key = f.parentId ?? null
+      const arr = map.get(key)
+      if (arr) arr.push(f)
+      else map.set(key, [f])
+    }
+    return map
+  }, [folders])
+  const childFolders = (parentId: string | null) => childFoldersByParent.get(parentId) ?? []
 
   // Descendant folder ids (for hiding invalid move targets)
   const descendantsOf = (id: string): Set<string> => {
