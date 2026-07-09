@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, Check as CheckIcon } from 'lucide-react'
 import ZoomControls from '@/components/shell/ZoomControls'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
@@ -1477,14 +1478,21 @@ export default function BibleRightPanel({
               key={tab}
               onClick={() => { onTabChange(tab); void closeSidebarNote() }}
               className={`
-                flex-1 text-[10px] py-2 font-medium transition-colors cursor-pointer
+                relative flex-1 text-[10px] py-2 font-medium transition-colors cursor-pointer -mb-px
                 ${visibleTab === tab
-                  ? 'text-[rgb(var(--color-accent))] border-b-2 border-[rgb(var(--color-accent))] -mb-px'
+                  ? 'text-[rgb(var(--color-accent))]'
                   : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
                 }
               `}
             >
               {label}
+              {visibleTab === tab && (
+                <motion.div
+                  layoutId="right-panel-tab-underline"
+                  className="absolute left-0 right-0 bottom-0 h-0.5 bg-[rgb(var(--color-accent))]"
+                  transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                />
+              )}
             </button>
           ))}
           {/* Zoom controls for the active tab context */}

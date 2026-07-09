@@ -50,10 +50,9 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry }: S
             side="top"
             sideOffset={4}
             className="
-              z-50 max-w-xs rounded-lg shadow-xl
-              bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]
+              z-50 max-w-xs rounded-shell glass-panel
               px-3 py-2.5
-              animate-in fade-in-0 zoom-in-95
+              data-[state=delayed-open]:animate-radix-popup-in data-[state=instant-open]:animate-radix-popup-in
             "
           >
             {!loaded ? (

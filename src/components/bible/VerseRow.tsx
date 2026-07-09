@@ -1049,7 +1049,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
 
         {popoverOpen && (
           <div
-            className="fixed z-[100] min-w-[160px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1"
+            className="fixed z-[100] min-w-[160px] rounded-shell glass-panel overflow-hidden py-1"
             style={{ left: popoverPos.x, top: popoverPos.y }}
           >
             <button
@@ -1182,7 +1182,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               const hiddenCount = total - vnShown.length - rnShown.length
               return (
             <div
-              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
@@ -1282,7 +1282,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           {/* Cross-ref hover popup */}
           {crossRefHover && createPortal(
             <div
-              className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+              className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
               onMouseLeave={() => setCrossRefHover(null)}
@@ -1356,7 +1356,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       {selToolbar && createPortal(
         <div
           ref={selToolbarRef}
-          className="fixed z-[9999] min-w-[180px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden py-1"
+          className="fixed z-[9999] min-w-[180px] rounded-shell glass-panel overflow-hidden py-1"
           style={{ left: selToolbar.x, top: selToolbar.y }}
         >
           {/* Color dot rows (3 rows × 5 colors) */}
@@ -1527,7 +1527,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       {/* Idiom hover tooltip */}
       {idiomTooltip && idiomHoverPreviewEnabled && createPortal(
         <div
-          className="fixed z-[9999] max-w-[220px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-3 py-2 pointer-events-none"
+          className="fixed z-[9999] max-w-[220px] rounded-shell glass-panel px-3 py-2 pointer-events-none"
           style={{ left: idiomTooltip.x, top: idiomTooltip.y }}
         >
           <div className="text-[10px] font-semibold text-violet-400 mb-0.5">{idiomTooltip.term}</div>
@@ -1542,7 +1542,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setIdiomContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setIdiomContextMenu(null) }} />
           <div
-            className="fixed z-[9999] min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            className="fixed z-[9999] min-w-[170px] rounded-shell glass-panel py-1"
             style={{ left: Math.min(idiomContextMenu.x, window.innerWidth - 200), top: Math.min(idiomContextMenu.y, window.innerHeight - 160) }}
           >
             <button
