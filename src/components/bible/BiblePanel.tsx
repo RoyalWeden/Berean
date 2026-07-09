@@ -931,6 +931,38 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     document.addEventListener('mouseup', onUp)
   }
 
+  // Shared scroll handler — used by both the standard div and ContinuousChapterScroll.
+  // IMPORTANT: this hook must be declared before the searchMode early-return below —
+  // it used to sit after it, which meant this useCallback was skipped whenever
+  // tabState.searchMode was true, changing the number of hooks called between
+  // renders and crashing React ("Rendered more/fewer hooks than during the
+  // previous render") the moment a tab switched into or out of search mode.
+  const handleBibleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget
+    const scrollTop = container.scrollTop
+    const tabId = activeTabRef.current?.id
+    if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+    scrollSaveTimerRef.current = setTimeout(() => {
+      if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
+    }, 150)
+    const max = container.scrollHeight - container.clientHeight
+    const scrollPercent = max > 0 ? scrollTop / max : 0
+    setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    const st = useAppStore.getState()
+    if (Date.now() < findScrollSuppressRef.current) {
+      findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
+    } else if (st.viewerWindowOpen && !st.viewerPaused) {
+      findCenterVerseRef.current = null
+      if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
+      viewerScrollRAFRef.current = requestAnimationFrame(() => {
+        viewerScrollRAFRef.current = null
+        const base = computeViewerPayload()
+        if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
+      })
+    }
+    if (!st.viewerPaused) computePresenterBand()
+  }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────
   if (tabState.searchMode) {
     const isDedicatedSearchTab = activeTab?.id === 'scripture-search-dedicated'
@@ -996,33 +1028,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </div>
     )
   }
-
-  // Shared scroll handler — used by both the standard div and ContinuousChapterScroll
-  const handleBibleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const container = e.currentTarget
-    const scrollTop = container.scrollTop
-    const tabId = activeTabRef.current?.id
-    if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
-    scrollSaveTimerRef.current = setTimeout(() => {
-      if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
-    }, 150)
-    const max = container.scrollHeight - container.clientHeight
-    const scrollPercent = max > 0 ? scrollTop / max : 0
-    setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
-    const st = useAppStore.getState()
-    if (Date.now() < findScrollSuppressRef.current) {
-      findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
-    } else if (st.viewerWindowOpen && !st.viewerPaused) {
-      findCenterVerseRef.current = null
-      if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
-      viewerScrollRAFRef.current = requestAnimationFrame(() => {
-        viewerScrollRAFRef.current = null
-        const base = computeViewerPayload()
-        if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
-      })
-    }
-    if (!st.viewerPaused) computePresenterBand()
-  }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isCompareMode = tabState.compareMode || currentLayout === 'compare-notes'
 
