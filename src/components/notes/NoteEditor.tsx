@@ -22,6 +22,7 @@ import { tags } from '@lezer/highlight'
 import { marked } from 'marked'
 import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2, IndentIncrease, IndentDecrease, Copy, Trash2 } from 'lucide-react'
 import type { Note } from '@/types'
+import { HIGHLIGHT_COLOR_IDS, highlightMarkBg, highlightDotColor, LINK_COLORS } from '@/styles/highlightPalette'
 import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -227,30 +228,19 @@ const bereanTheme = EditorView.theme({
   '.cm-code-block-only': { borderRadius: '6px', paddingTop: '6px', paddingBottom: '6px' },
   '.cm-live-list-bullet': { color: 'rgb(var(--color-text-primary))' },
   '.cm-live-highlight': { backgroundColor: 'rgba(234,179,8,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-yellow':  { backgroundColor: 'rgba(234,179,8,0.38)',   borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-orange':  { backgroundColor: 'rgba(251,146,60,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-amber':   { backgroundColor: 'rgba(251,191,36,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-red':     { backgroundColor: 'rgba(248,113,113,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-rose':    { backgroundColor: 'rgba(251,113,133,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-pink':    { backgroundColor: 'rgba(244,114,182,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-violet':  { backgroundColor: 'rgba(167,139,250,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-purple':  { backgroundColor: 'rgba(192,132,252,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-indigo':  { backgroundColor: 'rgba(129,140,248,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-blue':    { backgroundColor: 'rgba(96,165,250,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-sky':     { backgroundColor: 'rgba(56,189,248,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-cyan':    { backgroundColor: 'rgba(34,211,238,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-teal':    { backgroundColor: 'rgba(45,212,191,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-green':   { backgroundColor: 'rgba(74,222,128,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-lime':    { backgroundColor: 'rgba(163,230,53,0.38)',  borderRadius: '2px', padding: '0 1px' },
+  ...Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [
+    `.cm-live-hl-${id}`,
+    { backgroundColor: highlightMarkBg(id), borderRadius: '2px', padding: '0 1px' }
+  ])),
   '.cm-live-align-center': { textAlign: 'center' as const },
   '.cm-live-align-right': { textAlign: 'right' as const },
   '.cm-live-align-justify': { textAlign: 'justify' as const },
   '.cm-live-task-done': { textDecoration: 'line-through', opacity: '0.55' },
   '.cm-live-link': { color: 'rgb(99,102,241)', textDecoration: 'underline', cursor: 'pointer' },
-  '.cm-live-wikilink': { color: 'rgb(139,92,246)', textDecoration: 'underline', cursor: 'pointer' },
-  '.cm-live-verse-ref': { color: 'rgb(var(--color-accent))', textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
-  '.cm-live-lxx-ref': { color: 'rgb(167,139,250)', textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
-  '.cm-live-lexicon-ref': { color: 'rgb(52,211,153)', textDecoration: 'underline', textDecorationStyle: 'dashed', cursor: 'pointer', textUnderlineOffset: '2px' },
+  '.cm-live-wikilink': { color: LINK_COLORS.wikilink, textDecoration: 'underline', cursor: 'pointer' },
+  '.cm-live-verse-ref': { color: LINK_COLORS.verseRef, textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
+  '.cm-live-lxx-ref': { color: LINK_COLORS.lxxRef, textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
+  '.cm-live-lexicon-ref': { color: LINK_COLORS.lexiconRef, textDecoration: 'underline', textDecorationStyle: 'dashed', cursor: 'pointer', textUnderlineOffset: '2px' },
   '.cm-live-suppressed': { textDecoration: 'none !important', cursor: 'text' },
   '.cm-live-blockquote': { borderLeft: '2px solid rgb(var(--color-accent))', paddingLeft: '0.75em', color: 'rgb(var(--color-text-secondary)) !important' },
   // Verse block — plain text styled like a scripture quote (decoration only)
@@ -284,13 +274,8 @@ const bereanTheme = EditorView.theme({
   '.cm-live-h-divider': { borderBottom: '1px solid rgba(100,116,139,0.15)', paddingBottom: '1px' },
 })
 
-const NOTE_HL_COLORS: { id: string; dot: string }[] = [
-  { id: 'yellow', dot: '#facc15' }, { id: 'orange', dot: '#fb923c' }, { id: 'amber',  dot: '#fbbf24' },
-  { id: 'red',    dot: '#f87171' }, { id: 'rose',   dot: '#fb7185' }, { id: 'pink',   dot: '#f472b6' },
-  { id: 'violet', dot: '#a78bfa' }, { id: 'purple', dot: '#c084fc' }, { id: 'indigo', dot: '#818cf8' },
-  { id: 'blue',   dot: '#60a5fa' }, { id: 'sky',    dot: '#38bdf8' }, { id: 'cyan',   dot: '#22d3ee' },
-  { id: 'teal',   dot: '#2dd4bf' }, { id: 'green',  dot: '#4ade80' }, { id: 'lime',   dot: '#a3e635' },
-]
+const NOTE_HL_COLORS: { id: string; dot: string }[] =
+  HIGHLIGHT_COLOR_IDS.map((id) => ({ id, dot: highlightDotColor(id) }))
 
 function wrapWith(open: string, close: string) {
   return (view: EditorView): boolean => {

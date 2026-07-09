@@ -13,49 +13,29 @@ import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import type { Verse, HighlightColor, Note } from '@/types'
+import {
+  HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS,
+  highlightSwatchClasses, highlightDot, highlightRowBg, highlightBorder, highlightWordBg,
+  RED_LETTER_CLASS
+} from '@/styles/highlightPalette'
 export type { HighlightColor }
 
-export const HIGHLIGHT_COLORS: { id: HighlightColor; bg: string; dot: string; label: string }[] = [
-  { id: 'yellow',  bg: 'bg-yellow-400/20 hover:bg-yellow-400/30',   dot: 'bg-yellow-400',   label: 'Yellow'  },
-  { id: 'orange',  bg: 'bg-orange-400/20 hover:bg-orange-400/30',   dot: 'bg-orange-400',   label: 'Orange'  },
-  { id: 'amber',   bg: 'bg-amber-400/20 hover:bg-amber-400/30',     dot: 'bg-amber-400',    label: 'Amber'   },
-  { id: 'red',     bg: 'bg-red-400/20 hover:bg-red-400/30',         dot: 'bg-red-400',      label: 'Red'     },
-  { id: 'rose',    bg: 'bg-rose-400/20 hover:bg-rose-400/30',       dot: 'bg-rose-400',     label: 'Rose'    },
-  { id: 'pink',    bg: 'bg-pink-400/20 hover:bg-pink-400/30',       dot: 'bg-pink-400',     label: 'Pink'    },
-  { id: 'violet',  bg: 'bg-violet-400/20 hover:bg-violet-400/30',   dot: 'bg-violet-400',   label: 'Violet'  },
-  { id: 'purple',  bg: 'bg-purple-400/20 hover:bg-purple-400/30',   dot: 'bg-purple-400',   label: 'Purple'  },
-  { id: 'indigo',  bg: 'bg-indigo-400/20 hover:bg-indigo-400/30',   dot: 'bg-indigo-400',   label: 'Indigo'  },
-  { id: 'blue',    bg: 'bg-blue-400/20 hover:bg-blue-400/30',       dot: 'bg-blue-400',     label: 'Blue'    },
-  { id: 'sky',     bg: 'bg-sky-400/20 hover:bg-sky-400/30',         dot: 'bg-sky-400',      label: 'Sky'     },
-  { id: 'cyan',    bg: 'bg-cyan-400/20 hover:bg-cyan-400/30',       dot: 'bg-cyan-400',     label: 'Cyan'    },
-  { id: 'teal',    bg: 'bg-teal-400/20 hover:bg-teal-400/30',       dot: 'bg-teal-500',     label: 'Teal'    },
-  { id: 'green',   bg: 'bg-green-400/20 hover:bg-green-400/30',     dot: 'bg-green-500',    label: 'Green'   },
-  { id: 'lime',    bg: 'bg-lime-400/20 hover:bg-lime-400/30',       dot: 'bg-lime-400',     label: 'Lime'    },
-]
+export const HIGHLIGHT_COLORS: { id: HighlightColor; bg: string; dot: string; label: string }[] =
+  HIGHLIGHT_COLOR_IDS.map((id) => ({
+    id,
+    bg: highlightSwatchClasses(id),
+    dot: highlightDot(id),
+    label: HIGHLIGHT_LABELS[id]
+  }))
 
-const HIGHLIGHT_ROW_BG: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.15)',   orange: 'rgba(251,146,60,0.15)',  amber:  'rgba(251,191,36,0.15)',
-  red:    'rgba(248,113,113,0.15)', rose:   'rgba(251,113,133,0.15)', pink:   'rgba(244,114,182,0.15)',
-  violet: 'rgba(167,139,250,0.15)', purple: 'rgba(192,132,252,0.15)', indigo: 'rgba(129,140,248,0.15)',
-  blue:   'rgba(96,165,250,0.15)',  sky:    'rgba(56,189,248,0.15)',  cyan:   'rgba(34,211,238,0.15)',
-  teal:   'rgba(45,212,191,0.15)',  green:  'rgba(74,222,128,0.15)',  lime:   'rgba(163,230,53,0.15)',
-}
+const HIGHLIGHT_ROW_BG: Record<HighlightColor, string> =
+  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightRowBg(id)])) as Record<HighlightColor, string>
 
-const HIGHLIGHT_BORDER: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.7)',   orange: 'rgba(251,146,60,0.7)',  amber:  'rgba(251,191,36,0.7)',
-  red:    'rgba(248,113,113,0.7)', rose:   'rgba(251,113,133,0.7)', pink:   'rgba(244,114,182,0.7)',
-  violet: 'rgba(167,139,250,0.7)', purple: 'rgba(192,132,252,0.7)', indigo: 'rgba(129,140,248,0.7)',
-  blue:   'rgba(96,165,250,0.7)',  sky:    'rgba(56,189,248,0.7)',  cyan:   'rgba(34,211,238,0.7)',
-  teal:   'rgba(45,212,191,0.7)',  green:  'rgba(74,222,128,0.7)',  lime:   'rgba(163,230,53,0.7)',
-}
+const HIGHLIGHT_BORDER: Record<HighlightColor, string> =
+  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightBorder(id)])) as Record<HighlightColor, string>
 
-const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.5)',   orange: 'rgba(251,146,60,0.5)',  amber:  'rgba(251,191,36,0.5)',
-  red:    'rgba(248,113,113,0.5)', rose:   'rgba(251,113,133,0.5)', pink:   'rgba(244,114,182,0.5)',
-  violet: 'rgba(167,139,250,0.5)', purple: 'rgba(192,132,252,0.5)', indigo: 'rgba(129,140,248,0.5)',
-  blue:   'rgba(96,165,250,0.5)',  sky:    'rgba(56,189,248,0.5)',  cyan:   'rgba(34,211,238,0.5)',
-  teal:   'rgba(45,212,191,0.5)',  green:  'rgba(74,222,128,0.5)',  lime:   'rgba(163,230,53,0.5)',
-}
+const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> =
+  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightWordBg(id)])) as Record<HighlightColor, string>
 
 interface SelToolbarPos { x: number; y: number; startChar: number; endChar: number }
 
@@ -917,7 +897,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
             return (
               <Fragment key={i}>
                 {token.isRedLetter
-                  ? <span className="text-red-400">{wordContent}</span>
+                  ? <span className={RED_LETTER_CLASS}>{wordContent}</span>
                   : token.isItalic
                   ? <span className="italic opacity-70">{wordContent}</span>
                   : <span>{wordContent}</span>

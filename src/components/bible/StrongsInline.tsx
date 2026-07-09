@@ -1,5 +1,6 @@
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 
 export interface WordSegment { text: string; bg?: string }
 
@@ -64,7 +65,7 @@ export default function StrongsInline({
     return (
       <span className="inline-flex flex-col items-start mr-0.5" style={{ gap: 0 }}>
         <span
-          className={`leading-none ${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ' text-red-400' : ''}`}
+          className={`leading-none ${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`}
           style={{ marginBottom: -2 }}
         >{wordContent}</span>
         {nums.length > 0 ? (
