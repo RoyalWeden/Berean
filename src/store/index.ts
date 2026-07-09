@@ -1105,11 +1105,12 @@ export const useAppStore = create<AppState>()(
             tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
           })
         } else {
+          // Always append at the end of the target space's tab list (same as
+          // createTab) — inserting right after whatever tab happened to be
+          // last-active in that space put new tabs in an unpredictable middle
+          // position, especially when the space wasn't the one currently in view.
           const currentTabs = state.tabs[tab.spaceId]
-          const activeId = state.activeTabId[tab.spaceId]
-          const activeIdx = activeId ? currentTabs.findIndex((t) => t.id === activeId) : -1
-          const insertAt = activeIdx >= 0 ? activeIdx + 1 : currentTabs.length
-          const newTabs = [...currentTabs.slice(0, insertAt), tab, ...currentTabs.slice(insertAt)]
+          const newTabs = [...currentTabs, tab]
           set({
             tabs: { ...state.tabs, [tab.spaceId]: newTabs },
             activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },

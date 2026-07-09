@@ -361,7 +361,16 @@ function createWindow(): void {
     frame: !isWinWin,
     titleBarStyle: isMacWin ? 'hiddenInset' : 'default',
     ...(isMacWin ? { trafficLightPosition: { x: 12, y: 14 } } : {}),
-    backgroundColor: '#111114',
+    // macOS: transparent + native vibrancy so the sidebar column can show a true
+    // frosted-glass effect against the desktop (CSS backdrop-blur alone can't do
+    // this in an opaque window — it only blurs the app's own content, not what's
+    // behind the window). The renderer is responsible for keeping the main
+    // content column opaque via CSS (see .app-opaque-base in global.css) since
+    // the whole window surface is transparent now, not just the sidebar strip.
+    // Windows keeps the original opaque background — vibrancy is mac-only.
+    ...(isMacWin
+      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'sidebar' as const, visualEffectState: 'active' as const }
+      : { backgroundColor: '#111114' }),
     icon: appIcon,
     // Show [Dev] in the window title (visible in macOS app switcher / dock tooltip)
     title: is.dev ? 'Berean [Dev]' : 'Berean',

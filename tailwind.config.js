@@ -25,7 +25,15 @@ module.exports = {
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
       },
       borderRadius: {
-        panel: '8px'
+        panel: '8px',
+        shell: '14px',
+        'shell-lg': '20px'
+      },
+      boxShadow: {
+        glass: '0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45)'
+      },
+      backdropBlur: {
+        glass: '20px'
       }
     }
   },

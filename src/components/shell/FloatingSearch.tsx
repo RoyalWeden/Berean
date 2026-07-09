@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
@@ -577,18 +578,34 @@ export default function FloatingSearch() {
 
   return (
     <Dialog.Root open={searchOpen} onOpenChange={(open) => !open && closeSearch()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50 animate-in fade-in-0" />
+      <AnimatePresence>
+        {searchOpen && (
+      <Dialog.Portal forceMount>
+        <Dialog.Overlay asChild forceMount>
+          <motion.div
+            className="fixed inset-0 bg-black/50 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          />
+        </Dialog.Overlay>
         <Dialog.Content
           aria-describedby={undefined}
-          className="
-            fixed left-1/2 top-[12%] -translate-x-1/2
-            z-50 w-full max-w-2xl
-            bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
-            rounded-xl shadow-2xl overflow-hidden
-            animate-in fade-in-0 zoom-in-95
-          "
+          asChild
+          forceMount
         >
+          <motion.div
+            className="
+              fixed left-1/2 top-[12%]
+              z-50 w-full max-w-2xl
+              glass-panel rounded-shell-lg overflow-hidden
+            "
+            initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+          >
           <Dialog.Title className="sr-only">Search</Dialog.Title>
 
           {/* Input */}
@@ -750,8 +767,11 @@ export default function FloatingSearch() {
               {searchMode === 'new' ? 'New tab' : 'Current tab'}
             </span>
           </div>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
+        )}
+      </AnimatePresence>
     </Dialog.Root>
   )
 }

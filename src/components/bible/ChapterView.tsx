@@ -165,7 +165,7 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
       </button>
       {tip && verseText && (
         <div
-          className={`absolute left-0 z-[200] w-[260px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] px-3 py-2 pointer-events-none ${
+          className={`absolute left-0 z-[200] w-[260px] rounded-shell glass-panel px-3 py-2 pointer-events-none ${
             tip.placeBelow ? 'top-full mt-1.5' : 'bottom-full mb-1.5'
           }`}
         >
@@ -565,7 +565,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
       {/* Multi-verse selection toolbar — context menu */}
       {multiToolbar && (
         <MenuPositioner x={multiToolbar.x} y={multiToolbar.y}
-          className="min-w-[200px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden py-1"
+          className="min-w-[200px] rounded-shell glass-panel overflow-hidden py-1"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           {/* Color grid: 3 rows × 5 colors */}
@@ -577,7 +577,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
                     key={c.id}
                     onClick={() => highlightRange(c.id)}
                     title={`Highlight ${c.label}`}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${c.dot}`}
+                    style={{ backgroundColor: c.dot }}
+                    className="w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0"
                   />
                 ))}
                 {row === 2 && selectionHasHighlights() && (

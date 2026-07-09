@@ -16,12 +16,13 @@ export const wysiwygField = StateField.define<boolean>({
 })
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
-import { syntaxHighlighting, HighlightStyle, syntaxTree, ensureSyntaxTree } from '@codemirror/language'
+import { syntaxTree, ensureSyntaxTree } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { tags } from '@lezer/highlight'
 import { marked } from 'marked'
 import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2, IndentIncrease, IndentDecrease, Copy, Trash2 } from 'lucide-react'
 import type { Note } from '@/types'
+import { HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
+import { headingStyle, bereanSyntaxOverrides, bereanTheme } from './editorTheme'
 import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -171,126 +172,8 @@ marked.setOptions({ breaks: true, gfm: true })
 // turned into a heading. "---" should always render as a horizontal-rule divider.
 marked.use({ tokenizer: { lheading() { return undefined } } })
 
-const headingStyle = syntaxHighlighting(HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '1.71em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading2, fontSize: '1.43em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading3, fontSize: '1.29em', fontWeight: '600', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading4, fontWeight: '700', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading5, fontWeight: '600', fontStyle: 'italic', color: 'rgb(var(--color-text-primary))' },
-]))
-
-// Override oneDark's colored markdown tokens — must come after oneDark in extensions array
-const bereanSyntaxOverrides = syntaxHighlighting(HighlightStyle.define([
-  { tag: tags.heading, color: 'rgb(var(--color-text-primary))' },
-  { tag: [tags.list, tags.meta, tags.quote, tags.name], color: 'rgb(var(--color-text-primary))' },
-  { tag: [tags.processingInstruction], color: 'rgb(var(--color-text-secondary))' },
-  { tag: [tags.link, tags.url], color: 'rgb(99,102,241)' },
-]))
-
-const bereanTheme = EditorView.theme({
-  '&': {
-    height: '100%',
-    fontSize: 'inherit', // inherit from the container so per-panel zoom applies
-    fontFamily: 'var(--font-body, system-ui, sans-serif)',
-    backgroundColor: 'transparent !important',
-    color: 'rgb(var(--color-text-primary))',
-  },
-  '.cm-scroller': { padding: '16px', paddingBottom: '96px', overflowY: 'auto', fontFamily: 'inherit' },
-  '.cm-content': { caretColor: 'rgb(var(--color-accent))', padding: '0', lineHeight: '1.625', color: 'rgb(var(--color-text-primary))' },
-  '.cm-focused': { outline: 'none' },
-  '.cm-line': { padding: '0', color: 'rgb(var(--color-text-primary))' },
-  '.cm-editor': { backgroundColor: 'transparent' },
-  '.cm-gutters': { display: 'none' },
-  '.cm-activeLine': { backgroundColor: 'rgba(100, 120, 220, 0.05)' },
-  '.cm-selectionBackground': { backgroundColor: 'var(--selection-bg) !important' },
-  '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection-bg) !important' },
-  '::selection': { backgroundColor: 'var(--selection-bg) !important' },
-  // Live preview line-level markers — font sizes set by headingStyle to avoid double-scaling
-  '.cm-live-h1': { fontWeight: '700' },
-  '.cm-live-h2': { fontWeight: '700' },
-  '.cm-live-h3': { fontWeight: '600' },
-  '.cm-live-h4': { fontWeight: '700' },
-  '.cm-live-h5': { fontWeight: '600', fontStyle: 'italic' },
-  // Force heading spans to use theme color regardless of oneDark syntax highlighting
-  '.cm-live-h1 span, .cm-live-h2 span, .cm-live-h3 span, .cm-live-h4 span, .cm-live-h5 span': { color: 'rgb(var(--color-text-primary)) !important' },
-  '.cm-live-bold': { fontWeight: 'bold' },
-  '.cm-live-italic': { fontStyle: 'italic' },
-  '.cm-live-strike': { textDecoration: 'line-through', opacity: '0.7' },
-  '.cm-live-code': { fontFamily: 'monospace', fontSize: '0.875em', backgroundColor: 'rgb(var(--color-surface-4))', padding: '0 3px', borderRadius: '3px', color: 'rgb(var(--color-text-primary)) !important' },
-  '.cm-live-code-block': { backgroundColor: 'rgb(var(--color-surface-4))', fontFamily: 'monospace', fontSize: '0.875em', paddingLeft: '12px', paddingRight: '12px', color: 'rgb(var(--color-text-primary)) !important' },
-  // Fence lines (```) — same height/font as code-block, text hidden to avoid layout jumps
-  // color on the .cm-line alone is overridden by oneDark's child spans, so target * too
-  '.cm-live-code-fence': { backgroundColor: 'rgb(var(--color-surface-4))', fontFamily: 'monospace', fontSize: '0.875em', paddingLeft: '12px', paddingRight: '12px' },
-  '.cm-live-code-fence *': { color: 'transparent !important', userSelect: 'none' as const },
-  '.cm-code-block-top': { borderRadius: '6px 6px 0 0', paddingTop: '6px' },
-  '.cm-code-block-bottom': { borderRadius: '0 0 6px 6px', paddingBottom: '6px' },
-  '.cm-code-block-only': { borderRadius: '6px', paddingTop: '6px', paddingBottom: '6px' },
-  '.cm-live-list-bullet': { color: 'rgb(var(--color-text-primary))' },
-  '.cm-live-highlight': { backgroundColor: 'rgba(234,179,8,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-yellow':  { backgroundColor: 'rgba(234,179,8,0.38)',   borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-orange':  { backgroundColor: 'rgba(251,146,60,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-amber':   { backgroundColor: 'rgba(251,191,36,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-red':     { backgroundColor: 'rgba(248,113,113,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-rose':    { backgroundColor: 'rgba(251,113,133,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-pink':    { backgroundColor: 'rgba(244,114,182,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-violet':  { backgroundColor: 'rgba(167,139,250,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-purple':  { backgroundColor: 'rgba(192,132,252,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-indigo':  { backgroundColor: 'rgba(129,140,248,0.38)', borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-blue':    { backgroundColor: 'rgba(96,165,250,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-sky':     { backgroundColor: 'rgba(56,189,248,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-cyan':    { backgroundColor: 'rgba(34,211,238,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-teal':    { backgroundColor: 'rgba(45,212,191,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-green':   { backgroundColor: 'rgba(74,222,128,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-hl-lime':    { backgroundColor: 'rgba(163,230,53,0.38)',  borderRadius: '2px', padding: '0 1px' },
-  '.cm-live-align-center': { textAlign: 'center' as const },
-  '.cm-live-align-right': { textAlign: 'right' as const },
-  '.cm-live-align-justify': { textAlign: 'justify' as const },
-  '.cm-live-task-done': { textDecoration: 'line-through', opacity: '0.55' },
-  '.cm-live-link': { color: 'rgb(99,102,241)', textDecoration: 'underline', cursor: 'pointer' },
-  '.cm-live-wikilink': { color: 'rgb(139,92,246)', textDecoration: 'underline', cursor: 'pointer' },
-  '.cm-live-verse-ref': { color: 'rgb(var(--color-accent))', textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
-  '.cm-live-lxx-ref': { color: 'rgb(167,139,250)', textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
-  '.cm-live-lexicon-ref': { color: 'rgb(52,211,153)', textDecoration: 'underline', textDecorationStyle: 'dashed', cursor: 'pointer', textUnderlineOffset: '2px' },
-  '.cm-live-suppressed': { textDecoration: 'none !important', cursor: 'text' },
-  '.cm-live-blockquote': { borderLeft: '2px solid rgb(var(--color-accent))', paddingLeft: '0.75em', color: 'rgb(var(--color-text-secondary)) !important' },
-  // Verse block — plain text styled like a scripture quote (decoration only)
-  '.cm-live-verse-block': { borderLeft: '3px solid rgb(var(--color-accent))', paddingLeft: '0.75em', backgroundColor: 'rgba(100,116,139,0.06)', color: 'rgb(var(--color-text-secondary))' },
-  '.cm-live-verse-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
-  '.cm-live-verse-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
-  '.cm-live-verse-block-ref': { fontWeight: '700', color: 'rgb(var(--color-text-primary)) !important' },
-  // Lexicon block — same left-accent treatment as verse blocks, but uses the lexicon-ref color
-  '.cm-live-lexicon-block': { borderLeft: '3px solid rgba(99,102,241,0.7)', paddingLeft: '0.75em', backgroundColor: 'rgba(99,102,241,0.05)', color: 'rgb(var(--color-text-secondary))' },
-  '.cm-live-lexicon-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
-  '.cm-live-lexicon-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
-  '.cm-live-lexicon-block-header': { fontWeight: '600', color: 'rgb(var(--color-text-primary)) !important' },
-  '.cm-live-lexicon-block-num': { fontFamily: 'monospace', color: 'rgb(129,140,248) !important', fontWeight: '700' },
-  '.cm-live-lexicon-block-def': { paddingLeft: '0.8em', opacity: '0.85' },
-  '.cm-live-callout-header': { borderLeft: '3px solid rgba(168,85,247,0.7)', paddingLeft: '0.75em', color: 'rgba(192,132,252,0.9) !important', fontWeight: '600' },
-  '.cm-live-underline': { textDecoration: 'underline' },
-  // Horizontal rule: draw a centred 1 px line using a background gradient so the
-  // divider sits at the vertical mid-point of the line rather than at the bottom.
-  '.cm-live-hr-line': {
-    background: 'linear-gradient(transparent calc(50% - 0.5px), rgba(100,116,139,0.45) calc(50% - 0.5px), rgba(100,116,139,0.45) calc(50% + 0.5px), transparent calc(50% + 0.5px))',
-    lineHeight: '1.6',
-  },
-  '.cm-live-hr-mark': { color: 'transparent', userSelect: 'none' as const },
-  // Heading collapse arrow — font-size and vertical-align set inline per level by CollapseArrowWidget.
-  // We deliberately avoid vertical-align:middle here because that aligns to the 14 px PARENT
-  // x-height, which sits too low inside a tall heading line box.  Instead the widget uses the
-  // same font-size as the heading text so baseline alignment naturally centres both elements.
-  '.cm-heading-collapse-arrow': { marginLeft: '5px', cursor: 'pointer', userSelect: 'none' as const, opacity: '0.45' },
-  '.cm-heading-collapse-arrow:hover': { opacity: '0.85' },
-  // Subtle bottom border drawn below each heading line when "heading divider" setting is on
-  '.cm-live-h-divider': { borderBottom: '1px solid rgba(100,116,139,0.15)', paddingBottom: '1px' },
-})
-
-const NOTE_HL_COLORS: { id: string; dot: string }[] = [
-  { id: 'yellow', dot: '#facc15' }, { id: 'orange', dot: '#fb923c' }, { id: 'amber',  dot: '#fbbf24' },
-  { id: 'red',    dot: '#f87171' }, { id: 'rose',   dot: '#fb7185' }, { id: 'pink',   dot: '#f472b6' },
-  { id: 'violet', dot: '#a78bfa' }, { id: 'purple', dot: '#c084fc' }, { id: 'indigo', dot: '#818cf8' },
-  { id: 'blue',   dot: '#60a5fa' }, { id: 'sky',    dot: '#38bdf8' }, { id: 'cyan',   dot: '#22d3ee' },
-  { id: 'teal',   dot: '#2dd4bf' }, { id: 'green',  dot: '#4ade80' }, { id: 'lime',   dot: '#a3e635' },
-]
+const NOTE_HL_COLORS: { id: string; dot: string }[] =
+  HIGHLIGHT_COLOR_IDS.map((id) => ({ id, dot: highlightDotColor(id) }))
 
 function wrapWith(open: string, close: string) {
   return (view: EditorView): boolean => {
@@ -1433,7 +1316,7 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
           const blkFrom = doc.lineAt(from)
           const blkTo = doc.lineAt(Math.min(to, vpTo))
           const firstLineText = doc.sliceString(blkFrom.from, blkFrom.to)
-          const calloutMatch = firstLineText.match(/^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i)
+          const calloutMatch = firstLineText.match(/^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([^\n]*)/i)
 
           if (calloutMatch) {
             // Check if cursor is inside this callout block
@@ -1445,18 +1328,41 @@ function buildLiveDecorations(view: EditorView): DecorationSet {
               // Skip all child-node decorations (QuoteMark, etc.) for this block.
               return false
             }
-            // Cursor inside — fall through to per-line styled rendering
+            // Cursor is inside the block — keep the box chrome (tinted background,
+            // colored left border, rounded card) on every line EXCEPT the one the
+            // cursor is actually on, so only that line's raw markdown is exposed
+            // for editing instead of the whole callout reverting to plain text.
+            // (The header line's "> [!NOTE]" marker still hides its leading ">"
+            // via the existing QuoteMark handling below — only the [!NOTE] Title
+            // text itself stays visible as a hint of what block this is, which
+            // is an acceptable trade-off against replacing it with a widget: a
+            // Decoration.replace here would overlap the QuoteMark/inline mark
+            // decorations produced by continuing to walk this same subtree.)
+            const calloutType = calloutMatch[1].toUpperCase()
+            const meta = CALLOUT_META[calloutType] ?? CALLOUT_META.NOTE
+            const chromeStyle = `border-left:3px solid ${meta.border};background:${meta.bg};`
+            for (let lineNum = blkFrom.number; lineNum <= blkTo.number; lineNum++) {
+              const ln = doc.line(lineNum)
+              const isHeaderLine = lineNum === blkFrom.number
+              const isLastLine = lineNum === blkTo.number
+              if (col(ln.from)) continue // cursor's own line — leave fully raw/editable
+              const radius = `${isHeaderLine ? '4px 4px' : '0 0'} ${isLastLine ? '4px 4px' : '0 0'}`
+              decos.push({
+                from: ln.from, to: ln.from,
+                deco: Decoration.line({ attributes: { style: `${chromeStyle}padding-left:0.75em;border-radius:${radius};${isHeaderLine ? 'font-weight:600;' : ''}` } }),
+                kind: 'line'
+              })
+            }
+            break
           }
 
-          // Regular blockquote OR cursor-inside callout: per-line styling
+          // Regular (non-callout) blockquote: per-line styling
           for (let lineNum = blkFrom.number; lineNum <= blkTo.number; lineNum++) {
             const ln = doc.line(lineNum)
             if (!col(ln.from)) {
-              const lineText = doc.sliceString(ln.from, ln.to)
-              const isCalloutHeader = /^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.test(lineText)
               decos.push({
                 from: ln.from, to: ln.from,
-                deco: Decoration.line({ class: isCalloutHeader ? 'cm-live-callout-header' : 'cm-live-blockquote' }),
+                deco: Decoration.line({ class: 'cm-live-blockquote' }),
                 kind: 'line'
               })
             }

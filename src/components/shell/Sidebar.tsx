@@ -1,5 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
+import { motion } from 'framer-motion'
 import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Check, Pencil, Trash2, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, History, CalendarDays, Archive, ArchiveRestore, X, ArrowLeft, ArrowRight, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
@@ -278,7 +279,7 @@ export default function Sidebar() {
         } : undefined}
         className={`
           flex flex-col flex-shrink-0 h-full
-          bg-[rgb(var(--color-surface-2))]
+          ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
           border-r border-[rgb(var(--color-surface-4))]
           transition-all duration-200 ease-in-out
           ${sidebarCollapsed ? 'w-14' : 'w-56'}
@@ -439,17 +440,24 @@ export default function Sidebar() {
                       onClick={() => createTab(type)}
                       onContextMenu={id === 'scripture' ? openBookMenu : undefined}
                       className={`
-                        no-drag group relative flex-1 flex items-center justify-center h-8 rounded-lg
+                        no-drag group relative flex-1 flex items-center justify-center h-8 rounded-shell
                         transition-colors duration-100 cursor-pointer select-none
                         ${isActive
-                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                          ? 'text-[rgb(var(--color-accent))]'
                           : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
                         }
                       `}
                     >
+                      {isActive && (
+                        <motion.div
+                          layoutId="active-space-pill"
+                          className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
+                          transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                        />
+                      )}
                       {/* On hover: icon fades and Plus appears */}
-                      <Icon size={15} className="flex-shrink-0 transition-opacity group-hover:opacity-0" />
-                      <Plus size={14} className="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <Icon size={15} className="relative z-10 flex-shrink-0 transition-all group-hover:opacity-0 group-hover:scale-110" />
+                      <Plus size={14} className="z-10 absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
@@ -496,17 +504,24 @@ export default function Sidebar() {
                             spaceLeftWindowRef.current = false
                           }}
                           className={`
-                            no-drag flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium
+                            no-drag relative flex items-center gap-3 rounded-shell px-2 py-1.5 text-sm font-medium
                             transition-colors duration-100 cursor-pointer select-none flex-1 text-left min-w-0
                             ${isActive
-                              ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                              ? 'text-[rgb(var(--color-accent))]'
                               : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
                             }
                           `}
                         >
-                          <Icon size={16} className="flex-shrink-0" />
-                          <span className="truncate flex-1">{label}</span>
-                          <Plus size={12} className="flex-shrink-0 opacity-40" />
+                          {isActive && (
+                            <motion.div
+                              layoutId="active-space-pill"
+                              className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
+                              transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                            />
+                          )}
+                          <Icon size={16} className="relative z-10 flex-shrink-0" />
+                          <span className="relative z-10 truncate flex-1">{label}</span>
+                          <Plus size={12} className="relative z-10 flex-shrink-0 opacity-40" />
                         </button>
                       </Tooltip.Trigger>
                       <Tooltip.Portal>
@@ -562,19 +577,26 @@ export default function Sidebar() {
                         spaceLeftWindowRef.current = false
                       }}
                       className={`
-                        no-drag flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium
+                        no-drag relative flex items-center gap-3 rounded-shell px-2 py-1.5 text-sm font-medium
                         transition-colors duration-100 cursor-pointer select-none w-full text-left
                         ${isActive
-                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                          ? 'text-[rgb(var(--color-accent))]'
                           : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
                         }
                       `}
                     >
-                      <Icon size={16} className="flex-shrink-0" />
+                      {isActive && (
+                        <motion.div
+                          layoutId="active-space-pill"
+                          className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
+                          transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                        />
+                      )}
+                      <Icon size={16} className="relative z-10 flex-shrink-0" />
                       {!sidebarCollapsed && (
                         <>
-                          <span className="truncate flex-1">{label}</span>
-                          <Plus size={12} className="flex-shrink-0 opacity-40" />
+                          <span className="relative z-10 truncate flex-1">{label}</span>
+                          <Plus size={12} className="relative z-10 flex-shrink-0 opacity-40" />
                         </>
                       )}
                     </button>
@@ -1012,7 +1034,7 @@ export default function Sidebar() {
       {/* ── Tab-bar right-click context menu ── */}
       {tabBarMenu && createPortal(
         <MenuPositioner ref={tabBarMenuRef} x={tabBarMenu.x} y={tabBarMenu.y}
-          className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
+          className="min-w-44 rounded-shell glass-panel p-1 text-xs"
         >
           <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Open new tab</div>
           {SPACES.map(({ type, label, icon: Icon }) => (
@@ -1047,7 +1069,7 @@ export default function Sidebar() {
       {/* ── Scripture right-click → book list ── */}
       {bookMenu && createPortal(
         <MenuPositioner ref={bookMenuRef} x={bookMenu.x} y={bookMenu.y}
-          className="w-56 max-h-[70vh] flex flex-col rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl text-xs"
+          className="w-56 max-h-[70vh] flex flex-col rounded-shell glass-panel text-xs"
         >
           {/* Filter input — sticky at top */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">

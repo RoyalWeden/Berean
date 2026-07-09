@@ -34,6 +34,7 @@
     "diff": "^9.0.0",
     "electron-log": "^5.1.2",
     "electron-updater": "^6.2.1",
+    "framer-motion": "^12.42.2",
     "marked": "^18.0.4",
     "pdfjs-dist": "^4.10.38",
     "zustand": "^4.5.2"

@@ -5,6 +5,7 @@ import type { Book } from '@/types'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { isHermasBook, getHermasSections, getHermasSection, type HermasBookId } from '@/lib/hermasMap'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
+import { bookName } from '@/lib/parseRef'
 
 interface BookChapterPickerProps {
   books: Book[]
@@ -216,7 +217,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           }
         `}
       >
-        <span className="font-medium whitespace-nowrap">{currentBook?.name ?? currentBookId}</span>
+        <span className="font-medium whitespace-nowrap">{currentBook?.name ?? bookName(currentBookId)}</span>
         {currentBook && isHermasBook(currentBook.id) ? (
           <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">
             {(() => {

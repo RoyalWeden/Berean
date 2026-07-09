@@ -13,49 +13,10 @@ import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import type { Verse, HighlightColor, Note } from '@/types'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
 export type { HighlightColor }
-
-export const HIGHLIGHT_COLORS: { id: HighlightColor; bg: string; dot: string; label: string }[] = [
-  { id: 'yellow',  bg: 'bg-yellow-400/20 hover:bg-yellow-400/30',   dot: 'bg-yellow-400',   label: 'Yellow'  },
-  { id: 'orange',  bg: 'bg-orange-400/20 hover:bg-orange-400/30',   dot: 'bg-orange-400',   label: 'Orange'  },
-  { id: 'amber',   bg: 'bg-amber-400/20 hover:bg-amber-400/30',     dot: 'bg-amber-400',    label: 'Amber'   },
-  { id: 'red',     bg: 'bg-red-400/20 hover:bg-red-400/30',         dot: 'bg-red-400',      label: 'Red'     },
-  { id: 'rose',    bg: 'bg-rose-400/20 hover:bg-rose-400/30',       dot: 'bg-rose-400',     label: 'Rose'    },
-  { id: 'pink',    bg: 'bg-pink-400/20 hover:bg-pink-400/30',       dot: 'bg-pink-400',     label: 'Pink'    },
-  { id: 'violet',  bg: 'bg-violet-400/20 hover:bg-violet-400/30',   dot: 'bg-violet-400',   label: 'Violet'  },
-  { id: 'purple',  bg: 'bg-purple-400/20 hover:bg-purple-400/30',   dot: 'bg-purple-400',   label: 'Purple'  },
-  { id: 'indigo',  bg: 'bg-indigo-400/20 hover:bg-indigo-400/30',   dot: 'bg-indigo-400',   label: 'Indigo'  },
-  { id: 'blue',    bg: 'bg-blue-400/20 hover:bg-blue-400/30',       dot: 'bg-blue-400',     label: 'Blue'    },
-  { id: 'sky',     bg: 'bg-sky-400/20 hover:bg-sky-400/30',         dot: 'bg-sky-400',      label: 'Sky'     },
-  { id: 'cyan',    bg: 'bg-cyan-400/20 hover:bg-cyan-400/30',       dot: 'bg-cyan-400',     label: 'Cyan'    },
-  { id: 'teal',    bg: 'bg-teal-400/20 hover:bg-teal-400/30',       dot: 'bg-teal-500',     label: 'Teal'    },
-  { id: 'green',   bg: 'bg-green-400/20 hover:bg-green-400/30',     dot: 'bg-green-500',    label: 'Green'   },
-  { id: 'lime',    bg: 'bg-lime-400/20 hover:bg-lime-400/30',       dot: 'bg-lime-400',     label: 'Lime'    },
-]
-
-const HIGHLIGHT_ROW_BG: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.15)',   orange: 'rgba(251,146,60,0.15)',  amber:  'rgba(251,191,36,0.15)',
-  red:    'rgba(248,113,113,0.15)', rose:   'rgba(251,113,133,0.15)', pink:   'rgba(244,114,182,0.15)',
-  violet: 'rgba(167,139,250,0.15)', purple: 'rgba(192,132,252,0.15)', indigo: 'rgba(129,140,248,0.15)',
-  blue:   'rgba(96,165,250,0.15)',  sky:    'rgba(56,189,248,0.15)',  cyan:   'rgba(34,211,238,0.15)',
-  teal:   'rgba(45,212,191,0.15)',  green:  'rgba(74,222,128,0.15)',  lime:   'rgba(163,230,53,0.15)',
-}
-
-const HIGHLIGHT_BORDER: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.7)',   orange: 'rgba(251,146,60,0.7)',  amber:  'rgba(251,191,36,0.7)',
-  red:    'rgba(248,113,113,0.7)', rose:   'rgba(251,113,133,0.7)', pink:   'rgba(244,114,182,0.7)',
-  violet: 'rgba(167,139,250,0.7)', purple: 'rgba(192,132,252,0.7)', indigo: 'rgba(129,140,248,0.7)',
-  blue:   'rgba(96,165,250,0.7)',  sky:    'rgba(56,189,248,0.7)',  cyan:   'rgba(34,211,238,0.7)',
-  teal:   'rgba(45,212,191,0.7)',  green:  'rgba(74,222,128,0.7)',  lime:   'rgba(163,230,53,0.7)',
-}
-
-const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> = {
-  yellow: 'rgba(234,179,8,0.5)',   orange: 'rgba(251,146,60,0.5)',  amber:  'rgba(251,191,36,0.5)',
-  red:    'rgba(248,113,113,0.5)', rose:   'rgba(251,113,133,0.5)', pink:   'rgba(244,114,182,0.5)',
-  violet: 'rgba(167,139,250,0.5)', purple: 'rgba(192,132,252,0.5)', indigo: 'rgba(129,140,248,0.5)',
-  blue:   'rgba(96,165,250,0.5)',  sky:    'rgba(56,189,248,0.5)',  cyan:   'rgba(34,211,238,0.5)',
-  teal:   'rgba(45,212,191,0.5)',  green:  'rgba(74,222,128,0.5)',  lime:   'rgba(163,230,53,0.5)',
-}
+export { HIGHLIGHT_COLORS }
 
 // Full-opacity colors for note indicator dots — mirrors HIGHLIGHT_COLORS palette
 const NOTE_DOT_COLOR: Record<string, string> = {
@@ -786,13 +747,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     return words.some(w => t.includes(w))
   })()
 
-  const rowStyle: React.CSSProperties | undefined = isHighlighted
-    ? { backgroundColor: 'var(--verse-highlight-bg)', borderLeft: '3px solid rgb(var(--color-accent))', paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : activeHighlight
-    ? { backgroundColor: HIGHLIGHT_ROW_BG[activeHighlight], borderLeft: `3px solid ${HIGHLIGHT_BORDER[activeHighlight]}`, paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : isFindMatch
-    ? { backgroundColor: 'rgba(234,179,8,0.08)', borderLeft: '3px solid rgba(234,179,8,0.5)', paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : undefined
+  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch })
 
   // Determine rendering mode
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
@@ -927,7 +882,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
             return (
               <Fragment key={i}>
                 {token.isRedLetter
-                  ? <span className="text-red-400">{wordContent}</span>
+                  ? <span className={RED_LETTER_CLASS}>{wordContent}</span>
                   : token.isItalic
                   ? <span className="italic opacity-70">{wordContent}</span>
                   : <span>{wordContent}</span>
@@ -1087,7 +1042,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
            right-clicking the verse text still opens the popover in that case */}
       <div className={`relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
         <button
-          onClick={() => popoverOpen ? setPopoverOpen(false) : openPopover()}
+          onClick={(e) => popoverOpen ? setPopoverOpen(false) : openPopover(e)}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
           className={`
             text-right text-[0.72em] font-medium rounded
@@ -1104,7 +1059,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
 
         {popoverOpen && (
           <div
-            className="fixed z-[100] min-w-[160px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1"
+            className="fixed z-[100] min-w-[160px] rounded-shell glass-panel overflow-hidden py-1"
             style={{ left: popoverPos.x, top: popoverPos.y }}
           >
             <button
@@ -1151,7 +1106,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                       key={c.id}
                       onClick={() => applyHighlight(c.id)}
                       title={c.label}
-                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${c.dot} ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
+                      style={{ backgroundColor: c.dot }}
+                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
                     />
                   ))}
                   {row === 2 && activeHighlight && (
@@ -1218,8 +1174,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 onMouseEnter={handleCrossRefIconMouseEnter}
                 onMouseLeave={handleCrossRefIconMouseLeave}
                 onClick={openNoteCrossRefs}
-                title="A note on another verse cites this verse"
-                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-70 hover:opacity-100 cursor-pointer transition-opacity"
+                className="flex items-center text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-opacity"
               >
                 <GitFork size={10} strokeWidth={2.5} />
               </button>
@@ -1237,7 +1192,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               const hiddenCount = total - vnShown.length - rnShown.length
               return (
             <div
-              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+              className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
               onMouseLeave={() => setNoteHover(null)}
@@ -1337,7 +1292,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           {/* Cross-ref hover popup */}
           {crossRefHover && createPortal(
             <div
-              className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+              className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
               onMouseLeave={() => setCrossRefHover(null)}
@@ -1411,7 +1366,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       {selToolbar && createPortal(
         <div
           ref={selToolbarRef}
-          className="fixed z-[9999] min-w-[180px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] overflow-hidden py-1"
+          className="fixed z-[9999] min-w-[180px] rounded-shell glass-panel overflow-hidden py-1"
           style={{ left: selToolbar.x, top: selToolbar.y }}
         >
           {/* Color dot rows (3 rows × 5 colors) */}
@@ -1423,7 +1378,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                     key={c.id}
                     onClick={() => applySelectionHighlight(c.id)}
                     title={c.label}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${c.dot} ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-[rgb(var(--color-surface-1))]' : ''}`}
+                    style={{ backgroundColor: c.dot }}
+                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-[rgb(var(--color-surface-1))]' : ''}`}
                   />
                 ))}
                 {row === 2 && (
@@ -1581,7 +1537,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       {/* Idiom hover tooltip */}
       {idiomTooltip && idiomHoverPreviewEnabled && createPortal(
         <div
-          className="fixed z-[9999] max-w-[220px] rounded-lg shadow-xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-3 py-2 pointer-events-none"
+          className="fixed z-[9999] max-w-[220px] rounded-shell glass-panel px-3 py-2 pointer-events-none"
           style={{ left: idiomTooltip.x, top: idiomTooltip.y }}
         >
           <div className="text-[10px] font-semibold text-violet-400 mb-0.5">{idiomTooltip.term}</div>
@@ -1596,7 +1552,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setIdiomContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setIdiomContextMenu(null) }} />
           <div
-            className="fixed z-[9999] min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1"
+            className="fixed z-[9999] min-w-[170px] rounded-shell glass-panel py-1"
             style={{ left: Math.min(idiomContextMenu.x, window.innerWidth - 200), top: Math.min(idiomContextMenu.y, window.innerHeight - 160) }}
           >
             <button

@@ -1,4 +1,5 @@
 import type { SpaceId, Tab, BibleTabState, NoteTabState, LexiconTabState, YouTubeTabState, SearchTabState } from '@/types'
+import { motion } from 'framer-motion'
 
 export interface SwitcherTab {
   spaceId: SpaceId
@@ -163,12 +164,20 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
       onMouseDown={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <motion.div
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.12 }}
+      />
 
       {/* Switcher card — stop propagation so clicks inside don't trigger backdrop close */}
-      <div
-        className="relative pointer-events-auto bg-[rgb(var(--color-surface-2))]/95 border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
+      <motion.div
+        className="relative pointer-events-auto glass-panel rounded-shell-lg px-5 py-4 flex flex-col items-center gap-4 min-w-[240px] max-w-[min(90vw,760px)]"
         onMouseDown={(e) => e.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.95, y: -6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       >
 
         {/* Tab cards row */}
@@ -177,14 +186,19 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
             const cfg = SPACE_CONFIG[tab.spaceId]
             const isSelected = i === selectedIndex
             return (
-              <button
+              <motion.button
                 key={`${tab.spaceId}-${tab.tabId}`}
                 type="button"
                 onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
                 onMouseEnter={() => onHoverIndex(i)}
-                className={`flex flex-col w-[96px] rounded-xl overflow-hidden transition-all duration-75 cursor-pointer focus:outline-none ${
+                initial={{ opacity: 0, y: 6, scale: 1 }}
+                animate={{ opacity: 1, y: 0, scale: isSelected ? 1.04 : 1 }}
+                transition={{ delay: Math.min(i * 0.02, 0.2), duration: 0.15 }}
+                whileHover={{ scale: isSelected ? 1.04 : 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex flex-col w-[96px] rounded-shell overflow-hidden cursor-pointer focus:outline-none ${
                   isSelected
-                    ? 'bg-[rgb(var(--color-surface-4))] scale-[1.04]'
+                    ? 'bg-[rgb(var(--color-surface-4))]'
                     : 'bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))]/70'
                 }`}
                 style={isSelected ? { outline: `2px solid ${cfg.color}`, outlineOffset: '-2px' } : undefined}
@@ -217,7 +231,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                     {tab.title}
                   </p>
                 </div>
-              </button>
+              </motion.button>
             )
           })}
         </div>
@@ -232,7 +246,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
             <span className="text-[rgb(var(--color-text-primary))] font-medium">{selected.title}</span>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }

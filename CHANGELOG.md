@@ -122,6 +122,84 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+Visual refresh (branch `feature/visual-refresh`) — Arc/Zen Browser-inspired glassy
+chrome, motion, and typography pass across the shell, Bible reading panel, and
+notes editor. No new features; presentation only, plus a handful of bugs found
+along the way.
+
+**Design system foundation**
+- New shared highlight-color palette (`src/styles/highlightPalette.ts`) — the
+  15-color highlight/note-dot palette was previously defined 3 separate times
+  across VerseRow.tsx and NoteEditor.tsx and had drifted; now one source of truth.
+- Red-letter (words of Yeshua) text is now a themed color (`--color-red-letter`,
+  tuned per theme preset) instead of a hardcoded Tailwind red that didn't adapt
+  across the 19 theme presets.
+- New `rounded-shell` / `rounded-shell-lg` radius tokens and a `.glass-panel`
+  frosted treatment, applied to every floating menu/popover/tooltip across the
+  shell, Bible panel, and notes (sidebar menus, tab context menus, verse-action
+  popovers, Strong's tooltips, note context menu, floating search, Cmd+Tab
+  switcher).
+- Added `framer-motion` for mount/unmount and shared-layout animations.
+
+**Sidebar & tabs**
+- Active space/tab indicators now slide via a shared `layoutId` animation
+  instead of hard-cutting between buttons.
+- Sidebar felt-material glass background on macOS (see vibrancy below).
+
+**Motion**
+- Floating search (Cmd+T/Cmd+K) now actually animates open/closed — the
+  previous `animate-in`/`zoom-in-95` classes were dead (no plugin backed them).
+- Switching tabs crossfades instead of hard-cutting.
+- Cmd+Tab-style switcher cards spring/stagger in.
+
+**Bible reading panel**
+- Notes/Lexicon/Cross Refs tab strip gets a sliding underline.
+- Strong's number tooltips get a real fade/scale-in (previously fought Radix's
+  own positioning transform and didn't animate).
+- Tightened the gap between a primary and secondary Strong's number on the
+  same word.
+- Native OS tooltips ("Secondary Strong's number", parenthetical particle
+  explanation, cross-ref hover text) replaced with styled in-popup text.
+- Left-click and right-click on a verse number now open the action menu at
+  the same position (previously landed in different spots).
+
+**Notes**
+- Wider Notion/Obsidian-style heading scale with breathing room between
+  sections; wikilinks render as a tinted pill instead of plain underlined text.
+- Callout boxes (`> [!NOTE]` etc.) no longer collapse to flat raw markdown the
+  moment the cursor enters the block — the background/border/rounded-card
+  chrome now persists on every line except the one actually being edited.
+- Notes list gets a Linear-style left accent bar on hover/selection.
+- Notes list is now virtualized (`@tanstack/react-virtual`) — fixed a
+  multi-second stall switching from folder view to list view once the note
+  collection grows past a couple hundred notes (every note was mounted as a
+  real DOM node with no windowing at all).
+
+**macOS native window vibrancy**
+- The sidebar now shows true frosted-glass translucency against the desktop
+  (native `vibrancy: 'sidebar'`, mac-only — CSS blur alone can't do this in an
+  opaque window). Windows is unaffected.
+
+**Other fixes found along the way**
+- Fixed a regression where opening the highlight color picker (word/verse
+  selection, right-click "Highlight") showed blank swatches instead of colors.
+- New tabs opened via cross-references (Strong's numbers, wikilinks, verse
+  refs) now always append to the end of their space's tab list instead of
+  landing in an unpredictable position based on whatever tab was last active
+  in that space.
+- Dragging a tab into the empty space below the tab list now moves it to the
+  end of the list (previously silently did nothing, or got stuck one position
+  short on a fast drag).
+- Fixed a title flash to the generic "Notes"/"Lexicon" label every time you
+  switched to an already-open tab (both panels remount on tab switch, and the
+  async note/entry lookup hadn't resolved yet when the tab title first read).
+- Fixed the same flash for the Bible book/chapter picker ("GEN"/"MAR" instead
+  of "Genesis"/"Mark" for a moment after switching tabs).
+
+---
+
 ## [0.4.3] - 2026-06-23
 
 - Added strongs for LXX
