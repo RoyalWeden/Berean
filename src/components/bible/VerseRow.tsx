@@ -13,29 +13,10 @@ import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import type { Verse, HighlightColor, Note } from '@/types'
-import {
-  HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS,
-  highlightSwatchClasses, highlightDot, highlightRowBg, highlightBorder, highlightWordBg,
-  RED_LETTER_CLASS
-} from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
 export type { HighlightColor }
-
-export const HIGHLIGHT_COLORS: { id: HighlightColor; bg: string; dot: string; label: string }[] =
-  HIGHLIGHT_COLOR_IDS.map((id) => ({
-    id,
-    bg: highlightSwatchClasses(id),
-    dot: highlightDot(id),
-    label: HIGHLIGHT_LABELS[id]
-  }))
-
-const HIGHLIGHT_ROW_BG: Record<HighlightColor, string> =
-  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightRowBg(id)])) as Record<HighlightColor, string>
-
-const HIGHLIGHT_BORDER: Record<HighlightColor, string> =
-  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightBorder(id)])) as Record<HighlightColor, string>
-
-const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> =
-  Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightWordBg(id)])) as Record<HighlightColor, string>
+export { HIGHLIGHT_COLORS }
 
 interface SelToolbarPos { x: number; y: number; startChar: number; endChar: number }
 
@@ -756,13 +737,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     return words.some(w => t.includes(w))
   })()
 
-  const rowStyle: React.CSSProperties | undefined = isHighlighted
-    ? { backgroundColor: 'var(--verse-highlight-bg)', borderLeft: '3px solid rgb(var(--color-accent))', paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : activeHighlight
-    ? { backgroundColor: HIGHLIGHT_ROW_BG[activeHighlight], borderLeft: `3px solid ${HIGHLIGHT_BORDER[activeHighlight]}`, paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : isFindMatch
-    ? { backgroundColor: 'rgba(234,179,8,0.08)', borderLeft: '3px solid rgba(234,179,8,0.5)', paddingLeft: '0.5rem', marginLeft: '-0.75rem', borderRadius: '0 4px 4px 0' }
-    : undefined
+  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch })
 
   // Determine rendering mode
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
@@ -1121,7 +1096,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                       key={c.id}
                       onClick={() => applyHighlight(c.id)}
                       title={c.label}
-                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${c.dot} ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
+                      style={{ backgroundColor: c.dot }}
+                      className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${activeHighlight === c.id ? 'ring-2 ring-white/70 ring-offset-1' : ''}`}
                     />
                   ))}
                   {row === 2 && activeHighlight && (
@@ -1392,7 +1368,8 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                     key={c.id}
                     onClick={() => applySelectionHighlight(c.id)}
                     title={c.label}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${c.dot} ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-[rgb(var(--color-surface-1))]' : ''}`}
+                    style={{ backgroundColor: c.dot }}
+                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${activeHighlight === c.id ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-[rgb(var(--color-surface-1))]' : ''}`}
                   />
                 ))}
                 {row === 2 && (

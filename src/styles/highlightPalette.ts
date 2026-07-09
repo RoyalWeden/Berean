@@ -24,13 +24,20 @@ export const HIGHLIGHT_LABELS: Record<HighlightColor, string> = {
 const cssVar = (color: HighlightColor, alpha: number) =>
   `rgb(var(--highlight-${color}) / ${alpha})`
 
-/** Swatch dot / picker UI (solid) — Tailwind arbitrary-value class. */
-export const highlightDot = (color: HighlightColor): string => `bg-[rgb(var(--highlight-${color}))]`
-/** Swatch dot as a raw CSS color value, for inline `style={{ backgroundColor }}` usage. */
+// NOTE: Tailwind's JIT scanner only generates CSS for class names that appear
+// verbatim (as complete string literals) somewhere in the scanned source. It
+// cannot see through runtime template-literal interpolation like
+// `` `bg-[rgb(var(--highlight-${color}))]` `` — that produces zero matching
+// literal text, so no CSS class is ever generated and the element renders
+// with no background at all. Every per-color value below is therefore a raw
+// CSS color string for inline `style={{ ... }}` usage, never a Tailwind class.
+
+/** Swatch dot / picker UI (solid) — raw CSS color for inline `style={{ backgroundColor }}`. */
 export const highlightDotColor = (color: HighlightColor): string => cssVar(color, 1)
-/** Tailwind-class equivalent for swatch buttons (bg-20%, hover-30%). */
-export const highlightSwatchClasses = (color: HighlightColor): string =>
-  `bg-[rgb(var(--highlight-${color})/0.20)] hover:bg-[rgb(var(--highlight-${color})/0.30)]`
+/** Swatch button background (unselected state) — raw CSS color for inline style. */
+export const highlightSwatchBg = (color: HighlightColor): string => cssVar(color, 0.20)
+/** Swatch button background (hover state) — raw CSS color for inline style. */
+export const highlightSwatchHoverBg = (color: HighlightColor): string => cssVar(color, 0.30)
 /** Full verse-row background tint. */
 export const highlightRowBg = (color: HighlightColor): string => cssVar(color, 0.15)
 /** Row left-border accent. */

@@ -570,7 +570,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
                     key={c.id}
                     onClick={() => highlightRange(c.id)}
                     title={`Highlight ${c.label}`}
-                    className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0 ${c.dot}`}
+                    style={{ backgroundColor: c.dot }}
+                    className="w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 flex-shrink-0"
                   />
                 ))}
                 {row === 2 && selectionHasHighlights() && (
