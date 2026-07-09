@@ -12,10 +12,12 @@ import { HIGHLIGHT_COLOR_IDS, highlightMarkBg, LINK_COLORS } from '@/styles/high
  * than one-off literals, wherever those tokens exist.
  */
 
+// Notion/Obsidian-style heading scale — bigger deltas between levels than the
+// original 1.71/1.43/1.29 progression, so document structure reads at a glance.
 export const headingStyle = syntaxHighlighting(HighlightStyle.define([
-  { tag: tags.heading1, fontSize: '1.71em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading2, fontSize: '1.43em', fontWeight: '700', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
-  { tag: tags.heading3, fontSize: '1.29em', fontWeight: '600', lineHeight: '1.4', color: 'rgb(var(--color-text-primary))' },
+  { tag: tags.heading1, fontSize: '1.9em',  fontWeight: '800', lineHeight: '1.35', color: 'rgb(var(--color-text-primary))' },
+  { tag: tags.heading2, fontSize: '1.55em', fontWeight: '700', lineHeight: '1.35', color: 'rgb(var(--color-text-primary))' },
+  { tag: tags.heading3, fontSize: '1.3em',  fontWeight: '600', lineHeight: '1.4',  color: 'rgb(var(--color-text-primary))' },
   { tag: tags.heading4, fontWeight: '700', color: 'rgb(var(--color-text-primary))' },
   { tag: tags.heading5, fontWeight: '600', fontStyle: 'italic', color: 'rgb(var(--color-text-primary))' },
 ]))
@@ -46,12 +48,15 @@ export const bereanTheme = EditorView.theme({
   '.cm-selectionBackground': { backgroundColor: 'var(--selection-bg) !important' },
   '&.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection-bg) !important' },
   '::selection': { backgroundColor: 'var(--selection-bg) !important' },
-  // Live preview line-level markers — font sizes set by headingStyle to avoid double-scaling
-  '.cm-live-h1': { fontWeight: '700' },
-  '.cm-live-h2': { fontWeight: '700' },
-  '.cm-live-h3': { fontWeight: '600' },
-  '.cm-live-h4': { fontWeight: '700' },
-  '.cm-live-h5': { fontWeight: '600', fontStyle: 'italic' },
+  // Live preview line-level markers — font sizes set by headingStyle to avoid double-scaling.
+  // marginTop gives headings the generous vertical rhythm Notion/Obsidian use to separate
+  // sections; first-child guard avoids a stray gap when a note opens with a heading.
+  '.cm-live-h1': { fontWeight: '700', marginTop: '0.5em' },
+  '.cm-live-h2': { fontWeight: '700', marginTop: '0.45em' },
+  '.cm-live-h3': { fontWeight: '600', marginTop: '0.35em' },
+  '.cm-live-h4': { fontWeight: '700', marginTop: '0.3em' },
+  '.cm-live-h5': { fontWeight: '600', fontStyle: 'italic', marginTop: '0.3em' },
+  '.cm-content > .cm-line:first-child.cm-live-h1, .cm-content > .cm-line:first-child.cm-live-h2, .cm-content > .cm-line:first-child.cm-live-h3, .cm-content > .cm-line:first-child.cm-live-h4, .cm-content > .cm-line:first-child.cm-live-h5': { marginTop: '0' },
   // Force heading spans to use theme color regardless of oneDark syntax highlighting
   '.cm-live-h1 span, .cm-live-h2 span, .cm-live-h3 span, .cm-live-h4 span, .cm-live-h5 span': { color: 'rgb(var(--color-text-primary)) !important' },
   '.cm-live-bold': { fontWeight: 'bold' },
@@ -77,7 +82,16 @@ export const bereanTheme = EditorView.theme({
   '.cm-live-align-justify': { textAlign: 'justify' as const },
   '.cm-live-task-done': { textDecoration: 'line-through', opacity: '0.55' },
   '.cm-live-link': { color: 'rgb(99,102,241)', textDecoration: 'underline', cursor: 'pointer' },
-  '.cm-live-wikilink': { color: LINK_COLORS.wikilink, textDecoration: 'underline', cursor: 'pointer' },
+  // Wikilinks read as a Notion/Obsidian-style mention chip (tinted background pill)
+  // rather than plain underlined text, so they're visually distinct from regular links.
+  '.cm-live-wikilink': {
+    color: LINK_COLORS.wikilink,
+    backgroundColor: 'rgb(var(--link-wikilink) / 0.12)',
+    borderRadius: '4px',
+    padding: '0.5px 5px',
+    textDecoration: 'none',
+    cursor: 'pointer',
+  },
   '.cm-live-verse-ref': { color: LINK_COLORS.verseRef, textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
   '.cm-live-lxx-ref': { color: LINK_COLORS.lxxRef, textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: '2px' },
   '.cm-live-lexicon-ref': { color: LINK_COLORS.lexiconRef, textDecoration: 'underline', textDecorationStyle: 'dashed', cursor: 'pointer', textUnderlineOffset: '2px' },
@@ -88,12 +102,14 @@ export const bereanTheme = EditorView.theme({
   '.cm-live-verse-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
   '.cm-live-verse-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
   '.cm-live-verse-block-ref': { fontWeight: '700', color: 'rgb(var(--color-text-primary)) !important' },
-  // Lexicon block — same left-accent treatment as verse blocks, but uses the lexicon-ref color
-  '.cm-live-lexicon-block': { borderLeft: '3px solid rgba(99,102,241,0.7)', paddingLeft: '0.75em', backgroundColor: 'rgba(99,102,241,0.05)', color: 'rgb(var(--color-text-secondary))' },
+  // Lexicon block — same left-accent treatment as verse blocks, actually using the
+  // lexicon-ref color now (previously a hardcoded indigo unrelated to .cm-live-lexicon-ref's
+  // green, so a lexicon block and an inline lexicon reference looked like different concepts).
+  '.cm-live-lexicon-block': { borderLeft: `3px solid ${LINK_COLORS.lexiconRef}`, paddingLeft: '0.75em', backgroundColor: 'rgb(var(--link-lexicon-ref) / 0.06)', color: 'rgb(var(--color-text-secondary))' },
   '.cm-live-lexicon-block-first': { paddingTop: '3px', borderTopLeftRadius: '4px' },
   '.cm-live-lexicon-block-last': { paddingBottom: '3px', borderBottomLeftRadius: '4px' },
   '.cm-live-lexicon-block-header': { fontWeight: '600', color: 'rgb(var(--color-text-primary)) !important' },
-  '.cm-live-lexicon-block-num': { fontFamily: 'monospace', color: 'rgb(129,140,248) !important', fontWeight: '700' },
+  '.cm-live-lexicon-block-num': { fontFamily: 'monospace', color: `${LINK_COLORS.lexiconRef} !important`, fontWeight: '700' },
   '.cm-live-lexicon-block-def': { paddingLeft: '0.8em', opacity: '0.85' },
   '.cm-live-callout-header': { borderLeft: '3px solid rgba(168,85,247,0.7)', paddingLeft: '0.75em', color: 'rgba(192,132,252,0.9) !important', fontWeight: '600' },
   '.cm-live-underline': { textDecoration: 'underline' },

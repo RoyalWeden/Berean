@@ -82,7 +82,7 @@ export default function NoteContextMenu({
 
   return createPortal(
     <MenuPositioner ref={ref} x={x} y={y}
-      className="min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+      className="min-w-[190px] rounded-shell glass-panel py-1 overflow-hidden"
     >
       {onOpenNewTab && (
         <button className={MENU_ITEM} onClick={() => { onOpenNewTab(note); onClose() }}>

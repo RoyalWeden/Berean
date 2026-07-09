@@ -184,6 +184,12 @@ export default function NotesList({
                 setContextMenu({ note, x: e.clientX, y: e.clientY })
               }}
             >
+              {/* Linear-style left accent bar — solid when selected, fades in on hover otherwise */}
+              <div
+                className={`absolute left-0 top-0 bottom-0 w-0.5 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
+                  ${isSelected ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
+              />
+
               {/* Checkbox in select mode */}
               {selectMode && (
                 <button
