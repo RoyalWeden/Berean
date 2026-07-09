@@ -374,6 +374,11 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       // Cursor landed in the gap between tabs — use the last indicator position
       toIdx = fallbackToIdx
       insertBefore = fallbackBefore
+    } else if (tabs.length > 0) {
+      // Cursor landed in empty space below the last tab (container now fills
+      // the full list height via min-h-full) — treat as "move to bottom".
+      toIdx = tabs.length - 1
+      insertBefore = false
     } else {
       return
     }
@@ -446,7 +451,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   return (
     <>
       <div
-        className="flex flex-col gap-0.5 px-2"
+        className="flex flex-col gap-0.5 px-2 min-h-full"
         onDragOver={handleContainerDragOver}
         onDrop={handleContainerDrop}
         onDragLeave={handleContainerDragLeave}

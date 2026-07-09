@@ -926,6 +926,16 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
 
   // Declare activeEntry here so find effects can reference it in their dependency arrays
   const [activeEntry, setActiveEntry] = useState<LexiconEntry | null>(null)
+  // True while we're still trying to restore the previously-open entry for this tab
+  // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
+  // the tab to the generic "Lexicon" fallback before the real Strong's number has
+  // loaded — visible every time you switched to an existing Lexicon tab, since
+  // this panel remounts fresh (key={tab.id}) on every tab switch.
+  const [entryRestorePending, setEntryRestorePending] = useState(() => {
+    const tab = useAppStore.getState().tabs['lexicon'].find((t) => t.id === useAppStore.getState().activeTabId['lexicon'])
+    const state = tab?.state as { strongsNum?: string | null } | undefined
+    return !!state?.strongsNum
+  })
   const [history, setHistory] = useState<LexHistoryItem[]>([])
 
   // After each render: collect inline <mark> elements, manage active-mark class
@@ -999,7 +1009,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       })
     }
 
-    if (!savedNum) return
+    if (!savedNum) { setEntryRestorePending(false); return }
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
         if (entry) {
@@ -1010,6 +1020,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         }
       })
       .catch(() => {})
+      .finally(() => setEntryRestorePending(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // mount only
 
@@ -1045,8 +1056,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // Keep tab title in sync
   useEffect(() => {
     if (!lexiconTabId) return
+    if (entryRestorePending) return // avoid a flash of "Lexicon" while the saved entry is still loading
     renameTab('lexicon', lexiconTabId, activeEntry ? activeEntry.strongsNum : 'Lexicon')
-  }, [activeEntry?.strongsNum, lexiconTabId, renameTab])
+  }, [activeEntry?.strongsNum, lexiconTabId, entryRestorePending, renameTab])
 
   function navToEntry(strongsNum: string, newTab: boolean) {
     if (newTab) {

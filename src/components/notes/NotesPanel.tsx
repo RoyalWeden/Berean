@@ -69,6 +69,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // A note queued for print/PDF export from the right-click menu (without opening it).
   const [printNote, setPrintNote] = useState<Note | null>(null)
   const [activeNote, setActiveNote] = useState<Note | null>(null)
+  // True while we're still trying to restore the previously-open note for this tab
+  // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
+  // the tab to the generic "Notes" fallback before the real title has loaded —
+  // that flash was visible every time you switched to an existing Notes tab,
+  // since this panel remounts fresh (key={tab.id}) on every tab switch.
+  const [noteRestorePending, setNoteRestorePending] = useState(() => {
+    const tab = useAppStore.getState().tabs['notes'].find((t) => t.id === useAppStore.getState().activeTabId['notes'])
+    const tabState = tab?.state as NoteTabState | undefined
+    return !tabState?.isNew && !!tabState?.noteId
+  })
   const [noteHistory, setNoteHistory] = useState<Array<{ note: Note; scrollTop: number }>>([])
   const openMarkdownReference = useAppStore((s) => s.openMarkdownReference)
 
@@ -350,6 +360,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // OR title changes so that renaming a note immediately updates the tab label.
   useEffect(() => {
     if (!notesTabId) return
+    if (noteRestorePending) return // avoid a flash of "Notes" while the saved note is still loading
     const title = activeNote ? (activeNote.title?.trim() || 'Untitled') : 'Notes'
     renameTab('notes', notesTabId, title)
     // Record note view in history (only on note change, not on every title keystroke)
@@ -360,7 +371,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         noteId: activeNote.id,
       })
     }
-  }, [activeNote?.id, activeNote?.title, notesTabId, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeNote?.id, activeNote?.title, notesTabId, noteRestorePending, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
@@ -376,7 +387,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const savedNoteId = tabState?.noteId ?? null
     const savedScrollTop = tabState?.scrollTop ?? 0
     const savedCursorPos = tabState?.cursorPos ?? 0
-    if (!savedNoteId) return
+    if (!savedNoteId) { setNoteRestorePending(false); return }
     window.notes.getNote(savedNoteId)
       .then((note) => {
         if (note) {
@@ -387,6 +398,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         }
       })
       .catch(() => {})
+      .finally(() => setNoteRestorePending(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally run once on mount only
 

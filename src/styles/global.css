@@ -787,11 +787,16 @@ body {
 
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
    Reusable treatment for sidebar, floating search, context menus, tooltips.
-   Modeled on the glass effect already used in PresenterControls.tsx.        */
+   NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px
+   Tailwind blur) reads as an almost-solid panel — the opacity leaves too
+   little of the backdrop showing through for the blur to be visible at all.
+   This is deliberately more translucent (72%) with a stronger blur + a touch
+   of saturation boost, so the frosted effect is actually perceptible against
+   whatever is behind the panel (verse text, sidebar content, etc).          */
 .glass-panel {
-  background: rgb(var(--color-surface-1) / 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgb(var(--color-surface-1) / 0.72);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgb(var(--color-surface-4) / 0.5);
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
