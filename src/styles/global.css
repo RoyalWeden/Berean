@@ -802,6 +802,22 @@ body {
   animation: radix-popup-in 0.14s ease-out;
 }
 
+/* ── macOS native sidebar vibrancy ────────────────────────────────────────────
+   The BrowserWindow is created with { transparent: true, vibrancy: 'sidebar' }
+   on macOS only (electron/main.ts) — a true frosted-glass effect against the
+   desktop/other windows, which plain CSS backdrop-blur cannot produce in an
+   opaque window (it only blurs the app's own DOM, not what's behind the
+   window). This class makes the sidebar's own background semi-transparent so
+   that native blur actually shows through; applied conditionally in
+   Sidebar.tsx via window.__berean_platform === 'darwin' since the window is
+   only transparent on mac — Windows keeps its original opaque background and
+   must not get a see-through sidebar with nothing behind it to blur. No
+   backdrop-filter here: the OS already blurs what's behind the window, adding
+   our own blur on top would blur the sidebar's own text/icons too. */
+.sidebar-vibrant {
+  background: rgb(var(--color-surface-2) / 0.6);
+}
+
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
    Reusable treatment for sidebar, floating search, context menus, tooltips.
    NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px

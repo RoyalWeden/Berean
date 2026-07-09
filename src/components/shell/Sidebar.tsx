@@ -279,7 +279,7 @@ export default function Sidebar() {
         } : undefined}
         className={`
           flex flex-col flex-shrink-0 h-full
-          bg-[rgb(var(--color-surface-2))]
+          ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
           border-r border-[rgb(var(--color-surface-4))]
           transition-all duration-200 ease-in-out
           ${sidebarCollapsed ? 'w-14' : 'w-56'}
