@@ -7,6 +7,7 @@ import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import { BookOpen } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 function EmptyState() {
   return (
@@ -51,12 +52,23 @@ export default function ActivePanel() {
       {/* Non-YouTube panels (also covers YouTube empty state when no tab exists yet) */}
       {(!isYouTubeActive || !ytTab) && (
         <div className="absolute inset-0">
-          {!tab && <EmptyState />}
-          {tab?.type === 'bible'   && <ErrorBoundary key={tab.id} label="Bible panel error"><BiblePanel key={tab.id} /></ErrorBoundary>}
-          {tab?.type === 'note'    && <ErrorBoundary key={tab.id} label="Notes panel error"><NotesPanel key={tab.id} /></ErrorBoundary>}
-          {tab?.type === 'lexicon' && <ErrorBoundary key={tab.id} label="Lexicon panel error"><LexiconPanel key={tab.id} /></ErrorBoundary>}
-          {tab?.type === 'search'  && <ErrorBoundary key={tab.id} label="Search error"><SearchTab key={tab.id} /></ErrorBoundary>}
-          {tab?.type === 'pdf'     && <ErrorBoundary key={tab.id} label="PDF viewer error"><PDFViewer key={tab.id} /></ErrorBoundary>}
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={tab?.id ?? 'empty'}
+              className="absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+            >
+              {!tab && <EmptyState />}
+              {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
+              {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}
+              {tab?.type === 'lexicon' && <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>}
+              {tab?.type === 'search'  && <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>}
+              {tab?.type === 'pdf'     && <ErrorBoundary label="PDF viewer error"><PDFViewer /></ErrorBoundary>}
+            </motion.div>
+          </AnimatePresence>
         </div>
       )}
     </div>

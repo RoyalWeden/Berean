@@ -785,6 +785,18 @@ body {
   animation: fade-in-up 0.18s ease-out both;
 }
 
+/* Radix Tooltip/Popover entrance — driven by data-state rather than a JS
+   mount/unmount boolean (Radix owns open/closed timing internally for
+   uncontrolled tooltips), so this is plain CSS rather than framer-motion.
+   See Radix's own docs pattern: animate off data-[state=...] attributes. */
+@keyframes radix-popup-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-radix-popup-in {
+  animation: radix-popup-in 0.12s ease-out;
+}
+
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
    Reusable treatment for sidebar, floating search, context menus, tooltips.
    NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px

@@ -31,7 +31,7 @@ export function HintTooltip({
             side={side}
             sideOffset={6}
             collisionPadding={8}
-            className="z-[400] flex items-center gap-2 px-2 py-1 rounded-md text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg select-none animate-in fade-in-0 zoom-in-95"
+            className="z-[400] flex items-center gap-2 px-2 py-1 rounded-md text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg select-none data-[state=delayed-open]:animate-radix-popup-in data-[state=instant-open]:animate-radix-popup-in"
           >
             <span className="whitespace-nowrap">{label}</span>
             {shortcut && (
