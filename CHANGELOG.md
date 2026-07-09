@@ -124,79 +124,32 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ## [Unreleased]
 
-Visual refresh (branch `feature/visual-refresh`) — Arc/Zen Browser-inspired glassy
-chrome, motion, and typography pass across the shell, Bible reading panel, and
-notes editor. No new features; presentation only, plus a handful of bugs found
-along the way.
+**Design refresh** — Arc/Zen-inspired glassy chrome, motion, and typography
+across the shell, Bible panel, and notes editor:
+- Sliding pill/underline indicators (sidebar, tabs, right-panel tabs) instead
+  of hard-cut backgrounds; frosted-glass treatment on every floating menu and
+  tooltip; real open/close animation on floating search and the Cmd+Tab
+  switcher (previously dead CSS classes with no effect).
+- Notion/Obsidian-style note typography: bigger heading scale, wikilinks as
+  tinted pills, callout boxes that stay styled while editing instead of
+  reverting to flat raw markdown.
+- True native sidebar vibrancy on macOS (frosted translucency against the
+  desktop, not just CSS blur).
+- One shared highlight-color source of truth (was defined 3x and had drifted)
+  and a themed red-letter color that now adapts across all 19 theme presets.
 
-**Design system foundation**
-- New shared highlight-color palette (`src/styles/highlightPalette.ts`) — the
-  15-color highlight/note-dot palette was previously defined 3 separate times
-  across VerseRow.tsx and NoteEditor.tsx and had drifted; now one source of truth.
-- Red-letter (words of Yeshua) text is now a themed color (`--color-red-letter`,
-  tuned per theme preset) instead of a hardcoded Tailwind red that didn't adapt
-  across the 19 theme presets.
-- New `rounded-shell` / `rounded-shell-lg` radius tokens and a `.glass-panel`
-  frosted treatment, applied to every floating menu/popover/tooltip across the
-  shell, Bible panel, and notes (sidebar menus, tab context menus, verse-action
-  popovers, Strong's tooltips, note context menu, floating search, Cmd+Tab
-  switcher).
-- Added `framer-motion` for mount/unmount and shared-layout animations.
-
-**Sidebar & tabs**
-- Active space/tab indicators now slide via a shared `layoutId` animation
-  instead of hard-cutting between buttons.
-- Sidebar felt-material glass background on macOS (see vibrancy below).
-
-**Motion**
-- Floating search (Cmd+T/Cmd+K) now actually animates open/closed — the
-  previous `animate-in`/`zoom-in-95` classes were dead (no plugin backed them).
-- Switching tabs crossfades instead of hard-cutting.
-- Cmd+Tab-style switcher cards spring/stagger in.
-
-**Bible reading panel**
-- Notes/Lexicon/Cross Refs tab strip gets a sliding underline.
-- Strong's number tooltips get a real fade/scale-in (previously fought Radix's
-  own positioning transform and didn't animate).
-- Tightened the gap between a primary and secondary Strong's number on the
-  same word.
-- Native OS tooltips ("Secondary Strong's number", parenthetical particle
-  explanation, cross-ref hover text) replaced with styled in-popup text.
-- Left-click and right-click on a verse number now open the action menu at
-  the same position (previously landed in different spots).
-
-**Notes**
-- Wider Notion/Obsidian-style heading scale with breathing room between
-  sections; wikilinks render as a tinted pill instead of plain underlined text.
-- Callout boxes (`> [!NOTE]` etc.) no longer collapse to flat raw markdown the
-  moment the cursor enters the block — the background/border/rounded-card
-  chrome now persists on every line except the one actually being edited.
-- Notes list gets a Linear-style left accent bar on hover/selection.
-- Notes list is now virtualized (`@tanstack/react-virtual`) — fixed a
-  multi-second stall switching from folder view to list view once the note
-  collection grows past a couple hundred notes (every note was mounted as a
-  real DOM node with no windowing at all).
-
-**macOS native window vibrancy**
-- The sidebar now shows true frosted-glass translucency against the desktop
-  (native `vibrancy: 'sidebar'`, mac-only — CSS blur alone can't do this in an
-  opaque window). Windows is unaffected.
-
-**Other fixes found along the way**
-- Fixed a regression where opening the highlight color picker (word/verse
-  selection, right-click "Highlight") showed blank swatches instead of colors.
-- New tabs opened via cross-references (Strong's numbers, wikilinks, verse
-  refs) now always append to the end of their space's tab list instead of
-  landing in an unpredictable position based on whatever tab was last active
-  in that space.
-- Dragging a tab into the empty space below the tab list now moves it to the
-  end of the list (previously silently did nothing, or got stuck one position
-  short on a fast drag).
-- Fixed a title flash to the generic "Notes"/"Lexicon" label every time you
-  switched to an already-open tab (both panels remount on tab switch, and the
-  async note/entry lookup hadn't resolved yet when the tab title first read).
-- Fixed the same flash for the Bible book/chapter picker ("GEN"/"MAR" instead
-  of "Genesis"/"Mark" for a moment after switching tabs).
+**Fixes**
+- Highlight color picker showed blank swatches instead of colors.
+- New tabs from cross-references (Strong's/wikilinks/verse refs) landed in an
+  unpredictable spot instead of the end of the tab list; dragging a tab below
+  the list didn't move it to the end (or got stuck on a fast drag).
+- Tab titles and the book/chapter picker briefly flashed a generic
+  placeholder ("Notes", "GEN") when switching tabs before showing the real title.
+- Notes list caused a multi-second stall switching from folder view to list
+  view once the note collection grew past a couple hundred — now virtualized.
+- Verse note indicator dots now reflect the note's assigned color.
+- Presenter outline band survives zoom/tab-switching; scroll position resets
+  correctly on edition switch; a mis-split Hermas Mandate 3 chapter was merged.
 
 ---
 
