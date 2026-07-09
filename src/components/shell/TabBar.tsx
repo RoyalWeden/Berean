@@ -397,6 +397,22 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
     // when cursor is in the gap between tabs
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
+
+    // If the cursor is below the last tab entirely (the container now fills
+    // the full list height via min-h-full), force the "insert at end"
+    // indicator. This also self-corrects a fast drag that skipped past the
+    // last tab's own dragover events without ever registering over it — the
+    // per-tab dragOverIdx/dragInsertBefore state would otherwise stay stuck
+    // wherever the last *tab* hover fired, one position short of the end.
+    if (draggingIdxRef.current === null) return
+    const children = (e.currentTarget as HTMLElement).children
+    if (children.length === 0) return
+    const lastRect = (children[children.length - 1] as HTMLElement).getBoundingClientRect()
+    if (e.clientY > lastRect.bottom) {
+      setCrossSpaceHoverIdx(null)
+      setDragOverIdx(tabs.length - 1)
+      setDragInsertBefore(false)
+    }
   }
 
   function handleContainerDragLeave(e: React.DragEvent) {
