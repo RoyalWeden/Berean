@@ -1158,7 +1158,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 className="flex items-center gap-0.5 opacity-75 hover:opacity-100 cursor-pointer leading-none select-none transition-opacity"
                 style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
               >
-                <span className="text-[10px] font-bold">●</span>
+                <span className="text-xs font-black leading-none">:</span>
                 {noteCount > 1 && <span className="text-[9px] font-semibold">{noteCount}</span>}
               </button>
             )}
@@ -1505,9 +1505,11 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                   // Canonical ref opened from a dedicated text (e.g. Luke from 1 Enoch) → KJVA, not 'enoch'
                   const translation = (getTranslationForBook(r.bookId) ?? (isDedicatedTranslation(textId) ? 'kjva' : textId) ?? 'kjva').toUpperCase()
                   const title = `${bookName(r.bookId)} ${r.chapter}`
+                  const originTabId = s.activeTabId[s.activeSpace] ?? undefined
                   s.addTab({
                     id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
                     state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
+                    ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                   })
                 }}
               >
@@ -1565,7 +1567,12 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
               onClick={() => {
                 const cid = idiomContextMenu.id; setIdiomContextMenu(null)
-                useAppStore.getState().addTab({ id: `note-${cid}-${Date.now()}`, type: 'note', title: 'Idiom', state: { noteId: cid, isNew: false }, spaceId: 'notes' })
+                const s = useAppStore.getState()
+                const originTabId = s.activeTabId[s.activeSpace] ?? undefined
+                s.addTab({
+                  id: `note-${cid}-${Date.now()}`, type: 'note', title: 'Idiom', state: { noteId: cid, isNew: false }, spaceId: 'notes',
+                  ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
+                })
               }}
             >
               Open in new tab

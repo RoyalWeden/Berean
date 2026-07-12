@@ -1,3 +1,26 @@
+// ─── STATUS: interactive-editor code below is DEAD as of the ProseMirror
+// migration (see src/components/notes/pm/) — nothing imports the default
+// `NoteEditor` component anymore; all 4 former call sites (NotesPanel,
+// BibleRightPanel, YouTubeTab, YouTubeSecondaryPanel) now mount
+// `pm/NoteEditorPM.tsx` instead. This file could NOT be deleted outright
+// because it also houses a completely separate markdown→HTML *rendering*
+// pipeline (renderPreviewContent, buildPrintHTML, PRINT_THEMES,
+// presetToSides, wrapVerseBlocksForPreview, wrapLexiconBlocksForPreview,
+// wrapStrongsRefsForPreview, addVerseLinksToHtml) that has ZERO CodeMirror
+// dependency and is actively used by 4 unrelated app surfaces: the
+// Presenter/Viewer window (ViewerApp.tsx), print/PDF export
+// (PrintPreviewModal.tsx, PrintExportSection.tsx), the daily continuous
+// scroll view (ContinuousDailyScroll.tsx), and version history
+// (NoteVersionHistory.tsx). A handful of small pure text-detection helpers
+// (CALLOUT_META, BULLET_STYLE_DEFS, verse/lexicon-block regexes, etc.) were
+// already extracted to src/lib/noteTextBlocks.ts for the new editor to
+// share, but they're still duplicated here too (not yet redirected) since
+// this whole file is slated for a follow-up cleanup pass: extract the
+// preview/print rendering pipeline into its own CM6-free module, then
+// delete everything else in this file (the actual editor component +
+// @codemirror/* imports) along with the @codemirror/* packages from
+// package.json. Not done in the same turn as the live-editor cutover to
+// avoid rushing a wide extraction under time pressure on a production app.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EditorView, keymap, ViewPlugin, Decoration, WidgetType } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
@@ -19,6 +42,8 @@ import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { marked } from 'marked'
+import pmEditorCss from './pm/pmEditor.css?raw'
+import { renderMarkdownToHTML } from './pm/staticRender'
 import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethrough, List, ListOrdered, Quote, ChevronDown, X, AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, MoreHorizontal, Table2, IndentIncrease, IndentDecrease, Copy, Trash2 } from 'lucide-react'
 import type { Note } from '@/types'
 import { HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
@@ -605,10 +630,10 @@ const autoHeadingSpaceHandler = EditorView.inputHandler.of((view, from, to, text
 
 // Single-line "Book c:v rest" — verse-level ref (colon) then text.
 // Book name may be 1–3 words ("Song of Songs", "Testament of Levi", "1 John").
-const SINGLE_VERSE_LINE_RE =
+export const SINGLE_VERSE_LINE_RE =
   /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+(?:[ \t]+[A-Za-z][a-z]+){0,2}[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
 // A body line in a multi-line block: starts with a verse number then text.
-const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
+export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
 /**
  * For a single-line block "Book c:v <body>", if the body begins with an "LXX " marker
@@ -616,7 +641,7 @@ const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
  * return the cleaned body. e.g. ("Isaiah 9:12", "LXX But the people…") →
  * { refLabel: "Isaiah 9:12 LXX", body: "But the people…", lxx: true }.
  */
-function splitLeadingLxx(refStr: string, body: string): { refLabel: string; body: string; lxx: boolean } {
+export function splitLeadingLxx(refStr: string, body: string): { refLabel: string; body: string; lxx: boolean } {
   const m = body.match(/^LXX[ \t]+(\S.*)$/i)
   if (m) return { refLabel: `${refStr} LXX`, body: m[1], lxx: true }
   return { refLabel: refStr, body, lxx: false }
@@ -821,7 +846,7 @@ async function fetchActualVerseText(refText: string): Promise<string | null> {
  * When the Bible DB is unavailable (tests / fallback), returns true (structural).
  * On a cache miss, schedules a background fetch and calls onResolved() afterward.
  */
-function verseTextAccepted(
+export function verseTextAccepted(
   refText: string, candidate: string, threshold: number, onResolved: () => void,
 ): boolean | null {
   const w = (typeof window !== 'undefined' ? (window as unknown as BibleQueryWindow) : null)
@@ -850,7 +875,7 @@ function verseTextAccepted(
 }
 
 // Synchronous variant for preview/print — reads cache, falls back to structural.
-function verseTextAcceptedSync(refText: string, candidate: string, threshold: number): boolean {
+export function verseTextAcceptedSync(refText: string, candidate: string, threshold: number): boolean {
   const key = verseCacheKey(refText, candidate)
   if (verseRatioCache.has(key)) return verseRatioCache.get(key)! >= threshold
   return true
@@ -2233,7 +2258,7 @@ export function addVerseLinksToHtml(html: string): string {
 }
 
 // Callout metadata for > [!TYPE] blocks
-const CALLOUT_META: Record<string, { icon: string; label: string; bg: string; border: string; color: string }> = {
+export const CALLOUT_META: Record<string, { icon: string; label: string; bg: string; border: string; color: string }> = {
   NOTE:      { icon: 'ℹ', label: 'Note',      bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.6)',  color: '#60a5fa' },
   TIP:       { icon: '💡', label: 'Tip',       bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.6)',   color: '#4ade80' },
   WARNING:   { icon: '⚠', label: 'Warning',   bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.6)',  color: '#fbbf24' },
@@ -2250,7 +2275,7 @@ function escapeHtmlBasic(s: string): string {
 // printed/PDF output show the same scripture-block styling as the editor. Gated
 // on the noteScriptureBlock setting and the verse-text match threshold.
 // Detects a lexicon block header line (defined here so buildLiveDecorations can use it)
-const LEXICON_BLOCK_HEADER_RE = /^([HG]\d{1,5})\s+\S/
+export const LEXICON_BLOCK_HEADER_RE = /^([HG]\d{1,5})\s+\S/
 
 const VERSE_BLOCK_STYLE = 'border-left:3px solid rgb(99,102,241);background:rgba(100,116,139,0.08);padding:6px 12px;border-radius:8px;margin:8px 0'
 const VERSE_BLOCK_REF_STYLE = 'font-weight:700'
@@ -2505,6 +2530,16 @@ export interface PrintExportOptions {
   theme?: PrintThemeId
   /** Additional notes to append after the main note (for linked-notes inclusion). */
   linkedNotes?: Array<{ title: string; content: string }>
+  /**
+   * Skip the markdown parse step and treat `content` as already-rendered
+   * HTML — for callers (e.g. idioms export) that build their own markup
+   * rather than markdown source. Without this, `content` gets run through
+   * `renderMarkdownToHTML`, whose underlying markdown-it instance has
+   * `html: false` (see markdownIt.ts) — literal `<div style="...">` tags in
+   * the input get HTML-escaped and printed as visible tag soup instead of
+   * being rendered, since markdown-it never treats them as real markup.
+   */
+  rawHtml?: boolean
 }
 
 export const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
@@ -2635,6 +2670,60 @@ export const PRINT_THEMES: Record<PrintThemeId, PrintTheme> = {
   },
 }
 
+// Converts a PrintTheme color (hex "#rrggbb" or "rgba(r,g,b,a)") into the
+// bare "r g b" triple format pmEditor.css's variables use (consumed via
+// `rgb(var(--x))`, alpha applied separately by each rule that needs it).
+function colorToTriple(color: string): string {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)
+  if (hex) {
+    const n = parseInt(hex[1], 16)
+    return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`
+  }
+  const rgba = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(color)
+  if (rgba) return `${rgba[1]} ${rgba[2]} ${rgba[3]}`
+  return '0 0 0'
+}
+
+// Builds a `:root { --var: ... }` block that drives pmEditor.css's existing
+// theme-token CSS variables from a PrintTheme's (much smaller) color set —
+// print themes never defined a full palette (no separate surface/highlight-
+// per-color/link-per-type tokens the way the live app's light/dark themes
+// do), so several pmEditor.css variables intentionally collapse onto one
+// PrintTheme field each: every `--highlight-*` reuses `mark` (print themes
+// only ever offered one highlight tint, not 15), and both `--link-lxx-ref`/
+// `--link-lexicon-ref` reuse `verseRef` (print never distinguished them
+// either). This keeps buildPrintHTML using pmEditor.css itself as the one
+// stylesheet, rather than hand-duplicating the block/list/mark rules a
+// second time the way this function used to.
+function printThemeToCssVars(t: PrintTheme): string {
+  const bg = colorToTriple(t.bg)
+  const text = colorToTriple(t.text)
+  const heading = colorToTriple(t.heading)
+  const accent = colorToTriple(t.accent)
+  const border = colorToTriple(t.h2Border)
+  const verseBgIsTransparent = t.verseBg === 'transparent'
+  const verseBg = colorToTriple(verseBgIsTransparent ? t.bg : t.verseBg)
+  const verseRef = colorToTriple(t.verseRef)
+  const mark = colorToTriple(t.mark)
+  const codeBg = colorToTriple(t.codeBg)
+  const thBg = colorToTriple(t.thBg)
+  const highlightVars = ['yellow', 'orange', 'amber', 'red', 'rose', 'pink', 'violet', 'purple', 'indigo', 'blue', 'sky', 'cyan', 'teal', 'green', 'lime']
+    .map((c) => `--highlight-${c}: ${mark};`).join(' ')
+  return `:root {
+    --color-surface-1: ${bg}; --color-surface-2: ${thBg}; --color-surface-3: ${codeBg}; --color-surface-4: ${border};
+    --color-text-primary: ${text}; --color-text-secondary: ${heading}; --color-text-muted: ${text};
+    --color-accent: ${accent};
+    --link-wikilink: ${accent}; --link-lxx-ref: ${verseRef}; --link-lexicon-ref: ${verseRef};
+    ${highlightVars}
+    /* pm-verse-block/-lexicon-block read --color-accent/--link-lexicon-ref directly
+       via pmEditor.css, but verseBg needs its own override since print themes tune
+       block backgrounds independently of the general accent color. */
+    --print-verse-bg: ${verseBg};
+  }
+  .pm-verse-block, .pm-lexicon-block { background: ${verseBgIsTransparent ? 'transparent' : 'rgb(var(--print-verse-bg))'} !important; }
+  `
+}
+
 // Build a standalone, print-ready HTML document for a note (used by print + PDF export).
 export function buildPrintHTML(title: string, content: string, opts: PrintExportOptions = {}): string {
   const {
@@ -2664,13 +2753,13 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
   // body padding is the single source of truth. "none" therefore truly means edge-to-edge.
   // Strip internal anchor hrefs (verse-refs, wikilinks, lexicon refs) that would become
   // broken links in PDF. External http(s) links (YouTube etc.) are left untouched.
-  const { linkedNotes } = opts
-  let body = renderPreviewContent(content)
+  const { linkedNotes, rawHtml } = opts
+  let body = rawHtml ? content : renderMarkdownToHTML(content)
   body = body.replace(/(<a\b[^>]*?)\s+href="#[^"]*"([^>]*>)/g, '$1$2')
   // Append linked notes (page-break divider + title + body for each)
   if (linkedNotes && linkedNotes.length > 0) {
     for (const ln of linkedNotes) {
-      let lnBody = renderPreviewContent(ln.content)
+      let lnBody = renderMarkdownToHTML(ln.content)
       lnBody = lnBody.replace(/(<a\b[^>]*?)\s+href="#[^"]*"([^>]*>)/g, '$1$2')
       const safeLnTitle = (ln.title || 'Untitled').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       body += `\n<div style="page-break-before:always;padding-top:0.5em;border-top:1px solid ${t.h2Border};margin-top:2em;">`
@@ -2685,100 +2774,41 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
 <meta charset="utf-8">
 <title>${safeTitle}</title>
 <style>
+${pmEditorCss}
+${printThemeToCssVars(t)}
+  /* Print-specific chrome that pmEditor.css (built for the live in-app
+     editor pane) doesn't need to know about: page setup, margins, note
+     title, and page-break control around blocks. */
   @page { margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
   html { background: ${t.bg}; ${colorAdjust} }
   body {
     font-family: ${FONT_STACK[fontFamily] ?? FONT_STACK.system};
-    font-size: ${fontSize}pt; line-height: 1.65; color: ${t.text};
+    font-size: ${fontSize}pt; color: ${t.text};
     background: ${t.bg};
     margin: 0; padding: ${bodyPadding};
     ${grayscaleFilter}
     position: relative;
   }
-  /* Headings */
-  h1 { font-size: 1.9em; font-weight: 800; margin: 0.7em 0 0.3em; color: ${t.heading}; }
-  h2 { font-size: 1.5em; font-weight: 700; margin: 0.7em 0 0.3em; border-bottom: 1px solid ${t.h2Border}; padding-bottom: 0.2em; color: ${t.heading}; }
-  h3 { font-size: 1.2em; font-weight: 700; margin: 0.6em 0 0.25em; color: ${t.heading}; }
-  h4, h5, h6 { font-size: 1em; font-weight: 700; margin: 0.5em 0 0.2em; color: ${t.heading}; }
-  /* Paragraphs & spacing */
-  p { margin: 0.5em 0; }
-  /* Lists */
-  ul, ol { margin: 0.5em 0; padding-left: 1.6em; }
-  li { margin: 0.2em 0; }
-  ul.berean-dash-list { list-style: disc; }
-  /* Task-list checkboxes */
-  input[type="checkbox"] { margin-right: 0.4em; vertical-align: middle; }
-  /* Blockquote */
-  blockquote {
-    border-left: 3px solid ${t.verseBorder}; margin: 0.7em 0;
-    padding: 0.25em 0 0.25em 1em; color: ${t.text}; opacity: 0.92;
-  }
-  /* Inline code */
-  code {
-    background: ${t.codeBg}; padding: 0.1em 0.35em;
-    border-radius: 3px; font-family: ui-monospace, 'Menlo', monospace;
-    font-size: 0.88em; color: ${t.text};
-  }
-  /* Code blocks */
-  pre {
-    background: ${t.codeBg}; padding: 0.85em 1em;
-    border-radius: 6px; overflow-x: auto; margin: 0.7em 0; color: ${t.text};
-  }
-  pre code { background: none; padding: 0; font-size: 0.88em; }
-  /* Tables */
-  table { border-collapse: collapse; margin: 0.7em 0; width: 100%; }
-  th { background: ${t.thBg}; font-weight: 700; }
-  th, td { border: 1px solid ${t.h2Border}; padding: 0.35em 0.7em; text-align: left; font-size: 0.92em; }
-  /* Horizontal rule */
-  hr { border: none; border-top: 1px solid ${t.h2Border}; margin: 1.2em 0; }
-  /* Text formatting */
-  strong { font-weight: 700; }
-  em { font-style: italic; }
-  u { text-decoration: underline; }
-  del, s { text-decoration: line-through; opacity: 0.6; }
-  mark { background: ${t.mark}; border-radius: 2px; padding: 0 2px; color: ${t.text}; }
-  /* Links — external (real href) keep accent + underline; internal links had their
-     href stripped (broken in PDF) so they're styled to NOT look clickable.
-     Verse refs keep their distinct color (valuable scripture marker) but no underline.
-     Other stripped internal links (wikilinks) fall back to plain body text. */
-  a { color: ${t.accent}; text-decoration: underline; }
-  a.berean-verse-ref { color: ${t.verseRef}; font-weight: 500; text-decoration: none; }
-  a:not([href]):not(.berean-verse-ref) { color: inherit; text-decoration: none; }
-  /* Strong's numbers — colored monospace text, no box (matches live editor appearance) */
-  .berean-strongs-chip {
-    font-family: monospace; font-size: 1em; font-weight: 700;
-    color: ${t.accent} !important;
-    print-color-adjust: exact; -webkit-print-color-adjust: exact;
-  }
-  /* Lexicon blocks — no border in print, subtle background, smaller indent */
-  .berean-lexicon-block {
-    background: ${t.verseBg} !important; padding: 0.4em 0.85em !important;
-    border-radius: 8px !important; margin: 0.7em 0 !important; color: ${t.text} !important;
-    border-left: none !important;
-    print-color-adjust: exact; -webkit-print-color-adjust: exact;
-  }
-  .berean-lexicon-def {
-    padding-left: 0.8em !important; margin-top: 4px !important;
-  }
-  /* Verse blocks — !important overrides the inline styles from renderPreviewContent */
-  .berean-verse-block {
-    border-left: 3px solid ${t.verseBorder} !important;
-    background: ${t.verseBg} !important;
-    padding: 0.4em 0.85em !important; border-radius: 8px !important; margin: 0.7em 0 !important;
-    color: ${t.text} !important;
-  }
-  .berean-verse-block a.berean-verse-ref { font-weight: 700; color: ${t.verseRef} !important; text-decoration: none; }
-  /* Images */
-  img { max-width: 100%; height: auto; }
-  /* Note title */
   h1.note-doc-title {
     font-size: 2em; font-weight: 800; color: ${t.heading};
     border-bottom: 2px solid ${t.h2Border}; padding-bottom: 0.25em; margin-bottom: 0.6em;
   }
-  /* Print: avoid breaking inside blocks */
-  pre, blockquote, table, .berean-verse-block { page-break-inside: avoid; }
+  /* pmEditor.css (built for the live in-app editor pane, which sits inside
+     the app's own themed chrome) doesn't set heading/link colors itself —
+     a standalone print document has no such surrounding theme to inherit
+     from, so these stay explicit per-PrintTheme rules here. */
+  h1, h2, h3, h4, h5, h6 { color: ${t.heading}; }
+  a { color: ${t.accent}; }
+  pre, blockquote, table, .pm-verse-block, .pm-lexicon-block { page-break-inside: avoid; }
   h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+  a:not([href]) { color: inherit; text-decoration: none; }
+  /* pmEditor.css's .ProseMirror padding (16px sides, 96px bottom) exists for
+     the live in-app editor's own scroll affordance — here the page margin is
+     already fully controlled by body's padding above, so this padding would
+     stack on top of it and produce an asymmetric page (oversized bottom gap,
+     content inset further than the chosen margin preset implies). */
+  .berean-pm-editor .ProseMirror { padding: 0; }
 </style>
 </head>
 <body>
@@ -2810,7 +2840,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   onCursorPositionRef.current = onCursorPosition
 
   const noteVerseRefsEnabled = useAppStore((s) => s.noteVerseRefsEnabled)
-  const notesZoom = useAppStore((s) => s.panelZoom.notes)
+  const notesZoom = useAppStore((s) => s.appZoom)
   const noteLexiconRefsEnabled = useAppStore((s) => s.noteLexiconRefsEnabled)
   const noteHeadingDividerProp = useAppStore((s) => s.noteHeadingDivider)
 
@@ -2842,7 +2872,6 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [isSelectionSuppressed, setIsSelectionSuppressed] = useState(false)
   // Persistent toolbar
   const [editorWidth, setEditorWidth] = useState(0)
-  const [narrowToolbarOpen, setNarrowToolbarOpen] = useState(false)
   const outerRef = useRef<HTMLDivElement>(null)
   const [pHeadingOpen, setPHeadingOpen] = useState(false)
   const [pListOpen, setPListOpen] = useState(false)
@@ -3377,9 +3406,18 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   // Sync WYSIWYG mode and editability whenever previewMode or wysiwyg changes.
   // In preview (view) mode: force WYSIWYG decorations ON and make editor read-only
   // so the visual appearance is identical to edit mode, just non-editable.
+  // Dips opacity briefly around the reconfigure (skipping the initial mount) so
+  // raw/edit/preview mode switches read as a soft crossfade instead of a hard cut.
+  const modeSwitchMounted = useRef(false)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
+    const el = containerRef.current
+    if (modeSwitchMounted.current && el) {
+      el.style.opacity = '0'
+      requestAnimationFrame(() => { el.style.opacity = '1' })
+    }
+    modeSwitchMounted.current = true
     view.dispatch({
       effects: [
         wysiwygEffect.of(previewMode ? true : (wysiwyg ?? false)),
@@ -3457,7 +3495,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   // In a narrow editor (e.g. the scripture side panel) the toolbar would overflow, so it
   // wraps to multiple lines and is collapsed behind a toggle the user reveals on demand.
   const isNarrowEditor = editorWidth > 0 && editorWidth < PERSISTENT_TOOLBAR_MIN_WIDTH
-  const showPersistentToolbar = !previewMode && (!isNarrowEditor || narrowToolbarOpen)
+  const showPersistentToolbar = !previewMode
 
   // Shared alignment handler (used by both toolbars)
   function applyAlignment(align: string) {
@@ -3685,22 +3723,14 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   return (
     <div ref={outerRef} className="berean-notes-text h-full w-full flex flex-col relative">
 
-      {/* ── Persistent toolbar (Word / Docs-style, shown when editor is wide enough) ── */}
-      {/* Narrow editors (side panel): a toggle reveals the wrapping formatting bar */}
-      {isNarrowEditor && !previewMode && (
-        <button
-          onMouseDown={(e) => { e.preventDefault(); setNarrowToolbarOpen((v) => !v) }}
-          title={narrowToolbarOpen ? 'Hide formatting' : 'Show formatting'}
-          className={`flex items-center gap-1 px-2 py-0.5 text-[10px] border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 w-full cursor-pointer transition-colors ${narrowToolbarOpen ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))]' : 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-        >
-          <Bold size={11} />
-          <span>Formatting</span>
-          <ChevronDown size={11} className={`ml-auto transition-transform ${narrowToolbarOpen ? 'rotate-180' : ''}`} />
-        </button>
-      )}
+      {/* ── Ambient formatting toolbar — always visible (not gated behind a
+           "Show formatting" toggle), icon-only and borderless so it reads as
+           part of the content surface rather than a bordered control strip.
+           Narrow editors (side panel) wrap icons onto multiple lines instead
+           of hiding them. ── */}
       {showPersistentToolbar && (
         <div
-          className={`flex items-center gap-px px-2 py-0.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-2))] overflow-visible ${isNarrowEditor ? 'flex-wrap' : ''}`}
+          className={`flex items-center gap-0.5 px-1.5 py-1 flex-shrink-0 overflow-visible ${isNarrowEditor ? 'flex-wrap' : ''}`}
           onMouseDown={(e) => e.preventDefault()}
         >
           {/* Undo / Redo */}
@@ -4452,7 +4482,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
            re-renders them away during its cursor-placement logic. */}
       <div
         ref={containerRef}
-        className="overflow-hidden flex-1"
+        className="overflow-hidden flex-1 transition-opacity duration-100 ease-out"
         style={{ fontSize: `${14 * notesZoom}px` }}
         onMouseMove={(e) => {
           const target = e.target as HTMLElement
@@ -4552,8 +4582,10 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             const fromNote = noteIdRef.current
               ? { noteId: noteIdRef.current, title: noteTitleRef.current ?? 'Note' }
               : undefined
-            store.openLexiconEntry(normalized, fromNote)
+            // createTab first — openLexiconEntry's pending value is picked
+            // up by whichever Lexicon tab is active at that moment.
             store.createTab('lexicon')
+            store.openLexiconEntry(normalized, fromNote)
             return
           }
 

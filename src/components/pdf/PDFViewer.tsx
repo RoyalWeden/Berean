@@ -349,7 +349,9 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     const res = await window.notes.createNote({ title: `${title} — p.${selToolbar.page}`, content, tags: ['pdf'] })
     if (res.success && res.note) {
       const store = useAppStore.getState()
-      store.requestOpenNote(res.note.id); store.ensureTab('note'); store.setActiveSpace('notes')
+      // ensureTab first — requestOpenNote's pending value is picked up by
+      // whichever Notes tab is active at that moment.
+      store.ensureTab('note'); store.requestOpenNote(res.note.id); store.setActiveSpace('notes')
     }
   }
 

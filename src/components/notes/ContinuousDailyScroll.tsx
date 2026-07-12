@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PenLine, Plus } from 'lucide-react'
-import { renderPreviewContent } from './NoteEditor'
+import { renderMarkdownToHTML } from './pm/staticRender'
 import type { Note } from '@/types'
 
 // Shared helpers (mirrored from NotesPanel to avoid circular imports)
@@ -190,7 +190,7 @@ export default function ContinuousDailyScroll({ targetDate, notes, onDateChange,
                 <div
                   className="prose-note text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed group-hover:text-[rgb(var(--color-text-primary))] transition-colors"
                   // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: renderPreviewContent(note.content || '') }}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdownToHTML(note.content || '') }}
                 />
               ) : isFuture ? (
                 <p className="text-xs text-[rgb(var(--color-text-muted))] italic select-none">

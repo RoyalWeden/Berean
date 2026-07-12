@@ -725,10 +725,16 @@ body {
 
 /* ── berean-preview-prose ────────────────────────────────────────────────────
    Prose styling for dangerouslySetInnerHTML regions that render the HTML output
-   of renderPreviewContent() (version history diff view, etc.).
-   Mirrors the CodeMirror WYSIWYG appearance as closely as possible.          */
+   of renderPreviewContent() — used only by NoteVersionHistory.tsx's word-level
+   Diff tab today (the Preview tab next to it migrated to the ProseMirror-based
+   renderMarkdownToHTML/pmEditor.css pipeline; Diff stayed on this older marked-
+   based renderer because the new markdown-it parser runs with html:false and
+   can't round-trip injected <ins>/<del> diff tags). Kept in step with
+   pmEditor.css's own values (line-height, highlight opacity) below so the two
+   tabs in the same modal don't visibly clash, even though they're two
+   different rendering pipelines.                                            */
 .berean-preview-prose {
-  line-height: 1.7;
+  line-height: 1.4;
   color: rgb(var(--color-text-primary));
   font-family: var(--font-notes, inherit);
 }
@@ -777,12 +783,45 @@ body {
 .berean-preview-prose strong { font-weight: 700; }
 .berean-preview-prose em     { font-style: italic; }
 
+/* Boosted to match pmEditor.css's own scoped override (0.6, vs. the shared
+   mark.hl-* base rules' 0.38 used elsewhere e.g. inline Bible-verse
+   highlights) — otherwise a highlighted word looks like two different
+   colors depending on which of NoteVersionHistory's two tabs it's viewed
+   in, even though both are showing the same note. */
+.berean-preview-prose mark.hl-yellow  { background-color: rgb(var(--highlight-yellow) / 0.6); }
+.berean-preview-prose mark.hl-orange  { background-color: rgb(var(--highlight-orange) / 0.6); }
+.berean-preview-prose mark.hl-amber   { background-color: rgb(var(--highlight-amber) / 0.6); }
+.berean-preview-prose mark.hl-red     { background-color: rgb(var(--highlight-red) / 0.6); }
+.berean-preview-prose mark.hl-rose    { background-color: rgb(var(--highlight-rose) / 0.6); }
+.berean-preview-prose mark.hl-pink    { background-color: rgb(var(--highlight-pink) / 0.6); }
+.berean-preview-prose mark.hl-violet  { background-color: rgb(var(--highlight-violet) / 0.6); }
+.berean-preview-prose mark.hl-purple  { background-color: rgb(var(--highlight-purple) / 0.6); }
+.berean-preview-prose mark.hl-indigo  { background-color: rgb(var(--highlight-indigo) / 0.6); }
+.berean-preview-prose mark.hl-blue    { background-color: rgb(var(--highlight-blue) / 0.6); }
+.berean-preview-prose mark.hl-sky     { background-color: rgb(var(--highlight-sky) / 0.6); }
+.berean-preview-prose mark.hl-cyan    { background-color: rgb(var(--highlight-cyan) / 0.6); }
+.berean-preview-prose mark.hl-teal    { background-color: rgb(var(--highlight-teal) / 0.6); }
+.berean-preview-prose mark.hl-green   { background-color: rgb(var(--highlight-green) / 0.6); }
+.berean-preview-prose mark.hl-lime    { background-color: rgb(var(--highlight-lime) / 0.6); }
+
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .animate-fade-in-up {
   animation: fade-in-up 0.18s ease-out both;
+}
+
+/* Same idea as fade-in-up but for elements NOT horizontally centered (e.g.
+   FindBar, anchored by `right`/`top`, not `left: 50%`) — translateX(-50%)
+   above would shift a right-anchored element sideways by half its own
+   width, breaking its actual position. */
+@keyframes fade-in-drop {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-drop {
+  animation: fade-in-drop 0.15s ease-out both;
 }
 
 /* Radix Tooltip/Popover entrance. Radix Popper sets its own inline
@@ -816,6 +855,12 @@ body {
    our own blur on top would blur the sidebar's own text/icons too. */
 .sidebar-vibrant {
   background: rgb(var(--color-surface-2) / 0.6);
+  /* Subtle depth cues only — no backdrop-filter (see note above: the OS already
+     blurs what's behind the transparent window, so adding our own blur here
+     would blur the sidebar's own text/icons too). A soft inset top highlight
+     plus a faint right-edge shadow give the sidebar the same "distinct surface"
+     read its own popovers (.glass-panel) already have, without re-blurring. */
+  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 1px 0 12px -4px rgb(0 0 0 / 0.25);
 }
 
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
@@ -831,5 +876,24 @@ body {
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgb(var(--color-surface-4) / 0.5);
+  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
+}
+
+/* ── Glass panel, modal variant ───────────────────────────────────────────────
+   For large, primary-content modals (Settings, the Cmd+K search palette,
+   Print/export preview) rather than small transient popovers — .glass-panel's
+   72% opacity is right for a glanceable context menu, but reads as too
+   see-through once it's the main surface holding dense, long-form content
+   (settings text, a full print-preview page): verse text or sidebar content
+   showing through hurts legibility rather than reading as intentional
+   "frosted chrome". Keeps the same blur/saturation character, just far less
+   transparent, paired with a blurred (not just dimmed) backdrop overlay so
+   the content behind the modal still reads as "there, but out of focus"
+   rather than a flat dark scrim.                                            */
+.glass-panel-modal {
+  background: rgb(var(--color-surface-1) / 0.92);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgb(var(--color-surface-4) / 0.6);
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }

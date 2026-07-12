@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { motion } from 'framer-motion'
 import { BookOpen, FolderOpen, Folder, FileText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
@@ -186,8 +188,8 @@ A verse note is attached to a specific verse. It appears as a colored dot next t
 - Press **⌘⇧V** when a verse is focused
 
 **Verse note indicators:**
-- A colored dot appears to the right of the verse number
-- Multiple notes stack as a count badge (e.g. ●3)
+- A colored colon appears to the right of the verse number
+- Multiple notes stack as a count badge (e.g. :3)
 - Click the dot to open the verse notes popover — see all notes for that verse
 
 ---
@@ -883,7 +885,7 @@ export async function createGettingStartedNotes() {
 function StepWelcome() {
   return (
     <div className="flex flex-col items-center text-center gap-6">
-      <div className="w-16 h-16 rounded-2xl bg-[rgb(var(--color-accent))/15] flex items-center justify-center">
+      <div className="w-16 h-16 rounded-shell-lg bg-[rgb(var(--color-accent))/15] flex items-center justify-center">
         <BookOpen size={32} className="text-[rgb(var(--color-accent))]" />
       </div>
       <div>
@@ -935,7 +937,7 @@ function StepTranslation() {
           <button
             key={t.id}
             onClick={() => setDefaultBibleTranslation(t.id)}
-            className={`w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+            className={`w-full text-left px-4 py-3 rounded-shell border transition-all cursor-pointer ${
               defaultBibleTranslation === t.id
                 ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
                 : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-3))]'
@@ -992,6 +994,9 @@ function StepVault() {
   async function toggleSync(enabled: boolean) {
     setVaultSync(enabled)
     await window.settings?.set('vaultSync', enabled)
+    // Fixed safety-net export interval, not user-configurable — see
+    // AUTO_EXPORT_INTERVAL_MINUTES in electron/ipc/vault.ts.
+    await window.vault?.setAutoExport(enabled ? 5 : 0)
     if (enabled && vaultPath) window.vault?.watchVault().catch(() => {})
   }
 
@@ -1000,7 +1005,7 @@ function StepVault() {
       <div>
         <h2 className="text-xl font-bold text-[rgb(var(--color-text-primary))] mb-1">Vault sync <span className="text-sm font-normal text-[rgb(var(--color-text-muted))]">— optional</span></h2>
         <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">
-          Sync your notes as plain Markdown files to any local folder — works with Obsidian, Logseq, iA Writer, or any Markdown app.
+          Sync your notes as plain Markdown files to any local folder, automatically — works with Obsidian, Octarine, Logseq, iA Writer, or any Markdown app.
           If you skip this step, notes are stored only inside Berean.
         </p>
       </div>
@@ -1023,13 +1028,13 @@ function StepVault() {
         <div className="space-y-2">
           <p className="text-xs text-[rgb(var(--color-text-muted))]">Vault folder</p>
           <div className="flex gap-2">
-            <div className="flex-1 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-xs text-[rgb(var(--color-text-secondary))] truncate">
+            <div className="flex-1 px-3 py-2 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-xs text-[rgb(var(--color-text-secondary))] truncate">
               {vaultPath || <span className="text-[rgb(var(--color-text-muted))]">No folder selected</span>}
             </div>
             <button
               onClick={pickFolder}
               disabled={picking}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-4))] text-xs text-[rgb(var(--color-text-primary))] hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-shell bg-[rgb(var(--color-surface-4))] text-xs text-[rgb(var(--color-text-primary))] hover:opacity-80 transition-opacity cursor-pointer disabled:opacity-50"
             >
               <FolderOpen size={13} />
               Choose…
@@ -1042,7 +1047,7 @@ function StepVault() {
       )}
 
       {!vaultSync && (
-        <div className="px-4 py-3 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+        <div className="px-4 py-3 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
           <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
             You can enable vault sync later in <strong>Settings → Vault Sync</strong>.
           </p>
@@ -1071,7 +1076,7 @@ function StepImport() {
         <div className="space-y-3">
           <button
             onClick={() => setTab('bg')}
-            className="w-full text-left px-4 py-3 rounded-xl border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <Download size={16} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
@@ -1083,7 +1088,7 @@ function StepImport() {
           </button>
           <button
             onClick={() => setTab('esword')}
-            className="w-full text-left px-4 py-3 rounded-xl border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+            className="w-full text-left px-4 py-3 rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <Download size={16} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
@@ -1172,7 +1177,7 @@ function StepShortcuts() {
 function StepDone() {
   return (
     <div className="flex flex-col items-center text-center gap-6">
-      <div className="w-16 h-16 rounded-2xl bg-[rgb(var(--color-accent))/15] flex items-center justify-center">
+      <div className="w-16 h-16 rounded-shell-lg bg-[rgb(var(--color-accent))/15] flex items-center justify-center">
         <CheckCircle size={32} className="text-[rgb(var(--color-accent))]" />
       </div>
       <div>
@@ -1182,7 +1187,7 @@ function StepDone() {
           You can replay this walkthrough anytime from <strong>Settings → About</strong>.
         </p>
       </div>
-      <div className="px-4 py-3 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-left w-full max-w-sm">
+      <div className="px-4 py-3 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-left w-full max-w-sm">
         <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
           Press <kbd className="px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] font-mono text-[10px]">⌘1</kbd> to open Scripture,{' '}
           <kbd className="px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] font-mono text-[10px]">⌘T</kbd> to open a passage,{' '}
@@ -1206,7 +1211,7 @@ function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoo
         {/* List view option */}
         <button
           onClick={() => onChoose('list')}
-          className={`rounded-xl border-2 p-3 text-left transition-all cursor-pointer ${
+          className={`rounded-shell border-2 p-3 text-left transition-all cursor-pointer ${
             choice === 'list'
               ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
               : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/40]'
@@ -1217,7 +1222,7 @@ function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoo
             <span className={`text-sm font-semibold ${choice === 'list' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))]'}`}>List view</span>
           </div>
           {/* Preview */}
-          <div className="rounded-lg overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
+          <div className="rounded-shell overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
             {['Genesis 1:1 note', 'Torah study', 'Daily — 2025-01-01', 'Creation notes'].map((t) => (
               <div key={t} className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] last:border-0">
                 <div className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))/40] flex-shrink-0" />
@@ -1231,7 +1236,7 @@ function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoo
         {/* Folder view option */}
         <button
           onClick={() => onChoose('folder')}
-          className={`rounded-xl border-2 p-3 text-left transition-all cursor-pointer ${
+          className={`rounded-shell border-2 p-3 text-left transition-all cursor-pointer ${
             choice === 'folder'
               ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
               : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/40]'
@@ -1242,7 +1247,7 @@ function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoo
             <span className={`text-sm font-semibold ${choice === 'folder' ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))]'}`}>Folder view</span>
           </div>
           {/* Preview */}
-          <div className="rounded-lg overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
+          <div className="rounded-shell overflow-hidden border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[10px]">
             {[
               { open: false, label: 'Daily Notes',             indent: 0, muted: true,  isFile: false },
               { open: false, label: 'Verse Notes',             indent: 0, muted: true,  isFile: false },
@@ -1311,14 +1316,30 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="fixed inset-0 z-[260] flex items-center justify-center bg-black/60">
-      <div className="relative w-full max-w-lg mx-4 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl overflow-hidden flex flex-col" style={{ maxHeight: '90vh' }}>
+    <Dialog.Root open={onboardingOpen} onOpenChange={(open) => !open && handleSkip()}>
+      <Dialog.Portal>
+        <Dialog.Overlay asChild>
+          <motion.div
+            className="fixed inset-0 z-[260] bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          />
+        </Dialog.Overlay>
+        <Dialog.Content asChild aria-describedby={undefined}>
+          <motion.div
+            className="glass-panel fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[260] w-full max-w-lg mx-4 rounded-shell-lg overflow-hidden flex flex-col"
+            style={{ maxHeight: '90vh' }}
+            initial={{ opacity: 0, scale: 0.96, x: '-50%', y: 'calc(-50% + 8px)' }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+          >
+        <Dialog.Title className="sr-only">Berean setup</Dialog.Title>
 
         {/* Close / Skip button (top right) */}
         <button
           onClick={handleSkip}
           title="Skip onboarding"
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer z-10"
+          className="absolute top-4 right-4 p-1.5 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer z-10"
         >
           <X size={16} />
         </button>
@@ -1381,13 +1402,15 @@ export default function Onboarding() {
           <button
             onClick={handleNext}
             disabled={completing}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[rgb(var(--color-accent))] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-60"
+            className="flex items-center gap-2 px-5 py-2 rounded-shell bg-[rgb(var(--color-accent))] text-white text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-60"
           >
             {completing ? 'Setting up…' : isLast ? 'Start studying' : 'Next'}
             {!completing && !isLast && <ChevronRight size={15} />}
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

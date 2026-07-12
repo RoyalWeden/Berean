@@ -383,10 +383,10 @@ describe('detectVerseBlock — single-line for every clean book', () => {
 // ── 9. Print HTML carries verse styles ───────────────────────────────────────
 
 describe('buildPrintHTML verse styling', () => {
-  it('print CSS includes berean-verse-ref and berean-verse-block rules', async () => {
+  it('print CSS includes pm-verse-ref and pm-verse-block rules', async () => {
     const { buildPrintHTML } = await import('../NoteEditor')
     const html = buildPrintHTML('Test', 'See Gen 1:1')
-    expect(html).toContain('.berean-verse-block')
-    expect(html).toContain('a.berean-verse-ref')
+    expect(html).toContain('.pm-verse-block')
+    expect(html).toContain('.pm-verse-ref')
   })
 })

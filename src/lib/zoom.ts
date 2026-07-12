@@ -1,10 +1,15 @@
 /**
- * Per-panel zoom helpers. Zoom is a multiplier applied to a panel's base font size
- * (1.0 = 100%). Used by Scripture, Notes, and Lexicon panels (and their side panels),
- * driven by Cmd +/- /0 and toolbar buttons.
+ * Reading-content zoom helpers. One shared multiplier (1.0 = 100%), driven by
+ * Cmd +/- /0 and the rail's zoom control, applied ONLY to the actual reading
+ * panes (Scripture text, Lexicon entries, the Notes/Lexicon/Scripture side
+ * panel) — not the app shell (sidebar/rail/topbar/tab list), which stays a
+ * fixed size regardless of zoom. An earlier version applied CSS `zoom` to the
+ * entire app div, which scaled the whole window's layout uniformly (sidebar
+ * width, buttons, everything) — jarring and not what "zoom the text" meant.
+ * Previously each reading pane also had its own independent zoom level;
+ * collapsed to one shared value since zooming "just the lexicon" while
+ * everything else stayed the same size was confusing.
  */
-
-export type ZoomContext = 'scripture' | 'notes' | 'lexicon'
 
 export const ZOOM_MIN = 0.5
 export const ZOOM_MAX = 3

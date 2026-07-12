@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, RotateCcw, History, Eye, GitCompare, Save } from 'lucide-react'
 import { diffWords } from 'diff'
 import { renderPreviewContent } from './NoteEditor'
+import { renderMarkdownToHTML } from './pm/staticRender'
 import type { NoteVersion } from '@/types'
 
 function relativeTime(ts: number): string {
@@ -29,21 +30,32 @@ const LOADING_PLACEHOLDER = (
   </div>
 )
 
-/** Render a past version as fully formatted content (same engine as the diff view).
- *  Defers the heavy renderPreviewContent work to a macro-task so the version list
- *  stays responsive while the HTML is being computed.
+/** Render a past version as fully formatted content — routed through the
+ *  same PM schema/parser (staticRender.ts) as the live note editor, so a
+ *  version looks identical to how the note actually looked in-editor
+ *  (bordered verse/lexicon blocks, highlight colors, bullet markers) rather
+ *  than the old separate `marked`-based preview pipeline's look.
+ *  Defers the render work to a macro-task so the version list stays
+ *  responsive while the HTML is being computed.
  */
 function RenderedPreviewView({ content }: { content: string }) {
   const [html, setHtml] = useState<string | null>(null)
   useEffect(() => {
     setHtml(null)
-    const id = setTimeout(() => { setHtml(renderPreviewContent(content)) }, 0)
+    const id = setTimeout(() => { setHtml(renderMarkdownToHTML(content)) }, 0)
     return () => clearTimeout(id)
   }, [content])
   if (html === null) return LOADING_PLACEHOLDER
+  // No px-6 py-4 here (an earlier version had it): renderMarkdownToHTML's
+  // own output already includes the ".berean-pm-editor > .ProseMirror"
+  // wrapper, which carries pmEditor.css's own `padding: 16px` — the exact
+  // padding the live editor's container relies on too (NoteEditorPM.tsx's
+  // own wrapper adds none of its own). Adding padding here stacked on top
+  // of that, making version history visibly roomier/differently-spaced
+  // than the editor it's supposed to look identical to.
   return (
     <div
-      className="berean-preview-prose berean-notes-text px-6 py-4"
+      className="berean-notes-text"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
@@ -54,7 +66,13 @@ function RenderedPreviewView({ content }: { content: string }) {
  * Injects <ins>/<del> HTML markers into the raw markdown at word boundaries,
  * then renders the whole thing through renderPreviewContent so the user sees
  * properly formatted text (headings, verse blocks, etc.) with diff highlights,
- * not raw markdown syntax.
+ * not raw markdown syntax. Deliberately stays on the old `marked`-based
+ * renderPreviewContent rather than staticRender.ts's PM-based renderer: the
+ * PM markdown parser is configured `html: false` (markdownIt.ts) so it can't
+ * safely round-trip the raw <ins>/<del> tags this view injects — `marked`
+ * can. This is the one place that still intentionally uses the legacy
+ * pipeline; RenderedPreviewView above (the more commonly used non-diff tab)
+ * already renders through the same engine as the live editor.
  * Deferred to a macro-task so clicking a version item doesn't block the scroll list.
  */
 function RenderedDiffView({ prev, next }: { prev: string; next: string }) {

@@ -171,6 +171,11 @@ export interface Tab {
   title: string
   state: TabState
   isPinned?: boolean
+  /** Set when this tab was opened as a one-off "open in new tab" detour from
+   *  another tab — lets the back button close this tab and return to that
+   *  origin once there's no more in-tab nav history to step back through. */
+  originTabId?: string
+  originSpaceId?: SpaceId
 }
 
 export interface Verse {
@@ -335,6 +340,7 @@ export interface HistoryEntry {
   chapter?: number      // bible
   translation?: string  // bible
   noteId?: string       // note
+  verseRef?: string     // note — the verse it's attached to, if it's a verse note (links study history back to the passage)
   strongsNum?: string   // lexicon / strongs-click
   videoId?: string      // youtube
   query?: string        // search

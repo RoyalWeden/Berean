@@ -166,7 +166,7 @@ function TranslationDropdown({ textId, onChange }: { textId: string; onChange: (
 export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle, initialColumns, onColumnsChange }: Props) {
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
-  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
+  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const [booksByText, setBooksByText] = useState<Record<string, Book[]>>({})
   // Holds a pending onCollapseToSingle argument — scheduled outside the setColumns updater
   // to avoid calling parent state-setters during render (React warning + Zustand push).

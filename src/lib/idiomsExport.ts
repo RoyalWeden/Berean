@@ -3,7 +3,10 @@
  * PDF export. Each idiom is a styled entry — coloured term heading, definition, numbered
  * example sentences (with the idiom italicised in context), an explanation paragraph, a
  * "Compare to" line of related idioms, and a "References" line of scripture verses. Flows in
- * one or two columns. Raw HTML passes through the note print pipeline unchanged.
+ * one or two columns. Raw HTML passes through the note print pipeline unchanged — callers
+ * must pass `rawHtml: true` in PrintExportOptions so buildPrintHTML skips its markdown parse
+ * step (markdown-it runs with html:false, so unescaped <div> tags would otherwise print as
+ * literal visible text instead of being rendered).
  */
 
 export interface IdiomExportEntry {

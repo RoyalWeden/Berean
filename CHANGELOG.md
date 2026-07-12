@@ -151,6 +151,48 @@ across the shell, Bible panel, and notes editor:
 - Presenter outline band survives zoom/tab-switching; scroll position resets
   correctly on edition switch; a mis-split Hermas Mandate 3 chapter was merged.
 
+**Sidebar/rail redesign** — replaced the old single-column sidebar with a
+slim icon rail plus a browser-style Explorer pane:
+- Rail is now the single home for History, Archived tabs, Presenter view,
+  Find, Zoom, and Settings — previously scattered across the top bar's
+  "More" menu and duplicated as separate buttons inside the Bible/Notes/
+  Lexicon panels.
+- Sidebar leads with a row of "new tab" tiles (one per space, icon crossfades
+  to a plus on hover) instead of three different, overlapping ways to open a
+  tab; the unified tab list is unchanged (still flat, unfiltered) but each
+  row's icon is now tinted per tab type for a quicker scan.
+- A month-view daily-notes calendar is pinned permanently at the bottom of
+  the sidebar instead of a Notes-only toggle.
+- Sessions moved out of the sidebar into numbered chips at the bottom of the
+  rail; right-click a chip to rename it, change its icon (shown in place of
+  the number once set), or delete it — previously only reachable through
+  Settings.
+- Sidebar collapse/expand now animates instead of an instant show/hide; a
+  floating-search button appears at the top of the rail while collapsed so
+  search/new-tab is still reachable.
+- Zoom (⌘+/⌘−/⌘0 and the rail's Zoom control) is now one shared value
+  covering Scripture, Lexicon, and the side panel, applied only within those
+  reading panes and to tab-list/sidebar text — no longer resizes the sidebar,
+  rail, or window itself.
+- History modal background is fully solid instead of translucent.
+
+**More fixes**
+- Sidebar tab list sometimes wouldn't scroll — part of the list was inside
+  Electron's window-drag region.
+- Presenter outline band could go stale (not just at zoom/tab-switch) when
+  changing reading zoom, base font size, or toggling word-replacer/idiom
+  highlighting, since none of those resized the scroll container itself.
+- A Radix Tooltip behavior (an invisible "hoverable content" area kept open
+  between a trigger and its tooltip) was intercepting clicks on nearby
+  menus — most noticeably the session icon picker; disabled app-wide since
+  none of Berean's tooltips have interactive content that needs it.
+- Right-clicking a session chip while the quick-switch popover was open
+  left both open and overlapping at once.
+- Auto-update: startup check now retries once on failure instead of giving
+  up silently; install failures are now surfaced instead of failing
+  silently; added a "last checked" timestamp and an update-available badge
+  on the rail's Settings icon.
+
 ---
 
 ## [0.4.3] - 2026-06-23

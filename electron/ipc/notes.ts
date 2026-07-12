@@ -6,7 +6,7 @@ interface NoteRow {
   id: string
   type: string
   title: string | null
-  content: string
+  content: string | null
   verse_ref: string | null
   color: string
   created_at: number
@@ -27,7 +27,16 @@ function rowToNote(row: NoteRow) {
     id:           row.id,
     type:         row.type,
     title:        row.title ?? '',
-    content:      row.content,
+    // A NULL content column (seen on some notes carried over from an older
+    // schema/import path, before `content` had a reliable NOT NULL
+    // guarantee) used to flow straight through as `null` here — the
+    // ProseMirror editor's markdown parser throws on a null/undefined
+    // input, which silently killed the EditorView's construction and made
+    // the note appear completely non-editable (blank, no cursor, nothing
+    // happens) with no visible error. Coerce to '' at the source so this
+    // failure mode is categorically impossible regardless of what's
+    // actually stored.
+    content:      row.content ?? '',
     verseRef:     row.verse_ref,
     color:        row.color,
     createdAt:    row.created_at,
@@ -46,9 +55,9 @@ function rowToNote(row: NoteRow) {
 
 function safeParse(s: string): unknown { try { return JSON.parse(s) } catch { return undefined } }
 
-interface VersionRow { id: string; note_id: string; title: string | null; content: string; kind: string; created_at: number }
+interface VersionRow { id: string; note_id: string; title: string | null; content: string | null; kind: string; created_at: number }
 function rowToVersion(r: VersionRow) {
-  return { id: r.id, noteId: r.note_id, title: r.title ?? '', content: r.content, kind: r.kind, createdAt: r.created_at }
+  return { id: r.id, noteId: r.note_id, title: r.title ?? '', content: r.content ?? '', kind: r.kind, createdAt: r.created_at }
 }
 
 /**

@@ -217,6 +217,12 @@ export interface ViewerVisibleRegion {
    *  OWN verse positions — accurate across different window sizes / zoom / text wrapping.
    *  Sent only on the presenter's load/zoom/resize (not per scroll frame). */
   verseFracs: Record<number, number>
+  /** Presenter's own scroll-container clientHeight (px) at report time — lets the main
+   *  window's virtual-scroll wheel handler (used when the main panel itself has nothing to
+   *  scroll) convert wheel px into a fraction using the presenter's REAL scrollable range
+   *  (clientHeight * (1-f)/f), instead of a flat sensitivity constant unrelated to how
+   *  zoomed in the presenter actually is. */
+  clientHeight?: number
   /** Present only for compare-view columns — which column reported this region. */
   colIndex?: number
 }

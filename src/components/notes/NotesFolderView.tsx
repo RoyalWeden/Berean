@@ -472,7 +472,7 @@ export default function NotesFolderView({
               <FolderInput size={11} />
             </button>
             {isMoveMenuOpen && (
-              <div className="absolute right-0 top-full mt-0.5 z-50 min-w-[150px] max-h-48 overflow-y-auto bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1">
+              <div className="glass-panel absolute right-0 top-full mt-0.5 z-50 min-w-[150px] max-h-48 overflow-y-auto rounded-shell-lg py-1">
                 {note.folderId != null && (
                   <button
                     className={MENU_ITEM}
@@ -843,7 +843,7 @@ export default function NotesFolderView({
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
         <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
-          className="min-w-[170px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+          className="glass-panel min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
@@ -881,7 +881,7 @@ export default function NotesFolderView({
       {/* Folder context menu */}
       {folderMenu && createPortal(
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
-          className="min-w-[190px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+          className="glass-panel min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
         >
               {onCreateNoteInFolder && (
                 <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
@@ -944,7 +944,7 @@ export default function NotesFolderView({
       {/* Custom confirm dialog for "Delete folder & contents" */}
       {confirmDelete && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
-          <div className="bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-5 w-80 max-w-full">
+          <div className="glass-panel rounded-shell-lg p-5 w-80 max-w-full">
             <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">
               Delete &ldquo;{confirmDelete.folder.name}&rdquo;?
             </p>

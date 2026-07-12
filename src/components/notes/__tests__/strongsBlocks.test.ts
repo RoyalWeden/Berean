@@ -27,6 +27,13 @@ function chip(num: string) {
 function hasChip(html: string, num: string) {
   return html.includes('berean-strongs-chip') && html.includes(`>${num}</span>`)
 }
+// buildPrintHTML now renders Strong's numbers through the same PM live-
+// editor decoration as everything else (pm-lexicon-ref, dashed-underline
+// colored text) rather than the old bold-monospace "chip" look — see
+// staticRender.ts / refDecorations.ts's buildRefDecorationsForDoc.
+function hasPrintChip(html: string, num: string) {
+  return html.includes('pm-lexicon-ref') && html.includes(`>${num}</span>`)
+}
 function freshRe() {
   // STRONGS_REF_RE has the 'g' flag; reset lastIndex before each test
   STRONGS_REF_RE.lastIndex = 0
@@ -357,29 +364,29 @@ describe('renderPreviewContent — chips do not break surrounding content', () =
 describe('buildPrintHTML — Strong\'s chips in print output', () => {
   it('renders H7225 chip in print HTML', () => {
     const html = buildPrintHTML('Test', 'H7225')
-    expect(hasChip(html, 'H7225')).toBe(true)
+    expect(hasPrintChip(html, 'H7225')).toBe(true)
   })
   it('renders G3056 chip in print HTML', () => {
     const html = buildPrintHTML('Test', 'G3056')
-    expect(hasChip(html, 'G3056')).toBe(true)
+    expect(hasPrintChip(html, 'G3056')).toBe(true)
   })
-  it('includes .berean-strongs-chip CSS in print', () => {
-    expect(buildPrintHTML('T', 'H1')).toContain('.berean-strongs-chip')
+  it('includes .pm-lexicon-ref CSS in print', () => {
+    expect(buildPrintHTML('T', 'H1')).toContain('.pm-lexicon-ref')
   })
-  it('chip CSS has print-color-adjust', () => {
-    expect(buildPrintHTML('T', 'H1')).toContain('print-color-adjust')
+  it('chip CSS includes a dashed text-decoration (distinguishes it from verse-refs)', () => {
+    expect(buildPrintHTML('T', 'H1')).toContain('text-decoration-style: dashed')
   })
-  it('chip CSS has font-weight', () => {
-    expect(buildPrintHTML('T', 'H1')).toContain('font-weight: 700')
+  it('chip has a native title tooltip', () => {
+    expect(buildPrintHTML('T', 'H7225')).toContain(`title="Strong's H7225"`)
   })
 })
 
 describe('buildPrintHTML — chips with themes', () => {
-  it('classic theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'classic' })).toContain('.berean-strongs-chip'))
-  it('midnight theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'midnight' })).toContain('.berean-strongs-chip'))
-  it('parchment theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'parchment' })).toContain('.berean-strongs-chip'))
-  it('forest theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'forest' })).toContain('.berean-strongs-chip'))
-  it('ocean theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'ocean' })).toContain('.berean-strongs-chip'))
+  it('classic theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'classic' })).toContain('.pm-lexicon-ref'))
+  it('midnight theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'midnight' })).toContain('.pm-lexicon-ref'))
+  it('parchment theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'parchment' })).toContain('.pm-lexicon-ref'))
+  it('forest theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'forest' })).toContain('.pm-lexicon-ref'))
+  it('ocean theme includes chip CSS', () => expect(buildPrintHTML('T', 'H1', { theme: 'ocean' })).toContain('.pm-lexicon-ref'))
 })
 
 // ── 6. STRONGS_REF_RE — capture group ────────────────────────────────────────
@@ -630,14 +637,14 @@ describe('buildPrintHTML — chip CSS completeness', () => {
   it('chip CSS includes font-size', () => expect(buildPrintHTML('T','H1')).toContain('0.85em'))
   it('chip CSS includes font-weight', () => expect(buildPrintHTML('T','H1')).toContain('font-weight: 700'))
   it('chip CSS includes color', () => expect(buildPrintHTML('T','H1')).toContain('color:'))
-  it('chip CSS includes -webkit-print-color-adjust', () => expect(buildPrintHTML('T','H1')).toContain('-webkit-print-color-adjust'))
+  it('chip CSS includes dashed text-decoration-style (its distinguishing visual trait now)', () => expect(buildPrintHTML('T','H1')).toContain('text-decoration-style: dashed'))
 })
 
 describe('buildPrintHTML — chips across representative numbers', () => {
   const nums = ['H1', 'H7225', 'H430', 'H3068', 'G3056', 'G5485', 'G2316', 'G26', 'H853', 'G4983']
   for (const num of nums) {
     it(`chip for ${num} appears in print output`, () => {
-      expect(hasChip(buildPrintHTML('T', num), num)).toBe(true)
+      expect(hasPrintChip(buildPrintHTML('T', num), num)).toBe(true)
     })
   }
 })
@@ -790,10 +797,10 @@ describe('wrapStrongsRefsForPreview — consecutive numbers', () => {
 describe('buildPrintHTML — specific chip content in print output', () => {
   it("H7225 chip title shows Strong's H7225", () => expect(buildPrintHTML('T','H7225')).toContain("Strong's H7225"))
   it("G5485 chip title shows Strong's G5485", () => expect(buildPrintHTML('T','G5485')).toContain("Strong's G5485"))
-  it('chip class attribute present in print', () => expect(buildPrintHTML('T','H430')).toContain('berean-strongs-chip'))
+  it('chip class attribute present in print', () => expect(buildPrintHTML('T','H430')).toContain('pm-lexicon-ref'))
   it('chip span present in print', () => expect(buildPrintHTML('T','H430')).toContain('<span'))
   it('no chip span for plain text in print', () => expect(buildPrintHTML('T','no strongs here')).not.toContain('>H<'))
-  it('chip inside a print heading', () => expect(buildPrintHTML('T','# H430')).toContain('berean-strongs-chip'))
-  it('chip inside print bold', () => expect(buildPrintHTML('T','**H430**')).toContain('berean-strongs-chip'))
-  it('chip inside print list item', () => expect(buildPrintHTML('T','- H430')).toContain('berean-strongs-chip'))
+  it('chip inside a print heading', () => expect(buildPrintHTML('T','# H430')).toContain('pm-lexicon-ref'))
+  it('chip inside print bold', () => expect(buildPrintHTML('T','**H430**')).toContain('pm-lexicon-ref'))
+  it('chip inside print list item', () => expect(buildPrintHTML('T','- H430')).toContain('pm-lexicon-ref'))
 })

@@ -1,136 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, ToggleLeft, ToggleRight, RefreshCw, Download, RotateCcw, Sword, Printer, Eye, Search as SearchIcon } from 'lucide-react'
-import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/components/notes/NoteEditor'
-import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
+import {
+  X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
+  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast,
+} from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
-import { YOUTUBE_LAYOUTS } from '@/lib/youtubeLayouts'
-import type { WordReplacerRule } from '@/store'
-import type { UpdateStatus } from '@/types/electron'
 import type { ScriptureLayout } from '@/types'
-import BibleGatewayImporter from './BibleGatewayImporter'
-import ESwordImporter from './ESwordImporter'
-import { BULLET_STYLE_DEFS } from '@/components/notes/NoteEditor'
-
-function YtLayoutSetting() {
-  const layout = useAppStore((s) => s.defaultYoutubeLayout)
-  const set = useAppStore((s) => s.setDefaultYoutubeLayout)
-  return (
-    <div className="grid grid-cols-2 gap-1.5">
-      {YOUTUBE_LAYOUTS.map((def) => (
-        <button
-          key={def.id}
-          onClick={() => set(def.id)}
-          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg text-left border transition-all cursor-pointer text-xs
-            ${layout === def.id
-              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
-              : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
-            }`}
-        >
-          <span className="font-semibold">{def.label}</span>
-          <span className="text-[9px] text-[rgb(var(--color-text-muted))] leading-snug">{def.description}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-interface WordReplacerSectionProps {
-  enabled: boolean
-  rules: WordReplacerRule[]
-  onToggleEnabled: (v: boolean) => void
-  onToggleRule: (id: string) => void
-}
-
-function WordReplacerSection({ enabled, rules, onToggleEnabled, onToggleRule }: WordReplacerSectionProps) {
-  return (
-    <div className="space-y-5">
-      {/* Master toggle */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Word replacer</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-            Substitute archaic or Latinised names in scripture text with more recognisable forms.
-            Only applies to the Scripture tab — never to notes, lexicon, or YouTube.
-          </p>
-        </div>
-        <button
-          onClick={() => onToggleEnabled(!enabled)}
-          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-            enabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-          }`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-
-      {/* Divine name rules (Strong's-number-based, KJVA only) */}
-      {(() => {
-        const strongsRules = rules.filter(r => r.strongsNum)
-        const textRules = rules.filter(r => !r.strongsNum)
-        const RuleRow = (rule: WordReplacerRule) => (
-          <div
-            key={rule.id}
-            className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
-              rule.enabled && enabled
-                ? 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))]'
-                : 'border-[rgb(var(--color-surface-4))/50] bg-[rgb(var(--color-surface-3))/50] opacity-60'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <code className="text-[11px] font-mono text-[rgb(var(--color-text-muted))] truncate">
-                {rule.strongsNum ?? rule.queries.join(' / ')}
-              </code>
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">→</span>
-              <span className="text-[11px] text-[rgb(var(--color-text-primary))] font-medium truncate">{rule.replacement}</span>
-              {rule.strongsNum && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 flex-shrink-0 font-semibold">KJVA</span>
-              )}
-              {rule.wholeWord && (
-                <span className="text-[9px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] flex-shrink-0">whole word</span>
-              )}
-            </div>
-            <button
-              onClick={() => onToggleRule(rule.id)}
-              title={rule.enabled ? 'Disable this rule' : 'Enable this rule'}
-              className="flex-shrink-0 ml-2 cursor-pointer"
-            >
-              {rule.enabled
-                ? <ToggleRight size={18} className="text-[rgb(var(--color-accent))]" />
-                : <ToggleLeft size={18} className="text-[rgb(var(--color-text-muted))]" />
-              }
-            </button>
-          </div>
-        )
-        return (
-          <>
-            {strongsRules.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Divine Name</p>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold">KJVA only</span>
-                </div>
-                <p className="text-[10px] text-[rgb(var(--color-text-muted))] mb-2 leading-relaxed">
-                  Matches by Strong's number — precise per-word replacement regardless of how the word is spelled in English. Only applies where Strong's tags are available (KJVA).
-                </p>
-                <div className="space-y-1">
-                  {strongsRules.map(RuleRow)}
-                </div>
-              </div>
-            )}
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-2">Text rules</p>
-              <div className="space-y-1">
-                {textRules.map(RuleRow)}
-              </div>
-            </div>
-          </>
-        )
-      })()}
-    </div>
-  )
-}
+import { BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
+import { migrateAllNotes, type MigrationResult } from '@/lib/noteMigration'
+import Switch from '@/components/shell/Switch'
+import YtLayoutSetting from './sections/YtLayoutSetting'
+import WordReplacerSection from './sections/WordReplacerSection'
+import HistorySection from './sections/HistorySection'
+import UpdatesSection from './sections/UpdatesSection'
+import PrintExportSection from './sections/PrintExportSection'
+import WorkspacesSection from './sections/WorkspacesSection'
+import SessionsSection from './sections/SessionsSection'
+import ImportSection from './sections/ImportSection'
+import AboutSection from './sections/AboutSection'
+import DangerSection from './sections/DangerSection'
 
 function MarkdownRefButton({ onClose }: { onClose: () => void }) {
   const open = useAppStore((s) => s.openMarkdownReference)
@@ -294,549 +183,11 @@ function resolvePresetClass(preset: ThemePresetDef, variant: 'dark' | 'light'): 
 
 const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
-function HistorySection() {
-  const tabNavMaxStack    = useAppStore((s) => s.tabNavMaxStack)
-  const setTabNavMaxStack = useAppStore((s) => s.setTabNavMaxStack)
-  const historyMaxEntries    = useAppStore((s) => s.historyMaxEntries)
-  const setHistoryMaxEntries = useAppStore((s) => s.setHistoryMaxEntries)
-  const clearAllTabNavStacks = useAppStore((s) => s.clearAllTabNavStacks)
-  const tabNavStacks = useAppStore((s) => s.tabNavStacks)
-  const stackCount = Object.values(tabNavStacks).reduce((acc, s) => acc + s.stack.length, 0)
-  const [cleared, setCleared] = useState(false)
 
-  return (
-    <div className="space-y-5">
-      {/* Tab navigation history */}
-      <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">Tab navigation (back / forward)</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">How many pages to remember per tab for the back / forward buttons.</p>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
-            Max entries per tab
-            <input
-              type="number" min={10} max={1000} step={10}
-              value={tabNavMaxStack}
-              onChange={(e) => setTabNavMaxStack(parseInt(e.target.value) || 100)}
-              className="w-20 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
-            />
-          </label>
-          <span className="text-xs text-[rgb(var(--color-text-muted))]">{stackCount} total entries stored</span>
-        </div>
-        <div className="mt-3">
-          <button
-            onClick={() => { clearAllTabNavStacks(); setCleared(true); setTimeout(() => setCleared(false), 2000) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-          >
-            <Trash2 size={12} />
-            {cleared ? 'Cleared ✓' : 'Clear all tab nav history'}
-          </button>
-        </div>
-      </div>
 
-      {/* App history */}
-      <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">App history log</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Maximum number of entries kept in the history sidebar (older entries are pruned automatically).</p>
-        <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))]">
-          Max entries
-          <input
-            type="number" min={50} max={10000} step={50}
-            value={historyMaxEntries}
-            onChange={(e) => setHistoryMaxEntries(parseInt(e.target.value) || 500)}
-            className="w-24 text-center px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-xs outline-none"
-          />
-        </label>
-      </div>
-    </div>
-  )
-}
 
-function UpdatesSection() {
-  const [version, setVersion] = useState('')
-  const [isMas, setIsMas] = useState(false)
-  const [autoCheck, setAutoCheck] = useState(true)
-  const [betaChannel, setBetaChannel] = useState(false)
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ status: 'idle' })
 
-  useEffect(() => {
-    window.app.getVersion().then(setVersion).catch(() => {})
-    window.settings.get('autoUpdate').then((v) => setAutoCheck(v !== false)).catch(() => {})
-    window.settings.get('updateChannel').then((v) => setBetaChannel(v === 'beta')).catch(() => {})
-    window.app.onUpdateStatus((s) => setUpdateStatus(s as UpdateStatus))
-    window.app.isMasBuild?.().then((mas) => {
-      if (mas) { setIsMas(true); setUpdateStatus({ status: 'mas' }) }
-    }).catch(() => {})
-  }, [])
-
-  async function toggleAutoCheck(enabled: boolean) {
-    setAutoCheck(enabled)
-    await window.settings.set('autoUpdate', enabled)
-  }
-
-  async function toggleBeta(enabled: boolean) {
-    setBetaChannel(enabled)
-    await window.settings.set('updateChannel', enabled ? 'beta' : 'stable')
-  }
-
-  async function checkNow() {
-    setUpdateStatus({ status: 'checking' })
-    await window.app.checkForUpdates()
-  }
-
-  async function downloadUpdate() {
-    setUpdateStatus({ status: 'downloading', percent: 0 })
-    await window.app.downloadUpdate()
-  }
-
-  function installUpdate() { window.app.installUpdate() }
-
-  const st = updateStatus.status
-
-  // ── MAS build: clean App Store UI ─────────────────────────────────────────
-  if (isMas) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">{version ? `v${version}` : '—'}</p>
-        </div>
-        <div className="px-4 py-4 rounded-xl bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-3">
-          <p className="text-sm text-[rgb(var(--color-text-primary))] font-medium">Updates via Mac App Store</p>
-          <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-            This copy of Berean was installed from the Mac App Store. Updates are delivered automatically by Apple — no manual action needed. To check now, open the App Store and go to Updates.
-          </p>
-          <button
-            onClick={() => window.app.openExternal('macappstore://apps.apple.com')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            Open App Store
-          </button>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
-          <span>Download page & release notes:</span>
-          <button
-            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-          >
-            royalweden.github.io/Berean
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── GitHub / direct distribution UI ───────────────────────────────────────
-  return (
-    <div className="space-y-5">
-      {/* Version badge */}
-      <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-0.5">
-          {version ? `v${version}` : '—'}
-        </p>
-      </div>
-
-      {/* Auto-check toggle */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Check for updates automatically</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-            Check on launch, 6 seconds after startup
-          </p>
-        </div>
-        <button
-          onClick={() => toggleAutoCheck(!autoCheck)}
-          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-            autoCheck ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-          }`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoCheck ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-
-      {/* Beta channel toggle */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Beta updates</p>
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-            Receive pre-release builds — may contain unfinished features or bugs
-          </p>
-        </div>
-        <button
-          onClick={() => toggleBeta(!betaChannel)}
-          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-            betaChannel ? 'bg-amber-500' : 'bg-[rgb(var(--color-surface-4))]'
-          }`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${betaChannel ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-
-      {/* Status card */}
-      <div className="px-3 py-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] min-h-[52px]">
-        {st === 'idle' && (
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Click "Check for Updates" to check now.</p>
-        )}
-        {st === 'checking' && (
-          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] animate-pulse">Checking for updates…</p>
-        )}
-        {st === 'current' && (
-          <p className="text-xs text-green-400">You're on the latest version.</p>
-        )}
-        {st === 'available' && (
-          <p className="text-xs text-[rgb(var(--color-accent))]">
-            Version {updateStatus.version} is available.
-          </p>
-        )}
-        {st === 'downloading' && (
-          <div>
-            <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
-              Downloading update… {updateStatus.percent ?? 0}%
-            </p>
-            <div className="h-1.5 bg-[rgb(var(--color-surface-4))] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[rgb(var(--color-accent))] rounded-full transition-all duration-300"
-                style={{ width: `${updateStatus.percent ?? 0}%` }}
-              />
-            </div>
-          </div>
-        )}
-        {st === 'ready' && (
-          <p className="text-xs text-green-400">
-            Version {updateStatus.version} downloaded — ready to install.
-          </p>
-        )}
-        {st === 'error' && (
-          <p className="text-xs text-red-400 leading-relaxed">
-            {updateStatus.message ?? 'Unknown error during update check.'}
-          </p>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2">
-        {(st === 'idle' || st === 'current' || st === 'error') && (
-          <button
-            onClick={checkNow}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            <RefreshCw size={11} />
-            Check for Updates
-          </button>
-        )}
-        {st === 'available' && (
-          <button
-            onClick={downloadUpdate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Download size={11} />
-            Download Update
-          </button>
-        )}
-        {st === 'ready' && (
-          <button
-            onClick={installUpdate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <RotateCcw size={11} />
-            Restart & Install
-          </button>
-        )}
-      </div>
-
-      {/* Footer: GitHub Pages link + distribution note */}
-      <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
-          <span>Download page & release notes:</span>
-          <button
-            onClick={() => window.app.openExternal(BEREAN_SITE_URL)}
-            className="text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-          >
-            royalweden.github.io/Berean
-          </button>
-        </div>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
-          Only the installed app (not dev build) can receive automatic updates.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-// ── Print & Export settings ──────────────────────────────────────────────────
-const PRINT_PRESETS: { id: 'compact' | 'standard' | 'spacious' | 'manuscript'; label: string; desc: string;
-  margin: 'none' | 'narrow' | 'normal' | 'wide'; fontSize: number; fontFamily: 'system' | 'serif' | 'sansserif' }[] = [
-  { id: 'compact',    label: 'Compact',    desc: 'Narrow margins, 10pt sans — fit more per page', margin: 'narrow', fontSize: 10, fontFamily: 'sansserif' },
-  { id: 'standard',   label: 'Standard',   desc: 'Normal margins, 12pt system font',               margin: 'normal', fontSize: 12, fontFamily: 'system' },
-  { id: 'spacious',   label: 'Spacious',   desc: 'Wide margins, 13pt — easy reading',              margin: 'wide',   fontSize: 13, fontFamily: 'system' },
-  { id: 'manuscript', label: 'Manuscript', desc: 'Wide margins, 13pt serif — study printout',      margin: 'wide',   fontSize: 13, fontFamily: 'serif' },
-]
-
-function PrintExportSection() {
-  const printMarginPreset    = useAppStore((s) => s.printMarginPreset)
-  const printCustomMargins   = useAppStore((s) => s.printCustomMargins)
-  const printFontSizePt      = useAppStore((s) => s.printFontSizePt)
-  const printFontFamily      = useAppStore((s) => s.printFontFamily)
-  const printPaperSize       = useAppStore((s) => s.printPaperSize)
-  const printIncludeTitle    = useAppStore((s) => s.printIncludeTitle)
-  const printColorMode       = useAppStore((s) => s.printColorMode)
-  const printTheme           = useAppStore((s) => s.printTheme)
-  const pdfDownloadLocation  = useAppStore((s) => s.pdfDownloadLocation)
-  const setPrintMarginPreset = useAppStore((s) => s.setPrintMarginPreset)
-  const setPrintCustomMargins = useAppStore((s) => s.setPrintCustomMargins)
-  const setPrintFontSizePt   = useAppStore((s) => s.setPrintFontSizePt)
-  const setPrintFontFamily   = useAppStore((s) => s.setPrintFontFamily)
-  const setPrintPaperSize    = useAppStore((s) => s.setPrintPaperSize)
-  const setPrintIncludeTitle = useAppStore((s) => s.setPrintIncludeTitle)
-  const setPrintColorMode    = useAppStore((s) => s.setPrintColorMode)
-  const setPrintTheme        = useAppStore((s) => s.setPrintTheme)
-  const setPdfDownloadLocation = useAppStore((s) => s.setPdfDownloadLocation)
-
-  // Theme picker popover
-  const [themeOpen, setThemeOpen] = useState(false)
-  const themePickerRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!themeOpen) return
-    function onDown(e: MouseEvent) {
-      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) setThemeOpen(false)
-    }
-    document.addEventListener('mousedown', onDown, true)
-    return () => document.removeEventListener('mousedown', onDown, true)
-  }, [themeOpen])
-  const currentTheme = PRINT_THEMES[printTheme] ?? PRINT_THEMES.classic
-
-  // Which preset (if any) matches the current granular settings
-  const activePreset = PRINT_PRESETS.find(p =>
-    p.margin === printMarginPreset && p.fontSize === printFontSizePt && p.fontFamily === printFontFamily
-  )
-
-  function applyPreset(p: typeof PRINT_PRESETS[number]) {
-    setPrintMarginPreset(p.margin)
-    setPrintFontSizePt(p.fontSize)
-    setPrintFontFamily(p.fontFamily)
-  }
-
-  const SAMPLE = `# Sample Note
-
-Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
-
-- A *formatted* list item
-- [x] A completed task
-
-> [!NOTE] Callout
-> Keep the **Sabbath** holy.`
-
-  const previewHtml = buildPrintHTML('Sample Note', SAMPLE, {
-    theme: printTheme, marginPreset: printMarginPreset, customMargins: printCustomMargins,
-    fontSize: printFontSizePt, fontFamily: printFontFamily,
-    includeTitle: printIncludeTitle, colorMode: printColorMode,
-  })
-
-  const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
-  const segBtn = (active: boolean) =>
-    `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
-      ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
-      : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Printer size={14} className="text-[rgb(var(--color-text-muted))]" />
-        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Print &amp; Export</p>
-      </div>
-      <p className="text-xs text-[rgb(var(--color-text-muted))] -mt-3">
-        Controls how notes look when printed or exported to PDF. Applies to the Print and Export-PDF buttons in the notes editor.
-      </p>
-
-      {/* Presets */}
-      <div>
-        <p className={labelCls}>Presets</p>
-        <div className="grid grid-cols-2 gap-2">
-          {PRINT_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => applyPreset(p)}
-              className={`text-left px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
-                activePreset?.id === p.id
-                  ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                  : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] hover:border-[rgb(var(--color-accent))/50]'
-              }`}
-            >
-              <div className="text-xs font-medium text-[rgb(var(--color-text-primary))]">{p.label}</div>
-              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 leading-snug">{p.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Theme & style — button + popover grid */}
-      <div>
-        <p className={labelCls}>Theme &amp; style</p>
-        <div className="relative" ref={themePickerRef}>
-          <button
-            onClick={() => setThemeOpen(v => !v)}
-            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left cursor-pointer transition-colors ${
-              themeOpen
-                ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
-                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
-            }`}
-          >
-            <span className="w-6 h-6 rounded flex-shrink-0 border overflow-hidden" style={{ background: currentTheme.bg, borderColor: currentTheme.h2Border }}>
-              <span className="block w-full h-1.5" style={{ background: currentTheme.verseBorder }} />
-              <span className="block mx-0.5 mt-1 h-1 rounded" style={{ background: currentTheme.verseBg === 'transparent' ? currentTheme.h2Border : currentTheme.verseBg }} />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-xs font-medium text-[rgb(var(--color-text-primary))]">{currentTheme.label}</span>
-              <span className="block text-[9px] text-[rgb(var(--color-text-muted))] truncate leading-tight">{currentTheme.desc}</span>
-            </span>
-            <ChevronDown size={13} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${themeOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {themeOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1 max-h-72 overflow-y-auto">
-              {Object.values(PRINT_THEMES).map((th) => (
-                <button
-                  key={th.id}
-                  onClick={() => { setPrintTheme(th.id); setPrintFontFamily(th.suggestedFont); setThemeOpen(false) }}
-                  title={th.desc}
-                  className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border cursor-pointer transition-colors text-center ${
-                    printTheme === th.id
-                      ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
-                      : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded flex-shrink-0 border overflow-hidden" style={{ background: th.bg, borderColor: th.h2Border }}>
-                    <span className="block w-full" style={{ height: 5, background: th.verseBorder }} />
-                    <span className="block mx-0.5 mt-0.5 rounded-sm" style={{ height: 3, background: th.verseBg === 'transparent' ? th.h2Border : th.verseBg }} />
-                  </span>
-                  <span className="text-[9px] font-medium text-[rgb(var(--color-text-secondary))] leading-none">{th.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Live preview — scaled to true page proportions so margins look accurate */}
-      <div>
-        <p className={labelCls}>Live preview</p>
-        <ScaledPagePreview html={previewHtml} />
-      </div>
-
-      {/* Margins */}
-      <div>
-        <p className={labelCls}>Margins</p>
-        <div className="flex flex-wrap gap-1.5">
-          {(['none', 'narrow', 'normal', 'wide', 'custom'] as const).map((m) => (
-            <button key={m} onClick={() => {
-              if (m === 'custom' && printMarginPreset !== 'custom') setPrintCustomMargins(presetToSides(printMarginPreset))
-              setPrintMarginPreset(m)
-            }} className={segBtn(printMarginPreset === m)}>
-              {m === 'none' ? 'None' : m.charAt(0).toUpperCase() + m.slice(1)}
-            </button>
-          ))}
-        </div>
-        {printMarginPreset === 'custom' && (
-          <CustomMarginInputs value={printCustomMargins} onChange={setPrintCustomMargins} />
-        )}
-      </div>
-
-      {/* Font size */}
-      <div>
-        <p className={labelCls}>Font size — {printFontSizePt}pt</p>
-        <input
-          type="range" min={8} max={18} step={1} value={printFontSizePt}
-          onChange={(e) => setPrintFontSizePt(parseInt(e.target.value))}
-          className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
-        />
-      </div>
-
-      {/* Font family */}
-      <div>
-        <p className={labelCls}>Font family</p>
-        <div className="flex gap-1.5">
-          {([['system', 'System'], ['serif', 'Serif'], ['sansserif', 'Sans-serif']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintFontFamily(id)} className={segBtn(printFontFamily === id)}>{lbl}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Paper size */}
-      <div>
-        <p className={labelCls}>Paper size</p>
-        <div className="flex gap-1.5">
-          {([['letter', 'Letter'], ['a4', 'A4'], ['legal', 'Legal']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintPaperSize(id)} className={segBtn(printPaperSize === id)}>{lbl}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Color mode */}
-      <div>
-        <p className={labelCls}>Color</p>
-        <div className="flex gap-1.5">
-          {([['color', 'Color'], ['grayscale', 'Grayscale']] as const).map(([id, lbl]) => (
-            <button key={id} onClick={() => setPrintColorMode(id)} className={segBtn(printColorMode === id)}>{lbl}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Include title toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-[rgb(var(--color-text-primary))]">Include note title</p>
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5">Print the note title as a heading at the top</p>
-        </div>
-        <button
-          onClick={() => setPrintIncludeTitle(!printIncludeTitle)}
-          className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${printIncludeTitle ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${printIncludeTitle ? 'translate-x-5' : ''}`} />
-        </button>
-      </div>
-
-      {/* Default download location */}
-      <div>
-        <p className={labelCls}>Default download location</p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={pdfDownloadLocation}
-            onChange={(e) => setPdfDownloadLocation(e.target.value)}
-            placeholder="Ask each time (system default)"
-            className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
-          />
-          <button
-            onClick={async () => { const picked = await window.app.openFolderDialog(); if (picked) setPdfDownloadLocation(picked) }}
-            title="Choose folder"
-            className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            <FolderOpen size={14} />
-          </button>
-          {pdfDownloadLocation && (
-            <button
-              onClick={() => setPdfDownloadLocation('')}
-              title="Clear (ask each time)"
-              className="p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
-          When set, exported PDFs default to this folder. Leave empty to be prompted each time.
-        </p>
-      </div>
-
-      <p className="text-[10px] text-[rgb(var(--color-text-muted))] flex items-center gap-1.5">
-        <Eye size={11} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
-        These settings are the defaults. You can also adjust them per-note in the print preview (the Print / Export buttons in the notes editor).
-      </p>
-    </div>
-  )
-}
-
-type Section = 'appearance' | 'display' | 'notes' | 'history' | 'vault' | 'workspaces' | 'youtube' | 'word-replacer' | 'print' | 'viewer' | 'shortcuts' | 'updates' | 'about' | 'danger' | 'import'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'shortcuts' | 'data' | 'about' | 'viewer'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -897,14 +248,18 @@ export default function SettingsModal() {
   const setNoteVerseBlockSuggest = useAppStore((s) => s.setNoteVerseBlockSuggest)
   const noteStrongsBlockSuggest = useAppStore((s) => s.noteStrongsBlockSuggest)
   const setNoteStrongsBlockSuggest = useAppStore((s) => s.setNoteStrongsBlockSuggest)
-  const sidebarNewTabIconOnly = useAppStore((s) => s.sidebarNewTabIconOnly)
-  const setSidebarNewTabIconOnly = useAppStore((s) => s.setSidebarNewTabIconOnly)
   const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
   const setFloatingSearchDensity = useAppStore((s) => s.setFloatingSearchDensity)
   const defaultNoteEditorMode = useAppStore((s) => s.defaultNoteEditorMode)
   const setDefaultNoteEditorMode = useAppStore((s) => s.setDefaultNoteEditorMode)
   const confirmNoteDelete = useAppStore((s) => s.confirmNoteDelete)
   const setConfirmNoteDelete = useAppStore((s) => s.setConfirmNoteDelete)
+  const [migrationState, setMigrationState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'confirming' }
+    | { phase: 'running'; done: number; total: number }
+    | { phase: 'done'; result: MigrationResult }
+  >({ phase: 'idle' })
   const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
   const setShowVerseNumbers = useAppStore((s) => s.setShowVerseNumbers)
   const showRedLetters = useAppStore((s) => s.showRedLetters)
@@ -966,7 +321,6 @@ export default function SettingsModal() {
   const [vaultPath, setVaultPath] = useState('')
   const [exportingAll, setExportingAll] = useState(false)
   const [exportResult, setExportResult] = useState<{ notes?: number; highlights?: number; history?: number; pdfs?: number } | null>(null)
-  const [vaultAutoExportMinutes, setVaultAutoExportMinutes] = useState(0)
   const [importingAll, setImportingAll] = useState(false)
   const [importResult, setImportResult] = useState<{ success: boolean; notes?: number; highlights?: number; noteFolders?: number; pdfs?: number; reason?: string } | null>(null)
   const [watchHistory, setWatchHistory] = useState<WatchHistoryEntry[]>([])
@@ -980,7 +334,6 @@ export default function SettingsModal() {
     window.settings.getAll().then((all) => {
       if (all.vaultSync != null) setVaultSync(Boolean(all.vaultSync))
       if (all.vaultPath) setVaultPath(all.vaultPath as string)
-      if (all.vaultAutoExportMinutes != null) setVaultAutoExportMinutes(Number(all.vaultAutoExportMinutes) || 0)
     }).catch(() => {})
   }, [settingsOpen])
 
@@ -1034,6 +387,9 @@ export default function SettingsModal() {
   async function toggleVaultSync(enabled: boolean) {
     setVaultSync(enabled)
     await window.settings.set('vaultSync', enabled)
+    // Fixed safety-net export interval, not user-configurable — see
+    // AUTO_EXPORT_INTERVAL_MINUTES in electron/ipc/vault.ts.
+    await window.vault.setAutoExport(enabled ? 5 : 0)
     if (enabled) {
       window.vault.watchVault().catch(() => {})
       useAppStore.getState().bumpVaultSyncToken()
@@ -1062,22 +418,20 @@ export default function SettingsModal() {
     }
   }
 
-  const NAV: { id: Section; label: string; keywords?: string[] }[] = [
-    { id: 'appearance',    label: 'Appearance',    keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
-    { id: 'display',       label: 'Display',       keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible'] },
-    { id: 'notes',         label: 'Notes',         keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'codemirror'] },
-    { id: 'history',       label: 'History',       keywords: ['back', 'forward', 'nav', 'stack', 'entries', 'log', 'recent', 'tab history'] },
-    { id: 'vault',         label: 'Vault Sync',    keywords: ['sync', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
-    { id: 'workspaces',    label: 'Workspaces',    keywords: ['workspace', 'saved', 'layout', 'preset', 'panel'] },
-    { id: 'youtube',       label: 'YouTube',       keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions'] },
-    { id: 'word-replacer', label: 'Word Replacer', keywords: ['replace', 'word', 'substitute', 'name', 'yehovah', 'yeshua'] },
-    { id: 'print',         label: 'Print & Export', keywords: ['print', 'export', 'pdf', 'paper', 'margin', 'font size'] },
-    { id: 'viewer',        label: 'Viewer Window', keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
-    { id: 'shortcuts',     label: 'Shortcuts',     keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
-    { id: 'updates',       label: 'Updates',       keywords: ['update', 'version', 'beta', 'stable', 'auto-update'] },
-    { id: 'import',        label: 'Import',        keywords: ['import', 'esword', 'biblegateway', 'migrate'] },
-    { id: 'about',         label: 'About',         keywords: ['about', 'version', 'reset', 'license'] },
-    { id: 'danger',        label: 'Danger',        keywords: ['reset', 'clear', 'delete', 'wipe', 'factory'] },
+  // Reorganized from the previous 15 flat sections down to 9 — fewer top-level
+  // categories, related settings grouped together (e.g. History/Workspaces/Import/
+  // Danger are all "manage your data" concerns, so they live under one Data page
+  // with subheadings rather than 4 separate nav items).
+  const NAV: { id: Section; label: string; icon: typeof Palette; keywords?: string[] }[] = [
+    { id: 'appearance', label: 'Appearance', icon: Palette,   keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
+    { id: 'reading',    label: 'Reading',    icon: BookOpen,  keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible', 'translation', 'red letter', 'hermas'] },
+    { id: 'notes',      label: 'Notes',      icon: FileText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily'] },
+    { id: 'vault',      label: 'Sync',       icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
+    { id: 'youtube',    label: 'YouTube',    icon: Youtube,   keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions', 'layout'] },
+    { id: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard,  keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
+    { id: 'data',       label: 'Data',       icon: Database,  keywords: ['import', 'esword', 'biblegateway', 'migrate', 'history', 'workspace', 'saved', 'reset', 'clear', 'delete', 'wipe', 'factory', 'danger'] },
+    { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
+    { id: 'viewer',     label: 'Viewer Window', icon: Cast,   keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
   ]
 
   // Filter nav items by settings search query
@@ -1094,14 +448,14 @@ export default function SettingsModal() {
   return (
     <Dialog.Root open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" style={{ backdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
           className="
+            glass-panel-modal
             fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
             z-50 w-full max-w-2xl max-h-[80vh]
-            bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
-            rounded-xl shadow-2xl overflow-hidden flex flex-col
+            rounded-shell-lg overflow-hidden flex flex-col
           "
         >
           {/* Header */}
@@ -1113,7 +467,7 @@ export default function SettingsModal() {
             <button
               onClick={toggleCompact}
               title={compact ? 'Switch to expanded view (show descriptions)' : 'Switch to compact view (hide descriptions)'}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-shell text-[10px] font-medium transition-colors cursor-pointer border ${
                 compact
                   ? 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
                   : 'border-[rgb(var(--color-accent))/40] bg-[rgb(var(--color-accent))/8] text-[rgb(var(--color-accent))]'
@@ -1141,7 +495,7 @@ export default function SettingsModal() {
             <div className="w-36 border-r border-[rgb(var(--color-surface-4))] flex-shrink-0 flex flex-col overflow-hidden">
               {/* Search bar */}
               <div className="px-1.5 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
-                <div className="flex items-center gap-1 px-2 py-1 rounded bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+                <div className="flex items-center gap-1 px-2 py-1 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
                   <SearchIcon size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                   <input
                     value={settingsSearch}
@@ -1177,17 +531,14 @@ export default function SettingsModal() {
                 <button
                   key={n.id}
                   onClick={() => { setSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
-                    n.id === 'danger'
-                      ? section === n.id
-                        ? 'bg-red-500/15 text-red-400'
-                        : 'text-red-400/70 hover:bg-red-500/10 hover:text-red-400'
-                      : section === n.id
-                        ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                        : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                  className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-shell text-xs transition-colors cursor-pointer ${
+                    section === n.id
+                      ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                      : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
                   }`}
                 >
-                  {n.label}
+                  <n.icon size={13} className="flex-shrink-0" />
+                  <span className="truncate">{n.label}</span>
                 </button>
               ))}
               </div>
@@ -1355,7 +706,7 @@ export default function SettingsModal() {
                 </>
               )}
 
-              {section === 'display' && (
+              {section === 'reading' && (
                 <>
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default translation</p>
@@ -1485,24 +836,6 @@ export default function SettingsModal() {
                     </div>
                   </div>
 
-                  {/* Sidebar new-tab button style */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Compact sidebar space buttons</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-                        Show Scripture / Notes / Lexicon / YouTube as a single row of icon chips instead of a column. Hover to reveal a + indicator.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSidebarNewTabIconOnly(!sidebarNewTabIconOnly)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        sidebarNewTabIconOnly ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sidebarNewTabIconOnly ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
-
                   {/* Auto-close tabs */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Auto-close inactive tabs</p>
@@ -1576,18 +909,16 @@ export default function SettingsModal() {
                     </button>
                   </div>
 
-                  {/* ── Continuous daily notes scroll ── */}
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous daily notes scroll</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">In the Daily filter view, scroll through consecutive days as a journal with date dividers — click any day to open it for editing</p>
-                    </div>
-                    <button
-                      onClick={() => setContinuousDailyScroll(!continuousDailyScroll)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousDailyScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousDailyScroll ? 'translate-x-5' : ''}`} />
-                    </button>
+                  {/* ── Word replacer (divine-name restoration etc.) — affects how
+                       scripture text displays, so it lives here rather than Notes ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Word replacer</p>
+                    <WordReplacerSection
+                      enabled={wordReplacerEnabled}
+                      rules={wordReplacerRules}
+                      onToggleEnabled={setWordReplacerEnabled}
+                      onToggleRule={toggleWordReplacerRule}
+                    />
                   </div>
                 </>
               )}
@@ -1670,82 +1001,72 @@ export default function SettingsModal() {
                     </button>
                   </div>
 
-                  {/* Side-panel note editor: verse/Strong's block SUGGESTION popups (independent) */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Suggest verse &amp; Strong's blocks in side panel</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-                        In the scripture tab's side-panel note editor, show the popups that offer to turn a typed reference (e.g. Gen 1:1) or Strong's number into a block. Blocks already in the note still format either way.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSidePanelScriptureBlock(!sidePanelScriptureBlock)}
-                      role="switch" aria-checked={sidePanelScriptureBlock}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${
-                        sidePanelScriptureBlock ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'
-                      }`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sidePanelScriptureBlock ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
-
-                  {/* Verse-text match threshold slider — only when auto-format is on */}
-                  {noteScriptureBlock && (
-                    <div className="pl-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-medium text-[rgb(var(--color-text-secondary))]">Verse-text match sensitivity</p>
-                        <span className="text-xs font-mono text-[rgb(var(--color-accent))]">{Math.round(noteScriptureBlockThreshold * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={50}
-                        max={100}
-                        step={5}
-                        value={Math.round(noteScriptureBlockThreshold * 100)}
-                        onChange={(e) => setNoteScriptureBlockThreshold(Number(e.target.value) / 100)}
-                        className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
-                      />
-                      <p className="text-[11px] text-[rgb(var(--color-text-muted))] mt-1 leading-relaxed">
-                        A line only formats when at least this percent of the actual verse text is present. Higher = stricter. This prevents formatting a line where you're just commenting on a verse (e.g. <span className="font-mono text-[10px]">Genesis 5:4 my thoughts here</span>).
-                      </p>
-                    </div>
-                  )}
-
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <kbd className="font-mono text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧R</kbd> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
 
-                  {/* Strong's block suggestion */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
-                    </div>
-                    <button
-                      role="switch" aria-checked={noteStrongsBlockSuggest}
-                      onClick={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteStrongsBlockSuggest ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteStrongsBlockSuggest ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
+                  {/* ── Advanced: fine-tuning knobs for the block-suggestion system,
+                       tucked away rather than sitting flat alongside everyday toggles ── */}
+                  <details className="group">
+                    <summary className="text-xs font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] cursor-pointer select-none list-none flex items-center gap-1">
+                      <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                      Advanced
+                    </summary>
+                    <div className="mt-3 space-y-4 pl-4 border-l border-[rgb(var(--color-surface-4))]">
+                      {/* Side-panel note editor: verse/Strong's block SUGGESTION popups (independent) */}
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Suggest verse &amp; Strong's blocks in side panel</p>
+                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                            In the scripture tab's side-panel note editor, show the popups that offer to turn a typed reference (e.g. Gen 1:1) or Strong's number into a block. Blocks already in the note still format either way.
+                          </p>
+                        </div>
+                        <Switch checked={sidePanelScriptureBlock} onCheckedChange={() => setSidePanelScriptureBlock(!sidePanelScriptureBlock)} />
+                      </div>
 
-                  {/* Verse block suggestion */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
+                      {/* Verse-text match threshold slider — only when auto-format is on */}
+                      {noteScriptureBlock && (
+                        <div className="pl-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-medium text-[rgb(var(--color-text-secondary))]">Verse-text match sensitivity</p>
+                            <span className="text-xs font-mono text-[rgb(var(--color-accent))]">{Math.round(noteScriptureBlockThreshold * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={50}
+                            max={100}
+                            step={5}
+                            value={Math.round(noteScriptureBlockThreshold * 100)}
+                            onChange={(e) => setNoteScriptureBlockThreshold(Number(e.target.value) / 100)}
+                            className="w-full accent-[rgb(var(--color-accent))] cursor-pointer"
+                          />
+                          <p className="text-[11px] text-[rgb(var(--color-text-muted))] mt-1 leading-relaxed">
+                            A line only formats when at least this percent of the actual verse text is present. Higher = stricter. This prevents formatting a line where you're just commenting on a verse (e.g. <span className="font-mono text-[10px]">Genesis 5:4 my thoughts here</span>).
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Strong's block suggestion */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
+                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
+                        </div>
+                        <Switch checked={noteStrongsBlockSuggest} onCheckedChange={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)} />
+                      </div>
+
+                      {/* Verse block suggestion */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
+                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
+                        </div>
+                        <Switch checked={noteVerseBlockSuggest} onCheckedChange={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)} />
+                      </div>
                     </div>
-                    <button
-                      role="switch" aria-checked={noteVerseBlockSuggest}
-                      onClick={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)}
-                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${noteVerseBlockSuggest ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteVerseBlockSuggest ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
+                  </details>
 
                   {/* Markdown reference guide */}
                   <div>
@@ -1834,11 +1155,11 @@ export default function SettingsModal() {
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Default editor mode</p>
-                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Starting view when opening a note — Raw shows all syntax, Edit hides markers while typing, View is read-only</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Starting view when opening a note — Edit is editable, View is read-only</p>
                     </div>
                     <div className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 gap-px flex-shrink-0">
-                      {(['raw', 'wysiwyg', 'preview'] as const).map((m) => {
-                        const labels: Record<string, string> = { raw: 'Raw', wysiwyg: 'Edit', preview: 'View' }
+                      {(['edit', 'view'] as const).map((m) => {
+                        const labels: Record<string, string> = { edit: 'Edit', view: 'View' }
                         const isActive = defaultNoteEditorMode === m
                         return (
                           <button
@@ -1871,6 +1192,105 @@ export default function SettingsModal() {
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${confirmNoteDelete ? 'translate-x-5' : ''}`} />
                     </button>
+                  </div>
+
+                  {/* ── Normalize note formatting (post-ProseMirror-migration) ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Normalize note formatting</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                          Notes written under the old editor may render slightly differently now (line breaks, table spacing, list style).
+                          This re-saves every note through the new editor once so they all look consistent — the original content of any
+                          changed note is kept in Version History first.
+                        </p>
+                      </div>
+                      {migrationState.phase === 'idle' && (
+                        <button
+                          onClick={() => setMigrationState({ phase: 'confirming' })}
+                          className="flex-shrink-0 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-colors bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
+                        >
+                          Normalize all notes
+                        </button>
+                      )}
+                    </div>
+
+                    {migrationState.phase === 'confirming' && (
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <span className="text-xs text-[rgb(var(--color-text-muted))]">Re-save every note now? (originals are kept in Version History)</span>
+                        <button
+                          onClick={() => setMigrationState({ phase: 'idle' })}
+                          className="px-2.5 py-1 rounded text-xs cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setMigrationState({ phase: 'running', done: 0, total: 0 })
+                            const result = await migrateAllNotes((p) => setMigrationState({ phase: 'running', done: p.done, total: p.total }))
+                            setMigrationState({ phase: 'done', result })
+                          }}
+                          className="px-2.5 py-1 rounded text-xs font-medium cursor-pointer bg-[rgb(var(--color-accent))] text-white hover:opacity-90"
+                        >
+                          Normalize now
+                        </button>
+                      </div>
+                    )}
+
+                    {migrationState.phase === 'running' && (
+                      <div className="mt-2">
+                        <div className="h-1.5 rounded-full bg-[rgb(var(--color-surface-3))] overflow-hidden">
+                          <div
+                            className="h-full bg-[rgb(var(--color-accent))] transition-all"
+                            style={{ width: migrationState.total > 0 ? `${(migrationState.done / migrationState.total) * 100}%` : '2%' }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1">
+                          {migrationState.total > 0 ? `${migrationState.done} / ${migrationState.total} notes checked…` : 'Starting…'}
+                        </p>
+                      </div>
+                    )}
+
+                    {migrationState.phase === 'done' && (
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-[rgb(var(--color-text-secondary))]">
+                          {migrationState.result.changed} note{migrationState.result.changed === 1 ? '' : 's'} updated,{' '}
+                          {migrationState.result.unchanged} already fine
+                          {migrationState.result.failed > 0 ? `, ${migrationState.result.failed} failed (unchanged, safe to retry)` : ''}.
+                        </p>
+                        <button
+                          onClick={() => setMigrationState({ phase: 'idle' })}
+                          className="flex-shrink-0 px-2.5 py-1 rounded text-xs cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))]"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Daily notes ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Daily notes</p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Continuous daily notes scroll</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">In the Daily filter view, scroll through consecutive days as a journal with date dividers — click any day to open it for editing</p>
+                      </div>
+                      <button
+                        onClick={() => setContinuousDailyScroll(!continuousDailyScroll)}
+                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${continuousDailyScroll ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${continuousDailyScroll ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Print & export defaults — co-located since it's the same
+                       "notes output" concern; per-note overrides still live in the
+                       print-preview modal itself. ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Print &amp; export defaults</p>
+                    <PrintExportSection />
                   </div>
 
                   {/* ── Idiom notes ── */}
@@ -1907,15 +1327,13 @@ export default function SettingsModal() {
                 </div>
               )}
 
-              {section === 'history' && <HistorySection />}
-
               {section === 'vault' && (
                 <>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Markdown vault sync</p>
                       <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-                        Write notes to a local Markdown folder. Changes made externally are synced back. Works with Obsidian, Logseq, iA Writer, or any Markdown app.
+                        Write notes to a local Markdown folder and keep them in sync automatically — your edits save immediately, and changes made externally (Obsidian, Octarine, Logseq, iA Writer, or any Markdown app) are picked up live.
                       </p>
                     </div>
                     <button
@@ -1960,137 +1378,95 @@ export default function SettingsModal() {
                     )}
                   </div>
 
-                  {vaultSync && vaultPath && (
-                    <VaultReconcileButton />
-                  )}
+                  {/* Status + one combined manual sync action — replaces the old separate
+                      export/import/reconcile buttons for routine use. */}
+                  {vaultSync && vaultPath && <VaultSyncStatus />}
 
-                  {/* Auto-export interval + manual export trigger */}
+                  {/* Advanced: raw export/import, for first-time migration or troubleshooting.
+                      Collapsed by default — not part of the routine sync flow. */}
                   {vaultPath && (
-                    <div className="space-y-3">
-                      {/* Interval picker */}
-                      <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Auto-export interval</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
-                          Automatically write all data (notes, highlights, history, settings, PDFs) to the vault folder on a schedule. A final export also runs automatically when the app closes.
-                        </p>
-                        <div className="flex items-center gap-1.5 bg-[rgb(var(--color-surface-4))] rounded-lg p-0.5 w-fit flex-wrap">
-                          {([
-                            { label: 'Off',     value: 0  },
-                            { label: '5 min',   value: 5  },
-                            { label: '15 min',  value: 15 },
-                            { label: '30 min',  value: 30 },
-                            { label: '1 hour',  value: 60 },
-                          ] as { label: string; value: number }[]).map(({ label, value }) => (
-                            <button
-                              key={value}
-                              onClick={async () => {
-                                setVaultAutoExportMinutes(value)
-                                await window.settings.set('vaultAutoExportMinutes', value)
-                                await window.vault.setAutoExport(value)
-                              }}
-                              className={`text-[10px] px-3 py-1 rounded cursor-pointer transition-colors ${
-                                vaultAutoExportMinutes === value
-                                  ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm'
-                                  : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                        {vaultAutoExportMinutes > 0 && (
-                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
-                            Exports every {vaultAutoExportMinutes} min · also exports on app close
-                          </p>
-                        )}
-                        {vaultAutoExportMinutes === 0 && (
-                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1.5">
-                            Auto-export off · still exports on app close when a vault path is set
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Manual export / import buttons */}
-                      <div className="flex gap-2 flex-wrap items-start">
-                        <div>
-                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <button
-                              onClick={async () => {
-                                setExportingAll(true)
-                                setExportResult(null)
-                                try {
-                                  const res = await window.vault.exportAll()
-                                  if (res.success) {
-                                    setExportResult({ notes: res.notes, highlights: res.highlights, history: res.history, pdfs: res.pdfs })
-                                    setTimeout(() => setExportResult(null), 8000)
+                    <details className="group">
+                      <summary className="text-xs font-medium text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] cursor-pointer select-none list-none flex items-center gap-1">
+                        <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                        Advanced
+                      </summary>
+                      <div className="mt-3 space-y-3 pl-4 border-l border-[rgb(var(--color-surface-4))]">
+                        <div className="flex gap-2 flex-wrap items-start">
+                          <div>
+                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button
+                                onClick={async () => {
+                                  setExportingAll(true)
+                                  setExportResult(null)
+                                  try {
+                                    const res = await window.vault.exportAll()
+                                    if (res.success) {
+                                      setExportResult({ notes: res.notes, highlights: res.highlights, history: res.history, pdfs: res.pdfs })
+                                      setTimeout(() => setExportResult(null), 8000)
+                                    }
+                                  } finally {
+                                    setExportingAll(false)
                                   }
-                                } finally {
-                                  setExportingAll(false)
-                                }
-                              }}
-                              disabled={exportingAll}
-                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer disabled:opacity-40 transition-colors"
-                            >
-                              {exportingAll ? 'Exporting…' : 'Export all data now'}
-                            </button>
-                            {exportResult && (
-                              <p className="text-[10px] text-emerald-400">
-                                ✓ {exportResult.notes} notes · {exportResult.highlights} highlights · {exportResult.history} history entries · {exportResult.pdfs} PDFs
-                              </p>
-                            )}
+                                }}
+                                disabled={exportingAll}
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer disabled:opacity-40 transition-colors"
+                              >
+                                {exportingAll ? 'Exporting…' : 'Export all data now'}
+                              </button>
+                              {exportResult && (
+                                <p className="text-[10px] text-emerald-400">
+                                  ✓ {exportResult.notes} notes · {exportResult.highlights} highlights · {exportResult.history} history entries · {exportResult.pdfs} PDFs
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button
+                                onClick={async () => {
+                                  setImportingAll(true)
+                                  setImportResult(null)
+                                  try {
+                                    const res = await window.vault.importAll()
+                                    setImportResult(res)
+                                    if (res.tabState) {
+                                      try { localStorage.setItem('berean-app-state', res.tabState) } catch { /* ignore */ }
+                                    }
+                                    setTimeout(() => setImportResult(null), 10000)
+                                  } finally {
+                                    setImportingAll(false)
+                                  }
+                                }}
+                                disabled={importingAll}
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/15] hover:text-[rgb(var(--color-accent))] cursor-pointer disabled:opacity-40 transition-colors"
+                              >
+                                {importingAll ? 'Importing…' : 'Restore from vault'}
+                              </button>
+                              {importResult && (
+                                <p className={`text-[10px] ${importResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {importResult.success
+                                    ? `✓ ${importResult.notes} notes · ${importResult.highlights} highlights · ${importResult.noteFolders} folders · ${importResult.pdfs} PDFs`
+                                    : `Failed: ${importResult.reason}`}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <button
-                              onClick={async () => {
-                                setImportingAll(true)
-                                setImportResult(null)
-                                try {
-                                  const res = await window.vault.importAll()
-                                  setImportResult(res)
-                                  if (res.tabState) {
-                                    try { localStorage.setItem('berean-app-state', res.tabState) } catch { /* ignore */ }
-                                  }
-                                  setTimeout(() => setImportResult(null), 10000)
-                                } finally {
-                                  setImportingAll(false)
-                                }
-                              }}
-                              disabled={importingAll}
-                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/15] hover:text-[rgb(var(--color-accent))] cursor-pointer disabled:opacity-40 transition-colors"
-                            >
-                              {importingAll ? 'Importing…' : 'Restore from vault'}
-                            </button>
-                            {importResult && (
-                              <p className={`text-[10px] ${importResult.success ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {importResult.success
-                                  ? `✓ ${importResult.notes} notes · ${importResult.highlights} highlights · ${importResult.noteFolders} folders · ${importResult.pdfs} PDFs`
-                                  : `Failed: ${importResult.reason}`}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                        {importingAll && (
+                          <p className="text-[10px] text-[rgb(var(--color-text-muted))]">Importing from vault — vault data takes precedent over local data…</p>
+                        )}
                       </div>
-
-                      {importingAll && (
-                        <p className="text-[10px] text-[rgb(var(--color-text-muted))]">Importing from vault — vault data takes precedent over local data…</p>
-                      )}
-                    </div>
+                    </details>
                   )}
 
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-                      All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there on a schedule and on close. Vault data is never deleted when the app is uninstalled. To restore after a reinstall or on a new machine, point to the same vault folder and click <strong>Restore from vault</strong> (or set the path — it imports automatically if data is found).
+                      All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there as you edit, watches for external changes, and periodically re-exports everything as a safety net. Vault data is never deleted when the app is uninstalled — to restore after a reinstall or on a new machine, just point to the same vault folder; it imports automatically when data is found.
                     </p>
                   </div>
                 </>
-              )}
-
-              {section === 'workspaces' && (
-                <WorkspacesSection />
               )}
 
               {section === 'youtube' && (
@@ -2300,15 +1676,6 @@ export default function SettingsModal() {
                 </>
               )}
 
-              {section === 'word-replacer' && (
-                <WordReplacerSection
-                  enabled={wordReplacerEnabled}
-                  rules={wordReplacerRules}
-                  onToggleEnabled={setWordReplacerEnabled}
-                  onToggleRule={toggleWordReplacerRule}
-                />
-              )}
-
               {section === 'shortcuts' && (
                 <div>
                   <div className="flex items-center gap-2 mb-4">
@@ -2332,8 +1699,6 @@ export default function SettingsModal() {
                   </div>
                 </div>
               )}
-
-              {section === 'print' && <PrintExportSection />}
 
               {section === 'viewer' && (
                 <div className="flex flex-col gap-6">
@@ -2384,16 +1749,42 @@ export default function SettingsModal() {
                 </div>
               )}
 
-              {section === 'updates' && <UpdatesSection />}
-
-              {section === 'import' && <ImportSection />}
-
-              {section === 'about' && (
-                <AboutSection />
+              {/* "Manage your data" hub — merges what were 4 separate nav items
+                  (Import, History, Workspaces, Danger) into one page. Danger-zone
+                  actions stay visually distinct at the bottom rather than living
+                  at equal footing with routine settings in their own nav entry. */}
+              {section === 'data' && (
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Import</p>
+                    <ImportSection />
+                  </div>
+                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Navigation &amp; app history</p>
+                    <HistorySection />
+                  </div>
+                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Workspaces</p>
+                    <WorkspacesSection />
+                  </div>
+                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                    <SessionsSection />
+                  </div>
+                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                    <DangerSection />
+                  </div>
+                </div>
               )}
 
-              {section === 'danger' && (
-                <DangerSection />
+              {/* Merges the two small About/Updates nav items into one page. */}
+              {section === 'about' && (
+                <div className="space-y-6">
+                  <AboutSection />
+                  <div className="pt-4 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Updates</p>
+                    <UpdatesSection />
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -2405,17 +1796,25 @@ export default function SettingsModal() {
 
 // ── Vault reconcile ───────────────────────────────────────────────────────────
 
-function VaultReconcileButton() {
+// Replaces the old separate export / import / reconcile buttons for routine use:
+// one status line + one "Sync now" action that reconciles inbound changes and
+// exports outbound changes in a single step. Manual per-direction control still
+// exists, just tucked behind the "Advanced" disclosure above.
+function VaultSyncStatus() {
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
-  const [result, setResult] = useState<{ updated: number; skipped: number } | null>(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null)
 
-  async function reconcile() {
+  async function syncNow() {
     setStatus('running')
     try {
-      const r = await window.vault.reconcile()
-      if (r.success) {
-        setResult({ updated: r.updated, skipped: r.skipped })
+      const [reconcileRes, exportRes] = await Promise.all([
+        window.vault.reconcile(),
+        window.vault.exportAll(),
+      ])
+      if (reconcileRes.success && exportRes.success) {
+        setLastSyncedAt(Date.now())
         setStatus('done')
+        setTimeout(() => setStatus('idle'), 4000)
       } else {
         setStatus('error')
       }
@@ -2427,20 +1826,21 @@ function VaultReconcileButton() {
   return (
     <div className="flex items-center gap-3">
       <button
-        onClick={reconcile}
+        onClick={syncNow}
         disabled={status === 'running'}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-50"
       >
         <RefreshCw size={11} className={status === 'running' ? 'animate-spin' : ''} />
-        {status === 'running' ? 'Scanning…' : 'Reconcile now'}
+        {status === 'running' ? 'Syncing…' : 'Sync now'}
       </button>
-      {status === 'done' && result && (
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
-          {result.updated} updated · {result.skipped} unchanged
-        </p>
+      {status === 'idle' && !lastSyncedAt && (
+        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">Syncing automatically</p>
+      )}
+      {status === 'done' && (
+        <p className="text-xs text-emerald-400">✓ Synced just now</p>
       )}
       {status === 'error' && (
-        <p className="text-xs text-red-400">Reconcile failed — check vault path</p>
+        <p className="text-xs text-red-400">Sync failed — check vault path</p>
       )}
     </div>
   )
@@ -2448,574 +1848,11 @@ function VaultReconcileButton() {
 
 // ── Workspaces ────────────────────────────────────────────────────────────────
 
-function WorkspacesSection() {
-  const panelLayout = useAppStore((s) => s.panelLayout)
-  const tabs = useAppStore((s) => s.tabs)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const savedWorkspaces = useAppStore((s) => s.savedWorkspaces)
-  const setSavedWorkspaces = useAppStore((s) => s.setSavedWorkspaces)
-  const updatePanelLayout = useAppStore((s) => s.updatePanelLayout)
 
-  const [newName, setNewName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
 
-  useEffect(() => {
-    window.workspaces.list().then(setSavedWorkspaces).catch(() => {})
-  }, [setSavedWorkspaces])
 
-  async function saveWorkspace() {
-    if (!newName.trim()) return
-    setSaving(true)
-    try {
-      const layoutJson = JSON.stringify(panelLayout)
-      const stateJson = JSON.stringify({ tabs, activeTabId })
-      const ws = await window.workspaces.save(newName.trim(), layoutJson, stateJson)
-      setSavedWorkspaces([ws, ...savedWorkspaces])
-      setNewName('')
-    } finally {
-      setSaving(false)
-    }
-  }
 
-  async function loadWorkspace(id: string) {
-    const ws = await window.workspaces.load(id).catch(() => null)
-    if (!ws) return
-    try {
-      const layout = JSON.parse(ws.layout_json)
-      updatePanelLayout(layout)
-    } catch {}
-  }
 
-  async function deleteWorkspace(id: string) {
-    await window.workspaces.delete(id).catch(() => {})
-    setSavedWorkspaces(savedWorkspaces.filter((w) => w.id !== id))
-  }
 
-  async function finishRename(id: string) {
-    const name = renameValue.trim()
-    if (name) {
-      await window.workspaces.rename(id, name).catch(() => {})
-      setSavedWorkspaces(savedWorkspaces.map((w) => w.id === id ? { ...w, name } : w))
-    }
-    setRenamingId(null)
-    setRenameValue('')
-  }
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Saved workspaces</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
-          Save a named snapshot of the current panel layout. Load it later to restore that arrangement. Tab contents are not restored — only the panel split configuration.
-        </p>
-      </div>
 
-      {/* Save current */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && saveWorkspace()}
-          placeholder="Name this workspace…"
-          className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
-        />
-        <button
-          onClick={saveWorkspace}
-          disabled={!newName.trim() || saving}
-          className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-        >
-          Save
-        </button>
-      </div>
-
-      {/* List */}
-      {savedWorkspaces.length === 0 ? (
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] text-center py-4">No saved workspaces yet</p>
-      ) : (
-        <div className="space-y-1.5">
-          {savedWorkspaces.map((ws) => (
-            <div key={ws.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-              {renamingId === ws.id ? (
-                <input
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') finishRename(ws.id)
-                    if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-                  }}
-                  onBlur={() => finishRename(ws.id)}
-                  autoFocus
-                  className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none border-b border-[rgb(var(--color-accent))]"
-                />
-              ) : (
-                <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] truncate">{ws.name}</span>
-              )}
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
-                {new Date(ws.created_at).toLocaleDateString()}
-              </span>
-              <button
-                onClick={() => loadWorkspace(ws.id)}
-                title="Load this workspace"
-                className="text-[10px] px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                Load
-              </button>
-              <button
-                onClick={() => { setRenamingId(ws.id); setRenameValue(ws.name) }}
-                title="Rename"
-                className="text-[10px] px-2 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                Rename
-              </button>
-              <button
-                onClick={() => deleteWorkspace(ws.id)}
-                title="Delete this workspace"
-                className="text-[rgb(var(--color-text-muted))] hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-type ImportTab = 'biblegateway' | 'esword'
-
-function ImportSection() {
-  const importInitialTab = useAppStore((s) => s.importInitialTab)
-  const [activeTab, setActiveTab] = useState<ImportTab>(importInitialTab)
-
-  // Sync to whatever tab was requested when the modal was opened
-  useEffect(() => {
-    setActiveTab(importInitialTab)
-  }, [importInitialTab])
-
-  return (
-    <div className="space-y-0 -mx-6 -mt-6">
-      {/* Tab bar */}
-      <div className="flex border-b border-[rgb(var(--color-surface-4))] px-6 mb-0">
-        {([
-          ['biblegateway', BookOpen, 'BibleGateway'],
-          ['esword',       Sword,    'e-Sword'],
-        ] as [ImportTab, typeof BookOpen, string][]).map(([id, Icon, label]) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
-              activeTab === id
-                ? 'border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]'
-                : 'border-transparent text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-            }`}
-          >
-            <Icon size={13} />
-            {label}
-          </button>
-        ))}
-      </div>
-      {/* Content */}
-      <div className="px-6 pt-5">
-        {activeTab === 'biblegateway' && <BibleGatewayImporter />}
-        {activeTab === 'esword' && <ESwordImporter />}
-      </div>
-    </div>
-  )
-}
-
-// ── Dev-only: simulate first launch ──────────────────────────────────────────
-
-function SimulateFirstLaunchButton() {
-  const [confirming, setConfirming] = useState(false)
-  const [busy, setBusy] = useState(false)
-
-  async function handleReset() {
-    if (!confirming) { setConfirming(true); return }
-    setBusy(true)
-    try {
-      // 1. Clear every onboarding/tasks/vault-setup setting from SQLite
-      const keysToReset = [
-        'onboardingCompleted',
-        'vaultSync',
-        'vaultPath',
-        'autoUpdate',
-      ]
-      await Promise.all(keysToReset.map(k => window.settings?.set(k, null).catch(() => {})))
-
-      // 2. Immediately wipe in-memory tabs so nothing leaks into the next render
-      const emptyTabs = { scripture: [], notes: [], lexicon: [], youtube: [], search: [] }
-      const emptyActiveTabId = { scripture: null, notes: null, lexicon: null, youtube: null, search: null }
-      useAppStore.setState({
-        tabs: emptyTabs,
-        activeTabId: emptyActiveTabId,
-        sessions: [{ id: 'default', name: 'Session 1', tabs: emptyTabs, activeTabId: emptyActiveTabId }],
-        currentSessionId: 'default',
-        sessionDisplayOrders: {},
-        onboardingCompleted: false,
-        tasksVisible: false,
-        completedTaskIds: [],
-        completedStepIds: [],
-        verseNoteToken: 0,
-        strongsHoverToken: 0,
-        versePopoverToken: 0,
-        noteEditToken: 0,
-        tableInsertToken: 0,
-        settingsNavToken: 0,
-        floatingTabToken: 0,
-        youtubePipToken: 0,
-        vaultSyncToken: 0,
-      })
-
-      // 3. Wipe the Zustand localStorage store so it reinitialises with defaults
-      //    (tabs, tasks, theme, etc. all return to factory state)
-      localStorage.removeItem('berean-app-state')
-
-      // 4. Reload — App.tsx mount effect will see onboardingCompleted=false and
-      //    open the onboarding wizard, exactly as on first install.
-      location.reload()
-    } catch {
-      setBusy(false)
-      setConfirming(false)
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-orange-500/40 bg-orange-500/5">
-      <span className="text-[10px] font-mono text-orange-400 flex-shrink-0">DEV</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-orange-300">Simulate first launch</p>
-        <p className="text-[10px] text-orange-400/70 leading-snug">
-          Clears all onboarding state &amp; reloads. Tests the full first-run experience.
-        </p>
-      </div>
-      <button
-        onClick={handleReset}
-        disabled={busy}
-        className={`flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50 ${
-          confirming
-            ? 'bg-orange-500 text-white hover:bg-orange-600'
-            : 'bg-[rgb(var(--color-surface-4))] text-orange-300 hover:bg-orange-500/20'
-        }`}
-      >
-        {busy ? 'Resetting…' : confirming ? 'Confirm reset' : 'Reset'}
-      </button>
-      {confirming && !busy && (
-        <button
-          onClick={() => setConfirming(false)}
-          className="flex-shrink-0 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-        >
-          Cancel
-        </button>
-      )}
-    </div>
-  )
-}
-
-function RebuildSeedButton() {
-  const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
-  const [result, setResult] = useState('')
-
-  async function handleRebuild() {
-    if (status === 'busy') return
-    setStatus('busy')
-    setResult('')
-    try {
-      const res = await window.youtube.buildSeed()
-      if ('error' in res) {
-        setStatus('error')
-        setResult(res.error)
-      } else {
-        setStatus('done')
-        setResult(`${res.videos} videos · ${res.transcripts} transcripts · ${res.segments} segments`)
-      }
-    } catch (err) {
-      setStatus('error')
-      setResult(String(err))
-    }
-  }
-
-  return (
-    <div className="flex items-start gap-2">
-      <button
-        onClick={handleRebuild}
-        disabled={status === 'busy'}
-        className="flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-medium bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-accent))/20] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer disabled:opacity-50"
-      >
-        {status === 'busy' ? 'Building…' : 'Rebuild youtube_seed.db'}
-      </button>
-      {status !== 'idle' && status !== 'busy' && (
-        <span className={`text-[11px] mt-0.5 ${status === 'done' ? 'text-green-400' : 'text-red-400'}`}>
-          {status === 'done' ? `Done — ${result}` : `Error: ${result}`}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function AboutSection() {
-  const closeSettings = useAppStore((s) => s.closeSettings)
-  const openOnboarding = useAppStore((s) => s.openOnboarding)
-  const resetTasks = useAppStore((s) => s.resetTasks)
-  const [version, setVersion] = useState('')
-  const [isDev, setIsDev] = useState(false)
-  const [showDevGuide, setShowDevGuide] = useState(false)
-  const [recreating, setRecreating] = useState(false)
-
-  useEffect(() => {
-    window.app.getVersion().then(setVersion).catch(() => {})
-    window.app.isDev?.().then(setIsDev).catch(() => {})
-  }, [])
-
-  function handleReplayOnboarding() {
-    closeSettings()
-    setTimeout(() => {
-      window.settings?.set('onboardingCompleted', false).catch(() => {})
-      resetTasks()
-      openOnboarding()
-    }, 200)
-  }
-
-  async function handleRecreateNotes() {
-    setRecreating(true)
-    try {
-      const { createGettingStartedNotes } = await import('@/components/shell/Onboarding')
-      await createGettingStartedNotes()
-    } catch { /* non-fatal */ } finally {
-      setRecreating(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">Berean</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Desktop Bible study for Yehovah's servants</p>
-        <span className="s-desc text-xs text-[rgb(var(--color-text-muted))] font-mono mt-2 block">
-          {version ? `v${version}` : '—'}{isDev ? ' (dev)' : ''}
-        </span>
-      </div>
-
-      {/* Replay onboarding */}
-      <button
-        onClick={handleReplayOnboarding}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left"
-      >
-        <RotateCcw size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
-        Replay getting started walkthrough
-      </button>
-
-      {/* Recreate Getting Started notes */}
-      <button
-        onClick={handleRecreateNotes}
-        disabled={recreating}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left disabled:opacity-50"
-      >
-        <BookOpen size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
-        {recreating ? 'Creating…' : 'Recreate Getting Started notes'}
-      </button>
-      <div className="p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-          Texts included: KJV, KJVA (with Apocrypha), Brenton LXX, 1 Enoch, Jubilees, Apocalypse of Elijah,
-          Ascension of Isaiah, Epistle of Barnabas (Sharpe 1880), Testaments of the Twelve Patriarchs,
-          Recognitions of Clement, and Shepherd of Hermas — all public domain.
-          Strong's lexicons from OpenScriptures.
-        </p>
-      </div>
-      {isDev && (
-        <div className="space-y-2">
-          {/* ── Simulate first launch ─────────────────────────────── */}
-          <SimulateFirstLaunchButton />
-
-          <button
-            onClick={() => setShowDevGuide((v) => !v)}
-            className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            {showDevGuide ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            Developer release workflow
-          </button>
-          {showDevGuide && (
-            <div className="mt-2 p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] space-y-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">How to release a new version</p>
-              <ol className="space-y-1.5 text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed list-none">
-                {[
-                  ['1', 'Bump the version in package.json (e.g. "0.1.0" → "0.2.0")'],
-                  ['2', 'Run: export GH_TOKEN=your_token (needs "repo" scope on RoyalWeden/Berean)'],
-                  ['3', 'Run: npm run build:draft — builds the arm64 DMG and creates a draft GitHub Release'],
-                  ['4', 'Go to github.com/RoyalWeden/Berean/releases → review the draft → click Publish'],
-                  ['5', 'The installed beta app auto-checks on next launch (6 s delay) and shows a notification'],
-                ].map(([n, text]) => (
-                  <li key={n} className="flex gap-2">
-                    <span className="text-[rgb(var(--color-accent))] font-mono flex-shrink-0">{n}.</span>
-                    <span>{text}</span>
-                  </li>
-                ))}
-              </ol>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Local test build (no GitHub)</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))]">Run <kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1 rounded">npm run build:local</kbd> — outputs the DMG to <span className="font-mono">release/</span> without publishing</p>
-              </div>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Data separation</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))]">Dev userData: <span className="font-mono">~/Library/Application Support/Berean-dev</span> · Prod: <span className="font-mono">~/Library/Application Support/Berean</span></p>
-              </div>
-              <div className="border-t border-[rgb(var(--color-surface-4))] pt-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Transcript seed workflow</p>
-                <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-2">
-                  After running <span className="font-mono">fetchTranscripts</span> in the YouTube tab, rebuild the seed DB so the next release ships updated data to users.
-                  Then bump <span className="font-mono">SEED_VERSION</span> in <span className="font-mono">electron/db/berean.ts</span> before building.
-                </p>
-                <RebuildSeedButton />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Danger zone ────────────────────────────────────────────────────────────────
-
-interface DangerAction {
-  id: string
-  title: string
-  description: string
-  confirmWord: string
-  buttonLabel: string
-  onConfirm: () => Promise<void>
-}
-
-function DangerCard({ action }: { action: DangerAction }) {
-  const [inputValue, setInputValue] = useState('')
-  const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
-
-  const isReady = inputValue.trim().toLowerCase() === action.confirmWord.toLowerCase()
-
-  async function handleClick() {
-    if (!isReady || status === 'busy') return
-    setStatus('busy')
-    try {
-      await action.onConfirm()
-      setStatus('done')
-      setInputValue('')
-      setTimeout(() => setStatus('idle'), 3000)
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'An error occurred')
-      setStatus('error')
-      setTimeout(() => { setStatus('idle'); setErrorMsg('') }, 4000)
-    }
-  }
-
-  return (
-    <div className="border border-red-500/25 rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 bg-red-500/8 border-b border-red-500/20">
-        <p className="text-sm font-semibold text-red-400">{action.title}</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">{action.description}</p>
-      </div>
-      {/* Confirmation input + button */}
-      <div className="px-4 py-3 bg-[rgb(var(--color-surface-3))] flex items-center gap-3">
-        <div className="flex-1">
-          <p className="text-[10px] text-[rgb(var(--color-text-muted))] mb-1">
-            Type <span className="font-mono font-semibold text-[rgb(var(--color-text-secondary))]">{action.confirmWord}</span> to confirm
-          </p>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => { setInputValue(e.target.value); setStatus('idle') }}
-            placeholder={action.confirmWord}
-            className="w-full text-sm px-3 py-1.5 rounded-md bg-[rgb(var(--color-surface-4))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none focus:border-red-500/50 transition-colors"
-          />
-        </div>
-        <button
-          onClick={handleClick}
-          disabled={!isReady || status === 'busy'}
-          className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed ${
-            status === 'done'
-              ? 'bg-green-600/20 text-green-400 border border-green-600/30'
-              : status === 'error'
-              ? 'bg-red-600/20 text-red-400 border border-red-600/30'
-              : isReady
-              ? 'bg-red-600 hover:bg-red-700 text-white border border-red-600'
-              : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] border border-[rgb(var(--color-surface-4))] opacity-50'
-          }`}
-        >
-          {status === 'busy' ? 'Working…' : status === 'done' ? 'Done' : status === 'error' ? (errorMsg || 'Error') : action.buttonLabel}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function DangerSection() {
-  const clearHistory = useAppStore((s) => s.clearHistory)
-  const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
-
-  const actions: DangerAction[] = [
-    {
-      id: 'clear-history',
-      title: 'Clear browsing history',
-      description: 'Removes the entire navigation history log (scripture chapters, notes, lexicon entries, searches). Your notes and highlights are not affected.',
-      confirmWord: 'history',
-      buttonLabel: 'Clear history',
-      onConfirm: async () => {
-        clearHistory()
-      },
-    },
-    {
-      id: 'delete-bg-notes',
-      title: 'Delete all BibleGateway notes',
-      description: 'Permanently deletes every note imported from BibleGateway (tagged "biblegateway"). Other notes are not affected.',
-      confirmWord: 'biblegateway',
-      buttonLabel: 'Delete BibleGateway notes',
-      onConfirm: async () => {
-        await window.notes.deleteByTag('biblegateway')
-        bumpNoteToken()
-      },
-    },
-    {
-      id: 'delete-esword-notes',
-      title: 'Delete all e-Sword notes',
-      description: 'Permanently deletes every note imported from e-Sword (tagged "esword"). Other notes are not affected.',
-      confirmWord: 'esword',
-      buttonLabel: 'Delete e-Sword notes',
-      onConfirm: async () => {
-        await window.notes.deleteByTag('esword')
-        bumpNoteToken()
-      },
-    },
-    {
-      id: 'delete-all-notes',
-      title: 'Delete all notes',
-      description: 'Permanently deletes every note — verse notes, general notes, YouTube timestamp notes, and daily notes. This cannot be undone.',
-      confirmWord: 'notes',
-      buttonLabel: 'Delete all notes',
-      onConfirm: async () => {
-        await window.notes.deleteAllNotes()
-        bumpNoteToken()
-      },
-    },
-  ]
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm font-semibold text-red-400 mb-0.5">Danger zone</p>
-        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
-          These actions are permanent and cannot be undone. Each action requires you to type a confirmation word before the button activates.
-        </p>
-      </div>
-      <div className="space-y-4">
-        {actions.map((a) => (
-          <DangerCard key={a.id} action={a} />
-        ))}
-      </div>
-    </div>
-  )
-}

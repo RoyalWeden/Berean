@@ -19,6 +19,27 @@ export interface PresenterVerseEntry {
   f: number
 }
 
+/**
+ * Trailing-space fudge factor (px) added past the last verse's bottom when
+ * deriving content height — excludes the small amount of intentional
+ * padding below the last verse so a short chapter's outline band doesn't
+ * run past where content actually ends. Shared by both windows (previously
+ * duplicated as a bare `+ 4` in each) so they can never independently drift
+ * out of sync with each other.
+ */
+export const CONTENT_HEIGHT_PADDING_PX = 4
+
+/**
+ * Content height for band geometry: the last verse's measured bottom (plus
+ * the shared padding above), clamped to the container's actual scrollHeight
+ * — never the raw scrollHeight when it's larger, since empty space below
+ * the last verse would otherwise inflate the scrollable region and run the
+ * band/virtual-scroll past the real content on short chapters.
+ */
+export function measureContentHeight(scrollHeight: number, contentBottom: number): number {
+  return contentBottom > 0 ? Math.min(scrollHeight, contentBottom + CONTENT_HEIGHT_PADDING_PX) : scrollHeight
+}
+
 /** Sort a verseFracs map into ascending-by-fraction entries. */
 export function sortVerseFracs(verseFracs: Record<number, number>): PresenterVerseEntry[] {
   return Object.keys(verseFracs)
@@ -76,8 +97,36 @@ export interface BandInputs {
   scrollPercentOverride?: number
 }
 
+/**
+ * Which verse numbers fall (at least partially) within the presenter's
+ * visible fraction range [topFrac, botFrac] — lets the main window show a
+ * plain "audience sees v.3–7" label using data it's already computing for
+ * the band geometry, rather than a new measurement. This is a direct
+ * readout of the shared verseFracs, not a fragile derived value, so it
+ * stays accurate even in edge cases where the band's own pixel geometry
+ * might be slightly approximate (e.g. mid-verse interpolation).
+ */
+export function visibleVerseRange(entries: PresenterVerseEntry[], topFrac: number, botFrac: number): { first: number | null; last: number | null } {
+  if (entries.length === 0) return { first: null, last: null }
+  // A verse is "visible" if its fraction-range overlaps [topFrac, botFrac] — its own
+  // start is before botFrac, and (for all but the last) its end (the next verse's
+  // start) is after topFrac. The very first/last verse in the doc has no such
+  // neighbor-bounded end, so treat it as extending to the content edge.
+  let first: number | null = null
+  let last: number | null = null
+  for (let i = 0; i < entries.length; i++) {
+    const start = entries[i].f
+    const end = i + 1 < entries.length ? entries[i + 1].f : 1
+    if (start < botFrac && end > topFrac) {
+      if (first === null) first = entries[i].v
+      last = entries[i].v
+    }
+  }
+  return { first, last }
+}
+
 /** Compute the outline band {top,height} in main-content px, or null if not drawable. */
-export function computePresenterBand(inp: BandInputs): { top: number; height: number } | null {
+export function computePresenterBand(inp: BandInputs): { top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null {
   const { visibleFraction: f, verseFracs, mainTops, mainScrollHeight: mainH, mainClientHeight, mainScrollTop, scrollPercentOverride } = inp
   if (!(f > 0) || mainH <= 0) return null
   const denom = mainH - mainClientHeight
@@ -87,5 +136,6 @@ export function computePresenterBand(inp: BandInputs): { top: number; height: nu
   const entries = sortVerseFracs(verseFracs)
   const yTop = presenterFracToMainY(topFrac, entries, mainTops, mainH)
   const yBot = presenterFracToMainY(botFrac, entries, mainTops, mainH)
-  return { top: Math.max(0, yTop), height: Math.max(0, yBot - yTop) }
+  const { first, last } = visibleVerseRange(entries, topFrac, botFrac)
+  return { top: Math.max(0, yTop), height: Math.max(0, yBot - yTop), firstVerse: first, lastVerse: last }
 }

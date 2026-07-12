@@ -6,7 +6,7 @@
  * scale), chapter-header height, and text wrapping — and that it tracks scroll position.
  */
 import { describe, it, expect } from 'vitest'
-import { computePresenterBand, presenterFracToMainY, sortVerseFracs } from '../presenterBand'
+import { computePresenterBand, presenterFracToMainY, sortVerseFracs, measureContentHeight, CONTENT_HEIGHT_PADDING_PX } from '../presenterBand'
 
 // A presenter layout: 100px header, 5 verses through a 1000px content, 400px viewport.
 const presenterVerseFracs = { 1: 0.10, 2: 0.25, 3: 0.45, 4: 0.65, 5: 0.85 }
@@ -113,5 +113,42 @@ describe('degenerate inputs', () => {
     // p = 250/500 = 0.5 → topFrac = 0.5*0.5 = 0.25 → 250px; botFrac = 0.75 → 750px
     expect(b.top).toBeCloseTo(250, 4)
     expect(b.height).toBeCloseTo(500, 4)
+  })
+})
+
+describe('visible verse range (for the "audience sees v.N–M" label)', () => {
+  it('reports the verses overlapping the visible fraction window when scrolled to top', () => {
+    const b = band(0)!
+    // topFrac=0, botFrac=0.4 → v1 (0.10–0.25) and v2 (0.25–0.45) overlap; v3 starts at 0.45, outside.
+    expect(b.firstVerse).toBe(1)
+    expect(b.lastVerse).toBe(2)
+  })
+  it('reports the verses overlapping the visible fraction window when scrolled to bottom', () => {
+    const maxScroll = mainH - mainClient
+    const b = band(maxScroll)!
+    // p=1, f=0.4 → topFrac=0.6, botFrac=1 → v3 (0.45–0.65) already overlaps at its tail
+    // (end 0.65 > topFrac 0.6), plus v4 (0.65–0.85) and v5 (0.85–1.0).
+    expect(b.firstVerse).toBe(3)
+    expect(b.lastVerse).toBe(5)
+  })
+  it('returns null/null when there are no verse anchors', () => {
+    const b = computePresenterBand({
+      visibleFraction: 0.5, verseFracs: {}, mainTops: {},
+      mainScrollHeight: 1000, mainClientHeight: 500, mainScrollTop: 250,
+    })!
+    expect(b.firstVerse).toBeNull()
+    expect(b.lastVerse).toBeNull()
+  })
+})
+
+describe('measureContentHeight (shared between main + viewer windows)', () => {
+  it('uses last-verse-bottom + padding when it fits under scrollHeight', () => {
+    expect(measureContentHeight(1000, 600)).toBe(600 + CONTENT_HEIGHT_PADDING_PX)
+  })
+  it('clamps to scrollHeight when content-bottom + padding would exceed it', () => {
+    expect(measureContentHeight(500, 498)).toBe(500)
+  })
+  it('falls back to raw scrollHeight when contentBottom is 0 (no measured verses)', () => {
+    expect(measureContentHeight(800, 0)).toBe(800)
   })
 })

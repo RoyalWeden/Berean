@@ -71,7 +71,7 @@ export function ScaledPagePreview({ html, maxHeight = 360 }: { html: string; max
   return (
     <div
       ref={wrapRef}
-      className="w-full overflow-hidden rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="w-full overflow-hidden rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
       style={{ height: scaledH || 180 }}
     >
       <iframe
@@ -199,7 +199,11 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
       .map(n => ({ title: n.title || 'Untitled', content: n.content }))
   }, [includeLinkedNotes, notes, content])
 
-  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes }
+  // Idiom export builds its own standalone HTML (buildIdiomsExportHtml), not
+  // markdown source — rawHtml tells buildPrintHTML to skip the markdown
+  // parse step, which otherwise HTML-escapes the raw <div style="..."> tags
+  // and prints them as visible tag soup (markdown-it runs with html:false).
+  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes, rawHtml: !!idiomEntries }
 
   // In idioms mode, regenerate the body from the entries + in-modal options, colouring it to
   // match the chosen print theme so the preview updates live as the user tweaks settings.
@@ -247,7 +251,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   function doDownload() { persist(); window.app.exportNotePDF(stripForExport(html), title || 'note', store.pdfDownloadLocation).catch(() => {}); onClose() }
 
   const segBtn = (active: boolean) =>
-    `px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors ${active
+    `px-2.5 py-1 text-xs rounded-shell cursor-pointer transition-colors ${active
       ? 'bg-[rgb(var(--color-accent))] text-white font-medium'
       : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'
@@ -257,13 +261,12 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60]" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60]" style={{ backdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]
+          className="glass-panel-modal fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]
             w-[90vw] max-w-5xl h-[85vh]
-            bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))]
-            rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            rounded-shell-lg flex flex-col overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -287,7 +290,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                 <div className="relative" ref={themePickerRef}>
                   <button
                     onClick={() => setThemeOpen(v => !v)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left cursor-pointer transition-colors ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-shell border text-left cursor-pointer transition-colors ${
                       themeOpen
                         ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
                         : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] bg-[rgb(var(--color-surface-3))]'
@@ -306,14 +309,14 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     <div
                       className="absolute left-0 right-0 top-full mt-1.5 z-50
                         bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]
-                        rounded-xl shadow-2xl p-2 grid grid-cols-3 gap-1"
+                        rounded-shell-lg shadow-2xl p-2 grid grid-cols-3 gap-1"
                     >
                       {themeList.map((th) => (
                         <button
                           key={th.id}
                           onClick={() => { setTheme(th.id); setFontFamily(th.suggestedFont); setThemeOpen(false) }}
                           title={th.desc}
-                          className={`flex flex-col items-center gap-1 p-1.5 rounded-lg border cursor-pointer transition-colors text-center ${
+                          className={`flex flex-col items-center gap-1 p-1.5 rounded-shell border cursor-pointer transition-colors text-center ${
                             theme === th.id
                               ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10]'
                               : 'border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))]'
@@ -552,15 +555,15 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
             </p>
             <div className="flex-1" />
             <button onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
+              className="px-3 py-1.5 text-xs rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
               Cancel
             </button>
             <button onClick={doPrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors">
               <Printer size={13} /> Print
             </button>
             <button onClick={doDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white font-medium hover:opacity-90 cursor-pointer transition-opacity">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-shell bg-[rgb(var(--color-accent))] text-white font-medium hover:opacity-90 cursor-pointer transition-opacity">
               <FileDown size={13} /> Download PDF
             </button>
           </div>

@@ -86,12 +86,12 @@ export default function FindBar({
 
   return (
     <div
-      className="fixed z-[200] shadow-2xl rounded-xl overflow-hidden transition-[right] duration-150"
+      className="glass-panel fixed z-[200] rounded-shell-lg overflow-hidden transition-[right] duration-150 animate-fade-in-drop"
       style={{ top: 50, right: rightOffset, width: 360 }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))]">
-        <Search size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+      <div className="flex items-center gap-1.5 px-3 py-2">
+        <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -123,7 +123,7 @@ export default function FindBar({
             onClick={onPrev}
             title="Previous match (⇧↵)"
             disabled={!hasMatches || matchCount === 0}
-            className="p-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
+            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
           >
             <ChevronUp size={13} />
           </button>
@@ -133,7 +133,7 @@ export default function FindBar({
             onClick={onNext}
             title="Next match (↵)"
             disabled={!hasMatches || matchCount === 0}
-            className="p-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
+            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
           >
             <ChevronDown size={13} />
           </button>
@@ -141,7 +141,7 @@ export default function FindBar({
 
         {/* Auto-open badge */}
         {autoOpen && (
-          <span className="text-[9px] text-[rgb(var(--color-text-muted))] px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] flex-shrink-0 uppercase tracking-wide">
+          <span className="text-[9px] text-[rgb(var(--color-text-muted))] px-1.5 py-0.5 rounded-shell bg-[rgb(var(--color-surface-4))] flex-shrink-0 uppercase tracking-wide">
             auto
           </span>
         )}
@@ -150,7 +150,7 @@ export default function FindBar({
         <button
           onClick={onClose}
           title="Close (Esc)"
-          className="p-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+          className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
         >
           <X size={13} />
         </button>
@@ -158,7 +158,7 @@ export default function FindBar({
 
       {/* Word mode toggle row */}
       {showWordMode && (
-        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-2))] border-t border-[rgb(var(--color-surface-4))] flex items-center gap-1.5">
+        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-4))/25] border-t border-[rgb(var(--color-surface-4))] flex items-center gap-1.5">
           <span className="text-[9px] uppercase tracking-wider text-[rgb(var(--color-text-muted))] flex-shrink-0">Match</span>
           {(['phrase', 'all', 'any'] as WordMode[]).map((m) => (
             <button
@@ -178,7 +178,7 @@ export default function FindBar({
 
       {/* Advanced search row (scripture context only) */}
       {showAdvancedSearch && (
-        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-2))] border-t border-[rgb(var(--color-surface-4))] flex items-center justify-between">
+        <div className="px-3 py-1.5 bg-[rgb(var(--color-surface-4))/25] border-t border-[rgb(var(--color-surface-4))] flex items-center justify-between">
           <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Find in page</span>
           <button
             onClick={handleAdvancedSearch}

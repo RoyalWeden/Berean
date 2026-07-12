@@ -614,6 +614,7 @@ Each cell shows:
 | `Cmd+L` | Focus Bible reference bar |
 | `Cmd+F` | Search within current panel |
 | `Cmd+Shift+N` | New general note |
+| `Cmd+Shift+D` | Open today's daily note (creates it if it doesn't exist yet) |
 | `Cmd+Shift+V` | New verse note (for currently focused verse) |
 | `Cmd+Shift+L` | Insert YouTube timestamp into active note |
 | `Cmd+Shift+P` | Toggle YouTube Picture-in-Picture |

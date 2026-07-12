@@ -32,7 +32,7 @@ import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
 import { registerNotesHandlers } from './ipc/notes'
 import { registerPdfHandlers } from './ipc/pdf'
-import { registerVaultHandlers, runExportAll, setupAutoExport } from './ipc/vault'
+import { registerVaultHandlers, runExportAll, setupAutoExport, AUTO_EXPORT_INTERVAL_MINUTES } from './ipc/vault'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
 import { registerHighlightHandlers } from './ipc/highlights'
@@ -573,11 +573,14 @@ app.whenReady().then(async () => {
   registerPdfHandlers(ipcMain)
   log.info('[berean-main] PDF handlers registered')
   registerVaultHandlers(ipcMain)
-  // Read saved auto-export interval and start the timer (0 = off)
+  // Start the safety-net export timer whenever vault sync is on — fixed interval,
+  // not user-configurable. Per-note content already syncs immediately on save
+  // (vault:syncNote); this just periodically re-exports the less-frequently-changed
+  // sidecar data (highlights/settings/PDFs/etc).
   try {
-    const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get('vaultAutoExportMinutes') as { value: string } | undefined
-    const saved = row ? (JSON.parse(row.value) as number) : 0
-    setupAutoExport(saved)
+    const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get('vaultSync') as { value: string } | undefined
+    const enabled = row ? (JSON.parse(row.value) as boolean) : false
+    setupAutoExport(enabled ? AUTO_EXPORT_INTERVAL_MINUTES : 0)
   } catch { /* ignore — timer stays off if setting unreadable */ }
   registerSettingsHandlers(ipcMain)
   registerLexiconHandlers(ipcMain)
@@ -817,7 +820,13 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('app:installUpdate', () => {
     if (isMasBuild) return
-    autoUpdater.quitAndInstall(false, true)
+    try {
+      autoUpdater.quitAndInstall(false, true)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      log.error('Update install failed:', msg)
+      sendUpdateStatus('error', { message: `Couldn't install: ${msg}` })
+    }
   })
 
   earlyLog('all IPC handlers registered — calling createWindow()')
@@ -841,12 +850,23 @@ app.whenReady().then(async () => {
     if (channelRow?.value === 'beta') autoUpdater.allowPrerelease = true
 
     if (autoCheckEnabled) {
-      // Delay so the window finishes rendering before we fire the network request
-      setTimeout(() => {
+      // Delay so the window finishes rendering before we fire the network request.
+      // One retry after a longer delay covers the common "network not up yet"
+      // case right after boot/wake — a bare single attempt would otherwise
+      // leave the update status silently stuck on an error the user never
+      // asked about and has no reason to go looking for.
+      const attemptStartupCheck = (isRetry: boolean) => {
         autoUpdater.checkForUpdates().catch((err: unknown) => {
-          log.warn('Startup update check failed:', err)
+          const msg = err instanceof Error ? err.message : String(err)
+          log.warn(`Startup update check failed${isRetry ? ' (retry)' : ''}:`, msg)
+          if (isRetry) {
+            sendUpdateStatus('error', { message: msg })
+          } else {
+            setTimeout(() => attemptStartupCheck(true), 20000)
+          }
         })
-      }, 6000)
+      }
+      setTimeout(() => attemptStartupCheck(false), 6000)
     }
   }
 
@@ -874,7 +894,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
-  // Final vault export before shutdown (honours vaultAutoExportMinutes > 0 or any path set)
+  // Final vault export before shutdown (no-op if no vault path is set)
   try { runExportAll() } catch { /* never block shutdown */ }
   closeBereanDb()
   closeAllTextDbs()

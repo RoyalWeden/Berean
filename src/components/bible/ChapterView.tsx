@@ -201,7 +201,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
 }
 
 export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, compact = false }: ChapterViewProps) {
-  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.panelZoom.scripture))
+  const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
   const bumpHighlightToken = useAppStore((s) => s.bumpHighlightToken)

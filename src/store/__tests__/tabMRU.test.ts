@@ -240,6 +240,43 @@ describe('store — tabMRUList integration', () => {
     expect(mru[2].tabId).toBe(ids[0]) // A
   })
 
+  it('B13: closeTab on the active tab falls back to the last tab opened in ANY space, not just this space', () => {
+    // Open a scripture tab, then a notes tab (making notes the most recent),
+    // then re-focus the scripture tab and close it — the previous bug always
+    // fell back to another scripture tab here (filtering the MRU by
+    // spaceId), even though the notes tab was genuinely the most recently
+    // focused tab overall.
+    useAppStore.getState().createTab('bible')
+    const scriptureId = useAppStore.getState().tabs.scripture[0].id
+    useAppStore.getState().createTab('note')
+    const notesId = useAppStore.getState().tabs.notes[0].id
+    useAppStore.getState().setActiveTab('scripture', scriptureId)
+    useAppStore.getState().closeTab('scripture', scriptureId)
+    expect(useAppStore.getState().activeSpace).toBe('notes')
+    expect(useAppStore.getState().activeTabId.notes).toBe(notesId)
+  })
+
+  it('B14: closeActiveTab falls back to the last tab opened in ANY space', () => {
+    useAppStore.getState().createTab('bible')
+    const scriptureId = useAppStore.getState().tabs.scripture[0].id
+    useAppStore.getState().createTab('note')
+    const notesId = useAppStore.getState().tabs.notes[0].id
+    useAppStore.getState().setActiveTab('scripture', scriptureId)
+    useAppStore.getState().closeActiveTab()
+    expect(useAppStore.getState().activeSpace).toBe('notes')
+    expect(useAppStore.getState().activeTabId.notes).toBe(notesId)
+  })
+
+  it('B15: closeTab still prefers a same-space MRU tab when it is genuinely the most recent', () => {
+    useAppStore.getState().createTab('bible')
+    useAppStore.getState().createTab('bible')
+    const ids = useAppStore.getState().tabs.scripture.map((t) => t.id)
+    useAppStore.getState().setActiveTab('scripture', ids[0])
+    useAppStore.getState().closeTab('scripture', ids[0])
+    expect(useAppStore.getState().activeSpace).toBe('scripture')
+    expect(useAppStore.getState().activeTabId.scripture).toBe(ids[1])
+  })
+
   it('B12: MRU contains no duplicates after a series of tab activations', () => {
     useAppStore.getState().createTab('bible')
     useAppStore.getState().createTab('bible')

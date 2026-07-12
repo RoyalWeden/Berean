@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
-import { Plus, ArrowLeft, Home, Trash2, HelpCircle, X, Search, ScanSearch, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, ChevronLeft, ChevronRight, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FileDown, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, Code2, PenLine, History, Monitor } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
-import { HintTooltip } from '@/components/shell/HintTooltip'
-import ZoomControls from '@/components/shell/ZoomControls'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
+import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import NotesList from './NotesList'
-import NoteEditor from './NoteEditor'
+import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
@@ -18,13 +20,10 @@ import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
+import CalendarWidget, { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type NoteSort = 'modified' | 'created' | 'name'
-
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
 
 function todayKey(): string { return toDateKey(new Date()) }
 
@@ -51,6 +50,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const updateTabState = useAppStore((s) => s.updateTabState)
   const youtubeIsPlaying = useAppStore((s) => s.youtubeIsPlaying)
   const notesTabId = activeTabId['notes']
+  const pushTabNav = useAppStore((s) => s.pushTabNav)
+  const resetTabNavHome = useAppStore((s) => s.resetTabNavHome)
+  const notesHomeToken = useAppStore((s) => s.notesHomeToken)
 
   const sessions = useAppStore((s) => s.sessions)
   const addTab = useAppStore((s) => s.addTab)
@@ -59,7 +61,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const noteTransformLayout = useAppStore((s) => s.noteTransformLayout)
   const setIdiomCache = useAppStore((s) => s.setIdiomCache)
-  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const continuousDailyScroll = useAppStore((s) => s.continuousDailyScroll)
 
   const [notes, setNotes] = useState<Note[]>([])
@@ -82,7 +83,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const tabState = tab?.state as NoteTabState | undefined
     return !tabState?.isNew && !!tabState?.noteId
   })
-  const [noteHistory, setNoteHistory] = useState<Array<{ note: Note; scrollTop: number }>>([])
   const openMarkdownReference = useAppStore((s) => s.openMarkdownReference)
 
   // ── Find bar — local to the notes panel, per-panel routing ────────────────
@@ -115,6 +115,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
         return
       }
+      // Only one overlay open at a time — opening this find bar closes any
+      // open "More" menu/other overlay via the shared broadcast.
+      window.dispatchEvent(new CustomEvent('berean:closeMenus'))
       setLocalFindOpen(true)
       setLocalFindQuery(seedChar)
       setFindMatchIdx(0)
@@ -122,6 +125,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.addEventListener('berean:openNotesFindBar', onOpenNotesFindBar)
     return () => window.removeEventListener('berean:openNotesFindBar', onOpenNotesFindBar)
   }, [localFindOpen])
+
+  // Rail's Presenter button (Ribbon.tsx) dispatches this after ensuring the
+  // viewer window is open — mirrors the find-bar routing pattern above since
+  // pushing content depends on activeNoteRef, which only this panel has.
+  useEffect(() => {
+    function onPresenterPush() {
+      if (activeNoteRef.current) window.app.pushViewerContent?.({ kind: 'note', noteId: activeNoteRef.current.id })
+    }
+    window.addEventListener('berean:presenterPushNote', onPresenterPush)
+    return () => window.removeEventListener('berean:presenterPushNote', onPresenterPush)
+  }, [])
+
+  // ...and the reverse: an open "More" menu / Settings closes this find bar.
+  useEffect(() => {
+    function onCloseMenus() { setLocalFindOpen(false) }
+    window.addEventListener('berean:closeMenus', onCloseMenus)
+    return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
+  }, [])
 
   // Find bar is visible only when a note is open (note view, not the notes list)
   const findBarVisible = localFindOpen && activeNote !== null
@@ -179,6 +200,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarDate, setCalendarDate] = useState(new Date())
+  const [calendarAnchor, setCalendarAnchor] = useState<{ left: number; top: number } | null>(null)
+  const calendarToggleRef = useRef<HTMLButtonElement>(null)
   const [expandAll, setExpandAll] = useState(false)
   const [folderView, setFolderView] = useState(false)
   const [folders, setFolders] = useState<NoteFolder[]>([])
@@ -297,7 +320,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   useEffect(() => { openDailyNoteRef.current = openDailyNote }, [notes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    function onOpen() { openDailyNoteRef.current(new Date()) }
+    // Optional detail.date (ISO "YYYY-MM-DD") lets callers other than "jump
+    // to today" — e.g. the sidebar's own calendar picker — reuse this same
+    // create-if-missing flow for an arbitrary date, instead of duplicating it.
+    function onOpen(e: Event) {
+      const iso = (e as CustomEvent<{ date?: string }>).detail?.date
+      openDailyNoteRef.current(iso ? new Date(`${iso}T00:00:00`) : new Date())
+    }
     window.addEventListener('berean:openDailyNote', onOpen)
     return () => window.removeEventListener('berean:openDailyNote', onOpen)
   }, [])
@@ -337,13 +366,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Allow sidebar's daily-note button (berean:openDailyNote) to work when notes panel is mounted
   const openDailyNoteRef = useRef<(d: Date) => void>(() => {})
 
-  type EditorMode = 'raw' | 'wysiwyg' | 'preview'
-  const NEXT_MODE: Record<EditorMode, EditorMode> = { raw: 'wysiwyg', wysiwyg: 'preview', preview: 'raw' }
-  const [editorMode, setEditorMode] = useState<EditorMode>('wysiwyg')
-  const previewMode = editorMode === 'preview'
-  const wysiwygMode = editorMode === 'wysiwyg'
+  // ProseMirror migration dropped the 3-mode Raw/Edit/Preview picker for a
+  // 2-mode Edit/View one — ProseMirror has no way to show literal markdown
+  // syntax as editable text (it's a structured-document model, not a text
+  // editor), so "Raw" mode no longer has an equivalent.
+  type EditorMode = 'edit' | 'view'
+  const NEXT_MODE: Record<EditorMode, EditorMode> = { edit: 'view', view: 'edit' }
+  const [editorMode, setEditorMode] = useState<EditorMode>('edit')
 
-  // Cmd+Shift+M → cycle through raw → wysiwyg → preview
+  // Cmd+Shift+M → toggle Edit/View
   useEffect(() => {
     function onToggle() { setEditorMode((prev) => NEXT_MODE[prev]) }
     window.addEventListener('berean:toggleMarkdown', onToggle)
@@ -372,12 +403,25 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         type: 'note',
         title,
         noteId: activeNote.id,
+        verseRef: activeNote.verseRef ?? undefined,
       })
     }
   }, [activeNote?.id, activeNote?.title, notesTabId, noteRestorePending, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
+  }, [noteChangeToken])
+
+  // If the currently-open note was changed externally (vault watcher wrote a
+  // new version into the DB and bumped noteChangeToken), refetch it so the
+  // editor doesn't keep showing stale content until the user reopens it.
+  useEffect(() => {
+    const current = activeNoteRef.current
+    if (!current) return
+    window.notes.getNote(current.id).then((note) => {
+      if (note && note.updatedAt !== activeNoteRef.current?.updatedAt) setActiveNote(note)
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteChangeToken])
 
   // Restore the note that was open when this tab was last active
@@ -493,9 +537,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     setNotes((prev) => prev.filter((n) => n.id !== target.id))
     bumpNoteToken()
     if (target.type === 'idiom') window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
-    if (target.id === activeNote?.id) { setActiveNote(null); setEditorMode('wysiwyg') }
+    if (target.id === activeNote?.id) {
+      setActiveNote(null)
+      setEditorMode('edit')
+      // Deleting the active note leaves the tab's global nav-stack idx
+      // stale (still pointing at the now-deleted note) unless re-synced —
+      // see resetTabNavHome's comment for the bug this causes (home icon
+      // stays visible and does nothing when clicked).
+      if (notesTabId) resetTabNavHome(notesTabId)
+    }
   }
 
+  // Leaving a note back to the list — called by the global top-bar back button
+  // reaching the list/home position (notesHomeToken), not a local button anymore.
   async function goBack() {
     if (!activeNote) return
     // Idiom notes may have empty content — keep them if they have a term or meaning
@@ -506,15 +560,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       snapshotVersion(activeNote, 'auto')   // consolidate a version on leaving the note
     }
     setActiveNote(null)
-    setNoteHistory([])
-    setEditorMode('wysiwyg')
+    setEditorMode('edit')
   }
 
   function navigateToNote(note: Note) {
     if (activeNote && activeNote.id !== note.id) {
       snapshotVersion(activeNote, 'auto')   // snapshot the outgoing note
-      // Save current scroll so back-navigation can restore it
-      setNoteHistory(prev => [{ note: activeNote, scrollTop: lastScrollTopRef.current }, ...prev.slice(0, 19)])
       // Reset scroll for the new note
       lastScrollTopRef.current = 0
       setRestoredScrollTop(0)
@@ -522,17 +573,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     // Baseline the snapshot tracker to the newly-opened content (don't snapshot on open).
     lastSnapshotContentRef.current = note.content
     setActiveNote(note)
+    // Track in the global back/forward stack — this is what lets the top bar's
+    // nav pill retrace note-to-note navigation (and back to the list) instead of
+    // each panel keeping its own separate, redundant history.
+    if (notesTabId) pushTabNav(notesTabId, { type: 'note', noteId: note.id, title: note.title || 'Untitled' })
   }
 
-  function goBackNote() {
-    if (noteHistory.length === 0) return
-    const { note: prev, scrollTop } = noteHistory[0]
-    setNoteHistory(h => h.slice(1))
-    setActiveNote(prev)
-    // Restore the scroll position the user was at in the previous note
-    lastScrollTopRef.current = scrollTop
-    setRestoredScrollTop(scrollTop)
-  }
+  // Global top bar's back button reached the list/home position for this tab.
+  const notesHomeMounted = useRef(false)
+  useEffect(() => {
+    if (!notesHomeMounted.current) { notesHomeMounted.current = true; return }
+    goBack()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesHomeToken])
 
   function openNoteInNewTab(note: Note) {
     const tab: Tab = {
@@ -541,6 +594,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       type: 'note',
       title: note.title || 'Untitled',
       state: { noteId: note.id, isNew: false },
+      ...(notesTabId ? { originTabId: notesTabId, originSpaceId: 'notes' as const } : {}),
     }
     addTab(tab)
   }
@@ -727,6 +781,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     })
   }
 
+  // Port of the CM6 editor's lexicon-ref click handling, which used to
+  // bypass the prop-callback pattern and call the store directly
+  // (NoteEditor.tsx:4545-4557). Now a normal callback like the other ref
+  // types, wired here where noteId/title for the breadcrumb are in scope.
+  function handleLexiconRefClick(strongsId: string) {
+    const store = useAppStore.getState()
+    const fromNote = activeNote ? { noteId: activeNote.id, title: activeNote.title || 'Untitled' } : undefined
+    // createTab first — openLexiconEntry's pending value is picked up by
+    // whichever Lexicon tab is active at that moment.
+    store.createTab('lexicon')
+    store.openLexiconEntry(strongsId, fromNote)
+  }
+
   const editing = activeNote !== null
 
   const visibleNotes = useMemo(() => {
@@ -774,36 +841,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         placeholder="Find in note…"
       />
       {/* Header */}
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4 app-drag-region'}`}>
+      <TabHeaderPortal floating={floating}>
         {editing ? (
           <>
-            {noteHistory.length === 0 ? (
-              <button
-                onClick={goBack}
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                title="Back to notes list"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={goBack}
-                  className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-                  title="Back to notes list"
-                >
-                  <Home size={14} />
-                </button>
-                <button
-                  onClick={goBackNote}
-                  className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] rounded px-1.5 py-0.5 cursor-pointer transition-colors flex-shrink-0 max-w-[120px]"
-                  title={`Back to "${noteHistory[0].note.title || 'Untitled'}"`}
-                >
-                  <ArrowLeft size={12} className="flex-shrink-0" />
-                  <span className="truncate">{noteHistory[0].note.title || 'Untitled'}</span>
-                </button>
-              </>
-            )}
             {isSystemNote(activeNote) ? (
               /* System notes (daily, verse, esword, biblegateway) — title is read-only */
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -835,60 +875,57 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               />
             )}
             {/* ── Editor mode segmented toggle ── */}
-            <div
-              className="flex items-center bg-[rgb(var(--color-surface-3))] rounded-md p-0.5 gap-px flex-shrink-0"
-              title="Editor mode (⌘⇧M to cycle)"
-            >
-              {([
-                ['raw',     Code2,   'Raw',     'Raw markdown — see syntax as-is'],
-                ['wysiwyg', PenLine, 'Edit',    'Clean edit — syntax hidden while editing'],
-                ['preview', Eye,     'View',    'Preview — rendered read-only output'],
-              ] as const).map(([mode, Icon, label, tip]) => (
-                <button
-                  key={mode}
-                  title={tip}
-                  onClick={() => setEditorMode(mode)}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer select-none ${
-                    editorMode === mode
-                      ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-                  }`}
-                >
-                  <Icon size={11} strokeWidth={editorMode === mode ? 2.2 : 1.8} />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-            <ZoomControls context="notes" compact />
-            <HintTooltip label="Version history">
-            <button
-              onClick={() => { if (activeNote) setVersionHistoryOpen(true) }}
-              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-            >
-              <History size={15} />
-            </button>
-            </HintTooltip>
-            <button
-              onClick={() => { if (activeNote) setPrintPreviewOpen(true) }}
-              title="Print / export note (preview)"
-              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-            >
-              <Printer size={15} />
-            </button>
-            <button
-              onClick={() => { if (activeNote) setPrintPreviewOpen(true) }}
-              title="Export note as PDF (preview)"
-              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-            >
-              <FileDown size={15} />
-            </button>
-            <button
-              onClick={openMarkdownReference}
-              title="Markdown reference guide"
-              className="p-1 rounded cursor-pointer transition-colors text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
-            >
-              <HelpCircle size={15} />
-            </button>
+            <HeaderSegmentedToggle
+              value={editorMode}
+              onChange={setEditorMode}
+              title="Editor mode (⌘⇧M to toggle)"
+              options={[
+                { value: 'edit', label: 'Edit', icon: PenLine, title: 'Edit — rich editing' },
+                { value: 'view', label: 'View', icon: Eye,     title: 'View — rendered read-only output' },
+              ]}
+            />
+            {/* Everything below is occasional, not per-edit frequency like
+                the mode toggle or find-in-note — collected behind the More
+                menu instead of growing the inline icon row further. Zoom
+                moved here from its own always-visible hover icon — that
+                popover's 350ms hover-close timing read as unreliable; this
+                row is plain click + a real typeable percentage input. */}
+            <HeaderOverflowMenu
+              items={[
+                {
+                  key: 'history',
+                  label: 'Version history',
+                  icon: <History />,
+                  onClick: () => { if (activeNote) setVersionHistoryOpen(true) },
+                },
+                {
+                  key: 'markdown-help',
+                  label: 'Markdown reference guide',
+                  icon: <HelpCircle />,
+                  onClick: openMarkdownReference,
+                },
+                {
+                  key: 'print',
+                  label: 'Print / export note',
+                  icon: <Printer />,
+                  onClick: () => { if (activeNote) setPrintPreviewOpen(true) },
+                },
+                ...(!floating ? [{
+                  key: 'open-scripture',
+                  label: 'Open alongside scripture',
+                  icon: <BookOpen />,
+                  onClick: () => openNoteAsScripture(),
+                }] : []),
+                {
+                  key: 'delete',
+                  label: 'Delete note',
+                  icon: <Trash2 />,
+                  onClick: () => deleteNote(),
+                  danger: true,
+                  divider: true,
+                },
+              ]}
+            />
             {youtubeIsPlaying && (
               <button
                 onMouseDown={(e) => {
@@ -901,60 +938,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <Paperclip size={14} />
               </button>
             )}
-            <button
-              onClick={() => {
-                if (localFindOpen) {
-                  closeFindBarLocal()
-                } else {
-                  setLocalFindOpen(true)
-                  setLocalFindQuery('')
-                  setFindMatchIdx(0)
-                }
-              }}
-              title="Find in note (⌘F)"
-              className={`p-1 rounded cursor-pointer transition-colors ${
-                localFindOpen
-                  ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-              }`}
-            >
-              <ScanSearch size={14} />
-            </button>
-            {!floating && (
-              <button
-                onClick={() => openNoteAsScripture()}
-                title="Open alongside scripture"
-                className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors"
-              >
-                <BookOpen size={15} />
-              </button>
-            )}
-            <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
-            <button
-              onClick={async () => {
-                if (!activeNote) return
-                if (!viewerWindowOpen) {
-                  await window.app.openViewerWindow?.()
-                  useAppStore.getState().setViewerWindowOpen(true)
-                }
-                window.app.pushViewerContent?.({ kind: 'note', noteId: activeNote.id })
-              }}
-              className={`p-1 rounded cursor-pointer transition-colors ${
-                viewerWindowOpen
-                  ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-              }`}
-            >
-              <Monitor size={15} />
-            </button>
-            </HintTooltip>
-            <button
-              onClick={() => deleteNote()}
-              title="Delete note"
-              className="p-1 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-red-500/15 hover:text-red-400 transition-colors"
-            >
-              <Trash2 size={15} />
-            </button>
           </>
         ) : (
           <>
@@ -962,8 +945,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             {/* Daily calendar + today shortcut — grouped together */}
             <div className="relative flex items-center gap-0.5">
               <button
+                ref={calendarToggleRef}
                 data-calendar-toggle="true"
-                onClick={() => setCalendarOpen(v => !v)}
+                onClick={() => {
+                  // In docked mode this whole header is portaled into TopBar's
+                  // fixed-height, overflow-hidden slot — an absolutely
+                  // positioned popover here gets clipped to that 44px strip.
+                  // Compute the trigger's real screen position instead and
+                  // render the popover through its own portal to <body>.
+                  if (!calendarOpen) {
+                    const rect = calendarToggleRef.current?.getBoundingClientRect()
+                    if (rect) setCalendarAnchor({ left: rect.right, top: rect.bottom + 4 })
+                  }
+                  setCalendarOpen(v => !v)
+                }}
                 title="Daily notes calendar"
                 className={`p-1 rounded cursor-pointer transition-colors ${calendarOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
               >
@@ -971,19 +966,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </button>
               <button
                 onClick={() => openDailyNote(new Date())}
-                title="Open today's daily note"
+                title="Open today's daily note (⌘⇧D)"
                 className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
               >
                 <CalendarDays size={15} />
               </button>
-              {calendarOpen && (
+              {calendarOpen && calendarAnchor && createPortal(
                 <CalendarWidget
                   date={calendarDate}
                   notes={notes}
+                  anchor={calendarAnchor}
                   onDateChange={setCalendarDate}
                   onSelectDate={openDailyNote}
                   onClose={() => setCalendarOpen(false)}
-                />
+                />,
+                document.body
               )}
             </div>
             {/* Folder view toggle */}
@@ -1027,7 +1024,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
           </>
         )}
-      </div>
+      </TabHeaderPortal>
 
       {/* Plus-button context menu: new note / new folder */}
       {plusMenu && (
@@ -1137,13 +1134,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 initialScrollTop={restoredScrollTop}
                 initialCursorPos={restoredCursorPos}
                 autoFocus={autoFocusEditor}
-                previewMode={previewMode}
-                wysiwyg={wysiwygMode}
+                mode={editorMode}
                 notes={notes}
                 onWikilinkClick={handleWikilinkClick}
                 onVerseRefClick={handleVerseRefClick}
-                noteId={activeNote.id}
-                noteTitle={activeNote.title || 'Untitled'}
+                onLexiconRefClick={handleLexiconRefClick}
                 findQuery={findBarVisible ? localFindQuery : ''}
                 importSource={
                   activeNote.tags?.includes('biblegateway') ? 'biblegateway'
@@ -1713,124 +1708,3 @@ function IdiomChipRow({ label, items, onChange, placeholder }: { label: string; 
   )
 }
 
-// ── CalendarWidget ────────────────────────────────────────────────────────────
-interface CalendarWidgetProps {
-  date: Date
-  notes: Note[]
-  onDateChange: (d: Date) => void
-  onSelectDate: (d: Date) => void
-  onClose: () => void
-}
-
-function CalendarWidget({ date, notes, onDateChange, onSelectDate, onClose }: CalendarWidgetProps) {
-  const year = date.getFullYear()
-  const month = date.getMonth()
-  const today = new Date()
-  const todayStr = toDateKey(today)
-
-  // Days with daily notes — handle both new ISO format (Daily — 2024-01-01)
-  // and old localised format (Daily — January 1, 2024 / Journal — ...)
-  const dailyDates = new Set(
-    notes
-      .filter(n =>
-        n.type === 'daily' || n.type === 'journal' ||
-        (n.type === 'general' && !!(n.title?.startsWith('Daily — ') || n.title?.startsWith('Journal — ')))
-      )
-      .map(n => {
-        const raw = n.title ?? ''
-        const dateStr = raw.replace(/^(Daily|Journal) — /, '')
-        // New format: already ISO yyyy-mm-dd
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
-        // Old locale format: try to parse
-        try {
-          const d = new Date(dateStr)
-          if (!isNaN(d.getTime())) {
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-          }
-        } catch { /* ignore */ }
-        return ''
-      })
-      .filter(Boolean)
-  )
-
-  // First day of month and number of days
-  const firstDay = new Date(year, month, 1).getDay() // 0=Sun
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-
-  function prevMonth() {
-    onDateChange(new Date(year, month - 1, 1))
-  }
-  function nextMonth() {
-    onDateChange(new Date(year, month + 1, 1))
-  }
-
-  const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-
-  // Close on outside click — skip if the click was on the calendar toggle button itself
-  // (the button carries data-calendar-toggle so we don't fight its own toggle handler)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      const target = e.target as HTMLElement
-      if (target.closest('[data-calendar-toggle]')) return
-      if (ref.current && !ref.current.contains(target)) onClose()
-    }
-    window.addEventListener('mousedown', handle, true)
-    return () => window.removeEventListener('mousedown', handle, true)
-  }, [onClose])
-
-  return (
-    <div
-      ref={ref}
-      className="absolute right-0 top-full mt-1 z-50 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-3 w-64"
-    >
-      {/* Month navigation */}
-      <div className="flex items-center gap-2 mb-2">
-        <button onClick={prevMonth} className="p-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
-          <ChevronLeft size={14} />
-        </button>
-        <span className="flex-1 text-center text-xs font-medium text-[rgb(var(--color-text-primary))]">{monthLabel}</span>
-        <button onClick={nextMonth} className="p-0.5 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
-          <ChevronRight size={14} />
-        </button>
-      </div>
-      {/* Day headers */}
-      <div className="grid grid-cols-7 mb-1">
-        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className="text-center text-[9px] text-[rgb(var(--color-text-muted))] font-medium py-0.5">{d}</div>
-        ))}
-      </div>
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-y-0.5">
-        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const day = i + 1
-          const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const isToday = dateKey === todayStr
-          const hasNote = dailyDates.has(dateKey)
-          return (
-            <button
-              key={day}
-              onClick={() => onSelectDate(new Date(year, month, day))}
-              className={`relative text-center text-[11px] rounded py-0.5 cursor-pointer transition-colors
-                ${isToday ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              {day}
-              {hasNote && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[rgb(var(--color-accent))]" />
-              )}
-            </button>
-          )
-        })}
-      </div>
-      <div className="mt-2 pt-2 border-t border-[rgb(var(--color-surface-4))]">
-        <button
-          onClick={() => onSelectDate(today)}
-          className="w-full text-xs text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] rounded py-1 cursor-pointer transition-colors"
-        >
-          Today
-        </button>
-      </div>
-    </div>
-  )
-}

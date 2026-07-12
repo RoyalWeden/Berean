@@ -1,0 +1,154 @@
+import { useRef, useEffect } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import type { Note } from '@/types'
+
+export function toDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+interface CalendarGridProps {
+  date: Date
+  notes: Note[]
+  onDateChange: (d: Date) => void
+  onSelectDate: (d: Date) => void
+  /** Slightly smaller type/spacing for the sidebar's inline, narrower placement. */
+  compact?: boolean
+}
+
+/**
+ * The actual month grid — month nav, day headers, day cells (colon glyph
+ * under days with a daily note, matching the app-wide verse-note indicator),
+ * and a "Today" shortcut. No positioning/outside-click behavior of its own,
+ * so it can be dropped inline (the sidebar's collapsible Daily Notes
+ * section) or wrapped in a floating popover (CalendarWidget below,
+ * NotesPanel's header calendar button) without duplicating the date math.
+ */
+export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact }: CalendarGridProps) {
+  const year = date.getFullYear()
+  const month = date.getMonth()
+  const today = new Date()
+  const todayStr = toDateKey(today)
+
+  // Days with daily notes — handle both new ISO format (Daily — 2024-01-01)
+  // and old localised format (Daily — January 1, 2024 / Journal — ...)
+  const dailyDates = new Set(
+    notes
+      .filter(n =>
+        n.type === 'daily' || n.type === 'journal' ||
+        (n.type === 'general' && !!(n.title?.startsWith('Daily — ') || n.title?.startsWith('Journal — ')))
+      )
+      .map(n => {
+        const raw = n.title ?? ''
+        const dateStr = raw.replace(/^(Daily|Journal) — /, '')
+        // New format: already ISO yyyy-mm-dd
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+        // Old locale format: try to parse
+        try {
+          const d = new Date(dateStr)
+          if (!isNaN(d.getTime())) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          }
+        } catch { /* ignore */ }
+        return ''
+      })
+      .filter(Boolean)
+  )
+
+  // First day of month and number of days
+  const firstDay = new Date(year, month, 1).getDay() // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+  function prevMonth() {
+    onDateChange(new Date(year, month - 1, 1))
+  }
+  function nextMonth() {
+    onDateChange(new Date(year, month + 1, 1))
+  }
+
+  const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  const dayCellText = compact ? 'text-[10px]' : 'text-[11px]'
+
+  return (
+    <div>
+      {/* Month navigation */}
+      <div className="flex items-center gap-2 mb-2">
+        <button onClick={prevMonth} className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
+          <ChevronLeft size={14} />
+        </button>
+        <span className="flex-1 text-center text-xs font-medium text-[rgb(var(--color-text-primary))]">{monthLabel}</span>
+        <button onClick={nextMonth} className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
+          <ChevronRight size={14} />
+        </button>
+      </div>
+      {/* Day headers */}
+      <div className="grid grid-cols-7 mb-1">
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+          <div key={d} className="text-center text-[9px] text-[rgb(var(--color-text-muted))] font-medium py-0.5">{d}</div>
+        ))}
+      </div>
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1
+          const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const isToday = dateKey === todayStr
+          const hasNote = dailyDates.has(dateKey)
+          return (
+            <button
+              key={day}
+              onClick={() => onSelectDate(new Date(year, month, day))}
+              className={`flex flex-col items-center justify-center text-center ${dayCellText} rounded-shell pt-0.5 cursor-pointer transition-colors leading-none
+                ${isToday ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+            >
+              <span>{day}</span>
+              {/* Reserved-height row below the number (not absolutely
+                  positioned/overlapping) so the indicator can never be
+                  clipped by a neighboring row or an ancestor's overflow. */}
+              <span className={`h-[7px] text-[9px] font-black leading-none ${hasNote ? 'text-[rgb(var(--color-accent))]' : 'text-transparent'}`}>:</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+interface CalendarWidgetProps {
+  date: Date
+  notes: Note[]
+  anchor: { left: number; top: number }
+  onDateChange: (d: Date) => void
+  onSelectDate: (d: Date) => void
+  onClose: () => void
+}
+
+/**
+ * Floating popover wrapper around CalendarGrid — used by NotesPanel's own
+ * header calendar button, portaled at a computed fixed anchor (TopBar's
+ * overflow-hidden slot clips an absolutely-positioned popover here).
+ */
+export default function CalendarWidget({ date, notes, anchor, onDateChange, onSelectDate, onClose }: CalendarWidgetProps) {
+  // Close on outside click — skip if the click was on the calendar toggle button itself
+  // (the button carries data-calendar-toggle so we don't fight its own toggle handler)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      if (target.closest('[data-calendar-toggle]')) return
+      if (ref.current && !ref.current.contains(target)) onClose()
+    }
+    window.addEventListener('mousedown', handle, true)
+    return () => window.removeEventListener('mousedown', handle, true)
+  }, [onClose])
+
+  return (
+    <div
+      ref={ref}
+      style={{ position: 'fixed', left: anchor.left, top: anchor.top, transform: 'translateX(-100%)', zIndex: 9999 }}
+      className="glass-panel-modal rounded-shell-lg p-3 w-64"
+    >
+      <CalendarGrid date={date} notes={notes} onDateChange={onDateChange} onSelectDate={onSelectDate} />
+    </div>
+  )
+}

@@ -15,7 +15,7 @@ export default function VerseIndicator({ count = 1, onClick }: VerseIndicatorPro
       "
       title={`${count} note${count !== 1 ? 's' : ''} — click to view`}
     >
-      <span>●</span>
+      <span className="text-sm font-black leading-none">:</span>
       {count > 1 && <span className="ml-px">{count}</span>}
     </button>
   )

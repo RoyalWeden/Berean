@@ -3,6 +3,7 @@ import { bookChapterLabel } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { laserToPoint } from '@/lib/presenterOverlay'
+import { measureContentHeight } from '@/lib/presenterBand'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
 import type { DisplayToken } from '@/lib/verseUtils'
 import type { ViewerOverlay } from '@/types/electron'
@@ -192,8 +193,10 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       }
       // Use the content height (bottom of the last verse), not scrollHeight — otherwise the
       // empty space below the last verse on a short chapter inflates the scrollable region,
-      // so the presenter outline / virtual scroll runs PAST the last verse.
-      const H = contentBottom > 0 ? Math.min(c.scrollHeight, contentBottom + 4) : c.scrollHeight
+      // so the presenter outline / virtual scroll runs PAST the last verse. Shared with the
+      // main window's own measurement (measureContentHeight) so the two windows can't drift
+      // out of sync over independent copies of the same padding constant.
+      const H = measureContentHeight(c.scrollHeight, contentBottom)
       const visibleFraction = Math.min(1, c.clientHeight / H)
       const verseFracs: Record<number, number> = {}
       for (const [n, top] of Object.entries(verseTops)) verseFracs[Number(n)] = Math.min(1, top / H)
@@ -201,7 +204,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         console.warn('[ViewerBiblePage] reportVisibleRegion missing from preload — restart the app')
         return
       }
-      window.viewer.reportVisibleRegion({ bookId, chapter, visibleFraction, verseFracs })
+      window.viewer.reportVisibleRegion({ bookId, chapter, visibleFraction, verseFracs, clientHeight: c.clientHeight })
     })
   }, [bookId, chapter])
 
@@ -247,14 +250,35 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     })
   }, [scrollPercent, verses])
 
-  // Report visible region after verses render and on window resize
+  // Report visible region after verses render and on window resize. Word-
+  // replacer settings are included here too — they change verse text length
+  // (and therefore line-wrapping/verse heights) without touching `verses`
+  // itself, so toggling/editing them while the viewer is open used to leave
+  // the reported region (and the main window's outline band) silently stale
+  // until the next chapter navigation.
   useEffect(() => {
     if (!loading) reportVisible()
-  }, [loading, verses, fontScale, reportVisible])
+  }, [loading, verses, fontScale, wrEnabled, wrRules, reportVisible])
   useEffect(() => {
     const onResize = () => reportVisible()
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
+  }, [reportVisible])
+  // A raw window `resize` alone misses content reflows that don't come with
+  // an OS-level window resize (webview layout settling, DPI changes, any
+  // other content-affecting change not already covered by the effect
+  // above) — the main window's own band computation already guards against
+  // this with a ResizeObserver on its scroll container (BiblePanel.tsx);
+  // the viewer had no equivalent, so its reported region/verseFracs could
+  // silently drift out of date relative to what's actually on screen,
+  // surfacing as the main window's outline claiming a different verse
+  // range than what the presenter is really showing.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => reportVisible())
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [reportVisible])
   // Main window can explicitly ask for a fresh report (after unpausing / "Re-sync now") even
   // when our content hasn't changed — see requestViewerVisibleRegion for why this is needed.
@@ -379,7 +403,18 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         {bookChapterLabel(bookId, chapter)}{textId === 'lxx' ? ' LXX' : ''}
       </div>
 
-      <div style={{ fontSize: baseFontSize, lineHeight: 1.9, color: textColor }}>
+      {/* line-height and per-verse margin-bottom deliberately match
+          VerseRow.tsx's own non-Strong's-mode values (mb-3 + var(--line-
+          height-comfortable), 1.75) — the viewer never renders Strong's, so
+          that's always the right main-window state to mirror. These two
+          renderers are independently maintained (no shared component), and
+          presenterBand.ts's whole geometry model assumes both windows'
+          verse-to-verse spacing is proportionally equivalent; a previous
+          hardcoded 1.9/mb-0.5 here (vs. main's 1.75/12px) diverged enough
+          to misplace the outline band by several verses, worst in
+          short-verse books like Song of Solomon where the per-verse error
+          compounds fastest. */}
+      <div style={{ fontSize: baseFontSize, lineHeight: 'var(--line-height-comfortable)', color: textColor }}>
         {verses.map((v) => {
           const isActive = verse === v.verse_num
           return (
@@ -387,7 +422,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
               key={v.verse_num}
               data-verse={v.verse_num}
               ref={isActive ? (activeRef as React.RefObject<HTMLDivElement>) : undefined}
-              className="flex gap-3 mb-0.5"
+              className="flex gap-3 mb-3"
               style={isActive ? { background: accentBg, borderRadius: '6px', marginLeft: '-8px', paddingLeft: '8px', paddingRight: '4px' } : undefined}
             >
               <span

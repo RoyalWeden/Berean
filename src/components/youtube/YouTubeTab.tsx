@@ -6,7 +6,9 @@ import {
   FileText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
-import NoteEditor from '@/components/notes/NoteEditor'
+import NoteEditor from '@/components/notes/pm/NoteEditorPM'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import YouTubeSecondaryPanel from './YouTubeSecondaryPanel'
 import TranscriptViewer, { type TranscriptSegment } from './TranscriptViewer'
 import { filterVideosBySearch, rankVideosBySearch, highlightSnippet, type SearchScope, type TranscriptMatchInfo } from '@/lib/youtubeSearch'
@@ -1372,10 +1374,21 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     window.notes.getNotes().then((notes) => {
       const note = notes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
       if (note) {
-        useAppStore.getState().requestOpenNote(note.id)
         useAppStore.getState().ensureTab('note')
+        useAppStore.getState().requestOpenNote(note.id)
       }
     }).catch(() => {})
+  }
+
+  function handleInlineLexiconRefClick(strongsId: string) {
+    const store = useAppStore.getState()
+    const fromNote = inlinePanelNoteId
+      ? { noteId: inlinePanelNoteId, title: videoNotes.find((n) => n.noteId === inlinePanelNoteId)?.noteTitle ?? '' }
+      : undefined
+    // ensureTab first — openLexiconEntry's pending value is picked up by
+    // whichever Lexicon tab is active at that moment.
+    store.ensureTab('lexicon')
+    store.openLexiconEntry(strongsId, fromNote)
   }
 
   // ─── Filtering + sorting ─────────────────────────────────────────────────────
@@ -1446,8 +1459,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
     return (
       <div className="flex flex-col h-full bg-[rgb(var(--color-surface-1))]">
-        {/* Header */}
-        <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-w-0 ${floating ? 'pl-[76px] pr-3 app-drag-region' : 'px-3'}`}>
+        {/* Header — active gated on activeSpace since this panel stays mounted
+             (hidden via CSS) even when not the active tab, to keep PiP/playback alive. */}
+        <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0">
           <button
             onClick={handleBack}
             className="flex items-center gap-1.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer rounded px-2 py-1 hover:bg-[rgb(var(--color-surface-4))] transition-colors flex-shrink-0"
@@ -1478,24 +1492,6 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           >
             <Star size={13} className={activeVideo?.isStarred ? 'text-yellow-400 fill-yellow-400' : ''} />
           </button>
-          {playerReady && !videoEnded && (
-            <>
-              <button
-                onClick={() => insertTimestamp('link')}
-                title="Copy video link (no timestamp)"
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Link2 size={11} />
-              </button>
-              <button
-                onClick={() => insertTimestamp('timestamp')}
-                title={activeSpace === 'youtube' ? 'Copy timestamp link to clipboard (⌘⇧L)' : 'Insert timestamp link into active note (⌘⇧L)'}
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                <Paperclip size={11} />
-              </button>
-            </>
-          )}
           <button
             onClick={() => setVideoMaximized((v) => !v)}
             title={videoMaximized ? 'Restore' : 'Maximize video'}
@@ -1516,7 +1512,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 <LayoutGrid size={13} />
               </button>
               {showLayoutPicker && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl p-3 w-[340px]">
+                <div className="glass-panel absolute right-0 top-full mt-1 z-50 rounded-shell-lg p-3 w-[340px]">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] mb-2">Layout</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {YOUTUBE_LAYOUTS.map((def) => (
@@ -1565,14 +1561,35 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               )}
             </div>
           )}
-          <button
-            onClick={() => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`)}
-            title="Open in browser"
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer flex-shrink-0"
-          >
-            <ExternalLink size={11} />
-          </button>
-        </div>
+          {/* Lower-frequency actions — copy/insert only matter mid-watch, open-in-
+              browser is occasional. Maximize + layout picker stay inline above
+              since they're used far more often while actually watching. */}
+          <HeaderOverflowMenu
+            items={[
+              ...(playerReady && !videoEnded ? [
+                {
+                  key: 'copy-link',
+                  label: 'Copy video link (no timestamp)',
+                  icon: <Link2 />,
+                  onClick: () => insertTimestamp('link'),
+                },
+                {
+                  key: 'insert-timestamp',
+                  label: activeSpace === 'youtube' ? 'Copy timestamp link' : 'Insert timestamp link into active note',
+                  icon: <Paperclip />,
+                  shortcut: '⌘⇧L',
+                  onClick: () => insertTimestamp('timestamp'),
+                },
+              ] : []),
+              {
+                key: 'open-external',
+                label: 'Open in browser',
+                icon: <ExternalLink />,
+                onClick: () => window.app.openExternal(`https://www.youtube.com/watch?v=${activeVideoId}`),
+              },
+            ]}
+          />
+        </TabHeaderPortal>
 
         {/* ── Layout container: wraps video column + optional secondary panels ─ */}
         <div className={`flex-1 min-h-0 overflow-hidden ${layoutStyle.containerClass}`}>
@@ -1795,7 +1812,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
                         <FileText size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                         <span className="flex-1 text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{n.noteTitle}</span>
-                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().requestOpenNote(n.noteId); useAppStore.getState().ensureTab('note') }}
+                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }}
                           title="Open in Notes tab"
                           className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] flex-shrink-0 opacity-0 group-hover:opacity-100">
                           <ExternalLink size={9} />
@@ -1821,7 +1838,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                           <Clock size={7} />{fmtSecs(n.timestamp)}
                         </button>
                         <span className="flex-1 text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{n.noteTitle}</span>
-                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().requestOpenNote(n.noteId); useAppStore.getState().ensureTab('note') }}
+                        <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }}
                           title="Open in Notes tab"
                           className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] flex-shrink-0 opacity-0 group-hover:opacity-100">
                           <ExternalLink size={9} />
@@ -1868,7 +1885,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         {inlinePanelEditing ? <Eye size={10} /> : <Edit3 size={10} />}
                       </button>
                       <button
-                        onClick={() => { useAppStore.getState().requestOpenNote(inlinePanelNoteId); useAppStore.getState().ensureTab('note') }}
+                        onClick={() => { useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(inlinePanelNoteId) }}
                         title="Open in Notes tab"
                         className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                       >
@@ -1887,12 +1904,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                       <NoteEditor
                         content={inlinePanelContent}
                         onChange={handleInlinePanelContentChange}
-                        previewMode={!inlinePanelEditing}
+                        mode={inlinePanelEditing ? 'edit' : 'view'}
                         onCommandsRef={(cmds) => { inlinePanelCommandsRef.current = cmds }}
                         onVerseRefClick={handleInlineVerseRefClick}
                         onWikilinkClick={handleInlineWikilinkClick}
-                        noteId={inlinePanelNoteId}
-                        noteTitle={videoNotes.find(n => n.noteId === inlinePanelNoteId)?.noteTitle ?? ''}
+                        onLexiconRefClick={handleInlineLexiconRefClick}
                       />
                     </div>
                   </div>
@@ -1948,8 +1964,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]" onClick={closeMenus}>
-      {/* Toolbar */}
-      <div className={`flex items-center gap-1.5 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap ${floating ? 'pl-[76px] pr-3 app-drag-region' : 'px-3'}`}>
+      {/* Toolbar — portaled into the shared top bar instead of drawing its own
+           second header row (was previously a full bar with its own drag-region,
+           stacked directly under the app-level top bar). */}
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-wrap">
         <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           type="text"
@@ -2017,7 +2035,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           </button>
           {showChannelMenu && (
             <div
-              className="absolute right-0 top-full mt-1 z-20 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl min-w-[190px] flex flex-col overflow-hidden"
+              className="glass-panel absolute right-0 top-full mt-1 z-20 rounded-shell-lg min-w-[190px] flex flex-col overflow-hidden"
               style={{ maxHeight: '300px' }}
             >
               <div className="p-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -2066,7 +2084,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
             {SORT_LABEL[sort]} <ChevronDown size={10} />
           </button>
           {showSortMenu && (
-            <div className="absolute right-0 top-full mt-1 z-20 bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl min-w-[140px] py-1">
+            <div className="glass-panel absolute right-0 top-full mt-1 z-20 rounded-shell-lg min-w-[140px] py-1">
               {(Object.keys(SORT_LABEL) as SortOption[])
                 // 'Best match' only applies while searching — hide it otherwise.
                 .filter((opt) => opt !== 'relevance' || search.trim().length > 0)
@@ -2225,7 +2243,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               </div>
             )}
           </div>
-      </div>
+      </TabHeaderPortal>
 
       {/* ── More Filters panel — expands below the toolbar ─────────────────── */}
       {showMoreFilters && (
@@ -2506,7 +2524,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setVideoMenu(null)} onContextMenu={(e) => { e.preventDefault(); setVideoMenu(null) }} />
           <MenuPositioner x={videoMenu.x} y={videoMenu.y}
-            className="min-w-[230px] bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-2xl py-1 overflow-hidden"
+            className="glass-panel min-w-[230px] rounded-shell-lg py-1 overflow-hidden"
           >
             {[
               {

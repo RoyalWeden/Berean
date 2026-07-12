@@ -335,8 +335,8 @@ describe('buildPrintHTML — margins', () => {
       marginPreset: 'custom', customMargins: { top: 1, right: 0.5, bottom: 1, left: 0.5 }, theme: 'ocean',
     })
     expect(out).toContain('<strong>beginning</strong>')
-    expect(out).toContain('class="berean-verse-block"')
-    expect(out).toContain('#0d9488')
+    expect(out).toContain('pm-verse-block')
+    expect(out).toContain('13 148 136')
   })
 })
 
@@ -481,7 +481,7 @@ describe('buildPrintHTML — combined options', () => {
   it('options do not corrupt verse-block rendering', () => {
     const out = buildPrintHTML('X', 'Genesis 1:1 In the **beginning** Yehovah created', { marginPreset: 'wide' })
     expect(out).toContain('<strong>beginning</strong>')
-    expect(out).toContain('berean-verse-block')
+    expect(out).toContain('pm-verse-block')
   })
 })
 
@@ -587,7 +587,7 @@ Final paragraph.`
     const out = buildPrintHTML('Study', doc)
     expect(out).toContain('<!DOCTYPE html>')
     expect(out).toContain('</html>')
-    expect(out).toContain('berean-verse-block')
+    expect(out).toContain('pm-verse-block')
   })
 })
 
@@ -721,11 +721,11 @@ describe('buildPrintHTML — escaping & structure', () => {
   })
 
   it('verse-block CSS present regardless of options', () => {
-    expect(buildPrintHTML('T', 'b', { fontFamily: 'serif' })).toContain('.berean-verse-block')
+    expect(buildPrintHTML('T', 'b', { fontFamily: 'serif' })).toContain('.pm-verse-block')
   })
 
   it('mark CSS present', () => {
-    expect(buildPrintHTML('T', 'b')).toContain('mark {')
+    expect(buildPrintHTML('T', 'b')).toContain('mark.hl-')
   })
 
   it('page-break rules present', () => {
@@ -810,8 +810,12 @@ Deuteronomy 5:12 Keep the sabbath day to ==sanctify== it`
 
   it('produces exactly two verse blocks', () => {
     const out = buildPrintHTML('Sabbath', studyNote)
-    // Count actual block divs (class="..."), not CSS-rule mentions (.berean-verse-block)
-    expect((out.match(/class="berean-verse-block"/g) || []).length).toBe(2)
+    // Each distinct block has exactly one "starting" paragraph, marked
+    // -only (single-paragraph block) or -first (multi-paragraph block) —
+    // scoped to `class="..."` attributes so CSS selector text in the
+    // inlined <style> block (which mentions the same class names) isn't
+    // double-counted.
+    expect((out.match(/class="[^"]*pm-verse-block-(only|first)[^"]*"/g) || []).length).toBe(2)
   })
 
   it('no raw markdown or stash tokens in final PDF html', () => {
@@ -844,9 +848,9 @@ describe('buildPrintHTML — themes', () => {
     }
   })
 
-  it('verse blocks use 8px rounded corners in print CSS', () => {
+  it('verse blocks use rounded corners in print CSS', () => {
     const out = buildPrintHTML('T', 'Genesis 1:1 In the beginning Yehovah created', { theme: 'classic' })
-    expect(out).toMatch(/\.berean-verse-block\s*\{[^}]*border-radius: 8px !important/)
+    expect(out).toMatch(/pm-verse-block-only[^{]*\{[^}]*border-radius/)
   })
 
   it('strips internal anchor links but keeps external links', () => {
@@ -864,14 +868,9 @@ describe('buildPrintHTML — themes', () => {
     expect(out).not.toMatch(/href="#lxx-verse-ref-/)
   })
 
-  it('verse-ref links are styled without underline (not clickable-looking)', () => {
+  it('stripped internal links (no href left) fall back to plain, non-clickable-looking text', () => {
     const out = buildPrintHTML('T', 'body')
-    expect(out).toMatch(/a\.berean-verse-ref\s*\{[^}]*text-decoration: none/)
-  })
-
-  it('stripped non-verse internal links fall back to plain text', () => {
-    const out = buildPrintHTML('T', 'body')
-    expect(out).toContain('a:not([href]):not(.berean-verse-ref)')
+    expect(out).toMatch(/a:not\(\[href\]\)\s*\{[^}]*text-decoration: none/)
   })
 
   it('margin preset is reflected in uniform body padding; none = 0', () => {
@@ -900,16 +899,21 @@ describe('buildPrintHTML — themes', () => {
     }
   })
 
-  it('classic theme uses indigo verse border', () => {
-    expect(buildPrintHTML('T', sample, { theme: 'classic' })).toContain('#6366f1')
+  // Verse-block borders/backgrounds now come from pmEditor.css's shared
+  // --color-accent variable (the same one live-editor blocks use), rather
+  // than a print-only verseBorder color — so these check the theme's
+  // `accent` field (as an "r g b" CSS-var triple) drives the block styling,
+  // not the separate `verseBorder` hex the old hand-written CSS used.
+  it('classic theme accent drives verse-block styling', () => {
+    expect(buildPrintHTML('T', sample, { theme: 'classic' })).toContain('37 99 235')
   })
 
-  it('manuscript theme uses warm amber border', () => {
-    expect(buildPrintHTML('T', sample, { theme: 'manuscript' })).toContain('#b45309')
+  it('manuscript theme accent drives verse-block styling', () => {
+    expect(buildPrintHTML('T', sample, { theme: 'manuscript' })).toContain('180 83 9')
   })
 
-  it('ocean theme uses teal accent', () => {
-    expect(buildPrintHTML('T', sample, { theme: 'ocean' })).toContain('#0d9488')
+  it('ocean theme accent drives verse-block styling', () => {
+    expect(buildPrintHTML('T', sample, { theme: 'ocean' })).toContain('13 148 136')
   })
 
   it('minimal theme uses transparent verse background', () => {
@@ -923,17 +927,17 @@ describe('buildPrintHTML — themes', () => {
   })
 
   it('default theme (no opt) is classic', () => {
-    expect(buildPrintHTML('T', sample)).toContain('#6366f1')
+    expect(buildPrintHTML('T', sample)).toContain('37 99 235')
   })
 
   it('unknown theme falls back to classic', () => {
     // @ts-expect-error testing invalid theme id
-    expect(buildPrintHTML('T', sample, { theme: 'nonexistent' })).toContain('#6366f1')
+    expect(buildPrintHTML('T', sample, { theme: 'nonexistent' })).toContain('37 99 235')
   })
 
-  it('theme verse-block colors use !important to beat inline styles', () => {
+  it('theme verse-block colors use !important to beat pmEditor.css defaults', () => {
     const out = buildPrintHTML('T', sample, { theme: 'ocean' })
-    expect(out).toMatch(/\.berean-verse-block\s*\{[^}]*!important/)
+    expect(out).toMatch(/\.pm-verse-block,\s*\.pm-lexicon-block\s*\{[^}]*!important/)
   })
 
   it('each theme produces a valid document', () => {
@@ -952,18 +956,18 @@ describe('buildPrintHTML — themes', () => {
 
   it('each theme still renders verse blocks', () => {
     for (const id of Object.keys(PRINT_THEMES) as (keyof typeof PRINT_THEMES)[]) {
-      expect(buildPrintHTML('T', sample, { theme: id })).toContain('class="berean-verse-block"')
+      expect(buildPrintHTML('T', sample, { theme: id })).toContain('pm-verse-block')
     }
   })
 
   it('theme applies heading color', () => {
     const out = buildPrintHTML('T', '# Heading', { theme: 'ocean' })
-    expect(out).toMatch(/h1\s*\{[^}]*color: #0f766e/)
+    expect(out).toMatch(/h1,\s*h2,\s*h3,\s*h4,\s*h5,\s*h6\s*\{[^}]*color: #0f766e/)
   })
 
   it('theme applies link/accent color', () => {
     const out = buildPrintHTML('T', '[link](https://x.com)', { theme: 'manuscript' })
-    expect(out).toMatch(/a\s*\{[^}]*color: #b45309/)
+    expect(out).toMatch(/\n\s*a\s*\{[^}]*color: #b45309/)
   })
 
   it('theme combines with margin and font options', () => {

@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, Search } from 'lucide-react'
 import ChapterView from '@/components/bible/ChapterView'
-import NoteEditor from '@/components/notes/NoteEditor'
+import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { useAppStore } from '@/store'
 import { getTranslationForBook } from '@/lib/parseRef'
 import type { YouTubePanelState, Note, LexiconEntry } from '@/types'
@@ -41,7 +41,9 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
   function openInTab() {
     if (!noteId) return
     const store = useAppStore.getState()
-    store.requestOpenNote(noteId); store.ensureTab('note'); store.setActiveSpace('notes')
+    // ensureTab first — requestOpenNote's pending value is picked up by
+    // whichever Notes tab is active at that moment.
+    store.ensureTab('note'); store.requestOpenNote(noteId); store.setActiveSpace('notes')
   }
 
   // Empty / search state
@@ -73,9 +75,36 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
         extra={<button onClick={openInTab} title="Open in notes tab" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><ExternalLink size={12} /></button>} />
       <div className="flex-1 overflow-hidden min-h-0">
         {note && (
-          <NoteEditor content={note.content} onChange={() => {}} onFocusRef={() => {}} onScrollPosition={() => {}}
-            onCursorPosition={() => {}} previewMode={true} notes={[]} onWikilinkClick={() => {}} onVerseRefClick={() => {}}
-            noteId={note.id} noteTitle={note.title || 'Untitled'} autoFocus={false} />
+          <NoteEditor
+            content={note.content}
+            onChange={() => {}}
+            mode="view"
+            autoFocus={false}
+            onVerseRefClick={(ref) => {
+              const store = useAppStore.getState()
+              store.ensureTab('bible')
+              const scriptureTabId = useAppStore.getState().activeTabId['scripture']
+              if (!scriptureTabId) return
+              const translationOverride = ref.forcedTranslation ?? getTranslationForBook(ref.bookId)
+              useAppStore.getState().updateTabState('scripture', scriptureTabId, {
+                bookId: ref.bookId, chapter: ref.chapter, targetVerse: ref.verse, scrollPosition: 0,
+                ...(translationOverride ? { translation: translationOverride.toUpperCase() } : {}),
+              })
+            }}
+            onWikilinkClick={(title) => {
+              window.notes.getNotes().then((notes) => {
+                const target = notes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+                if (target) { useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(target.id) }
+              }).catch(() => {})
+            }}
+            onLexiconRefClick={(strongsId) => {
+              const store = useAppStore.getState()
+              // ensureTab first — openLexiconEntry's pending value is picked
+              // up by whichever Lexicon tab is active at that moment.
+              store.ensureTab('lexicon')
+              store.openLexiconEntry(strongsId, { noteId: note.id, title: note.title || 'Untitled' })
+            }}
+          />
         )}
       </div>
     </div>
@@ -192,7 +221,11 @@ function LexiconPanel({ panel, onUpdate, onBack, onClose }: {
   function openInTab() {
     if (!strongsNum) return
     const store = useAppStore.getState()
-    store.openLexiconEntry(strongsNum); store.ensureTab('lexicon'); store.setActiveSpace('lexicon')
+    // ensureTab first — openLexiconEntry's pending value is picked up by
+    // whichever Lexicon tab is active at that moment.
+    store.ensureTab('lexicon')
+    store.openLexiconEntry(strongsNum)
+    store.setActiveSpace('lexicon')
   }
 
   if (!strongsNum) {

@@ -52,7 +52,14 @@ export default function ActivePanel() {
       {/* Non-YouTube panels (also covers YouTube empty state when no tab exists yet) */}
       {(!isYouTubeActive || !ytTab) && (
         <div className="absolute inset-0">
-          <AnimatePresence initial={false}>
+          {/* mode="wait": without this, the outgoing and incoming tab components
+              are both mounted simultaneously during the crossfade — and since
+              each portals its header into the shared top bar's slot (see
+              TabHeaderPortal), that briefly renders BOTH tabs' header buttons
+              on top of each other. Waiting for the exit to finish first (the
+              fade is only 70ms, imperceptible) keeps exactly one portaled at
+              a time. */}
+          <AnimatePresence initial={false} mode="wait">
             <motion.div
               key={tab?.id ?? 'empty'}
               className="absolute inset-0"

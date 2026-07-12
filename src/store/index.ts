@@ -2,9 +2,10 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
-import { clampZoom, adjustZoom, ZOOM_DEFAULT, type ZoomContext } from '@/lib/zoom'
+import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
 import { bookName } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
+import type { UpdateStatus } from '@/types/electron'
 
 export interface WordReplacerRule {
   id: string
@@ -109,6 +110,11 @@ export interface AppState {
   clearVerseFilter: () => void
   noteChangeToken: number
   bumpNoteToken: () => void
+  // Bumped by the shared top bar's presenter button when the active tab is Bible —
+  // BiblePanel listens and runs its scroll-sync + explicit content push, since that
+  // logic depends on internal scroll refs the top bar has no access to.
+  presenterPushToken: number
+  bumpPresenterPushToken: () => void
   applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => void
 
   // Cross-panel lexicon communication
@@ -234,8 +240,8 @@ export interface AppState {
   setPdfDownloadLocation: (v: string) => void
 
   // Note editor preferences
-  defaultNoteEditorMode: 'raw' | 'wysiwyg' | 'preview'
-  setDefaultNoteEditorMode: (m: 'raw' | 'wysiwyg' | 'preview') => void
+  defaultNoteEditorMode: 'edit' | 'view'
+  setDefaultNoteEditorMode: (m: 'edit' | 'view') => void
   confirmNoteDelete: boolean
   setConfirmNoteDelete: (v: boolean) => void
   noteSpellCheck: boolean
@@ -291,11 +297,23 @@ export interface AppState {
   // 'hermas_taylor' (Charles Taylor 1903). Applied to getTranslationForBook + hermasMap.
   hermasTranslation: string
   setHermasTranslation: (id: string) => void
-  // Per-panel zoom multipliers (1 = 100%); driven by Cmd +/- /0 and toolbar buttons
-  panelZoom: Record<ZoomContext, number>
-  setPanelZoom: (ctx: ZoomContext, level: number) => void
-  adjustPanelZoom: (ctx: ZoomContext, dir: 1 | -1) => void
-  resetPanelZoom: (ctx: ZoomContext) => void
+  // App-update status — a single global subscription to window.app.onUpdateStatus
+  // lives in App.tsx and writes here, so any component (the rail's Settings
+  // badge, the Settings modal's Updates section) can read the current state
+  // without each mounting its own IPC listener (the preload bridge only
+  // supports one active listener at a time — see electron/preload.ts).
+  updateStatus: UpdateStatus
+  setUpdateStatus: (status: UpdateStatus) => void
+  updateLastCheckedAt: number | null
+
+  // Shared reading-content zoom multiplier (1 = 100%); driven by Cmd +/- /0
+  // and the rail's zoom control. Applied only within reading panes (Scripture,
+  // Lexicon, the Notes/Lexicon/Scripture side panel) — never to the app shell
+  // itself, so the sidebar/rail/tab list stay a fixed size regardless of zoom.
+  appZoom: number
+  setAppZoom: (level: number) => void
+  adjustAppZoom: (dir: 1 | -1) => void
+  resetAppZoom: () => void
   setBibleFontSize: (size: number) => void
   setBibleLineHeight: (h: 'compact' | 'comfortable' | 'spacious') => void
   setDefaultBibleTranslation: (id: string) => void
@@ -313,8 +331,6 @@ export interface AppState {
   setFloatingSearchDensity: (d: 'compact' | 'comfortable' | 'spacious') => void
   defaultYoutubeLayout: import('@/types').YouTubeLayout
   setDefaultYoutubeLayout: (l: import('@/types').YouTubeLayout) => void
-  sidebarNewTabIconOnly: boolean
-  setSidebarNewTabIconOnly: (v: boolean) => void
 
   // Theme — base + optional preset overlay
   theme: 'dark' | 'light' | 'system'
@@ -341,11 +357,11 @@ export interface AppState {
   archiveAllTabs: (label?: string) => void
   restoreArchivedGroup: (groupId: string) => void
   dismissArchivedGroup: (groupId: string) => void
+  clearAllArchivedGroups: () => void
 
   // Sessions
   sessions: Session[]
   currentSessionId: string
-  sessionTabFilters: Record<string, TabType | 'all'>  // keyed by session ID
   sessionDisplayOrders: Record<string, string[]>        // keyed by session ID — custom tab display order
   createSession: (name?: string) => void
   switchSession: (id: string) => void
@@ -353,7 +369,6 @@ export interface AppState {
   setSessionIcon: (id: string, icon: string) => void
   deleteSession: (id: string) => void
   moveTabToSession: (spaceId: SpaceId, tabId: string, targetSessionId: string) => void
-  setSessionTabFilter: (sessionId: string, filter: TabType | 'all') => void
   reorderTabDisplay: (sessionId: string, fromId: string, toId: string, before: boolean) => void
 
   // Actions
@@ -377,6 +392,8 @@ export interface AppState {
   recentSearchQueries: string[]
   addRecentSearchQuery: (q: string) => void
   openSettings: () => void
+  openSettingsToSessions: () => void
+  openSettingsToAbout: () => void
   closeSettings: () => void
   toggleSettings: () => void
   setTheme: (theme: 'dark' | 'light' | 'system') => void
@@ -477,12 +494,22 @@ export interface AppState {
   setESwordProgress: (p: { phase: import('@/types/electron').ESwordPhase; done?: number; total?: number; message?: string; reviewNotes?: import('@/types/electron').ESwordReviewNote[] }) => void
   resetESword: () => void
 
-  // Per-tab navigation stacks — back/forward scoped to the active tab only
+  // Per-tab navigation stacks — back/forward scoped to the active tab only.
+  // idx can reach -1 for note/lexicon tabs, representing "the list/search view"
+  // (no item open) as a real, back/forward-reachable position rather than a
+  // dead end — this is what lets the top bar's nav pill replace each panel's
+  // own local Home/Back-to-list buttons.
   tabNavStacks: Record<string, { stack: TabNavEntry[]; idx: number }>
   isNavJumping: boolean
   pushTabNav: (tabId: string, entry: Omit<TabNavEntry, 'id'>) => void
   navTabBack: () => void
   navTabForward: () => void
+  goToTabHome: () => void
+  resetTabNavHome: (tabId: string) => void
+  notesHomeToken: number
+  bumpNotesHomeToken: () => void
+  lexiconHomeToken: number
+  bumpLexiconHomeToken: () => void
 
   // History settings
   tabNavMaxStack: number           // max entries per-tab back/forward stack (default 100)
@@ -539,6 +566,7 @@ export const useAppStore = create<AppState>()(
       pendingNoteId: null,
       pendingVerseFilter: null,
       noteChangeToken: 0,
+      presenterPushToken: 0,
       pendingLexiconEntry: null,
       pendingLexiconSearch: null,
       pendingRightPanelNoteId: null,
@@ -550,14 +578,25 @@ export const useAppStore = create<AppState>()(
       findBarQuery: '',
       findBarAutoOpen: false,
       findBarWordMode: 'phrase' as 'phrase' | 'all' | 'any',
-      openFindBar: (autoOpen = false, seedChar = '') => set({ findBarOpen: true, findBarAutoOpen: autoOpen, findBarQuery: seedChar }),
+      openFindBar: (autoOpen = false, seedChar = '') => {
+        window.dispatchEvent(new CustomEvent('berean:closeMenus'))
+        set({ findBarOpen: true, findBarAutoOpen: autoOpen, findBarQuery: seedChar })
+      },
       closeFindBar: () => set({ findBarOpen: false, findBarQuery: '', findBarAutoOpen: false }),
       setFindBarQuery: (q) => set({ findBarQuery: q }),
       setFindBarWordMode: (mode) => set({ findBarWordMode: mode }),
       activePanelId: 'bible' as 'bible' | 'notes' | 'lexicon',
       setActivePanelId: (id) => set({ activePanelId: id }),
+      updateStatus: { status: 'idle' } as UpdateStatus,
+      setUpdateStatus: (status) => set({
+        updateStatus: status,
+        // Terminal-ish states (not the transient "checking") mark when we
+        // last actually heard back from the update feed.
+        ...(status.status !== 'checking' ? { updateLastCheckedAt: Date.now() } : {}),
+      }),
+      updateLastCheckedAt: null,
       bibleFontSize: 16,
-      panelZoom: { scripture: ZOOM_DEFAULT, notes: ZOOM_DEFAULT, lexicon: ZOOM_DEFAULT },
+      appZoom: ZOOM_DEFAULT,
       bibleLineHeight: 'comfortable' as const,
       defaultBibleTranslation: 'kjva',
       hermasTranslation: 'hermas_taylor',
@@ -732,9 +771,9 @@ export const useAppStore = create<AppState>()(
 
       importModalOpen: false,
       importInitialTab: 'biblegateway' as 'biblegateway' | 'esword',
-      openImportModal: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }),
-      openImportBibleGateway: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }),
-      openImportESword: () => set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'esword' }),
+      openImportModal: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }) },
+      openImportBibleGateway: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'biblegateway' }) },
+      openImportESword: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'esword' }) },
       closeImportModal: () => set({ importModalOpen: false }),
       settingsInitialSection: 'appearance',
 
@@ -769,6 +808,10 @@ export const useAppStore = create<AppState>()(
       // ── Per-tab navigation stacks (back/forward scoped to one tab) ─────────
       tabNavStacks: {} as Record<string, { stack: TabNavEntry[]; idx: number }>,
       isNavJumping: false,
+      notesHomeToken: 0,
+      bumpNotesHomeToken: () => set((s) => ({ notesHomeToken: s.notesHomeToken + 1 })),
+      lexiconHomeToken: 0,
+      bumpLexiconHomeToken: () => set((s) => ({ lexiconHomeToken: s.lexiconHomeToken + 1 })),
 
       pushTabNav: (tabId, entry) => {
         if (get().isNavJumping) return
@@ -798,10 +841,22 @@ export const useAppStore = create<AppState>()(
         const activeTabId = s.activeTabId[s.activeSpace]
         if (!activeTabId) return
         const tabStack = s.tabNavStacks[activeTabId]
-        if (!tabStack || tabStack.idx <= 0) return
+        if (!tabStack || tabStack.idx < 0) return
+        // Note/Lexicon tabs can go one step further back than usual, to idx -1 —
+        // the list/search view, with nothing open. Other tab types (Bible, YouTube,
+        // Search, PDF) have no equivalent "nothing open" state, so they stop at 0.
+        const stackType = tabStack.stack[0]?.type
+        const supportsHome = stackType === 'note' || stackType === 'lexicon'
+        if (tabStack.idx <= (supportsHome ? -1 : 0)) return
         const newIdx = tabStack.idx - 1
-        const entry = tabStack.stack[newIdx]
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
+        if (newIdx === -1) {
+          if (stackType === 'note') get().bumpNotesHomeToken()
+          else if (stackType === 'lexicon') get().bumpLexiconHomeToken()
+          setTimeout(() => set({ isNavJumping: false }), 50)
+          return
+        }
+        const entry = tabStack.stack[newIdx]
         if (entry.bookId) {
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
@@ -847,6 +902,53 @@ export const useAppStore = create<AppState>()(
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
+      // Jumps straight to the synthetic idx-(-1) "home" entry (Notes list /
+      // Lexicon search) in ONE atomic update.
+      //
+      // This used to repeat navTabBack() enough times to walk there step by
+      // step (mirroring how TopBar.tsx's long-press nav-history dropdown did
+      // it inline) — but every intermediate navTabBack() call ALSO sets
+      // `pendingNoteId`/`pendingLexiconEntry` for whatever entry it lands on
+      // along the way (NotesPanel.tsx/LexiconPanel.tsx watch that field and
+      // load the entry), and nothing clears it once the loop moves past that
+      // step. So after "arriving home" (idx -1, which bumps notesHomeToken/
+      // lexiconHomeToken instead), the STALE pendingNoteId from the
+      // second-to-last step was still sitting there — and depending on
+      // effect ordering, the note-loading effect could win the race against
+      // the home-token effect, landing on that leftover note instead of the
+      // list. Jumping directly to -1 skips every intermediate step (and the
+      // pendingNoteId churn each one causes) entirely.
+      goToTabHome: () => {
+        const s = get()
+        const activeTabId = s.activeTabId[s.activeSpace]
+        if (!activeTabId) return
+        const tabStack = s.tabNavStacks[activeTabId]
+        if (!tabStack || tabStack.idx < 0) return
+        const stackType = tabStack.stack[0]?.type
+        if (stackType !== 'note' && stackType !== 'lexicon') return
+        set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: -1 } } })
+        if (stackType === 'note') get().bumpNotesHomeToken()
+        else get().bumpLexiconHomeToken()
+        setTimeout(() => set({ isNavJumping: false }), 50)
+      },
+
+      // For panels that can null out their own "active item" state through a
+      // path OTHER than the home button (e.g. NotesPanel.tsx deleting the
+      // currently-open note) — without this, the nav stack's idx stays
+      // stale (still pointing at the now-nonexistent item), so the home
+      // icon keeps showing even though the panel is already back at its
+      // list/search view, AND clicking it does nothing (goBack()'s own
+      // `if (!activeNote) return` guard short-circuits since there's
+      // nothing to go back FROM as far as the panel's local state is
+      // concerned). Callers update their own local "active item" state to
+      // null themselves; this only re-syncs the nav-stack half of that.
+      resetTabNavHome: (tabId) => {
+        const s = get()
+        const tabStack = s.tabNavStacks[tabId]
+        if (!tabStack || tabStack.idx < 0) return
+        set({ tabNavStacks: { ...s.tabNavStacks, [tabId]: { ...tabStack, idx: -1 } } })
+      },
+
       // History settings
       tabNavMaxStack: 100,
       historyMaxEntries: 500,
@@ -880,7 +982,7 @@ export const useAppStore = create<AppState>()(
       printTheme: 'classic' as const,
       pdfDownloadLocation: '',
 
-      defaultNoteEditorMode: 'wysiwyg' as const,
+      defaultNoteEditorMode: 'edit' as const,
       confirmNoteDelete: false,
       noteSpellCheck: true,
       autoCopyOnHighlight: false,
@@ -907,7 +1009,6 @@ export const useAppStore = create<AppState>()(
       archivedGroups: [] as ArchivedGroup[],
       sessions: [DEFAULT_SESSION] as Session[],
       currentSessionId: 'default',
-      sessionTabFilters: {} as Record<string, TabType | 'all'>,
       sessionDisplayOrders: {} as Record<string, string[]>,
 
       createSession: (name) => {
@@ -976,9 +1077,6 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      setSessionTabFilter: (sessionId, filter) =>
-        set((s) => ({ sessionTabFilters: { ...s.sessionTabFilters, [sessionId]: filter } })),
-
       reorderTabDisplay: (sessionId, fromId, toId, before) => {
         set((s) => {
           const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
@@ -1045,11 +1143,40 @@ export const useAppStore = create<AppState>()(
           tab = { id, spaceId, type, title: 'Search', state: { query: '', results: [] } }
         }
         const state = get()
+
+        // Insert the new tab right after the currently-active tab in the
+        // unified sidebar display order, not just appended to its own space's
+        // array — without this, a new notes tab lands after the LAST notes
+        // tab (wherever that sits in the flattened space-grouped order)
+        // instead of next to whatever tab the user was actually looking at.
+        const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+        const allTabsBefore = allSpaces.flatMap((sp) => state.tabs[sp] ?? [])
+        const stored = state.sessionDisplayOrders[state.currentSessionId] ?? []
+        const liveOrder = [
+          ...stored.filter((tid) => allTabsBefore.some((t) => t.id === tid)),
+          ...allTabsBefore.filter((t) => !stored.includes(t.id)).map((t) => t.id),
+        ]
+        const activeTabIdOverall = state.activeTabId[state.activeSpace]
+        const activeIdx = activeTabIdOverall ? liveOrder.indexOf(activeTabIdOverall) : -1
+        const insertAt = activeIdx === -1 ? liveOrder.length : activeIdx + 1
+        const newOrder = [...liveOrder]
+        newOrder.splice(insertAt, 0, id)
+
         set({
           tabs: { ...state.tabs, [spaceId]: [...state.tabs[spaceId], tab] },
           activeTabId: { ...state.activeTabId, [spaceId]: id },
           activeSpace: spaceId,
           tabMRUList: updateMRU(state.tabMRUList, spaceId, id),
+          sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
+          // A genuinely NEW note tab must never inherit a leftover
+          // pendingNoteId from an earlier, unrelated "open this note"
+          // action — NotesPanel.tsx's mount-time effect consumes
+          // pendingNoteId unconditionally, so a stale value sitting in the
+          // store when this fresh tab mounts would load that old note
+          // instead of showing the blank/home state the new tab is meant
+          // to have (the same class of cross-tab bug fixed for Lexicon
+          // this session, just for the "brand new tab" case specifically).
+          ...(type === 'note' ? { pendingNoteId: null } : {}),
         })
       },
 
@@ -1126,23 +1253,45 @@ export const useAppStore = create<AppState>()(
         const idx = tabs.findIndex((t) => t.id === tabId)
         if (idx === -1) return
         const newTabs = tabs.filter((t) => t.id !== tabId)
-        // Switch to the most-recently-used remaining tab in this space (skip adjacent fallback)
-        const mruActiveId =
-          state.tabMRUList
-            .filter((m) => m.spaceId === spaceId && m.tabId !== tabId)
-            .map((m) => m.tabId)
-            .find((id) => newTabs.some((t) => t.id === id))
-          ?? newTabs[Math.max(0, idx - 1)]?.id ?? null
-        const newActiveId =
-          state.activeTabId[spaceId] === tabId
-            ? mruActiveId
-            : state.activeTabId[spaceId]
+        const wasActive = state.activeTabId[spaceId] === tabId
+        const newTabsAll = { ...state.tabs, [spaceId]: newTabs }
+        const prunedMRU = state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId))
+
+        if (!wasActive) {
+          set((s) => {
+            const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
+            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks }
+          })
+          return
+        }
+
+        // Closing the ACTIVE tab: fall back to the last tab opened/focused
+        // ANYWHERE (any space), not just within this same tab type — matches
+        // how a browser's "last active tab" behaves. tabMRUList is already a
+        // global-recency list (see updateMRU), so the fix is simply to stop
+        // filtering candidates down to `m.spaceId === spaceId` here (the
+        // previous bug: closing the active Notes tab always jumped to another
+        // Notes tab, even if e.g. a Scripture tab was focused more recently).
+        const mruFallback = prunedMRU.find((m) =>
+          m.spaceId === spaceId ? newTabs.some((t) => t.id === m.tabId) : (newTabsAll[m.spaceId] ?? []).some((t) => t.id === m.tabId)
+        ) ?? null
+        const withinSpaceFallbackId = newTabs[Math.max(0, idx - 1)]?.id ?? null
+
         set((s) => {
           const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
+          if (mruFallback && mruFallback.spaceId !== spaceId) {
+            return {
+              tabs: newTabsAll,
+              activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
+              activeSpace: mruFallback.spaceId,
+              tabMRUList: prunedMRU,
+              tabNavStacks: restNavStacks,
+            }
+          }
           return {
-            tabs: { ...state.tabs, [spaceId]: newTabs },
-            activeTabId: { ...state.activeTabId, [spaceId]: newActiveId },
-            tabMRUList: state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId)),
+            tabs: newTabsAll,
+            activeTabId: { ...state.activeTabId, [spaceId]: mruFallback?.tabId ?? withinSpaceFallbackId },
+            tabMRUList: prunedMRU,
             tabNavStacks: restNavStacks,
           }
         })
@@ -1157,12 +1306,6 @@ export const useAppStore = create<AppState>()(
         const idx = tabs.findIndex((t) => t.id === tabId)
         if (idx === -1) return
         const newTabs = tabs.filter((t) => t.id !== tabId)
-        const newActiveId =
-          state.tabMRUList
-            .filter((m) => m.spaceId === spaceId && m.tabId !== tabId)
-            .map((m) => m.tabId)
-            .find((id) => newTabs.some((t) => t.id === id))
-          ?? newTabs[Math.max(0, idx - 1)]?.id ?? null
         const prunedMRU = state.tabMRUList.filter((m) => !(m.spaceId === spaceId && m.tabId === tabId))
         const newTabsAll = { ...state.tabs, [spaceId]: newTabs }
 
@@ -1173,13 +1316,34 @@ export const useAppStore = create<AppState>()(
           const fallbackTabId = newTabsAll[fallbackSpace]?.[0]?.id ?? null
           set({
             tabs: newTabsAll,
-            activeTabId: { ...state.activeTabId, [spaceId]: newActiveId },
             activeSpace: fallbackSpace,
             tabMRUList: prunedMRU,
-            ...(fallbackTabId ? { activeTabId: { ...state.activeTabId, [spaceId]: newActiveId, [fallbackSpace]: fallbackTabId } } : {}),
+            activeTabId: { ...state.activeTabId, [spaceId]: null, ...(fallbackTabId ? { [fallbackSpace]: fallbackTabId } : {}) },
+          })
+          return
+        }
+
+        // Fall back to the last tab opened/focused ANYWHERE (any space), not
+        // just the last one within this same tab type — see closeTab's
+        // comment above for the bug this fixes.
+        const mruFallback = prunedMRU.find((m) =>
+          m.spaceId === spaceId ? newTabs.some((t) => t.id === m.tabId) : (newTabsAll[m.spaceId] ?? []).some((t) => t.id === m.tabId)
+        ) ?? null
+        const withinSpaceFallbackId = newTabs[Math.max(0, idx - 1)]?.id ?? null
+
+        if (mruFallback && mruFallback.spaceId !== spaceId) {
+          set({
+            tabs: newTabsAll,
+            activeTabId: { ...state.activeTabId, [spaceId]: withinSpaceFallbackId, [mruFallback.spaceId]: mruFallback.tabId },
+            activeSpace: mruFallback.spaceId,
+            tabMRUList: prunedMRU,
           })
         } else {
-          set({ tabs: newTabsAll, activeTabId: { ...state.activeTabId, [spaceId]: newActiveId }, tabMRUList: prunedMRU })
+          set({
+            tabs: newTabsAll,
+            activeTabId: { ...state.activeTabId, [spaceId]: mruFallback?.tabId ?? withinSpaceFallbackId },
+            tabMRUList: prunedMRU,
+          })
         }
       },
 
@@ -1319,6 +1483,7 @@ export const useAppStore = create<AppState>()(
       filterNotesByVerse: (verseRef) => set({ pendingVerseFilter: verseRef }),
       clearVerseFilter: () => set({ pendingVerseFilter: null }),
       bumpNoteToken: () => set((s) => ({ noteChangeToken: s.noteChangeToken + 1 })),
+      bumpPresenterPushToken: () => set((s) => ({ presenterPushToken: s.presenterPushToken + 1 })),
       // Apply tab state received from another window (does NOT trigger another broadcast)
       applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => {
         const update: Partial<AppState> = { tabs: payload.tabs }
@@ -1327,9 +1492,26 @@ export const useAppStore = create<AppState>()(
         set(update)
       },
 
-      openSettings: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true }) },
+      // Explicitly resets settingsInitialSection back to 'appearance' —
+      // without this, the generic "open Settings" entry points (gear icon,
+      // ⌘,) would keep landing on whatever section a PREVIOUS targeted
+      // open (openImportModal, openSettingsToSessions, etc.) last set,
+      // since that field is plain persistent store state, never cleared on
+      // its own.
+      openSettings: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'appearance' }) },
+      // "Manage sessions…" (Sidebar.tsx) used to call plain openSettings(),
+      // landing on the default Appearance tab instead of the "Manage your
+      // data" hub where Sessions/Archived-tabs actually live (SessionsSection.tsx).
+      openSettingsToSessions: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'data' }) },
+      // Rail's Settings badge (Ribbon.tsx) jumps straight to the About/Updates
+      // page when an update is available/ready, instead of the default tab.
+      openSettingsToAbout: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'about' }) },
       closeSettings: () => set({ settingsOpen: false }),
-      toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
+      toggleSettings: () => set((s) => {
+        const opening = !s.settingsOpen
+        if (opening) window.dispatchEvent(new Event('berean:closeMenus'))
+        return { settingsOpen: opening }
+      }),
 
       openLexiconEntry: (strongsNum, fromNote) => {
         get().addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
@@ -1530,6 +1712,7 @@ export const useAppStore = create<AppState>()(
 
       dismissArchivedGroup: (groupId) =>
         set(s => ({ archivedGroups: s.archivedGroups.filter(g => g.id !== groupId) })),
+      clearAllArchivedGroups: () => set({ archivedGroups: [] }),
       setDefaultNoteEditorMode: (m) => set({ defaultNoteEditorMode: m }),
       setConfirmNoteDelete: (v) => set({ confirmNoteDelete: v }),
       setNoteSpellCheck: (v) => set({ noteSpellCheck: v }),
@@ -1559,9 +1742,9 @@ export const useAppStore = create<AppState>()(
       })),
 
       setTheme: (theme) => set({ theme }),
-      setPanelZoom: (ctx, level) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: clampZoom(level) } })),
-      adjustPanelZoom: (ctx, dir) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: adjustZoom(s.panelZoom[ctx] ?? ZOOM_DEFAULT, dir) } })),
-      resetPanelZoom: (ctx) => set((s) => ({ panelZoom: { ...s.panelZoom, [ctx]: ZOOM_DEFAULT } })),
+      setAppZoom: (level) => set({ appZoom: clampZoom(level) }),
+      adjustAppZoom: (dir) => set((s) => ({ appZoom: adjustZoom(s.appZoom, dir) })),
+      resetAppZoom: () => set({ appZoom: ZOOM_DEFAULT }),
       setBibleFontSize: (size) => set({ bibleFontSize: size }),
       setBibleLineHeight: (h) => set({ bibleLineHeight: h }),
       setDefaultBibleTranslation: (id) => set({ defaultBibleTranslation: id }),
@@ -1575,8 +1758,6 @@ export const useAppStore = create<AppState>()(
       setFloatingSearchDensity: (d) => set({ floatingSearchDensity: d }),
       defaultYoutubeLayout: 'video-full' as import('@/types').YouTubeLayout,
       setDefaultYoutubeLayout: (l) => set({ defaultYoutubeLayout: l }),
-      sidebarNewTabIconOnly: false,
-      setSidebarNewTabIconOnly: (v) => set({ sidebarNewTabIconOnly: v }),
     }),
     {
       name: 'berean-app-state',
@@ -1646,7 +1827,7 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         theme: state.theme,
         bibleFontSize: state.bibleFontSize,
-        panelZoom: state.panelZoom,
+        appZoom: state.appZoom,
         bibleLineHeight: state.bibleLineHeight,
         defaultBibleTranslation: state.defaultBibleTranslation,
         hermasTranslation: state.hermasTranslation,
@@ -1668,7 +1849,6 @@ export const useAppStore = create<AppState>()(
         archivedGroups: state.archivedGroups,
         sessions: state.sessions,
         currentSessionId: state.currentSessionId,
-        sessionTabFilters: state.sessionTabFilters,
         sessionDisplayOrders: state.sessionDisplayOrders,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import type { Book, SearchTabState } from '@/types'
 
@@ -84,7 +85,7 @@ function highlight(text: string, query: string): React.ReactNode[] {
   )
 }
 
-export default function SearchTab() {
+export default function SearchTab({ floating = false }: { floating?: boolean }) {
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const updateTabState = useAppStore((s) => s.updateTabState)
@@ -227,7 +228,11 @@ export default function SearchTab() {
       renameTab('scripture', activeScripture.id, title)
     } else {
       const id = `bible-${Date.now()}`
-      addTab({ id, spaceId: 'scripture', type: 'bible', title, state: { bookId, chapter, targetVerse: verseNum, translation, showStrongs: false, scrollPosition: 0 } })
+      addTab({
+        id, spaceId: 'scripture', type: 'bible', title,
+        state: { bookId, chapter, targetVerse: verseNum, translation, showStrongs: false, scrollPosition: 0 },
+        ...(searchTab ? { originTabId: searchTab.id, originSpaceId: 'search' as const } : {}),
+      })
     }
     setActiveSpace('scripture')
   }
@@ -301,7 +306,7 @@ export default function SearchTab() {
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
       {/* Search input row */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
+      <TabHeaderPortal floating={floating}>
         <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           ref={inputRef}
@@ -317,7 +322,7 @@ export default function SearchTab() {
         <div ref={translationRef} className="relative flex-shrink-0">
           <button
             onClick={() => setTranslationOpen((v) => !v)}
-            className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-shell transition-colors cursor-pointer ${
               translationOpen
                 ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
                 : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'
@@ -327,7 +332,7 @@ export default function SearchTab() {
             <ChevronDown size={10} className={`transition-transform ${translationOpen ? 'rotate-180' : ''}`} />
           </button>
           {translationOpen && (
-            <div className="absolute top-full right-0 mt-1 z-50 min-w-[180px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1">
+            <div className="glass-panel absolute top-full right-0 mt-1 z-50 min-w-[180px] rounded-shell overflow-hidden py-1">
               {/* All texts option */}
               <button
                 onClick={() => selectTranslation('all')}
@@ -381,7 +386,7 @@ export default function SearchTab() {
             </div>
           )}
         </div>
-      </div>
+      </TabHeaderPortal>
 
       {/* Filter + sort bar */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 flex-wrap">

@@ -15,6 +15,18 @@ const TAB_ICONS: Record<TabType, LucideIcon> = {
   pdf:     FileType2,
 }
 
+// Per-type color for the tab icon in the unified (unfiltered, unsectioned)
+// tab list — a quick-scan cue for which space a tab belongs to without
+// reintroducing grouping/filtering, which was explicitly ruled out.
+const TAB_ICON_COLORS: Record<TabType, string> = {
+  bible:   '#5b6ee8',
+  note:    '#e8a03f',
+  lexicon: '#3fbf7f',
+  youtube: '#e85b5b',
+  search:  '#8b8f98',
+  pdf:     '#8b8f98',
+}
+
 interface ContextMenuState {
   tab: Tab
   x: number
@@ -32,6 +44,7 @@ interface TabBarProps {
 
 export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onReorder }: TabBarProps) {
   const youtubeIsPlaying   = useAppStore((s) => s.youtubeIsPlaying)
+  const appZoom            = useAppStore((s) => s.appZoom)
   const activeYouTubeTabId = useAppStore((s) => s.activeTabId['youtube'])
   const sessions           = useAppStore((s) => s.sessions)
   const currentSessionId   = useAppStore((s) => s.currentSessionId)
@@ -212,8 +225,11 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       // lexicon → bible: open lexicon in right panel
       if (crossType === 'lexicon' && mySpace === 'scripture') {
         const sNum = (draggedTab.state as { strongsNum?: string | null }).strongsNum
-        store.updateTabState('scripture', targetTab.id, { rightPanelOpen: true, rightPanelTab: 'lexicon' })
-        if (sNum) store.openLexiconEntry(sNum)
+        // Set directly on this scripture tab's own rightPanelLexiconEntry
+        // field, NOT openLexiconEntry — that targets Lexicon-space tabs via
+        // a shared pending value, which would leak into whichever Lexicon
+        // tab happens to be open elsewhere instead of this side panel.
+        store.updateTabState('scripture', targetTab.id, { rightPanelOpen: true, rightPanelTab: 'lexicon', ...(sNum ? { rightPanelLexiconEntry: sNum } : {}) })
         store.activateTab(targetTab)
         store.setActiveSpace('scripture')
         onTabClose(draggedTab)
@@ -236,8 +252,8 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           rightPanelOpen: true,
           rightPanelTab: mySpace === 'notes' ? 'notes' : 'lexicon',
           ...(noteId ? { rightPanelNoteId: noteId } : {}),
+          ...(sNum ? { rightPanelLexiconEntry: sNum } : {}),
         })
-        if (sNum) store.openLexiconEntry(sNum)
         store.setActiveSpace('scripture')
         onTabClose(draggedTab)
         onTabClose(targetTab)
@@ -499,7 +515,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 onDragEnd={handleDragEnd}
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
-                  group relative flex items-center gap-2 rounded-shell px-2 py-1.5
+                  no-drag group relative flex items-center gap-2 rounded-shell px-2 py-1.5
                   cursor-grab select-none transition-colors duration-100
                   ${isDragging ? 'opacity-40 scale-95' : ''}
                   ${isCrossSpaceTarget
@@ -522,12 +538,12 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   className="relative z-10 flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
                 >
                   <span className="relative flex-shrink-0">
-                    <Icon size={13} className="opacity-60" />
+                    <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
                     {tab.type === 'youtube' && tab.id === activeYouTubeTabId && youtubeIsPlaying && (
                       <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     )}
                   </span>
-                  <span className="truncate text-xs">{tab.title}</span>
+                  <span className="truncate text-xs" style={{ zoom: appZoom }}>{tab.title}</span>
                   {isCompare && (
                     <GitCompare size={10} className="flex-shrink-0 text-[rgb(var(--color-accent))] opacity-80" aria-label="Compare mode" />
                   )}
@@ -561,7 +577,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           className="min-w-44 rounded-shell glass-panel p-1 text-xs"
         >
           <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => {
               // Note tabs use type='note' internally but the float shell checks for 'notes'
               const floatType = contextMenu.tab.type === 'note' ? 'notes' : contextMenu.tab.type
@@ -586,7 +602,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
             Open in floating tab
           </button>
           <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => {
               const store = useAppStore.getState()
               const newTab = {
@@ -604,14 +620,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           </button>
           <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
           <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => { archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id); closeContextMenu() }}
           >
             <Archive size={12} />
             Archive tab
           </button>
           <button
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
             onClick={() => { onTabClose(contextMenu.tab); closeContextMenu() }}
           >
             <Trash2 size={12} />
@@ -624,7 +640,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               {otherSessions.map((session) => (
                 <button
                   key={session.id}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                   onClick={() => {
                     moveTabToSession(contextMenu.tab.spaceId, contextMenu.tab.id, session.id)
                     closeContextMenu()

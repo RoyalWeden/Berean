@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, ScanSearch, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -9,13 +9,14 @@ import CompareView from './CompareView'
 import BookChapterPicker from './BookChapterPicker'
 import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
 import FindBar from '@/components/shell/FindBar'
-import ZoomControls from '@/components/shell/ZoomControls'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
-import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
+import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
@@ -55,9 +56,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const setDefaultScriptureLayout = useAppStore((s) => s.setDefaultScriptureLayout)
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
+  // Anything that can reflow verse layout in THIS panel without changing the
+  // scroll container's own box size (so the ResizeObserver below won't catch
+  // it — it only fires on the observed element's own content-box resizing,
+  // not a descendant's internal reflow from a font-size change) must be an
+  // explicit dep of the recompute effect, or the outline band silently goes
+  // stale until the next unrelated scroll event happens to force a refresh.
+  const bibleFontSize = useAppStore((s) => s.bibleFontSize)
+  const appZoom = useAppStore((s) => s.appZoom)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  const idiomHighlightEnabled = useAppStore((s) => s.idiomHighlightEnabled)
   // Region of scripture currently visible in the presenter window (for the outline band)
   const [viewerVisibleRegion, setViewerVisibleRegion] = useState<ViewerVisibleRegion | null>(null)
-  const [presenterBand, setPresenterBand] = useState<{ top: number; height: number } | null>(null)
+  const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
   const laserRAFRef = useRef<number | null>(null)
   const selectionRAFRef = useRef<number | null>(null)
   const lastSelectionSentRef = useRef(false)
@@ -84,7 +96,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const findBarAutoOpen = useAppStore((s) => s.findBarAutoOpen)
   const findBarWordMode = useAppStore((s) => s.findBarWordMode)
   const closeFindBar = useAppStore((s) => s.closeFindBar)
-  const openFindBar = useAppStore((s) => s.openFindBar)
   const setFindBarQuery = useAppStore((s) => s.setFindBarQuery)
   const setFindBarWordMode = useAppStore((s) => s.setFindBarWordMode)
   const activeSpace = useAppStore((s) => s.activeSpace)
@@ -108,9 +119,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   const compareColRefs = useRef<(HTMLDivElement | null)[]>([])
-  // Layout picker popover
+  // Layout picker popover — now opened from the overflow menu (see items
+  // below), so its anchor is computed from that trigger row's own rect
+  // rather than a fixed inline button.
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false)
-  const layoutPickerRef = useRef<HTMLDivElement>(null)
+  const [layoutPickerAnchor, setLayoutPickerAnchor] = useState<{ left: number; top: number } | null>(null)
   // Compare mode — ref exposed to CompareView so the + button can add columns
   const compareAddColRef = useRef<((target?: { bookId: string; chapter: number; textId?: string }) => void) | null>(null)
   // When "Add panel" is used to enter compare from a normal tab, the picked ref is parked
@@ -224,6 +237,22 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     })
   }, [floating])
 
+  // ActivePanel.tsx keys the active tab's panel by tab id, so switching
+  // scripture tabs (even to a different tab already on the SAME chapter)
+  // fully unmounts and remounts this BiblePanel instance — wiping the local
+  // viewerVisibleRegion/presenterBand state above. The viewer only re-fires
+  // its own report when bookId/chapter/textId actually change (see
+  // ViewerBiblePage.tsx's reportVisible deps), so a same-chapter tab switch,
+  // or unpausing without ever changing chapters, previously left this fresh
+  // mount with no region and a permanently blank outline. Explicitly
+  // request one on mount and on every chapter change instead of relying on
+  // the viewer's own content-change detection to happen to fire.
+  useEffect(() => {
+    if (floating || !viewerWindowOpen || viewerPaused) return
+    window.app.requestViewerVisibleRegion?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floating, viewerWindowOpen, viewerPaused, tabState.bookId, tabState.chapter])
+
   // Compute the band by anchoring the presenter's visible window on shared verse positions,
   // combined with this panel's OWN live scroll position. Accurate across different window
   // sizes / zoom / wrapping, and updates instantly while scrolling (no IPC round-trip).
@@ -250,8 +279,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (bottom > contentBottom) contentBottom = bottom
     }
     // Use content height (last verse bottom), matching the presenter's reporting, so the band
-    // doesn't extend into the empty space below the last verse on short chapters.
-    const mainH = contentBottom > 0 ? Math.min(c.scrollHeight, contentBottom + 4) : c.scrollHeight
+    // doesn't extend into the empty space below the last verse on short chapters. Shared
+    // measureContentHeight helper (not a locally re-typed "+ 4") so this can't independently
+    // drift from ViewerBiblePage.tsx's own copy of the same measurement.
+    const mainH = measureContentHeight(c.scrollHeight, contentBottom)
 
     const fits = c.scrollHeight - c.clientHeight <= 0
     // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
@@ -274,18 +305,44 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }))
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Presenter "send to view" push — triggered by the shared top bar's presenter button
+  // (TopBar.tsx) via presenterPushToken, since the scroll-position capture below depends
+  // on getScrollEl()/tabState which only this panel has access to. Skips the initial
+  // mount so opening a Bible tab doesn't push to an already-open viewer unprompted.
+  const presenterPushToken = useAppStore((s) => s.presenterPushToken)
+  const presenterPushMounted = useRef(false)
+  useEffect(() => {
+    if (!presenterPushMounted.current) { presenterPushMounted.current = true; return }
+    if (floating) return
+    const container = getScrollEl()
+    if (container) {
+      const max = container.scrollHeight - container.clientHeight
+      setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0, `${tabState.bookId}:${tabState.chapter}`)
+    }
+    const payload = computeViewerPayload()
+    window.app.pushViewerContent?.(payload)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presenterPushToken])
+
   // Recompute on fraction/chapter/layout change, and when live-sync resumes (viewerPaused →
-  // false) so the outline reappears after pausing + switching tabs.
+  // false) so the outline reappears after pausing + switching tabs. Also recomputes on
+  // anything that reflows verse text in this panel WITHOUT resizing the scroll container's
+  // own box (reading zoom, font size, word-replacer, idiom highlighting) — the ResizeObserver
+  // below can't see those, since it only observes the container's own content-box, not a
+  // descendant's internal reflow driven purely by a font-size change.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       if (!useAppStore.getState().viewerPaused) computePresenterBand()
     })
     return () => cancelAnimationFrame(raf)
-  }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations])
+  }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations, bibleFontSize, appZoom, wordReplacerEnabled, wordReplacerRules, idiomHighlightEnabled])
 
-  // Recompute on any size change of the scroll container's content — covers zoom (font-size
-  // driven reflow), window resize, and anything else that reflows verse layout without
-  // otherwise changing computePresenterBand's dependencies (which only track region/chapter).
+  // Recompute on any size change of the SCROLL CONTAINER'S OWN box — covers real window
+  // resizes and panel-layout changes (e.g. opening the right panel). Does NOT catch pure
+  // content reflow from a font-size change (reading zoom, bibleFontSize, word-replacer,
+  // idiom highlighting) — a ResizeObserver on this element only fires when its own
+  // content-box changes, not a descendant's; those are covered explicitly as deps on the
+  // effect above instead.
   useEffect(() => {
     if (floating) return
     const el = getScrollEl()
@@ -859,18 +916,31 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeTab) updateTabState('scripture', activeTab.id, { scriptureLayout: layout })
   }
   // Horizontal resize drag handle (standard / panel-left / notes-wide / scripture-wide / study-grid / notes-right / lexicon-crossref)
+  // rAF-throttled: raw mousemove can fire far faster than the display refreshes,
+  // and BibleRightPanel's content (Lexicon/CrossRefs/Notes) is expensive enough
+  // to re-render that driving setState off every raw event visibly stalled the
+  // resize until mouseup instead of tracking the cursor live.
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
   function handleResizeMouseDown(e: React.MouseEvent) {
     resizeRef.current = { startX: e.clientX, startWidth: rightPanelWidth }
     e.preventDefault()
+    let rafId: number | null = null
+    let latestX = e.clientX
 
     function onMove(e: MouseEvent) {
       if (!resizeRef.current) return
-      const delta = resizeRef.current.startX - e.clientX
-      setRightPanelWidth(Math.max(200, Math.min(520, resizeRef.current.startWidth + delta)))
+      latestX = e.clientX
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (!resizeRef.current) return
+        const delta = resizeRef.current.startX - latestX
+        setRightPanelWidth(Math.max(200, Math.min(520, resizeRef.current.startWidth + delta)))
+      })
     }
     function onUp(e: MouseEvent) {
       if (!resizeRef.current) return
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       const delta = resizeRef.current.startX - e.clientX
       const finalWidth = Math.max(200, Math.min(520, resizeRef.current.startWidth + delta))
       setRightPanelWidth(finalWidth)
@@ -883,18 +953,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     document.addEventListener('mouseup', onUp)
   }
 
-  // Vertical resize drag handle (for bottom panel layouts)
+  // Vertical resize drag handle (for bottom panel layouts) — same rAF throttling.
   const vResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   function handleVResizeMouseDown(e: React.MouseEvent) {
     vResizeRef.current = { startY: e.clientY, startHeight: rightPanelWidth }
     e.preventDefault()
+    let rafId: number | null = null
+    let latestY = e.clientY
+
     function onMove(e: MouseEvent) {
       if (!vResizeRef.current) return
-      const delta = vResizeRef.current.startY - e.clientY
-      setRightPanelWidth(Math.max(120, Math.min(480, vResizeRef.current.startHeight + delta)))
+      latestY = e.clientY
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (!vResizeRef.current) return
+        const delta = vResizeRef.current.startY - latestY
+        setRightPanelWidth(Math.max(120, Math.min(480, vResizeRef.current.startHeight + delta)))
+      })
     }
     function onUp(e: MouseEvent) {
       if (!vResizeRef.current) return
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       const delta = vResizeRef.current.startY - e.clientY
       const finalHeight = Math.max(120, Math.min(480, vResizeRef.current.startHeight + delta))
       setRightPanelWidth(finalHeight)
@@ -1038,21 +1118,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       onMouseDown={() => setActivePanelId('bible')}
     >
       {/* Reference bar */}
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-2))] ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4 app-drag-region'}`}>
-        {!isCompareMode && !floating && tabState.noteBack && (
-          <button
-            onClick={() => {
-              requestOpenNote(tabState.noteBack!.noteId)
-              ensureTab('note')
-              if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
-            }}
-            title={`Back to "${tabState.noteBack.title}"`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[140px] truncate"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
-            <span className="truncate">{tabState.noteBack.title}</span>
-          </button>
-        )}
+      <TabHeaderPortal floating={floating}>
+        {/* The "← my note" back-to-note pill (tabState.noteBack) was removed —
+            redundant with the global TopBar nav pill and the per-tab home
+            button, which already track "where did I come from" for every
+            tab type without needing a second, panel-local affordance. */}
         {!isCompareMode && tabState.scriptureBack && (
           <button
             onClick={() => {
@@ -1235,63 +1305,68 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )}
 
         <div className="flex-1" />
-        {/* Find in chapter (Cmd+F) */}
-        <HintTooltip label="Find in chapter" shortcut="⌘F">
-        <button
-          onClick={() => {
-            setActivePanelId('bible')
-            if (findBarOpen && activePanelId === 'bible') {
-              closeFindBar()
-            } else {
-              openFindBar(false, '')
-            }
-          }}
-          className={`p-1 rounded transition-colors cursor-pointer ${
-            findBarOpen && activePanelId === 'bible'
-              ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-          }`}
-        >
-          <ScanSearch size={15} />
-        </button>
-        </HintTooltip>
-        {/* Scripture search — opens unified command palette */}
-        <HintTooltip label="Search scripture" shortcut="⌘/">
-        <button
-          onClick={() => { openSearch('current'); closeFindBar() }}
-          className="p-1 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]"
-        >
-          <SearchIcon size={15} />
-        </button>
-        </HintTooltip>
-        <HintTooltip label="Compare translations">
-        <button
-          onClick={() => {
-            if (activeTab) {
-              const turning = !tabState.compareMode
-              // Clear any saved columns when entering fresh so a previous compare
-              // session's columns aren't restored over this one.
-              updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
-              if (turning) {
-                useAppStore.getState().addHistoryEntry({
-                  type: 'compare',
-                  title: `Compare — ${activeTab.title}`,
-                  bookId: tabState.bookId,
-                  chapter: tabState.chapter,
-                  translation: textId,
-                })
-              }
-            }
-          }}
-          className={`p-1 rounded transition-colors cursor-pointer ${
-            tabState.compareMode
-              ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-          }`}
-        >
-          <Columns2 size={15} />
-        </button>
-        </HintTooltip>
+        {/* Lower-frequency actions — each already has a keyboard shortcut, so
+            moving the icon into the overflow menu doesn't remove the capability,
+            just the always-visible button. Picker/popover-driven controls (PDF
+            library, annotation info, add-compare-panel) stay inline above
+            since they open their own follow-up UI rather than firing a
+            single action — the layout picker uses this menu's `render`
+            escape hatch instead (see the 'layout' item), computing its own
+            fixed-position anchor from the row's rect on open. */}
+        <HeaderOverflowMenu
+          items={[
+            {
+              key: 'search',
+              label: 'Search scripture',
+              icon: <SearchIcon />,
+              shortcut: '⌘/',
+              onClick: () => { openSearch('current'); closeFindBar() },
+            },
+            {
+              key: 'compare',
+              label: 'Compare translations',
+              icon: <Columns2 />,
+              active: tabState.compareMode,
+              onClick: () => {
+                if (!activeTab) return
+                const turning = !tabState.compareMode
+                updateTabState('scripture', activeTab.id, { compareMode: turning, ...(turning ? { compareColumns: undefined } : {}) })
+                if (turning) {
+                  useAppStore.getState().addHistoryEntry({
+                    type: 'compare',
+                    title: `Compare — ${activeTab.title}`,
+                    bookId: tabState.bookId,
+                    chapter: tabState.chapter,
+                    translation: textId,
+                  })
+                }
+              },
+            },
+            ...(!floating ? [{
+              key: 'layout',
+              label: 'Change layout',
+              icon: <LayoutDashboard />,
+              active: layoutPickerOpen,
+              render: () => (
+                <button
+                  onClick={(e) => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setLayoutPickerAnchor({ left: rect.right, top: rect.bottom + 4 })
+                    setLayoutPickerOpen((v) => !v)
+                  }}
+                  className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
+                    layoutPickerOpen
+                      ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/8]'
+                      : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                  }`}
+                >
+                  <span className="flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5"><LayoutDashboard /></span>
+                  <span className="flex-1 truncate">Change layout</span>
+                </button>
+              ),
+            }] : []),
+          ]}
+        />
         <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
         <button
           onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
@@ -1305,31 +1380,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <span>Strong's</span>
         </button>
         </HintTooltip>
-        {/* Layout picker — hidden in floating windows (layout is locked to 'reading') */}
-        {!floating && (
-          <div ref={layoutPickerRef} className="relative">
-            <HintTooltip label="Change layout">
-            <button
-              onClick={() => setLayoutPickerOpen((v) => !v)}
-              className={`p-1 rounded transition-colors cursor-pointer ${
-                layoutPickerOpen
-                  ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-              }`}
-            >
-              <LayoutDashboard size={15} />
-            </button>
-            </HintTooltip>
-            {layoutPickerOpen && (
-              <LayoutPicker
-                current={currentLayout}
-                onSelect={setLayout}
-                onClose={() => setLayoutPickerOpen(false)}
-                defaultLayout={defaultScriptureLayout}
-                onSaveDefault={setDefaultScriptureLayout}
-              />
-            )}
-          </div>
+        {/* Layout picker now lives in the overflow menu below (see 'layout'
+            item) — hidden entirely in floating windows (layout is locked to
+            'reading' there), same as before. */}
+        {!floating && layoutPickerOpen && layoutPickerAnchor && createPortal(
+          // Zero-size anchor at the trigger row's bottom-right corner —
+          // LayoutPicker's own popover div positions itself with
+          // `absolute top-full right-0`, which resolves against THIS
+          // wrapper's box (its nearest positioned ancestor), landing the
+          // picker exactly where the old inline button used to anchor it,
+          // without needing to touch LayoutPicker's own internal styling.
+          <div style={{ position: 'fixed', left: layoutPickerAnchor.left, top: layoutPickerAnchor.top, width: 0, height: 0 }}>
+            <LayoutPicker
+              current={currentLayout}
+              onSelect={setLayout}
+              onClose={() => setLayoutPickerOpen(false)}
+              defaultLayout={defaultScriptureLayout}
+              onSaveDefault={setDefaultScriptureLayout}
+            />
+          </div>,
+          document.body
         )}
         {/* Toggle right panel — hidden in floating windows (no side panel there) */}
         {!floating && ['standard', 'panel-left', 'notes-wide', 'scripture-wide', 'notes-right'].includes(currentLayout) && (
@@ -1346,36 +1416,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </button>
           </HintTooltip>
         )}
-        {/* Send to presenter view */}
-        <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
-        <button
-          onClick={async () => {
-            if (!viewerWindowOpen) {
-              await window.app.openViewerWindow?.()
-              useAppStore.getState().setViewerWindowOpen(true)
-            }
-            // Capture the live scroll position so the explicit push starts at the right place
-            const container = getScrollEl()
-            if (container) {
-              const max = container.scrollHeight - container.clientHeight
-              setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0, `${tabState.bookId}:${tabState.chapter}`)
-            }
-            // Push this tab's current content explicitly (matches the auto-sync payload)
-            const payload = computeViewerPayload()
-            window.app.pushViewerContent?.(payload)
-          }}
-          className={`p-1 rounded transition-colors cursor-pointer ${
-            viewerWindowOpen
-              ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
-              : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-          }`}
-        >
-          <Monitor size={14} />
-        </button>
-        </HintTooltip>
-        {/* Pause + laser + selection + close now live in the floating PresenterControls panel */}
-        <ZoomControls context="scripture" compact />
-      </div>
+        {/* Pause + laser + selection + close now live in the floating PresenterControls panel.
+            Zoom now lives in the overflow menu above (see 'zoom' item). */}
+      </TabHeaderPortal>
 
 
       {/* PDF library picker */}
@@ -1486,7 +1529,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           if (!c || c.scrollHeight - c.clientHeight > 0) return
           const st = useAppStore.getState()
           if (!st.viewerWindowOpen || st.viewerPaused || st.viewerBlank) return
-          const next = Math.max(0, Math.min(1, virtualScrollPctRef.current + e.deltaY * 0.0012))
+          // Sensitivity derived from the presenter's OWN real overflow (its
+          // clientHeight and how much of its content is hidden, f), not a
+          // flat magic constant — a flat rate felt wildly different (often
+          // far too fast) depending on how zoomed in the presenter was /
+          // how little of a short chapter actually overflowed, since a
+          // fixed px-per-wheel-tick has no relationship to how much
+          // scrollable range there actually is to cover. This reproduces
+          // the same math a real scrollbar uses: percent = deltaPx /
+          // scrollableRangePx, where scrollableRangePx = clientHeight *
+          // (1-f)/f. Floored so a chapter that barely overflows (f→1)
+          // doesn't produce a near-infinite (instant-jump-to-end)
+          // sensitivity — small floor still lets a deliberate scroll move
+          // it, just not on a single wheel tick.
+          const region = viewerVisibleRegion
+          let sensitivity = 0.0012
+          if (region && region.clientHeight && region.visibleFraction > 0 && region.visibleFraction < 1) {
+            const scrollableRangePx = Math.max(40, region.clientHeight * (1 - region.visibleFraction) / region.visibleFraction)
+            sensitivity = 1 / scrollableRangePx
+          }
+          const next = Math.max(0, Math.min(1, virtualScrollPctRef.current + e.deltaY * sensitivity))
           if (next === virtualScrollPctRef.current) return
           virtualScrollPctRef.current = next
           setMainBibleScrollPercent(next, `${tabState.bookId}:${tabState.chapter}`)
@@ -1571,6 +1633,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               }}
             >
               {viewerPaused ? 'Presenter (paused)' : 'On presenter'}
+              {/* Verse range read directly off the same verseFracs data the band's
+                  geometry is built from — answers "what does the audience see"
+                  in plain text, which stays legible/correct even in the rare
+                  case the band's own pixel placement is a touch approximate
+                  (e.g. interpolated mid-verse), since this isn't a second
+                  independent measurement. */}
+              {presenterBand.firstVerse != null && (
+                <> · v.{presenterBand.firstVerse}{presenterBand.lastVerse != null && presenterBand.lastVerse !== presenterBand.firstVerse ? `–${presenterBand.lastVerse}` : ''}</>
+              )}
             </span>
           </div>
         )}
@@ -1645,14 +1716,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const hDivider = (
       <div
         onMouseDown={handleResizeMouseDown}
-        className="w-1 flex-shrink-0 cursor-col-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
-      />
+        className="group relative w-1 flex-shrink-0 cursor-col-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+      >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+        </div>
+      </div>
     )
     const vDivider = (
       <div
         onMouseDown={handleVResizeMouseDown}
-        className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
-      />
+        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+      >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+        </div>
+      </div>
     )
     const panelSize = Math.max(160, Math.min(600, rightPanelWidth))
 
@@ -1683,7 +1766,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                   {panelEl()}
                 </div>
               </>
@@ -1697,7 +1780,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             {rightPanelOpen && (
               <>
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                   {panelEl()}
                 </div>
                 {hDivider}
@@ -1715,7 +1798,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] min-w-0">
+                <div className="flex-[3] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)] min-w-0">
                   {panelEl()}
                 </div>
               </>
@@ -1731,7 +1814,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] min-w-0">
+                <div className="flex-[1.5] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)] min-w-0">
                   {panelEl()}
                 </div>
               </>
@@ -1747,7 +1830,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                   {panelEl('notes')}
                 </div>
               </>
@@ -1761,7 +1844,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl()}
             </div>
           </div>
@@ -1773,7 +1856,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('notes')}
             </div>
           </div>
@@ -1783,7 +1866,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('notes')}
             </div>
             {vDivider}
@@ -1814,7 +1897,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('notes')}
             </div>
           </div>
@@ -1826,7 +1909,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
                 {panelEl('lexicon')}
               </div>
@@ -1852,18 +1935,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 flex overflow-hidden min-h-0">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                 {panelEl('lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))]">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                 {panelEl('crossrefs')}
               </div>
             </div>
@@ -1875,7 +1958,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('notes')}
             </div>
             {hDivider}
@@ -1887,13 +1970,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
               {panelEl('lexicon')}
             </div>
           </div>
@@ -1913,11 +1996,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))]">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
                 {panelEl('lexicon')}
               </div>
             </div>

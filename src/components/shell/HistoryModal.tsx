@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, memo, useDeferredValue, useCallba
 import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
+import { parseRef } from '@/lib/parseRef'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,16 @@ function useNavigate() {
       }
       case 'lexicon':
       case 'strongs-click': {
-        if (entry.strongsNum) s.openLexiconEntry(entry.strongsNum)
+        // Activate/create the target Lexicon tab BEFORE queuing the entry —
+        // openLexiconEntry's pending value gets picked up by whichever
+        // Lexicon tab is (or becomes) active, so calling it first, while a
+        // DIFFERENT lexicon tab is still the active one, hands the entry to
+        // the wrong tab instead of the intended destination.
+        if (entry.strongsNum) {
+          s.ensureTab('lexicon')
+          s.openLexiconEntry(entry.strongsNum)
+          s.setActiveSpace('lexicon')
+        }
         break
       }
       case 'youtube': {
@@ -210,6 +220,25 @@ const HistoryItem = memo(function HistoryItem({
             {entry.translation && (
               <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
                 {entry.translation.toUpperCase()}
+              </span>
+            )}
+            {/* Verse notes carry their attached passage — surfacing it here
+                is what connects a note-opened entry back to the study
+                workflow, letting the user jump straight to that verse
+                instead of History only ever tracking navigation in
+                isolation from what was actually being studied. */}
+            {entry.type === 'note' && entry.verseRef && (
+              <span
+                role="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const parsed = parseRef(entry.verseRef!)
+                  if (parsed) onNavigate({ ...entry, type: 'bible', bookId: parsed.bookId, chapter: parsed.chapter })
+                }}
+                title={`Jump to ${entry.verseRef}`}
+                className="text-[9px] text-[rgb(var(--color-accent))] hover:underline flex-shrink-0 cursor-pointer"
+              >
+                → {entry.verseRef}
               </span>
             )}
           </span>
@@ -362,6 +391,14 @@ export default function HistoryModal() {
   const [searchQuery, setSearchQuery]     = useState('')
   const [dateFilter, setDateFilter]       = useState('')          // "YYYY-MM-DD" or ""
   const [typeFilters, setTypeFilters]     = useState<Set<EntryType>>(new Set())
+  // "Study view" (default on): hides routine chapter-to-chapter Bible reading —
+  // by far the noisiest entry type (every chapter change while reading, arrow-
+  // key paging, tab restores) — while keeping every deliberate action (notes,
+  // lexicon, Strong's clicks, compare, search, imports) visible. This is a
+  // simplification layer above the granular per-type chips below, not a
+  // replacement for them — a separate toggle keeps its own "N filters active"
+  // language from getting confusing when this is on by default.
+  const [hideRoutineReading, setHideRoutineReading] = useState(true)
   const [sortNewest, setSortNewest]       = useState(true)
   const [showFilters, setShowFilters]     = useState(false)
   // Days/sessions are collapsed by default; the expanded keys live in the store so the
@@ -426,9 +463,10 @@ export default function HistoryModal() {
     }
     if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
+    if (hideRoutineReading) entries = entries.filter(e => e.type !== 'bible')
     if (!deferredSort) entries = [...entries].reverse()
     return entries
-  }, [history, deferredSearch, deferredDate, deferredTypes, deferredSort])
+  }, [history, deferredSearch, deferredDate, deferredTypes, deferredSort, hideRoutineReading])
 
   // Build day groups, each split into activity "sessions". Also compute chainedIds
   // in the same pass (avoids a second O(n) scan with filteredIds → chainedIds).
@@ -521,7 +559,7 @@ export default function HistoryModal() {
       onMouseDown={(e) => { if (e.target === overlayRef.current) closeHistory() }}
     >
       <div
-        className="w-full max-w-[520px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-[520px] rounded-shell-lg flex flex-col overflow-hidden border border-[rgb(var(--color-surface-4))] shadow-2xl bg-[rgb(var(--color-surface-1))]"
         style={{ maxHeight: '78vh' }}
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -529,15 +567,35 @@ export default function HistoryModal() {
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
           <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
           <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">History</span>
+          {/* Study vs. All — a coarse, always-visible toggle above the granular
+              type chips, since routine Bible chapter navigation otherwise
+              drowns out every deliberate action (note opened, Strong's
+              looked up, compare toggled, imported, searched). */}
+          <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] overflow-hidden text-[9px] font-medium flex-shrink-0">
+            <button
+              onClick={() => setHideRoutineReading(true)}
+              title="Show only deliberate study actions — hides routine chapter-to-chapter reading"
+              className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+            >
+              Study
+            </button>
+            <button
+              onClick={() => setHideRoutineReading(false)}
+              title="Show everything, including routine chapter-to-chapter reading"
+              className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+            >
+              All
+            </button>
+          </div>
           <span
             className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1"
             title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
           >
-            {filtersActive ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
+            {filtersActive || hideRoutineReading ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
           </span>
           <button
             onClick={closeHistory}
-            className="p-1 rounded-md text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+            className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
           >
             <X size={13} />
           </button>
@@ -605,7 +663,7 @@ export default function HistoryModal() {
                 type="date"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="flex-1 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-4))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/50] cursor-pointer"
+                className="flex-1 text-xs px-2 py-1 rounded-shell bg-[rgb(var(--color-surface-4))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/50] cursor-pointer"
               />
               {dateFilter && (
                 <button

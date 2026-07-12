@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 
-let buildPrintHTML: (title: string, content: string) => string
+let buildPrintHTML: (title: string, content: string, opts?: { rawHtml?: boolean }) => string
 let renderPreviewContent: (content: string) => string
 
 beforeAll(async () => {
@@ -58,26 +58,29 @@ describe('buildPrintHTML — document structure', () => {
     expect(print('x')).toContain('@page')
   })
 
-  it('includes berean-verse-ref CSS rule', () => {
-    expect(print('x')).toContain('a.berean-verse-ref')
+  it('includes pm-verse-ref CSS rule', () => {
+    // Verse-refs render as styled, non-clickable <span> elements (matching
+    // the live editor — they're a decoration over plain text, not a real
+    // link), not <a> tags, so there's no "a.berean-verse-ref" selector.
+    expect(print('x')).toContain('.pm-verse-ref')
   })
 
-  it('includes berean-verse-block CSS rule', () => {
-    expect(print('x')).toContain('.berean-verse-block')
+  it('includes pm-verse-block CSS rule', () => {
+    expect(print('x')).toContain('.pm-verse-block')
   })
 
   it('includes mark element CSS', () => {
-    expect(print('x')).toContain('mark {')
+    expect(print('x')).toContain('mark.hl-')
   })
 
-  it('includes del/strikethrough CSS', () => {
-    const html = print('x')
-    expect(html).toContain('del')
+  it('renders ~~strikethrough~~ as <s> with no special CSS needed (browser default)', () => {
+    const html = print('~~struck~~')
+    expect(html).toContain('<s>struck</s>')
   })
 
   it('includes table CSS', () => {
     const html = print('x')
-    expect(html).toContain('border-collapse: collapse')
+    expect(html).toContain('.berean-pm-editor .ProseMirror table')
   })
 
   it('includes code block CSS', () => {
@@ -92,6 +95,50 @@ describe('buildPrintHTML — document structure', () => {
     const html = print('', 'Empty Note')
     expect(html).toContain('<!DOCTYPE html>')
     expect(html).toContain('Empty Note')
+  })
+
+  it('preserves extra blank lines (multiple consecutive Enters) as real empty paragraphs, and gives them visible height', () => {
+    // Structural check (the DOM produces one <p></p> per extra blank line —
+    // see staticRender.ts/parser.ts's expandExtraBlankLines) plus the CSS
+    // rule that keeps a genuinely childless <p></p> from collapsing to zero
+    // height in plain (non-contenteditable) HTML — see pmEditor.css's
+    // `p:empty` comment for why that's needed at all.
+    const html = print('Paragraph one.\n\n\n\nParagraph two.')
+    const body = html.slice(html.indexOf('<body>'))
+    expect((body.match(/<p><\/p>/g) || []).length).toBe(2)
+    expect(html).toMatch(/p:empty\s*\{[^}]*min-height/)
+  })
+
+  it('does not double-stack the editor pane padding on top of the print margin', () => {
+    // pmEditor.css's `.berean-pm-editor .ProseMirror { padding: 16px; padding-bottom: 96px }`
+    // exists for the live in-app editor's own scroll affordance. The print
+    // page's margin is controlled entirely by <body>'s padding (see the
+    // "single source of truth" comment above @page in buildPrintHTML) — if
+    // that editor-pane padding leaked into the print document unoverridden,
+    // every page would get body-padding-plus-16px on the sides and an extra
+    // ~96px of dead space at the bottom, producing a visibly asymmetric page.
+    const html = print('Some content')
+    expect(html).toMatch(/\.berean-pm-editor \.ProseMirror\s*\{\s*padding:\s*0;?\s*\}/)
+  })
+
+  it('rawHtml:true passes pre-rendered HTML through untouched, skipping the markdown parse', () => {
+    // Regression for the idioms print/export bug: idiomsExport.ts builds its
+    // own standalone HTML (colored term headings, inline styles) rather than
+    // markdown source. Without rawHtml, buildPrintHTML ran it through
+    // renderMarkdownToHTML anyway — whose markdown-it instance has
+    // html:false — so the literal <div style="..."> tags got HTML-escaped
+    // and printed as visible tag soup instead of being rendered.
+    const rawHtml = '<div style="color:#c0392b;font-weight:700">GIRD UP YOUR LOINS</div>'
+    const html = buildPrintHTML('Idioms', rawHtml, { rawHtml: true })
+    expect(html).toContain(rawHtml)
+    expect(html).not.toContain('&lt;div')
+  })
+
+  it('without rawHtml, the same input is treated as markdown source and escaped', () => {
+    const rawHtml = '<div style="color:#c0392b">GIRD UP YOUR LOINS</div>'
+    const html = buildPrintHTML('Idioms', rawHtml)
+    expect(html).not.toContain(rawHtml)
+    expect(html).toContain('&lt;div')
   })
 })
 

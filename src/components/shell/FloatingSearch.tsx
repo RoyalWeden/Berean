@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -7,6 +7,7 @@ import { parseRef, isStrongsRef, getTranslationForBook, bookName } from '@/lib/p
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
+import { getCommands, filterCommands } from '@/lib/commands'
 import type { Book, LexiconEntry, Note } from '@/types'
 
 interface CrossRef {
@@ -107,6 +108,16 @@ function normalizeBookName(name: string): string {
 
 function detectTranslationPrefix(q: string): { textId: string; cleanQuery: string } | null {
   const lower = q.trim().toLowerCase()
+  // A space-only prefix (no colon) is ambiguous whenever the book itself is
+  // named that way — "jubilees 17", "enoch 5", "hermas 3" are meant as a
+  // REFERENCE into that dedicated text, not "search the word '17' within
+  // the jubilees translation". If the untouched query already resolves as a
+  // real reference on its own, prefer that reading over stripping it down
+  // to a query fragment that (as with a bare chapter number) often fails to
+  // parse as anything at all. Colon-qualified prefixes ("jubilees:creation")
+  // are unambiguous and always meant as a translation-scoped keyword search,
+  // so they skip this check.
+  if (parseRef(q.trim())) return null
   // Check leading prefix form: "lxx creation", "enoch 1"
   for (const [patterns, id] of TRANSLATION_PREFIXES) {
     for (const pat of patterns) {
@@ -342,6 +353,13 @@ export default function FloatingSearch() {
   function handleInput(val: string) {
     setQuery(val)
     setSelectedIdx(0)
+    // Command mode (">") — no reference/keyword lookup to run at all, the
+    // `>`-prefixed text is matched against the command list client-side.
+    if (val.trim().startsWith('>')) {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
+      return
+    }
     const det = val.trim() ? detectTranslationPrefix(val) : null
     const tid = det ? det.textId : defaultBibleTranslation.toLowerCase()
     if (tid !== searchTextId) {
@@ -415,13 +433,30 @@ export default function FloatingSearch() {
 
   // Build result list for keyboard nav
   const results: Array<{
-    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref'
+    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command'
     label: string
     sub: string
     action: () => void
   }> = []
 
-  if (parsedRef) {
+  // Command mode (">") — Obsidian's own convention: search/run ACTIONS
+  // instead of references, notes, or keywords. Short-circuits the rest of
+  // this function entirely (parsedRef will always be null for a
+  // ">"-prefixed query anyway, so nothing below would match regardless).
+  const isCommandMode = query.trim().startsWith('>')
+  if (isCommandMode) {
+    const commandQuery = query.trim().slice(1)
+    for (const cmd of filterCommands(getCommands(), commandQuery)) {
+      results.push({
+        type: 'command',
+        label: cmd.label,
+        sub: cmd.shortcut ?? '',
+        action: () => { cmd.run(); closeSearch() },
+      })
+    }
+  }
+
+  if (!isCommandMode && parsedRef) {
     const book = books.find((b) => b.id === parsedRef.bookId)
     const chapterDisplay = parsedRef.endChapter && parsedRef.endChapter > parsedRef.chapter
       ? `${parsedRef.chapter}–${parsedRef.endChapter}`
@@ -584,6 +619,7 @@ export default function FloatingSearch() {
         <Dialog.Overlay asChild forceMount>
           <motion.div
             className="fixed inset-0 bg-black/50 z-50"
+            style={{ backdropFilter: 'blur(4px)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -599,7 +635,7 @@ export default function FloatingSearch() {
             className="
               fixed left-1/2 top-[12%]
               z-50 w-full max-w-2xl
-              glass-panel rounded-shell-lg overflow-hidden
+              glass-panel-modal rounded-shell-lg overflow-hidden
             "
             initial={{ opacity: 0, scale: 0.96, x: '-50%', y: -8 }}
             animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
@@ -679,15 +715,24 @@ export default function FloatingSearch() {
                     style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
                     </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
-                        {r.label}
+                    <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] block">
+                          {r.label}
+                        </span>
+                        {r.type !== 'command' && (
+                          <span className={`text-xs text-[rgb(var(--color-text-muted))] block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
+                            {highlightQ ? applyFindHighlight(r.sub, highlightQ, searchWordMode) : r.sub}
+                          </span>
+                        )}
                       </span>
-                      <span className={`text-xs text-[rgb(var(--color-text-muted))] block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
-                        {highlightQ ? applyFindHighlight(r.sub, highlightQ, searchWordMode) : r.sub}
-                      </span>
+                      {r.type === 'command' && r.sub && (
+                        <kbd className="flex-shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">
+                          {r.sub}
+                        </kbd>
+                      )}
                     </span>
                   </button>
                 )
@@ -730,6 +775,8 @@ export default function FloatingSearch() {
                 <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">Exodus 20</span>
                 {' · '}
                 <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">in the beginning</span>
+                {' · '}
+                <span className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded">&gt; toggle strongs</span>
               </div>
             )
           )}

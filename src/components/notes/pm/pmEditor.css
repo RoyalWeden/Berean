@@ -1,0 +1,341 @@
+/* Styling for ProseMirror ref decorations/nodes — mirrors editorTheme.ts's
+   CM6 `.cm-live-*` classes exactly (same CSS custom properties, same visual
+   treatment), just targeting the class names Decoration.inline/mark/toDOM
+   produce in refDecorations.ts and schema.ts instead of CM6 decorations. */
+
+/* SelectionToolbar.tsx's toolbar + dropdown popovers — plain, reliably-
+   opaque background (NOT the shared .glass-panel translucent/blur
+   treatment, which an earlier attempt tried to override with a Tailwind
+   arbitrary-value + important-modifier combo that didn't reliably win,
+   leaving these nearly see-through). Needs to read clearly against busy
+   note text sitting directly behind it. */
+.pm-toolbar-solid {
+  background-color: rgb(var(--color-surface-1));
+  border: 1px solid rgb(var(--color-surface-4));
+}
+
+/* Highlights, scoped to the editor. Boosted well past the shared
+   global.css `mark.hl-*` rules' 0.38 alpha (used for preview/print output,
+   left alone) — in the live editor a highlight needs to read clearly as
+   "this text is highlighted" at a glance, not as a faint tint. */
+.berean-pm-editor .ProseMirror mark.hl-yellow  { background-color: rgb(var(--highlight-yellow) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-orange  { background-color: rgb(var(--highlight-orange) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-amber   { background-color: rgb(var(--highlight-amber) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-red     { background-color: rgb(var(--highlight-red) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-rose    { background-color: rgb(var(--highlight-rose) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-pink    { background-color: rgb(var(--highlight-pink) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-violet  { background-color: rgb(var(--highlight-violet) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-purple  { background-color: rgb(var(--highlight-purple) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-indigo  { background-color: rgb(var(--highlight-indigo) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-blue    { background-color: rgb(var(--highlight-blue) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-sky     { background-color: rgb(var(--highlight-sky) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-cyan    { background-color: rgb(var(--highlight-cyan) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-teal    { background-color: rgb(var(--highlight-teal) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-green   { background-color: rgb(var(--highlight-green) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.hl-lime    { background-color: rgb(var(--highlight-lime) / 0.6) !important; }
+.berean-pm-editor .ProseMirror mark.pm-highlight-plain {
+  background-color: rgb(var(--highlight-yellow) / 0.6);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.pm-wikilink {
+  color: rgb(var(--link-wikilink));
+  background-color: rgb(var(--link-wikilink) / 0.12);
+  border-radius: 5px;
+  padding: 1px 6px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.12s ease;
+}
+.pm-wikilink:hover { background-color: rgb(var(--link-wikilink) / 0.2); }
+
+.pm-verse-ref, .pm-lxx-ref, .pm-lexicon-ref {
+  border-radius: 3px;
+  transition: background-color 0.12s ease;
+}
+.pm-verse-ref:hover, .pm-lxx-ref:hover, .pm-lexicon-ref:hover { background-color: rgb(var(--color-text-primary) / 0.06); }
+
+.pm-verse-ref {
+  color: rgb(var(--color-accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pm-lxx-ref {
+  color: rgb(var(--link-lxx-ref));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pm-lexicon-ref {
+  color: rgb(var(--link-lexicon-ref));
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* .pm-callout* colors/padding/margin are applied inline by nodeViews.ts's
+   calloutNodeView and staticRender.ts's renderCallout (sourced from
+   CALLOUT_META) — this covers what inline styles can't: paragraph spacing
+   INSIDE the callout content. Without this, every paragraph still picked up
+   the base ".ProseMirror p { margin: 0.35em 0 }" rule, which — stacked on
+   top of the callout's own padding and header spacing — is what made
+   callouts feel loose ("too much spacing inside") even after the padding
+   itself was tightened. */
+.berean-pm-editor .ProseMirror .pm-callout-content p {
+  margin: 0.25em 0;
+}
+.berean-pm-editor .ProseMirror .pm-callout-content p:first-child {
+  margin-top: 0;
+}
+.berean-pm-editor .ProseMirror .pm-callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Blockquote and code_block — these previously had NO styling at all, so
+   creating one (via the ">" input rule, the "```" fence input rule, or the
+   selection toolbar) visually looked like nothing happened even though the
+   node was created correctly. Blockquote matches editorTheme.ts's
+   .cm-live-blockquote; code_block matches .cm-live-code-block. */
+.berean-pm-editor .ProseMirror blockquote {
+  border-left: 3px solid rgb(var(--color-accent) / 0.5);
+  padding: 0.4em 0 0.4em 0.9em;
+  margin: 0.6em 0;
+  color: rgb(var(--color-text-secondary));
+}
+.berean-pm-editor .ProseMirror pre {
+  background-color: rgb(var(--color-surface-2));
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 8px;
+  padding: 0.7em 0.9em;
+  margin: 0.75em 0;
+  overflow-x: auto;
+}
+.berean-pm-editor .ProseMirror pre code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85em;
+  color: rgb(var(--color-text-primary));
+  background: none;
+  padding: 0;
+}
+.berean-pm-editor .ProseMirror code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.85em;
+  background-color: rgb(var(--color-surface-3));
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+/* Verse/lexicon block live-formatting — port of editorTheme.ts's
+   .cm-live-verse-block* / .cm-live-lexicon-block* rules. `.pm-verse-block`/
+   `.pm-lexicon-block` are real `Decoration.node` classes on the WHOLE
+   paragraph (blockDecorations.ts) when the block occupies its own
+   paragraph (the normal case) — this is what actually gives the genuine
+   full-width rectangle look matching blockquote/code_block, since it
+   targets the real block-level <p> element rather than an inline span.
+   The `-line`/`-ref`/`-def` inline classes remain as the fallback for the
+   rarer case of a block sharing a paragraph with unrelated text, and for
+   the ref/definition sub-highlighting within either rendering path. */
+.pm-verse-block, .pm-lexicon-block {
+  display: block;
+  border: 1px solid rgb(var(--color-accent) / 0.35);
+  border-left: 3px solid rgb(var(--color-accent) / 0.6);
+  background-color: rgb(var(--color-accent) / 0.07);
+  padding: 0.55em 0.8em;
+}
+.pm-lexicon-block {
+  border-color: rgb(var(--link-lexicon-ref) / 0.35);
+  border-left-color: rgb(var(--link-lexicon-ref) / 0.6);
+  background-color: rgb(var(--link-lexicon-ref) / 0.07);
+}
+/* Multi-paragraph blocks (the normal way of typing a multi-line verse
+   passage — one Enter per line, each its own paragraph, see
+   blockDecorations.ts's collectLineRuns): each spanned paragraph gets its
+   own Decoration.node, and these modifiers make the individually-boxed
+   paragraphs read as ONE continuous rectangle instead of a stack of
+   separate boxes — full rounding + margin only where the group actually
+   starts/ends, no border between the seams. */
+/* Qualified with the same ".berean-pm-editor .ProseMirror p" prefix as the
+   base paragraph-margin rule below (not just the bare ".pm-verse-block-*"
+   class) so these margin overrides actually WIN the cascade. Without the
+   prefix these had the same or lower specificity than
+   ".berean-pm-editor .ProseMirror p { margin: 0.35em 0 }" (2 classes +
+   element beats 1 class), so the "margin: 0" here was silently losing and
+   every line inside a block still carried the full paragraph margin above
+   AND below it — the real cause of "line spacing inside verse blocks is too
+   big" surviving an earlier padding-only tightening pass. */
+.berean-pm-editor .ProseMirror p.pm-verse-block-only, .berean-pm-editor .ProseMirror p.pm-lexicon-block-only { border-radius: 0 8px 8px 0; margin: 0.6em 0; }
+.berean-pm-editor .ProseMirror p.pm-verse-block-first, .berean-pm-editor .ProseMirror p.pm-lexicon-block-first { border-radius: 0 8px 0 0; margin: 0.6em 0 0 0; border-bottom: none; padding-bottom: 0.15em; }
+.berean-pm-editor .ProseMirror p.pm-verse-block-middle, .berean-pm-editor .ProseMirror p.pm-lexicon-block-middle { border-radius: 0; margin: 0; border-top: none; border-bottom: none; padding-top: 0.05em; padding-bottom: 0.05em; }
+.berean-pm-editor .ProseMirror p.pm-verse-block-last, .berean-pm-editor .ProseMirror p.pm-lexicon-block-last { border-radius: 0 0 8px 0; margin: 0 0 0.6em 0; border-top: none; padding-top: 0.15em; }
+.pm-verse-block-line, .pm-lexicon-block-line {
+  border-bottom: 2px solid rgb(var(--color-accent) / 0.4);
+  background-color: rgb(var(--color-accent) / 0.08);
+  border-radius: 3px;
+  padding: 1px 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.pm-lexicon-block-line { border-bottom-color: rgb(var(--link-lexicon-ref) / 0.4); background-color: rgb(var(--link-lexicon-ref) / 0.08); }
+.pm-verse-block-ref, .pm-lexicon-block-ref { font-weight: 700; color: rgb(var(--color-accent)); cursor: pointer; }
+.pm-lexicon-block-ref { color: rgb(var(--link-lexicon-ref)); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.pm-lexicon-block-def { font-style: italic; }
+
+/* Collapsible headings */
+.pm-heading-collapse-arrow { opacity: 0.5; transition: opacity 0.12s ease; }
+.pm-heading-collapse-arrow:hover { opacity: 1; }
+.pm-collapsed-heading-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 0.7em;
+  font-weight: 500;
+  opacity: 0.9;
+  background: rgb(var(--color-surface-4) / 0.9);
+  color: rgb(var(--color-text-secondary));
+  cursor: pointer;
+  vertical-align: middle;
+  user-select: none;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+.pm-collapsed-heading-pill:hover { opacity: 1; background: rgb(var(--color-surface-4)); }
+
+/* Lists — previously had NO base styling at all (no margin/padding reset,
+   raw browser UL/OL defaults), which is what "lists don't look good" was
+   about: inconsistent indent, cramped/uneven spacing against the rest of
+   the editor's typography. */
+.berean-pm-editor .ProseMirror ul,
+.berean-pm-editor .ProseMirror ol {
+  margin: 0.5em 0;
+  padding-left: 1.4em;
+}
+.berean-pm-editor .ProseMirror li {
+  margin: 0.2em 0;
+  line-height: 1.4;
+}
+.berean-pm-editor .ProseMirror li > p { margin: 0; }
+.berean-pm-editor .ProseMirror ol { list-style-type: decimal; }
+.berean-pm-editor .ProseMirror ol li::marker { color: rgb(var(--color-text-secondary)); font-weight: 500; }
+
+/* Task checkboxes + bullet-style glyphs (nodeViews.ts's listItemNodeView).
+   Bullet lists use `ul { padding-left }` PLUS their own flex marker+gap, so
+   at the same 1.4em as ol they sat visibly further right than a numbered
+   list's native ::marker (which the browser tucks close against the
+   padding edge) — that's what "too big of an initial indent" was about.
+   Pulling `ul`'s own padding-left in by roughly the marker+gap width lines
+   the two list types back up. The same rule also shrinks every NESTED
+   bullet list's indent by the same amount, since padding-left applies per
+   `ul` regardless of nesting depth ("each indent is too big for bullets
+   too"). */
+.berean-pm-editor .ProseMirror ul { padding-left: 0.9em; }
+.pm-task-item, .pm-bullet-item { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
+.pm-bullet-marker { color: rgb(var(--color-text-secondary)); }
+.pm-task-content { transition: opacity 0.15s ease; }
+
+/* prosemirror-tables' official stylesheet (node_modules/prosemirror-tables/
+   style/tables.css), adapted to this app's theme tokens instead of hardcoded
+   colors — required for column resize handles + selected-cell highlight to
+   render/function at all. Refreshed with rounded corners + a softer border
+   than the library default's plain hard-edged grid. */
+.berean-pm-editor .ProseMirror .tableWrapper { overflow-x: auto; }
+.berean-pm-editor .ProseMirror table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.75em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-surface-4));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.berean-pm-editor .ProseMirror td,
+.berean-pm-editor .ProseMirror th {
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  border-bottom: 1px solid rgb(var(--color-surface-4));
+  border-right: 1px solid rgb(var(--color-surface-4));
+  padding: 6px 10px;
+  min-width: 3em;
+}
+.berean-pm-editor .ProseMirror tr > td:last-child,
+.berean-pm-editor .ProseMirror tr > th:last-child { border-right: none; }
+.berean-pm-editor .ProseMirror tr:last-child > td { border-bottom: none; }
+.berean-pm-editor .ProseMirror th { background-color: rgb(var(--color-surface-2)); font-weight: 600; }
+.berean-pm-editor .ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  z-index: 20;
+  background-color: rgb(var(--color-accent));
+  pointer-events: none;
+}
+.berean-pm-editor .ProseMirror.resize-cursor { cursor: col-resize; }
+.berean-pm-editor .ProseMirror .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: '';
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgb(var(--color-accent) / 0.15);
+  pointer-events: none;
+}
+
+/* Comfortable content padding — matches the CM6 editor's own
+   .cm-scroller convention (editorTheme.ts:41) exactly (16px, generous
+   bottom room for scrolling past the last line rather than content
+   touching the pane edges). */
+.berean-pm-editor .ProseMirror {
+  padding: 16px;
+  padding-bottom: 96px;
+  outline: none;
+  min-height: 100%;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+/* Base paragraph spacing — this was previously UNSET, meaning every
+   paragraph fell back to the browser's default ~1em top/bottom margin.
+   That's what made general note spacing feel loose, and — combined with
+   verse/lexicon blocks now being made of several individually-decorated
+   PARAGRAPHS (blockDecorations.ts) — created visibly large gaps between
+   the reference line and each verse/definition line inside a block, even
+   though the block's own -first/-middle/-last modifiers already zero out
+   margin BETWEEN grouped paragraphs (a class selector beats the bare
+   element selector here, so those overrides still win). */
+.berean-pm-editor .ProseMirror p {
+  margin: 0.35em 0;
+}
+.berean-pm-editor .ProseMirror p:first-child { margin-top: 0; }
+/* Extra blank lines (multiple consecutive Enters) round-trip as genuinely
+   EMPTY paragraph nodes (parser.ts/serializer.ts) — structurally correct in
+   both the live editor and the read-only static renderer (staticRender.ts,
+   used by print/version-history/daily-scroll/Presenter). But a truly
+   childless `<p></p>` (zero children, not even a text node) has no line box
+   at all, so `line-height` never applies to it and it collapses to ZERO
+   visual height in plain HTML — the blank line "disappears" even though
+   it's really there in both the DOM and the saved markdown. The live
+   editor never hits this: contenteditable auto-inserts an invisible
+   trailing <br> into empty paragraphs (so `:empty` never matches them
+   there), which is exactly why this only ever showed up in the read-only
+   renders. Scoped to `:empty` so it can't affect the live editor's own
+   (non-empty-in-DOM-terms) blank paragraphs. */
+.berean-pm-editor .ProseMirror p:empty {
+  min-height: 1.4em;
+}
+.berean-pm-editor .ProseMirror[contenteditable="false"] {
+  cursor: default;
+}
+.berean-pm-editor .ProseMirror p.is-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--color-text-muted));
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

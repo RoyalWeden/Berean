@@ -4,8 +4,10 @@ import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
 import Sidebar from '@/components/shell/Sidebar'
+import Ribbon from '@/components/shell/Ribbon'
 import ActivePanel from '@/components/shell/ActivePanel'
-import WindowControls from '@/components/shell/WindowControls'
+import TopBar from '@/components/shell/TopBar'
+import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import SettingsModal from '@/components/settings/SettingsModal'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
@@ -22,6 +24,9 @@ import type { SpaceId, Tab } from '@/types'
 interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab }
 
 export default function App() {
+  // DOM node for the top bar's portal slot — set once TopBar mounts, consumed
+  // by the active tab panel via useTopBarSlot() to portal its own controls in.
+  const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
@@ -65,9 +70,20 @@ export default function App() {
   const openImportModal = useAppStore((s) => s.openImportModal)
   const openImportBibleGateway = useAppStore((s) => s.openImportBibleGateway)
   const openImportESword = useAppStore((s) => s.openImportESword)
+  const setUpdateStatus = useAppStore((s) => s.setUpdateStatus)
 
   // Sync viewer window with active tab state
   useViewerSync()
+
+  // Single global subscription to update-status events — the preload bridge
+  // (electron/preload.ts) only supports one active `onUpdateStatus` listener
+  // at a time (it calls removeAllListeners before adding), so this must be
+  // the only place in the renderer that calls it. Everything else (the rail's
+  // Settings badge, the Settings modal's Updates section) reads the mirrored
+  // value from the store instead of subscribing itself.
+  useEffect(() => {
+    window.app.onUpdateStatus?.((status) => setUpdateStatus(status as import('@/types/electron').UpdateStatus))
+  }, [setUpdateStatus])
 
   // Global import progress listeners — always registered so state persists even when modals are closed
   useEffect(() => {
@@ -213,6 +229,16 @@ export default function App() {
     }, 150) // debounce
     return () => clearTimeout(timer)
   }, [storeTabs, theme, themePreset])
+
+  // Only one overlay (find bar, "More" menu, Settings) open at a time — the
+  // Bible find bar is global store state, so it closes here on the shared
+  // berean:closeMenus broadcast; NotesPanel/LexiconPanel's own find bars are
+  // local state and listen for the same event themselves.
+  useEffect(() => {
+    function onCloseMenus() { useAppStore.getState().closeFindBar() }
+    window.addEventListener('berean:closeMenus', onCloseMenus)
+    return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
+  }, [])
   // ─────────────────────────────────────────────────────────────────────────
 
   // Viewer window sync is handled by useViewerSync() above
@@ -420,7 +446,6 @@ export default function App() {
       if (typeof all.autoPiP === 'boolean') s.setAutoPiP(all.autoPiP)
       if (typeof all.noteVerseRefsEnabled === 'boolean') s.setNoteVerseRefsEnabled(all.noteVerseRefsEnabled)
       if (typeof all.noteLexiconRefsEnabled === 'boolean') s.setNoteLexiconRefsEnabled(all.noteLexiconRefsEnabled)
-      if (typeof all.sidebarNewTabIconOnly === 'boolean') s.setSidebarNewTabIconOnly(all.sidebarNewTabIconOnly)
       if (typeof all.defaultScriptureLayout === 'string') s.setDefaultScriptureLayout(all.defaultScriptureLayout as import('@/types').ScriptureLayout)
       if (typeof all.noteTransformLayout === 'string') s.setNoteTransformLayout(all.noteTransformLayout as 'right' | 'bottom' | 'left')
       if (typeof all.crossRefSource === 'string') s.setCrossRefSource(all.crossRefSource as 'tske' | 'classic' | 'notes')
@@ -447,6 +472,14 @@ export default function App() {
       }
     }).catch(() => {})
 
+    // 4b. React to live external vault edits (chokidar watcher, main process
+    // already wrote the new content into the DB — this just tells the renderer
+    // to refetch so open lists/panels reflect it instead of going stale until
+    // the note happens to be reopened).
+    window.vault?.onVaultChange(() => {
+      useAppStore.getState().bumpNoteToken()
+    })
+
     // 5. Subscribe to store settings changes → debounce-write to SQLite
     const DEBOUNCE = 800
     let timer: ReturnType<typeof setTimeout>
@@ -464,7 +497,6 @@ export default function App() {
         state.autoPiP !== prev.autoPiP ||
         state.noteVerseRefsEnabled !== prev.noteVerseRefsEnabled ||
         state.noteLexiconRefsEnabled !== prev.noteLexiconRefsEnabled ||
-        state.sidebarNewTabIconOnly !== prev.sidebarNewTabIconOnly ||
         state.defaultScriptureLayout !== prev.defaultScriptureLayout ||
         state.noteTransformLayout !== prev.noteTransformLayout ||
         state.crossRefSource !== prev.crossRefSource ||
@@ -488,7 +520,6 @@ export default function App() {
           ['autoPiP', s.autoPiP],
           ['noteVerseRefsEnabled', s.noteVerseRefsEnabled],
           ['noteLexiconRefsEnabled', s.noteLexiconRefsEnabled],
-          ['sidebarNewTabIconOnly', s.sidebarNewTabIconOnly],
           ['defaultScriptureLayout', s.defaultScriptureLayout],
           ['noteTransformLayout', s.noteTransformLayout],
           ['crossRefSource', s.crossRefSource],
@@ -627,15 +658,13 @@ export default function App() {
         return
       }
 
-      // Cmd +/- /0 → zoom the active panel (scripture / notes / lexicon)
+      // Cmd +/- /0 → zoom the whole app
       if (cmd && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '_' || e.key === '0')) {
-        const pid = activePanelIdRef.current
-        const ctx = pid === 'notes' ? 'notes' : pid === 'lexicon' ? 'lexicon' : 'scripture'
         const st = useAppStore.getState()
         e.preventDefault()
-        if (e.key === '0') st.resetPanelZoom(ctx)
-        else if (e.key === '-' || e.key === '_') st.adjustPanelZoom(ctx, -1)
-        else st.adjustPanelZoom(ctx, 1)
+        if (e.key === '0') st.resetAppZoom()
+        else if (e.key === '-' || e.key === '_') st.adjustAppZoom(-1)
+        else st.adjustAppZoom(1)
         return
       }
 
@@ -679,6 +708,11 @@ export default function App() {
         // ── Cmd+H → open History (app 'hide' is remapped to ⌘⇧H) ────────
         e.preventDefault()
         useAppStore.getState().openHistory()
+      } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
+        // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
+        e.preventDefault()
+        setActiveSpace('notes')
+        window.dispatchEvent(new CustomEvent('berean:openDailyNote'))
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         // Use getState() to avoid stale closure — viewerWindowOpen is not in deps
@@ -758,25 +792,18 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   })
 
-  const isWin = window.__berean_platform === 'win32'
-
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
-      {/* Windows custom title bar — drag region + native-style min/max/close */}
-      {isWin && (
-        <div
-          className="flex-shrink-0 flex items-center justify-end h-8 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] z-[200]"
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        >
-          <WindowControls />
+      <TopBarSlotContext.Provider value={topBarSlot}>
+        <TopBar slotRef={setTopBarSlot} />
+        <div className="flex flex-1 overflow-hidden">
+          <Ribbon />
+          <Sidebar />
+          <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
+            <ActivePanel />
+          </main>
         </div>
-      )}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
-          <ActivePanel />
-        </main>
-      </div>
+      </TopBarSlotContext.Provider>
       <FloatingSearch />
       <PresenterControls />
       <SettingsModal />

@@ -9,7 +9,7 @@ import ViewerBiblePage from './ViewerBiblePage'
 import type { ViewerHighlight } from './ViewerBiblePage'
 import ViewerCrossRefs from './ViewerCrossRefs'
 import ViewerCompare from './ViewerCompare'
-import { renderPreviewContent } from '@/components/notes/NoteEditor'
+import { renderMarkdownToHTML } from '@/components/notes/pm/staticRender'
 
 const ALL_PRESETS = [
   'theme-neon','theme-midnight','theme-bible','theme-forest','theme-royal',
@@ -37,7 +37,7 @@ function useNote(noteId: string | undefined) {
     if (!noteId) { setData(null); return }
     window.notes.getNote(noteId).then((n: Note | null) => {
       if (!n) { setData(null); return }
-      setData({ title: n.title ?? '', html: renderPreviewContent(n.content ?? '') })
+      setData({ title: n.title ?? '', html: renderMarkdownToHTML(n.content ?? '') })
     }).catch(() => setData(null))
   }, [noteId, noteScriptureBlock, wordReplacerEnabled, wordReplacerRules, noteChangeToken])
   return data
@@ -72,7 +72,7 @@ function NoteView({ noteId, fontScale, muteColor, textColor, scrollRef, scrollPe
   return (
     <div ref={ref} className="h-full overflow-y-auto px-8 pb-6 pt-12" style={{ fontSize: fs, color: textColor }}>
       {data.title && <h2 style={{ fontSize: Math.round(20 * fontScale), marginBottom: '1rem' }} className="font-semibold">{data.title}</h2>}
-      <div className="berean-preview-prose" style={{ lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: data.html }} />
+      <div style={{ lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: data.html }} />
     </div>
   )
 }

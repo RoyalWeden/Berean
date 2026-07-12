@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, Check as CheckIcon } from 'lucide-react'
-import ZoomControls from '@/components/shell/ZoomControls'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
-import NoteEditor from '@/components/notes/NoteEditor'
-import type { ZoomContext } from '@/lib/zoom'
+import NoteEditor from '@/components/notes/pm/NoteEditorPM'
+import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
@@ -16,15 +15,6 @@ import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
-
-function SidePanelZoom({ activeTab }: { activeTab: 'notes' | 'lexicon' | 'crossrefs' }) {
-  const ctx: ZoomContext = activeTab === 'notes' ? 'notes' : activeTab === 'lexicon' ? 'lexicon' : 'scripture'
-  return (
-    <span className="pr-1.5 flex items-center">
-      <ZoomControls context={ctx} compact />
-    </span>
-  )
-}
 
 type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
 type NoteScope = 'all' | 'chapter'
@@ -143,12 +133,19 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
   const [selectedResultIdx, setSelectedResultIdx] = useState(-1)
   const [copiedLexicon, setCopiedLexicon] = useState(false)
+  // Full entry (definition, derivation, related terms, occurrences) shows by
+  // default — an earlier collapsed-by-default pass hid these behind "Show
+  // full entry" and the user explicitly asked for them back. "Show less"
+  // still lets the user collapse a given entry, but a NEW entry always
+  // starts expanded again rather than inheriting the previous collapse.
+  const [expanded, setExpanded] = useState(true)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Track the current entry num in a ref so the initialEntry effect can skip feedback-loop
   // changes (where onEntryChange → parent → initialEntry prop reflects our own navigation).
   const activeEntryNumRef = useRef<string | null>(null)
   useEffect(() => { activeEntryNumRef.current = activeEntry?.strongsNum ?? null }, [activeEntry])
+  useEffect(() => { setExpanded(true) }, [activeEntry?.strongsNum])
 
   // Load entry when initialEntry changes — but ONLY if it's a genuine external change
   // (i.e. the user clicked a Strong's number in a verse), not a feedback-loop update
@@ -327,6 +324,20 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               {activeEntry.gloss}
             </div>
           )}
+          {typeof activeEntry.occurrences === 'number' && activeEntry.occurrences > 0 && (
+            <div className="text-[10px] text-[rgb(var(--color-text-muted))]">
+              Used {activeEntry.occurrences} time{activeEntry.occurrences !== 1 ? 's' : ''}
+            </div>
+          )}
+          {!expanded && (
+            <button
+              onClick={() => setExpanded(true)}
+              className="w-full text-center text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer py-1"
+            >
+              Show full entry
+            </button>
+          )}
+          {expanded && (<>
           {activeEntry.definition && (
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Definition</p>
@@ -452,6 +463,13 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               </div>
             )}
           </div>
+          <button
+            onClick={() => setExpanded(false)}
+            className="w-full text-center text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
+          >
+            Show less
+          </button>
+          </>)}
         </div>
         {/* Prev / Next navigation */}
         <div className="flex items-center border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -1227,12 +1245,11 @@ export default function BibleRightPanel({
   // uses the value saved before this tab was switched away (not a live-updating prop).
   const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
   const visibleTab = forcedTab ?? activeTab
-  // Per-context zoom for the side panel
-  const sideLexiconZoom = useAppStore((s) => s.panelZoom.lexicon)
-  const sideScriptureZoom = useAppStore((s) => s.panelZoom.scripture)
-  const sideNotesZoom = useAppStore((s) => s.panelZoom.notes)
+  const sideZoom = useAppStore((s) => s.appZoom)
   const [scope, setScope] = useState<NoteScope>('chapter')
   const [sort, setSort] = useState<NoteSort>('verse')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
   const [expandAll, setExpandAll] = useState(false)
   const [notes, setNotes] = useState<Note[]>([])
   const [sidebarNote, setSidebarNote] = useState<Note | null>(null)
@@ -1253,7 +1270,6 @@ export default function BibleRightPanel({
   const createNoteTab = useAppStore((s) => s.createTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const bumpFloatingTabToken = useAppStore((s) => s.bumpFloatingTabToken)
-  const defaultNoteEditorMode = useAppStore((s) => s.defaultNoteEditorMode)
 
   // Track the current sidebar note in a ref so the unmount cleanup can access it
   const sidebarNoteRef = useRef<Note | null>(null)
@@ -1401,6 +1417,18 @@ export default function BibleRightPanel({
     return result
   }, [notes, sort, verseFilter, noteSearch])
 
+  // Close the sort menu on outside click
+  useEffect(() => {
+    if (!sortMenuOpen) return
+    function onDown(e: MouseEvent) {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setSortMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [sortMenuOpen])
+
   function handleNoteChange(content: string) {
     if (!sidebarNote) return
     const updated = { ...sidebarNote, content, updatedAt: Date.now() }
@@ -1411,6 +1439,18 @@ export default function BibleRightPanel({
       window.notes.updateNote(sidebarNote.id, { content }).catch(() => {})
       bumpNoteToken()
     }, 500)
+  }
+
+  function handleSidebarLexiconRefClick(strongsId: string) {
+    const store = useAppStore.getState()
+    const fromNote = sidebarNote ? { noteId: sidebarNote.id, title: sidebarNote.title || 'Untitled' } : undefined
+    // Create/activate the target Lexicon tab BEFORE queuing the entry —
+    // openLexiconEntry's pending value is picked up by whichever Lexicon
+    // tab is active at that moment, so calling it while a DIFFERENT tab is
+    // still active hands the entry to the wrong tab.
+    createNoteTab('lexicon')
+    store.openLexiconEntry(strongsId, fromNote)
+    setActiveSpace('lexicon')
   }
 
   async function closeSidebarNote() {
@@ -1470,39 +1510,39 @@ export default function BibleRightPanel({
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
       }}
     >
-      {/* Tab strip — hidden when a tab is forced externally */}
+      {/* Tab strip — hidden when a tab is forced externally. Sliding background pill
+          (not just an underline) matches the same layoutId pattern used for the
+          sidebar's active-space pill and TabBar's active-tab pill. */}
       {!forcedTab && (
-        <div className="flex items-center border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+        <div className="flex items-center gap-0.5 px-1.5 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
           {([['notes', 'Notes'], ['lexicon', 'Lexicon'], ['crossrefs', 'Cross Refs']] as [PanelTab, string][]).map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => { onTabChange(tab); void closeSidebarNote() }}
               className={`
-                relative flex-1 text-[10px] py-2 font-medium transition-colors cursor-pointer -mb-px
+                relative flex-1 text-[10px] py-1.5 rounded-shell font-medium transition-colors cursor-pointer
                 ${visibleTab === tab
                   ? 'text-[rgb(var(--color-accent))]'
                   : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
                 }
               `}
             >
-              {label}
               {visibleTab === tab && (
                 <motion.div
-                  layoutId="right-panel-tab-underline"
-                  className="absolute left-0 right-0 bottom-0 h-0.5 bg-[rgb(var(--color-accent))]"
+                  layoutId="right-panel-tab-pill"
+                  className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
                   transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                 />
               )}
+              <span className="relative z-10">{label}</span>
             </button>
           ))}
-          {/* Zoom controls for the active tab context */}
-          <SidePanelZoom activeTab={visibleTab} />
         </div>
       )}
 
       {/* Notes tab — note open */}
       {visibleTab === 'notes' && sidebarNote && (
-        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideNotesZoom}px` }}>
+        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px` }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <button
               onClick={closeSidebarNote}
@@ -1534,17 +1574,13 @@ export default function BibleRightPanel({
               content={sidebarNote.content ?? ''}
               onChange={handleNoteChange}
               onVerseRefClick={handleVerseRefClick}
+              onLexiconRefClick={handleSidebarLexiconRefClick}
               onCursorPosition={onNoteCursorChange}
               // Only restore the cursor + steal focus when the user was actually editing
               // this note when they left the tab (autoFocusNote). Otherwise opening the
               // scripture tab leaves focus on the reader, not the note.
               initialCursorPos={autoFocusNote ? initialNoteCursorRef.current : undefined}
               autoFocus={autoFocusNote}
-              // Hide markdown syntax markers (** * <u>) unless the user prefers raw mode.
-              // Without this the side-panel editor runs in live mode, where auto-focusing
-              // on tab-return would reveal the cursor line's raw markers. The side panel
-              // stays editable (no previewMode) since it's a quick-edit surface.
-              wysiwyg={defaultNoteEditorMode !== 'raw'}
               isSidePanel
             />
           </div>
@@ -1553,9 +1589,12 @@ export default function BibleRightPanel({
 
       {/* Notes tab — list */}
       {visibleTab === 'notes' && !sidebarNote && (
-        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideNotesZoom}px` }}>
-          {/* Search bar */}
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px` }}>
+          {/* Two-row header: search (full width) on top, controls below. The previous
+              single-row merge packed search + scope + sort + expand-all + new-note into
+              one line, which went cramped/near-overflow well before the panel's resize
+              minimum — splitting keeps every control a comfortable tap target. */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
             <input
               type="text"
@@ -1568,16 +1607,73 @@ export default function BibleRightPanel({
                 else if (e.key === 'Escape') { (e.target as HTMLInputElement).blur() }
               }}
               placeholder="Search notes…"
-              className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
+              className="min-w-0 flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] outline-none"
             />
             {noteSearch && (
-              <button onClick={() => { setNoteSearch(''); setSelectedNoteIdx(-1) }} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+              <button onClick={() => { setNoteSearch(''); setSelectedNoteIdx(-1) }} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
                 <X size={11} />
               </button>
             )}
+            <button
+              onClick={createChapterNote}
+              title="New note"
+              className="flex-shrink-0 p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+            >
+              <Plus size={13} />
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+            <HeaderSegmentedToggle
+              value={scope}
+              onChange={setScope}
+              options={[
+                { value: 'all',     label: 'All', title: 'All notes' },
+                { value: 'chapter', label: 'Ch',  title: 'This chapter only' },
+              ]}
+            />
+            <div className="flex-1" />
+            <div ref={sortMenuRef} className="relative flex-shrink-0">
+              <button
+                onClick={() => setSortMenuOpen((v) => !v)}
+                title="Sort notes"
+                className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-shell cursor-pointer transition-colors ${
+                  sortMenuOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                }`}
+              >
+                <ArrowUpDown size={11} />
+                <span>{sort === 'modified' ? 'Modified' : sort === 'created' ? 'Created' : 'By verse'}</span>
+              </button>
+              {sortMenuOpen && (
+                <div className="glass-panel absolute top-full right-0 mt-1 z-50 min-w-[120px] rounded-shell overflow-hidden py-1">
+                  {([['modified', 'Modified'], ['created', 'Created'], ['verse', 'By verse']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => { setSort(val); setSortMenuOpen(false) }}
+                      className={`flex items-center gap-2 w-full px-2.5 py-1 text-left text-[11px] transition-colors cursor-pointer ${
+                        sort === val ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                      }`}
+                    >
+                      <CheckIcon size={10} className={sort === val ? 'opacity-100' : 'opacity-0'} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setExpandAll(v => !v)}
+              title={expandAll ? 'Collapse notes' : 'Expand all notes'}
+              className={`flex-shrink-0 p-1 rounded-shell cursor-pointer transition-colors ${
+                expandAll
+                  ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
+              }`}
+            >
+              <AlignJustify size={12} />
+            </button>
           </div>
 
-          {/* Verse filter indicator */}
+          {/* Verse filter indicator — genuinely conditional context, not redundant chrome */}
           {verseFilter && (
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-accent))/6] flex-shrink-0">
               <Filter size={10} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
@@ -1587,52 +1683,6 @@ export default function BibleRightPanel({
               </button>
             </div>
           )}
-
-          {/* Filter/sort controls */}
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-            <div className="flex items-center bg-[rgb(var(--color-surface-4))] rounded p-0.5 gap-0.5">
-              {(['all', 'chapter'] as NoteScope[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setScope(s)}
-                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                    scope === s
-                      ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] shadow-sm'
-                      : 'text-[rgb(var(--color-text-muted))]'
-                  }`}
-                >
-                  {s === 'all' ? 'All' : 'Chapter'}
-                </button>
-              ))}
-            </div>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as NoteSort)}
-              className="text-[10px] bg-transparent text-[rgb(var(--color-text-muted))] outline-none cursor-pointer"
-            >
-              <option value="modified">Modified</option>
-              <option value="created">Created</option>
-              <option value="verse">By verse</option>
-            </select>
-            <button
-              onClick={() => setExpandAll(v => !v)}
-              title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-              className={`ml-auto p-0.5 rounded cursor-pointer transition-colors ${
-                expandAll
-                  ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
-              }`}
-            >
-              <AlignJustify size={12} />
-            </button>
-            <button
-              onClick={createChapterNote}
-              title="New note"
-              className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-            >
-              <Plus size={13} />
-            </button>
-          </div>
 
           {/* Notes list */}
           <div className="flex-1 overflow-y-auto">
@@ -1790,7 +1840,7 @@ export default function BibleRightPanel({
 
       {/* Lexicon tab */}
       {visibleTab === 'lexicon' && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideLexiconZoom }}>
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom }}>
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
@@ -1800,7 +1850,7 @@ export default function BibleRightPanel({
 
       {/* Cross References tab */}
       {visibleTab === 'crossrefs' && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideScriptureZoom }}>
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom }}>
           <CrossRefsTab
             bookId={bookId}
             chapter={chapter}

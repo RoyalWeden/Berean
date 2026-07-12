@@ -334,6 +334,28 @@ function resolveNotePath(note: NoteRow, vaultPath: string, folderPathMap: Map<st
 
 let watcher: ReturnType<typeof chokidar.watch> | null = null
 
+// Suppresses the watcher's 'change' handler from treating Berean's own writes
+// (vault:syncNote, runExportAll) as external edits. Without this, every save
+// while sync is on round-trips through the watcher and re-fires vault:changed
+// for a file Berean itself just wrote, cascading into constant note-list/
+// cross-ref refetches in the renderer — a self-triggered feedback loop, not
+// real external activity. 3s is comfortably longer than the watcher's own
+// 1500ms poll interval.
+const recentSelfWrites = new Map<string, number>()
+const SELF_WRITE_SUPPRESS_MS = 3000
+function markSelfWrite(filePath: string) {
+  recentSelfWrites.set(filePath, Date.now())
+  // Opportunistic cleanup so this map never grows unbounded over a long session.
+  if (recentSelfWrites.size > 500) {
+    const cutoff = Date.now() - SELF_WRITE_SUPPRESS_MS
+    for (const [p, t] of recentSelfWrites) if (t < cutoff) recentSelfWrites.delete(p)
+  }
+}
+function isRecentSelfWrite(filePath: string): boolean {
+  const t = recentSelfWrites.get(filePath)
+  return t !== undefined && Date.now() - t < SELF_WRITE_SUPPRESS_MS
+}
+
 export function registerVaultHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('vault:syncNote', (_event, noteId: string) => {
     try {
@@ -367,7 +389,9 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
         }
       }
 
-      writeFileSync(join(dir, filename), noteToMarkdown(row, overrideColor, highlightedVerseText), 'utf-8')
+      const filePath = join(dir, filename)
+      markSelfWrite(filePath)
+      writeFileSync(filePath, noteToMarkdown(row, overrideColor, highlightedVerseText), 'utf-8')
       return { success: true }
     } catch (err) {
       return { success: false, reason: String(err) }
@@ -416,6 +440,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 
       watcher.on('change', (filePath) => {
         if (!filePath.endsWith('.md')) return
+        if (isRecentSelfWrite(filePath)) return
         try {
           const content = readFileSync(filePath, 'utf-8')
           const match = content.match(/^berean_id:\s*(.+)$/m)
@@ -544,7 +569,9 @@ export function runExportAll(opts?: { tabState?: string }): { success: boolean; 
         }
       }
 
-      writeFileSync(join(dir, filename), noteToMarkdown(note, overrideColor, highlightedVerseText), 'utf-8')
+      const exportFilePath = join(dir, filename)
+      markSelfWrite(exportFilePath)
+      writeFileSync(exportFilePath, noteToMarkdown(note, overrideColor, highlightedVerseText), 'utf-8')
       noteCount++
     }
 
@@ -832,6 +859,11 @@ export function vaultHasData(): boolean {
 }
 
 // ─── Auto-export timer (main-process interval) ────────────────────────────────
+
+// Fixed safety-net export interval — not user-configurable. Per-note content
+// syncs immediately on save (vault:syncNote); this just periodically re-exports
+// the less-frequently-changed sidecar data (highlights/settings/PDFs/etc).
+export const AUTO_EXPORT_INTERVAL_MINUTES = 5
 
 let autoExportTimer: ReturnType<typeof setInterval> | null = null
 

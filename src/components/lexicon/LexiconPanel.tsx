@@ -1,13 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, Search, X, ArrowLeft, Home, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon, Monitor } from 'lucide-react'
+import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { HintTooltip } from '@/components/shell/HintTooltip'
+import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import FindBar from '@/components/shell/FindBar'
 import { applyFindHighlight } from '@/lib/highlight'
 import { bookName } from '@/lib/parseRef'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
-import ZoomControls from '@/components/shell/ZoomControls'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import type { LexiconEntry } from '@/types'
@@ -296,50 +296,43 @@ function LexiconInfoPopover({ onClose }: { onClose: () => void }) {
 
 function EntryView({
   entry,
-  backLabel,
-  onBack,
-  onHome,
-  hasHistory,
   onNav,
   noteBack,
   onNoteBack,
   findQuery,
-  onFindOpen,
   onNavigateToVerse,
   scrollRef,
   onScroll,
   floating = false,
   wordReplacerRules = [],
-  viewerWindowOpen = false,
-  onPresentLexicon,
 }: {
   entry: LexiconEntry
-  backLabel: string
-  onBack: () => void
-  onHome: () => void
-  hasHistory: boolean
   onNav: (num: string, newTab: boolean) => void
   noteBack?: { noteId: string; title: string } | null
   onNoteBack?: () => void
   findQuery?: string
-  onFindOpen?: () => void
   onNavigateToVerse?: (bookId: string, chapter: number, verse: number) => void
   scrollRef?: React.Ref<HTMLDivElement>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   floating?: boolean
   wordReplacerRules?: WordReplacerRule[]
-  viewerWindowOpen?: boolean
-  onPresentLexicon?: () => void
 }) {
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
-  const lexiconZoom = useAppStore((s) => s.panelZoom.lexicon)
+  const lexiconZoom = useAppStore((s) => s.appZoom)
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
   const [adjacent, setAdjacent] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
   const [occurrences, setOccurrences] = useState<OccurrenceRow[]>([])
   const [occurrencesLoading, setOccurrencesLoading] = useState(false)
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
+  // Full entry (definition, derivation, related terms, occurrences) shows by
+  // default — an earlier collapsed-by-default pass hid these behind "Show
+  // full entry" and the user explicitly asked for them back. "Show less"
+  // still lets the user collapse a given entry, but a NEW entry always
+  // starts expanded again rather than inheriting the previous collapse.
+  const [expanded, setExpanded] = useState(true)
+  useEffect(() => { setExpanded(true) }, [entry.strongsNum])
   const verseCopy = useVerseCopyMenu()
   const strongsCtx = useStrongsContextMenu()
 
@@ -389,8 +382,10 @@ function EntryView({
         onOpen={(num) => onNav(num, false)}
         onOpenNewTab={(num) => onNav(num, true)}
       />
-      {/* Header */}
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4 app-drag-region'}`}>
+      {/* Header — portaled into the shared top bar, not a second local header.
+           Back/home navigation is gone: the top bar's own back button now
+           reaches the search view (idx -1) directly via the global nav stack. */}
+      <TabHeaderPortal floating={floating}>
         {noteBack && onNoteBack && (
           <button
             onClick={onNoteBack}
@@ -401,22 +396,6 @@ function EntryView({
             <span className="truncate">{noteBack.title}</span>
           </button>
         )}
-        {hasHistory && (
-          <button
-            onClick={onHome}
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
-            title="Back to lexicon search"
-          >
-            <Home size={14} />
-          </button>
-        )}
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] rounded px-1.5 py-0.5 cursor-pointer transition-colors"
-        >
-          <ArrowLeft size={14} />
-          <span>{backLabel}</span>
-        </button>
         <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))] font-mono">{entry.strongsNum}</span>
         <LangBadge num={entry.strongsNum} />
         <div className="flex-1" />
@@ -427,30 +406,6 @@ function EntryView({
         >
           {copied ? <CheckIcon size={14} className="text-green-400" /> : <Copy size={14} />}
         </button>
-        {onFindOpen && (
-          <button
-            onClick={onFindOpen}
-            title="Find in entry (⌘F)"
-            className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-          >
-            <ScanSearch size={14} />
-          </button>
-        )}
-        <ZoomControls context="lexicon" compact />
-        {onPresentLexicon && (
-          <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
-          <button
-            onClick={onPresentLexicon}
-            className={`p-1 rounded transition-colors cursor-pointer ${
-              viewerWindowOpen
-                ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
-                : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-            }`}
-          >
-            <Monitor size={14} />
-          </button>
-          </HintTooltip>
-        )}
         <div className="relative">
           <button
             onMouseDown={(e) => e.stopPropagation()}
@@ -462,7 +417,7 @@ function EntryView({
           </button>
           {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
         </div>
-      </div>
+      </TabHeaderPortal>
 
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ zoom: lexiconZoom }}>
         {/* Word + transliteration */}
@@ -497,6 +452,21 @@ function EntryView({
           </div>
         )}
 
+        {typeof entry.occurrences === 'number' && entry.occurrences > 0 && (
+          <div className="text-xs text-[rgb(var(--color-text-muted))]">
+            Used {entry.occurrences} time{entry.occurrences !== 1 ? 's' : ''}
+          </div>
+        )}
+
+        {!expanded && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="w-full text-center text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer py-1"
+          >
+            Show full entry
+          </button>
+        )}
+        {expanded && (<>
         {entry.definition && (
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Definition</p>
@@ -622,6 +592,13 @@ function EntryView({
             </div>
           )}
         </div>
+        <button
+          onClick={() => setExpanded(false)}
+          className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
+        >
+          Show less
+        </button>
+        </>)}
       </div>
 
       {/* Prev / Next navigation */}
@@ -658,8 +635,6 @@ function SearchView({
   onFindOpen,
   floating = false,
   wordReplacerRules = [],
-  viewerWindowOpen = false,
-  onPresentLexicon,
 }: {
   onSelect: (entry: LexiconEntry) => void
   onOpenNewTab?: (entry: LexiconEntry) => void
@@ -670,8 +645,6 @@ function SearchView({
   onFindOpen?: () => void
   floating?: boolean
   wordReplacerRules?: WordReplacerRule[]
-  viewerWindowOpen?: boolean
-  onPresentLexicon?: () => void
 }) {
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
   const [query, setQuery] = useState(initialQuery)
@@ -747,18 +720,19 @@ function SearchView({
         onOpen={() => { if (ctxEntry) { onSelect(ctxEntry); searchCtx.close() } }}
         onOpenNewTab={() => { if (ctxEntry) { onOpenNewTab?.(ctxEntry); searchCtx.close() } }}
       />
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] relative ${floating ? 'pl-[76px] pr-4 app-drag-region' : 'px-4'}`}>
+      <TabHeaderPortal floating={floating} className="relative">
         <BookMarked size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Lexicon</span>
         <div className="ml-auto flex items-center gap-1">
-          {(['all', 'H', 'G'] as const).map((l) => (
-            <button key={l} onClick={() => setLang(l)}
-              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                lang === l ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-              }`}>
-              {l === 'all' ? 'All' : l === 'H' ? 'Heb' : 'Grk'}
-            </button>
-          ))}
+          <HeaderSegmentedToggle
+            value={lang}
+            onChange={setLang}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'H',   label: 'Heb' },
+              { value: 'G',   label: 'Grk' },
+            ]}
+          />
           <div className="relative ml-1">
             <button
               onMouseDown={(e) => e.stopPropagation()}
@@ -770,23 +744,8 @@ function SearchView({
             </button>
             {infoOpen && <LexiconInfoPopover onClose={() => setInfoOpen(false)} />}
           </div>
-          {/* Send to presenter view — only shown when a presenter callback is provided */}
-          {onPresentLexicon && (
-            <HintTooltip label={viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'} shortcut="⌘⇧B">
-            <button
-              onClick={onPresentLexicon}
-              className={`p-1 rounded transition-colors cursor-pointer ${
-                viewerWindowOpen
-                  ? 'text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
-              }`}
-            >
-              <Monitor size={13} />
-            </button>
-            </HintTooltip>
-          )}
         </div>
-      </div>
+      </TabHeaderPortal>
 
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
         <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -866,6 +825,8 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const setLexiconNoteBack = useAppStore((s) => s.setLexiconNoteBack)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const ensureTab = useAppStore((s) => s.ensureTab)
+  const pushTabNav = useAppStore((s) => s.pushTabNav)
+  const lexiconHomeToken = useAppStore((s) => s.lexiconHomeToken)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const activeWordReplacerRules = wordReplacerEnabled && wordReplacerRules.length > 0 ? wordReplacerRules : []
@@ -879,7 +840,6 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // App.tsx dispatches 'berean:openLexiconFindBar' when Cmd+F is pressed while
   // this panel was the last-focused panel (activePanelId === 'lexicon').
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
-  const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const lexiconContentRef = useRef<HTMLDivElement>(null)
   const [localFindOpen, setLocalFindOpen] = useState(false)
   const [localFindQuery, setLocalFindQuery] = useState('')
@@ -915,6 +875,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         window.dispatchEvent(new CustomEvent('berean:findBarSelectAll'))
         return
       }
+      // Only one overlay open at a time — opening this find bar closes any
+      // open "More" menu/other overlay via the shared broadcast.
+      window.dispatchEvent(new CustomEvent('berean:closeMenus'))
       setLocalFindOpen(true)
       setLocalFindQuery(seedChar)
       setFindMatchIdx(0)
@@ -924,8 +887,26 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localFindOpen])
 
+  // ...and the reverse: an open "More" menu / Settings closes this find bar.
+  useEffect(() => {
+    function onCloseMenus() { setLocalFindOpen(false) }
+    window.addEventListener('berean:closeMenus', onCloseMenus)
+    return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
+  }, [])
+
   // Declare activeEntry here so find effects can reference it in their dependency arrays
   const [activeEntry, setActiveEntry] = useState<LexiconEntry | null>(null)
+
+  // Rail's Presenter button (Ribbon.tsx) dispatches this after ensuring the
+  // viewer window is open — mirrors the find-bar routing above, since
+  // pushing content depends on activeEntry, which only this panel has.
+  useEffect(() => {
+    function onPresenterPush() {
+      if (activeEntry) window.app.pushViewerContent?.({ kind: 'lexicon', strongsId: activeEntry.strongsNum })
+    }
+    window.addEventListener('berean:presenterPushLexicon', onPresenterPush)
+    return () => window.removeEventListener('berean:presenterPushLexicon', onPresenterPush)
+  }, [activeEntry])
   // True while we're still trying to restore the previously-open entry for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Lexicon" fallback before the real Strong's number has
@@ -1070,9 +1051,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     window.lexicon.getEntry(strongsNum)
       .then((entry) => {
         if (!entry) return
-        if (activeEntry) setHistory((h) => [...h, { kind: 'entry', entry: activeEntry }])
         setActiveEntry(entry)
         addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
+        if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum, title: strongsNum })
       })
       .catch(() => {})
   }
@@ -1092,34 +1073,14 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     store.setActiveSpace('scripture')
   }, [])
 
-  function goBack() {
-    if (history.length > 0) {
-      const prev = history[history.length - 1]
-      setHistory((h) => h.slice(0, -1))
-      if (prev.kind === 'entry') {
-        setActiveEntry(prev.entry)
-      } else {
-        // Restore the search view with the saved query
-        setSavedSearch({ query: prev.query, lang: prev.lang })
-        setActiveEntry(null)
-      }
-    } else {
-      setActiveEntry(null)
-    }
-  }
-
-  function goHome() {
+  // Global top bar's back button reached the list/search position for this tab.
+  const lexiconHomeMounted = useRef(false)
+  useEffect(() => {
+    if (!lexiconHomeMounted.current) { lexiconHomeMounted.current = true; return }
     setActiveEntry(null)
-    setHistory([])
     setSavedSearch(null)
-  }
-
-  const lastHistoryItem = history.length > 0 ? history[history.length - 1] : null
-  const backLabel = lastHistoryItem
-    ? lastHistoryItem.kind === 'search'
-      ? `"${lastHistoryItem.query}"`
-      : lastHistoryItem.entry.strongsNum
-    : 'Lexicon'
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lexiconHomeToken])
 
   return (
     <div
@@ -1141,10 +1102,6 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       {activeEntry ? (
         <EntryView
           entry={activeEntry}
-          backLabel={backLabel}
-          onBack={goBack}
-          onHome={goHome}
-          hasHistory={history.length > 0}
           onNav={navToEntry}
           noteBack={lexiconNoteBack}
           onNoteBack={() => {
@@ -1154,20 +1111,10 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
             setLexiconNoteBack(null)
           }}
           findQuery={activeFindQuery}
-          onFindOpen={openLocalFind}
           onNavigateToVerse={navToVerse}
           scrollRef={entryScrollRef}
           floating={floating}
           wordReplacerRules={activeWordReplacerRules}
-          viewerWindowOpen={viewerWindowOpen}
-          onPresentLexicon={async () => {
-            if (!activeEntry) return
-            if (!viewerWindowOpen) {
-              await window.app.openViewerWindow?.()
-              useAppStore.getState().setViewerWindowOpen(true)
-            }
-            window.app.pushViewerContent?.({ kind: 'lexicon', strongsId: activeEntry.strongsNum })
-          }}
           onScroll={(e) => {
             const el = e.currentTarget
             if (lexScrollSaveTimer.current) clearTimeout(lexScrollSaveTimer.current)
@@ -1179,13 +1126,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       ) : (
         <SearchView
           onSelect={(entry) => {
-            // Push current search state to history so Back returns here
-            const { query, lang } = searchStateRef.current
-            if (query.trim().length >= 2) {
-              setHistory((h) => [...h, { kind: 'search', query, lang }])
-            }
             setActiveEntry(entry)
             addHistoryEntry({ type: 'lexicon', title: entry.strongsNum, strongsNum: entry.strongsNum })
+            if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum: entry.strongsNum, title: entry.strongsNum })
           }}
           onOpenNewTab={(entry) => navToEntry(entry.strongsNum, true)}
           onSearchStateChange={(s) => { searchStateRef.current = s }}
