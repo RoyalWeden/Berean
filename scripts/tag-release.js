@@ -86,10 +86,16 @@ async function main() {
   if (type === 'stable') {
     // Allow CHANGELOG.md and package.json to be dirty — we'll stage and commit them
     try {
-      const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).trim()
-      if (dirty) {
+      // Split the RAW output (before any trim) and drop empty lines — trimming the whole
+      // string first strips the leading space off a single-char status line like " M foo",
+      // which then throws off the fixed slice(3) offset for that one line (e.g.
+      // "M CHANGELOG.md".slice(3) → "HANGELOG.md", silently mis-parsing the filename and
+      // making CHANGELOG.md look "unexpected" even when it's on the allowed list below).
+      const rawDirty = execSync('git status --porcelain', { encoding: 'utf8' })
+      const dirtyLines = rawDirty.split('\n').filter(l => l.length > 0)
+      if (dirtyLines.length > 0) {
         const allowedFiles = new Set(['CHANGELOG.md', 'package.json', 'package-lock.json'])
-        const dirtyFiles = dirty.split('\n').map(l => l.slice(3).trim())
+        const dirtyFiles = dirtyLines.map(l => l.slice(3).trim())
         const unexpected = dirtyFiles.filter(f => !allowedFiles.has(f))
         if (unexpected.length > 0) {
           console.error('\nUnexpected uncommitted changes — commit or stash these first:')
