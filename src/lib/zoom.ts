@@ -1,14 +1,17 @@
 /**
  * Reading-content zoom helpers. One shared multiplier (1.0 = 100%), driven by
- * Cmd +/- /0 and the rail's zoom control, applied ONLY to the actual reading
- * panes (Scripture text, Lexicon entries, the Notes/Lexicon/Scripture side
- * panel) — not the app shell (sidebar/rail/topbar/tab list), which stays a
- * fixed size regardless of zoom. An earlier version applied CSS `zoom` to the
- * entire app div, which scaled the whole window's layout uniformly (sidebar
- * width, buttons, everything) — jarring and not what "zoom the text" meant.
- * Previously each reading pane also had its own independent zoom level;
- * collapsed to one shared value since zooming "just the lexicon" while
- * everything else stayed the same size was confusing.
+ * Cmd +/- /0 and the rail's zoom control. Applied two ways: font-level scaling
+ * (via zoomedFontSize below) for the actual Scripture/Lexicon reading text, and
+ * CSS `zoom` on TopBar.tsx's content and the Notes/Lexicon/YouTube side panel
+ * (see PanelLayout.tsx's ZoomedPanel) so that chrome scales too. The primary
+ * sidebar/rail and the main panel-resize layout itself stay a fixed size
+ * regardless of zoom — an earlier version applied CSS `zoom` to the ENTIRE app
+ * div including the sidebar/rail, which scaled the whole window's layout
+ * uniformly (sidebar width, rail icons, everything) and read as jarring; this
+ * is a narrower, deliberately scoped version of that same idea. Previously
+ * each reading pane also had its own independent zoom level; collapsed to one
+ * shared value since zooming "just the lexicon" while everything else stayed
+ * the same size was confusing.
  */
 
 export const ZOOM_MIN = 0.5

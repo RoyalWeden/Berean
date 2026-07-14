@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
@@ -12,6 +12,7 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
+import { NOTE_DOT_COLOR } from './VerseRow'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
 import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/electron'
@@ -441,9 +442,9 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                       key={i}
                       onClick={() => navToVerse(occ.book_id, occ.chapter, occ.verse_num)}
                       onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
-                      className="w-full text-left px-1.5 py-1.5 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors group"
+                      className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                     >
-                      <span className="font-mono text-[9px] text-[rgb(var(--color-accent))] block group-hover:underline">{refLabel}</span>
+                      <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">{refLabel}</span>
                       {occ.text && (() => {
                         const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
                           ? applyWordReplacer(occ.text, wordReplacerRules)
@@ -452,7 +453,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                         const displayText = win?.windowText ?? rawText
                         const displayIndices = win?.windowMatchIndices ?? occ.matchWordIndices
                         return (
-                          <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed mt-0.5 line-clamp-2">
+                          <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-2">
                             <VerseWithMatchedWords text={displayText} matchWordIndices={displayIndices} />
                           </p>
                         )
@@ -530,26 +531,30 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         {!loading && results.length === 0 && query.trim().length < 2 && (
           <div className="px-4 py-8 text-center text-xs text-[rgb(var(--color-text-muted))] opacity-60">Search Strong's lexicon</div>
         )}
-        {!loading && results.map((entry, i) => (
-          <button
-            key={entry.strongsNum}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey) {
-                navToEntry(entry.strongsNum, true)
-              } else {
-                setActiveEntry(entry)
-              }
-            }}
-            className={`w-full flex items-start gap-2 px-3 py-2 text-left cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-4))/50] ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))/60]'}`}
-          >
-            <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 mt-0.5 w-10">{entry.strongsNum}</span>
-            <div className="flex-1 min-w-0">
-              {entry.lemma && <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" dir="rtl" style={{ fontFamily: 'serif' }}>{entry.lemma} </span>}
-              {entry.transliteration && <span className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{entry.transliteration}</span>}
-              <p className="text-[11px] text-[rgb(var(--color-text-secondary))] truncate mt-0.5">{entry.gloss}</p>
-            </div>
-          </button>
-        ))}
+        {!loading && (
+          <div className="flex flex-col gap-0.5 p-1.5">
+            {results.map((entry, i) => (
+              <button
+                key={entry.strongsNum}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey) {
+                    navToEntry(entry.strongsNum, true)
+                  } else {
+                    setActiveEntry(entry)
+                  }
+                }}
+                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
+              >
+                <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 flex-shrink-0 mt-0.5">{entry.strongsNum}</span>
+                <div className="flex-1 min-w-0">
+                  {entry.lemma && <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" dir="rtl" style={{ fontFamily: 'serif' }}>{entry.lemma} </span>}
+                  {entry.transliteration && <span className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{entry.transliteration}</span>}
+                  <p className="text-[11px] text-[rgb(var(--color-text-secondary))] truncate mt-0.5">{entry.gloss}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -677,8 +682,10 @@ function VerseSection({
         <span className={`font-mono text-[10px] font-bold w-8 flex-shrink-0 ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
           v{verseNum}
         </span>
-        <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-1">{refCount} ref{refCount !== 1 ? 's' : ''}</span>
-        <span className="text-[9px] text-[rgb(var(--color-text-muted))]">{isCollapsed ? '›' : '⌄'}</span>
+        <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-1 tabular-nums">{refCount} ref{refCount !== 1 ? 's' : ''}</span>
+        {isCollapsed
+          ? <ChevronRight size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+          : <ChevronDown size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />}
       </button>
       {!isCollapsed && <div>{children}</div>}
     </div>
@@ -745,25 +752,31 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                         <span className={`text-[9px] font-semibold flex-1 ${group.isReciprocal ? 'text-[rgb(var(--color-text-muted))] italic' : 'text-[rgb(var(--color-text-secondary))]'}`}>
                           {group.heading ?? (group.isReciprocal ? 'Reciprocal' : 'References')}
                         </span>
-                        <span className="text-[8px] text-[rgb(var(--color-text-muted))]">{group.refs.length}</span>
-                        <span className="text-[8px] text-[rgb(var(--color-text-muted))]">{gCollapsed ? '›' : '⌄'}</span>
+                        <span className="text-[8px] text-[rgb(var(--color-text-muted))] tabular-nums">{group.refs.length}</span>
+                        {gCollapsed
+                          ? <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                          : <ChevronDown size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />}
                       </button>
-                      {!gCollapsed && group.refs.map((r, ri) => (
-                        <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                          className="w-full text-left pl-5 pr-3 py-1 hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer group"
-                        >
-                          <p className="text-[10px]" style={{ lineHeight: 1.3 }}>
-                            <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">
-                              {r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
-                                : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                            </span>
-                            <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                          </p>
-                        </button>
-                      ))}
+                      {!gCollapsed && (
+                        <div className="flex flex-col gap-1 pl-5 pr-2 pb-1.5">
+                          {group.refs.map((r, ri) => (
+                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                            >
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                                {r.verse === 0
+                                  ? `${bookName(r.bookId)} ${r.chapter}`
+                                  : r.endVerse
+                                    ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                                    : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                              </span>
+                              <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
+                                <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -786,26 +799,32 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                           <span className={`text-[9px] font-semibold flex-1 ${group.isReciprocal ? 'text-[rgb(var(--color-text-muted))] italic' : 'text-[rgb(var(--color-text-secondary))]'}`}>
                             {group.heading}
                           </span>
-                          <span className="text-[8px] text-[rgb(var(--color-text-muted))]">{group.refs.length}</span>
-                          <span className="text-[8px] text-[rgb(var(--color-text-muted))]">{gCollapsed ? '›' : '⌄'}</span>
+                          <span className="text-[8px] text-[rgb(var(--color-text-muted))] tabular-nums">{group.refs.length}</span>
+                          {gCollapsed
+                            ? <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                            : <ChevronDown size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />}
                         </button>
                       )}
-                      {!gCollapsed && group.refs.map((r, ri) => (
-                        <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                          className="w-full text-left pl-8 pr-3 py-1 hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer group"
-                        >
-                          <p className="text-[10px]" style={{ lineHeight: 1.3 }}>
-                            <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">
-                              {r.verse === 0
-                                ? `${bookName(r.bookId)} ${r.chapter}`
-                                : r.endVerse
-                                  ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
-                                  : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
-                            </span>
-                            <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                          </p>
-                        </button>
-                      ))}
+                      {!gCollapsed && (
+                        <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
+                          {group.refs.map((r, ri) => (
+                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                            >
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                                {r.verse === 0
+                                  ? `${bookName(r.bookId)} ${r.chapter}`
+                                  : r.endVerse
+                                    ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
+                                    : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
+                              </span>
+                              <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
+                                <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -857,24 +876,26 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
         const isActive = verseNum === activeVerseNum
         const isCollapsed = !activeVerseNum && collapsed.has(verseNum)
         const refList = (
-          <div>
+          <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => {
               const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
               return (
                 <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                  className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer group border-b border-[rgb(var(--color-surface-4))/30]"
+                  className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
-                  <p className="text-[10px]" style={{ lineHeight: 1.3 }}>
-                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
                       {r.verse === 0
                         ? `${bookName(r.bookId)} ${r.chapter}`
                         : r.endVerse
                           ? `${bookName(r.bookId)} ${r.chapter}:${r.verse}–${r.endVerse}`
                           : `${bookName(r.bookId)} ${r.chapter}:${r.verse}`}
                     </span>
+                    <span className="text-[8px] text-[rgb(var(--color-text-muted))] opacity-70 tracking-tight">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>
+                  </div>
+                  <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
                     <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                   </p>
-                  <span className="text-[7px] text-[rgb(var(--color-text-muted))] opacity-60">{'●'.repeat(strength)}{'○'.repeat(5 - strength)}</span>
                 </button>
               )
             })}
@@ -1012,9 +1033,10 @@ function UserNotesChapterView({
 
   if (loading) return <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center py-6 animate-pulse">Loading…</p>
   if (verseNoteRefs.length === 0 && indirectNotes.length === 0) return (
-    <div className="flex flex-col items-center justify-center px-4 py-10 text-center gap-2">
-      <p className="text-xs text-[rgb(var(--color-text-muted))]">No cross-references found in your notes for this chapter.</p>
-      <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Write verse notes that reference other passages to see them here.</p>
+    <div className="flex flex-col items-center justify-center px-4 py-12 text-center gap-2 text-[rgb(var(--color-text-muted))]">
+      <StickyNote size={24} className="opacity-25" />
+      <p className="text-xs">No cross-references found in your notes for this chapter.</p>
+      <p className="text-[10px] opacity-60 max-w-[220px]">Write verse notes that reference other passages to see them here.</p>
     </div>
   )
 
@@ -1041,45 +1063,51 @@ function UserNotesChapterView({
           </button>
 
           {indirectSectionOpen && (
-            <div className="divide-y divide-[rgb(var(--color-surface-4))/30]">
+            <div className="flex flex-col gap-0.5 p-1.5">
               {indirectNotes.map(({ note, verses }) => {
                 const isExpanded = expandedIndirectIds.has(note.id)
                 return (
-                  <div key={note.id}>
+                  <div key={note.id} className="rounded-lg overflow-hidden">
                     {/* Note title row */}
-                    <div className="flex items-center gap-1 px-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))/40] group">
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgb(var(--color-surface-3))] group transition-colors">
                       <button
                         onClick={() => setExpandedIndirectIds(prev => {
                           const n = new Set(prev)
                           n.has(note.id) ? n.delete(note.id) : n.add(note.id)
                           return n
                         })}
-                        className="text-lg text-[rgb(var(--color-text-muted))] select-none cursor-pointer w-5 flex-shrink-0 leading-none"
+                        className="text-[10px] text-[rgb(var(--color-text-muted))] select-none cursor-pointer w-3 flex-shrink-0 leading-none hover:text-[rgb(var(--color-text-primary))] transition-colors"
                       >
                         {isExpanded ? '▾' : '▸'}
                       </button>
+                      <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                       <button
                         onClick={() => onNoteClick?.(note)}
-                        className="flex-1 text-left text-[10px] font-medium text-[rgb(var(--color-text-secondary))] truncate cursor-pointer hover:text-[rgb(var(--color-text-primary))] transition-colors min-w-0"
+                        className="flex-1 text-left text-[11px] font-medium text-[rgb(var(--color-text-secondary))] truncate cursor-pointer hover:text-[rgb(var(--color-text-primary))] transition-colors min-w-0"
                       >
                         {note.title || 'Untitled'}
                       </button>
+                      {verses.length > 0 && (
+                        <span className="text-[9px] text-[rgb(var(--color-text-muted))] tabular-nums flex-shrink-0">
+                          {verses.length} verse{verses.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
                       <button
                         onClick={() => onNoteClick?.(note)}
                         title="Open note"
                         className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-all cursor-pointer"
                       >
-                        <ExternalLink size={9} />
+                        <ExternalLink size={10} />
                       </button>
                     </div>
                     {/* Verse chips — shown when note is expanded */}
                     {isExpanded && verses.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pl-8 pr-3 pb-1.5">
+                      <div className="flex flex-wrap gap-1 pl-7 pr-2 pt-0.5 pb-1.5">
                         {verses.map(v => (
                           <button
                             key={v}
                             onClick={() => navToVerseFromPanel(bookId, chapter, v)}
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/15] cursor-pointer transition-colors font-mono"
+                            className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-accent))]/10 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))]/18 cursor-pointer transition-colors"
                           >
                             v.{v}
                           </button>
@@ -1099,18 +1127,21 @@ function UserNotesChapterView({
         const isActive = verseNum === activeVerseNum
         const isCollapsed = !activeVerseNum && collapsed.has(verseNum)
         const refList = (
-          <div>
+          <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => (
               <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer border-b border-[rgb(var(--color-surface-4))/30] group"
+                className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
-                <p className="text-[10px]" style={{ lineHeight: 1.3 }}>
-                  <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">
-                    <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
-                  </span>
+                <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                  <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
+                </span>
+                <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
                   <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                 </p>
-                <p className="text-[8px] text-[rgb(var(--color-text-muted))] mt-0.5 opacity-60">from: {r.sourceNoteTitle}</p>
+                <span className="flex items-center gap-1 text-[9px] text-[rgb(var(--color-text-muted))]">
+                  <StickyNote size={8} className="flex-shrink-0 opacity-70" />
+                  <span className="truncate">{r.sourceNoteTitle}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -1749,16 +1780,31 @@ export default function BibleRightPanel({
                           onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
                           className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
                         >
-                          <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
-                            {note.title || 'Untitled'}
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {/* Note color dot — the same color-coding shown as a verse indicator
+                                dot in the chapter view (VerseRow.tsx), surfaced here too so the
+                                list itself communicates each note's category at a glance. */}
+                            <span
+                              className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                              style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
+                            />
+                            <span className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
+                              {note.title || 'Untitled'}
+                            </span>
                           </div>
                           <div className={`text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
                             {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
                           </div>
-                          <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 opacity-70">
-                            {note.verseRef ? `${formatRef(note.verseRef)} · ` : ''}
-                            created {timeAgo(note.createdAt)}
-                            {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {note.verseRef && (
+                              <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5">
+                                {formatRef(note.verseRef)}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 tabular-nums">
+                              created {timeAgo(note.createdAt)}
+                              {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
+                            </span>
                           </div>
                         </button>
                         <button

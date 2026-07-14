@@ -63,11 +63,14 @@ export default function StrongsInline({
           <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
         ))
       : wordNode
+    // gap: '2px' (was 0, with the word span pulled up via a negative marginBottom) — the word
+    // and its Strong's number sat with no breathing room at all once the trigger box-height
+    // fix (StrongsTooltip.tsx) closed up the number's own oversized hoverable area; a small
+    // positive gap here reads much less cramped.
     return (
-      <span className="inline-flex flex-col items-start mr-0.5" style={{ gap: 0 }}>
+      <span className="inline-flex flex-col items-start mr-0.5" style={{ gap: '2px' }}>
         <span
           className={`leading-none ${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`}
-          style={{ marginBottom: -2 }}
         >{wordContent}</span>
         {nums.length > 0 ? (
           <>
@@ -78,10 +81,15 @@ export default function StrongsInline({
                 onClickEntry={onStrongsClick}
                 contextNote={i > 0 ? "Secondary Strong's number" : undefined}
               >
+                {/* The marginTop:-3 this used to carry on secondary numbers was compensating
+                    for StrongsTooltip's Radix trigger span inheriting the surrounding verse
+                    text's normal line-height instead of collapsing to this chip's actual size —
+                    now that the trigger itself has leading-none (StrongsTooltip.tsx), the gap
+                    it was correcting for is gone, and the negative margin would just overlap
+                    the two numbers instead. */}
                 <span
                   data-strongs-chip
                   className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
-                  style={i > 0 ? { marginTop: -3 } : undefined}
                 >
                   {num}
                 </span>

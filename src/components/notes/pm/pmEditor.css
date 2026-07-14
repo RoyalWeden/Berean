@@ -185,6 +185,25 @@
 .pm-lexicon-block-ref { color: rgb(var(--link-lexicon-ref)); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 .pm-lexicon-block-def { font-style: italic; }
 
+/* Headings — headingNodeView (headingCollapse.ts) creates a real <h1>-<h6>
+   element but only ever sized the little collapse-arrow child, never the
+   heading text itself. Tailwind Preflight resets h1-h6 to
+   `font-size: inherit; font-weight: inherit`, so with no override here
+   headings rendered as plain paragraph text. Sizes mirror headingCollapse.ts's
+   own HEADING_FONT_SIZES_EM scale so the arrow and heading text agree. */
+.berean-pm-editor .ProseMirror h1 { font-size: 1.71em; font-weight: 700; margin: 0.7em 0 0.3em; line-height: 1.25; }
+.berean-pm-editor .ProseMirror h2 { font-size: 1.43em; font-weight: 700; margin: 0.65em 0 0.3em; line-height: 1.3; }
+.berean-pm-editor .ProseMirror h3 { font-size: 1.29em; font-weight: 600; margin: 0.6em 0 0.25em; line-height: 1.3; }
+.berean-pm-editor .ProseMirror h4,
+.berean-pm-editor .ProseMirror h5,
+.berean-pm-editor .ProseMirror h6 { font-size: 1em; font-weight: 600; margin: 0.5em 0 0.2em; line-height: 1.35; }
+.berean-pm-editor .ProseMirror h1:first-child,
+.berean-pm-editor .ProseMirror h2:first-child,
+.berean-pm-editor .ProseMirror h3:first-child,
+.berean-pm-editor .ProseMirror h4:first-child,
+.berean-pm-editor .ProseMirror h5:first-child,
+.berean-pm-editor .ProseMirror h6:first-child { margin-top: 0; }
+
 /* Collapsible headings */
 .pm-heading-collapse-arrow { opacity: 0.5; transition: opacity 0.12s ease; }
 .pm-heading-collapse-arrow:hover { opacity: 1; }

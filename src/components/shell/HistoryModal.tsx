@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState, useMemo, memo, useDeferredValue, useCallback } from 'react'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-
-// Gap (ms) between consecutive entries that starts a new activity "session".
-const SESSION_GAP_MS = 30 * 60 * 1000  // 30 minutes
 
 function formatTime(ts: number): string {
   const d = new Date(ts)
@@ -27,18 +24,6 @@ function dayLabel(ts: number): string {
   yesterday.setDate(yesterday.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-/** Compact time-range label for a session, e.g. "3:40 – 4:15 pm" or "3:40 pm". */
-function sessionTimeRange(entries: { timestamp: number }[]): string {
-  if (entries.length === 0) return ''
-  let lo = entries[0].timestamp, hi = lo
-  for (let i = 1; i < entries.length; i++) {
-    const t = entries[i].timestamp
-    if (t < lo) lo = t
-    if (t > hi) hi = t
-  }
-  return lo === hi ? formatTime(lo) : `${formatTime(lo)} – ${formatTime(hi)}`
 }
 
 /** Stable target key — same function reference across renders (no closure over mutable state). */
@@ -96,6 +81,22 @@ const TYPE_LABEL: Record<EntryType, string> = {
 }
 
 const ALL_TYPES: EntryType[] = ['bible', 'note', 'lexicon', 'youtube', 'search', 'strongs-click', 'compare', 'import']
+
+// ── Content-type tabs ──────────────────────────────────────────────────────────
+// Groups the raw HistoryEntry types into the tabs the user actually thinks in
+// terms of (Scripture, Notes, Lexicon, YouTube, Search) rather than the more
+// granular per-type chips this modal used to expose as its only filter. `types:
+// null` means "no type filter" (the All tab) — 'import' entries (PDF imports)
+// have no dedicated tab since they're rare; they still show up under All.
+type HistoryTabKey = 'all' | 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'search'
+const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen | null; types: EntryType[] | null }[] = [
+  { key: 'all',       label: 'All',       icon: null,        types: null },
+  { key: 'scripture', label: 'Scripture', icon: BookOpen,    types: ['bible', 'compare'] },
+  { key: 'notes',     label: 'Notes',     icon: FileText,    types: ['note'] },
+  { key: 'lexicon',   label: 'Lexicon',   icon: BookMarked,  types: ['lexicon', 'strongs-click'] },
+  { key: 'youtube',   label: 'YouTube',   icon: Youtube,     types: ['youtube'] },
+  { key: 'search',    label: 'Search',    icon: Search,      types: ['search'] },
+]
 
 // ── navigation ─────────────────────────────────────────────────────────────────
 
@@ -188,12 +189,12 @@ function SessionBadge({ name }: { name: string }) {
 
 const HistoryItem = memo(function HistoryItem({
   visits,
-  isChained,
+  dayLabelText,
   onNavigate,
   onDelete,
 }: {
   visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
-  isChained: boolean
+  dayLabelText?: string    // set only on the first row of a new day — lightweight divider, not a collapsible group
   onNavigate: (e: HistoryEntry) => void
   onDelete: (id: string) => void
 }) {
@@ -201,9 +202,11 @@ const HistoryItem = memo(function HistoryItem({
   const entry = visits[0]
   const repeated = visits.length > 1
   return (
-    <div className={`group relative ${isChained ? 'pl-8' : ''}`}>
-      {isChained && (
-        <div className="absolute left-4 top-0 bottom-0 w-px bg-[rgb(var(--color-surface-4))]" />
+    <div className="group relative">
+      {dayLabelText && (
+        <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))]">
+          {dayLabelText}
+        </div>
       )}
       <div className="flex items-center">
         <button
@@ -294,78 +297,7 @@ const HistoryItem = memo(function HistoryItem({
   )
 })
 
-// ── Session block — memo'd to prevent re-render when unrelated state changes ──
-
-const SESSION_ITEM_CAP = 60  // render at most this many items per session initially
-
-type VisitGroup = { key: string; visits: HistoryEntry[] }
-type SessionData = { key: string; entries: HistoryEntry[]; items: VisitGroup[]; timeRange: string }
-
-const SessionBlock = memo(function SessionBlock({
-  session, multiSession, collapsed, chainedIds, onToggle, onNavigate, onDelete,
-}: {
-  session: SessionData
-  multiSession: boolean
-  collapsed: boolean
-  chainedIds: Set<string>
-  onToggle: (key: string) => void
-  onNavigate: (e: HistoryEntry) => void
-  onDelete: (id: string) => void
-}) {
-  const [showAll, setShowAll] = useState(false)
-  // Stable derived data — computed once per session render
-  const types = useMemo(() => {
-    const seen = new Set<EntryType>()
-    for (const e of session.entries) seen.add(e.type)
-    return Array.from(seen)
-  }, [session.entries])
-
-  const visibleItems = !showAll && session.items.length > SESSION_ITEM_CAP
-    ? session.items.slice(0, SESSION_ITEM_CAP)
-    : session.items
-  const hidden = session.items.length - visibleItems.length
-
-  return (
-    <div>
-      {multiSession && (
-        <button
-          onClick={() => onToggle(session.key)}
-          className="w-full flex items-center gap-2 pl-4 pr-3 py-1 text-[9px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
-        >
-          <ChevronDown size={9} className={`transition-transform opacity-60 ${collapsed ? '-rotate-90' : ''}`} />
-          <span className="tabular-nums">{session.timeRange}</span>
-          <span className="opacity-50">· {session.entries.length}</span>
-          <span className="flex items-center gap-1 ml-auto">
-            {types.slice(0, 5).map(t => (
-              <span key={t} className={TYPE_COLOR[t]}><EntryIcon type={t} size={9} /></span>
-            ))}
-          </span>
-        </button>
-      )}
-      {!(multiSession && collapsed) && (
-        <div className="py-0.5">
-          {visibleItems.map((g) => (
-            <HistoryItem
-              key={g.key}
-              visits={g.visits}
-              isChained={g.visits.length === 1 && chainedIds.has(g.visits[0].id)}
-              onNavigate={onNavigate}
-              onDelete={onDelete}
-            />
-          ))}
-          {hidden > 0 && (
-            <button
-              onClick={() => setShowAll(true)}
-              className="w-full text-center py-1 text-[10px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
-            >
-              Show {hidden} more in this session
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-})
+type VisitGroup = { key: string; visits: HistoryEntry[]; dayLabelText?: string }
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -374,14 +306,6 @@ export default function HistoryModal() {
   const history          = useAppStore((s) => s.history)
   const closeHistory     = useAppStore((s) => s.closeHistory)
   const deleteEntry      = useAppStore((s) => s.deleteHistoryEntry)
-  // Persisted collapse memory — days & sessions are collapsed by default; these hold the
-  // keys the user has explicitly expanded (survives reopening and app restart).
-  const expandedDayList     = useAppStore((s) => s.historyExpandedDays)
-  const expandedSessionList = useAppStore((s) => s.historyExpandedSessions)
-  const toggleExpandedDay     = useAppStore((s) => s.toggleHistoryExpandedDay)
-  const toggleExpandedSession = useAppStore((s) => s.toggleHistoryExpandedSession)
-  const setHistoryExpanded    = useAppStore((s) => s.setHistoryExpanded)
-  const autoExpandSession     = useAppStore((s) => s.autoExpandHistorySession)
   const loadMoreHistory       = useAppStore((s) => s.loadMoreHistory)
   const historyHasMore        = useAppStore((s) => s.historyHasMore)
   const overlayRef       = useRef<HTMLDivElement>(null)
@@ -391,37 +315,29 @@ export default function HistoryModal() {
   const [searchQuery, setSearchQuery]     = useState('')
   const [dateFilter, setDateFilter]       = useState('')          // "YYYY-MM-DD" or ""
   const [typeFilters, setTypeFilters]     = useState<Set<EntryType>>(new Set())
+  const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTabKey>('all')
   // "Study view" (default on): hides routine chapter-to-chapter Bible reading —
   // by far the noisiest entry type (every chapter change while reading, arrow-
   // key paging, tab restores) — while keeping every deliberate action (notes,
-  // lexicon, Strong's clicks, compare, search, imports) visible. This is a
-  // simplification layer above the granular per-type chips below, not a
-  // replacement for them — a separate toggle keeps its own "N filters active"
-  // language from getting confusing when this is on by default.
+  // lexicon, Strong's clicks, compare, search, imports) visible. Only meaningful
+  // on the All/Scripture tabs (it's the only tab types that include 'bible'); other
+  // tabs are unaffected either way.
   const [hideRoutineReading, setHideRoutineReading] = useState(true)
   const [sortNewest, setSortNewest]       = useState(true)
   const [showFilters, setShowFilters]     = useState(false)
-  // Days/sessions are collapsed by default; the expanded keys live in the store so the
-  // memory persists across reopening and restarts. Collapsed groups render header-only.
-  const expandedDays     = useMemo(() => new Set(expandedDayList), [expandedDayList])
-  const expandedSessions = useMemo(() => new Set(expandedSessionList), [expandedSessionList])
   const searchRef                         = useRef<HTMLInputElement>(null)
 
-  // Reset filters when modal opens + autofocus search (collapse memory is preserved).
+  // Reset filters when modal opens + autofocus search.
   useEffect(() => {
     if (historyOpen) {
       setSearchQuery('')
       setDateFilter('')
       setTypeFilters(new Set())
+      setActiveHistoryTab('all')
       setSortNewest(true)
       setShowFilters(false)
+      setShowAllFlat(false)
       setTimeout(() => searchRef.current?.focus(), 50)
-      // Auto-expand the active/most-recent session (once) so the latest activity is visible.
-      const newest = history[0]
-      if (newest) {
-        const dayKey = toDateStr(newest.timestamp)
-        autoExpandSession(dayKey, `${dayKey}@${newest.timestamp}`)
-      }
     }
   }, [historyOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -443,9 +359,13 @@ export default function HistoryModal() {
   const deferredDate      = useDeferredValue(dateFilter)
   const deferredTypes     = useDeferredValue(typeFilters)
   const deferredSort      = useDeferredValue(sortNewest)
+  const deferredTab       = useDeferredValue(activeHistoryTab)
 
-  // ── Filtered + sorted entries ───────────────────────────────────────────────
-  const filtered = useMemo(() => {
+  // Every filter EXCEPT the content-type tab — used both as the base for the
+  // final `filtered` list and to compute a live count per tab (so switching
+  // tabs shows how many entries are actually in each one given the current
+  // search/date/chip filters, not the whole unfiltered history).
+  const preTabFiltered = useMemo(() => {
     let entries = history  // history is already immutable-ish; avoid spreading unless needed
     if (deferredSearch.trim()) {
       const q = deferredSearch.trim().toLowerCase()
@@ -464,60 +384,47 @@ export default function HistoryModal() {
     if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
     if (hideRoutineReading) entries = entries.filter(e => e.type !== 'bible')
+    return entries
+  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading])
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<HistoryTabKey, number> = { all: preTabFiltered.length, scripture: 0, notes: 0, lexicon: 0, youtube: 0, search: 0 }
+    for (const e of preTabFiltered) {
+      for (const tab of HISTORY_TABS) {
+        if (tab.types && tab.types.includes(e.type)) counts[tab.key]++
+      }
+    }
+    return counts
+  }, [preTabFiltered])
+
+  // ── Filtered + sorted entries ───────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const activeTypes = HISTORY_TABS.find(t => t.key === deferredTab)?.types ?? null
+    let entries = activeTypes ? preTabFiltered.filter(e => activeTypes.includes(e.type)) : preTabFiltered
     if (!deferredSort) entries = [...entries].reverse()
     return entries
-  }, [history, deferredSearch, deferredDate, deferredTypes, deferredSort, hideRoutineReading])
+  }, [preTabFiltered, deferredTab, deferredSort])
 
-  // Build day groups, each split into activity "sessions". Also compute chainedIds
-  // in the same pass (avoids a second O(n) scan with filteredIds → chainedIds).
-  const { dayGroups, chainedIds } = useMemo(() => {
-    type VisitGroup = { key: string; visits: HistoryEntry[] }
-    type Session = { key: string; entries: HistoryEntry[]; items: VisitGroup[]; timeRange: string }
-    type Day = { label: string; key: string; sessions: Session[]; count: number }
-
-    // Build filtered ID set in one pass for chaining lookup below
-    const idSet = new Set<string>()
-    for (const e of filtered) idSet.add(e.id)
-
-    const chained = new Set<string>()
-    const days: Day[] = []
-
-    for (const entry of filtered) {
-      if (entry.parentId && idSet.has(entry.parentId)) chained.add(entry.id)
-
-      const dayKey = toDateStr(entry.timestamp)
-      let day = days[days.length - 1]
-      if (!day || day.key !== dayKey) {
-        day = { label: dayLabel(entry.timestamp), key: dayKey, sessions: [], count: 0 }
-        days.push(day)
-      }
-      const lastSession = day.sessions[day.sessions.length - 1]
-      const lastEntry = lastSession?.entries[lastSession.entries.length - 1]
-      const gap = lastEntry ? Math.abs(lastEntry.timestamp - entry.timestamp) : Infinity
-      if (lastSession && gap <= SESSION_GAP_MS) {
-        lastSession.entries.push(entry)
-      } else {
-        day.sessions.push({ key: `${dayKey}@${entry.timestamp}`, entries: [entry], items: [], timeRange: '' })
-      }
-      day.count++
+  // Flat list — repeat visits to the same target are still collapsed into one row
+  // (click to expand its timestamps), but there's no collapsible day/session
+  // hierarchy to click through first; entries just read top-to-bottom in order.
+  const FLAT_LIST_CAP = 150
+  const [showAllFlat, setShowAllFlat] = useState(false)
+  const visitGroups = useMemo(() => {
+    const byTarget = new Map<string, VisitGroup>()
+    const order: VisitGroup[] = []
+    let lastDayKey = ''
+    for (const e of filtered) {
+      const tk = targetKey(e)
+      const existing = byTarget.get(tk)
+      if (existing) { existing.visits.push(e); continue }
+      const dayKey = toDateStr(e.timestamp)
+      const g: VisitGroup = { key: e.id, visits: [e], dayLabelText: dayKey !== lastDayKey ? dayLabel(e.timestamp) : undefined }
+      lastDayKey = dayKey
+      byTarget.set(tk, g)
+      order.push(g)
     }
-
-    // Within each session: collapse repeat visits, compute time range
-    for (const day of days) {
-      for (const session of day.sessions) {
-        session.timeRange = sessionTimeRange(session.entries)
-        const byTarget = new Map<string, VisitGroup>()
-        const order: VisitGroup[] = []
-        for (const e of session.entries) {
-          const tk = targetKey(e)
-          const existing = byTarget.get(tk)
-          if (existing) { existing.visits.push(e) }
-          else { const g: VisitGroup = { key: e.id, visits: [e] }; byTarget.set(tk, g); order.push(g) }
-        }
-        session.items = order
-      }
-    }
-    return { dayGroups: days, chainedIds: chained }
+    return order
   }, [filtered])
 
   function toggleType(t: EntryType) {
@@ -529,25 +436,9 @@ export default function HistoryModal() {
     })
   }
 
-  // When a search or filter is active, expand everything so every match is visible.
-  // Otherwise a group is collapsed unless its key is in the persisted expanded set.
-  const filtersActive = !!(searchQuery.trim() || dateFilter || typeFilters.size > 0)
-  const isDayCollapsed = (key: string) => !filtersActive && !expandedDays.has(key)
-  const isSessionCollapsed = (key: string) => !filtersActive && !expandedSessions.has(key)
-
-  function toggleDay(key: string) { toggleExpandedDay(key) }
-  function toggleSession(key: string) { toggleExpandedSession(key) }
-  function setAllCollapsed(collapsed: boolean) {
-    if (collapsed) {
-      setHistoryExpanded([], [])
-    } else {
-      // Expand every currently-shown day and session.
-      const dayKeys = dayGroups.map(d => d.key)
-      const sessionKeys = dayGroups.flatMap(d => d.sessions.map(s => s.key))
-      setHistoryExpanded(dayKeys, sessionKeys)
-    }
-  }
-  const allCollapsed = expandedDays.size === 0
+  const filtersActive = !!(searchQuery.trim() || dateFilter || typeFilters.size > 0 || activeHistoryTab !== 'all')
+  const visibleGroups = showAllFlat ? visitGroups : visitGroups.slice(0, FLAT_LIST_CAP)
+  const hiddenCount = visitGroups.length - visibleGroups.length
 
   if (!historyOpen) return null
 
@@ -567,28 +458,8 @@ export default function HistoryModal() {
         <div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-shrink-0">
           <Clock size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
           <span className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">History</span>
-          {/* Study vs. All — a coarse, always-visible toggle above the granular
-              type chips, since routine Bible chapter navigation otherwise
-              drowns out every deliberate action (note opened, Strong's
-              looked up, compare toggled, imported, searched). */}
-          <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] overflow-hidden text-[9px] font-medium flex-shrink-0">
-            <button
-              onClick={() => setHideRoutineReading(true)}
-              title="Show only deliberate study actions — hides routine chapter-to-chapter reading"
-              className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              Study
-            </button>
-            <button
-              onClick={() => setHideRoutineReading(false)}
-              title="Show everything, including routine chapter-to-chapter reading"
-              className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              All
-            </button>
-          </div>
           <span
-            className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1"
+            className="text-[10px] text-[rgb(var(--color-text-muted))] flex-1 text-right"
             title={`Showing ${filtered.length} of ${history.length} entries${history.length >= 500 ? ' (history keeps the most recent 500)' : ''}`}
           >
             {filtersActive || hideRoutineReading ? `${filtered.length} of ${history.length}` : `${history.length} entries`}
@@ -599,6 +470,30 @@ export default function HistoryModal() {
           >
             <X size={13} />
           </button>
+        </div>
+
+        {/* ── Content-type tabs ── */}
+        <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0 overflow-x-auto">
+          {HISTORY_TABS.map((tab) => {
+            const active = activeHistoryTab === tab.key
+            const Icon = tab.icon
+            const count = tabCounts[tab.key]
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveHistoryTab(tab.key)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-shell text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
+                  active
+                    ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+                }`}
+              >
+                {Icon && <Icon size={12} className="flex-shrink-0" />}
+                {tab.label}
+                <span className={`text-[9px] tabular-nums ${active ? 'opacity-70' : 'opacity-45'}`}>{count}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* ── Search bar — always visible ── */}
@@ -628,14 +523,6 @@ export default function HistoryModal() {
                 {sortNewest ? '↓ New' : '↑ Old'}
               </button>
               <button
-                onClick={() => setAllCollapsed(!allCollapsed)}
-                title={allCollapsed ? 'Expand all days' : 'Collapse all days'}
-                disabled={filtersActive}
-                className={`p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default`}
-              >
-                {allCollapsed ? <ChevronsUpDown size={11} /> : <ChevronsDownUp size={11} />}
-              </button>
-              <button
                 onClick={() => setShowFilters(v => !v)}
                 title="Filter by date or type"
                 className={`p-0.5 rounded transition-colors cursor-pointer ${
@@ -656,6 +543,29 @@ export default function HistoryModal() {
         {/* ── Filter panel ── */}
         {showFilters && (
           <div className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 space-y-2 bg-[rgb(var(--color-surface-2))]">
+            {/* Study vs. All — only meaningful on tabs that can contain routine Bible
+                chapter-to-chapter reads (the noisiest entry type by far). */}
+            {(activeHistoryTab === 'all' || activeHistoryTab === 'scripture') && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Reads</span>
+                <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] overflow-hidden text-[9px] font-medium">
+                  <button
+                    onClick={() => setHideRoutineReading(true)}
+                    title="Hide routine chapter-to-chapter reading, keep deliberate actions"
+                    className={`px-2 py-0.5 cursor-pointer transition-colors ${hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  >
+                    Study only
+                  </button>
+                  <button
+                    onClick={() => setHideRoutineReading(false)}
+                    title="Show everything, including routine chapter-to-chapter reading"
+                    className={`px-2 py-0.5 cursor-pointer transition-colors ${!hideRoutineReading ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  >
+                    All reads
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Date picker */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Date</span>
@@ -718,38 +628,23 @@ export default function HistoryModal() {
             </div>
           ) : (
             <div className="py-1">
-              {dayGroups.map((day) => {
-                const dayCollapsed = isDayCollapsed(day.key)
-                return (
-                <div key={day.key} style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${(dayCollapsed ? 0 : day.count * 30 + day.sessions.length * 22) + 24}px` }}>
-                  {/* Day header — click to collapse/expand */}
-                  <button
-                    onClick={() => toggleDay(day.key)}
-                    className="sticky top-0 w-full px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-1))] border-b border-[rgb(var(--color-surface-4))] z-10 flex items-center gap-2 hover:bg-[rgb(var(--color-surface-2))] transition-colors cursor-pointer"
-                  >
-                    <ChevronDown size={11} className={`transition-transform ${dayCollapsed ? '-rotate-90' : ''}`} />
-                    <span>{day.label}</span>
-                    <span className="opacity-50 font-normal normal-case tracking-normal">({day.count})</span>
-                    {!dayCollapsed && day.sessions.length > 1 && (
-                      <span className="opacity-40 font-normal normal-case tracking-normal ml-auto">{day.sessions.length} sessions</span>
-                    )}
-                  </button>
-                  {/* Sessions */}
-                  {!dayCollapsed && day.sessions.map((session) => (
-                    <SessionBlock
-                      key={session.key}
-                      session={session}
-                      multiSession={day.sessions.length > 1}
-                      collapsed={isSessionCollapsed(session.key)}
-                      chainedIds={chainedIds}
-                      onToggle={toggleSession}
-                      onNavigate={navigate}
-                      onDelete={deleteEntry}
-                    />
-                  ))}
-                </div>
-                )
-              })}
+              {visibleGroups.map((g) => (
+                <HistoryItem
+                  key={g.key}
+                  visits={g.visits}
+                  dayLabelText={g.dayLabelText}
+                  onNavigate={navigate}
+                  onDelete={deleteEntry}
+                />
+              ))}
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => setShowAllFlat(true)}
+                  className="w-full text-center py-1.5 text-[10px] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors"
+                >
+                  Show {hiddenCount} more
+                </button>
+              )}
             </div>
           )}
         </div>

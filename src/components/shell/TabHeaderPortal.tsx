@@ -44,10 +44,10 @@ export default function TabHeaderPortal({
 // mechanism (navTabBack repeated to the synthetic idx-(-1) "home" entry)
 // already existed but was only reachable via a long-press/right-click on
 // the top bar's global back button (TopBar.tsx's nav-history dropdown),
-// not as a visible affordance on the tab itself. Only Notes and Lexicon
-// tabs support a "home" state today (navSupportsHome in the store); YouTube
-// doesn't yet have an equivalent channel-browse landing view to return to,
-// so it's deliberately not included here.
+// not as a visible affordance on the tab itself. Notes, Lexicon, and YouTube
+// tabs support a "home" state (navSupportsHome in the store) — YouTube's own
+// local "← Back" button (which just did setActiveVideoId(null) and duplicated
+// this) was removed from YouTubeTab.tsx in favor of this shared affordance.
 function HomeButton() {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTabId = useAppStore((s) => s.activeTabId[activeSpace])
@@ -56,10 +56,10 @@ function HomeButton() {
 
   const tabStack = activeTabId ? tabNavStacks[activeTabId] : null
   const stackType = tabStack?.stack[0]?.type
-  const supportsHome = stackType === 'note' || stackType === 'lexicon'
+  const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
   if (!supportsHome || !tabStack || tabStack.idx < 0) return null
 
-  const label = stackType === 'note' ? 'Notes list' : 'Lexicon search'
+  const label = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : 'YouTube browse'
 
   // Plain native title, not Radix Tooltip: this component is portaled from
   // each panel's own component tree (NotesPanel/LexiconPanel), not from

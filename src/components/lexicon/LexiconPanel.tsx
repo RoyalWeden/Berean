@@ -326,6 +326,12 @@ function EntryView({
   const [occurrences, setOccurrences] = useState<OccurrenceRow[]>([])
   const [occurrencesLoading, setOccurrencesLoading] = useState(false)
   const [showAllOccurrences, setShowAllOccurrences] = useState(false)
+  // How many occurrence rows are rendered — starts capped at 10 and grows as the user
+  // scrolls near the bottom of the entry panel (see the scroll listener below), instead of
+  // requiring an explicit "Show all" click to see anything past the first page.
+  const [visibleOccCount, setVisibleOccCount] = useState(10)
+  const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
+  const [occBookFilter, setOccBookFilter] = useState<string | 'all'>('all')
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
   // full entry" and the user explicitly asked for them back. "Show less"
@@ -347,11 +353,30 @@ function EntryView({
   useEffect(() => {
     setOccurrences([])
     setShowAllOccurrences(false)
+    setVisibleOccCount(10)
+    setOccSort('canon')
+    setOccBookFilter('all')
     setOccurrencesLoading(true)
     window.lexicon.getOccurrences(entry.strongsNum)
       .then((rows) => { setOccurrences(rows); setOccurrencesLoading(false) })
       .catch(() => { setOccurrencesLoading(false) })
   }, [entry.strongsNum])
+
+  // Load more occurrence rows as the user scrolls near the bottom of the entry panel
+  // (scrollRef, owned by the parent LexiconPanel), instead of only revealing more via the
+  // explicit "Show all" click.
+  useEffect(() => {
+    const el = (scrollRef as React.RefObject<HTMLDivElement> | undefined)?.current
+    if (!el || occurrences.length === 0) return
+    function onScroll() {
+      if (!el) return
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+        setVisibleOccCount((c) => Math.min(c + 20, occurrences.length))
+      }
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [occurrences.length, scrollRef])
 
   useEffect(() => {
     const num = entry.strongsNum
@@ -538,7 +563,7 @@ function EntryView({
               )}
               {occurrences.length > 10 && (
                 <button
-                  onClick={() => setShowAllOccurrences((v) => !v)}
+                  onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
                   className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
                 >
                   {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
@@ -546,15 +571,61 @@ function EntryView({
               )}
             </div>
           </div>
+
+          {/* Sort + book filter — occurrences previously had no way to narrow a long list down
+              to one book, or to bring the most-repeated verses to the top. Editions filter only
+              appears when the data actually mixes KJVA/LXX rows (most entries are one or the
+              other). */}
+          {!occurrencesLoading && occurrences.length > 5 && (() => {
+            const bookCounts = new Map<string, number>()
+            for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
+            const bookOptions = Array.from(bookCounts.entries())
+              .sort((a, b) => b[1] - a[1])
+              .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
+            const hasMultipleBooks = bookOptions.length > 1
+            return (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
+                  {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
+                    <button
+                      key={m}
+                      onClick={() => setOccSort(m)}
+                      className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {hasMultipleBooks && (
+                  <select
+                    value={occBookFilter}
+                    onChange={(e) => setOccBookFilter(e.target.value)}
+                    className="text-[9.5px] px-1.5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] cursor-pointer outline-none"
+                  >
+                    <option value="all">All books ({occurrences.length})</option>
+                    {bookOptions.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name} ({b.count})</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )
+          })()}
+
           {occurrencesLoading && (
             <p className="text-xs text-[rgb(var(--color-text-muted))] text-center py-2">Loading…</p>
           )}
           {!occurrencesLoading && occurrences.length === 0 && (
             <p className="text-xs text-[rgb(var(--color-text-muted))]">No occurrence data available.</p>
           )}
-          {!occurrencesLoading && occurrences.length > 0 && (
-            <div className="space-y-0.5">
-              {(showAllOccurrences ? occurrences : occurrences.slice(0, 10)).map((occ, i) => {
+          {!occurrencesLoading && occurrences.length > 0 && (() => {
+            let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
+            if (occSort === 'matches') {
+              visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
+            }
+            return (
+            <div className="space-y-1">
+              {(showAllOccurrences ? visible : visible.slice(0, visibleOccCount)).map((occ, i) => {
                 const bk = (() => { try { return bookName(occ.book_id) } catch { return occ.book_id } })()
                 const refLabel = `${bk} ${occ.chapter}:${occ.verse_num}`
                 const multipleMatches = (occ.matchWordIndices?.length ?? 0) > 1
@@ -563,10 +634,10 @@ function EntryView({
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: occ.text ?? '' })}
-                    className="w-full text-left px-2 py-2 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors group"
+                    className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                   >
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-mono text-[10px] text-[rgb(var(--color-accent))] flex-shrink-0 group-hover:underline">
+                      <span className="font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 flex-shrink-0 group-hover:bg-[rgb(var(--color-accent))]/18">
                         {refLabel}
                       </span>
                       {occ.text_id === 'lxx' && (
@@ -580,7 +651,7 @@ function EntryView({
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed mt-0.5">
+                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed mt-1">
                       {occ.text
                         ? <VerseWithMatchedWords text={wr(occ.text)} matchWordIndices={occ.matchWordIndices} />
                         : <span className="italic text-[rgb(var(--color-text-muted))]">—</span>
@@ -590,7 +661,8 @@ function EntryView({
                 )
               })}
             </div>
-          )}
+            )
+          })()}
         </div>
         <button
           onClick={() => setExpanded(false)}
@@ -910,8 +982,11 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // True while we're still trying to restore the previously-open entry for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Lexicon" fallback before the real Strong's number has
-  // loaded — visible every time you switched to an existing Lexicon tab, since
-  // this panel remounts fresh (key={tab.id}) on every tab switch.
+  // loaded — visible every time you switched to an existing Lexicon tab. LexiconPanel
+  // is actually a single shared instance reused across every Lexicon tab (not one
+  // keyed per tab, despite what an earlier version of this comment claimed) — the
+  // restore effect below now re-arms this to true at the start of every tab switch,
+  // not just once via this initializer, so the guard actually covers repeat switches.
   const [entryRestorePending, setEntryRestorePending] = useState(() => {
     const tab = useAppStore.getState().tabs['lexicon'].find((t) => t.id === useAppStore.getState().activeTabId['lexicon'])
     const state = tab?.state as { strongsNum?: string | null } | undefined
@@ -963,10 +1038,45 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const lexiconTabId = activeTabId['lexicon']
   const entryScrollRef = useRef<HTMLDivElement>(null)
   const lexScrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // LexiconPanel is a single shared instance reused across every Lexicon tab (PanelLayout.tsx
+  // renders one, not one per tab) — same architecture and same class of bug as NotesPanel's
+  // skipNextPersistRef (see its comment there). An earlier version of the restore effect below
+  // ran once on mount only, so switching Lexicon tabs left activeEntry showing whichever entry
+  // was last explicitly opened in ANY tab, and the persist effect then wrote that stale entry
+  // into the tab you switched to, corrupting its stored state too.
+  const skipNextLexPersistRef = useRef(false)
+  // Same-tick guard for the title-sync effect further down. Re-arming entryRestorePending
+  // (a STATE update) inside the restore effect doesn't take effect until the NEXT render, but
+  // the title-sync effect also depends on lexiconTabId, so it fires in the very SAME commit as
+  // the restore effect, still reading the OLD entryRestorePending/activeEntry — see
+  // NotesPanel.tsx's tabSwitchInFlightRef comment for the full explanation of this race.
+  const tabSwitchInFlightRef = useRef(false)
+  // Set during RENDER, not inside an effect, so the guard is already true before ANY of this
+  // component's effects run in the commit that switches lexiconTabId — see NotesPanel.tsx's
+  // prevNotesTabIdForGuardRef comment for the full explanation (effect declaration order isn't
+  // a safe way to guarantee this ref is armed before a sibling effect reads it).
+  const prevLexiconTabIdForGuardRef = useRef<string | null>(null)
+  if (prevLexiconTabIdForGuardRef.current !== lexiconTabId) {
+    prevLexiconTabIdForGuardRef.current = lexiconTabId
+    tabSwitchInFlightRef.current = true
+  }
 
-  // Restore the entry and history that was open when this tab was last active (also runs after duplication)
+  // Restore the entry and history that was open when this tab was last active (also runs after
+  // duplication, and now on every tab switch — see skipNextLexPersistRef's comment above).
   useEffect(() => {
     if (!lexiconTabId) return
+    skipNextLexPersistRef.current = true
+    tabSwitchInFlightRef.current = true
+    setEntryRestorePending(true)
+    // Deferred (not synchronous) clear of tabSwitchInFlightRef. The synchronous branches below
+    // call setEntryRestorePending(true) then immediately setEntryRestorePending(false) in the same
+    // effect pass — React batches same-tick state updates, so if the state was already false
+    // beforehand this nets to NO change at all, meaning an effect keyed on entryRestorePending
+    // transitioning to false would never re-fire and the ref would stay stuck true forever after
+    // the first switch to a tab hitting a synchronous branch, permanently blocking the title-sync
+    // effect below. setTimeout(0) runs unconditionally after this render's effects have flushed,
+    // regardless of whether state actually changed, so the ref reliably clears one pass later either way.
+    function deferClear() { setTimeout(() => { tabSwitchInFlightRef.current = false }, 0) }
     const tab = tabs['lexicon'].find((t) => t.id === lexiconTabId)
     const state = tab?.state as {
       strongsNum?: string | null
@@ -988,9 +1098,11 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       })).then((items) => {
         setHistory(items.filter(Boolean) as LexHistoryItem[])
       })
+    } else {
+      setHistory([])
     }
 
-    if (!savedNum) { setEntryRestorePending(false); return }
+    if (!savedNum) { setActiveEntry(null); setEntryRestorePending(false); deferClear(); return }
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
         if (entry) {
@@ -1001,13 +1113,18 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         }
       })
       .catch(() => {})
-      .finally(() => setEntryRestorePending(false))
+      .finally(() => {
+        setEntryRestorePending(false)
+        tabSwitchInFlightRef.current = false
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // mount only
+  }, [lexiconTabId])
 
-  // Persist open entry + history to tab state (used when duplicating the tab)
+  // Persist open entry + history to tab state (used when duplicating the tab). Skips exactly
+  // one run right after a tab switch — see skipNextLexPersistRef's comment.
   useEffect(() => {
     if (!lexiconTabId) return
+    if (skipNextLexPersistRef.current) { skipNextLexPersistRef.current = false; return }
     updateTabState('lexicon', lexiconTabId, {
       strongsNum: activeEntry?.strongsNum ?? null,
       lexHistory: history.map((h) =>
@@ -1038,6 +1155,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   useEffect(() => {
     if (!lexiconTabId) return
     if (entryRestorePending) return // avoid a flash of "Lexicon" while the saved entry is still loading
+    if (tabSwitchInFlightRef.current) return // same-tick race guard — see its comment above
     renameTab('lexicon', lexiconTabId, activeEntry ? activeEntry.strongsNum : 'Lexicon')
   }, [activeEntry?.strongsNum, lexiconTabId, entryRestorePending, renameTab])
 

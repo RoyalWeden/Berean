@@ -5,8 +5,8 @@ contextBridge.exposeInMainWorld('bible', {
     ipcRenderer.invoke('bible:queryChapter', bookId, chapter, textId),
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) =>
     ipcRenderer.invoke('bible:queryVerse', bookId, chapter, verse, textId),
-  searchText: (query: string, textId?: string) =>
-    ipcRenderer.invoke('bible:searchText', query, textId),
+  searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase') =>
+    ipcRenderer.invoke('bible:searchText', query, textId, wordMode),
   getBooks: (textId?: string) =>
     ipcRenderer.invoke('bible:getBooks', textId)
 })

@@ -16,7 +16,7 @@ interface CalendarGridProps {
 }
 
 /**
- * The actual month grid — month nav, day headers, day cells (colon glyph
+ * The actual month grid — month nav, day headers, day cells (a small dot
  * under days with a daily note, matching the app-wide verse-note indicator),
  * and a "Today" shortcut. No positioning/outside-click behavior of its own,
  * so it can be dropped inline (the sidebar's collapsible Daily Notes
@@ -105,7 +105,9 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact 
               {/* Reserved-height row below the number (not absolutely
                   positioned/overlapping) so the indicator can never be
                   clipped by a neighboring row or an ancestor's overflow. */}
-              <span className={`h-[7px] text-[9px] font-black leading-none ${hasNote ? 'text-[rgb(var(--color-accent))]' : 'text-transparent'}`}>:</span>
+              <span className="h-[7px] flex items-center justify-center leading-none">
+                {hasNote && <span className="w-[5px] h-[5px] rounded-full bg-[rgb(var(--color-accent))]" />}
+              </span>
             </button>
           )
         })}

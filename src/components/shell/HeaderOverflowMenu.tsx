@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover'
 import { MoreHorizontal } from 'lucide-react'
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 
 export interface OverflowItem {
   key: string
@@ -48,6 +48,50 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
     return () => window.removeEventListener('berean:closeMenus', onClose)
   }, [open])
 
+  // Manual outside-click fallback, matching the pattern used elsewhere in this codebase (e.g.
+  // BookChapterPicker.tsx) — relying solely on Radix Popover's built-in dismissable-layer
+  // detection left this menu not closing on outside click, likely because several other
+  // components register their own capture-phase `mousedown` listeners (TopBar.tsx, Sidebar.tsx,
+  // Ribbon.tsx) that can run before Radix's own pointerdown-outside detection reaches this popover.
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (!triggerRef.current?.contains(t) && !contentRef.current?.contains(t)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  // Hover-to-open/close — same timing as TopBar.tsx's nav-history dropdown (350ms open delay
+  // avoids flashing on incidental mouseover, 320ms close delay gives the pointer room to travel
+  // from the trigger into the portaled content without it slamming shut mid-move). Click still
+  // works as an instant toggle independent of these timers. This is the shared "..." menu used
+  // by BiblePanel, NotesPanel, YouTubeTab, and Sidebar, so fixing hover here covers all of them.
+  const openTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function openOnHover() {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
+    if (openTimer.current) clearTimeout(openTimer.current)
+    openTimer.current = setTimeout(() => setOpen(true), 350)
+  }
+  function cancelHoverOpen() {
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
+  }
+  function scheduleHoverClose() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setOpen(false), 320)
+  }
+  function keepHoverOpen() {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
+  }
+  useEffect(() => () => {
+    if (openTimer.current) clearTimeout(openTimer.current)
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+  }, [])
+
   if (items.length === 0) return null
   return (
     <Popover.Root
@@ -59,7 +103,10 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
     >
       <Popover.Trigger asChild>
         <button
+          ref={triggerRef}
           title="More"
+          onMouseEnter={openOnHover}
+          onMouseLeave={() => { cancelHoverOpen(); scheduleHoverClose() }}
           className={`no-drag flex items-center justify-center w-7 h-7 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0 ${className}`}
         >
           <MoreHorizontal size={14} />
@@ -67,9 +114,12 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
+          ref={contentRef}
           side="bottom"
           align="end"
           sideOffset={6}
+          onMouseEnter={keepHoverOpen}
+          onMouseLeave={scheduleHoverClose}
           className="glass-panel z-50 min-w-[180px] rounded-shell overflow-hidden py-1 text-xs"
         >
           {items.map((item) => (

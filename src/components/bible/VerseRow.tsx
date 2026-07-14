@@ -19,7 +19,7 @@ export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
 // Full-opacity colors for note indicator dots — mirrors HIGHLIGHT_COLORS palette
-const NOTE_DOT_COLOR: Record<string, string> = {
+export const NOTE_DOT_COLOR: Record<string, string> = {
   yellow: '#facc15', orange: '#fb923c', amber:  '#fbbf24',
   red:    '#f87171', rose:   '#fb7185', pink:   '#f472b6',
   violet: '#a78bfa', purple: '#c084fc', indigo: '#818cf8',
@@ -1158,7 +1158,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 className="flex items-center gap-0.5 opacity-75 hover:opacity-100 cursor-pointer leading-none select-none transition-opacity"
                 style={{ color: NOTE_DOT_COLOR[notePrimaryColor ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
               >
-                <span className="text-xs font-black leading-none">:</span>
+                <span className="w-[5px] h-[5px] rounded-full bg-current" />
                 {noteCount > 1 && <span className="text-[9px] font-semibold">{noteCount}</span>}
               </button>
             )}

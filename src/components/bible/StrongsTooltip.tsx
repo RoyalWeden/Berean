@@ -41,8 +41,18 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
     <Tooltip.Provider delayDuration={300}>
       <Tooltip.Root onOpenChange={handleOpenChange}>
         <Tooltip.Trigger asChild>
+          {/* text-[10px] + leading-none are both load-bearing, together: `leading-none` alone
+              (line-height: 1) still resolves against whatever font-size this span INHERITS from
+              the surrounding verse text (e.g. ~16px), not the ~9-10px chip actually rendered
+              inside it — every caller here passes a small Strong's-number chip as `children`, so
+              pinning the trigger's own font-size to match removes that ambiguity and gives an
+              unambiguous, tight box instead of a still-oversized one at 1×16px. Without a fixed
+              font-size, this span was previously ~16px tall regardless of leading-none, both
+              throwing off hover alignment and (via StrongsInline.tsx's now-removed negative
+              margin, which was tuned against the OLD ~25px height) making the box tall enough to
+              visually swallow/overlap a stacked secondary number entirely. */}
           <span
-            className="cursor-pointer"
+            className="cursor-pointer leading-none text-[10px]"
             onClick={() => onClickEntry?.(strongsNum)}
           >
             {children}

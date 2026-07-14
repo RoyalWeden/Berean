@@ -4,12 +4,14 @@ import { useAppStore } from '@/store'
 import { zoomPercent, ZOOM_MIN, ZOOM_MAX } from '@/lib/zoom'
 
 /**
- * App-wide zoom row, shown from the rail's Zoom button. Replaces the old
- * per-panel (Scripture/Notes/Lexicon each independently zoomable) version —
- * zooming "just the lexicon" while everything else stayed put read as
- * confusing, so this now drives one shared `appZoom` value applied via CSS
- * zoom to the whole app shell (App.tsx). Adds a real text input so an exact
- * percentage can be typed rather than only stepped by ±10%.
+ * Zoom row, shown from the rail's Zoom button. Replaces the old per-panel
+ * (Scripture/Notes/Lexicon each independently zoomable) version — zooming
+ * "just the lexicon" while everything else stayed put read as confusing, so
+ * this now drives one shared `appZoom` value. See lib/zoom.ts for exactly
+ * which surfaces it applies to (reading-pane font size, plus TopBar.tsx and
+ * the Notes/Lexicon/YouTube side panel via CSS `zoom`) — the sidebar/rail
+ * itself stays a fixed size regardless of zoom. Adds a real text input so an
+ * exact percentage can be typed rather than only stepped by ±10%.
  */
 export default function ZoomMenuRow() {
   const level = useAppStore((s) => s.appZoom)

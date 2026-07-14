@@ -1,6 +1,7 @@
 import { Mosaic, MosaicWindow } from 'react-mosaic-component'
 import 'react-mosaic-component/react-mosaic-component.css'
 import { useAppStore } from '@/store'
+import type { ReactNode } from 'react'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
@@ -36,6 +37,17 @@ function secondaryTitle(activeSpace: SpaceId): string {
   }
 }
 
+// Wraps Notes/Lexicon/YouTube panel content (whether shown as the side panel next to
+// Scripture, or as the sole panel in their own space) in the shared reading-zoom multiplier —
+// matching TopBar.tsx's own zoom wrapper so these panels' chrome scales together with their
+// header controls (portaled into TopBar's slot). Scripture and Search panels are excluded:
+// Scripture already applies zoom at the font level per-verse (see ChapterView.tsx), and Search
+// wasn't part of this request.
+function ZoomedPanel({ children }: { children: ReactNode }) {
+  const appZoom = useAppStore((s) => s.appZoom)
+  return <div className="h-full w-full" style={{ zoom: appZoom }}>{children}</div>
+}
+
 export default function PanelLayout() {
   const panelLayout = useAppStore((s) => s.panelLayout)
   const updatePanelLayout = useAppStore((s) => s.updatePanelLayout)
@@ -44,9 +56,9 @@ export default function PanelLayout() {
   function renderPanel(key: MosaicKey) {
     switch (key) {
       case 'bible-panel':   return <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>
-      case 'notes-panel':   return <ErrorBoundary label="Notes panel error"><SecondaryPanel activeSpace={activeSpace} /></ErrorBoundary>
-      case 'lexicon-panel': return <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>
-      case 'youtube-panel': return <ErrorBoundary label="YouTube error"><YouTubeTab /></ErrorBoundary>
+      case 'notes-panel':   return <ErrorBoundary label="Notes panel error"><ZoomedPanel><SecondaryPanel activeSpace={activeSpace} /></ZoomedPanel></ErrorBoundary>
+      case 'lexicon-panel': return <ErrorBoundary label="Lexicon panel error"><ZoomedPanel><LexiconPanel /></ZoomedPanel></ErrorBoundary>
+      case 'youtube-panel': return <ErrorBoundary label="YouTube error"><ZoomedPanel><YouTubeTab /></ZoomedPanel></ErrorBoundary>
       case 'search-panel':  return <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>
       default: return <div className="p-4 text-[rgb(var(--color-text-muted))]">Panel</div>
     }

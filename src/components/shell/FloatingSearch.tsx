@@ -211,15 +211,12 @@ export default function FloatingSearch() {
   const parsedRef = cleanQuery.trim() ? parseRef(cleanQuery) : null
   const isStrongs = isStrongsRef(query)
 
-  function buildFTSQuery(q: string, mode: SearchWordMode): string {
+  // Expand with original terms when the user typed a replacement word (e.g. "yeshua" → also
+  // "jesus"). Word-mode (all/any/phrase) is passed to window.bible.searchText as an explicit
+  // param rather than encoded into the query string with quotes/" OR " — see electron/ipc/bible.ts.
+  function expandForSearch(q: string): string {
     const trimmed = q.trim()
-    // Expand with original terms when the user typed a replacement word (e.g. "yeshua" → also "jesus")
-    const expanded = wordReplacerEnabled
-      ? expandQueryForWordReplacer(trimmed, wordReplacerRules)
-      : trimmed
-    if (mode === 'phrase') return `"${expanded}"`
-    if (mode === 'any') return expanded.split(/\s+/).filter(Boolean).join(' OR ')
-    return expanded // 'all' — FTS5 default treats space as AND
+    return wordReplacerEnabled ? expandQueryForWordReplacer(trimmed, wordReplacerRules) : trimmed
   }
 
   // Debounced FTS search
@@ -252,7 +249,7 @@ export default function FloatingSearch() {
       const isDefaultSearch = !Object.keys(EXTRA_TEXT_IDS).includes(tid)
       const extraSearches = isDefaultSearch
         ? Object.entries(EXTRA_TEXT_IDS).map(([extraId, label]) =>
-            window.bible.searchText(trimmed, extraId)
+            window.bible.searchText(trimmed, extraId, mode)
               .then((rows) =>
                 (rows as unknown as VerseResult[]).slice(0, 3).map((r) => ({
                   ...r,
@@ -264,7 +261,7 @@ export default function FloatingSearch() {
           )
         : []
 
-      const ftsQ = buildFTSQuery(trimmed, mode)
+      const expandedQuery = expandForSearch(trimmed)
       try {
         const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
           ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
@@ -275,7 +272,7 @@ export default function FloatingSearch() {
           : Promise.resolve([])
 
         const [verses, notes, ytVideos, ytTranscripts, ...extraAll] = await Promise.allSettled([
-          window.bible.searchText(ftsQ, tid),
+          window.bible.searchText(expandedQuery, tid, mode),
           window.notes.searchNotes(trimmed, 5),
           ytSearch,
           ytTranscriptSearch,
@@ -617,9 +614,16 @@ export default function FloatingSearch() {
         {searchOpen && (
       <Dialog.Portal forceMount>
         <Dialog.Overlay asChild forceMount>
+          {/* Explicit onClick rather than relying solely on Radix's built-in outside-click
+              dismissal (onOpenChange above): Dialog.Content here is `asChild forceMount` wrapping
+              a motion.div inside AnimatePresence, and Radix's onPointerDownOutside detection can
+              misfire with animated/portal-mounted content — with no manual fallback (the pattern
+              used everywhere else in this codebase for outside-click, e.g. BookChapterPicker.tsx),
+              clicking the overlay sometimes did nothing. */}
           <motion.div
             className="fixed inset-0 bg-black/50 z-50"
             style={{ backdropFilter: 'blur(4px)' }}
+            onClick={closeSearch}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

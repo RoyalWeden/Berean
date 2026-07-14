@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
 import ChapterView from './ChapterView'
@@ -124,6 +125,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // rather than a fixed inline button.
   const [layoutPickerOpen, setLayoutPickerOpen] = useState(false)
   const [layoutPickerAnchor, setLayoutPickerAnchor] = useState<{ left: number; top: number } | null>(null)
+  // "Add panel" pickers didn't previously pass BookChapterPicker's editions/currentTextId/
+  // onSelectTranslation props at all, even though the picker component already supports them
+  // (the main reading picker below does) — so there was simply no UI to pick a different
+  // edition when adding a compare panel; it silently always used the current tab's edition.
+  const [addPanelTextId, setAddPanelTextId] = useState<string | null>(null)
   // Compare mode — ref exposed to CompareView so the + button can add columns
   const compareAddColRef = useRef<((target?: { bookId: string; chapter: number; textId?: string }) => void) | null>(null)
   // When "Add panel" is used to enter compare from a normal tab, the picked ref is parked
@@ -140,7 +146,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [books, setBooks] = useState<Book[]>([])
   const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
-  const infoRef = useRef<HTMLDivElement>(null)
+  const infoRef = useRef<HTMLButtonElement>(null)
+  const infoPanelRef = useRef<HTMLDivElement>(null)
+  // Fixed-position anchor for the portaled panel — computed from the trigger button's rect on
+  // open, since the panel is portaled to document.body (see the button's onClick below for why).
+  const [infoPos, setInfoPos] = useState<{ x: number; y: number } | null>(null)
   // Always-current ref to tabState so async callbacks never read stale values
   const tabStateRef = useRef(tabState)
   const activeTabRef = useRef(activeTab)
@@ -192,7 +202,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // we store the desired position in pendingScrollRef and ChapterView calls onVersesLoaded
   // after data arrives, at which point we apply the scroll.
   useEffect(() => {
-    if (continuousChapterScroll) return  // ContinuousChapterScroll manages its own scroll
+    if (continuousChapterScroll) return  // continuous mode is handled by the effect below instead
     const el = chapterViewRef.current
     if (!el) return
     if (activeSpace !== 'scripture') return
@@ -208,6 +218,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Store it — will be applied by onVersesLoaded once ChapterView data arrives
     pendingScrollRef.current = savedPos
   }, [activeSpace, activeTabId['scripture'], tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Continuous Chapter Scroll's own equivalent of the effect above, deliberately NOT keyed
+  // on tabState.chapter: ContinuousChapterScroll calls onChapterChange (updating
+  // tabState.chapter) continuously as the user scrolls past chapter headings, so reusing
+  // the same chapter-keyed effect here would reset scrollTop to 0 on every chapter boundary
+  // crossed during ordinary scrolling. Keying only on the tab/space switch itself restores
+  // the saved position once, without fighting the user's own scrolling. An earlier version
+  // had no continuous-mode handling at all, so scroll position was silently dropped on every
+  // tab switch while Continuous Chapter Scroll was enabled.
+  useEffect(() => {
+    if (!continuousChapterScroll) return
+    if (activeSpace !== 'scripture') return
+    pendingScrollRef.current = null
+    const savedPos = tabState.scrollPosition ?? 0
+    if (savedPos === 0) return
+    pendingScrollRef.current = savedPos
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSpace, activeTabId['scripture'], continuousChapterScroll])
 
   // Cancel any pending debounced scroll save when the tab changes.
   // The actual save now happens via berean:saveScrollBeforeTabChange (fired synchronously
@@ -476,11 +504,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }).catch(() => updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() }))
   }
 
-  // Close info popover on outside click
+  // Close info popover on outside click — checks both the trigger button AND the portaled
+  // panel content (see infoPanelRef below), since portaling the panel to document.body means
+  // it's no longer a DOM descendant of infoRef for .contains() purposes.
   useEffect(() => {
     if (!infoOpen) return
     function onDown(e: MouseEvent) {
-      if (infoRef.current && !infoRef.current.contains(e.target as Node)) setInfoOpen(false)
+      const t = e.target as Node
+      if (infoRef.current?.contains(t)) return
+      if (infoPanelRef.current?.contains(t)) return
+      setInfoOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -890,7 +923,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current
   // view + picked = 2 columns) when not already comparing; otherwise appends a column.
   function addComparePanel(pickBookId: string, pickChapter: number) {
-    const target = { bookId: pickBookId, chapter: pickChapter, textId }
+    const target = { bookId: pickBookId, chapter: pickChapter, textId: addPanelTextId ?? textId }
+    setAddPanelTextId(null) // reset so the next "add panel" defaults back to the current tab's edition
     if (tabState.compareMode) {
       compareAddColRef.current?.(target)
     } else {
@@ -1049,6 +1083,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return (
       <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
         <ScriptureSearchView
+          floating={floating}
           initialQuery={tabState.scriptureSearchQuery}
           persistedState={{
             query: tabState.scriptureSearchQuery,
@@ -1164,6 +1199,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             currentBookId={tabState.bookId}
             currentChapter={tabState.chapter}
             onNavigate={addComparePanel}
+            editions={EDITIONS}
+            currentTextId={addPanelTextId ?? textId}
+            onSelectTranslation={setAddPanelTextId}
             triggerLabel={<><Plus size={12} /><span>Add panel</span></>}
             triggerTitle="Add comparison panel"
             triggerClassName="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors font-medium flex-shrink-0"
@@ -1194,6 +1232,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               currentBookId={tabState.bookId}
               currentChapter={tabState.chapter}
               onNavigate={addComparePanel}
+              editions={EDITIONS}
+              currentTextId={addPanelTextId ?? textId}
+              onSelectTranslation={setAddPanelTextId}
               triggerLabel={<SplitSquareHorizontal size={16} />}
               triggerTitle="Add comparison panel (pick a book/chapter)"
             />
@@ -1210,18 +1251,32 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <FileUp size={14} />
               </button>
             )}
-            {/* Annotation info button */}
+            {/* Annotation info button — the panel below is portaled to document.body with
+                fixed positioning (computed from the trigger's rect on open) rather than
+                absolutely positioned inline: this toolbar row is portaled into TopBar.tsx's
+                slot div, which has overflow-hidden, so an inline `absolute` panel here was
+                being silently clipped — appearing to do nothing when clicked. */}
             {ANNOTATION_KEYS[textId] && (
-              <div ref={infoRef} className="relative">
+              <div>
                 <button
-                  onClick={() => setInfoOpen((v) => !v)}
+                  ref={infoRef}
+                  onClick={(e) => {
+                    if (!infoOpen) {
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      setInfoPos({ x: r.left, y: r.bottom + 4 })
+                    }
+                    setInfoOpen((v) => !v)
+                  }}
                   title="Text annotations key"
                   className={`p-1 rounded transition-colors cursor-pointer ${infoOpen ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                 >
                   <Info size={13} />
                 </button>
-                {infoOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-50 w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
+                {infoOpen && infoPos && createPortal(
+                  <div
+                    ref={infoPanelRef}
+                    style={{ position: 'fixed', left: infoPos.x, top: infoPos.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    className="w-72 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden"
                     onMouseDown={(e) => e.stopPropagation()}>
                     {(() => {
                       const annInfo = ANNOTATION_KEYS[textId]
@@ -1297,7 +1352,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                         </>
                       )
                     })()}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
             )}
@@ -1313,6 +1369,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             single action — the layout picker uses this menu's `render`
             escape hatch instead (see the 'layout' item), computing its own
             fixed-position anchor from the row's rect on open. */}
+        {/* This trio (overflow menu, Strong's toggle, side-panel toggle) shares a tighter gap
+            than the row's default gap-2 — that default (from TabHeaderPortal.tsx's wrapper,
+            shared by every earlier item in this row too) read as an oversized, uneven-feeling
+            gap specifically between these three small icon buttons. */}
+        <div className="flex items-center gap-1">
         <HeaderOverflowMenu
           items={[
             {
@@ -1416,6 +1477,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           </button>
           </HintTooltip>
         )}
+        </div>
         {/* Pause + laser + selection + close now live in the floating PresenterControls panel.
             Zoom now lives in the overflow menu above (see 'zoom' item). */}
       </TabHeaderPortal>
@@ -1763,14 +1825,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
-            {rightPanelOpen && (
-              <>
-                {hDivider}
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
-                  {panelEl()}
-                </div>
-              </>
-            )}
+            <AnimatePresence initial={false}>
+              {rightPanelOpen && (
+                <motion.div
+                  key="right-panel"
+                  initial={{ width: 0 }}
+                  animate={{ width: panelSize + 4 }}
+                  exit={{ width: 0 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex-shrink-0 flex overflow-hidden"
+                >
+                  {hDivider}
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )
 
@@ -1778,14 +1847,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'panel-left':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            {rightPanelOpen && (
-              <>
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
-                  {panelEl()}
-                </div>
-                {hDivider}
-              </>
-            )}
+            <AnimatePresence initial={false}>
+              {rightPanelOpen && (
+                <motion.div
+                  key="left-panel"
+                  initial={{ width: 0 }}
+                  animate={{ width: panelSize + 4 }}
+                  exit={{ width: 0 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex-shrink-0 flex overflow-hidden"
+                >
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
+                  {hDivider}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
           </div>
         )
@@ -1827,14 +1903,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
-            {rightPanelOpen && (
-              <>
-                {hDivider}
-                <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
-                  {panelEl('notes')}
-                </div>
-              </>
-            )}
+            <AnimatePresence initial={false}>
+              {rightPanelOpen && (
+                <motion.div
+                  key="notes-right-panel"
+                  initial={{ width: 0 }}
+                  animate={{ width: panelSize + 4 }}
+                  exit={{ width: 0 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="flex-shrink-0 flex overflow-hidden"
+                >
+                  {hDivider}
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+                    {panelEl('notes')}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )
 

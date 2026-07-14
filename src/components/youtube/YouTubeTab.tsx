@@ -236,6 +236,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const clearPendingYouTubeVideo = useAppStore((s) => s.clearPendingYouTubeVideo)
   const renameTab = useAppStore((s) => s.renameTab)
   const ytTabId = useAppStore((s) => s.activeTabId['youtube'])
+  const youtubeHomeToken = useAppStore((s) => s.youtubeHomeToken)
   const setYoutubeIsPlaying = useAppStore((s) => s.setYoutubeIsPlaying)
   const youtubeNoteBack = useAppStore((s) => s.youtubeNoteBack)
   const setYoutubeNoteBack = useAppStore((s) => s.setYoutubeNoteBack)
@@ -282,6 +283,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // Additional filters panel
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
+  // YouTubeTab is a single shared instance reused across every YouTube tab (PanelLayout.tsx
+  // renders one, not one per tab) — same architecture, and the same class of bug just fixed
+  // in NotesPanel.tsx/LexiconPanel.tsx this session: activeVideoId was never persisted to
+  // tab.state.videoId at all, so switching tabs and back always landed on the browse/home
+  // view regardless of what video had been open. skipNextYtPersistRef guards the one stale
+  // persist-effect run that happens mid-switch, before the restore effect below catches up —
+  // see NotesPanel.tsx's skipNextPersistRef comment for the full explanation.
+  const skipNextYtPersistRef = useRef(false)
   // playerSrc is locked in once per video open — never updated by poll — prevents auto-resume bug
   const [playerSrc, setPlayerSrc] = useState<string>('')
   const [videoMaximized, setVideoMaximized] = useState(false)
@@ -394,16 +403,37 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   }, [])
 
 
-  // Sync layout+panels from tab state when the active YouTube tab changes
+  // Sync layout+panels+active video from tab state when the active YouTube tab changes.
+  // The videoId restore is new — see skipNextYtPersistRef's comment above for why switching
+  // tabs previously always landed back on the browse view.
   useEffect(() => {
     if (!ytTabId) return
+    skipNextYtPersistRef.current = true
     const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
     const state = tab?.state as YouTubeTabState | undefined
+    setActiveVideoId(state?.videoId ?? null)
     if (!state) return
     if (state.youtubeLayout) setYtLayout(state.youtubeLayout)
     setPanelA(state.panelA ?? null)
     setPanelB(state.panelB ?? null)
   }, [ytTabId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist the active video to tab state so switching away and back restores it. Skips
+  // exactly one run right after a tab switch — see skipNextYtPersistRef's comment.
+  useEffect(() => {
+    if (!ytTabId) return
+    if (skipNextYtPersistRef.current) { skipNextYtPersistRef.current = false; return }
+    useAppStore.getState().updateTabState('youtube', ytTabId, { videoId: activeVideoId })
+  }, [activeVideoId, ytTabId])
+
+  // Global top bar's back button reached the browse/home position for this tab (see
+  // youtubeHomeToken's registration in the store, mirroring notesHomeToken/lexiconHomeToken).
+  const youtubeHomeMounted = useRef(false)
+  useEffect(() => {
+    if (!youtubeHomeMounted.current) { youtubeHomeMounted.current = true; return }
+    handleBack()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [youtubeHomeToken])
 
   // Layout picker close on outside click
   useEffect(() => {
@@ -1462,12 +1492,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         {/* Header — active gated on activeSpace since this panel stays mounted
              (hidden via CSS) even when not the active tab, to keep PiP/playback alive. */}
         <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="min-w-0">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-1.5 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer rounded px-2 py-1 hover:bg-[rgb(var(--color-surface-4))] transition-colors flex-shrink-0"
-          >
-            <ArrowLeft size={13} /> Back
-          </button>
+          {/* No local "← Back" button — TabHeaderPortal's shared HomeButton (now youtube-aware,
+              see store's youtubeHomeToken) covers "back to browse", and the shared TopBar
+              back/forward buttons cover video-to-video history, matching Notes/Lexicon. */}
           {youtubeNoteBack && (
             <button
               onClick={() => {
@@ -1608,7 +1635,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           className={`relative overflow-hidden rounded-lg ${videoMaximized ? 'flex-1 min-h-0' : 'flex-shrink-0'}`}
           style={!videoMaximized ? { height: '56vh', minHeight: '240px' } : undefined}
         >
-          {/* Webview — invisible until playerReady to avoid flash of unstyled YouTube chrome */}
+          {/* Webview — invisible until playerReady to avoid flash of unstyled YouTube chrome.
+              Also hidden while showLayoutPicker (or any other locally-portaled menu that can
+              overlap the video area) is open: Electron's <webview> is a separate native
+              compositor layer that always paints above normal DOM content regardless of CSS
+              z-index, so a popover positioned "over" it (like the layout picker) rendered
+              behind it instead. Reusing the same opacity toggle already used for the
+              playerReady loading state — confirmed to actually hide the webview, since the
+              loading spinner already relies on it to cover the webview while loading. */}
           {playerSrc && (
             <webview
               ref={webviewRef}
@@ -1618,7 +1652,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                 position: 'absolute',
                 top: 0, left: 0, right: 0, bottom: 0,
                 display: 'flex',
-                opacity: playerReady ? 1 : 0,
+                opacity: (playerReady && !showLayoutPicker) ? 1 : 0,
+                pointerEvents: showLayoutPicker ? 'none' : 'auto',
                 transition: 'opacity 0.25s ease',
                 borderRadius: '8px',
                 overflow: 'hidden',

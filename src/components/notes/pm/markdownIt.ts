@@ -91,15 +91,30 @@ md.core.ruler.push('task_list', taskListRule)
 // convention (matching its reused global CSS, global.css:569-583) — parsed
 // here as a narrowly-scoped custom rule rather than enabling markdown-it's
 // general `html: true` (which would open up arbitrary HTML parsing).
+// Both rules below tokenize their captured inner span through markdown-it's
+// own inline tokenizer (state.md.inline.tokenize(state), bounded by a
+// temporary state.pos/posMax window) rather than pushing one flat text
+// token — the same pattern markdown-it's own `link` rule uses for link text
+// (rules_inline/link.mjs). An earlier version pushed a single raw text
+// token, which meant nested formatting (e.g. **bold** inside a highlight)
+// was captured as literal unparsed text: it round-tripped fine the first
+// time (serializer.ts emits `==**bold**==` correctly) but the moment that
+// markdown was re-parsed — reopening the note, autosave, vault export/
+// reimport — the inner `**bold**` showed up as literal asterisks instead of
+// bold text, since nothing had re-tokenized it.
 function highlightPlainRule(state: StateInline, silent: boolean): boolean {
   const start = state.pos
   if (state.src.slice(start, start + 2) !== '==') return false
   const end = state.src.indexOf('==', start + 2)
   if (end === -1 || end === start + 2) return false // no empty highlights
   if (!silent) {
+    const max = state.posMax
     state.push('highlight_open', 'mark', 1).meta = { color: null }
-    const text = state.push('text', '', 0)
-    text.content = state.src.slice(start + 2, end)
+    state.pos = start + 2
+    state.posMax = end
+    state.md.inline.tokenize(state)
+    state.pos = end
+    state.posMax = max
     state.push('highlight_close', 'mark', -1)
   }
   state.pos = end + 2
@@ -114,9 +129,13 @@ function highlightColorRule(state: StateInline, silent: boolean): boolean {
   const closeIdx = state.src.indexOf('</mark>', start + openMatch[0].length)
   if (closeIdx === -1) return false
   if (!silent) {
+    const max = state.posMax
     state.push('highlight_open', 'mark', 1).meta = { color: openMatch[1] }
-    const text = state.push('text', '', 0)
-    text.content = state.src.slice(start + openMatch[0].length, closeIdx)
+    state.pos = start + openMatch[0].length
+    state.posMax = closeIdx
+    state.md.inline.tokenize(state)
+    state.pos = closeIdx
+    state.posMax = max
     state.push('highlight_close', 'mark', -1)
   }
   state.pos = closeIdx + '</mark>'.length
@@ -140,9 +159,13 @@ function underlineRule(state: StateInline, silent: boolean): boolean {
   const end = state.src.indexOf('</u>', start + 3)
   if (end === -1 || end === start + 3) return false
   if (!silent) {
+    const max = state.posMax
     state.push('u_open', 'u', 1)
-    const text = state.push('text', '', 0)
-    text.content = state.src.slice(start + 3, end)
+    state.pos = start + 3
+    state.posMax = end
+    state.md.inline.tokenize(state)
+    state.pos = end
+    state.posMax = max
     state.push('u_close', 'u', -1)
   }
   state.pos = end + 4

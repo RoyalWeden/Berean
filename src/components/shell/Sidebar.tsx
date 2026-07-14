@@ -80,6 +80,8 @@ export default function Sidebar() {
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
 
+  const tabListRef = useRef<HTMLDivElement>(null)
+
   // ── Scripture button right-click → book list ──
   const [bookMenu, setBookMenu] = useState<{ x: number; y: number; books: Array<{ book: Book; textId: string }>; filter: string } | null>(null)
   const bookMenuRef = useRef<HTMLDivElement>(null)
@@ -99,6 +101,15 @@ export default function Sidebar() {
     window.addEventListener('keydown', onEsc)
     return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
   }, [tabBarMenu, bookMenu])
+
+  // Double-click empty tab-bar space → open floating search for a new tab. Four earlier attempts
+  // (element onMouseDown, document-capture onMouseDown, document-capture click, element
+  // onDoubleClick while the container was still an app-drag-region) all failed to fire reliably —
+  // Electron's OS-level drag hit-testing over an app-drag-region element intercepts the
+  // mousedown/click gesture at the browser-process level before it's guaranteed to reach the
+  // renderer, regardless of listener type or capture phase. The container itself was switched
+  // from app-drag-region to no-drag below, trading away "drag the window from empty tab-list
+  // space" for a plain, reliable onDoubleClick handler on the element.
 
   // ── Daily-note calendar — pinned permanently at the bottom of the
   // sidebar (not gated to the Notes space, not a toggle) so jumping to a
@@ -213,6 +224,11 @@ export default function Sidebar() {
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}
+        // Clicking anywhere in the sidebar (switching tabs/spaces, etc.) should close any
+        // open overlay elsewhere (Ribbon's archive-tabs list, zoom popover, session menu) —
+        // those already listen for this broadcast (see HeaderOverflowMenu.tsx, Ribbon.tsx,
+        // usePositionedMenu.ts), Sidebar just wasn't one of the places that fired it.
+        onClickCapture={() => window.dispatchEvent(new Event('berean:closeMenus'))}
       >
         {/* ── Search / location bar — own row, full sidebar width. Back/forward nav,
              history, archive, settings, and collapse now live in the shared TopBar
@@ -292,7 +308,13 @@ export default function Sidebar() {
         </div>
 
             <div
+              ref={tabListRef}
               className="no-drag flex-1 overflow-y-auto min-h-0"
+              onDoubleClick={(e) => {
+                const t = e.target as HTMLElement
+                if (t.closest('[data-tab-idx]')) return
+                openSearch('new')
+              }}
               onContextMenu={(e) => {
                 e.preventDefault()
                 const MENU_W = 208; const MENU_H = 160; const pad = 8

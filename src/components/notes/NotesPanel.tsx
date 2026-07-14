@@ -75,9 +75,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [activeNote, setActiveNote] = useState<Note | null>(null)
   // True while we're still trying to restore the previously-open note for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
-  // the tab to the generic "Notes" fallback before the real title has loaded —
-  // that flash was visible every time you switched to an existing Notes tab,
-  // since this panel remounts fresh (key={tab.id}) on every tab switch.
+  // the tab to the generic "Notes" fallback before the real title has loaded — that
+  // flash was visible every time you switched to an existing Notes tab. NotesPanel is
+  // actually a single shared instance reused across every Notes tab (PanelLayout.tsx
+  // renders one, not one keyed per tab, despite what an earlier version of this comment
+  // claimed) — the restore effect below now re-arms this to true at the start of every
+  // tab switch, not just once via this initializer, so the guard actually covers repeat
+  // switches and not just the very first mount.
   const [noteRestorePending, setNoteRestorePending] = useState(() => {
     const tab = useAppStore.getState().tabs['notes'].find((t) => t.id === useAppStore.getState().activeTabId['notes'])
     const tabState = tab?.state as NoteTabState | undefined
@@ -98,6 +102,39 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
   const notesContentRef = useRef<HTMLDivElement>(null)
   const activeNoteRef = useRef<Note | null>(null)
+  // NotesPanel is a single shared instance reused across every Notes tab (PanelLayout.tsx
+  // renders one, not one per tab). Right after switching tabs, `activeNote` still holds the
+  // PREVIOUS tab's note for one render until the restore effect below catches up — the persist
+  // effect further down also depends on notesTabId, so it fires in that same window and would
+  // write the old tab's note id into the tab you just switched to. This flag, set synchronously
+  // at the top of the restore effect and consumed by exactly one persist-effect run, skips just
+  // that one stale write without needing to touch every one of the many setActiveNote() call
+  // sites elsewhere in this file (which persist correctly on their own once the tab has settled).
+  const skipNextPersistRef = useRef(false)
+  // Same-tick guard for the title-sync effect below. Re-arming noteRestorePending to true
+  // (a STATE update) inside the restore effect doesn't take effect until the NEXT render —
+  // but the title-sync effect also depends on notesTabId, so it fires in the very SAME commit
+  // as the restore effect, still reading the OLD (stale, not-yet-applied) noteRestorePending
+  // and the OLD activeNote. That one-pass race is exactly what caused the tab title to flicker
+  // to the previous tab's title before correcting itself — re-arming noteRestorePending fixed
+  // every pass EXCEPT this first one. A ref, unlike state, is visible synchronously to a later
+  // effect in the same commit, so it closes that specific gap.
+  const tabSwitchInFlightRef = useRef(false)
+  // The guard above only works if it's already true by the time the title-sync effect RUNS —
+  // but that effect is declared earlier in this file than the restore effect that used to be
+  // the only place setting it, and React fires a component's effects in declaration order
+  // within a commit. So on the very commit notesTabId changes, title-sync fired FIRST (reading
+  // the previous tab's still-current activeNote and renaming the NEW tab to the OLD tab's
+  // title), and only THEN did the restore effect run and set the guard — one render too late.
+  // Setting the guard here, directly in the render body the instant notesTabId is seen to
+  // differ from the last-seen value, makes it true before ANY effect in that commit runs,
+  // regardless of declaration order — this is React's documented pattern for "adjusting state
+  // when a prop changes" during render rather than in an effect.
+  const prevNotesTabIdForGuardRef = useRef<string | null>(null)
+  if (prevNotesTabIdForGuardRef.current !== notesTabId) {
+    prevNotesTabIdForGuardRef.current = notesTabId
+    tabSwitchInFlightRef.current = true
+  }
   const [localFindOpen, setLocalFindOpen] = useState(false)
   const [localFindQuery, setLocalFindQuery] = useState('')
   const [findMatchIdx, setFindMatchIdx] = useState(0)
@@ -395,6 +432,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (!notesTabId) return
     if (noteRestorePending) return // avoid a flash of "Notes" while the saved note is still loading
+    if (tabSwitchInFlightRef.current) return // same-tick race guard — see its comment above
     const title = activeNote ? (activeNote.title?.trim() || 'Untitled') : 'Notes'
     renameTab('notes', notesTabId, title)
     // Record note view in history (only on note change, not on every title keystroke)
@@ -424,17 +462,35 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteChangeToken])
 
-  // Restore the note that was open when this tab was last active
-  // Only restore if the tab was NOT freshly created (isNew = false)
+  // Restore the note that was open when this tab was last active. Re-runs on every
+  // notesTabId change (not just mount) — NotesPanel is a single shared instance across all
+  // Notes tabs, so switching tabs needs this to re-sync activeNote to the NEW tab's own saved
+  // noteId; an earlier version ran this once on mount only, so activeNote just kept whatever
+  // note the last-focused tab had open, and the persist effect below then wrote that stale
+  // note id into whichever tab you switched to — corrupting its stored state, not just the
+  // visible UI, so simply switching away and back didn't self-heal it.
   useEffect(() => {
     if (!notesTabId) return
+    skipNextPersistRef.current = true
+    tabSwitchInFlightRef.current = true
+    setNoteRestorePending(true)
+    // Deferred (not synchronous) clear of tabSwitchInFlightRef. The synchronous branches below
+    // call setNoteRestorePending(true) then immediately setNoteRestorePending(false) in the same
+    // effect pass — React batches same-tick state updates, so if the state was already false
+    // beforehand this nets to NO change at all, meaning an effect keyed on noteRestorePending
+    // transitioning to false would never re-fire and the ref would stay stuck true forever after
+    // the first switch to a new/empty-note tab, permanently blocking the title-sync effect below
+    // (this was the actual cause of tab titles "not saving"/never updating again). setTimeout(0)
+    // runs unconditionally after this render's effects have flushed, regardless of whether state
+    // actually changed, so the ref reliably clears exactly one pass later either way.
+    function deferClear() { setTimeout(() => { tabSwitchInFlightRef.current = false }, 0) }
     const tab = tabs['notes'].find((t) => t.id === notesTabId)
     const tabState = tab?.state as NoteTabState | undefined
-    if (tabState?.isNew) return // fresh tab → show list
+    if (tabState?.isNew) { setActiveNote(null); setNoteRestorePending(false); deferClear(); return } // fresh tab → show list
     const savedNoteId = tabState?.noteId ?? null
     const savedScrollTop = tabState?.scrollTop ?? 0
     const savedCursorPos = tabState?.cursorPos ?? 0
-    if (!savedNoteId) { setNoteRestorePending(false); return }
+    if (!savedNoteId) { setActiveNote(null); setNoteRestorePending(false); deferClear(); return }
     window.notes.getNote(savedNoteId)
       .then((note) => {
         if (note) {
@@ -445,9 +501,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         }
       })
       .catch(() => {})
-      .finally(() => setNoteRestorePending(false))
+      .finally(() => {
+        setNoteRestorePending(false)
+        tabSwitchInFlightRef.current = false
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally run once on mount only
+  }, [notesTabId])
 
   const [restoredScrollTop, setRestoredScrollTop] = useState(0)
   const [restoredCursorPos, setRestoredCursorPos] = useState(0)
@@ -500,9 +559,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
   }, [notesTabId])
 
-  // Persist open note id to tab state
+  // Persist open note id to tab state. Skips exactly one run right after a tab switch — see
+  // skipNextPersistRef's comment — since this effect also depends on notesTabId and would
+  // otherwise fire immediately with the previous tab's still-stale activeNote before the
+  // restore effect above has replaced it.
   useEffect(() => {
     if (!notesTabId) return
+    if (skipNextPersistRef.current) { skipNextPersistRef.current = false; return }
     updateTabState('notes', notesTabId, { noteId: activeNote?.id ?? null, isNew: false })
   }, [activeNote?.id, notesTabId, updateTabState])
 

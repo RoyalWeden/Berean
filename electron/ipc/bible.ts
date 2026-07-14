@@ -20,39 +20,26 @@ function hasSortOrderCol(db: ReturnType<typeof getTextDb>, textId: string): bool
   return has
 }
 
-function safeFtsQuery(q: string): string {
-  const trimmed = q.trim()
-  if (!trimmed) return ''
+type WordMode = 'all' | 'any' | 'phrase'
 
-  // Phrase query — already wrapped in FTS5 quotes
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    const inner = trimmed.slice(1, -1).trim()
-    const words = inner.split(/\s+/).filter(Boolean)
-      .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
-      .filter(w => w.length >= 1)
-    if (words.length === 0) return ''
-    return `"${words.join(' ')}"`
-  }
-
-  // OR query (any mode) — split on " OR " and wildcard each term
-  if (trimmed.includes(' OR ')) {
-    const terms = trimmed.split(' OR ').map(t => t.trim())
-    const cleanTerms = terms
-      .map(t => t.replace(/[^a-zA-Z0-9']/g, '').trim())
-      .filter(t => t.length >= 1)
-      .map(t => `${t}*`)
-    if (cleanTerms.length === 0) return ''
-    return cleanTerms.join(' OR ')
-  }
-
-  // All-words query (default) — prefix wildcard each word
-  const words = trimmed.split(/\s+/).filter(Boolean)
-  const clean = words
+/** Split a raw query into cleaned, FTS5-safe word tokens (strips anything that isn't
+ *  alphanumeric or an apostrophe, drops empties). */
+function cleanWords(q: string): string[] {
+  return q.trim().split(/\s+/).filter(Boolean)
     .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
     .filter(w => w.length >= 1)
-    .map(w => `${w}*`)
-  if (clean.length === 0) return ''
-  return clean.join(' ')
+}
+
+/** Build an FTS5 MATCH expression for a phrase or all-words query. `wordMode` is passed
+ *  explicitly by the caller rather than sniffed from the query string — an earlier
+ *  version guessed intent from quotes/" OR " substrings, which meant a literal "OR" (or
+ *  quote marks) typed as part of the user's own query text could silently flip "All
+ *  words" mode into "any words" mode regardless of what the UI showed as selected. */
+function safeFtsQuery(q: string, wordMode: 'all' | 'phrase'): string {
+  const words = cleanWords(q)
+  if (words.length === 0) return ''
+  if (wordMode === 'phrase') return `"${words.join(' ')}"`
+  return words.map(w => `${w}*`).join(' ')
 }
 
 export function registerBibleHandlers(ipcMain: IpcMain): void {
@@ -65,15 +52,20 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     const books = db.prepare(
       `SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`
     ).all() as Array<{ id: string; name: string; short_name: string; testament: string; chapters_count: number }>
-    // LXX (and some other texts) store chapters_count = 0; compute from verses table
-    const countStmt = db.prepare('SELECT MAX(chapter) as max_ch FROM verses WHERE book_id = ?')
-    return books.map((b) => {
-      if (b.chapters_count === 0) {
-        const row = countStmt.get(b.id) as { max_ch: number | null } | undefined
-        return { ...b, chapters_count: row?.max_ch ?? 1 }
-      }
-      return b
-    })
+    // LXX (and some other texts) store chapters_count = 0; compute from verses table. A single
+    // GROUP BY covers every book in one query — an earlier version ran one MAX(chapter) query
+    // PER book needing a fallback, which for a ~80-book text like LXX meant 80+ synchronous
+    // better-sqlite3 calls blocking Electron's single main-process thread on every call, stalling
+    // any other tab's IPC requests queued behind it (most visible as a hang opening Advanced
+    // Scripture Search, since it fetches getBooks for all 14 texts on mount).
+    if (books.some((b) => b.chapters_count === 0)) {
+      const maxChapters = new Map(
+        (db.prepare('SELECT book_id, MAX(chapter) as max_ch FROM verses GROUP BY book_id').all() as Array<{ book_id: string; max_ch: number }>)
+          .map((row) => [row.book_id, row.max_ch])
+      )
+      return books.map((b) => b.chapters_count === 0 ? { ...b, chapters_count: maxChapters.get(b.id) ?? 1 } : b)
+    }
+    return books
   })
 
   ipcMain.handle('bible:queryChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
@@ -94,19 +86,18 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     ).get(bookId, chapter, verseNum)
   })
 
-  ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva') => {
+  ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva', wordMode: WordMode = 'all') => {
     if (!query.trim()) return []
     const db = getTextDb(textId)
     if (!db) return []
 
     const trimmed = query.trim()
 
-    // ── 'any' mode: query arrives as "word1 OR word2 OR word3" ──────────────
+    // ── 'any' mode: run one FTS5 query per word and union the results in JS. ──
     // FTS5 OR with prefix wildcards (in* OR the* OR beginning*) is unreliable
     // for very common or very short tokens — it can silently return nothing.
-    // Fix: run one FTS5 query per word and union the results in JS.
-    if (trimmed.includes(' OR ')) {
-      const terms = trimmed.split(' OR ').map(t => t.trim()).filter(Boolean)
+    if (wordMode === 'any') {
+      const terms = cleanWords(trimmed)
       const seen = new Set<string>()
       const rows: unknown[] = []
       const stmt = db.prepare(`
@@ -118,7 +109,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
         LIMIT 200
       `)
       for (const term of terms) {
-        const ftsQ = safeFtsQuery(term)
+        const ftsQ = safeFtsQuery(term, 'all')
         if (!ftsQ) continue
         try {
           const termRows = stmt.all(ftsQ) as Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
@@ -135,7 +126,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     }
 
     // ── phrase and all-words modes ───────────────────────────────────────────
-    const ftsQ = safeFtsQuery(trimmed)
+    const ftsQ = safeFtsQuery(trimmed, wordMode === 'phrase' ? 'phrase' : 'all')
     if (!ftsQ) return []
     try {
       return db.prepare(`

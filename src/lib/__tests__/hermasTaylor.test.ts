@@ -1,8 +1,8 @@
 /**
  * Charles Taylor Shepherd-of-Hermas translation: section map, translation switching,
- * and registration. Taylor uses its own (finer) verse divisions and differs from
- * Roberts-Donaldson in several chapter boundaries — and, unlike the RD database,
- * includes Similitude 7.
+ * and registration. Taylor uses its own (finer) verse divisions and its own flat DB
+ * chapter numbering, which differs from Roberts-Donaldson at the Mandate boundaries —
+ * most notably, Taylor's HER_MAN has no gap at db-chapter 8 (RD's does).
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import {
@@ -29,12 +29,12 @@ describe('Taylor section map', () => {
     expect(getHermasValidChapters('HER_MAN')).toEqual(Array.from({ length: 24 }, (_, i) => i + 1))
   })
 
-  it('includes Similitude 7 (absent from RD)', () => {
+  it('includes Similitude 7, matching RD', () => {
     setHermasVariant('taylor')
     const sim7 = getHermasSections('HER_SIM').find((s) => s.sectionNum === 7)
     expect(sim7).toBeTruthy()
     expect(sim7!.chapters).toEqual([17])
-    // chapter 17 maps to Similitude 7 under Taylor, but Similitude 6 under RD
+    // chapter 17 maps to Similitude 7 under both Taylor and RD
     expect(getHermasSection('HER_SIM', 17)!.sectionName).toBe('Similitude 7')
   })
 
@@ -51,11 +51,11 @@ describe('Taylor section map', () => {
     expect(new Set(sim).size).toBe(sim.length)
   })
 
-  it('does not mutate the RD map (default variant still has the gap + no Sim 7)', () => {
+  it('does not mutate the RD map (default variant still has the Mandate gap)', () => {
     setHermasVariant('rd')
     expect(getHermasValidChapters('HER_MAN')).toContain(24)
     expect(getHermasValidChapters('HER_MAN')).not.toContain(8)
-    expect(getHermasSection('HER_SIM', 17)!.sectionName).toBe('Similitude 6')
+    expect(getHermasSection('HER_SIM', 17)!.sectionName).toBe('Similitude 7')
   })
 })
 

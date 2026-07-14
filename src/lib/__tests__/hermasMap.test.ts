@@ -30,10 +30,10 @@ describe('Hermas map covers exactly the DB chapters', () => {
 })
 
 describe('Hermas section numbering', () => {
-  it('has 5 Visions, 12 Mandates, 10 Similitudes (Sim 7 absent)', () => {
+  it('has 5 Visions, 12 Mandates, 10 Similitudes', () => {
     expect(getHermasSections('HER_VIS').map(s => s.sectionNum)).toEqual([1, 2, 3, 4, 5])
     expect(getHermasSections('HER_MAN').map(s => s.sectionNum)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-    expect(getHermasSections('HER_SIM').map(s => s.sectionNum)).toEqual([1, 2, 3, 4, 5, 6, 8, 9, 10])
+    expect(getHermasSections('HER_SIM').map(s => s.sectionNum)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   })
 })
 
@@ -68,6 +68,8 @@ describe('labels & navigation', () => {
     expect(getHermasSection('HER_VIS', 25)?.sectionName).toBe('Vision 5')
   })
   it('Similitude boundaries', () => {
+    expect(getHermasSection('HER_SIM', 16)?.sectionName).toBe('Similitude 6')
+    expect(getHermasSection('HER_SIM', 17)?.sectionName).toBe('Similitude 7')
     expect(getHermasSection('HER_SIM', 18)?.sectionName).toBe('Similitude 8')
     expect(getHermasSection('HER_SIM', 29)?.sectionName).toBe('Similitude 9')
     expect(getHermasSection('HER_SIM', 62)?.sectionName).toBe('Similitude 10')

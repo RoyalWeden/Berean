@@ -9,7 +9,7 @@
  * Database chapter counts:
  *   HER_VIS: 25 chapters  (Visions 1–5)
  *   HER_MAN: 24 chapters  (Mandates 1–12; gap at db-ch 8)
- *   HER_SIM: 65 chapters  (Similitudes 1–10; Sim 7 absent)
+ *   HER_SIM: 65 chapters  (Similitudes 1–10)
  */
 
 export type HermasBookId = 'HER_VIS' | 'HER_MAN' | 'HER_SIM'
@@ -67,17 +67,26 @@ const MAN_SECTIONS: HermasSection[] = [
 
 // ── Similitude map ──────────────────────────────────────────────────────────
 // Similitude 1: ch 1    | Similitude 2: ch 2    | Similitude 3: ch 3
-// Similitude 4: ch 4    | Similitude 5: ch 5-11  | Similitude 6: ch 12-17
-// Similitude 7: absent  | Similitude 8: ch 18-28 | Similitude 9: ch 29-61
+// Similitude 4: ch 4    | Similitude 5: ch 5-11  | Similitude 6: ch 12-16
+// Similitude 7: ch 17   | Similitude 8: ch 18-28 | Similitude 9: ch 29-61
 // Similitude 10: ch 62-65
+//
+// db-ch 17 (the "avenging angel/shepherd of punishment" episode — Hermas asks
+// that "the shepherd who punishes" depart his house) is Similitude 7's own
+// chapter, not part of Similitude 6 — confirmed by comparing this DB's text at
+// db-ch 17 against hermas_taylor.db's db-ch 17, which SIM_SECTIONS_TAYLOR below
+// already labels "Similitude 7". An earlier version of this map folded db-ch 17
+// into Similitude 6 (making it show 6 sub-chapters, 6.1-6.6) and Similitude 7
+// never appeared as its own heading — this was a labeling bug only, the text
+// itself was always present in the database.
 const SIM_SECTIONS: HermasSection[] = [
   { sectionName: 'Similitude 1',  sectionNum: 1,  chapters: [1] },
   { sectionName: 'Similitude 2',  sectionNum: 2,  chapters: [2] },
   { sectionName: 'Similitude 3',  sectionNum: 3,  chapters: [3] },
   { sectionName: 'Similitude 4',  sectionNum: 4,  chapters: [4] },
   { sectionName: 'Similitude 5',  sectionNum: 5,  chapters: [5,6,7,8,9,10,11] },
-  { sectionName: 'Similitude 6',  sectionNum: 6,  chapters: [12,13,14,15,16,17] },
-  // Similitude 7 is absent from this database
+  { sectionName: 'Similitude 6',  sectionNum: 6,  chapters: [12,13,14,15,16] },
+  { sectionName: 'Similitude 7',  sectionNum: 7,  chapters: [17] },
   { sectionName: 'Similitude 8',  sectionNum: 8,  chapters: [18,19,20,21,22,23,24,25,26,27,28] },
   { sectionName: 'Similitude 9',  sectionNum: 9,  chapters: Array.from({ length: 33 }, (_, i) => 29 + i) },
   { sectionName: 'Similitude 10', sectionNum: 10, chapters: [62,63,64,65] },

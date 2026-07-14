@@ -133,10 +133,18 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     el.style.top  = `${ay}px`
   })
 
+  // Explicit inline no-drag: this is portaled to document.body, so it can end up rendered
+  // over an ancestor trigger's `-webkit-app-region: drag` area (e.g. Ribbon.tsx's icon rail,
+  // which is itself a drag region) purely by screen position, regardless of the .no-drag CSS
+  // class or normal DOM paint order — Electron's drag hit-testing is computed from a
+  // periodically-scanned list of draggable screen rectangles at the browser-process level, not
+  // guaranteed to respect what's visually painted on top. Without this, every MenuPositioner-
+  // based menu opened from within a drag region (e.g. the session right-click menu) could have
+  // its buttons silently unclickable.
   return createElement('div', {
     ref,
     className,
     onMouseDown,
-    style: { position: 'fixed', left: x, top: y, zIndex: 9999, ...style },
+    style: { position: 'fixed', left: x, top: y, zIndex: 9999, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
   }, children)
 })

@@ -63,6 +63,30 @@ export default function Ribbon() {
   const openSettingsToSessions = useAppStore((s) => s.openSettingsToSessions)
   const [sessionPopoverOpen, setSessionPopoverOpen] = useState(false)
   const [zoomPopoverOpen, setZoomPopoverOpen] = useState(false)
+  // Hover-to-open/close for the zoom popover — same timing as TopBar.tsx's nav dropdown and
+  // HeaderOverflowMenu.tsx's "..." menu (350ms open delay, 320ms close delay). Click still works
+  // as an instant toggle via the trigger's own onClick below.
+  const zoomOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const zoomCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function openZoomOnHover() {
+    if (zoomCloseTimer.current) { clearTimeout(zoomCloseTimer.current); zoomCloseTimer.current = null }
+    if (zoomOpenTimer.current) clearTimeout(zoomOpenTimer.current)
+    zoomOpenTimer.current = setTimeout(() => setZoomPopoverOpen(true), 350)
+  }
+  function cancelZoomHoverOpen() {
+    if (zoomOpenTimer.current) { clearTimeout(zoomOpenTimer.current); zoomOpenTimer.current = null }
+  }
+  function scheduleZoomHoverClose() {
+    if (zoomCloseTimer.current) clearTimeout(zoomCloseTimer.current)
+    zoomCloseTimer.current = setTimeout(() => setZoomPopoverOpen(false), 320)
+  }
+  function keepZoomHoverOpen() {
+    if (zoomCloseTimer.current) { clearTimeout(zoomCloseTimer.current); zoomCloseTimer.current = null }
+  }
+  useEffect(() => () => {
+    if (zoomOpenTimer.current) clearTimeout(zoomOpenTimer.current)
+    if (zoomCloseTimer.current) clearTimeout(zoomCloseTimer.current)
+  }, [])
 
   // ── Right-click on a session chip → rename / change icon / delete / manage.
   // `mode` switches the same portaled menu between its default action list,
@@ -302,6 +326,8 @@ export default function Ribbon() {
             <Tooltip.Trigger asChild>
               <Popover.Trigger asChild>
                 <button
+                  onMouseEnter={openZoomOnHover}
+                  onMouseLeave={() => { cancelZoomHoverOpen(); scheduleZoomHoverClose() }}
                   className={`no-drag flex items-center justify-center w-8 h-8 rounded-shell transition-colors cursor-pointer ${
                     zoomPopoverOpen
                       ? 'bg-[rgb(var(--color-accent))/16] text-[rgb(var(--color-accent))]'
@@ -324,6 +350,8 @@ export default function Ribbon() {
               side="right"
               align="start"
               sideOffset={6}
+              onMouseEnter={keepZoomHoverOpen}
+              onMouseLeave={scheduleZoomHoverClose}
               className="no-drag z-[9999] rounded-shell-lg shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
             >
               <ZoomMenuRow />

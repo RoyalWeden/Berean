@@ -88,13 +88,16 @@ export function createHeadingCollapsePlugin() {
   })
 }
 
-const HEADING_FONT_SIZES_EM = [1.71, 1.43, 1.29, 1.0, 1.0, 1.0]
-
 export function headingNodeView(getPos: () => number | undefined) {
   return (node: PMNode, view: EditorView): NodeView => {
     const dom = document.createElement(`h${node.attrs.level}`)
     dom.style.display = 'flex'
-    dom.style.alignItems = 'baseline'
+    // 'center' rather than 'baseline': baseline-aligned a small arrow glyph against a much
+    // taller H1/H2 line noticeably low/off-center. Fixed 13px font-size rather than scaling
+    // with HEADING_FONT_SIZES_EM: the arrow scaling up to 1.71em for H1 made it look oversized
+    // next to the actual heading text — the arrow is a UI affordance, not part of the heading's
+    // own typography, so it reads better as one consistent size across every heading level.
+    dom.style.alignItems = 'center'
     dom.style.gap = '4px'
 
     const arrow = document.createElement('span')
@@ -102,7 +105,10 @@ export function headingNodeView(getPos: () => number | undefined) {
     arrow.contentEditable = 'false'
     arrow.style.cursor = 'pointer'
     arrow.style.userSelect = 'none'
-    arrow.style.fontSize = `${HEADING_FONT_SIZES_EM[Math.min(node.attrs.level - 1, 5)]}em`
+    arrow.style.fontSize = '17px'
+    arrow.style.lineHeight = '1'
+    arrow.style.display = 'inline-flex'
+    arrow.style.alignItems = 'center'
     const updateArrow = () => {
       const pos = getPos()
       const collapsed = pos !== undefined && headingCollapseKey.getState(view.state)?.has(pos)

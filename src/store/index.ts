@@ -510,6 +510,8 @@ export interface AppState {
   bumpNotesHomeToken: () => void
   lexiconHomeToken: number
   bumpLexiconHomeToken: () => void
+  youtubeHomeToken: number
+  bumpYouTubeHomeToken: () => void
 
   // History settings
   tabNavMaxStack: number           // max entries per-tab back/forward stack (default 100)
@@ -812,6 +814,8 @@ export const useAppStore = create<AppState>()(
       bumpNotesHomeToken: () => set((s) => ({ notesHomeToken: s.notesHomeToken + 1 })),
       lexiconHomeToken: 0,
       bumpLexiconHomeToken: () => set((s) => ({ lexiconHomeToken: s.lexiconHomeToken + 1 })),
+      youtubeHomeToken: 0,
+      bumpYouTubeHomeToken: () => set((s) => ({ youtubeHomeToken: s.youtubeHomeToken + 1 })),
 
       pushTabNav: (tabId, entry) => {
         if (get().isNavJumping) return
@@ -842,17 +846,18 @@ export const useAppStore = create<AppState>()(
         if (!activeTabId) return
         const tabStack = s.tabNavStacks[activeTabId]
         if (!tabStack || tabStack.idx < 0) return
-        // Note/Lexicon tabs can go one step further back than usual, to idx -1 —
-        // the list/search view, with nothing open. Other tab types (Bible, YouTube,
+        // Note/Lexicon/YouTube tabs can go one step further back than usual, to idx -1 —
+        // the list/search/browse view, with nothing open. Other tab types (Bible,
         // Search, PDF) have no equivalent "nothing open" state, so they stop at 0.
         const stackType = tabStack.stack[0]?.type
-        const supportsHome = stackType === 'note' || stackType === 'lexicon'
+        const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
         if (tabStack.idx <= (supportsHome ? -1 : 0)) return
         const newIdx = tabStack.idx - 1
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
         if (newIdx === -1) {
           if (stackType === 'note') get().bumpNotesHomeToken()
           else if (stackType === 'lexicon') get().bumpLexiconHomeToken()
+          else if (stackType === 'youtube') get().bumpYouTubeHomeToken()
           setTimeout(() => set({ isNavJumping: false }), 50)
           return
         }
@@ -925,10 +930,11 @@ export const useAppStore = create<AppState>()(
         const tabStack = s.tabNavStacks[activeTabId]
         if (!tabStack || tabStack.idx < 0) return
         const stackType = tabStack.stack[0]?.type
-        if (stackType !== 'note' && stackType !== 'lexicon') return
+        if (stackType !== 'note' && stackType !== 'lexicon' && stackType !== 'youtube') return
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: -1 } } })
         if (stackType === 'note') get().bumpNotesHomeToken()
-        else get().bumpLexiconHomeToken()
+        else if (stackType === 'lexicon') get().bumpLexiconHomeToken()
+        else get().bumpYouTubeHomeToken()
         setTimeout(() => set({ isNavJumping: false }), 50)
       },
 
@@ -1046,6 +1052,7 @@ export const useAppStore = create<AppState>()(
         const currentSession: Session = {
           id: state.currentSessionId,
           name: state.sessions.find(s => s.id === state.currentSessionId)?.name ?? 'Session 1',
+          icon: state.sessions.find(s => s.id === state.currentSessionId)?.icon,
           tabs: state.tabs,
           activeTabId: state.activeTabId,
         }
