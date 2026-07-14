@@ -43,6 +43,7 @@ export default function App() {
   const openSearch = useAppStore((s) => s.openSearch)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const noteFocusMode = useAppStore((s) => s.noteFocusMode)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const createTab = useAppStore((s) => s.createTab)
   const ensureTab = useAppStore((s) => s.ensureTab)
@@ -795,12 +796,18 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
       <TopBarSlotContext.Provider value={topBarSlot}>
-        <TopBar slotRef={setTopBarSlot} />
+        {/* Focus mode hides the top bar/rail/sidebar chrome entirely and centers the active
+            panel at a constrained reading width — ActivePanel itself is never unmounted (a
+            note tab shouldn't lose scroll/cursor state just from toggling this), only the
+            surrounding chrome and the extra horizontal space are removed. */}
+        {!noteFocusMode && <TopBar slotRef={setTopBarSlot} />}
         <div className="flex flex-1 overflow-hidden">
-          <Ribbon />
-          <Sidebar />
-          <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
-            <ActivePanel />
+          {!noteFocusMode && <Ribbon />}
+          {!noteFocusMode && <Sidebar />}
+          <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
+            <div className={noteFocusMode ? 'w-full max-w-3xl h-full' : 'w-full h-full'}>
+              <ActivePanel />
+            </div>
           </main>
         </div>
       </TopBarSlotContext.Provider>

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import type { EditorView } from 'prosemirror-view'
-import { toggleMark, setBlockType, wrapIn, lift } from 'prosemirror-commands'
-import { wrapInList, liftListItem, sinkListItem } from 'prosemirror-schema-list'
+import { toggleMark } from 'prosemirror-commands'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2, Link2Off,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
@@ -10,6 +9,7 @@ import { bereanSchema as schema } from './schema'
 import { toggleSuppressCommand } from './suppressRanges'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { SelectionToolbarState } from './selectionToolbarPlugin'
+import { createEditorCommands } from './editorCommands'
 
 // The floating "select text to format" toolbar — a from-scratch ProseMirror
 // equivalent of NoteEditor.tsx's selToolbar (NoteEditor.tsx:4081-4300+).
@@ -79,57 +79,27 @@ export default function SelectionToolbar({
   }, [openDropdown])
 
 
-  function isMarkActive(markName: string): boolean {
-    const type = schema.marks[markName]
-    const { from, to, empty } = view.state.selection
-    if (empty) return !!type.isInSet(view.state.storedMarks ?? view.state.selection.$from.marks())
-    return view.state.doc.rangeHasMark(from, to, type)
-  }
-
-  function run(command: (state: typeof view.state, dispatch: typeof view.dispatch) => boolean) {
-    command(view.state, view.dispatch)
-    view.focus()
-  }
+  // All command logic lives in editorCommands.ts, shared with the persistent Toolbar.tsx —
+  // this component only owns its own dropdown-open UI state and closes it after a command.
+  const cmds = createEditorCommands(view)
+  const { isMarkActive, run } = cmds
 
   function applyHighlight(color: string) {
-    const { from, to } = view.state.selection
-    view.dispatch(view.state.tr.addMark(from, to, schema.marks.highlight.create({ color })))
-    view.focus()
+    cmds.applyHighlight(color)
     setOpenDropdown('none')
   }
 
-  // Distinct from applyHighlight: this REMOVES the mark entirely rather
-  // than adding a colorless one. Previously the "no highlight" option
-  // called addMark with `color: null`, which is STILL a highlight (plain
-  // `==text==` styling) — there was no actual way to clear a highlight
-  // once applied.
   function removeHighlight() {
-    const { from, to } = view.state.selection
-    view.dispatch(view.state.tr.removeMark(from, to, schema.marks.highlight))
-    view.focus()
+    cmds.removeHighlight()
     setOpenDropdown('none')
   }
 
   function applyLink() {
-    const url = window.prompt('Link URL:')
-    if (!url) return
-    const { from, to } = view.state.selection
-    view.dispatch(view.state.tr.addMark(from, to, schema.marks.link.create({ href: url })))
-    view.focus()
+    cmds.applyLink()
   }
 
   function toggleTaskList() {
-    const cmd = wrapInList(schema.nodes.bullet_list)
-    cmd(view.state, (tr) => {
-      view.dispatch(tr)
-      const { from, to } = view.state.selection
-      const stampTr = view.state.tr
-      view.state.doc.nodesBetween(from, to, (node, pos) => {
-        if (node.type.name === 'list_item' && node.attrs.checked === null) stampTr.setNodeAttribute(pos, 'checked', false)
-      })
-      if (stampTr.docChanged) view.dispatch(stampTr)
-    })
-    view.focus()
+    cmds.toggleTaskList()
     setOpenDropdown('none')
   }
 
@@ -191,18 +161,15 @@ export default function SelectionToolbar({
         </button>
         <button
           title="Blockquote"
-          onMouseDown={() => run((state, dispatch) => lift(state, dispatch) || wrapIn(schema.nodes.blockquote)(state, dispatch))}
+          onMouseDown={cmds.toggleBlockquote}
           className={cls(false)}
         >
           <Quote size={14} />
         </button>
-        <button title="Outdent (⇧Tab)" onMouseDown={() => run(liftListItem(schema.nodes.list_item))} className={cls(false)}><IndentDecrease size={14} /></button>
-        {/* Outside a list, sinkListItem alone silently does nothing (same
-            as the keymap's Tab handling, see keymap.ts) — falls back to
-            inserting spaces so the button always visibly does SOMETHING. */}
+        <button title="Outdent (⇧Tab)" onMouseDown={cmds.outdent} className={cls(false)}><IndentDecrease size={14} /></button>
         <button
           title="Indent (Tab)"
-          onMouseDown={() => run((state, dispatch) => sinkListItem(schema.nodes.list_item)(state, dispatch) || (() => { if (dispatch) dispatch(state.tr.insertText('    ')); return true })())}
+          onMouseDown={cmds.indent}
           className={cls(false)}
         >
           <IndentIncrease size={14} />
@@ -223,11 +190,7 @@ export default function SelectionToolbar({
             ].map(({ label, level }) => (
               <button
                 key={label}
-                onMouseDown={() => {
-                  if (level === 0) run(setBlockType(schema.nodes.paragraph))
-                  else run(setBlockType(schema.nodes.heading, { level }))
-                  setOpenDropdown('none')
-                }}
+                onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
                 className={`${iconBtn} ${inactive} text-xs font-mono px-2.5 py-1`}
               >
                 {label}
@@ -238,9 +201,9 @@ export default function SelectionToolbar({
 
         {openDropdown === 'list' && (
           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
-            <button title="Bullet list" onMouseDown={() => { run(wrapInList(schema.nodes.bullet_list, { marker: '*' })); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
-            <button title="Dash list" onMouseDown={() => { run(wrapInList(schema.nodes.bullet_list, { marker: '-' })); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
-            <button title="Numbered list" onMouseDown={() => { run(wrapInList(schema.nodes.ordered_list)); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
+            <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
+            <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
+            <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
             <button title="Task list" onMouseDown={toggleTaskList} className={`${iconBtn} ${inactive}`}><CheckSquare size={14} /></button>
           </div>
         )}

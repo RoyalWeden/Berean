@@ -4,6 +4,7 @@ import type { EditorState, Transaction } from 'prosemirror-state'
 import { setBlockType, wrapIn } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { bereanSchema as schema } from './schema'
+import { useAppStore } from '@/store'
 
 // ─── Slash-command menu ─────────────────────────────────────────────────────
 // Typing "/" (at the start of a line, OR right after existing text on that
@@ -133,8 +134,23 @@ function insertTable(view: EditorView, from: number, to: number) {
   insertBlockNode(view, from, to, table)
 }
 
+// Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're
+// plain paragraph text that blockDecorations.ts recognizes and boxes once it matches a real
+// verse in the DB (async-verified). This command doesn't insert a verse itself; it clears the
+// way for the SAME live-typing flow that already exists (autocomplete.ts's verse-suggest
+// trigger, NoteEditorPM.tsx's insertVerseBlock) by (a) turning on the noteScriptureBlock
+// setting if it's off — that flow is gated behind it, and a user reaching for "/verse"
+// explicitly wants it — and (b) leaving the cursor on a fresh empty line ready to type a
+// reference, since that's what actually drives detection+fetch, not this command itself.
+function startVerseBlock(view: EditorView, from: number, to: number) {
+  if (!useAppStore.getState().noteScriptureBlock) useAppStore.getState().setNoteScriptureBlock(true)
+  view.dispatch(view.state.tr.delete(from, to))
+  view.focus()
+}
+
 export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'text', label: 'Text', description: 'Plain paragraph', keywords: ['paragraph', 'plain'], group: 'Basic blocks', run: toParagraph },
+  { id: 'verse', label: 'Scripture verse', description: 'Type a reference (e.g. Romans 14:3) to auto-fetch and box it', keywords: ['verse', 'scripture', 'bible', 'quote', 'kjv', 'lxx'], group: 'Basic blocks', run: startVerseBlock },
   { id: 'h1', label: 'Heading 1', description: 'Large section heading', keywords: ['h1', 'title'], group: 'Basic blocks', run: toHeading(1) },
   { id: 'h2', label: 'Heading 2', description: 'Medium section heading', keywords: ['h2', 'subtitle'], group: 'Basic blocks', run: toHeading(2) },
   { id: 'h3', label: 'Heading 3', description: 'Small section heading', keywords: ['h3'], group: 'Basic blocks', run: toHeading(3) },

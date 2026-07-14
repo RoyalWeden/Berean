@@ -32,8 +32,10 @@ describe('NoteEditorPM smoke test', () => {
     const el = mount({ content: '# Hello\n\nWorld paragraph.', onChange: () => {} })
     const pmRoot = el.querySelector('.ProseMirror')
     expect(pmRoot).toBeTruthy()
-    // 'h1' now renders a collapse-arrow prefix (Phase 5's headingNodeView)
-    expect(pmRoot?.querySelector('h1')?.textContent).toBe('▾Hello')
+    // 'h1' now renders a collapse-arrow prefix (Phase 5's headingNodeView) — an inline SVG
+    // chevron, not a text glyph, so textContent only carries the heading text itself.
+    expect(pmRoot?.querySelector('h1')?.textContent).toBe('Hello')
+    expect(pmRoot?.querySelector('h1 .pm-heading-collapse-arrow svg')).toBeTruthy()
     expect(pmRoot?.textContent).toContain('World paragraph.')
   })
 
@@ -180,9 +182,10 @@ describe('NoteEditorPM smoke test', () => {
     const el = mount({ content: '# Section\n\nHidden paragraph.\n\n# Next', onChange: () => {} })
     expect(el.querySelector('.ProseMirror')?.textContent).toContain('Hidden paragraph.')
     const arrow = el.querySelector('.pm-heading-collapse-arrow') as HTMLElement
-    expect(arrow.textContent).toBe('▾')
+    // Expanded state uses ChevronDown's path data; collapsed uses ChevronRight's.
+    expect(arrow.innerHTML).toContain('m6 9 6 6 6-6')
     act(() => { arrow.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
-    expect(arrow.textContent).toBe('▸')
+    expect(arrow.innerHTML).toContain('m9 18 6-6-6-6')
     const hiddenP = Array.from(el.querySelectorAll('p')).find((p) => p.textContent?.includes('Hidden paragraph.'))
     expect(hiddenP && getComputedStyle(hiddenP).display).toBe('none')
   })

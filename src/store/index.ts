@@ -197,6 +197,11 @@ export interface AppState {
   // editor — kept separate so it can be turned off there independently of the main notes.
   sidePanelScriptureBlock: boolean
   setSidePanelScriptureBlock: (v: boolean) => void
+  // Focus/Zen writing mode — hides sidebar/rail/top-bar chrome and centers the active note.
+  // A single global flag (not per-tab) since it's about the whole window's chrome, not one
+  // note's own state — toggling it while a different tab is active would be surprising.
+  noteFocusMode: boolean
+  toggleNoteFocusMode: () => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -972,6 +977,7 @@ export const useAppStore = create<AppState>()(
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
       sidePanelScriptureBlock: true,
+      noteFocusMode: false,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -1650,6 +1656,7 @@ export const useAppStore = create<AppState>()(
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setSidePanelScriptureBlock: (v) => set({ sidePanelScriptureBlock: v }),
+      toggleNoteFocusMode: () => set((s) => ({ noteFocusMode: !s.noteFocusMode })),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),

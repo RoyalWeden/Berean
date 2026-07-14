@@ -251,9 +251,11 @@ export default function TopBar({ slotRef }: { slotRef: (el: HTMLDivElement | nul
               ...tabStack.map((entry, i) => ({ kind: 'entry' as const, stackIdx: i, entry })).reverse(),
               ...(supportsHome ? [{ kind: 'home' as const }] : []),
             ]
-            const items = navDropdown.mode === 'back' ? backItems
+            const fullItems = navDropdown.mode === 'back' ? backItems
                         : navDropdown.mode === 'forward' ? fwdItems
                         : allItems
+            const items = fullItems.slice(0, 5)
+            const hasMore = fullItems.length > 5
             if (items.length === 0) {
               return <div className="px-3 py-3 text-[rgb(var(--color-text-muted))]">No history yet</div>
             }
@@ -304,6 +306,19 @@ export default function TopBar({ slotRef }: { slotRef: (el: HTMLDivElement | nul
                   )
                 })}
                 </div>
+                {hasMore && (
+                  <div className="py-1 border-t border-[rgb(var(--color-surface-4))]">
+                    <button
+                      onClick={() => {
+                        useAppStore.getState().openHistory()
+                        setNavDropdown(null)
+                      }}
+                      className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+                    >
+                      <span className="truncate">View all in History →</span>
+                    </button>
+                  </div>
+                )}
               </>
             )
           })()}

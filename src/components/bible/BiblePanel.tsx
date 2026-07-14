@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -1428,6 +1428,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }] : []),
           ]}
         />
+        {((textId === 'kjva' && currentBook?.testament === 'OT') || textId === 'lxx') && (
+          <HintTooltip label={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}>
+          <button
+            onClick={() => {
+              if (!activeTab) return
+              const target = textId === 'lxx' ? 'KJVA' : 'LXX'
+              updateTabState('scripture', activeTab.id, { translation: target })
+            }}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+          >
+            <ArrowLeftRight size={14} />
+            <span>{textId === 'lxx' ? 'KJV' : 'LXX'}</span>
+          </button>
+          </HintTooltip>
+        )}
         <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
         <button
           onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
@@ -1739,6 +1754,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onStrongsClick={handleStrongsClick}
                 onWordClick={handleWordClick}
                 onVersesLoaded={onVersesLoaded}
+                onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
               />
             )
         }

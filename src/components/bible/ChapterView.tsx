@@ -87,6 +87,9 @@ interface ChapterViewProps {
   onStrongsClick?: (num: string) => void
   onWordClick?: (word: string) => void
   onVersesLoaded?: () => void
+  /** Fired once after the scroll-to-verse effect scrolls to `targetVerse`, so the
+      caller can clear it and make the scroll a one-shot (not re-fired on remount). */
+  onTargetVerseConsumed?: () => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
 }
@@ -200,7 +203,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, compact = false }: ChapterViewProps) {
+export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, compact = false }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -310,6 +313,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!targetVerse || !containerRef.current || verses.length === 0) return
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    onTargetVerseConsumed?.()
   }, [targetVerse, verses.length])
 
   // Dismiss toolbar on outside click
