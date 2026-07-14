@@ -122,9 +122,9 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.4.5] - 2026-07-14
 
-**History, hover menus, and the Scripture side panel**
+History, hover menus, and the Scripture side panel
 - History modal now has real tabs (All / Scripture / Notes / Lexicon /
   YouTube / Search) with live counts, and shows a simple flat list instead
   of the old collapsible day/session groupings.
@@ -148,7 +148,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ## [0.4.4] - 2026-07-11
 
-**Design refresh** — Arc/Zen-inspired glassy chrome, motion, and typography
+Design refresh — Arc/Zen-inspired glassy chrome, motion, and typography
 across the shell, Bible panel, and notes editor:
 - Sliding pill/underline indicators (sidebar, tabs, right-panel tabs) instead
   of hard-cut backgrounds; frosted-glass treatment on every floating menu and
@@ -162,7 +162,7 @@ across the shell, Bible panel, and notes editor:
 - One shared highlight-color source of truth (was defined 3x and had drifted)
   and a themed red-letter color that now adapts across all 19 theme presets.
 
-**Fixes**
+Bug Fixes
 - Highlight color picker showed blank swatches instead of colors.
 - New tabs from cross-references (Strong's/wikilinks/verse refs) landed in an
   unpredictable spot instead of the end of the tab list; dragging a tab below
@@ -175,7 +175,7 @@ across the shell, Bible panel, and notes editor:
 - Presenter outline band survives zoom/tab-switching; scroll position resets
   correctly on edition switch; a mis-split Hermas Mandate 3 chapter was merged.
 
-**Sidebar/rail redesign** — replaced the old single-column sidebar with a
+Sidebar/rail redesign — replaced the old single-column sidebar with a
 slim icon rail plus a browser-style Explorer pane:
 - Rail is now the single home for History, Archived tabs, Presenter view,
   Find, Zoom, and Settings — previously scattered across the top bar's
@@ -200,7 +200,7 @@ slim icon rail plus a browser-style Explorer pane:
   rail, or window itself.
 - History modal background is fully solid instead of translucent.
 
-**More fixes**
+More fixes
 - Sidebar tab list sometimes wouldn't scroll — part of the list was inside
   Electron's window-drag region.
 - Presenter outline band could go stale (not just at zoom/tab-switch) when
