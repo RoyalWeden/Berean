@@ -124,6 +124,30 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ## [Unreleased]
 
+**History, hover menus, and the Scripture side panel**
+- History modal now has real tabs (All / Scripture / Notes / Lexicon /
+  YouTube / Search) with live counts, and shows a simple flat list instead
+  of the old collapsible day/session groupings.
+- The History button, and Back/Forward, now show a navigation preview on
+  hover instead of requiring a click.
+- Fixed Notes and Lexicon tab titles briefly flashing the previous tab's
+  title when switching between tabs.
+- Fixed double-clicking empty space in the tab bar not opening a new tab.
+- Fixed the annotation key ("i") button on KJVA-style texts being
+  unclickable — its popover was rendering clipped and invisible.
+- Zoom now also scales the top bar and the Notes/Lexicon/YouTube side
+  panel, not just the Scripture/Lexicon reading text.
+- The Scripture side panel now animates open/close instead of snapping.
+- Hover now opens every "..." menu and the rail's Zoom control, not just
+  Back/Forward/History.
+- Refreshed look for the Scripture side panel's Notes, Lexicon, and
+  Cross-references tabs: each note's assigned color now shows as a dot in
+  the notes list, and reference labels are now accent-tinted badges.
+
+---
+
+## [0.4.4] - 2026-07-11
+
 **Design refresh** — Arc/Zen-inspired glassy chrome, motion, and typography
 across the shell, Bible panel, and notes editor:
 - Sliding pill/underline indicators (sidebar, tabs, right-panel tabs) instead
@@ -192,26 +216,6 @@ slim icon rail plus a browser-style Explorer pane:
   up silently; install failures are now surfaced instead of failing
   silently; added a "last checked" timestamp and an update-available badge
   on the rail's Settings icon.
-
-**History, hover menus, and the Scripture side panel**
-- History modal now has real tabs (All / Scripture / Notes / Lexicon /
-  YouTube / Search) with live counts, and shows a simple flat list instead
-  of the old collapsible day/session groupings.
-- The History button, and Back/Forward, now show a navigation preview on
-  hover instead of requiring a click.
-- Fixed Notes and Lexicon tab titles briefly flashing the previous tab's
-  title when switching between tabs.
-- Fixed double-clicking empty space in the tab bar not opening a new tab.
-- Fixed the annotation key ("i") button on KJVA-style texts being
-  unclickable — its popover was rendering clipped and invisible.
-- Zoom now also scales the top bar and the Notes/Lexicon/YouTube side
-  panel, not just the Scripture/Lexicon reading text.
-- The Scripture side panel now animates open/close instead of snapping.
-- Hover now opens every "..." menu and the rail's Zoom control, not just
-  Back/Forward/History.
-- Refreshed look for the Scripture side panel's Notes, Lexicon, and
-  Cross-references tabs: each note's assigned color now shows as a dot in
-  the notes list, and reference labels are now accent-tinted badges.
 
 ---
 
