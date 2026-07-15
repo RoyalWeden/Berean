@@ -32,6 +32,25 @@ function hasSortOrderCol(db: ReturnType<typeof getTextDb>, textId: string): bool
   return has
 }
 
+// Per-book chapter counts for texts that store chapters_count = 0 in `books` (LXX and
+// others) — computed via a GROUP BY MAX(chapter) scan over `verses`. Chapter counts never
+// change at runtime for a given text, and getBooks() is called once per text on Advanced
+// Scripture Search mount (14 texts) — caching the computed result (not just the compiled
+// statement, since `prep()` alone still re-runs the aggregate scan every call) means each
+// text only pays this scan once per process lifetime instead of on every getBooks() call.
+const _maxChaptersCache = new Map<string, Map<string, number>>()
+function getMaxChaptersByBook(db: NonNullable<ReturnType<typeof getTextDb>>, textId: string): Map<string, number> {
+  let cached = _maxChaptersCache.get(textId)
+  if (!cached) {
+    cached = new Map(
+      (prep(db, 'SELECT book_id, MAX(chapter) as max_ch FROM verses GROUP BY book_id').all() as Array<{ book_id: string; max_ch: number }>)
+        .map((row) => [row.book_id, row.max_ch])
+    )
+    _maxChaptersCache.set(textId, cached)
+  }
+  return cached
+}
+
 type WordMode = 'all' | 'any' | 'phrase'
 
 /** Split a raw query into cleaned, FTS5-safe word tokens (strips anything that isn't
@@ -71,10 +90,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     // any other tab's IPC requests queued behind it (most visible as a hang opening Advanced
     // Scripture Search, since it fetches getBooks for all 14 texts on mount).
     if (books.some((b) => b.chapters_count === 0)) {
-      const maxChapters = new Map(
-        (db.prepare('SELECT book_id, MAX(chapter) as max_ch FROM verses GROUP BY book_id').all() as Array<{ book_id: string; max_ch: number }>)
-          .map((row) => [row.book_id, row.max_ch])
-      )
+      const maxChapters = getMaxChaptersByBook(db, textId)
       return books.map((b) => b.chapters_count === 0 ? { ...b, chapters_count: maxChapters.get(b.id) ?? 1 } : b)
     }
     return books
