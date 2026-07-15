@@ -374,8 +374,42 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const crossRefHoverRef = useRef<HTMLDivElement>(null)
   const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean } | null>(null)
   const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const noteHoverRef = useRef<HTMLDivElement>(null)
+
+  // computeHoverPlacement's y is only an ESTIMATE (based on item count × a fixed row height),
+  // computed before the popup has actually rendered — for a verse near the bottom of the
+  // chapter, if the real content is taller than estimated (wrapped note titles, long verse
+  // text), the popup can overflow past the bottom of the viewport, visually landing under/over
+  // the cursor instead of tucked at its corner. This measures the real rendered size and
+  // re-clamps both popups to the viewport, the same two-phase pattern selToolbar uses below.
+  useLayoutEffect(() => {
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    if (noteHover && noteHoverRef.current) {
+      const r = noteHoverRef.current.getBoundingClientRect()
+      let x = noteHover.x
+      let y = noteHover.y
+      if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
+      if (x < pad) x = pad
+      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
+      if (y < pad) y = pad
+      if (x !== noteHover.x || y !== noteHover.y) setNoteHover(prev => prev ? { ...prev, x, y } : null)
+    }
+    if (crossRefHover && crossRefHoverRef.current) {
+      const r = crossRefHoverRef.current.getBoundingClientRect()
+      let x = crossRefHover.x
+      let y = crossRefHover.y
+      if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
+      if (x < pad) x = pad
+      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
+      if (y < pad) y = pad
+      if (x !== crossRefHover.x || y !== crossRefHover.y) setCrossRefHover(prev => prev ? { ...prev, x, y } : null)
+    }
+  }, [noteHover, crossRefHover])
   type IndicatorMenuData = { type: 'note'; note: Note } | { type: 'verse'; ref: NoteVerseRef }
   const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenuRaw, closeMenu: closeIndicatorMenu } =
     usePositionedMenu<IndicatorMenuData>()
@@ -634,13 +668,17 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       return
     }
 
-    // Anchor to the cursor release position — avoids off-screen placement when
-    // the selection spans most of the visible text (bounding rect is huge).
+    // Anchor a corner of the toolbar right at the cursor release point (matching the
+    // below-right-then-flip pattern used by usePositionedMenu's context menus elsewhere in the
+    // app), rather than centering on the cursor — avoids off-screen placement when the selection
+    // spans most of the visible text (bounding rect is huge), and the useLayoutEffect pass below
+    // re-clamps against the toolbar's actual measured size once it's rendered.
     const pad = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const MENU_H_INIT = 260
-    let menuX = e.clientX - MENU_W / 2
+    const MENU_H_INIT = 44
+    let menuX = e.clientX
+    if (menuX + MENU_W + pad > vw) menuX = e.clientX - MENU_W
     menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))
     let menuY = e.clientY - MENU_H_INIT - pad
     if (menuY < pad) menuY = e.clientY + pad
@@ -1204,6 +1242,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               const hiddenCount = total - vnShown.length - rnShown.length
               return (
             <div
+              ref={noteHoverRef}
               className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
@@ -1304,6 +1343,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           {/* Cross-ref hover popup */}
           {crossRefHover && createPortal(
             <div
+              ref={crossRefHoverRef}
               className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}

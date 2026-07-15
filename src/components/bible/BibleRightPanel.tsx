@@ -444,7 +444,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                       onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
                       className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                     >
-                      <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">{refLabel}</span>
+                      <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">{refLabel}</span>
                       {occ.text && (() => {
                         const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
                           ? applyWordReplacer(occ.text, wordReplacerRules)
@@ -545,7 +545,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                 }}
                 className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
               >
-                <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px flex-shrink-0 mt-0.5">{entry.strongsNum}</span>
+                <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px flex-shrink-0 mt-0.5 leading-none">{entry.strongsNum}</span>
                 <div className="flex-1 min-w-0">
                   {entry.lemma && <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" dir="rtl" style={{ fontFamily: 'serif' }}>{entry.lemma} </span>}
                   {entry.transliteration && <span className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{entry.transliteration}</span>}
@@ -763,7 +763,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
-                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                                 {r.verse === 0
                                   ? `${bookName(r.bookId)} ${r.chapter}`
                                   : r.endVerse
@@ -811,7 +811,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
-                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                                 {r.verse === 0
                                   ? `${bookName(r.bookId)} ${r.chapter}`
                                   : r.endVerse
@@ -884,7 +884,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
                   className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                    <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                       {r.verse === 0
                         ? `${bookName(r.bookId)} ${r.chapter}`
                         : r.endVerse
@@ -1132,7 +1132,7 @@ function UserNotesChapterView({
               <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                 className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
-                <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                   <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                 </span>
                 <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
@@ -1802,7 +1802,7 @@ export default function BibleRightPanel({
                           </div>
                           <div className="flex items-center gap-1.5 mt-1">
                             {note.verseRef && (
-                              <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px">
+                              <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px leading-none">
                                 {formatRef(note.verseRef)}
                               </span>
                             )}
