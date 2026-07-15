@@ -1,6 +1,18 @@
 import type { IpcMain } from 'electron'
 import { getTextDb } from '../db/bible'
 
+// Cache compiled statements per text-DB instance so hot handlers (chapter/verse
+// navigation, keystroke-driven search) don't re-compile identical SQL each call.
+// Keyed by the db object, so a different textId (different db) gets its own set.
+const _stmtCache = new WeakMap<object, Map<string, any>>()
+function prep(db: NonNullable<ReturnType<typeof getTextDb>>, sql: string): any {
+  let m = _stmtCache.get(db as unknown as object)
+  if (!m) { m = new Map(); _stmtCache.set(db as unknown as object, m) }
+  let s = m.get(sql)
+  if (!s) { s = (db as any).prepare(sql); m.set(sql, s) }
+  return s
+}
+
 // Cache which text DBs have specific columns
 const _taggedColCache = new Map<string, boolean>()
 function hasTaggedCol(db: ReturnType<typeof getTextDb>, textId: string): boolean {
@@ -49,7 +61,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     const orderBy = hasSortOrderCol(db, textId)
       ? 'ORDER BY COALESCE(sort_order, 9999), rowid'
       : 'ORDER BY rowid'
-    const books = db.prepare(
+    const books = prep(db,
       `SELECT id, name, short_name, testament, chapters_count FROM books ${orderBy}`
     ).all() as Array<{ id: string; name: string; short_name: string; testament: string; chapters_count: number }>
     // LXX (and some other texts) store chapters_count = 0; compute from verses table. A single
@@ -75,13 +87,13 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     const sql = withTagged
       ? 'SELECT book_id, chapter, verse_num, text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
       : 'SELECT book_id, chapter, verse_num, text FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
-    return (db as any).prepare(sql).all(bookId, chapter)
+    return prep(db, sql).all(bookId, chapter)
   })
 
   ipcMain.handle('bible:queryVerse', (_event, bookId: string, chapter: number, verseNum: number, textId = 'kjva') => {
     const db = getTextDb(textId)
     if (!db) return null
-    return db.prepare(
+    return prep(db,
       'SELECT verse_num, text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ?'
     ).get(bookId, chapter, verseNum)
   })
@@ -100,7 +112,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
       const terms = cleanWords(trimmed)
       const seen = new Set<string>()
       const rows: unknown[] = []
-      const stmt = db.prepare(`
+      const stmt = prep(db, `
         SELECT v.book_id, v.chapter, v.verse_num, v.text
         FROM verses_fts f
         JOIN verses v ON v.id = f.rowid
@@ -129,7 +141,7 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     const ftsQ = safeFtsQuery(trimmed, wordMode === 'phrase' ? 'phrase' : 'all')
     if (!ftsQ) return []
     try {
-      return db.prepare(`
+      return prep(db, `
         SELECT v.book_id, v.chapter, v.verse_num, v.text
         FROM verses_fts f
         JOIN verses v ON v.id = f.rowid

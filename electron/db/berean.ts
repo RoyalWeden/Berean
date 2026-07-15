@@ -507,6 +507,48 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       try { db.exec(`ALTER TABLE notes ADD COLUMN idiom_data TEXT`) } catch {}
       console.log('[berean-db] v17: idiom_data column on notes')
     }
+  },
+  {
+    // FTS5 full-text index over notes(title, content) to replace the unindexed
+    // `title LIKE '%q%' OR content LIKE '%q%'` full-table scan in notes:search.
+    // External-content table (index only) kept in sync by triggers, mirroring the
+    // youtube_transcripts_fts pattern. `rebuild` backfills every existing note in
+    // one shot, so upgraded databases with pre-existing notes get indexed here.
+    version: 18,
+    up(db) {
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+          title,
+          content,
+          content='notes',
+          content_rowid='rowid',
+          tokenize='unicode61'
+        );
+
+        CREATE TRIGGER IF NOT EXISTS notes_ai
+        AFTER INSERT ON notes BEGIN
+          INSERT INTO notes_fts(rowid, title, content)
+          VALUES (new.rowid, new.title, new.content);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS notes_ad
+        AFTER DELETE ON notes BEGIN
+          INSERT INTO notes_fts(notes_fts, rowid, title, content)
+          VALUES ('delete', old.rowid, old.title, old.content);
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS notes_au
+        AFTER UPDATE ON notes BEGIN
+          INSERT INTO notes_fts(notes_fts, rowid, title, content)
+          VALUES ('delete', old.rowid, old.title, old.content);
+          INSERT INTO notes_fts(rowid, title, content)
+          VALUES (new.rowid, new.title, new.content);
+        END;
+      `)
+      // Backfill existing notes into the index (idempotent full rebuild).
+      db.exec(`INSERT INTO notes_fts(notes_fts) VALUES('rebuild')`)
+      console.log('[berean-db] v18: notes_fts FTS5 + triggers + backfill')
+    }
   }
 ]
 

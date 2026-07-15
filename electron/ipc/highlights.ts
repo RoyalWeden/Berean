@@ -2,6 +2,17 @@ import type { IpcMain } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
 
+// Cache compiled statements per DB instance (highlight get/toggle run on every
+// selection). Keyed by the db object so a close/reopen gets a fresh set.
+const _stmtCache = new WeakMap<object, Map<string, any>>()
+function prep(db: ReturnType<typeof getBereanDb>, sql: string): any {
+  let m = _stmtCache.get(db as unknown as object)
+  if (!m) { m = new Map(); _stmtCache.set(db as unknown as object, m) }
+  let s = m.get(sql)
+  if (!s) { s = (db as any).prepare(sql); m.set(sql, s) }
+  return s
+}
+
 type HighlightColor = 'yellow' | 'red' | 'green' | 'blue' | 'purple'
 
 interface DbHighlight {
@@ -20,7 +31,7 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
   // Returns: Record<verseNum, Array<{ id, color, startWord, endWord, startChar, endChar }>>
   ipcMain.handle('highlights:getChapter', (_e, bookId: string, chapter: number, textId = 'kjva') => {
     const db = getBereanDb()
-    const rows = db.prepare(`
+    const rows = prep(db,`
       SELECT id, verse_num, color, start_word, end_word, start_char, end_char, created_at
       FROM highlights
       WHERE text_id = ? AND book_id = ? AND chapter = ?
@@ -57,7 +68,7 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
     if (isCharLevel) {
       // Look for an exact char-range match
-      const existing = db.prepare(`
+      const existing = prep(db,`
         SELECT id, color FROM highlights
         WHERE text_id = ? AND book_id = ? AND chapter = ? AND verse_num = ?
           AND start_char = ? AND end_char = ?
@@ -66,15 +77,15 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
       if (existing) {
         if (existing.color === color) {
-          db.prepare('DELETE FROM highlights WHERE id = ?').run(existing.id)
+          prep(db,'DELETE FROM highlights WHERE id = ?').run(existing.id)
           return { removed: true, id: existing.id }
         }
-        db.prepare('UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
+        prep(db,'UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
         return { updated: true, id: existing.id, color }
       }
 
       const id = randomUUID()
-      db.prepare(`
+      prep(db,`
         INSERT INTO highlights (id, text_id, book_id, chapter, verse_num, color, start_word, end_word, start_char, end_char, created_at)
         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
       `).run(id, textId, bookId, chapter, verseNum, color, startChar, endChar, Date.now())
@@ -83,7 +94,7 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
     if (isWordLevel) {
       // Look for an exact word-range match (with start_char IS NULL to avoid matching char-level)
-      const existing = db.prepare(`
+      const existing = prep(db,`
         SELECT id, color FROM highlights
         WHERE text_id = ? AND book_id = ? AND chapter = ? AND verse_num = ?
           AND start_word = ? AND end_word = ? AND start_char IS NULL
@@ -92,15 +103,15 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
       if (existing) {
         if (existing.color === color) {
-          db.prepare('DELETE FROM highlights WHERE id = ?').run(existing.id)
+          prep(db,'DELETE FROM highlights WHERE id = ?').run(existing.id)
           return { removed: true, id: existing.id }
         }
-        db.prepare('UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
+        prep(db,'UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
         return { updated: true, id: existing.id, color }
       }
 
       const id = randomUUID()
-      db.prepare(`
+      prep(db,`
         INSERT INTO highlights (id, text_id, book_id, chapter, verse_num, color, start_word, end_word, start_char, end_char, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
       `).run(id, textId, bookId, chapter, verseNum, color, startWord, endWord, Date.now())
@@ -108,7 +119,7 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
     }
 
     // Verse-level: match on null start/end_word and null start/end_char
-    const existing = db.prepare(`
+    const existing = prep(db,`
       SELECT id, color FROM highlights
       WHERE text_id = ? AND book_id = ? AND chapter = ? AND verse_num = ?
         AND start_word IS NULL AND start_char IS NULL
@@ -117,15 +128,15 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
     if (existing) {
       if (existing.color === color) {
-        db.prepare('DELETE FROM highlights WHERE id = ?').run(existing.id)
+        prep(db,'DELETE FROM highlights WHERE id = ?').run(existing.id)
         return { removed: true, id: existing.id }
       }
-      db.prepare('UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
+      prep(db,'UPDATE highlights SET color = ? WHERE id = ?').run(color, existing.id)
       return { updated: true, id: existing.id, color }
     }
 
     const id = randomUUID()
-    db.prepare(`
+    prep(db,`
       INSERT INTO highlights (id, text_id, book_id, chapter, verse_num, color, start_word, end_word, start_char, end_char, created_at)
       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?)
     `).run(id, textId, bookId, chapter, verseNum, color, Date.now())
@@ -134,7 +145,7 @@ export function registerHighlightHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('highlights:remove', (_e, bookId: string, chapter: number, verseNum: number, textId = 'kjva') => {
     const db = getBereanDb()
-    db.prepare(`
+    prep(db,`
       DELETE FROM highlights WHERE text_id = ? AND book_id = ? AND chapter = ? AND verse_num = ?
     `).run(textId, bookId, chapter, verseNum)
     return { success: true }
