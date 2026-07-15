@@ -3,7 +3,7 @@ import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
-import { parseRef, isStrongsRef, getTranslationForBook, bookName } from '@/lib/parseRef'
+import { parseRef, isStrongsRef, getTranslationForBook, bookName, resolveBookToken } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
@@ -454,13 +454,15 @@ export default function FloatingSearch() {
   }
 
   if (!isCommandMode && parsedRef) {
-    const book = books.find((b) => b.id === parsedRef.bookId)
     const chapterDisplay = parsedRef.endChapter && parsedRef.endChapter > parsedRef.chapter
       ? `${parsedRef.chapter}–${parsedRef.endChapter}`
       : parsedRef.chapter
-    const label = book
-      ? `${book.name} ${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
-      : `${parsedRef.bookId} ${chapterDisplay}`
+    // Always the full canonical name (bookName(), from parseRef.ts's own book table) rather
+    // than the DB-fetched `books` list's `.name` field — that fetch can still be in flight
+    // when the user starts typing, or (for non-canonical/Pseudepigrapha books) might not be
+    // in `books` at all depending on which text is currently selected, both of which
+    // previously fell back to showing the bare 3-letter bookId ("GEN") instead of a name.
+    const label = `${bookName(parsedRef.bookId)} ${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
     const subLabel = detected
       ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${detected.textId.toUpperCase()}`
       : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
@@ -480,6 +482,27 @@ export default function FloatingSearch() {
         )
       },
     })
+  } else if (!isCommandMode && cleanQuery.trim()) {
+    // Bare book name, no chapter/verse ("Genesis", "Romans", "1 Kings") — parseRef's own
+    // regex requires a trailing chapter number to match at all, so a plain book name never
+    // produces a parsedRef. Offer chapter 1 of that book directly rather than requiring the
+    // user to also type "1" themselves. Guarded so it only fires for a token that resolves
+    // to a REAL book (not just any random text) and doesn't already look like a reference
+    // with digits in it (that case is parsedRef's job, or genuinely didn't parse for a
+    // different reason — e.g. an out-of-range chapter — and shouldn't silently become ch.1).
+    const bareBookId = !/\d/.test(cleanQuery) ? resolveBookToken(cleanQuery) : null
+    if (bareBookId) {
+      const label = `${bookName(bareBookId)} 1`
+      results.push({
+        type: 'ref',
+        label,
+        sub: 'Go to chapter',
+        action: () => {
+          addRecentSearchQuery(query.trim())
+          navigate(bareBookId, 1, undefined, undefined, getTranslationForBook(bareBookId) ?? undefined, undefined)
+        },
+      })
+    }
   }
 
   // Cross-references — shown when query is a verse ref with a verse number

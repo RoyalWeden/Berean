@@ -101,6 +101,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const setFindBarWordMode = useAppStore((s) => s.setFindBarWordMode)
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activePanelId = useAppStore((s) => s.activePanelId)
+
+  // Escape closes the find bar even when focus isn't inside its own input — FindBar.tsx
+  // already handles Escape on its input's onKeyDown, but the auto-open ("type anywhere")
+  // path can leave focus somewhere else (e.g. the triggering keystroke landed in the
+  // verse view before the bar mounted/refocused), so that per-input handler alone doesn't
+  // reliably cover every case. This is a document-level backstop that always works
+  // regardless of what currently has focus.
+  useEffect(() => {
+    if (!findBarOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeFindBar()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [findBarOpen, closeFindBar])
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
 
   // Verse-match state — populated when findBarQuery is non-empty

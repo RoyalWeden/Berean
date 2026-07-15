@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRef, getTranslationForBook, bookName, isStrongsRef } from '../parseRef'
+import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken } from '../parseRef'
 
 // ─── parseRef ─────────────────────────────────────────────────────────────────
 
@@ -153,6 +153,33 @@ describe('bookName', () => {
 
   it('falls back to the ID for unknown books', () => {
     expect(bookName('UNKNOWN')).toBe('UNKNOWN')
+  })
+})
+
+// ─── resolveBookToken (fuzzy misspelling fallback) ────────────────────────────
+
+describe('resolveBookToken misspelling fallback', () => {
+  it('resolves common misspellings via edit-distance fallback', () => {
+    expect(resolveBookToken('Genesys')).toBe('GEN')
+    // Bare "Corinthans" (no numeral) is genuinely ambiguous between 1/2 Corinthians and
+    // correctly does NOT resolve — the numeral is required, same as typing it correctly.
+    expect(resolveBookToken('1 Corinthans')).toBe('1CO')
+    expect(resolveBookToken('Deuteronmy')).toBe('DEU')
+    expect(resolveBookToken('Philipians')).toBe('PHP')
+    expect(resolveBookToken('Ecclesiates')).toBe('ECC')
+    expect(resolveBookToken('Revelaton')).toBe('REV')
+  })
+
+  it('does not fuzzy-match short/ambiguous tokens', () => {
+    // 3-char tokens stay below the fuzzy-match length floor — prefix matching
+    // (already covers real 3-letter abbreviations) is safer here than fuzzy.
+    expect(resolveBookToken('xyz')).toBe(null)
+  })
+
+  it('still resolves exact and prefix matches unaffected by the fuzzy addition', () => {
+    expect(resolveBookToken('gen')).toBe('GEN')
+    expect(resolveBookToken('john')).toBe('JHN')
+    expect(resolveBookToken('revela')).toBe('REV')
   })
 })
 
