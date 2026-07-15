@@ -1474,7 +1474,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               // same-tab translation switch.
               const el = getScrollEl()
               if (el) pendingScrollRef.current = el.scrollTop
-              updateTabState('scripture', activeTab.id, { translation: target })
+              // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter
+              // divisions between KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps
+              // 114-115) — map the chapter, don't just carry the number over unchanged.
+              const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
+              updateTabState('scripture', activeTab.id, {
+                translation: target,
+                chapter: mappedChapter,
+                targetVerse: undefined,
+                endVerse: undefined,
+              })
             }}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
           >
