@@ -9,10 +9,17 @@ import log from 'electron-log'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
-const EARLY_LOG = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'berean-startup.log')
+const EARLY_LOG_DIR = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data')
+const EARLY_LOG = join(EARLY_LOG_DIR, 'berean-startup.log')
+// Still write synchronously (so a crash moments later can't lose the last line),
+// but only mkdir once — the per-call mkdirSync was redundant disk IO on every log line.
+let earlyLogDirReady = false
 function earlyLog(msg: string) {
   try {
-    mkdirSync(join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data'), { recursive: true })
+    if (!earlyLogDirReady) {
+      mkdirSync(EARLY_LOG_DIR, { recursive: true })
+      earlyLogDirReady = true
+    }
     appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] ${msg}\n`)
   } catch { /* sandbox may block this pre-ready; tolerate */ }
 }
@@ -106,18 +113,25 @@ log.info(`Berean starting — version=${app.getVersion()} packaged=${app.isPacka
 log.info(`versions: electron=${process.versions.electron} chrome=${process.versions.chrome} node=${process.versions.node}`)
 
 // On startup, surface any crash report left in the container from a previous run.
-try {
-  const { readdirSync, readFileSync, statSync } = require('fs') as typeof import('fs')
-  const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
-  const files = readdirSync(crashDir).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
-  for (const f of files) {
-    const full = join(crashDir, f)
-    const age = Date.now() - statSync(full).mtimeMs
-    if (age < 5 * 60 * 1000) { // only crashes from the last 5 min
-      earlyLog(`[prev-crash-report] ${f}: ${readFileSync(full, 'utf8').slice(0, 800)}`)
+// These reports are from a PRIOR process already on disk, so reading them is not
+// needed to start the app — only to log them. Run async + deferred (see the call in
+// app.whenReady, after createWindow) so the readdir/stat/readFile scan never blocks
+// cold boot. This process's own crashes are still captured synchronously by earlyLog
+// and the uncaughtException/unhandledRejection handlers above.
+async function reportPreviousCrashReports(): Promise<void> {
+  try {
+    const { readdir, readFile, stat } = await import('fs/promises')
+    const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
+    const files = (await readdir(crashDir)).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
+    for (const f of files) {
+      const full = join(crashDir, f)
+      const age = Date.now() - (await stat(full)).mtimeMs
+      if (age < 5 * 60 * 1000) { // only crashes from the last 5 min
+        earlyLog(`[prev-crash-report] ${f}: ${(await readFile(full, 'utf8')).slice(0, 800)}`)
+      }
     }
-  }
-} catch { /* dir may not exist yet */ }
+  } catch { /* dir may not exist yet */ }
+}
 
 // MAS builds: the App Store owns updates — electron-updater must be disabled entirely.
 // process.mas is set to true by Electron when running inside the Mac App Store sandbox.
@@ -837,6 +851,10 @@ app.whenReady().then(async () => {
   createWindow()
   earlyLog('createWindow() returned')
   log.info('createWindow() returned')
+
+  // Fire-and-forget: scan for and log any crash report from a previous run without
+  // blocking boot (the scan is diagnostic-only — see reportPreviousCrashReports).
+  void reportPreviousCrashReports()
 
   // Merge the bundled YouTube seed AFTER the window exists and has painted, so a
   // fresh install / seed-version bump (the only cases where this does real work —
