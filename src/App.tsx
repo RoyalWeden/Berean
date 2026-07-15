@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { useAppStore } from '@/store'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
@@ -9,19 +10,31 @@ import ActivePanel from '@/components/shell/ActivePanel'
 import TopBar from '@/components/shell/TopBar'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
-import SettingsModal from '@/components/settings/SettingsModal'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
 import CrashReport from '@/components/shell/CrashReport'
 import TabSwitcher from '@/components/shell/TabSwitcher'
-import HistoryModal from '@/components/shell/HistoryModal'
 import BgImportProgress from '@/components/shell/BgImportProgress'
-import ImportModal from '@/components/settings/ImportModal'
-import Onboarding from '@/components/shell/Onboarding'
-import TasksPanel from '@/components/shell/TasksPanel'
 import PresenterControls from '@/components/shell/PresenterControls'
 import type { SpaceId, Tab } from '@/types'
 
+// Heavy, rarely-opened surfaces are code-split so they aren't parsed/evaluated
+// as part of the initial bundle — each only loads when first opened.
+const SettingsModal = lazy(() => import('@/components/settings/SettingsModal'))
+const HistoryModal = lazy(() => import('@/components/shell/HistoryModal'))
+const ImportModal = lazy(() => import('@/components/settings/ImportModal'))
+const Onboarding = lazy(() => import('@/components/shell/Onboarding'))
+const TasksPanel = lazy(() => import('@/components/shell/TasksPanel'))
+
 interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab }
+
+// Mounts children (inside Suspense) once `when` first becomes true, then keeps
+// them mounted — so the dynamic import fires only on first open, but close
+// animations / internal open-state handling still work exactly as before.
+function LazyOnce({ when, children }: { when: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(when)
+  if (when && !mounted) setMounted(true)
+  return mounted ? <Suspense fallback={null}>{children}</Suspense> : null
+}
 
 export default function App() {
   // DOM node for the top bar's portal slot — set once TopBar mounts, consumed
@@ -72,6 +85,13 @@ export default function App() {
   const openImportBibleGateway = useAppStore((s) => s.openImportBibleGateway)
   const openImportESword = useAppStore((s) => s.openImportESword)
   const setUpdateStatus = useAppStore((s) => s.setUpdateStatus)
+  // Open-state flags gate the lazy-loaded modals/panels so their chunks only
+  // load on first open (see LazyOnce below).
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
+  const historyOpen = useAppStore((s) => s.historyOpen)
+  const importModalOpen = useAppStore((s) => s.importModalOpen)
+  const onboardingOpen = useAppStore((s) => s.onboardingOpen)
+  const tasksVisible = useAppStore((s) => s.tasksVisible)
 
   // Sync viewer window with active tab state
   useViewerSync()
@@ -830,7 +850,7 @@ export default function App() {
       </TopBarSlotContext.Provider>
       <FloatingSearch />
       <PresenterControls />
-      <SettingsModal />
+      <LazyOnce when={settingsOpen}><SettingsModal /></LazyOnce>
       <MarkdownReferenceModal />
       <CrashReport />
       {switcherOpen && (
@@ -845,11 +865,11 @@ export default function App() {
           onClose={() => updateSwitcher(false, 0)}
         />
       )}
-      <HistoryModal />
-      <ImportModal />
+      <LazyOnce when={historyOpen}><HistoryModal /></LazyOnce>
+      <LazyOnce when={importModalOpen}><ImportModal /></LazyOnce>
       <BgImportProgress />
-      <Onboarding />
-      <TasksPanel />
+      <LazyOnce when={onboardingOpen}><Onboarding /></LazyOnce>
+      <LazyOnce when={tasksVisible}><TasksPanel /></LazyOnce>
     </div>
   )
 }

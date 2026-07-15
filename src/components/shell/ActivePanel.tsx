@@ -1,13 +1,17 @@
+import { lazy, Suspense } from 'react'
 import { useAppStore } from '@/store'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
-import YouTubeTab from '@/components/youtube/YouTubeTab'
 import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import { BookOpen } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// YouTubeTab is large (~2.6k lines w/ webview wiring) and only needed once a
+// YouTube tab exists — code-split so it stays out of the initial bundle.
+const YouTubeTab = lazy(() => import('@/components/youtube/YouTubeTab'))
 
 function EmptyState() {
   return (
@@ -44,7 +48,9 @@ export default function ActivePanel() {
           className={`absolute inset-0 ${isYouTubeActive ? 'z-10' : 'invisible pointer-events-none'}`}
         >
           <ErrorBoundary label="YouTube error">
-            <YouTubeTab />
+            <Suspense fallback={null}>
+              <YouTubeTab />
+            </Suspense>
           </ErrorBoundary>
         </div>
       )}

@@ -525,10 +525,13 @@ app.whenReady().then(async () => {
 
   // Open app DB and run migrations before registering IPC handlers
   try {
-    const db = getBereanDb()
+    getBereanDb()
     earlyLog('berean.db opened OK')
     log.info('berean.db opened')
-    mergeYouTubeSeed(db)
+    // NOTE: mergeYouTubeSeed is intentionally NOT run here. On a fresh install /
+    // seed-version bump it attaches a 196MB seed DB and runs bulk inserts
+    // synchronously, which would block first paint. It's deferred until after
+    // the window has rendered (see below, following createWindow()).
   } catch (err) {
     earlyLog(`berean.db FAILED: ${err}`)
     log.error('Failed to open berean.db:', err)
@@ -834,6 +837,19 @@ app.whenReady().then(async () => {
   createWindow()
   earlyLog('createWindow() returned')
   log.info('createWindow() returned')
+
+  // Merge the bundled YouTube seed AFTER the window exists and has painted, so a
+  // fresh install / seed-version bump (the only cases where this does real work —
+  // it short-circuits to one cheap SELECT otherwise) doesn't block first paint.
+  // Runs once, after the renderer's initial load.
+  mainWindow?.webContents.once('did-finish-load', () => {
+    try {
+      mergeYouTubeSeed(getBereanDb())
+      log.info('mergeYouTubeSeed completed (post-window)')
+    } catch (err) {
+      log.error('mergeYouTubeSeed failed (post-window):', err)
+    }
+  })
 
   // Wire up auto-updater events now that mainWindow exists.
   // Skip entirely for MAS — the App Store handles all updates.
