@@ -676,7 +676,12 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     const pad = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const MENU_H_INIT = 44
+    // The toolbar itself has 3 rows of highlight-color dots plus 4 action rows below (copy
+    // verse/reference/selection, add note) — roughly 200px tall, NOT a single-row bubble. Using
+    // too small an estimate here meant the first-paint placement badly undershot near the
+    // bottom of the viewport; the useLayoutEffect re-clamp below then had to yank the toolbar
+    // far from the cursor to keep it on screen, which read as "the corner isn't at my cursor."
+    const MENU_H_INIT = 210
     let menuX = e.clientX
     if (menuX + MENU_W + pad > vw) menuX = e.clientX - MENU_W
     menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))

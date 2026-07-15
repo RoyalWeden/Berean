@@ -92,7 +92,7 @@ export function WikilinkPopup({
             onMouseEnter={() => onHoverIdx(i)}
             className={`w-full text-left px-3 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
               i === activeIdx
-                ? 'bg-[rgb(var(--color-accent))/18] text-[rgb(var(--color-text-primary))] border-l-2 border-[rgb(var(--color-accent))]'
+                ? 'bg-[rgb(var(--color-accent))]/20 text-[rgb(var(--color-text-primary))] border-l-2 border-[rgb(var(--color-accent))]'
                 : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] border-l-2 border-transparent'
             }`}
           >
@@ -153,7 +153,7 @@ export function SlashCommandPopup({
                 onMouseEnter={() => onHoverIdx(idx)}
                 className={`w-full text-left px-3 py-1.5 text-xs cursor-pointer transition-colors flex items-center gap-2.5 border-l-2 ${
                   idx === activeIdx
-                    ? 'bg-[rgb(var(--color-accent))/16] border-l-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))]'
+                    ? 'bg-[rgb(var(--color-accent))]/15 border-l-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))]'
                     : 'border-l-transparent text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))]'
                 }`}
               >

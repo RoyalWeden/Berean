@@ -515,7 +515,13 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     }
   }
 
-  if (loading) {
+  // Only show the skeleton on a genuine first load (no verses at all yet) — reusing it for
+  // every chapter/translation switch is what caused the "flash" some switches showed: the
+  // query (a local SQLite read) usually resolves within a frame or two, so the skeleton would
+  // mount, paint, then immediately get replaced, which is only visible depending on exact
+  // query/paint timing (hence "doesn't always happen"). Keeping the previous verses on screen
+  // until the new ones are ready avoids the flash entirely.
+  if (loading && verses.length === 0) {
     return (
       <div className="px-8 py-6 space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
