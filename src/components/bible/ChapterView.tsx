@@ -90,6 +90,12 @@ interface ChapterViewProps {
   /** Fired once after the scroll-to-verse effect scrolls to `targetVerse`, so the
       caller can clear it and make the scroll a one-shot (not re-fired on remount). */
   onTargetVerseConsumed?: () => void
+  /** Fired when a chapter/translation switch has been loading long enough (200ms) to be
+      worth surfacing — lets the caller show a small indicator near the controls that
+      triggered the switch (e.g. the LXX/KJV button), which is more visible than anything
+      placed inside the scrollable verse list itself. Always fired with `false` once the
+      load finishes, even if it never crossed the threshold. */
+  onSlowLoadChange?: (loading: boolean) => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
 }
@@ -203,7 +209,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, compact = false }: ChapterViewProps) {
+export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, compact = false }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -222,6 +228,11 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
   const [loading, setLoading] = useState(true)
+  // Shown only once a chapter/translation switch has been in flight longer than a beat —
+  // most loads are near-instant (local SQLite), so this stays hidden for those; it's just a
+  // signal for the rare slower ones (cold cache, a big chapter, translation switch under load)
+  // so the UI doesn't look unresponsive with nothing on screen changing.
+  const [showSlowLoadIndicator, setShowSlowLoadIndicator] = useState(false)
   const [multiToolbar, setMultiToolbar] = useState<MultiVerseToolbar | null>(null)
   // Flash-highlight for the verse just navigated to (e.g. from search) — kept alive on a timer,
   // independent of `targetVerse` itself, which the parent clears right after the scroll fires
@@ -234,12 +245,17 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   useEffect(() => { versesRef.current = verses }, [verses])
   const highlightsRef = useRef(highlights)
   useEffect(() => { highlightsRef.current = highlights }, [highlights])
+  const onSlowLoadChangeRef = useRef(onSlowLoadChange)
+  useEffect(() => { onSlowLoadChangeRef.current = onSlowLoadChange }, [onSlowLoadChange])
 
   useEffect(() => {
     setLoading(true)
+    const slowTimer = setTimeout(() => { setShowSlowLoadIndicator(true); onSlowLoadChangeRef.current?.(true) }, 200)
     window.bible.queryChapter(bookId, chapter, textId)
       .then((data) => { setVerses(data); setLoading(false) })
       .catch(() => setLoading(false))
+      .finally(() => { clearTimeout(slowTimer); setShowSlowLoadIndicator(false); onSlowLoadChangeRef.current?.(false) })
+    return () => clearTimeout(slowTimer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId, chapter, textId])
 
@@ -380,7 +396,9 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     return () => document.removeEventListener('keydown', onKey)
   }, [multiToolbar, wordReplacerEnabled, wordReplacerRules, textId])
 
-  const handleContainerMouseUp = useCallback(() => {
+  const handleContainerMouseUp = useCallback((e: React.MouseEvent) => {
+    const clientX = e.clientX
+    const clientY = e.clientY
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !containerRef.current) return
     const range = sel.getRangeAt(0)
@@ -409,9 +427,11 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (verseSelections.length < 2) return
     const intersecting = verseSelections.map((s) => s.vn)
 
-    // Pass cursor-adjacent position; MenuPositioner clamps all 4 corners.
-    const rect = range.getBoundingClientRect()
-    setMultiToolbar({ x: rect.left + rect.width / 2, y: rect.top, verseNums: intersecting, verseSelections })
+    // Anchor at the actual cursor release point, not the selection's bounding-box center/top —
+    // for a multi-line/multi-verse selection that bbox can be tall and wide, so its center-top
+    // often lands nowhere near where the mouse actually is. MenuPositioner clamps all 4 corners
+    // to the viewport regardless.
+    setMultiToolbar({ x: clientX, y: clientY, verseNums: intersecting, verseSelections })
   }, [])
 
   // Remove/split highlights that overlap [sc, ec] in a single verse
@@ -546,7 +566,16 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   }
 
   return (
-    <div ref={containerRef} className={`berean-scripture-text ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
+    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
+
+      {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
+          columns) — sticky so it stays visible regardless of scroll position. */}
+      {showSlowLoadIndicator && (
+        <div className="sticky top-2 z-10 float-right -mt-1 -mr-1 flex items-center gap-1.5 px-2 py-1 rounded-full bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-md text-[10px] text-[rgb(var(--color-text-muted))]">
+          <span className="w-3 h-3 rounded-full border-2 border-[rgb(var(--color-accent))] border-t-transparent animate-spin" />
+          Loading…
+        </div>
+      )}
 
       {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
       {chapterSources.length > 0 && (
