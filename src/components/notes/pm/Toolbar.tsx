@@ -2,18 +2,21 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from 'prosemirror-view'
 import { TextSelection } from 'prosemirror-state'
+import { deleteTable } from 'prosemirror-tables'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
-  Table2, Minus, BookOpen, Heading1, Heading2, Heading3,
+  Table2, Minus, BookOpen, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
 import { createEditorCommands } from './editorCommands'
+import { insertBlockNode, buildEmptyTable } from './slashCommands'
+import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
 
-type DropdownKind = 'type' | 'list' | 'highlight'
+type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
 
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
@@ -134,21 +137,37 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
       <button title="Indent (Tab)" onMouseDown={cmds.indent} className={cls(false)}><IndentIncrease size={14} /></button>
 
       {sep}
-      <button title="Table" onMouseDown={() => run((state, dispatch) => {
-        if (!dispatch) return false
-        const cell = () => schema.nodes.table_cell.create()
-        const header = () => schema.nodes.table_header.create()
-        const headerRow = schema.nodes.table_row.create(null, [header(), header()])
-        const bodyRow = schema.nodes.table_row.create(null, [cell(), cell()])
-        const table = schema.nodes.table.create(null, [headerRow, bodyRow])
-        dispatch(state.tr.replaceSelectionWith(table))
-        return true
-      })} className={cls(false)}><Table2 size={14} /></button>
-      <button title="Divider" onMouseDown={() => run((state, dispatch) => {
-        if (!dispatch) return false
-        dispatch(state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()))
-        return true
-      })} className={cls(false)}><Minus size={14} /></button>
+      {/* Insert table: reuses insertBlockNode (slashCommands.ts) rather than the raw
+          `replaceSelectionWith` this used before — replaceSelectionWith doesn't split the
+          enclosing paragraph the way a block-level table needs, so inserting mid-paragraph
+          silently produced a malformed/uneditable result. insertBlockNode already handles
+          this correctly (same helper the working /table slash command uses). */}
+      <button
+        title="Table"
+        onMouseDown={() => {
+          const { from, to } = editorView.state.selection
+          insertBlockNode(editorView, from, to, buildEmptyTable())
+        }}
+        className={cls(false)}
+      ><Table2 size={14} /></button>
+      {/* Table row/column management — only meaningful with the cursor inside an existing
+          table; addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops (return
+          false, dispatch nothing) outside one, so this dropdown is always safe to show. */}
+      <button
+        title="Table row/column"
+        onMouseDown={(e) => openDropdownAt('table', e)}
+        className={`${iconBtn} ${openDropdown === 'table' ? active : inactive}`}
+      >
+        <Rows3 size={14} />
+      </button>
+      <button
+        title="Divider"
+        onMouseDown={() => {
+          const { from, to } = editorView.state.selection
+          insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
+        }}
+        className={cls(false)}
+      ><Minus size={14} /></button>
       {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not a
           node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
           reasoning) — this button just makes sure the detection setting is on and focuses
@@ -213,6 +232,36 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
                 className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
               >
                 <Ban size={11} /> Remove highlight
+              </button>
+            </div>
+          )}
+
+          {openDropdown === 'table' && (
+            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex flex-col gap-0.5 min-w-[160px]">
+              <button
+                onMouseDown={() => { run(addRowAfter); setOpenDropdown('none') }}
+                className={`${iconBtn} ${inactive} flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
+              >
+                <Rows3 size={13} /> Add row below
+              </button>
+              <button
+                onMouseDown={() => { run(deleteRow); setOpenDropdown('none') }}
+                className={`${iconBtn} ${inactive} flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
+              >
+                <Rows3 size={13} /> Delete row
+              </button>
+              <button
+                onMouseDown={() => { run(deleteColumn); setOpenDropdown('none') }}
+                className={`${iconBtn} ${inactive} flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
+              >
+                <Columns3 size={13} /> Delete column
+              </button>
+              <div className="h-px bg-[rgb(var(--color-surface-4))] my-0.5" />
+              <button
+                onMouseDown={() => { run(deleteTable); setOpenDropdown('none') }}
+                className={`${iconBtn} text-red-400 hover:bg-red-500/15 flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
+              >
+                <Trash2 size={13} /> Delete table
               </button>
             </div>
           )}

@@ -709,6 +709,17 @@ export default function App() {
         // ── Cmd+H → open History (app 'hide' is remapped to ⌘⇧H) ────────
         e.preventDefault()
         useAppStore.getState().openHistory()
+      } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        // ── Cmd+P → open the print/download preview for the active note ──
+        // Only meaningful in the Notes space; printPreviewOpen/activeNote are local state
+        // in NotesPanel.tsx (not the global store), so this reaches it via the same
+        // custom-window-event pattern already used for berean:openDailyNote etc. above.
+        // preventDefault() unconditionally either way — otherwise an unhandled Cmd+P falls
+        // through to Electron's own native print dialog, which isn't what any space wants.
+        e.preventDefault()
+        if (useAppStore.getState().activeSpace === 'notes') {
+          window.dispatchEvent(new CustomEvent('berean:openPrintPreview'))
+        }
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
         // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
         e.preventDefault()
@@ -796,11 +807,17 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
       <TopBarSlotContext.Provider value={topBarSlot}>
-        {/* Focus mode hides the top bar/rail/sidebar chrome entirely and centers the active
-            panel at a constrained reading width — ActivePanel itself is never unmounted (a
-            note tab shouldn't lose scroll/cursor state just from toggling this), only the
-            surrounding chrome and the extra horizontal space are removed. */}
-        {!noteFocusMode && <TopBar slotRef={setTopBarSlot} />}
+        {/* Focus mode hides the rail/sidebar chrome and centers the active panel at a
+            constrained reading width — ActivePanel itself is never unmounted (a note tab
+            shouldn't lose scroll/cursor state just from toggling this), only the surrounding
+            chrome and the extra horizontal space are removed. TopBar stays mounted even in
+            Focus mode (an earlier version hid it too) — the note's own title/header controls
+            portal INTO TopBar's slot (TabHeaderPortal.tsx), so unmounting TopBar silently
+            dropped the note title and any tab-specific controls with no way to see or rename
+            the note while focused, which read as "doesn't look right" more than "distraction-
+            free." Only the left-side app chrome (sidebar app-switcher icons, collapse toggle,
+            back/forward) is what Focus mode is actually about hiding. */}
+        <TopBar slotRef={setTopBarSlot} />
         <div className="flex flex-1 overflow-hidden">
           {!noteFocusMode && <Ribbon />}
           {!noteFocusMode && <Sidebar />}

@@ -105,7 +105,7 @@ function toCallout(calloutType: string) {
 // instead, the (unwidened) range still correctly splits the paragraph at
 // that point via PM's normal fitting behavior — "Existing text /table"
 // becomes "Existing text" as its own paragraph, followed by the table.
-function insertBlockNode(view: EditorView, from: number, to: number, node: PMNode) {
+export function insertBlockNode(view: EditorView, from: number, to: number, node: PMNode) {
   const { doc } = view.state
   const $from = doc.resolve(from)
   const $to = doc.resolve(to)
@@ -125,13 +125,16 @@ function insertHorizontalRule(view: EditorView, from: number, to: number) {
 // prosemirror-tables ships no "build a default table" helper — table_cell/
 // table_header hold `inline*` content directly (schema.ts's cellContent
 // config), so an empty cell is just `create()` with no child paragraph.
-function insertTable(view: EditorView, from: number, to: number) {
+export function buildEmptyTable(): PMNode {
   const cell = () => schema.nodes.table_cell.create()
   const header = () => schema.nodes.table_header.create()
   const headerRow = schema.nodes.table_row.create(null, [header(), header()])
   const bodyRow = schema.nodes.table_row.create(null, [cell(), cell()])
-  const table = schema.nodes.table.create(null, [headerRow, bodyRow])
-  insertBlockNode(view, from, to, table)
+  return schema.nodes.table.create(null, [headerRow, bodyRow])
+}
+
+function insertTable(view: EditorView, from: number, to: number) {
+  insertBlockNode(view, from, to, buildEmptyTable())
 }
 
 // Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're

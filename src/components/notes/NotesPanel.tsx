@@ -181,6 +181,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
   }, [])
 
+  // Cmd+P (App.tsx) — same routing pattern as berean:openNotesFindBar/presenterPushNote
+  // above, since printPreviewOpen/activeNote are local state only this panel has.
+  useEffect(() => {
+    function onOpenPrintPreview() {
+      if (activeNoteRef.current) setPrintPreviewOpen(true)
+    }
+    window.addEventListener('berean:openPrintPreview', onOpenPrintPreview)
+    return () => window.removeEventListener('berean:openPrintPreview', onOpenPrintPreview)
+  }, [])
+
   // Find bar is visible only when a note is open (note view, not the notes list)
   const findBarVisible = localFindOpen && activeNote !== null
   const activeListFindQuery = ''  // notes list search uses the dedicated search bar, not the findbar
