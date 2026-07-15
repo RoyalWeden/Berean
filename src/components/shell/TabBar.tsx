@@ -523,8 +523,8 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
                   no-drag group relative flex items-center gap-2 rounded-shell px-2 py-1.5
-                  cursor-grab select-none transition-colors duration-100
-                  ${isDragging ? 'opacity-40 scale-95' : ''}
+                  select-none transition-colors duration-100
+                  ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
                   ${isCrossSpaceTarget
                     ? 'ring-2 ring-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
                     : isActive
