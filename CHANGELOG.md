@@ -122,6 +122,66 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.6] - 2026-07-15
+
+Notes editor
+- New persistent formatting toolbar, including table row/column management
+  (add row, delete row, delete column, delete table).
+- Fixed the Table and Divider toolbar buttons producing a malformed,
+  uneditable table instead of a real one.
+- `Cmd+P` now opens print/download preview for the active note directly.
+- Fixed Focus/Zen mode hiding the note's own title and header controls along
+  with the sidebar, leaving no way to see or rename the note while focused.
+- Fixed toolbar dropdowns (heading type, highlight, list) rendering invisible.
+- Print/PDF export now shows verse/Strong's reference badges as plain bold
+  text instead of clickable-looking pills.
+- Bullet and numbered lists now share the same indent step.
+
+Scripture reading
+- Added a quick LXX ⇄ KJV switch button next to the Strong's toggle.
+- Fixed both the quick switch button and the translation picker landing on
+  the wrong chapter for Psalms, Jeremiah, Joel, and Malachi, where LXX and
+  KJV/Hebrew divide chapters differently (e.g. KJV Psalm 116 splits across
+  LXX Psalms 114-115).
+- Fixed the text-selection toolbar (single- and multi-verse) not anchoring
+  near the actual cursor, especially near the bottom of the screen.
+- Fixed a brief loading-skeleton flash on every chapter/translation switch;
+  added a small loading indicator for switches that take longer than usual.
+- Strong's-number search now caps at 200 results with a "refine your search"
+  prompt instead of rendering 1,000+ rows for common numbers.
+- Fixed Escape not always closing the find bar.
+- Floating search now recognizes common misspelled book names (e.g.
+  "Genesys", "Philipians", "Revelaton").
+
+Notes & History
+- Fixed dragging an empty/unsaved note onto another tab silently deleting it.
+- Fixed the daily-note calendar briefly flashing an empty note before
+  showing the real one.
+- Right-click menu on verse/cross-reference indicators no longer closes
+  itself against the hover preview; added Copy verse / Copy reference.
+- Fixed the History modal's "All" tab showing no icon; back/forward dropdown
+  now caps at 5 entries with a "View all in History" link.
+
+Performance
+- Long chapters (e.g. Psalm 119) and highlight/find-box interactions are now
+  noticeably lighter.
+- Notes search is now indexed instead of scanning every note on each search.
+- Faster startup: rarely-opened screens (Settings, YouTube, Onboarding,
+  History, Import) no longer load until first opened, and first-launch data
+  setup no longer blocks the window from appearing.
+- Vault auto-export now only rewrites notes that actually changed, instead
+  of every note every 5 minutes.
+- Reduced startup disk activity.
+
+Also
+- Tab bar shows a pointer cursor at rest and a grabbing-hand cursor only
+  while actively dragging a tab.
+- Smoother side-panel resize dragging.
+- Tighter verse/Strong's reference badge sizing in the Notes/Lexicon side
+  panel.
+
+---
+
 ## [0.4.5] - 2026-07-14
 
 History, hover menus, and the Scripture side panel
