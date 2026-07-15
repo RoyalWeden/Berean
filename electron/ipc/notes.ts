@@ -251,7 +251,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
-  ipcMain.handle('notes:getAll', (_event, limit = 100000, offset = 0) => {
+  ipcMain.handle('notes:getAll', (_event, limit = 200, offset = 0) => {
     const rows = getBereanDb()
       .prepare('SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?')
       .all(limit, offset) as NoteRow[]
