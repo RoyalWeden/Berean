@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme } from 'electron'
 import type Electron from 'electron'
 import { join } from 'path'
-import { appendFileSync, mkdirSync } from 'fs'
+import { mkdirSync, openSync, writeSync } from 'fs'
 import os from 'os'
 import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -11,28 +11,36 @@ import log from 'electron-log'
 // before app.ready (before electron-log knows its path).
 const EARLY_LOG_DIR = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data')
 const EARLY_LOG = join(EARLY_LOG_DIR, 'berean-startup.log')
-// Still write synchronously (so a crash moments later can't lose the last line),
-// but only mkdir once — the per-call mkdirSync was redundant disk IO on every log line.
-let earlyLogDirReady = false
+// Still write synchronously (so a crash moments later can't lose the last line —
+// electron-log isn't usable this early, so these breadcrumbs are the only on-disk
+// record of a pre-ready native crash). But hold ONE append-mode fd for the whole
+// process instead of re-opening the file on every line: appendFileSync does
+// open()+write()+close() every call, so a persistent fd + writeSync keeps the exact
+// same synchronous durability while dropping the redundant open/close syscalls from
+// each of the ~20 boot breadcrumbs.
+let earlyLogFd: number | null = null
 function earlyLog(msg: string) {
   try {
-    if (!earlyLogDirReady) {
+    if (earlyLogFd === null) {
       mkdirSync(EARLY_LOG_DIR, { recursive: true })
-      earlyLogDirReady = true
+      earlyLogFd = openSync(EARLY_LOG, 'a')
     }
-    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+    writeSync(earlyLogFd, `[${new Date().toISOString()}] ${msg}\n`)
   } catch { /* sandbox may block this pre-ready; tolerate */ }
 }
 earlyLog('main.ts: module loaded')
-// Verify the early log is actually writing by immediately reading it back.
-// If the file exists, we know the container path is correct.
-try {
-  const { readFileSync } = require('fs') as typeof import('fs')
-  const contents = readFileSync(EARLY_LOG, 'utf8')
-  if (!contents.includes('module loaded')) {
-    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] WARNING: log verify mismatch\n`)
-  }
-} catch { /* will be caught if file not yet created */ }
+// Dev-only: verify the early log is actually writing by reading it back, confirming
+// the container path is correct. Pure development sanity check — skipped in packaged
+// builds so production cold start doesn't pay a synchronous readFileSync every launch.
+if (is.dev) {
+  try {
+    const { readFileSync } = require('fs') as typeof import('fs')
+    const contents = readFileSync(EARLY_LOG, 'utf8')
+    if (!contents.includes('module loaded')) {
+      earlyLog('WARNING: log verify mismatch')
+    }
+  } catch { /* will be caught if file not yet created */ }
+}
 import { getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
