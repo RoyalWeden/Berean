@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import * as Tooltip from '@radix-ui/react-tooltip'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
@@ -90,7 +91,7 @@ const ALL_TYPES: EntryType[] = ['bible', 'note', 'lexicon', 'youtube', 'search',
 // have no dedicated tab since they're rare; they still show up under All.
 type HistoryTabKey = 'all' | 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'search'
 const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen | null; types: EntryType[] | null }[] = [
-  { key: 'all',       label: 'All',       icon: null,        types: null },
+  { key: 'all',       label: 'All',       icon: LayoutGrid,  types: null },
   { key: 'scripture', label: 'Scripture', icon: BookOpen,    types: ['bible', 'compare'] },
   { key: 'notes',     label: 'Notes',     icon: FileText,    types: ['note'] },
   { key: 'lexicon',   label: 'Lexicon',   icon: BookMarked,  types: ['lexicon', 'strongs-click'] },
@@ -383,9 +384,9 @@ export default function HistoryModal() {
     }
     if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
-    if (hideRoutineReading) entries = entries.filter(e => e.type !== 'bible')
+    if (hideRoutineReading && deferredTab !== 'scripture') entries = entries.filter(e => e.type !== 'bible')
     return entries
-  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading])
+  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab])
 
   const tabCounts = useMemo(() => {
     const counts: Record<HistoryTabKey, number> = { all: preTabFiltered.length, scripture: 0, notes: 0, lexicon: 0, youtube: 0, search: 0 }
@@ -473,28 +474,37 @@ export default function HistoryModal() {
         </div>
 
         {/* ── Content-type tabs ── */}
-        <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0 overflow-x-auto">
-          {HISTORY_TABS.map((tab) => {
-            const active = activeHistoryTab === tab.key
-            const Icon = tab.icon
-            const count = tabCounts[tab.key]
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveHistoryTab(tab.key)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-shell text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
-                  active
-                    ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
-                }`}
-              >
-                {Icon && <Icon size={12} className="flex-shrink-0" />}
-                {tab.label}
-                <span className={`text-[9px] tabular-nums ${active ? 'opacity-70' : 'opacity-45'}`}>{count}</span>
-              </button>
-            )
-          })}
-        </div>
+        <Tooltip.Provider delayDuration={200}>
+          <div className="flex items-center gap-0.5 px-3 pb-2 flex-shrink-0">
+            {HISTORY_TABS.map((tab) => {
+              const active = activeHistoryTab === tab.key
+              const Icon = tab.icon
+              const count = tabCounts[tab.key]
+              return (
+                <Tooltip.Root key={tab.key}>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      onClick={() => setActiveHistoryTab(tab.key)}
+                      className={`flex items-center justify-center px-2.5 py-1 rounded-shell text-xs font-medium transition-colors cursor-pointer flex-shrink-0 ${
+                        active
+                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                          : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+                      }`}
+                    >
+                      {Icon && <Icon size={13} className="flex-shrink-0" />}
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content side="bottom" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+                      {tab.label} · {count}
+                      <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
+              )
+            })}
+          </div>
+        </Tooltip.Provider>
 
         {/* ── Search bar — always visible ── */}
         <div className="px-3 pb-2 flex-shrink-0">

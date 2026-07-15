@@ -31,6 +31,23 @@ describe('markdown round-trip (parseMarkdown -> serializeToMarkdown)', () => {
     expect(roundtrips(md)).toBe(md)
   })
 
+  it('tab-indented paragraph is a paragraph, not an indented code block (regression: e-Sword import emits "\\n\\n\\t…" from RTF \\par+\\tab, which used to parse as a monospace code_block that swallowed inline formatting)', () => {
+    const doc = parseMarkdown('First paragraph.\n\n\tIndented **bold** paragraph from an RTF note.')
+    // Must NOT be a code_block; must keep the bold mark live (mark, not a node).
+    const types = new Set<string>()
+    const marks = new Set<string>()
+    doc.descendants((n) => { types.add(n.type.name); n.marks.forEach((m) => marks.add(m.type.name)); return true })
+    expect(types.has('code_block')).toBe(false)
+    expect(marks.has('strong')).toBe(true)
+  })
+
+  it('4-space-indented paragraph is a paragraph, not an indented code block', () => {
+    const doc = parseMarkdown('Lead in.\n\n    Four-space indented line.')
+    const types = new Set<string>()
+    doc.descendants((n) => { types.add(n.type.name); return true })
+    expect(types.has('code_block')).toBe(false)
+  })
+
   it('bold, italic, code, underline, strikethrough, highlight marks', () => {
     const md = 'This is **bold** and *italic* and `code` and <u>underlined</u> and ~~struck~~ and ==highlighted==.'
     expect(roundtrips(md)).toBe(md)

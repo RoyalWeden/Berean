@@ -4,13 +4,16 @@
  * the window uses hiddenInset so traffic lights are inset at (12,14).
  * A transparent absolute drag overlay lets the window be dragged.
  */
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, lazy, Suspense } from 'react'
 import { PanelLeftOpen } from 'lucide-react'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
-import YouTubeTab from '@/components/youtube/YouTubeTab'
 import { useAppStore } from '@/store'
+
+// Lazy so the heavy YouTube webview code isn't pulled into the initial bundle
+// via this floating-window entry point (see ActivePanel.tsx for the same split).
+const YouTubeTab = lazy(() => import('@/components/youtube/YouTubeTab'))
 
 
 interface FloatParams {
@@ -217,7 +220,7 @@ export default function FloatingShell() {
         {params.type === 'bible'   && <BiblePanel floating />}
         {params.type === 'notes'   && <NotesPanel floating />}
         {params.type === 'lexicon' && <LexiconPanel floating />}
-        {params.type === 'youtube' && <YouTubeTab floating />}
+        {params.type === 'youtube' && <Suspense fallback={null}><YouTubeTab floating /></Suspense>}
         {(params.type !== 'bible' && params.type !== 'notes' && params.type !== 'lexicon' && params.type !== 'youtube') && (
           <div className="flex items-center justify-center h-full text-[rgb(var(--color-text-muted))] text-sm">
             Float view for <strong className="ml-1">{params.type}</strong> coming soon.

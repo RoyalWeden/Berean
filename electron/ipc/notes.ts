@@ -2,6 +2,29 @@ import type { IpcMain } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
 
+// Cache compiled statements per DB instance so hot IPC handlers don't re-compile
+// the same SQL on every call. Keyed by the db object so a close/reopen (new
+// instance) transparently gets a fresh statement set.
+const _stmtCache = new WeakMap<object, Map<string, any>>()
+function prep(db: ReturnType<typeof getBereanDb>, sql: string): any {
+  let m = _stmtCache.get(db as unknown as object)
+  if (!m) { m = new Map(); _stmtCache.set(db as unknown as object, m) }
+  let s = m.get(sql)
+  if (!s) { s = (db as any).prepare(sql); m.set(sql, s) }
+  return s
+}
+
+// Build an FTS5 MATCH expression for a notes search. Splits into tokens, strips
+// characters that would break FTS5 query syntax (quotes, hyphens, operators),
+// and prefix-matches each token. Returns '' when nothing searchable remains.
+function safeNotesFts(query: string): string {
+  const words = query.trim().split(/\s+/).filter(Boolean)
+    .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
+    .filter(w => w.length >= 1)
+  if (words.length === 0) return ''
+  return words.map(w => `"${w}"*`).join(' ')
+}
+
 interface NoteRow {
   id: string
   type: string
@@ -251,9 +274,8 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
-  ipcMain.handle('notes:getAll', (_event, limit = 100000, offset = 0) => {
-    const rows = getBereanDb()
-      .prepare('SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?')
+  ipcMain.handle('notes:getAll', (_event, limit = 200, offset = 0) => {
+    const rows = prep(getBereanDb(), 'SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?')
       .all(limit, offset) as NoteRow[]
     return rows.map(rowToNote)
   })
@@ -275,26 +297,36 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     } else {
       sql = 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? ORDER BY created_at ASC'
     }
+    const db = getBereanDb()
     const rows = (textId === 'kjva' || textId === 'lxx'
-      ? getBereanDb().prepare(sql).all(verseRef)
-      : getBereanDb().prepare(sql).all(verseRef, textId)
+      ? prep(db, sql).all(verseRef)
+      : prep(db, sql).all(verseRef, textId)
     ) as NoteRow[]
     return rows.map(rowToNote)
   })
 
   ipcMain.handle('notes:getOne', (_event, id: string) => {
-    const row = getBereanDb()
-      .prepare('SELECT * FROM notes WHERE id = ?')
+    const row = prep(getBereanDb(), 'SELECT * FROM notes WHERE id = ?')
       .get(id) as NoteRow | undefined
     return row ? rowToNote(row) : null
   })
 
   ipcMain.handle('notes:search', (_event, query: string, limit = 20) => {
-    const pat = `%${query.trim()}%`
-    const rows = getBereanDb()
-      .prepare(`SELECT * FROM notes WHERE title LIKE ? OR content LIKE ? ORDER BY updated_at DESC LIMIT ?`)
-      .all(pat, pat, limit) as NoteRow[]
-    return rows.map(rowToNote)
+    const match = safeNotesFts(query)
+    if (!match) return []
+    const db = getBereanDb()
+    try {
+      const rows = prep(db, `
+        SELECT n.* FROM notes_fts f
+        JOIN notes n ON n.rowid = f.rowid
+        WHERE notes_fts MATCH ?
+        ORDER BY n.updated_at DESC
+        LIMIT ?
+      `).all(match, limit) as NoteRow[]
+      return rows.map(rowToNote)
+    } catch {
+      return []
+    }
   })
 
   ipcMain.handle('notes:deleteByTag', (_event, tag: string) => {
@@ -311,7 +343,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       : textId === 'lxx'
       ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
-    const stmt = getBereanDb().prepare(
+    const stmt = prep(getBereanDb(),
       `SELECT * FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}
        ORDER BY verse_ref ASC`
     )
@@ -331,7 +363,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       : textId === 'lxx'
       ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
-    const stmt = getBereanDb().prepare(
+    const stmt = prep(getBereanDb(),
       `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}`
     )
     const rows = (textId === 'kjva' || textId === 'lxx'

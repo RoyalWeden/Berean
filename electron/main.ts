@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme } from 'electron'
 import type Electron from 'electron'
 import { join } from 'path'
-import { appendFileSync, mkdirSync } from 'fs'
+import { mkdirSync, openSync, writeSync } from 'fs'
 import os from 'os'
 import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -9,23 +9,38 @@ import log from 'electron-log'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
-const EARLY_LOG = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'berean-startup.log')
+const EARLY_LOG_DIR = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data')
+const EARLY_LOG = join(EARLY_LOG_DIR, 'berean-startup.log')
+// Still write synchronously (so a crash moments later can't lose the last line —
+// electron-log isn't usable this early, so these breadcrumbs are the only on-disk
+// record of a pre-ready native crash). But hold ONE append-mode fd for the whole
+// process instead of re-opening the file on every line: appendFileSync does
+// open()+write()+close() every call, so a persistent fd + writeSync keeps the exact
+// same synchronous durability while dropping the redundant open/close syscalls from
+// each of the ~20 boot breadcrumbs.
+let earlyLogFd: number | null = null
 function earlyLog(msg: string) {
   try {
-    mkdirSync(join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data'), { recursive: true })
-    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] ${msg}\n`)
+    if (earlyLogFd === null) {
+      mkdirSync(EARLY_LOG_DIR, { recursive: true })
+      earlyLogFd = openSync(EARLY_LOG, 'a')
+    }
+    writeSync(earlyLogFd, `[${new Date().toISOString()}] ${msg}\n`)
   } catch { /* sandbox may block this pre-ready; tolerate */ }
 }
 earlyLog('main.ts: module loaded')
-// Verify the early log is actually writing by immediately reading it back.
-// If the file exists, we know the container path is correct.
-try {
-  const { readFileSync } = require('fs') as typeof import('fs')
-  const contents = readFileSync(EARLY_LOG, 'utf8')
-  if (!contents.includes('module loaded')) {
-    appendFileSync(EARLY_LOG, `[${new Date().toISOString()}] WARNING: log verify mismatch\n`)
-  }
-} catch { /* will be caught if file not yet created */ }
+// Dev-only: verify the early log is actually writing by reading it back, confirming
+// the container path is correct. Pure development sanity check — skipped in packaged
+// builds so production cold start doesn't pay a synchronous readFileSync every launch.
+if (is.dev) {
+  try {
+    const { readFileSync } = require('fs') as typeof import('fs')
+    const contents = readFileSync(EARLY_LOG, 'utf8')
+    if (!contents.includes('module loaded')) {
+      earlyLog('WARNING: log verify mismatch')
+    }
+  } catch { /* will be caught if file not yet created */ }
+}
 import { getBereanDb, closeBereanDb, mergeYouTubeSeed } from './db/berean'
 import { closeAllTextDbs } from './db/bible'
 import { closeLexiconDbs } from './db/lexicon'
@@ -106,18 +121,25 @@ log.info(`Berean starting — version=${app.getVersion()} packaged=${app.isPacka
 log.info(`versions: electron=${process.versions.electron} chrome=${process.versions.chrome} node=${process.versions.node}`)
 
 // On startup, surface any crash report left in the container from a previous run.
-try {
-  const { readdirSync, readFileSync, statSync } = require('fs') as typeof import('fs')
-  const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
-  const files = readdirSync(crashDir).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
-  for (const f of files) {
-    const full = join(crashDir, f)
-    const age = Date.now() - statSync(full).mtimeMs
-    if (age < 5 * 60 * 1000) { // only crashes from the last 5 min
-      earlyLog(`[prev-crash-report] ${f}: ${readFileSync(full, 'utf8').slice(0, 800)}`)
+// These reports are from a PRIOR process already on disk, so reading them is not
+// needed to start the app — only to log them. Run async + deferred (see the call in
+// app.whenReady, after createWindow) so the readdir/stat/readFile scan never blocks
+// cold boot. This process's own crashes are still captured synchronously by earlyLog
+// and the uncaughtException/unhandledRejection handlers above.
+async function reportPreviousCrashReports(): Promise<void> {
+  try {
+    const { readdir, readFile, stat } = await import('fs/promises')
+    const crashDir = join(os.homedir(), 'Library', 'Containers', 'com.berean.app', 'Data', 'Library', 'Application Support', 'CrashReporter')
+    const files = (await readdir(crashDir)).filter((f) => f.endsWith('.plist') || f.endsWith('.ips'))
+    for (const f of files) {
+      const full = join(crashDir, f)
+      const age = Date.now() - (await stat(full)).mtimeMs
+      if (age < 5 * 60 * 1000) { // only crashes from the last 5 min
+        earlyLog(`[prev-crash-report] ${f}: ${(await readFile(full, 'utf8')).slice(0, 800)}`)
+      }
     }
-  }
-} catch { /* dir may not exist yet */ }
+  } catch { /* dir may not exist yet */ }
+}
 
 // MAS builds: the App Store owns updates — electron-updater must be disabled entirely.
 // process.mas is set to true by Electron when running inside the Mac App Store sandbox.
@@ -525,10 +547,13 @@ app.whenReady().then(async () => {
 
   // Open app DB and run migrations before registering IPC handlers
   try {
-    const db = getBereanDb()
+    getBereanDb()
     earlyLog('berean.db opened OK')
     log.info('berean.db opened')
-    mergeYouTubeSeed(db)
+    // NOTE: mergeYouTubeSeed is intentionally NOT run here. On a fresh install /
+    // seed-version bump it attaches a 196MB seed DB and runs bulk inserts
+    // synchronously, which would block first paint. It's deferred until after
+    // the window has rendered (see below, following createWindow()).
   } catch (err) {
     earlyLog(`berean.db FAILED: ${err}`)
     log.error('Failed to open berean.db:', err)
@@ -834,6 +859,23 @@ app.whenReady().then(async () => {
   createWindow()
   earlyLog('createWindow() returned')
   log.info('createWindow() returned')
+
+  // Fire-and-forget: scan for and log any crash report from a previous run without
+  // blocking boot (the scan is diagnostic-only — see reportPreviousCrashReports).
+  void reportPreviousCrashReports()
+
+  // Merge the bundled YouTube seed AFTER the window exists and has painted, so a
+  // fresh install / seed-version bump (the only cases where this does real work —
+  // it short-circuits to one cheap SELECT otherwise) doesn't block first paint.
+  // Runs once, after the renderer's initial load.
+  mainWindow?.webContents.once('did-finish-load', () => {
+    try {
+      mergeYouTubeSeed(getBereanDb())
+      log.info('mergeYouTubeSeed completed (post-window)')
+    } catch (err) {
+      log.error('mergeYouTubeSeed failed (post-window):', err)
+    }
+  })
 
   // Wire up auto-updater events now that mainWindow exists.
   // Skip entirely for MAS — the App Store handles all updates.

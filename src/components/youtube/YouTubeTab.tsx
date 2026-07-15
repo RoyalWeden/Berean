@@ -1071,7 +1071,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     setVideoNotes([])
     setInlinePanelNoteId(null)
     if (!activeVideoId) return
-    window.notes.getNotes().then((notes) => {
+    window.notes.getNotes(100000, 0).then((notes) => {
       setVideoNotes(parseVideoNotes(notes, activeVideoId))
     }).catch(() => {})
   }, [activeVideoId])
@@ -1369,7 +1369,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       setInlinePanelContent(initialContent)
       setInlinePanelEditing(true)
       // Refresh video notes list so the new note appears immediately
-      window.notes.getNotes().then((notes) => {
+      window.notes.getNotes(100000, 0).then((notes) => {
         setVideoNotes(parseVideoNotes(notes, activeVideoId))
       }).catch(() => {})
     }
@@ -1401,7 +1401,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   }
 
   function handleInlineWikilinkClick(title: string) {
-    window.notes.getNotes().then((notes) => {
+    window.notes.getNotes(100000, 0).then((notes) => {
       const note = notes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
       if (note) {
         useAppStore.getState().ensureTab('note')

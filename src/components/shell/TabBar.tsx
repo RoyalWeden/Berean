@@ -209,12 +209,17 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       const targetTab = el ? tabs[parseInt(el.dataset.tabIdx!, 10)] : tabs[0]
       if (!targetTab) return
 
-      // note → bible: open note in right panel of target bible tab
+      // note → bible: open note in right panel of target bible tab.
+      // An empty/never-saved note tab has noteId === null — there's nothing to show in the
+      // side panel, so closing the source tab here would just silently delete it with no
+      // trace of it ever having existed. Only combine (and close the source) when there's an
+      // actual saved note to move over.
       if (crossType === 'note' && mySpace === 'scripture') {
         const noteId = (draggedTab.state as { noteId?: string | null }).noteId ?? null
+        if (!noteId) return
         store.updateTabState('scripture', targetTab.id, {
           rightPanelOpen: true, rightPanelTab: 'notes',
-          ...(noteId ? { rightPanelNoteId: noteId } : {}),
+          rightPanelNoteId: noteId,
         })
         store.activateTab(targetTab)
         store.setActiveSpace('scripture')
@@ -266,7 +271,9 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
 
         if (crossType === 'note') {
           const noteId = (draggedTab.state as { noteId?: string | null }).noteId ?? null
-          panel = { type: 'notes', noteId }
+          // An empty/never-saved note has no noteId — nothing to show in the YouTube panel,
+          // so skip the combine (see the identical note-→-bible guard above for why).
+          if (noteId) panel = { type: 'notes', noteId }
         } else if (crossType === 'bible') {
           const bState = draggedTab.state as import('@/types').BibleTabState
           panel = {
@@ -516,8 +523,8 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
                   no-drag group relative flex items-center gap-2 rounded-shell px-2 py-1.5
-                  cursor-grab select-none transition-colors duration-100
-                  ${isDragging ? 'opacity-40 scale-95' : ''}
+                  select-none transition-colors duration-100
+                  ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
                   ${isCrossSpaceTarget
                     ? 'ring-2 ring-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
                     : isActive

@@ -47,6 +47,52 @@ function openHermasTaylorDb(): DB | null {
   return hermasTaylorDb
 }
 
+// Cache compiled statements per DB instance so the per-chapter/per-verse refs
+// queries aren't re-compiled on every navigation.
+const _stmtCache = new WeakMap<object, Map<string, any>>()
+function prep(database: DB, sql: string): any {
+  let m = _stmtCache.get(database as unknown as object)
+  if (!m) { m = new Map(); _stmtCache.set(database as unknown as object, m) }
+  let s = m.get(sql)
+  if (!s) { s = (database as any).prepare(sql); m.set(sql, s) }
+  return s
+}
+
+// Batch-resolve verse texts for a set of (book, chapter, verse) targets in ONE
+// query per ~300 rows, replacing the previous per-row `SELECT ... LIMIT 1` loop
+// (up to ~150-200 statement executions for a dense chapter). Returns a map keyed
+// by "book|chapter|verse" → text.
+function fetchVerseTexts(tuples: Array<[string, number, number]>): Map<string, string> {
+  const out = new Map<string, string>()
+  const kjva = getTextDb('kjva') as DB | null
+  if (!kjva || tuples.length === 0) return out
+
+  const uniq = new Map<string, [string, number, number]>()
+  for (const t of tuples) {
+    const k = `${t[0]}|${t[1]}|${t[2]}`
+    if (!uniq.has(k)) uniq.set(k, t)
+  }
+  const list = Array.from(uniq.values())
+
+  // SQLite's default max host params is 999; 3 per row → chunk at 300 rows.
+  const CHUNK = 300
+  for (let i = 0; i < list.length; i += CHUNK) {
+    const chunk = list.slice(i, i + CHUNK)
+    const placeholders = chunk.map(() => '(?,?,?)').join(',')
+    const params: unknown[] = []
+    for (const [b, c, v] of chunk) params.push(b, c, v)
+    const rows = (kjva as any).prepare(
+      `SELECT book_id, chapter, verse_num, text FROM verses
+       WHERE (book_id, chapter, verse_num) IN (VALUES ${placeholders})`
+    ).all(...params) as Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
+    for (const r of rows) {
+      const k = `${r.book_id}|${r.chapter}|${r.verse_num}`
+      if (!out.has(k)) out.set(k, r.text)
+    }
+  }
+  return out
+}
+
 export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('crossrefs:status', () => {
     const hasData = existsSync(dataPath('cross_references.db'))
@@ -58,22 +104,19 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       const database = openDb()
       if (!database) return { verseRefs: [], error: true }
 
-      const rows = (database as any).prepare(
+      const rows = prep(database,
         'SELECT from_vs, to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? ORDER BY from_vs ASC, votes DESC'
       ).all(bookId.toUpperCase(), chapter) as Array<{
         from_vs: number; to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number
       }>
 
-      const kjva = getTextDb('kjva')
-      const verseStmt = kjva
-        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
-        : null
+      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
 
       // Group by source verse
       const grouped = new Map<number, Array<{ bookId: string; chapter: number; verse: number; endVerse: number | null; votes: number; text: string }>>()
       for (const r of rows) {
         if (!grouped.has(r.from_vs)) grouped.set(r.from_vs, [])
-        const text: string = verseStmt ? ((verseStmt.get(r.to_book, r.to_ch, r.to_vs) as any)?.text ?? '') : ''
+        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
         grouped.get(r.from_vs)!.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, votes: r.votes, text })
       }
 
@@ -92,7 +135,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       const database = openTskeDb()
       if (!database) return { verseRefs: [], error: true }
 
-      const rows = (database as any).prepare(
+      const rows = prep(database,
         `SELECT from_vs, heading, is_reciprocal, to_book, to_ch, to_vs, to_vs_end, sort_order, context
          FROM tske_refs
          WHERE from_book = ? AND from_ch = ?
@@ -103,10 +146,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
         sort_order: number; context: string | null
       }>
 
-      const kjva = getTextDb('kjva')
-      const verseStmt = kjva
-        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
-        : null
+      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
 
       // Group by source verse, then by heading within each verse
       const byVerse = new Map<number, Map<string, { heading: string | null; isReciprocal: boolean; refs: any[] }>>()
@@ -115,7 +155,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
         const verseMap = byVerse.get(r.from_vs)!
         const key = r.is_reciprocal ? '__RECIPROCAL__' : (r.heading ?? '__NONE__')
         if (!verseMap.has(key)) verseMap.set(key, { heading: r.is_reciprocal ? null : r.heading, isReciprocal: r.is_reciprocal === 1, refs: [] })
-        const text: string = verseStmt ? ((verseStmt.get(r.to_book, r.to_ch, r.to_vs) as any)?.text ?? '') : ''
+        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
         verseMap.get(key)!.refs.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, text, context: r.context ?? null })
       }
 
@@ -134,18 +174,15 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
     try {
       const database = openHermasTaylorDb()
       if (!database) return { refs: [], error: true }
-      const rows = (database as any).prepare(
+      const rows = prep(database,
         'SELECT to_book, to_chapter, to_verse, raw FROM crossrefs WHERE from_book = ? AND from_chapter = ? ORDER BY id ASC'
       ).all(bookId.toUpperCase(), chapter) as Array<{
         to_book: string; to_chapter: number; to_verse: number; raw: string
       }>
-      const kjva = getTextDb('kjva')
-      const verseStmt = kjva
-        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
-        : null
+      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_chapter, r.to_verse] as [string, number, number]))
       const refs = rows.map((r) => ({
         bookId: r.to_book, chapter: r.to_chapter, verse: r.to_verse, raw: r.raw,
-        text: verseStmt ? ((verseStmt.get(r.to_book, r.to_chapter, r.to_verse) as any)?.text ?? '') : '',
+        text: texts.get(`${r.to_book}|${r.to_chapter}|${r.to_verse}`) ?? '',
       }))
       return { refs, error: false }
     } catch {
@@ -158,21 +195,16 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       const database = openDb()
       if (!database) return { refs: [], loading: false, error: true }
 
-      const rows = (database as any).prepare(
+      const rows = prep(database,
         'SELECT to_book, to_ch, to_vs, to_vs_end, votes FROM refs WHERE from_book = ? AND from_ch = ? AND from_vs = ? ORDER BY votes DESC LIMIT 150'
       ).all(bookId.toUpperCase(), chapter, verse) as Array<{
         to_book: string; to_ch: number; to_vs: number; to_vs_end: number | null; votes: number
       }>
 
-      const kjva = getTextDb('kjva')
-      const verseStmt = kjva
-        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
-        : null
+      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
 
       const refs = rows.map((r) => {
-        const text: string = verseStmt
-          ? ((verseStmt.get(r.to_book, r.to_ch, r.to_vs) as any)?.text ?? '')
-          : ''
+        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
         return {
           bookId: r.to_book,
           chapter: r.to_ch,
@@ -194,7 +226,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
       const database = openTskeDb()
       if (!database) return { groups: [], loading: false, error: true }
 
-      const rows = (database as any).prepare(
+      const rows = prep(database,
         `SELECT heading, is_reciprocal, to_book, to_ch, to_vs, to_vs_end, sort_order, context
          FROM tske_refs
          WHERE from_book = ? AND from_ch = ? AND from_vs = ?
@@ -210,10 +242,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
         context: string | null
       }>
 
-      const kjva = getTextDb('kjva')
-      const verseStmt = kjva
-        ? (kjva as any).prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
-        : null
+      const texts = fetchVerseTexts(rows.map((r) => [r.to_book, r.to_ch, r.to_vs] as [string, number, number]))
 
       // Group by heading (preserving order)
       const groupMap = new Map<string, {
@@ -231,9 +260,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
             refs: [],
           })
         }
-        const text: string = verseStmt
-          ? ((verseStmt.get(r.to_book, r.to_ch, r.to_vs) as any)?.text ?? '')
-          : ''
+        const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
         groupMap.get(key)!.refs.push({
           bookId: r.to_book,
           chapter: r.to_ch,

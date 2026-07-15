@@ -92,7 +92,7 @@ function NotePanel({ panel, onUpdate, onBack, onClose }: {
               })
             }}
             onWikilinkClick={(title) => {
-              window.notes.getNotes().then((notes) => {
+              window.notes.getNotes(100000, 0).then((notes) => {
                 const target = notes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
                 if (target) { useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(target.id) }
               }).catch(() => {})

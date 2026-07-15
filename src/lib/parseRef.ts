@@ -155,11 +155,47 @@ export const ALL_BOOKS: ReadonlyArray<{ id: string; name: string; patterns: read
   return out
 })()
 
+/** Plain Levenshtein edit distance — small hand-rolled implementation rather than pulling in
+ *  a dependency, since it's only used for the misspelling fallback below (short strings,
+ *  called rarely — once per unmatched book token, not in a hot loop). */
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    const cur = [i]
+    for (let j = 1; j <= n; j++) {
+      cur[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j - 1], prev[j], cur[j - 1])
+    }
+    prev = cur
+  }
+  return prev[n]
+}
+
 /**
  * Resolve a book token to a book id.
  * 1. Exact pattern match ("gen", "jhn", "1jo")
  * 2. Name prefix match in canonical order ("joh" → John, "rev" → Revelation)
  * 3. Pattern prefix match in canonical order (fallback, e.g. "jdg" partials)
+ * 4. Fuzzy match by edit distance against every book's full NAME and PATTERNS — catches
+ *    misspellings that aren't simple truncations (a dropped/swapped/doubled letter
+ *    mid-word, e.g. "Genesys", "Corinthans", "Deuteronmy", "Philipians", "Revelaton"),
+ *    which prefix matching alone can't, since the mismatch isn't at the end of the string.
+ *    Deliberately conservative to avoid two failure modes an earlier, looser version hit:
+ *    (a) only matches against full book NAMES, never the short `patterns` abbreviations —
+ *        a 3-4 letter abbreviation has too many single-edit English-word neighbors ("Room"
+ *        is one edit from "Rom", the Romans abbreviation, but is obviously not a book ref);
+ *    (b) requires |input length − candidate length| ≤ 1, not just a small edit distance —
+ *        edit distance alone doesn't distinguish "a letter got mistyped" from "a whole
+ *        extra word got prepended" (e.g. "vsdeuteronomy" is only 2 edits from
+ *        "deuteronomy", well inside a naive distance budget, but that's `resolveBookToken`
+ *        wrongly swallowing "vs " rather than a real misspelling — callers like
+ *        NoteEditor.tsx's leading-word-recovery logic depend on this case failing so they
+ *        can retry with just "deuteronomy"). Only kicks in for tokens ≥4 characters —
+ *        below that there are too many plausible fuzzy neighbors regardless.
  * Prefix matching needs ≥2 chars to avoid wild single-letter ambiguity.
  */
 export function resolveBookToken(raw: string): string | null {
@@ -175,6 +211,21 @@ export function resolveBookToken(raw: string): string | null {
   // Pattern prefix (canonical order)
   for (const { id, patterns } of BOOK_MAP) {
     if (patterns.some((p) => p.replace(/\s+/g, '').startsWith(noSpace))) return id
+  }
+  // Fuzzy fallback (misspellings) — see the function comment for why this is scoped so
+  // narrowly (full names only, length-diff ≤ 1, distance capped at 2).
+  if (noSpace.length >= 4) {
+    let best: { id: string; dist: number } | null = null
+    for (const { id, name } of BOOK_MAP) {
+      const candidate = name.toLowerCase().replace(/\s+/g, '')
+      if (candidate.length < 5) continue
+      const lenDiff = Math.abs(candidate.length - noSpace.length)
+      if (lenDiff > 1) continue
+      const maxDist = candidate.length <= 6 ? 1 : 2
+      const dist = editDistance(noSpace, candidate)
+      if (dist <= maxDist && (!best || dist < best.dist)) best = { id, dist }
+    }
+    if (best) return best.id
   }
   return null
 }

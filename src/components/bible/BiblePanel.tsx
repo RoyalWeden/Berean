@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -101,6 +101,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const setFindBarWordMode = useAppStore((s) => s.setFindBarWordMode)
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activePanelId = useAppStore((s) => s.activePanelId)
+
+  // Escape closes the find bar even when focus isn't inside its own input — FindBar.tsx
+  // already handles Escape on its input's onKeyDown, but the auto-open ("type anywhere")
+  // path can leave focus somewhere else (e.g. the triggering keystroke landed in the
+  // verse view before the bar mounted/refocused), so that per-input handler alone doesn't
+  // reliably cover every case. This is a document-level backstop that always works
+  // regardless of what currently has focus.
+  useEffect(() => {
+    if (!findBarOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeFindBar()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [findBarOpen, closeFindBar])
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
 
   // Verse-match state — populated when findBarQuery is non-empty
@@ -955,8 +970,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // to re-render that driving setState off every raw event visibly stalled the
   // resize until mouseup instead of tracking the cursor live.
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  // The side panel's open/close transition (the motion.div `transition={{duration:0.18}}`
+  // props below) fights this handler's own careful 1:1-cursor-tracking design: framer-motion
+  // re-triggers an eased transition toward the new width on EVERY animate-prop change, which
+  // includes every rAF-throttled setRightPanelWidth() call during a live drag — so instead of
+  // snapping to the cursor, the panel visibly chased it through a series of interrupted
+  // 180ms eases (the reported "slow to drag" laziness, and the "white bar" flash from
+  // transitions overlapping/restarting mid-drag). isResizingPanel drops the transition
+  // duration to 0 for exactly the span of an active drag; the eased transition still applies
+  // normally to actual open/close toggles.
+  const [isResizingPanel, setIsResizingPanel] = useState(false)
   function handleResizeMouseDown(e: React.MouseEvent) {
     resizeRef.current = { startX: e.clientX, startWidth: rightPanelWidth }
+    setIsResizingPanel(true)
     e.preventDefault()
     let rafId: number | null = null
     let latestX = e.clientX
@@ -980,6 +1006,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setRightPanelWidth(finalWidth)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalWidth })
       resizeRef.current = null
+      setIsResizingPanel(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -991,6 +1018,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const vResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   function handleVResizeMouseDown(e: React.MouseEvent) {
     vResizeRef.current = { startY: e.clientY, startHeight: rightPanelWidth }
+    setIsResizingPanel(true)
     e.preventDefault()
     let rafId: number | null = null
     let latestY = e.clientY
@@ -1014,6 +1042,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setRightPanelWidth(finalHeight)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalHeight })
       vResizeRef.current = null
+      setIsResizingPanel(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -1428,6 +1457,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }] : []),
           ]}
         />
+        {((textId === 'kjva' && currentBook?.testament === 'OT') || textId === 'lxx') && (
+          <HintTooltip label={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}>
+          <button
+            onClick={() => {
+              if (!activeTab) return
+              const target = textId === 'lxx' ? 'KJVA' : 'LXX'
+              // Explicitly capture and re-queue the CURRENT scroll position before switching —
+              // switching translation reloads verses (ChapterView.tsx's fetch effect is keyed
+              // on textId), and once the new text lands shorter/longer than the old, the
+              // browser can clamp/reset scrollTop on its own even though nothing here
+              // explicitly zeroes it. onVersesLoaded (below) already restores from
+              // pendingScrollRef once the new verses are in the DOM — it just needs a FRESH
+              // value here rather than relying on tabState.scrollPosition, which is only
+              // synced periodically/on tab-switch and can be stale at the moment of a
+              // same-tab translation switch.
+              const el = getScrollEl()
+              if (el) pendingScrollRef.current = el.scrollTop
+              // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter
+              // divisions between KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps
+              // 114-115) — map the chapter, don't just carry the number over unchanged.
+              const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, target.toLowerCase())
+              updateTabState('scripture', activeTab.id, {
+                translation: target,
+                chapter: mappedChapter,
+                targetVerse: undefined,
+                endVerse: undefined,
+              })
+            }}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
+          >
+            <ArrowLeftRight size={14} />
+            <span>{textId === 'lxx' ? 'KJV' : 'LXX'}</span>
+          </button>
+          </HintTooltip>
+        )}
         <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
         <button
           onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
@@ -1739,6 +1803,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onStrongsClick={handleStrongsClick}
                 onWordClick={handleWordClick}
                 onVersesLoaded={onVersesLoaded}
+                onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
               />
             )
         }
@@ -1832,7 +1897,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
@@ -1854,7 +1919,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
@@ -1910,7 +1975,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}

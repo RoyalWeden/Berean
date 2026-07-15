@@ -2721,6 +2721,17 @@ function printThemeToCssVars(t: PrintTheme): string {
     --print-verse-bg: ${verseBg};
   }
   .pm-verse-block, .pm-lexicon-block { background: ${verseBgIsTransparent ? 'transparent' : 'rgb(var(--print-verse-bg))'} !important; }
+  /* pmEditor.css styles the verse/Strong's reference as a small rounded, tinted BADGE
+     (background/padding/border-radius) for the live editor — a "button" look that reads as
+     an interactive UI chip, appropriate on-screen but wrong on a printed/exported page where
+     nothing is clickable. Reset to plain bold colored text here, print-only. */
+  .pm-verse-block-ref, .pm-lexicon-block-ref {
+    display: inline !important;
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    font-size: inherit !important;
+  }
   `
 }
 

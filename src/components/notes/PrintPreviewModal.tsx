@@ -116,18 +116,24 @@ export function CustomMarginInputs({
 }
 
 export default function PrintPreviewModal({ title, content, notes, idiomEntries, onClose }: Props) {
-  const store = useAppStore()
+  // Was `useAppStore()` (whole-store subscription — re-renders this modal on ANY store
+  // change app-wide). Only `pdfDownloadLocation` is actually read reactively in the render
+  // below; everything else here is either a one-time seed value for local state (read via
+  // the non-reactive getState() snapshot, since useState's initializer only runs once
+  // anyway) or a stable action function grabbed imperatively inside its own handler.
+  const pdfDownloadLocation = useAppStore((s) => s.pdfDownloadLocation)
+  const initialStore = useAppStore.getState()
   const [idiomOpts, setIdiomOpts] = useState<IdiomsExportOptions>(DEFAULT_IDIOMS_OPTIONS)
 
   // Live-editable local copies seeded from saved settings
-  const [theme, setTheme] = useState<PrintThemeId>(store.printTheme)
-  const [margin, setMargin] = useState<Margin>(store.printMarginPreset)
-  const [customMargins, setCustomMargins] = useState<Sides>(store.printCustomMargins)
-  const [fontSize, setFontSize] = useState(store.printFontSizePt)
-  const [fontFamily, setFontFamily] = useState<FontFam>(store.printFontFamily)
-  const [colorMode, setColorMode] = useState<ColorMode>(store.printColorMode)
-  const [includeTitle, setIncludeTitle] = useState(store.printIncludeTitle)
-  const [includeLinkedNotes, setIncludeLinkedNotes] = useState(store.printIncludeLinkedNotes)
+  const [theme, setTheme] = useState<PrintThemeId>(initialStore.printTheme)
+  const [margin, setMargin] = useState<Margin>(initialStore.printMarginPreset)
+  const [customMargins, setCustomMargins] = useState<Sides>(initialStore.printCustomMargins)
+  const [fontSize, setFontSize] = useState(initialStore.printFontSizePt)
+  const [fontFamily, setFontFamily] = useState<FontFam>(initialStore.printFontFamily)
+  const [colorMode, setColorMode] = useState<ColorMode>(initialStore.printColorMode)
+  const [includeTitle, setIncludeTitle] = useState(initialStore.printIncludeTitle)
+  const [includeLinkedNotes, setIncludeLinkedNotes] = useState(initialStore.printIncludeLinkedNotes)
 
   // Auto-size the preview iframe to its content so there's a single (outer) scrollbar.
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -231,6 +237,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   }, [html])
 
   function persist() {
+    const store = useAppStore.getState()
     store.setPrintTheme(theme)
     store.setPrintMarginPreset(margin)
     store.setPrintCustomMargins(customMargins)
@@ -248,7 +255,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   }
 
   function doPrint() { persist(); window.app.printNote(stripForExport(html)).catch(() => {}); onClose() }
-  function doDownload() { persist(); window.app.exportNotePDF(stripForExport(html), title || 'note', store.pdfDownloadLocation).catch(() => {}); onClose() }
+  function doDownload() { persist(); window.app.exportNotePDF(stripForExport(html), title || 'note', pdfDownloadLocation).catch(() => {}); onClose() }
 
   const segBtn = (active: boolean) =>
     `px-2.5 py-1 text-xs rounded-shell cursor-pointer transition-colors ${active
@@ -551,7 +558,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
           {/* Footer */}
           <div className="flex items-center gap-2 px-4 py-3 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <p className="text-[10px] text-[rgb(var(--color-text-muted))]">
-              {store.pdfDownloadLocation ? `Saves to: ${store.pdfDownloadLocation}` : 'You\'ll be asked where to save'}
+              {pdfDownloadLocation ? `Saves to: ${pdfDownloadLocation}` : 'You\'ll be asked where to save'}
             </p>
             <div className="flex-1" />
             <button onClick={onClose}

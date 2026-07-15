@@ -1,9 +1,10 @@
 import type { EditorView } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
-import type { EditorState, Transaction } from 'prosemirror-state'
+import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state'
 import { setBlockType, wrapIn } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { bereanSchema as schema } from './schema'
+import { useAppStore } from '@/store'
 
 // ─── Slash-command menu ─────────────────────────────────────────────────────
 // Typing "/" (at the start of a line, OR right after existing text on that
@@ -104,7 +105,7 @@ function toCallout(calloutType: string) {
 // instead, the (unwidened) range still correctly splits the paragraph at
 // that point via PM's normal fitting behavior — "Existing text /table"
 // becomes "Existing text" as its own paragraph, followed by the table.
-function insertBlockNode(view: EditorView, from: number, to: number, node: PMNode) {
+export function insertBlockNode(view: EditorView, from: number, to: number, node: PMNode) {
   const { doc } = view.state
   const $from = doc.resolve(from)
   const $to = doc.resolve(to)
@@ -124,17 +125,42 @@ function insertHorizontalRule(view: EditorView, from: number, to: number) {
 // prosemirror-tables ships no "build a default table" helper — table_cell/
 // table_header hold `inline*` content directly (schema.ts's cellContent
 // config), so an empty cell is just `create()` with no child paragraph.
-function insertTable(view: EditorView, from: number, to: number) {
+export function buildEmptyTable(): PMNode {
   const cell = () => schema.nodes.table_cell.create()
   const header = () => schema.nodes.table_header.create()
   const headerRow = schema.nodes.table_row.create(null, [header(), header()])
   const bodyRow = schema.nodes.table_row.create(null, [cell(), cell()])
-  const table = schema.nodes.table.create(null, [headerRow, bodyRow])
-  insertBlockNode(view, from, to, table)
+  return schema.nodes.table.create(null, [headerRow, bodyRow])
+}
+
+function insertTable(view: EditorView, from: number, to: number) {
+  insertBlockNode(view, from, to, buildEmptyTable())
+}
+
+// Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're
+// plain paragraph text that blockDecorations.ts recognizes and boxes once it matches a real
+// verse in the DB (async-verified). This command doesn't insert a verse itself; it clears the
+// way for the SAME live-typing flow that already exists (autocomplete.ts's verse-suggest
+// trigger, NoteEditorPM.tsx's insertVerseBlock) by (a) turning on the noteScriptureBlock
+// setting if it's off — that flow is gated behind it, and a user reaching for "/verse"
+// explicitly wants it — and (b) leaving the cursor on a fresh empty line ready to type a
+// reference, since that's what actually drives detection+fetch, not this command itself.
+function startVerseBlock(view: EditorView, from: number, to: number) {
+  if (!useAppStore.getState().noteScriptureBlock) useAppStore.getState().setNoteScriptureBlock(true)
+  // Deleting just the "/verse" trigger text and stopping there left an empty line with no
+  // visible feedback that anything happened. Replace it with selected placeholder text
+  // instead, so typing over it is obvious — the existing verse-suggest autocomplete
+  // (NoteEditorPM.tsx's insertVerseBlock) takes over once what's typed matches a real ref.
+  const placeholder = 'Book chapter:verse'
+  const tr = view.state.tr.insertText(placeholder, from, to)
+  tr.setSelection(TextSelection.create(tr.doc, from, from + placeholder.length))
+  view.dispatch(tr)
+  view.focus()
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'text', label: 'Text', description: 'Plain paragraph', keywords: ['paragraph', 'plain'], group: 'Basic blocks', run: toParagraph },
+  { id: 'verse', label: 'Scripture verse', description: 'Type a reference (e.g. Romans 14:3) to auto-fetch and box it', keywords: ['verse', 'scripture', 'bible', 'quote', 'kjv', 'lxx'], group: 'Basic blocks', run: startVerseBlock },
   { id: 'h1', label: 'Heading 1', description: 'Large section heading', keywords: ['h1', 'title'], group: 'Basic blocks', run: toHeading(1) },
   { id: 'h2', label: 'Heading 2', description: 'Medium section heading', keywords: ['h2', 'subtitle'], group: 'Basic blocks', run: toHeading(2) },
   { id: 'h3', label: 'Heading 3', description: 'Small section heading', keywords: ['h3'], group: 'Basic blocks', run: toHeading(3) },

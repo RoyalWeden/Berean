@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { useAppStore } from '@/store'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
@@ -9,19 +10,31 @@ import ActivePanel from '@/components/shell/ActivePanel'
 import TopBar from '@/components/shell/TopBar'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
-import SettingsModal from '@/components/settings/SettingsModal'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
 import CrashReport from '@/components/shell/CrashReport'
 import TabSwitcher from '@/components/shell/TabSwitcher'
-import HistoryModal from '@/components/shell/HistoryModal'
 import BgImportProgress from '@/components/shell/BgImportProgress'
-import ImportModal from '@/components/settings/ImportModal'
-import Onboarding from '@/components/shell/Onboarding'
-import TasksPanel from '@/components/shell/TasksPanel'
 import PresenterControls from '@/components/shell/PresenterControls'
 import type { SpaceId, Tab } from '@/types'
 
+// Heavy, rarely-opened surfaces are code-split so they aren't parsed/evaluated
+// as part of the initial bundle — each only loads when first opened.
+const SettingsModal = lazy(() => import('@/components/settings/SettingsModal'))
+const HistoryModal = lazy(() => import('@/components/shell/HistoryModal'))
+const ImportModal = lazy(() => import('@/components/settings/ImportModal'))
+const Onboarding = lazy(() => import('@/components/shell/Onboarding'))
+const TasksPanel = lazy(() => import('@/components/shell/TasksPanel'))
+
 interface SwitcherTab { spaceId: SpaceId; tabId: string; title: string; tab: Tab }
+
+// Mounts children (inside Suspense) once `when` first becomes true, then keeps
+// them mounted — so the dynamic import fires only on first open, but close
+// animations / internal open-state handling still work exactly as before.
+function LazyOnce({ when, children }: { when: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(when)
+  if (when && !mounted) setMounted(true)
+  return mounted ? <Suspense fallback={null}>{children}</Suspense> : null
+}
 
 export default function App() {
   // DOM node for the top bar's portal slot — set once TopBar mounts, consumed
@@ -43,6 +56,7 @@ export default function App() {
   const openSearch = useAppStore((s) => s.openSearch)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const noteFocusMode = useAppStore((s) => s.noteFocusMode)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const createTab = useAppStore((s) => s.createTab)
   const ensureTab = useAppStore((s) => s.ensureTab)
@@ -71,6 +85,13 @@ export default function App() {
   const openImportBibleGateway = useAppStore((s) => s.openImportBibleGateway)
   const openImportESword = useAppStore((s) => s.openImportESword)
   const setUpdateStatus = useAppStore((s) => s.setUpdateStatus)
+  // Open-state flags gate the lazy-loaded modals/panels so their chunks only
+  // load on first open (see LazyOnce below).
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
+  const historyOpen = useAppStore((s) => s.historyOpen)
+  const importModalOpen = useAppStore((s) => s.importModalOpen)
+  const onboardingOpen = useAppStore((s) => s.onboardingOpen)
+  const tasksVisible = useAppStore((s) => s.tasksVisible)
 
   // Sync viewer window with active tab state
   useViewerSync()
@@ -708,6 +729,17 @@ export default function App() {
         // ── Cmd+H → open History (app 'hide' is remapped to ⌘⇧H) ────────
         e.preventDefault()
         useAppStore.getState().openHistory()
+      } else if (cmd && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        // ── Cmd+P → open the print/download preview for the active note ──
+        // Only meaningful in the Notes space; printPreviewOpen/activeNote are local state
+        // in NotesPanel.tsx (not the global store), so this reaches it via the same
+        // custom-window-event pattern already used for berean:openDailyNote etc. above.
+        // preventDefault() unconditionally either way — otherwise an unhandled Cmd+P falls
+        // through to Electron's own native print dialog, which isn't what any space wants.
+        e.preventDefault()
+        if (useAppStore.getState().activeSpace === 'notes') {
+          window.dispatchEvent(new CustomEvent('berean:openPrintPreview'))
+        }
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
         // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
         e.preventDefault()
@@ -795,18 +827,30 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
       <TopBarSlotContext.Provider value={topBarSlot}>
+        {/* Focus mode hides the rail/sidebar chrome and centers the active panel at a
+            constrained reading width — ActivePanel itself is never unmounted (a note tab
+            shouldn't lose scroll/cursor state just from toggling this), only the surrounding
+            chrome and the extra horizontal space are removed. TopBar stays mounted even in
+            Focus mode (an earlier version hid it too) — the note's own title/header controls
+            portal INTO TopBar's slot (TabHeaderPortal.tsx), so unmounting TopBar silently
+            dropped the note title and any tab-specific controls with no way to see or rename
+            the note while focused, which read as "doesn't look right" more than "distraction-
+            free." Only the left-side app chrome (sidebar app-switcher icons, collapse toggle,
+            back/forward) is what Focus mode is actually about hiding. */}
         <TopBar slotRef={setTopBarSlot} />
         <div className="flex flex-1 overflow-hidden">
-          <Ribbon />
-          <Sidebar />
-          <main className="flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))]">
-            <ActivePanel />
+          {!noteFocusMode && <Ribbon />}
+          {!noteFocusMode && <Sidebar />}
+          <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
+            <div className={noteFocusMode ? 'w-full max-w-3xl h-full' : 'w-full h-full'}>
+              <ActivePanel />
+            </div>
           </main>
         </div>
       </TopBarSlotContext.Provider>
       <FloatingSearch />
       <PresenterControls />
-      <SettingsModal />
+      <LazyOnce when={settingsOpen}><SettingsModal /></LazyOnce>
       <MarkdownReferenceModal />
       <CrashReport />
       {switcherOpen && (
@@ -821,11 +865,11 @@ export default function App() {
           onClose={() => updateSwitcher(false, 0)}
         />
       )}
-      <HistoryModal />
-      <ImportModal />
+      <LazyOnce when={historyOpen}><HistoryModal /></LazyOnce>
+      <LazyOnce when={importModalOpen}><ImportModal /></LazyOnce>
       <BgImportProgress />
-      <Onboarding />
-      <TasksPanel />
+      <LazyOnce when={onboardingOpen}><Onboarding /></LazyOnce>
+      <LazyOnce when={tasksVisible}><TasksPanel /></LazyOnce>
     </div>
   )
 }

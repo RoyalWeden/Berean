@@ -20,6 +20,18 @@ import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
 // enabled.
 export const md = MarkdownIt('default', { html: false, breaks: true })
 
+// Disable indented (4-space / tab) code blocks. Fenced ``` blocks stay on
+// (separate 'fence' rule) — and the serializer only ever WRITES code blocks
+// fenced (defaultMarkdownSerializer.nodes.code_block), so nothing round-trips
+// through the indented form. Leaving it enabled silently turns any
+// tab-indented paragraph into a monospace code block that swallows its inline
+// formatting. This bites imported content in particular: e-Sword's stripRtf
+// (electron/ipc/eSwordImport.ts) maps RTF \tab -> '\t' and \par -> '\n', and
+// RTF study notes routinely start a paragraph with a first-line \tab indent,
+// producing '\n\n\t…' — which markdown-it's 'default' preset would otherwise
+// parse as an indented code block.
+md.disable('code')
+
 // ─── [[Title]] wikilinks ────────────────────────────────────────────────────
 // A custom inline rule, modeled on markdown-it's own `link` rule shape.
 // Emits an open/close token pair (`wikilink_open`/`wikilink_close`) wrapping

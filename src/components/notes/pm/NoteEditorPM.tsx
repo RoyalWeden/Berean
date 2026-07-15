@@ -24,6 +24,7 @@ import { createSuppressRangesPlugin, suppressRangesKeymap } from './suppressRang
 import { createFindHighlightPlugin, setFindQuery } from './findHighlight'
 import { createSelectionToolbarPlugin, type SelectionToolbarState } from './selectionToolbarPlugin'
 import SelectionToolbar from './SelectionToolbar'
+import Toolbar from './Toolbar'
 import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup } from './AutocompletePopups'
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
 import { parseRef, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
@@ -94,6 +95,12 @@ export default function NoteEditorPM({
   importedAt,
 }: NoteEditorPMProps) {
   const [importFooterOpen, setImportFooterOpen] = useState(false)
+  // Flips true right after viewRef.current is set in the mount effect below — viewRef is a
+  // plain ref (not state), so nothing re-renders once the EditorView actually exists unless
+  // something else does; the persistent Toolbar (unlike SelectionToolbar, which is naturally
+  // gated behind selectionToolbar state that can't go non-null before the view exists) needs
+  // its own explicit signal to know when it's safe to render with a real view.
+  const [viewReady, setViewReady] = useState(false)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -189,6 +196,7 @@ export default function NoteEditorPM({
       },
     })
     viewRef.current = view
+    setViewReady(true)
 
     if (typeof initialCursorPos === 'number') {
       // Persisted cursor positions are PM document positions (see the
@@ -223,6 +231,7 @@ export default function NoteEditorPM({
       scrollEl?.removeEventListener('scroll', onScroll)
       view.destroy()
       viewRef.current = null
+      setViewReady(false)
     }
     // Mount-only: note switching is handled by the effect below via
     // view.updateState with a freshly-parsed doc (mirrors the CM6 editor's
@@ -396,6 +405,10 @@ export default function NoteEditorPM({
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      {/* Persistent toolbar — not shown in the compact side-panel editor (BibleRightPanel's
+          quick note view) or in read-only 'view' mode, matching SelectionToolbar.tsx's own
+          edit-mode gating. */}
+      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} />}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}

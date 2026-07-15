@@ -181,9 +181,35 @@
   -webkit-box-decoration-break: clone;
 }
 .pm-lexicon-block-line { border-bottom-color: rgb(var(--link-lexicon-ref) / 0.4); background-color: rgb(var(--link-lexicon-ref) / 0.08); }
-.pm-verse-block-ref, .pm-lexicon-block-ref { font-weight: 700; color: rgb(var(--color-accent)); cursor: pointer; }
-.pm-lexicon-block-ref { color: rgb(var(--link-lexicon-ref)); font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+/* Reference badge — a small accent-tinted rounded pill rather than plain bold colored text,
+   matching the mono ref-badge treatment used elsewhere in the app this session (History side
+   panel, Lexicon occurrences). display:inline-block + its own background/radius/padding reads
+   as a distinct label set apart from the verse text itself, closer to a real pull-quote
+   citation than inline emphasis. */
+.pm-verse-block-ref, .pm-lexicon-block-ref {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.85em;
+  color: rgb(var(--color-accent));
+  background-color: rgb(var(--color-accent) / 0.12);
+  border-radius: 4px;
+  padding: 0.05em 0.45em;
+  margin-bottom: 0.15em;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.pm-verse-block-ref:hover, .pm-lexicon-block-ref:hover { background-color: rgb(var(--color-accent) / 0.2); }
+.pm-lexicon-block-ref {
+  color: rgb(var(--link-lexicon-ref));
+  background-color: rgb(var(--link-lexicon-ref) / 0.12);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.pm-lexicon-block-ref:hover { background-color: rgb(var(--link-lexicon-ref) / 0.2); }
 .pm-lexicon-block-def { font-style: italic; }
+/* Verse text itself reads slightly larger/more relaxed than ordinary body paragraphs —
+   Scripture quoted inside a note should feel like it "arrives" differently than the user's
+   own commentary around it. */
+.pm-verse-block { font-size: 1.03em; line-height: 1.55; }
 
 /* Headings — headingNodeView (headingCollapse.ts) creates a real <h1>-<h6>
    element but only ever sized the little collapse-arrow child, never the
@@ -204,9 +230,14 @@
 .berean-pm-editor .ProseMirror h5:first-child,
 .berean-pm-editor .ProseMirror h6:first-child { margin-top: 0; }
 
-/* Collapsible headings */
-.pm-heading-collapse-arrow { opacity: 0.5; transition: opacity 0.12s ease; }
-.pm-heading-collapse-arrow:hover { opacity: 1; }
+/* Collapsible headings — the chevron stays invisible until the pointer is over the whole
+   heading row (.pm-heading-row, set on the heading element itself in headingCollapse.ts),
+   not just the tiny arrow span — hovering anywhere on the heading reveals it, matching how
+   Notion/Obsidian-style collapse affordances work, rather than requiring a precise hover on
+   a small always-visible glyph. */
+.pm-heading-collapse-arrow { opacity: 0; color: rgb(var(--color-text-muted)); transition: opacity 0.12s ease, color 0.12s ease; }
+.pm-heading-row:hover .pm-heading-collapse-arrow { opacity: 0.55; }
+.pm-heading-collapse-arrow:hover { opacity: 1 !important; color: rgb(var(--color-text-primary)); }
 .pm-collapsed-heading-pill {
   display: inline-block;
   margin-left: 8px;
@@ -227,32 +258,64 @@
 /* Lists — previously had NO base styling at all (no margin/padding reset,
    raw browser UL/OL defaults), which is what "lists don't look good" was
    about: inconsistent indent, cramped/uneven spacing against the rest of
-   the editor's typography. */
+   the editor's typography.
+
+   Per-level indent step is intentionally the SAME for ul and ol (0.9em) —
+   an earlier version gave ol 1.4em and only ul the pulled-in 0.9em (to
+   compensate for bullet lists' own flex marker+gap layout, see the
+   pm-bullet-item/pm-task-item rule below), which meant nesting an ol
+   inside a ul or vice versa produced a visibly inconsistent jump in indent
+   between levels — the very thing "spacing between different indents
+   should be consistent" was about. ol's own ::marker sits close against
+   the padding edge with no extra flex gap to account for, so giving it
+   the same 0.9em as ul (rather than deriving a separate "wider" constant
+   for it) keeps every level's step identical regardless of which list
+   type is nested at that level. */
 .berean-pm-editor .ProseMirror ul,
 .berean-pm-editor .ProseMirror ol {
   margin: 0.5em 0;
-  padding-left: 1.4em;
+  padding-left: 0.9em;
 }
 .berean-pm-editor .ProseMirror li {
   margin: 0.2em 0;
   line-height: 1.4;
 }
 .berean-pm-editor .ProseMirror li > p { margin: 0; }
-.berean-pm-editor .ProseMirror ol { list-style-type: decimal; }
-.berean-pm-editor .ProseMirror ol li::marker { color: rgb(var(--color-text-secondary)); font-weight: 500; }
 
-/* Task checkboxes + bullet-style glyphs (nodeViews.ts's listItemNodeView).
-   Bullet lists use `ul { padding-left }` PLUS their own flex marker+gap, so
-   at the same 1.4em as ol they sat visibly further right than a numbered
-   list's native ::marker (which the browser tucks close against the
-   padding edge) — that's what "too big of an initial indent" was about.
-   Pulling `ul`'s own padding-left in by roughly the marker+gap width lines
-   the two list types back up. The same rule also shrinks every NESTED
-   bullet list's indent by the same amount, since padding-left applies per
-   `ul` regardless of nesting depth ("each indent is too big for bullets
-   too"). */
-.berean-pm-editor .ProseMirror ul { padding-left: 0.9em; }
-.pm-task-item, .pm-bullet-item { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
+/* Ordered lists previously kept the browser's native ::marker counter, while bullet/task
+   items (nodeViews.ts's listItemNodeView) use a custom flex row (list-style:none, a marker
+   span, an explicit gap). Matching ol/ul's own container padding-left (above) still left a
+   real structural mismatch — a native counter's rendered width and a custom flex marker's
+   width are computed by two entirely different layout mechanisms, so no amount of constant-
+   tweaking makes their TOTAL effective text indent line up. Giving ol items the identical
+   flex structure (via CSS counters instead of the native marker) makes both list types
+   pixel-identical rather than just approximately close. `min-width` on the counter (not a
+   fixed width) keeps single- and double-digit numbers ("9." vs "10.") from shifting the
+   following text over between items. */
+.berean-pm-editor .ProseMirror ol {
+  list-style: none;
+  counter-reset: pm-ol;
+}
+.berean-pm-editor .ProseMirror ol > li {
+  counter-increment: pm-ol;
+  display: flex;
+  align-items: flex-start;
+}
+.berean-pm-editor .ProseMirror ol > li::before {
+  content: counter(pm-ol) '.';
+  flex-shrink: 0;
+  min-width: 1.1em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--color-text-secondary));
+}
+
+/* Task checkboxes + bullet-style glyphs (nodeViews.ts's listItemNodeView), and now ordered-
+   list items too (all three share one flex structure — see above). gap is set here (not
+   inline in JS) as the single source of truth — nodeViews.ts used to also set
+   `li.style.gap = '0.4em'` inline, immediately overridden by this rule's !important, which
+   was dead/confusing double-declaration; nodeViews.ts no longer sets it inline. */
+.pm-task-item, .pm-bullet-item, .berean-pm-editor .ProseMirror ol > li { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
 .pm-bullet-marker { color: rgb(var(--color-text-secondary)); }
 .pm-task-content { transition: opacity 0.15s ease; }
 

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
-import { parseRef, isStrongsRef, getTranslationForBook, bookName } from '@/lib/parseRef'
+import { parseRef, isStrongsRef, getTranslationForBook, bookName, resolveBookToken } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
@@ -205,11 +205,23 @@ export default function FloatingSearch() {
     }
   }, [searchOpen, searchTextId])
 
-  // Derived from query: strip trailing/leading translation qualifier
-  const detected = query.trim() ? detectTranslationPrefix(query) : null
+  // Derived from query: strip trailing/leading translation qualifier. Memoized (keyed only on
+  // `query`) because parseRef/resolveBookToken aren't free — resolveBookToken's misspelling
+  // fallback runs a Levenshtein comparison against every book name — and this used to get
+  // recomputed from scratch up to 3 times per keystroke (once here in the render body, once
+  // more in the cross-ref effect below, and again inside handleInput), compounding into
+  // noticeable input lag on some keystrokes.
+  const detected = useMemo(() => (query.trim() ? detectTranslationPrefix(query) : null), [query])
   const cleanQuery = detected ? detected.cleanQuery : query
-  const parsedRef = cleanQuery.trim() ? parseRef(cleanQuery) : null
+  const parsedRef = useMemo(() => (cleanQuery.trim() ? parseRef(cleanQuery) : null), [cleanQuery])
   const isStrongs = isStrongsRef(query)
+  // Only meaningful once parsedRef has already failed to match (see the bare-book-name
+  // fallback below) — computed here too so it shares the same memoization key as parsedRef
+  // instead of re-running resolveBookToken's Levenshtein scan again inline during render.
+  const bareBookId = useMemo(
+    () => (!parsedRef && !/\d/.test(cleanQuery) ? resolveBookToken(cleanQuery) : null),
+    [cleanQuery, parsedRef]
+  )
 
   // Expand with original terms when the user typed a replacement word (e.g. "yeshua" → also
   // "jesus"). Word-mode (all/any/phrase) is passed to window.bible.searchText as an explicit
@@ -329,9 +341,7 @@ export default function FloatingSearch() {
   // Load cross-references when the query is a verse ref with a verse number
   useEffect(() => {
     if (!searchOpen) return
-    const det = query.trim() ? detectTranslationPrefix(query) : null
-    const q = (det ? det.cleanQuery : query).trim()
-    const ref = q ? parseRef(q) : null
+    const ref = parsedRef
     if (!ref?.verse) { setCrossRefResults([]); return }
     if (crossRefDebounceRef.current) clearTimeout(crossRefDebounceRef.current)
     setCrossRefLoading(true)
@@ -345,7 +355,7 @@ export default function FloatingSearch() {
         setCrossRefLoading(false)
       }
     }, 250)
-  }, [query, searchOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [parsedRef, searchOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleInput(val: string) {
     setQuery(val)
@@ -454,13 +464,15 @@ export default function FloatingSearch() {
   }
 
   if (!isCommandMode && parsedRef) {
-    const book = books.find((b) => b.id === parsedRef.bookId)
     const chapterDisplay = parsedRef.endChapter && parsedRef.endChapter > parsedRef.chapter
       ? `${parsedRef.chapter}–${parsedRef.endChapter}`
       : parsedRef.chapter
-    const label = book
-      ? `${book.name} ${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
-      : `${parsedRef.bookId} ${chapterDisplay}`
+    // Always the full canonical name (bookName(), from parseRef.ts's own book table) rather
+    // than the DB-fetched `books` list's `.name` field — that fetch can still be in flight
+    // when the user starts typing, or (for non-canonical/Pseudepigrapha books) might not be
+    // in `books` at all depending on which text is currently selected, both of which
+    // previously fell back to showing the bare 3-letter bookId ("GEN") instead of a name.
+    const label = `${bookName(parsedRef.bookId)} ${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
     const subLabel = detected
       ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${detected.textId.toUpperCase()}`
       : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
@@ -480,6 +492,26 @@ export default function FloatingSearch() {
         )
       },
     })
+  } else if (!isCommandMode && cleanQuery.trim()) {
+    // Bare book name, no chapter/verse ("Genesis", "Romans", "1 Kings") — parseRef's own
+    // regex requires a trailing chapter number to match at all, so a plain book name never
+    // produces a parsedRef. Offer chapter 1 of that book directly rather than requiring the
+    // user to also type "1" themselves. Guarded so it only fires for a token that resolves
+    // to a REAL book (not just any random text) and doesn't already look like a reference
+    // with digits in it (that case is parsedRef's job, or genuinely didn't parse for a
+    // different reason — e.g. an out-of-range chapter — and shouldn't silently become ch.1).
+    if (bareBookId) {
+      const label = `${bookName(bareBookId)} 1`
+      results.push({
+        type: 'ref',
+        label,
+        sub: 'Go to chapter',
+        action: () => {
+          addRecentSearchQuery(query.trim())
+          navigate(bareBookId, 1, undefined, undefined, getTranslationForBook(bareBookId) ?? undefined, undefined)
+        },
+      })
+    }
   }
 
   // Cross-references — shown when query is a verse ref with a verse number

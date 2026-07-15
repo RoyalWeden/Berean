@@ -502,7 +502,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
     }
   })
 
-  ipcMain.handle('vault:exportAll', (_e, tabState?: string) => runExportAll({ tabState }))
+  ipcMain.handle('vault:exportAll', (_e, tabState?: string) => runExportAll({ tabState, force: true }))
   ipcMain.handle('vault:importAll', () => runImportAll())
   ipcMain.handle('vault:hasData', () => vaultHasData())
 
@@ -519,7 +519,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 // Used by the auto-export timer and will-quit handler (no renderer access then).
 let cachedTabState: string | null = null
 
-export function runExportAll(opts?: { tabState?: string }): { success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string } {
+export function runExportAll(opts?: { tabState?: string; force?: boolean }): { success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string } {
   try {
     if (opts?.tabState) cachedTabState = opts.tabState
     const vaultPath = getVaultPath()
@@ -527,6 +527,19 @@ export function runExportAll(opts?: { tabState?: string }): { success: boolean; 
 
     const db = getBereanDb()
     ensureDir(vaultPath)
+
+    // Dirty-tracking watermark: only re-write note .md files whose updated_at is
+    // newer than the last successful export. `force` (manual "export all") skips
+    // the optimization and rewrites everything. First run (no watermark yet) also
+    // exports everything, matching the original full-dump behavior.
+    // Captured before reading notes so edits made mid-export are caught next run.
+    const exportStartedAt = Date.now()
+    const watermarkRow = db.prepare("SELECT value FROM settings WHERE key = 'lastVaultExportAt'").get() as { value: string } | undefined
+    let lastExportAt: number | null = null
+    if (!opts?.force && watermarkRow) {
+      const parsed = Number(JSON.parse(watermarkRow.value))
+      if (Number.isFinite(parsed)) lastExportAt = parsed
+    }
 
     // ── 1. Notes (written into the vault folder hierarchy by type) ──────────
     const folderPathMap = buildFolderPathMap()
@@ -554,6 +567,27 @@ export function runExportAll(opts?: { tabState?: string }): { success: boolean; 
     let noteCount = 0
     for (const note of noteRows) {
       const { dir, filename } = resolveNotePath(note, vaultPath, folderPathMap)
+      const exportFilePath = join(dir, filename)
+
+      // Verse notes whose verse has highlights embed live ==emoji== markup that
+      // isn't reflected in the note's updated_at, so they must always re-export.
+      const hasEmbeddedHighlight = !!(
+        note.verse_ref &&
+        ['verse', 'esword', 'biblegateway'].includes(note.type) &&
+        hlSpans[note.verse_ref]?.length
+      )
+
+      // Skip unchanged notes already on disk (dirty-tracking). A missing target
+      // file is always (re)written so a cleared/relocated vault re-populates.
+      if (
+        lastExportAt !== null &&
+        note.updated_at <= lastExportAt &&
+        !hasEmbeddedHighlight &&
+        existsSync(exportFilePath)
+      ) {
+        continue
+      }
+
       ensureDir(dir)
 
       let overrideColor: string | undefined
@@ -569,7 +603,6 @@ export function runExportAll(opts?: { tabState?: string }): { success: boolean; 
         }
       }
 
-      const exportFilePath = join(dir, filename)
       markSelfWrite(exportFilePath)
       writeFileSync(exportFilePath, noteToMarkdown(note, overrideColor, highlightedVerseText), 'utf-8')
       noteCount++
@@ -670,6 +703,9 @@ export function runExportAll(opts?: { tabState?: string }): { success: boolean; 
     if (tabState) {
       writeFileSync(join(vaultPath, 'berean-tab-state.json'), tabState, 'utf-8')
     }
+
+    // Advance the dirty-tracking watermark only after a fully successful pass.
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('lastVaultExportAt', ?)").run(JSON.stringify(exportStartedAt))
 
     return {
       success: true,

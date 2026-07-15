@@ -88,31 +88,42 @@ export function createHeadingCollapsePlugin() {
   })
 }
 
+// Raw SVG markup for lucide's ChevronRight / ChevronDown, inlined rather than mounting a
+// React icon component (this is a plain DOM NodeView, not a React tree) — copied from
+// lucide-react's own path data so the collapse affordance matches the icon language used
+// everywhere else in the app (History modal, Scripture side panel, top bar) instead of a
+// raw Unicode triangle glyph.
+const CHEVRON_RIGHT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+const CHEVRON_DOWN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+
 export function headingNodeView(getPos: () => number | undefined) {
   return (node: PMNode, view: EditorView): NodeView => {
     const dom = document.createElement(`h${node.attrs.level}`)
     dom.style.display = 'flex'
     // 'center' rather than 'baseline': baseline-aligned a small arrow glyph against a much
-    // taller H1/H2 line noticeably low/off-center. Fixed 13px font-size rather than scaling
-    // with HEADING_FONT_SIZES_EM: the arrow scaling up to 1.71em for H1 made it look oversized
-    // next to the actual heading text — the arrow is a UI affordance, not part of the heading's
-    // own typography, so it reads better as one consistent size across every heading level.
+    // taller H1/H2 line noticeably low/off-center.
     dom.style.alignItems = 'center'
     dom.style.gap = '4px'
+    // Hover-reveal: the arrow used to sit at a constant 50% opacity, always visible before
+    // every heading's text — that's the "arrow/triangle thing" cluttering headings. It now
+    // stays fully transparent until the pointer is over the heading row (this class, applied
+    // to `dom`, is the hover trigger; pmEditor.css's `.pm-heading-collapse-arrow` opacity
+    // rules key off it). Reserves the same layout space either way (no reflow on hover).
+    dom.className = 'pm-heading-row'
 
     const arrow = document.createElement('span')
     arrow.className = 'pm-heading-collapse-arrow'
     arrow.contentEditable = 'false'
     arrow.style.cursor = 'pointer'
     arrow.style.userSelect = 'none'
-    arrow.style.fontSize = '17px'
     arrow.style.lineHeight = '1'
     arrow.style.display = 'inline-flex'
     arrow.style.alignItems = 'center'
+    arrow.style.flexShrink = '0'
     const updateArrow = () => {
       const pos = getPos()
       const collapsed = pos !== undefined && headingCollapseKey.getState(view.state)?.has(pos)
-      arrow.textContent = collapsed ? '▸' : '▾'
+      arrow.innerHTML = collapsed ? CHEVRON_RIGHT_SVG : CHEVRON_DOWN_SVG
     }
     updateArrow()
     arrow.addEventListener('mousedown', (e) => e.preventDefault())

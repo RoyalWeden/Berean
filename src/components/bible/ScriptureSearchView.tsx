@@ -90,6 +90,11 @@ function loadAllBooksCached(): Promise<Record<string, Book[]>> {
   return allBooksCachePromise
 }
 
+// Common Strong's numbers (e.g. H853 direct-object marker) have 1,000+ occurrences.
+// Rendering every one as a real DOM row locks the UI, so cap what we load/render and
+// surface a "refine your search" affordance instead.
+const STRONGS_RESULT_CAP = 200
+
 interface RawResult {
   book_id: string
   chapter: number
@@ -160,6 +165,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
   const [results, setResults] = useState<RawResult[]>([])
+  // True occurrence count for a Strong's search before the render cap is applied — drives
+  // the "showing first N of M" affordance. 0 when not a Strong's search or when uncapped.
+  const [strongsTotal, setStrongsTotal] = useState(0)
   // Strong's-search highlight indices, keyed by "bookId:chapter:verse".
   const [strongsMatches, setStrongsMatches] = useState<Record<string, number[]>>({})
   const [crossRefs, setCrossRefs] = useState<CrossRef[]>([])
@@ -335,18 +343,20 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // side panel, so "open all occurrences" lands here.
   const runStrongsSearch = useCallback(async (q: string) => {
     const num = parseStrongsQuery(q)
-    if (!num) { setResults([]); setStrongsMatches({}); return }
+    if (!num) { setResults([]); setStrongsMatches({}); setStrongsTotal(0); return }
     setLoading(true)
     try {
       const occ = await window.lexicon.getOccurrences(num)
+      const capped = occ.slice(0, STRONGS_RESULT_CAP)
       const matches: Record<string, number[]> = {}
-      const rows: RawResult[] = occ.map((o) => {
+      const rows: RawResult[] = capped.map((o) => {
         matches[`${o.book_id}:${o.chapter}:${o.verse_num}`] = o.matchWordIndices ?? []
         return { book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' }
       })
       setStrongsMatches(matches)
+      setStrongsTotal(occ.length > capped.length ? occ.length : 0)
       setResults(rows)
-    } catch { setResults([]); setStrongsMatches({}) }
+    } catch { setResults([]); setStrongsMatches({}); setStrongsTotal(0) }
     finally { setLoading(false) }
   }, [])
 
@@ -355,6 +365,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // to the keyword search.
   function runForMode(q: string) {
     const mode = effectiveMode(q)
+    if (mode !== 'strongs') setStrongsTotal(0)
     if (mode === 'crossref') runCrossRefSearch(q)
     else if (mode === 'strongs') runStrongsSearch(q)
     else runSearch(q, textId)
@@ -934,6 +945,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             <p className="px-4 pt-0.5 pb-1 text-[10px] text-[rgb(var(--color-text-muted))]">
               {totalCount} result{totalCount !== 1 ? 's' : ''}
               {effectiveMode(query) === 'strongs' && ` for ${parseStrongsQuery(query)}`}
+              {effectiveMode(query) === 'strongs' && strongsTotal > 0 && (
+                <span className="text-[rgb(var(--color-text-secondary))]"> — showing first {STRONGS_RESULT_CAP} of {strongsTotal}; refine your search to narrow</span>
+              )}
             </p>
             {filteredGroups.map((group) => {
               const key = `${group.textId}::${group.bookId}`

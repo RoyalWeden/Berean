@@ -117,7 +117,7 @@ export function listItemNodeView(getPos: () => number | undefined) {
       li.style.listStyle = 'none'
       li.style.display = 'flex'
       li.style.alignItems = 'flex-start'
-      li.style.gap = '0.4em'
+      // gap comes from the .pm-task-item CSS rule (pmEditor.css) — the single source of truth
 
       const checkbox = document.createElement('input')
       checkbox.type = 'checkbox'
@@ -155,7 +155,7 @@ export function listItemNodeView(getPos: () => number | undefined) {
       li.style.listStyle = 'none'
       li.style.display = 'flex'
       li.style.alignItems = 'flex-start'
-      li.style.gap = '0.4em'
+      // gap comes from the .pm-bullet-item CSS rule (pmEditor.css) — the single source of truth
 
       // A literal "-" always renders as a dash, regardless of the global
       // noteBulletStyle setting — "*"/"+" use that setting's chosen glyph

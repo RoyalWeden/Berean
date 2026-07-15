@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import type { Book, Note } from '@/types'
-import { CalendarGrid } from '@/components/notes/CalendarWidget'
+import { CalendarGrid, toDateKey } from '@/components/notes/CalendarWidget'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -123,15 +123,37 @@ export default function Sidebar() {
     window.notes.getNotes(100000, 0).then(setSbCalendarNotes).catch(() => {})
   }, [])
 
-  function selectSidebarCalendarDate(d: Date) {
+  // Resolve (find-or-create) the daily note BEFORE creating a tab, then stamp the new tab's
+  // state with the resolved noteId synchronously — createTab alone leaves the tab in its default
+  // `isNew: true` / blank-list state for one render pass, and the old flow (create the tab, then
+  // dispatch an event a frame later to swap in the real note) visibly flashed an empty "New Note"
+  // tab before the daily note appeared. Resolving first means the tab is created already pointing
+  // at the right note, so NotesPanel's restore effect loads it directly with no intermediate state.
+  async function openDailyNoteInTab(date: Date) {
+    const title = `Daily — ${toDateKey(date)}`
+    let noteId: string | null = null
+    try {
+      const candidates = await window.notes.searchNotes(title, 5)
+      noteId = candidates.find(n => n.title === title && n.type === 'daily')?.id ?? null
+    } catch { /* fall through to create */ }
+    if (!noteId) {
+      const result = await window.notes.createNote({ title, content: '', type: 'daily' })
+      if (result.success && result.note) noteId = result.note.id
+    }
+    if (!noteId) return
     useAppStore.getState().createTab('note')
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('berean:openDailyNote', { detail: { date: iso } })))
+    const store = useAppStore.getState()
+    const newTabId = store.activeTabId['notes']
+    if (newTabId) store.updateTabState('notes', newTabId, { noteId, isNew: false })
+    useAppStore.getState().bumpNoteToken()
+  }
+
+  function selectSidebarCalendarDate(d: Date) {
+    openDailyNoteInTab(d)
   }
 
   function openTodaysDailyNote() {
-    useAppStore.getState().createTab('note')
-    requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('berean:openDailyNote')))
+    openDailyNoteInTab(new Date())
   }
 
   // Triggered by Ribbon.tsx's Scripture icon right-click — Ribbon and

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen } from 'lucide-react'
 import StrongsInline from './StrongsInline'
@@ -12,6 +12,7 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
+import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
@@ -336,7 +337,7 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -356,9 +357,17 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   // For KJVA tagged + Strong's replacement (e.g. LORD→Yehovah, with the preceding "the"
   // suppressed), applyWordReplacer is NOT enough — it skips Strong's-number rules — so the
   // selection coordinates would be off. buildVerseDisplayText reproduces exactly what renders.
-  const renderedDisplayText = (!hasHidden && (textId === 'kjva' || textId === 'lxx') && verse.text_tagged && shouldReplace)
-    ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
-    : verseForDisplay.text
+  const renderedDisplayText = useMemo(() => (
+    (!hasHidden && (textId === 'kjva' || textId === 'lxx') && verse.text_tagged && shouldReplace)
+      ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
+      : verseForDisplay.text
+  ), [hasHidden, textId, verse.text, verse.text_tagged, shouldReplace, wordReplacerEnabled, wordReplacerRules, verseForDisplay.text])
+  // Parse text_tagged once per tagged-text change — parseTaggedTokens does per-word
+  // regex work, and renderVerseText() runs on every render otherwise.
+  const parsedTokens = useMemo(
+    () => (verse.text_tagged ? parseTaggedTokens(verse.text_tagged) : null),
+    [verse.text_tagged]
+  )
   const renderedDisplayTextRef = useRef(renderedDisplayText)
   renderedDisplayTextRef.current = renderedDisplayText
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
@@ -373,11 +382,56 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const crossRefHoverRef = useRef<HTMLDivElement>(null)
   const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean } | null>(null)
   const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const noteHoverRef = useRef<HTMLDivElement>(null)
+
+  // computeHoverPlacement's y is only an ESTIMATE (based on item count × a fixed row height),
+  // computed before the popup has actually rendered — for a verse near the bottom of the
+  // chapter, if the real content is taller than estimated (wrapped note titles, long verse
+  // text), the popup can overflow past the bottom of the viewport, visually landing under/over
+  // the cursor instead of tucked at its corner. This measures the real rendered size and
+  // re-clamps both popups to the viewport, the same two-phase pattern selToolbar uses below.
+  useLayoutEffect(() => {
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    if (noteHover && noteHoverRef.current) {
+      const r = noteHoverRef.current.getBoundingClientRect()
+      let x = noteHover.x
+      let y = noteHover.y
+      if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
+      if (x < pad) x = pad
+      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
+      if (y < pad) y = pad
+      if (x !== noteHover.x || y !== noteHover.y) setNoteHover(prev => prev ? { ...prev, x, y } : null)
+    }
+    if (crossRefHover && crossRefHoverRef.current) {
+      const r = crossRefHoverRef.current.getBoundingClientRect()
+      let x = crossRefHover.x
+      let y = crossRefHover.y
+      if (r.right > vw - pad) x = Math.max(pad, vw - r.width - pad)
+      if (x < pad) x = pad
+      if (r.bottom > vh - pad) y = Math.max(pad, vh - r.height - pad)
+      if (y < pad) y = pad
+      if (x !== crossRefHover.x || y !== crossRefHover.y) setCrossRefHover(prev => prev ? { ...prev, x, y } : null)
+    }
+  }, [noteHover, crossRefHover])
   type IndicatorMenuData = { type: 'note'; note: Note } | { type: 'verse'; ref: NoteVerseRef }
-  const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenu, closeMenu: closeIndicatorMenu } =
+  const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenuRaw, closeMenu: closeIndicatorMenu } =
     usePositionedMenu<IndicatorMenuData>()
+  // Right-clicking a note/crossref icon opens this context menu while the cursor is still over
+  // the icon that also drives the separate noteHover/crossRefHover preview popups — without
+  // clearing those, the preview can visibly disappear a moment later (its own mouseleave timer)
+  // right next to the still-open context menu, reading as "the menu went away."
+  function openIndicatorMenu(data: IndicatorMenuData & { x: number; y: number }) {
+    if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current)
+    if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current)
+    setNoteHover(null)
+    setCrossRefHover(null)
+    openIndicatorMenuRaw(data)
+  }
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
@@ -622,13 +676,22 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
       return
     }
 
-    // Anchor to the cursor release position — avoids off-screen placement when
-    // the selection spans most of the visible text (bounding rect is huge).
+    // Anchor a corner of the toolbar right at the cursor release point (matching the
+    // below-right-then-flip pattern used by usePositionedMenu's context menus elsewhere in the
+    // app), rather than centering on the cursor — avoids off-screen placement when the selection
+    // spans most of the visible text (bounding rect is huge), and the useLayoutEffect pass below
+    // re-clamps against the toolbar's actual measured size once it's rendered.
     const pad = 8
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const MENU_H_INIT = 260
-    let menuX = e.clientX - MENU_W / 2
+    // The toolbar itself has 3 rows of highlight-color dots plus 4 action rows below (copy
+    // verse/reference/selection, add note) — roughly 200px tall, NOT a single-row bubble. Using
+    // too small an estimate here meant the first-paint placement badly undershot near the
+    // bottom of the viewport; the useLayoutEffect re-clamp below then had to yank the toolbar
+    // far from the cursor to keep it on screen, which read as "the corner isn't at my cursor."
+    const MENU_H_INIT = 210
+    let menuX = e.clientX
+    if (menuX + MENU_W + pad > vw) menuX = e.clientX - MENU_W
     menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))
     let menuY = e.clientY - MENU_H_INIT - pad
     if (menuY < pad) menuY = e.clientY + pad
@@ -758,7 +821,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     // char-level highlights — all simultaneously. Char positions are tracked from the
     // raw (pre-filter) token list so they align with verse.text offsets.
     if ((textId === 'kjva' || textId === 'lxx') && verse.text_tagged) {
-      const tokens = parseTaggedTokens(verse.text_tagged)
+      const tokens = parsedTokens ?? parseTaggedTokens(verse.text_tagged)
 
       // Compute char start position in verse.text for each token (before any filtering).
       // Parenthetical tokens (~{H853}) have no English word — they don't advance charPos.
@@ -1192,6 +1255,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               const hiddenCount = total - vnShown.length - rnShown.length
               return (
             <div
+              ref={noteHoverRef}
               className="fixed z-[9999] w-[260px] max-h-[420px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: noteHover.x, top: noteHover.y }}
               onMouseEnter={() => { if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current) }}
@@ -1292,6 +1356,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
           {/* Cross-ref hover popup */}
           {crossRefHover && createPortal(
             <div
+              ref={crossRefHoverRef}
               className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
@@ -1530,6 +1595,30 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
                 <ExternalLink size={12} />
                 Open in floating tab
               </button>
+              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={async () => {
+                  closeIndicatorMenu()
+                  const r = indicatorMenu.ref
+                  const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse).catch(() => null)
+                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '')
+                }}
+              >
+                <Copy size={12} />
+                Copy verse
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => {
+                  closeIndicatorMenu()
+                  const r = indicatorMenu.ref
+                  copyRefOnly(r.bookId, r.chapter, r.verse)
+                }}
+              >
+                <Hash size={12} />
+                Copy reference
+              </button>
             </>
           )}
         </div>,
@@ -1594,3 +1683,5 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     </div>
   )
 }
+
+export default memo(VerseRow)
