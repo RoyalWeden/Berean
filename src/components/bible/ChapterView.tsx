@@ -223,6 +223,12 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
   const [loading, setLoading] = useState(true)
   const [multiToolbar, setMultiToolbar] = useState<MultiVerseToolbar | null>(null)
+  // Flash-highlight for the verse just navigated to (e.g. from search) — kept alive on a timer,
+  // independent of `targetVerse` itself, which the parent clears right after the scroll fires
+  // (see onTargetVerseConsumed) so the scroll-restore logic in BiblePanel doesn't re-trigger on
+  // tab remount. Without this split, the highlight would vanish the instant it appeared.
+  const [flashVerse, setFlashVerse] = useState<{ verse: number; end?: number } | null>(null)
+  const flashVerseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const versesRef = useRef(verses)
   useEffect(() => { versesRef.current = verses }, [verses])
@@ -313,8 +319,13 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!targetVerse || !containerRef.current || verses.length === 0) return
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
+    setFlashVerse({ verse: targetVerse, end: endVerse })
+    flashVerseTimerRef.current = setTimeout(() => setFlashVerse(null), 1800)
     onTargetVerseConsumed?.()
   }, [targetVerse, verses.length])
+
+  useEffect(() => () => { if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current) }, [])
 
   // Dismiss toolbar on outside click
   useEffect(() => {
@@ -537,10 +548,10 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
       )}
 
       {verses.map((verse) => {
-        const isHighlighted = targetVerse !== undefined && (
-          endVerse !== undefined
-            ? verse.verse_num >= targetVerse && verse.verse_num <= endVerse
-            : verse.verse_num === targetVerse
+        const isHighlighted = flashVerse !== null && (
+          flashVerse.end !== undefined
+            ? verse.verse_num >= flashVerse.verse && verse.verse_num <= flashVerse.end
+            : verse.verse_num === flashVerse.verse
         )
         return (
           <VerseRow

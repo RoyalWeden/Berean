@@ -970,8 +970,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // to re-render that driving setState off every raw event visibly stalled the
   // resize until mouseup instead of tracking the cursor live.
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  // The side panel's open/close transition (the motion.div `transition={{duration:0.18}}`
+  // props below) fights this handler's own careful 1:1-cursor-tracking design: framer-motion
+  // re-triggers an eased transition toward the new width on EVERY animate-prop change, which
+  // includes every rAF-throttled setRightPanelWidth() call during a live drag — so instead of
+  // snapping to the cursor, the panel visibly chased it through a series of interrupted
+  // 180ms eases (the reported "slow to drag" laziness, and the "white bar" flash from
+  // transitions overlapping/restarting mid-drag). isResizingPanel drops the transition
+  // duration to 0 for exactly the span of an active drag; the eased transition still applies
+  // normally to actual open/close toggles.
+  const [isResizingPanel, setIsResizingPanel] = useState(false)
   function handleResizeMouseDown(e: React.MouseEvent) {
     resizeRef.current = { startX: e.clientX, startWidth: rightPanelWidth }
+    setIsResizingPanel(true)
     e.preventDefault()
     let rafId: number | null = null
     let latestX = e.clientX
@@ -995,6 +1006,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setRightPanelWidth(finalWidth)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalWidth })
       resizeRef.current = null
+      setIsResizingPanel(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -1006,6 +1018,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const vResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   function handleVResizeMouseDown(e: React.MouseEvent) {
     vResizeRef.current = { startY: e.clientY, startHeight: rightPanelWidth }
+    setIsResizingPanel(true)
     e.preventDefault()
     let rafId: number | null = null
     let latestY = e.clientY
@@ -1029,6 +1042,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setRightPanelWidth(finalHeight)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalHeight })
       vResizeRef.current = null
+      setIsResizingPanel(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -1874,7 +1888,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
@@ -1896,7 +1910,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
@@ -1952,7 +1966,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   initial={{ width: 0 }}
                   animate={{ width: panelSize + 4 }}
                   exit={{ width: 0 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}

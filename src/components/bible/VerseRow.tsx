@@ -12,6 +12,7 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
+import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
@@ -376,8 +377,19 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   const [noteHover, setNoteHover] = useState<{ verseNotes: Note[]; refNotes: Note[]; x: number; y: number; placeUp: boolean } | null>(null)
   const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   type IndicatorMenuData = { type: 'note'; note: Note } | { type: 'verse'; ref: NoteVerseRef }
-  const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenu, closeMenu: closeIndicatorMenu } =
+  const { menu: indicatorMenu, menuRef: indicatorMenuRef, openMenu: openIndicatorMenuRaw, closeMenu: closeIndicatorMenu } =
     usePositionedMenu<IndicatorMenuData>()
+  // Right-clicking a note/crossref icon opens this context menu while the cursor is still over
+  // the icon that also drives the separate noteHover/crossRefHover preview popups — without
+  // clearing those, the preview can visibly disappear a moment later (its own mouseleave timer)
+  // right next to the still-open context menu, reading as "the menu went away."
+  function openIndicatorMenu(data: IndicatorMenuData & { x: number; y: number }) {
+    if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current)
+    if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current)
+    setNoteHover(null)
+    setCrossRefHover(null)
+    openIndicatorMenuRaw(data)
+  }
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
@@ -1529,6 +1541,30 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
               >
                 <ExternalLink size={12} />
                 Open in floating tab
+              </button>
+              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={async () => {
+                  closeIndicatorMenu()
+                  const r = indicatorMenu.ref
+                  const v = await window.bible.queryVerse(r.bookId, r.chapter, r.verse).catch(() => null)
+                  copyVerseAtRef(r.bookId, r.chapter, r.verse, v?.text ?? '')
+                }}
+              >
+                <Copy size={12} />
+                Copy verse
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => {
+                  closeIndicatorMenu()
+                  const r = indicatorMenu.ref
+                  copyRefOnly(r.bookId, r.chapter, r.verse)
+                }}
+              >
+                <Hash size={12} />
+                Copy reference
               </button>
             </>
           )}
