@@ -444,7 +444,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                       onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
                       className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                     >
-                      <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">{refLabel}</span>
+                      <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">{refLabel}</span>
                       {occ.text && (() => {
                         const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
                           ? applyWordReplacer(occ.text, wordReplacerRules)
@@ -545,7 +545,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                 }}
                 className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
               >
-                <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 flex-shrink-0 mt-0.5">{entry.strongsNum}</span>
+                <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px flex-shrink-0 mt-0.5">{entry.strongsNum}</span>
                 <div className="flex-1 min-w-0">
                   {entry.lemma && <span className="text-sm font-medium text-[rgb(var(--color-text-primary))]" dir="rtl" style={{ fontFamily: 'serif' }}>{entry.lemma} </span>}
                   {entry.transliteration && <span className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{entry.transliteration}</span>}
@@ -763,7 +763,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
-                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
                                 {r.verse === 0
                                   ? `${bookName(r.bookId)} ${r.chapter}`
                                   : r.endVerse
@@ -811,7 +811,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
-                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                              <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
                                 {r.verse === 0
                                   ? `${bookName(r.bookId)} ${r.chapter}`
                                   : r.endVerse
@@ -884,7 +884,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
                   className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                    <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
                       {r.verse === 0
                         ? `${bookName(r.bookId)} ${r.chapter}`
                         : r.endVerse
@@ -1132,7 +1132,7 @@ function UserNotesChapterView({
               <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                 className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
-                <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5 group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
+                <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors">
                   <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                 </span>
                 <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed">
@@ -1740,10 +1740,10 @@ export default function BibleRightPanel({
                           .replace(/[#*`_>~\[\]]/g, '')
                           .trim().replace(/\n/g, ' ')
                         return (
-                          <div key={note.id} className="flex items-start group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]">
+                          <div key={note.id} className="relative group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]">
                             <button
                               onClick={() => openSidebarNote(note)}
-                              className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
+                              className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
                             >
                               <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{note.title || 'Untitled'}</div>
                               <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
@@ -1751,7 +1751,7 @@ export default function BibleRightPanel({
                             <button
                               onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
                               title="Open in notes tab"
-                              className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 mt-1.5 mr-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+                              className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
                             >
                               <ExternalLink size={11} />
                             </button>
@@ -1773,12 +1773,17 @@ export default function BibleRightPanel({
                     return (
                       <div
                         key={note.id}
-                        className={`flex items-start group transition-colors ${i === selectedNoteIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))/60]'}`}
+                        className={`relative group transition-colors ${i === selectedNoteIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))/60]'}`}
                       >
+                        {/* The "open in notes tab" button below is absolutely positioned
+                            (not a flex sibling) so it doesn't reserve layout space on the
+                            right of every row even while invisible (opacity-0 still occupies
+                            its box in normal flow) — that reserved gap was what read as
+                            "too much padding on the right" in this list. */}
                         <button
                           onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
                           onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                          className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
+                          className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
                         >
                           <div className="flex items-center gap-1.5 min-w-0">
                             {/* Note color dot — the same color-coding shown as a verse indicator
@@ -1797,7 +1802,7 @@ export default function BibleRightPanel({
                           </div>
                           <div className="flex items-center gap-1.5 mt-1">
                             {note.verseRef && (
-                              <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1.5 py-0.5">
+                              <span className="font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px">
                                 {formatRef(note.verseRef)}
                               </span>
                             )}
@@ -1814,7 +1819,7 @@ export default function BibleRightPanel({
                             requestOpenNote(note.id)
                           }}
                           title="Open in notes tab"
-                          className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 mt-1.5 mr-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+                          className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
                         >
                           <ExternalLink size={11} />
                         </button>
@@ -1843,12 +1848,12 @@ export default function BibleRightPanel({
                         return (
                           <div
                             key={note.id}
-                            className="flex items-start group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]"
+                            className="relative group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]"
                           >
                             <button
                               onClick={() => openSidebarNote(note)}
                               onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                              className="flex-1 text-left px-3 py-2.5 cursor-pointer min-w-0"
+                              className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
                             >
                               <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
                                 {note.title || 'Untitled'}
@@ -1868,7 +1873,7 @@ export default function BibleRightPanel({
                                 requestOpenNote(note.id)
                               }}
                               title="Open in notes tab"
-                              className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 mt-1.5 mr-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+                              className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
                             >
                               <ExternalLink size={11} />
                             </button>

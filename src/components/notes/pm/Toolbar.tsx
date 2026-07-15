@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { EditorView } from 'prosemirror-view'
+import { TextSelection } from 'prosemirror-state'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
@@ -11,22 +13,43 @@ import { createEditorCommands } from './editorCommands'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
 
+type DropdownKind = 'type' | 'list' | 'highlight'
+
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
 // The bubble covers "I selected this text, format it"; this bar covers "I want to change
 // formatting without first selecting text" (starting a new heading, inserting a table,
 // toggling Focus mode). Shares all command logic with the bubble via editorCommands.ts —
 // this file owns only its own dropdown-open UI state, same split as SelectionToolbar.tsx.
+//
+// Dropdowns are portaled to document.body with a fixed position computed from the trigger
+// button's own rect, NOT position:absolute inside this row — the row itself needs
+// overflow-x-auto so a narrow panel doesn't force its buttons off-screen, but CSS couples
+// overflow-x:auto to overflow-y:auto/hidden on the same box, which silently clipped any
+// absolutely-positioned dropdown child that extended below the row (the dropdowns rendered
+// into the DOM but were invisible — looked exactly like "clicking the button does nothing").
 export default function Toolbar({ view }: { view: EditorView | null }) {
-  const [openDropdown, setOpenDropdown] = useState<'none' | 'type' | 'list' | 'highlight'>('none')
+  const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const focusMode = useAppStore((s) => s.noteFocusMode)
   const toggleFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
+
+  function openDropdownAt(kind: DropdownKind, e: React.MouseEvent<HTMLButtonElement>) {
+    if (openDropdown === kind) { setOpenDropdown('none'); return }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
+    setOpenDropdown(kind)
+  }
 
   useEffect(() => {
     if (openDropdown === 'none') return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpenDropdown('none')
+      const t = e.target as Node
+      if (rootRef.current?.contains(t)) return
+      if (dropdownRef.current?.contains(t)) return
+      setOpenDropdown('none')
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -42,8 +65,21 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
   function applyHighlight(color: string) { cmds.applyHighlight(color); setOpenDropdown('none') }
   function removeHighlight() { cmds.removeHighlight(); setOpenDropdown('none') }
   function toggleTaskList() { cmds.toggleTaskList(); setOpenDropdown('none') }
+  // Verse blocks are plain paragraph text auto-detected by blockDecorations.ts once it
+  // matches a real verse in the DB (see slashCommands.ts's startVerseBlock for the full
+  // reasoning) — this button can't insert a finished block itself without a full book/
+  // chapter/verse picker UI, which doesn't exist yet. Turning on the setting alone was a
+  // silent no-op when it was already on (the reported "doesn't seem to do anything" bug) —
+  // insert visible placeholder text, selected, so replacing it by typing is obvious and
+  // immediate, and the existing verse-suggest autocomplete takes over as soon as what's
+  // typed matches a real reference.
   function insertVerseStarter() {
     if (!useAppStore.getState().noteScriptureBlock) useAppStore.getState().setNoteScriptureBlock(true)
+    const placeholder = 'Book chapter:verse'
+    const { from } = editorView.state.selection
+    const tr = editorView.state.tr.insertText(placeholder, from)
+    tr.setSelection(TextSelection.create(tr.doc, from, from + placeholder.length))
+    editorView.dispatch(tr)
     editorView.focus()
   }
 
@@ -56,12 +92,12 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
   return (
     <div
       ref={rootRef}
-      className="relative flex items-center gap-0.5 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 overflow-x-auto"
+      className="flex items-center gap-0.5 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 overflow-x-auto"
     >
       {/* Text type */}
       <button
         title="Text type"
-        onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
+        onMouseDown={(e) => openDropdownAt('type', e)}
         className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 font-mono text-xs px-2`}
       >
         ¶ <ChevronDown size={10} />
@@ -76,7 +112,7 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
 
       <button
         title="Highlight"
-        onMouseDown={() => setOpenDropdown((v) => (v === 'highlight' ? 'none' : 'highlight'))}
+        onMouseDown={(e) => openDropdownAt('highlight', e)}
         className={cls(openDropdown === 'highlight' || isMarkActive('highlight'))}
       >
         <Highlighter size={14} />
@@ -88,7 +124,7 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
 
       <button
         title="List type"
-        onMouseDown={() => setOpenDropdown((v) => (v === 'list' ? 'none' : 'list'))}
+        onMouseDown={(e) => openDropdownAt('list', e)}
         className={`${iconBtn} ${openDropdown === 'list' ? active : inactive}`}
       >
         <List size={14} />
@@ -128,55 +164,60 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
         Focus
       </button>
 
-      {/* ── Dropdowns ── */}
-      {openDropdown === 'type' && (
-        <div className="absolute top-full left-0 mt-1 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5 z-10">
-          {[
-            { label: '¶', level: 0, Icon: null },
-            { label: 'H1', level: 1, Icon: Heading1 },
-            { label: 'H2', level: 2, Icon: Heading2 },
-            { label: 'H3', level: 3, Icon: Heading3 },
-          ].map(({ label, level }) => (
-            <button
-              key={label}
-              onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
-              className={`${iconBtn} ${inactive} text-xs font-mono px-2.5 py-1`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── Dropdowns — portaled, see the file-level comment above for why ── */}
+      {openDropdown !== 'none' && dropdownPos && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ position: 'fixed', left: dropdownPos.left, top: dropdownPos.top, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          {openDropdown === 'type' && (
+            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+              {[
+                { label: '¶', level: 0 }, { label: 'H1', level: 1 }, { label: 'H2', level: 2 }, { label: 'H3', level: 3 },
+              ].map(({ label, level }) => (
+                <button
+                  key={label}
+                  onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
+                  className={`${iconBtn} ${inactive} text-xs font-mono px-2.5 py-1`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {openDropdown === 'list' && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5 z-10">
-          <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
-          <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
-          <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
-          <button title="Task list" onMouseDown={toggleTaskList} className={`${iconBtn} ${inactive}`}><CheckSquare size={14} /></button>
-        </div>
-      )}
+          {openDropdown === 'list' && (
+            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
+              <button title="Bullet list" onMouseDown={() => { cmds.setBulletList('*'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><List size={14} /></button>
+              <button title="Dash list" onMouseDown={() => { cmds.setBulletList('-'); setOpenDropdown('none') }} className={`${iconBtn} ${inactive} text-sm font-mono`}>–</button>
+              <button title="Numbered list" onMouseDown={() => { cmds.setOrderedList(); setOpenDropdown('none') }} className={`${iconBtn} ${inactive}`}><ListOrdered size={14} /></button>
+              <button title="Task list" onMouseDown={toggleTaskList} className={`${iconBtn} ${inactive}`}><CheckSquare size={14} /></button>
+            </div>
+          )}
 
-      {openDropdown === 'highlight' && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 pm-toolbar-solid rounded-lg shadow-2xl p-2 w-[168px] z-10">
-          <div className="grid grid-cols-5 gap-1.5 mb-1.5">
-            {HIGHLIGHT_COLOR_IDS.map((id) => (
+          {openDropdown === 'highlight' && (
+            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-2 w-[168px]">
+              <div className="grid grid-cols-5 gap-1.5 mb-1.5">
+                {HIGHLIGHT_COLOR_IDS.map((id) => (
+                  <button
+                    key={id}
+                    title={HIGHLIGHT_LABELS[id]}
+                    onMouseDown={() => applyHighlight(id)}
+                    className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
+                    style={{ backgroundColor: highlightDotColor(id) }}
+                  />
+                ))}
+              </div>
               <button
-                key={id}
-                title={HIGHLIGHT_LABELS[id]}
-                onMouseDown={() => applyHighlight(id)}
-                className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-white/20 flex-shrink-0"
-                style={{ backgroundColor: highlightDotColor(id) }}
-              />
-            ))}
-          </div>
-          <button
-            onMouseDown={removeHighlight}
-            className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-          >
-            <Ban size={11} /> Remove highlight
-          </button>
-        </div>
+                onMouseDown={removeHighlight}
+                className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+              >
+                <Ban size={11} /> Remove highlight
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   )

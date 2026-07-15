@@ -1,6 +1,6 @@
 import type { EditorView } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
-import type { EditorState, Transaction } from 'prosemirror-state'
+import { TextSelection, type EditorState, type Transaction } from 'prosemirror-state'
 import { setBlockType, wrapIn } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { bereanSchema as schema } from './schema'
@@ -144,7 +144,14 @@ function insertTable(view: EditorView, from: number, to: number) {
 // reference, since that's what actually drives detection+fetch, not this command itself.
 function startVerseBlock(view: EditorView, from: number, to: number) {
   if (!useAppStore.getState().noteScriptureBlock) useAppStore.getState().setNoteScriptureBlock(true)
-  view.dispatch(view.state.tr.delete(from, to))
+  // Deleting just the "/verse" trigger text and stopping there left an empty line with no
+  // visible feedback that anything happened. Replace it with selected placeholder text
+  // instead, so typing over it is obvious — the existing verse-suggest autocomplete
+  // (NoteEditorPM.tsx's insertVerseBlock) takes over once what's typed matches a real ref.
+  const placeholder = 'Book chapter:verse'
+  const tr = view.state.tr.insertText(placeholder, from, to)
+  tr.setSelection(TextSelection.create(tr.doc, from, from + placeholder.length))
+  view.dispatch(tr)
   view.focus()
 }
 

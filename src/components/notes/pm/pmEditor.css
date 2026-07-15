@@ -281,15 +281,41 @@
   line-height: 1.4;
 }
 .berean-pm-editor .ProseMirror li > p { margin: 0; }
-.berean-pm-editor .ProseMirror ol { list-style-type: decimal; }
-.berean-pm-editor .ProseMirror ol li::marker { color: rgb(var(--color-text-secondary)); font-weight: 500; }
 
-/* Task checkboxes + bullet-style glyphs (nodeViews.ts's listItemNodeView).
-   gap is set here (not inline in JS) as the single source of truth — nodeViews.ts
-   used to also set `li.style.gap = '0.4em'` inline, immediately overridden by this
-   rule's !important, which was dead/confusing double-declaration; nodeViews.ts no
-   longer sets it inline. */
-.pm-task-item, .pm-bullet-item { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
+/* Ordered lists previously kept the browser's native ::marker counter, while bullet/task
+   items (nodeViews.ts's listItemNodeView) use a custom flex row (list-style:none, a marker
+   span, an explicit gap). Matching ol/ul's own container padding-left (above) still left a
+   real structural mismatch — a native counter's rendered width and a custom flex marker's
+   width are computed by two entirely different layout mechanisms, so no amount of constant-
+   tweaking makes their TOTAL effective text indent line up. Giving ol items the identical
+   flex structure (via CSS counters instead of the native marker) makes both list types
+   pixel-identical rather than just approximately close. `min-width` on the counter (not a
+   fixed width) keeps single- and double-digit numbers ("9." vs "10.") from shifting the
+   following text over between items. */
+.berean-pm-editor .ProseMirror ol {
+  list-style: none;
+  counter-reset: pm-ol;
+}
+.berean-pm-editor .ProseMirror ol > li {
+  counter-increment: pm-ol;
+  display: flex;
+  align-items: flex-start;
+}
+.berean-pm-editor .ProseMirror ol > li::before {
+  content: counter(pm-ol) '.';
+  flex-shrink: 0;
+  min-width: 1.1em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--color-text-secondary));
+}
+
+/* Task checkboxes + bullet-style glyphs (nodeViews.ts's listItemNodeView), and now ordered-
+   list items too (all three share one flex structure — see above). gap is set here (not
+   inline in JS) as the single source of truth — nodeViews.ts used to also set
+   `li.style.gap = '0.4em'` inline, immediately overridden by this rule's !important, which
+   was dead/confusing double-declaration; nodeViews.ts no longer sets it inline. */
+.pm-task-item, .pm-bullet-item, .berean-pm-editor .ProseMirror ol > li { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
 .pm-bullet-marker { color: rgb(var(--color-text-secondary)); }
 .pm-task-content { transition: opacity 0.15s ease; }
 

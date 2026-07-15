@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
@@ -91,7 +91,7 @@ const ALL_TYPES: EntryType[] = ['bible', 'note', 'lexicon', 'youtube', 'search',
 // have no dedicated tab since they're rare; they still show up under All.
 type HistoryTabKey = 'all' | 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'search'
 const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen | null; types: EntryType[] | null }[] = [
-  { key: 'all',       label: 'All',       icon: null,        types: null },
+  { key: 'all',       label: 'All',       icon: LayoutGrid,  types: null },
   { key: 'scripture', label: 'Scripture', icon: BookOpen,    types: ['bible', 'compare'] },
   { key: 'notes',     label: 'Notes',     icon: FileText,    types: ['note'] },
   { key: 'lexicon',   label: 'Lexicon',   icon: BookMarked,  types: ['lexicon', 'strongs-click'] },

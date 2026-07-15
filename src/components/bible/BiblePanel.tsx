@@ -1434,6 +1434,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             onClick={() => {
               if (!activeTab) return
               const target = textId === 'lxx' ? 'KJVA' : 'LXX'
+              // Explicitly capture and re-queue the CURRENT scroll position before switching —
+              // switching translation reloads verses (ChapterView.tsx's fetch effect is keyed
+              // on textId), and once the new text lands shorter/longer than the old, the
+              // browser can clamp/reset scrollTop on its own even though nothing here
+              // explicitly zeroes it. onVersesLoaded (below) already restores from
+              // pendingScrollRef once the new verses are in the DOM — it just needs a FRESH
+              // value here rather than relying on tabState.scrollPosition, which is only
+              // synced periodically/on tab-switch and can be stale at the moment of a
+              // same-tab translation switch.
+              const el = getScrollEl()
+              if (el) pendingScrollRef.current = el.scrollTop
               updateTabState('scripture', activeTab.id, { translation: target })
             }}
             className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]"
