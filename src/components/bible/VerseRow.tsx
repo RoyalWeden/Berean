@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen } from 'lucide-react'
 import StrongsInline from './StrongsInline'
@@ -337,7 +337,7 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-export default function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -357,9 +357,17 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
   // For KJVA tagged + Strong's replacement (e.g. LORD→Yehovah, with the preceding "the"
   // suppressed), applyWordReplacer is NOT enough — it skips Strong's-number rules — so the
   // selection coordinates would be off. buildVerseDisplayText reproduces exactly what renders.
-  const renderedDisplayText = (!hasHidden && (textId === 'kjva' || textId === 'lxx') && verse.text_tagged && shouldReplace)
-    ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
-    : verseForDisplay.text
+  const renderedDisplayText = useMemo(() => (
+    (!hasHidden && (textId === 'kjva' || textId === 'lxx') && verse.text_tagged && shouldReplace)
+      ? buildVerseDisplayText(verse.text, verse.text_tagged, textId, wordReplacerEnabled, wordReplacerRules)
+      : verseForDisplay.text
+  ), [hasHidden, textId, verse.text, verse.text_tagged, shouldReplace, wordReplacerEnabled, wordReplacerRules, verseForDisplay.text])
+  // Parse text_tagged once per tagged-text change — parseTaggedTokens does per-word
+  // regex work, and renderVerseText() runs on every render otherwise.
+  const parsedTokens = useMemo(
+    () => (verse.text_tagged ? parseTaggedTokens(verse.text_tagged) : null),
+    [verse.text_tagged]
+  )
   const renderedDisplayTextRef = useRef(renderedDisplayText)
   renderedDisplayTextRef.current = renderedDisplayText
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
@@ -813,7 +821,7 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     // char-level highlights — all simultaneously. Char positions are tracked from the
     // raw (pre-filter) token list so they align with verse.text offsets.
     if ((textId === 'kjva' || textId === 'lxx') && verse.text_tagged) {
-      const tokens = parseTaggedTokens(verse.text_tagged)
+      const tokens = parsedTokens ?? parseTaggedTokens(verse.text_tagged)
 
       // Compute char start position in verse.text for each token (before any filtering).
       // Parenthetical tokens (~{H853}) have no English word — they don't advance charPos.
@@ -1675,3 +1683,5 @@ export default function VerseRow({ verse, showStrongs, showVerseNumber = true, n
     </div>
   )
 }
+
+export default memo(VerseRow)

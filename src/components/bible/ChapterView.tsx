@@ -15,6 +15,10 @@ import { HIGHLIGHT_COLORS } from './VerseRow'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
+// Stable empty-array reference so verses with no highlights pass React.memo's shallow
+// equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
+type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
+const EMPTY_HIGHLIGHTS: VerseHighlight[] = []
 
 interface TaylorRef { bookId: string; chapter: number; verse: number; raw: string; text: string }
 
@@ -598,7 +602,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
             notePrimaryColor={noteColorsMap[verse.verse_num]}
             hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
             isHighlighted={isHighlighted}
-            highlights={highlights[verse.verse_num] ?? []}
+            highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}
             hiddenAnnotations={hiddenAnnotations}
             textId={textId}
             findQuery={findQuery}
