@@ -101,6 +101,11 @@ export const ANNOTATION_KEYS: Record<string, { canHide: boolean; description?: s
       { key: 'apoc_abraham_parens', symbol: '(word)', meaning: 'Word supplied by the translator for clarity — not present in the Slavonic source.' },
     ],
   },
+  didache_hoole: {
+    canHide: false,
+    description: 'Trans. Charles H. Hoole (1894). 16 chapters — the Two Ways (1–6), church practice and sacraments (7–10), ministry (11–15), and a closing eschatological warning (16). Verse numbering follows the Hoole edition.',
+    keys: [],
+  },
 }
 
 export const TRANSLATIONS = [
@@ -119,6 +124,7 @@ export const TRANSLATIONS = [
   { id: 't_job',         label: 'T. Job',           description: 'Testament of Job, trans. M.R. James (1897)' },
   { id: '1clement',      label: '1 Clement',        description: 'First Epistle of Clement to the Corinthians, trans. J.B. Lightfoot' },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',    description: 'Apocalypse of Abraham, trans. G.H. Box (1918)' },
+  { id: 'didache_hoole', label: 'Didache',          description: 'The Teaching of the Twelve Apostles, trans. Charles H. Hoole (1894)' },
 ]
 
 // ── Editions ──────────────────────────────────────────────────────────────────
@@ -144,6 +150,7 @@ export const EDITIONS: Edition[] = [
   { id: 't_job',         label: 'Testament of Job',                   translations: [{ id: 't_job', label: 'M.R. James (1897)' }] },
   { id: '1clement',      label: 'First Epistle of Clement',           translations: [{ id: '1clement', label: 'J.B. Lightfoot' }] },
   { id: 'apoc_abraham',  label: 'Apocalypse of Abraham',              translations: [{ id: 'apoc_abraham', label: 'G.H. Box (1918)' }] },
+  { id: 'didache_hoole', label: 'Didache',                            translations: [{ id: 'didache_hoole', label: 'Charles H. Hoole (1894)' }] },
 ]
 
 /** The edition that contains a given translation textId. */

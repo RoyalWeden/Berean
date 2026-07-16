@@ -122,6 +122,51 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.7] - 2026-07-16
+
+Scripture reading
+- Added the Didache (Charles H. Hoole translation) as a new reading edition.
+- Dragging one Scripture tab onto another now combines them into a compare
+  view instead of doing nothing; the dragged tab becomes the rightmost
+  column.
+- Fixed the Annotations panel header showing a short abbreviation (e.g.
+  "T. Job") instead of the full edition name.
+- Right-click on a verse occurrence in the Lexicon — both the Scripture side
+  panel and the dedicated Lexicon tab — now offers Open verse / Open in new
+  tab / Open in floating tab, matching between the two.
+- Right-clicking empty space in the tab list now offers to open a new
+  Scripture, Notes, Lexicon, or YouTube tab, or the floating search.
+- New Notes tabs are now labeled "Notes" instead of "New Note" until given
+  a title.
+
+Notes editor
+- Headings now go up to H6 (previously capped at H3).
+- Fixed Focus mode being unreachable when a note was opened from the
+  Scripture side panel; added `Cmd+Shift+U` as a global toggle from
+  anywhere.
+- Fixed Focus mode's layout being squeezed and cramped by the note's
+  outline panel staying visible alongside the centered editor.
+- Fixed the back/forward history and History modal showing a note's old
+  title after it had been renamed.
+
+Daily notes & calendar
+- The sidebar calendar now updates immediately when a new daily note is
+  created, instead of only after restarting the app.
+- The calendar now jumps to and highlights the month of the currently open
+  daily note.
+- Added a button to jump back to the current month after navigating away
+  with the calendar's arrows.
+- Fixed today's highlight in the calendar not appearing at all — a CSS
+  syntax issue was silently dropping the highlight entirely, not just
+  making it faint.
+
+Performance
+- Reduced blur intensity on floating panels (Settings, History, context
+  menus, floating search, etc.) to ease GPU load in situations like
+  screen-mirroring a display while scrolling in the app.
+
+---
+
 ## [0.4.6] - 2026-07-15
 
 Notes editor

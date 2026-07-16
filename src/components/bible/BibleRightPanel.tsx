@@ -1985,6 +1985,24 @@ export default function BibleRightPanel({
                 onClick={() => {
                   closeSideCtxMenu()
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
+                  createNoteTab('bible')
+                  const newTabId = useAppStore.getState().activeTabId['scripture']!
+                  const dedicatedTarget = getTranslationForBook(bId)
+                  useAppStore.getState().updateTabState('scripture', newTabId, {
+                    bookId: bId, chapter: ch, targetVerse: vs, scrollPosition: 0,
+                    ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
+                  })
+                  setActiveSpace('scripture')
+                }}
+              >
+                <ExternalLink size={12} />
+                Open in new tab
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => {
+                  closeSideCtxMenu()
+                  const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   window.app.openFloatingTab('bible', { bookId: bId, chapter: String(ch), targetVerse: String(vs) })
                   bumpFloatingTabToken()
                 }}

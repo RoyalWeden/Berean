@@ -33,8 +33,19 @@ export default function TopBar({ slotRef }: { slotRef: (el: HTMLDivElement | nul
   const navTabForward = useAppStore((s) => s.navTabForward)
   const closeTab      = useAppStore((s) => s.closeTab)
   const activateTab   = useAppStore((s) => s.activateTab)
+  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
 
   const isWin = window.__berean_platform === 'win32'
+
+  // Live note id → title map for the back/forward nav dropdown below — TabNavEntry.title is a
+  // snapshot captured when the entry was pushed, so without this a renamed note keeps showing
+  // its old title in the dropdown even though its noteId (and the tab itself) are still correct.
+  const [navNoteTitles, setNavNoteTitles] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    window.notes.getNotes(100000, 0)
+      .then((notes) => setNavNoteTitles(new Map(notes.map((n) => [n.id, n.title ?? '']))))
+      .catch(() => {})
+  }, [noteChangeToken])
 
   // ── Per-tab nav back/forward ─────────────────────────────────────────────
   const currentTabId  = activeTabId[activeSpace]
@@ -300,7 +311,7 @@ export default function TopBar({ slotRef }: { slotRef: (el: HTMLDivElement | nul
                       }`}
                     >
                       <TypeIcon size={12} className={`flex-shrink-0 ${isCurrent ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`} />
-                      <span className="truncate">{entry.title}</span>
+                      <span className="truncate">{entry.type === 'note' && entry.noteId ? (navNoteTitles.get(entry.noteId) ?? entry.title) : entry.title}</span>
                       {isCurrent && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
                     </button>
                   )

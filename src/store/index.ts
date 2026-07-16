@@ -1149,7 +1149,7 @@ export const useAppStore = create<AppState>()(
         } else if (type === 'lexicon') {
           tab = { id, spaceId, type, title: 'Lexicon', state: { strongsNum: null } }
         } else if (type === 'note') {
-          tab = { id, spaceId, type, title: 'New Note', state: { noteId: null, isNew: true } }
+          tab = { id, spaceId, type, title: 'Notes', state: { noteId: null, isNew: true } }
         } else if (type === 'youtube') {
           tab = { id, spaceId, type, title: 'YouTube', state: { videoId: null, playlistId: null } }
         } else {

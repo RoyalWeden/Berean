@@ -75,6 +75,7 @@ export default function Sidebar() {
   const currentSessionId = useAppStore((s) => s.currentSessionId)
   const sessionDisplayOrders = useAppStore((s) => s.sessionDisplayOrders)
   const reorderTabDisplay    = useAppStore((s) => s.reorderTabDisplay)
+  const noteChangeToken      = useAppStore((s) => s.noteChangeToken)
 
   // ── Tab-bar right-click context menu ──
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
@@ -114,14 +115,15 @@ export default function Sidebar() {
   // ── Daily-note calendar — pinned permanently at the bottom of the
   // sidebar (not gated to the Notes space, not a toggle) so jumping to a
   // past/future daily note is always one click away regardless of what
-  // space is currently active. Notes are fetched once on mount purely to
-  // compute which days already have a note. ──
+  // space is currently active. Notes are re-fetched on mount and whenever
+  // noteChangeToken bumps (any note create/update), so a freshly-created
+  // daily note's dot appears immediately instead of only after remount. ──
   const [sbCalendarDate, setSbCalendarDate] = useState(new Date())
   const [sbCalendarNotes, setSbCalendarNotes] = useState<Note[]>([])
 
   useEffect(() => {
     window.notes.getNotes(100000, 0).then(setSbCalendarNotes).catch(() => {})
-  }, [])
+  }, [noteChangeToken])
 
   // Resolve (find-or-create) the daily note BEFORE creating a tab, then stamp the new tab's
   // state with the resolved noteId synchronously — createTab alone leaves the tab in its default
@@ -155,6 +157,36 @@ export default function Sidebar() {
   function openTodaysDailyNote() {
     openDailyNoteInTab(new Date())
   }
+
+  // If the active Notes tab is pointed at a daily note, sync the sidebar calendar to that
+  // note's month/year and highlight its day — so switching to (or creating) a daily note
+  // always brings the calendar view along with it.
+  const activeNotesTabId = activeTabId['notes']
+  const activeNotesTab = activeNotesTabId ? tabs.notes?.find(t => t.id === activeNotesTabId) : undefined
+  const activeNoteId = activeNotesTab && activeNotesTab.type === 'note' ? (activeNotesTab.state as { noteId?: string | null }).noteId : null
+  const activeDailyNote = activeNoteId
+    ? sbCalendarNotes.find(n => n.id === activeNoteId && (n.type === 'daily' || n.type === 'journal' || (n.type === 'general' && !!(n.title?.startsWith('Daily — ') || n.title?.startsWith('Journal — ')))))
+    : undefined
+  const activeDailyDate = (() => {
+    if (!activeDailyNote) return null
+    const raw = activeDailyNote.title ?? ''
+    const dateStr = raw.replace(/^(Daily|Journal) — /, '')
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y, m, d] = dateStr.split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
+    const parsed = new Date(dateStr)
+    return isNaN(parsed.getTime()) ? null : parsed
+  })()
+
+  useEffect(() => {
+    if (!activeDailyDate) return
+    setSbCalendarDate(prev =>
+      prev.getFullYear() === activeDailyDate.getFullYear() && prev.getMonth() === activeDailyDate.getMonth()
+        ? prev
+        : new Date(activeDailyDate.getFullYear(), activeDailyDate.getMonth(), 1),
+    )
+  }, [activeDailyDate?.getTime()])
 
   // Triggered by Ribbon.tsx's Scripture icon right-click — Ribbon and
   // Sidebar are now sibling components (Ribbon owns space-switching,
@@ -418,6 +450,7 @@ export default function Sidebar() {
             notes={sbCalendarNotes}
             onDateChange={setSbCalendarDate}
             onSelectDate={selectSidebarCalendarDate}
+            selectedDate={activeDailyDate}
             compact
           />
         </div>
@@ -429,6 +462,24 @@ export default function Sidebar() {
         <MenuPositioner ref={tabBarMenuRef} x={tabBarMenu.x} y={tabBarMenu.y}
           className="min-w-44 rounded-shell glass-panel p-1 text-xs"
         >
+          {SPACES.map(({ id, type, icon: Icon, tip }) => (
+            <button
+              key={id}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { createTab(type); useAppStore.getState().setActiveSpace(id); setTabBarMenu(null) }}
+            >
+              <Icon size={12} />
+              {tip}
+            </button>
+          ))}
+          <button
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            onClick={() => { openSearch('new'); setTabBarMenu(null) }}
+          >
+            <Search size={12} />
+            Search / new tab…
+          </button>
+          <div className="my-1 border-t border-[rgb(var(--color-surface-4))]" />
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             onClick={() => { toggleSidebar(); setTabBarMenu(null) }}

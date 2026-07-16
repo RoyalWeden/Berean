@@ -870,11 +870,17 @@ body {
    little of the backdrop showing through for the blur to be visible at all.
    This is deliberately more translucent (72%) with a stronger blur + a touch
    of saturation boost, so the frosted effect is actually perceptible against
-   whatever is behind the panel (verse text, sidebar content, etc).          */
+   whatever is behind the panel (verse text, sidebar content, etc).
+   Blur radius was 24px — trimmed to 14px (GPU compositor cost scales with the
+   square of the radius, so this is a meaningful saving, not a cosmetic tweak)
+   after profiling showed these panels recompositing every scroll frame and
+   competing for GPU budget with OS-level screen mirroring (AirPlay/Screen
+   Mirroring casting while scrolling in the app). Still visibly frosted at
+   14px against typical content behind it.                                  */
 .glass-panel {
   background: rgb(var(--color-surface-1) / 0.72);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
   border: 1px solid rgb(var(--color-surface-4) / 0.5);
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
@@ -889,11 +895,14 @@ body {
    "frosted chrome". Keeps the same blur/saturation character, just far less
    transparent, paired with a blurred (not just dimmed) backdrop overlay so
    the content behind the modal still reads as "there, but out of focus"
-   rather than a flat dark scrim.                                            */
+   rather than a flat dark scrim. Blur radius trimmed 24px → 16px for the same
+   GPU-cost reason as .glass-panel above — kept slightly higher than
+   .glass-panel's 14px since modals are larger, more central, and stay
+   mounted longer, so a touch more blur is worth the marginal extra cost.    */
 .glass-panel-modal {
   background: rgb(var(--color-surface-1) / 0.92);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
   border: 1px solid rgb(var(--color-surface-4) / 0.6);
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
