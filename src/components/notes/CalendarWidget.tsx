@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import type { Note } from '@/types'
 
 export function toDateKey(date: Date): string {
@@ -13,6 +13,8 @@ interface CalendarGridProps {
   onSelectDate: (d: Date) => void
   /** Slightly smaller type/spacing for the sidebar's inline, narrower placement. */
   compact?: boolean
+  /** Date to highlight distinctly from "today" — e.g. the currently active daily note. */
+  selectedDate?: Date | null
 }
 
 /**
@@ -23,11 +25,13 @@ interface CalendarGridProps {
  * section) or wrapped in a floating popover (CalendarWidget below,
  * NotesPanel's header calendar button) without duplicating the date math.
  */
-export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact }: CalendarGridProps) {
+export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate }: CalendarGridProps) {
   const year = date.getFullYear()
   const month = date.getMonth()
   const today = new Date()
   const todayStr = toDateKey(today)
+  const selectedStr = selectedDate ? toDateKey(selectedDate) : null
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
 
   // Days with daily notes — handle both new ISO format (Daily — 2024-01-01)
   // and old localised format (Daily — January 1, 2024 / Journal — ...)
@@ -76,6 +80,15 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact 
           <ChevronLeft size={14} />
         </button>
         <span className="flex-1 text-center text-xs font-medium text-[rgb(var(--color-text-primary))]">{monthLabel}</span>
+        {!isCurrentMonth && (
+          <button
+            onClick={() => onDateChange(new Date())}
+            title="Jump to current month"
+            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer"
+          >
+            <Undo2 size={12} />
+          </button>
+        )}
         <button onClick={nextMonth} className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
           <ChevronRight size={14} />
         </button>
@@ -93,13 +106,16 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact 
           const day = i + 1
           const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const isToday = dateKey === todayStr
+          const isSelected = !isToday && dateKey === selectedStr
           const hasNote = dailyDates.has(dateKey)
           return (
             <button
               key={day}
               onClick={() => onSelectDate(new Date(year, month, day))}
               className={`flex flex-col items-center justify-center text-center ${dayCellText} rounded-shell pt-0.5 cursor-pointer transition-colors leading-none
-                ${isToday ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                ${isToday ? 'bg-[rgb(var(--color-accent))]/35 text-[rgb(var(--color-text-secondary))] font-semibold ring-1 ring-inset ring-[rgb(var(--color-accent))]/50'
+                  : isSelected ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] font-semibold ring-1 ring-inset ring-[rgb(var(--color-accent))]/40'
+                  : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
             >
               <span>{day}</span>
               {/* Reserved-height row below the number (not absolutely

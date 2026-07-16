@@ -1329,7 +1329,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                         <>
                           <div className="px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex items-center justify-between">
                             <span className="text-xs font-semibold text-[rgb(var(--color-text-secondary))]">
-                              {TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
+                              {editionForTextId(textId)?.label ?? TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()} — Annotations
                             </span>
                             {annInfo?.canHide && hasKeys && (
                               <button

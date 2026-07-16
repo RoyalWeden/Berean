@@ -193,15 +193,21 @@ const HistoryItem = memo(function HistoryItem({
   dayLabelText,
   onNavigate,
   onDelete,
+  noteTitles,
 }: {
   visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
   dayLabelText?: string    // set only on the first row of a new day — lightweight divider, not a collapsible group
   onNavigate: (e: HistoryEntry) => void
   onDelete: (id: string) => void
+  /** Current note id → title, so renamed notes don't show the stale title snapshotted at push time. */
+  noteTitles: Map<string, string>
 }) {
   const [open, setOpen] = useState(false)
   const entry = visits[0]
   const repeated = visits.length > 1
+  // Note entries resolve their title live from noteId so a rename is reflected immediately —
+  // entry.title stays as a fallback for entries whose note has since been deleted.
+  const displayTitle = entry.type === 'note' && entry.noteId ? (noteTitles.get(entry.noteId) ?? entry.title) : entry.title
   return (
     <div className="group relative">
       {dayLabelText && (
@@ -219,7 +225,7 @@ const HistoryItem = memo(function HistoryItem({
           </span>
           <span className="flex-1 min-w-0 flex items-baseline gap-1.5">
             <span className="text-xs text-[rgb(var(--color-text-primary))] truncate leading-tight">
-              {entry.title}
+              {displayTitle}
             </span>
             {entry.translation && (
               <span className="text-[9px] text-[rgb(var(--color-text-muted))] flex-shrink-0">
@@ -309,8 +315,19 @@ export default function HistoryModal() {
   const deleteEntry      = useAppStore((s) => s.deleteHistoryEntry)
   const loadMoreHistory       = useAppStore((s) => s.loadMoreHistory)
   const historyHasMore        = useAppStore((s) => s.historyHasMore)
+  const noteChangeToken   = useAppStore((s) => s.noteChangeToken)
   const overlayRef       = useRef<HTMLDivElement>(null)
   const navigate         = useNavigate()
+
+  // Live note id → title map, so a renamed note shows its current title in History
+  // instead of the string snapshotted into the entry when it was originally visited.
+  const [noteTitles, setNoteTitles] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!historyOpen) return
+    window.notes.getNotes(100000, 0)
+      .then((notes) => setNoteTitles(new Map(notes.map((n) => [n.id, n.title ?? '']))))
+      .catch(() => {})
+  }, [historyOpen, noteChangeToken])
 
   // ── Filter / sort state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery]     = useState('')
@@ -373,6 +390,7 @@ export default function HistoryModal() {
       const typeQ = TYPE_LABEL  // stable reference
       entries = entries.filter(e =>
         e.title.toLowerCase().includes(q) ||
+        (e.type === 'note' && e.noteId && noteTitles.get(e.noteId)?.toLowerCase().includes(q)) ||
         (e.query && e.query.toLowerCase().includes(q)) ||
         (e.bookId && e.bookId.toLowerCase().includes(q)) ||
         (e.strongsNum && e.strongsNum.toLowerCase().includes(q)) ||
@@ -386,7 +404,7 @@ export default function HistoryModal() {
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
     if (hideRoutineReading && deferredTab !== 'scripture') entries = entries.filter(e => e.type !== 'bible')
     return entries
-  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab])
+  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab, noteTitles])
 
   const tabCounts = useMemo(() => {
     const counts: Record<HistoryTabKey, number> = { all: preTabFiltered.length, scripture: 0, notes: 0, lexicon: 0, youtube: 0, search: 0 }
@@ -645,6 +663,7 @@ export default function HistoryModal() {
                   dayLabelText={g.dayLabelText}
                   onNavigate={navigate}
                   onDelete={deleteEntry}
+                  noteTitles={noteTitles}
                 />
               ))}
               {hiddenCount > 0 && (

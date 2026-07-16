@@ -192,7 +192,7 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
           {openDropdown === 'type' && (
             <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
               {[
-                { label: '¶', level: 0 }, { label: 'H1', level: 1 }, { label: 'H2', level: 2 }, { label: 'H3', level: 3 },
+                { label: '¶', level: 0 }, { label: 'H1', level: 1 }, { label: 'H2', level: 2 }, { label: 'H3', level: 3 }, { label: 'H4', level: 4 }, { label: 'H5', level: 5 }, { label: 'H6', level: 6 },
               ].map(({ label, level }) => (
                 <button
                   key={label}

@@ -44,6 +44,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const bumpNoteEditToken = useAppStore((s) => s.bumpNoteEditToken)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
+  const noteFocusMode = useAppStore((s) => s.noteFocusMode)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const tabs = useAppStore((s) => s.tabs)
   const renameTab = useAppStore((s) => s.renameTab)
@@ -1225,14 +1226,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 }
               />
             </div>
-            <NoteSidePanel
-              content={activeNote.content}
-              noteTitle={activeNote.title || 'Untitled'}
-              noteId={activeNote.id}
-              allNotes={notes}
-              onNoteClick={navigateToNote}
-              folderPath={folderPathFor(activeNote, folders)}
-            />
+            {/* Hidden in Focus mode — it's exactly the kind of secondary chrome (outline,
+                folder path, backlinks) Focus mode exists to get out of the way; keeping it
+                meant the whole NotesPanel (editor + this panel) got squeezed together into
+                App.tsx's centered max-w-3xl reading column instead of just the editor. */}
+            {!noteFocusMode && (
+              <NoteSidePanel
+                content={activeNote.content}
+                noteTitle={activeNote.title || 'Untitled'}
+                noteId={activeNote.id}
+                allNotes={notes}
+                onNoteClick={navigateToNote}
+                folderPath={folderPathFor(activeNote, folders)}
+              />
+            )}
           </div>
         ) : (
           <>

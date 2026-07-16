@@ -740,6 +740,14 @@ export default function App() {
         if (useAppStore.getState().activeSpace === 'notes') {
           window.dispatchEvent(new CustomEvent('berean:openPrintPreview'))
         }
+      } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'u') {
+        // ── Cmd+Shift+U → toggle Note Focus mode from anywhere ───────────
+        // The Focus toggle button only exists in the persistent note toolbar,
+        // which is deliberately hidden in compact/side-panel note contexts
+        // (BibleRightPanel's quick note view, etc) — this shortcut is the only
+        // way to reach Focus mode from those contexts.
+        e.preventDefault()
+        useAppStore.getState().toggleNoteFocusMode()
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
         // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
         e.preventDefault()

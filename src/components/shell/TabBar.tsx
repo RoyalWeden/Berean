@@ -165,6 +165,19 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       }
     }
 
+    // ── Same-space Scripture-onto-Scripture merge: dropping one Bible tab onto
+    // another (in the same centre zone) combines them into a multi-column compare
+    // view on the target tab, rather than reordering — the dragged tab becomes the
+    // new rightmost column and its own tab is closed. ──
+    if (draggedTab && targetTab && draggedTab.id !== targetTab.id &&
+        draggedTab.spaceId === 'scripture' && targetTab.spaceId === 'scripture' &&
+        draggedTab.type === 'bible' && targetTab.type === 'bible' &&
+        relY > 0.3 && relY < 0.7) {
+      setCrossSpaceHoverIdx(idx)
+      setDragOverIdx(null)
+      return
+    }
+
     setCrossSpaceHoverIdx(null)
     const before = relY < 0.5
     setDragOverIdx(idx)
@@ -411,6 +424,32 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
 
     if (!draggedTab || !targetTab)        return
     if (draggedTab.id === targetTab.id)   return
+
+    // ── Scripture-onto-Scripture combine: dropped in the centre zone (merge
+    // indicator was showing) → fold the dragged tab into the target as a new
+    // rightmost compare column, instead of reordering. Reuses the existing
+    // compareColumns/compareMode fields the "Compare this verse" flow already
+    // drives (see BiblePanel.tsx's addComparePanel). ──
+    if (wasCrossSpaceHover && draggedTab.spaceId === 'scripture' && targetTab.spaceId === 'scripture' &&
+        draggedTab.type === 'bible' && targetTab.type === 'bible') {
+      const store = useAppStore.getState()
+      const draggedState = draggedTab.state as BibleTabState
+      const targetState  = targetTab.state as BibleTabState
+      // compareColumns[].textId is the lowercase bibleTexts.ts id (e.g. 'kjva', 'lxx'),
+      // whereas BibleTabState.translation is always stored uppercase (e.g. 'KJVA') —
+      // mismatching this casing is what produced "No verses found" for combined columns.
+      const draggedCol = { textId: (draggedState.translation || 'KJVA').toLowerCase(), bookId: draggedState.bookId, chapter: draggedState.chapter }
+      const existingCols = targetState.compareMode && targetState.compareColumns?.length
+        ? targetState.compareColumns
+        : [{ textId: (targetState.translation || 'KJVA').toLowerCase(), bookId: targetState.bookId, chapter: targetState.chapter }]
+      store.updateTabState('scripture', targetTab.id, {
+        compareMode: true,
+        compareColumns: [...existingCols, draggedCol],
+      })
+      store.activateTab(targetTab)
+      onTabClose(draggedTab)
+      return
+    }
 
     onReorder(draggedTab.id, targetTab.id, insertBefore)
   }
