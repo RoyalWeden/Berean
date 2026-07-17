@@ -931,6 +931,21 @@ git push origin feature/sidebar
 # Open PR into main
 ```
 
+### Claude Code Session Conventions
+
+- **Always state the worktree path when telling the user they can test something.**
+  Whenever a message tells Michael he can try/test a change, explicitly include
+  the worktree folder path and the `npm run dev` command, e.g.:
+  "You can test this by running `npm run dev` in `/Users/roywe/Berean-feature-name`."
+  Do not assume he remembers which worktree is active.
+- **Offer the `cleanup-merge` skill after finishing requested work.** When a
+  round of requested changes is done (not mid-task, not after every small
+  edit — only once the user's ask for that session/turn is actually complete),
+  ask whether he wants to merge the current worktree's branch into `main`,
+  push, and delete the worktree. Use the `cleanup-merge` skill
+  (`.claude/skills/cleanup-merge/SKILL.md`) to do this — don't improvise the
+  merge/push/cleanup steps ad hoc.
+
 ---
 
 *End of CLAUDE.md — last updated May 2026*
