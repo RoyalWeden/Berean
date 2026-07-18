@@ -230,6 +230,14 @@
 .berean-pm-editor .ProseMirror h5:first-child,
 .berean-pm-editor .ProseMirror h6:first-child { margin-top: 0; }
 
+/* Content span inside headingNodeView's flex row (headingCollapse.ts) — an empty
+   heading's content span otherwise has no line box to size itself against under
+   this row's `display:flex; align-items:center`, so it can collapse to zero
+   height and the caret has nothing to blink against until the first character
+   is typed. `line-height: inherit` (from the h1-h6 rules above) plus a min-height
+   matching that line-height keeps a real line box present even with zero content. */
+.pm-heading-content { display: inline-block; min-width: 1px; min-height: 1em; line-height: inherit; }
+
 /* Collapsible headings — the chevron stays invisible until the pointer is over the whole
    heading row (.pm-heading-row, set on the heading element itself in headingCollapse.ts),
    not just the tiny arrow span — hovering anywhere on the heading reveals it, matching how
@@ -280,7 +288,30 @@
   margin: 0.2em 0;
   line-height: 1.4;
 }
-.berean-pm-editor .ProseMirror li > p { margin: 0; }
+.berean-pm-editor .ProseMirror li > p,
+.berean-pm-editor .ProseMirror .pm-bullet-content > p,
+.berean-pm-editor .ProseMirror .pm-task-content > p,
+.berean-pm-editor .ProseMirror .pm-ol-content > p { margin: 0; }
+
+/* A nested list (list_item's content is `paragraph block*`, so a sub-list sits
+   directly after the item's own paragraph/content-div) previously kept the
+   shared ul/ol rule's full 0.5em top margin — noticeably MORE vertical gap
+   before the first indented item than the 0.2em gap between two ordinary
+   sibling items at the same level, a real reported inconsistency. Matching
+   the sibling li gap here (instead of the generic list-to-surrounding-content
+   spacing) keeps "next item is indented" visually identical to "next item
+   isn't." */
+.berean-pm-editor .ProseMirror li > ul,
+.berean-pm-editor .ProseMirror li > ol,
+.berean-pm-editor .ProseMirror .pm-bullet-content > ul,
+.berean-pm-editor .ProseMirror .pm-bullet-content > ol,
+.berean-pm-editor .ProseMirror .pm-task-content > ul,
+.berean-pm-editor .ProseMirror .pm-task-content > ol,
+.berean-pm-editor .ProseMirror .pm-ol-content > ul,
+.berean-pm-editor .ProseMirror .pm-ol-content > ol {
+  margin-top: 0.2em;
+  margin-bottom: 0;
+}
 
 /* Ordered lists previously kept the browser's native ::marker counter, while bullet/task
    items (nodeViews.ts's listItemNodeView) use a custom flex row (list-style:none, a marker
@@ -315,7 +346,7 @@
    inline in JS) as the single source of truth — nodeViews.ts used to also set
    `li.style.gap = '0.4em'` inline, immediately overridden by this rule's !important, which
    was dead/confusing double-declaration; nodeViews.ts no longer sets it inline. */
-.pm-task-item, .pm-bullet-item, .berean-pm-editor .ProseMirror ol > li { margin: 0.25em 0; padding-left: 0.1em; gap: 0.3em !important; }
+.pm-task-item, .pm-bullet-item, .berean-pm-editor .ProseMirror ol > li { margin: 0.1em 0; padding-left: 0.1em; gap: 0.3em !important; }
 .pm-bullet-marker { color: rgb(var(--color-text-secondary)); }
 .pm-task-content { transition: opacity 0.15s ease; }
 
@@ -421,3 +452,44 @@
   height: 0;
   pointer-events: none;
 }
+
+/* ── Typing "looks" — curated font/line-height/spacing presets, quick-picked
+   from the dropdown next to the Edit/View toggle (NotesPanel.tsx). Separate
+   from (and layered on top of) the fuller font-family picker in Settings —
+   these bundle several properties as one named choice rather than just a
+   single font swap. 'default' is the existing look and needs no class/rules
+   here at all. Only .ProseMirror's own text sizing/spacing changes; toolbar/
+   chrome around it stays exactly as-is regardless of look. */
+.pm-look-manuscript.berean-pm-editor .ProseMirror {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.pm-look-manuscript.berean-pm-editor .ProseMirror h1,
+.pm-look-manuscript.berean-pm-editor .ProseMirror h2,
+.pm-look-manuscript.berean-pm-editor .ProseMirror h3 { font-weight: 500; }
+
+.pm-look-typewriter.berean-pm-editor .ProseMirror {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+.pm-look-typewriter.berean-pm-editor .ProseMirror h1,
+.pm-look-typewriter.berean-pm-editor .ProseMirror h2,
+.pm-look-typewriter.berean-pm-editor .ProseMirror h3,
+.pm-look-typewriter.berean-pm-editor .ProseMirror h4,
+.pm-look-typewriter.berean-pm-editor .ProseMirror h5,
+.pm-look-typewriter.berean-pm-editor .ProseMirror h6 { font-family: inherit; letter-spacing: 0; }
+
+.pm-look-compact.berean-pm-editor .ProseMirror {
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+.pm-look-compact.berean-pm-editor .ProseMirror p { margin: 0.2em 0; }
+.pm-look-compact.berean-pm-editor .ProseMirror h1,
+.pm-look-compact.berean-pm-editor .ProseMirror h2,
+.pm-look-compact.berean-pm-editor .ProseMirror h3,
+.pm-look-compact.berean-pm-editor .ProseMirror h4,
+.pm-look-compact.berean-pm-editor .ProseMirror h5,
+.pm-look-compact.berean-pm-editor .ProseMirror h6 { margin: 0.4em 0 0.15em; }

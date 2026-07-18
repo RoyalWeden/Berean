@@ -12,6 +12,8 @@
  *   HER_SIM: 65 chapters  (Similitudes 1–10)
  */
 
+import { bookChapterLabel } from './parseRef'
+
 export type HermasBookId = 'HER_VIS' | 'HER_MAN' | 'HER_SIM'
 
 export interface HermasSection {
@@ -161,8 +163,21 @@ export function hermasVariantForTextId(textId: string | null | undefined): Herma
   return textId === 'hermas_taylor' ? 'taylor' : 'rd'
 }
 
-function sectionsFor(bookId: HermasBookId): HermasSection[] {
-  return (activeVariant === 'taylor' ? BOOK_SECTIONS_TAYLOR : BOOK_SECTIONS_RD)[bookId]
+// `variant` is optional and falls back to the ambient `activeVariant` global for
+// backward compatibility, but every real call site below now passes it explicitly,
+// derived from THAT tab's own translation (via `hermasVariantForTextId`) — not the
+// global Settings preference. Real bug this fixes: `activeVariant` reflects
+// whichever Hermas translation was picked LAST across the whole app, so with two
+// Hermas tabs open on different translations (or after changing the global
+// preference), chapter navigation/labeling for the OTHER tab silently used the
+// wrong translation's chapter structure — RD and Taylor have different db-chapter
+// boundaries for the same book id (e.g. HER_MAN Mandate 5 is db-chapters [9,10]
+// under RD but [8,9] under Taylor), so "next chapter" could land on a chapter
+// that isn't actually the next one for that tab's own translation, and the
+// chapter LABEL (used in the tab title and the presenter view header) could
+// likewise describe the wrong Vision/Mandate/Similitude number.
+function sectionsFor(bookId: HermasBookId, variant?: HermasVariant): HermasSection[] {
+  return ((variant ?? activeVariant) === 'taylor' ? BOOK_SECTIONS_TAYLOR : BOOK_SECTIONS_RD)[bookId]
 }
 
 /** Returns true if bookId is one of the three Hermas books. */
@@ -170,14 +185,17 @@ export function isHermasBook(bookId: string): bookId is HermasBookId {
   return bookId === 'HER_VIS' || bookId === 'HER_MAN' || bookId === 'HER_SIM'
 }
 
-/** Returns all sections for a Hermas book (honors the active translation variant). */
-export function getHermasSections(bookId: HermasBookId): HermasSection[] {
-  return sectionsFor(bookId)
+/** Returns all sections for a Hermas book. Pass the tab's own variant (via
+ *  `hermasVariantForTextId`) — omitting it falls back to the ambient global,
+ *  which may not match the caller's actual translation. */
+export function getHermasSections(bookId: HermasBookId, variant?: HermasVariant): HermasSection[] {
+  return sectionsFor(bookId, variant)
 }
 
-/** Returns the section containing a given flat db-chapter, or null. */
-export function getHermasSection(bookId: HermasBookId, chapter: number): HermasSection | null {
-  return sectionsFor(bookId).find((s) => s.chapters.includes(chapter)) ?? null
+/** Returns the section containing a given flat db-chapter, or null. Pass the tab's
+ *  own variant — see getHermasSections. */
+export function getHermasSection(bookId: HermasBookId, chapter: number, variant?: HermasVariant): HermasSection | null {
+  return sectionsFor(bookId, variant).find((s) => s.chapters.includes(chapter)) ?? null
 }
 
 /**
@@ -189,8 +207,8 @@ export function getHermasSection(bookId: HermasBookId, chapter: number): HermasS
  * If the section has only one chapter the sub-chapter index is omitted:
  *   HER_VIS ch 25 → "Vision 5"
  */
-export function getHermasChapterLabel(bookId: HermasBookId, chapter: number): string {
-  const section = getHermasSection(bookId, chapter)
+export function getHermasChapterLabel(bookId: HermasBookId, chapter: number, variant?: HermasVariant): string {
+  const section = getHermasSection(bookId, chapter, variant)
   if (!section) return `Chapter ${chapter}`
   if (section.chapters.length === 1) return section.sectionName
   const subIdx = section.chapters.indexOf(chapter) + 1
@@ -203,12 +221,31 @@ export function getHermasChapterLabel(bookId: HermasBookId, chapter: number): st
  *   Mandate 12  → "Man. 12"
  *   Similitude 9.15 → "Sim. 9.15"
  */
-export function getHermasShortLabel(bookId: HermasBookId, chapter: number): string {
-  const label = getHermasChapterLabel(bookId, chapter)
+export function getHermasShortLabel(bookId: HermasBookId, chapter: number, variant?: HermasVariant): string {
+  const label = getHermasChapterLabel(bookId, chapter, variant)
   return label
     .replace('Vision', 'Vis.')
     .replace('Mandate', 'Man.')
     .replace('Similitude', 'Sim.')
+}
+
+/**
+ * Book+chapter label for ANY book, using the Hermas Vision/Mandate/Similitude
+ * label for Hermas books and the generic "<Book name> <chapter>" label
+ * (parseRef.ts's `bookChapterLabel`) for everything else.
+ *
+ * Added for the presenter/viewer window (ViewerApp.tsx/ViewerBiblePage.tsx),
+ * which previously always used the generic label even for Hermas — showing
+ * the raw flat db-chapter number (e.g. "Shepherd of Hermas 15") while the main
+ * reader showed the traditional section label (e.g. "Hermas Man. 3.1") for the
+ * exact same chapter — a real reported mismatch ("presenter view heading has
+ * the wrong book/chapter... showing something different than the actual
+ * book/chapter"), not actually a different chapter, just an inconsistent and
+ * much less legible label format for the one that WAS shown.
+ */
+export function hermasAwareChapterLabel(bookId: string, chapter: number, textId?: string | null): string {
+  if (isHermasBook(bookId)) return `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(textId))}`
+  return bookChapterLabel(bookId, chapter)
 }
 
 /**
@@ -222,9 +259,9 @@ export function getHermasSectionFirstChapter(section: HermasSection): number {
  * Returns the sorted list of all valid db-chapter numbers for a Hermas book.
  * (Skips any gaps in the db, e.g. HER_MAN ch 9 is absent.)
  */
-export function getHermasValidChapters(bookId: HermasBookId): number[] {
+export function getHermasValidChapters(bookId: HermasBookId, variant?: HermasVariant): number[] {
   const all: number[] = []
-  for (const section of sectionsFor(bookId)) {
+  for (const section of sectionsFor(bookId, variant)) {
     all.push(...section.chapters)
   }
   return all.sort((a, b) => a - b)
@@ -251,8 +288,8 @@ export function clampHermasChapter(bookId: HermasBookId, chapter: number, varian
 /**
  * Returns the previous valid db-chapter for a Hermas book, or null if at the start.
  */
-export function getHermasPrevChapter(bookId: HermasBookId, chapter: number): number | null {
-  const valid = getHermasValidChapters(bookId)
+export function getHermasPrevChapter(bookId: HermasBookId, chapter: number, variant?: HermasVariant): number | null {
+  const valid = getHermasValidChapters(bookId, variant)
   const idx = valid.lastIndexOf(chapter)
   if (idx <= 0) return null
   return valid[idx - 1]
@@ -261,8 +298,8 @@ export function getHermasPrevChapter(bookId: HermasBookId, chapter: number): num
 /**
  * Returns the next valid db-chapter for a Hermas book, or null if at the end.
  */
-export function getHermasNextChapter(bookId: HermasBookId, chapter: number): number | null {
-  const valid = getHermasValidChapters(bookId)
+export function getHermasNextChapter(bookId: HermasBookId, chapter: number, variant?: HermasVariant): number | null {
+  const valid = getHermasValidChapters(bookId, variant)
   const idx = valid.indexOf(chapter)
   if (idx < 0 || idx >= valid.length - 1) return null
   return valid[idx + 1]

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, FileUp } from 'lucide-react'
 import type { Book } from '@/types'
 import { normalizeBookQuery } from '@/lib/verseUtils'
-import { isHermasBook, getHermasSections, getHermasSection, type HermasBookId } from '@/lib/hermasMap'
+import { isHermasBook, getHermasSections, getHermasSection, hermasVariantForTextId, type HermasBookId } from '@/lib/hermasMap'
+import { hasPrologueChapter } from '@/lib/prologueBooks'
 import { editionForTextId, type Edition } from '@/lib/bibleTexts'
 import { bookName } from '@/lib/parseRef'
 
@@ -28,9 +29,24 @@ interface BookChapterPickerProps {
   /** Switch to a translation textId (edition or, within a multi-translation edition, a
    *  specific translation). The popover stays open so the user can keep picking. */
   onSelectTranslation?: (id: string) => void
+  /** PDF library button, appended as the last icon in the Edition row (only rendered
+   *  when both this and `editions` are provided) — receives the trigger's own
+   *  bounding rect so the caller can position its PDF picker popover the same way
+   *  the old standalone toolbar button did. */
+  onOpenPdfLibrary?: (rect: DOMRect) => void
+  /** Renders the default (non-custom-triggerLabel) trigger without its own border/
+   *  background/rounded corners, so it can sit flush as the middle segment of an
+   *  outer segmented-pill container (shared border, divider lines) instead of
+   *  looking like its own separate pill next to the prev/next chapter arrows. */
+  segmented?: boolean
+  /** Optional contextual header strip shown above the search bar in the dropdown
+   *  (e.g. "Compare Genesis 1 with…") — used by the "add comparison panel" picker
+   *  to make clear what selecting a book/chapter here will do, since that popup is
+   *  otherwise identical to the main chapter picker's. */
+  popoverHeader?: string
 }
 
-export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, editions, currentTextId, onSelectTranslation }: BookChapterPickerProps) {
+export default function BookChapterPicker({ books, currentBookId, currentChapter, onNavigate, compact, triggerLabel, triggerTitle, triggerClassName, wrapperClassName, editions, currentTextId, onSelectTranslation, onOpenPdfLibrary, segmented, popoverHeader }: BookChapterPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [editionsExpanded, setEditionsExpanded] = useState(false)
@@ -160,14 +176,20 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
     setOpen(false)
   }
 
+  // Clamp a typed chapter number to the book's valid range. Books with a chapter-0
+  // Prologue (see prologueBooks.ts) allow 0 as their floor; everyone else floors at 1.
+  // searchChapter is `number | null` and 0 is a legitimate value, so callers must not
+  // use a plain truthy check here (0 is falsy in JS but a valid typed chapter).
+  function clampSearchChapter(n: number, book: Book): number {
+    const floor = hasPrologueChapter(book.id) ? 0 : 1
+    return Math.max(floor, Math.min(n, book.chapters_count))
+  }
+
   function handleSearchKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { setOpen(false); return }
     if (e.key === 'Enter' && activeBook) {
       // If user typed a chapter number (e.g. "Genesis 3"), navigate to that chapter.
-      // Clamp to the book's chapter count.
-      const ch = searchChapter
-        ? Math.max(1, Math.min(searchChapter, activeBook.chapters_count))
-        : 1
+      const ch = searchChapter !== null ? clampSearchChapter(searchChapter, activeBook) : 1
       selectChapter(ch)
     }
   }
@@ -208,7 +230,16 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        className={`
+        className={segmented
+          ? `
+            flex items-center gap-1 h-8 cursor-pointer transition-colors
+            ${compact ? 'px-2 text-xs' : 'px-3 text-sm'}
+            ${open
+              ? 'bg-[rgb(var(--color-accent))/12] text-[rgb(var(--color-accent))]'
+              : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+            }
+          `
+          : `
           flex items-center gap-1 rounded-md cursor-pointer transition-colors border
           ${compact ? 'px-1.5 py-0.5 text-xs' : 'px-2.5 py-1 text-sm'}
           ${open
@@ -222,13 +253,15 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">
             {(() => {
               const hid = currentBook.id as HermasBookId
-              const sec = getHermasSection(hid, currentChapter)
+              const sec = getHermasSection(hid, currentChapter, hermasVariantForTextId(currentTextId))
               if (!sec) return currentChapter
               if (sec.chapters.length === 1) return sec.sectionName.replace('Vision', 'Vis.').replace('Mandate', 'Man.').replace('Similitude', 'Sim.')
               const sub = sec.chapters.indexOf(currentChapter) + 1
               return `${sec.sectionName.replace('Vision', 'Vis.').replace('Mandate', 'Man.').replace('Similitude', 'Sim.')}.${sub}`
             })()}
           </span>
+        ) : currentBook && hasPrologueChapter(currentBook.id) && currentChapter === 0 ? (
+          <span className="text-[rgb(var(--color-text-muted))] text-[10px] whitespace-nowrap">Prologue</span>
         ) : (
           <span className="text-[rgb(var(--color-text-muted))] text-[10px]">{currentChapter}</span>
         )}
@@ -252,6 +285,11 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
           "
           style={{ left: pos.left, top: pos.top, width: PANEL_W, maxHeight: PANEL_H }}
         >
+          {popoverHeader && (
+            <div className="px-3 py-2 text-xs font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+              {popoverHeader}
+            </div>
+          )}
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -264,9 +302,9 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
               placeholder={'Search books… or type “Genesis 3” and press Enter'}
               className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
             />
-            {searchChapter && activeBook && (
+            {searchChapter !== null && activeBook && (
               <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">
-                → ch {Math.max(1, Math.min(searchChapter, activeBook.chapters_count))}
+                → ch {clampSearchChapter(searchChapter, activeBook)}
               </span>
             )}
           </div>
@@ -302,6 +340,15 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                   ))}
                   {filteredEditions.length === 0 && (
                     <span className="text-[11px] text-[rgb(var(--color-text-muted))]">No editions match</span>
+                  )}
+                  {onOpenPdfLibrary && (
+                    <button
+                      onClick={(e) => onOpenPdfLibrary((e.currentTarget as HTMLElement).getBoundingClientRect())}
+                      title="PDF library — import or open a PDF"
+                      className="flex items-center justify-center w-6 h-6 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                    >
+                      <FileUp size={12} />
+                    </button>
                   )}
                 </div>
               )}
@@ -363,7 +410,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
               {activeBook && isHermasBook(activeBook.id) ? (
                 // Hermas: show Vision / Mandate / Similitude sections
                 <div className="flex flex-col gap-1">
-                  {getHermasSections(activeBook.id as HermasBookId).map((section) => (
+                  {getHermasSections(activeBook.id as HermasBookId, hermasVariantForTextId(currentTextId)).map((section) => (
                     <div key={section.sectionName}>
                       <div className="px-2 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
                         {section.sectionName}
@@ -390,23 +437,41 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                   ))}
                 </div>
               ) : activeBook ? (
-                // Normal books: flat chapter grid
-                <div className="grid grid-cols-5 gap-1">
-                  {Array.from({ length: activeBook.chapters_count }, (_, i) => i + 1).map((n) => (
+                // Normal books: flat chapter grid, with an optional "Prologue" row
+                // (chapter 0 — unnumbered front matter, e.g. Sirach's translator's
+                // prologue) spanning the full width above the numbered chapters.
+                <div className="flex flex-col gap-1">
+                  {hasPrologueChapter(activeBook.id) && (
                     <button
-                      key={n}
-                      onClick={() => selectChapter(n)}
+                      onClick={() => selectChapter(0)}
                       className={`
-                        flex items-center justify-center h-8 w-full text-xs rounded cursor-pointer transition-colors
-                        ${activeBook.id === currentBookId && n === currentChapter
-                          ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
-                          : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                        flex items-center justify-center h-7 w-full text-[11px] font-medium rounded cursor-pointer transition-colors
+                        ${activeBook.id === currentBookId && currentChapter === 0
+                          ? 'bg-[rgb(var(--color-accent))] text-white'
+                          : 'text-[rgb(var(--color-text-muted))] border border-dashed border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
                         }
                       `}
                     >
-                      {n}
+                      Prologue
                     </button>
-                  ))}
+                  )}
+                  <div className="grid grid-cols-5 gap-1">
+                    {Array.from({ length: activeBook.chapters_count }, (_, i) => i + 1).map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => selectChapter(n)}
+                        className={`
+                          flex items-center justify-center h-8 w-full text-xs rounded cursor-pointer transition-colors
+                          ${activeBook.id === currentBookId && n === currentChapter
+                            ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
+                            : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
+                          }
+                        `}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>

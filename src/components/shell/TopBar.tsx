@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import WindowControls from './WindowControls'
+import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import type { TabNavEntry } from '@/types'
 
 const NAV_TYPE_ICON: Record<string, typeof FileText> = {
@@ -102,8 +103,13 @@ export default function TopBar({ slotRef }: { slotRef: (el: HTMLDivElement | nul
     function onDown(e: MouseEvent) {
       if (navDropdownRef.current && !navDropdownRef.current.contains(e.target as Node)) setNavDropdown(null)
     }
+    function onClose() { setNavDropdown(null) }
     document.addEventListener('mousedown', onDown, true)
-    return () => document.removeEventListener('mousedown', onDown, true)
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => {
+      document.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    }
   }, [navDropdown])
 
   const appZoom = useAppStore((s) => s.appZoom)

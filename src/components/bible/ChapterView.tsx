@@ -254,6 +254,15 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   useEffect(() => {
     setLoading(true)
+    // Reset immediately, not just after the fetch resolves — the scroll-to-verse
+    // effect below guards on `verses.length === 0` to avoid firing before content
+    // exists, but if the PREVIOUS chapter's verses were left in state during this
+    // async gap, that guard is a no-op (length is already non-zero) and the effect
+    // fires against stale (old-chapter) DOM, consumes targetVerse, and clears it —
+    // so once the real new verses load a moment later, there's nothing left to
+    // scroll to. Confirmed bug: opening a verse from Advanced Search never scrolled
+    // to it because of exactly this race.
+    setVerses([])
     const slowTimer = setTimeout(() => { setShowSlowLoadIndicator(true); onSlowLoadChangeRef.current?.(true) }, 200)
     window.bible.queryChapter(bookId, chapter, textId)
       .then((data) => { setVerses(data); setLoading(false) })

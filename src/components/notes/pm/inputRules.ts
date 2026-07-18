@@ -140,7 +140,20 @@ const taskCheckboxRule = new InputRule(/^\[([ xX])\]\s$/, (state, match, start, 
 // missing space first so headingRule's own space-triggered pattern applies
 // on the VERY NEXT keystroke instead of needing the user to notice and
 // press space themselves.
-const headingSpaceRule = new InputRule(/^(#{1,6})([^ #])$/, (state, match, start, end) => {
+//
+// The negated class must be `[^\s#]`, not the old `[^ #]` (only ASCII 0x20)
+// — a real reported bug: a NON-BREAKING space (U+00A0, e.g. from a stray
+// Option+Space on macOS, or some OS/keyboard-level substitution) typed right
+// after "#" satisfied `[^ #]` (it isn't a literal ASCII space, so it read as
+// "some other character"), so this rule "helpfully" inserted a SECOND,
+// regular space ahead of it — leaving "# " + NBSP instead of a clean "# ",
+// which broke headingRule's own `^#+\s$` prefix match on the next keystroke
+// and left the line as permanent plain text (with the leading "#" escaped
+// on save, since it's genuinely no longer heading syntax at that point).
+// `\s` matches NBSP already (confirmed: /\s/.test(' ') === true in
+// V8/JS), so excluding by `\s` instead of a literal space correctly treats
+// NBSP as "already a space" and leaves it to headingRule to convert directly.
+const headingSpaceRule = new InputRule(/^(#{1,6})([^\s#])$/, (state, match, start, end) => {
   const [, hashes, typed] = match
   const tr = state.tr.replaceWith(start, end, state.schema.text(`${hashes} ${typed}`))
   return tr

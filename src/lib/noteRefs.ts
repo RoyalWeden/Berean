@@ -2,7 +2,7 @@
  * Shared utility: extract Bible verse references from note content.
  * Used by BibleRightPanel (cross-ref panel) and VerseRow (hover tooltip).
  */
-import { parseRef, AMBIGUOUS_PATTERNS } from './parseRef'
+import { parseRef, AMBIGUOUS_PATTERNS, isExactBookToken } from './parseRef'
 
 export interface NoteVerseRef {
   bookId: string
@@ -80,7 +80,7 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
     if (!isWikilink) {
       const bookPart = matchedCandidate.replace(/\s*\d[\d:–\-]*$/, '').trimEnd()
       const lastBookToken = bookPart.split(/\s+/).pop()?.toLowerCase().replace(/\.$/, '') ?? ''
-      if (AMBIGUOUS_PATTERNS.has(lastBookToken)) {
+      if (AMBIGUOUS_PATTERNS.has(lastBookToken) || !isExactBookToken(bookPart)) {
         const hasColon = matchedCandidate.includes(':')
         // Find first char of the matched candidate in the original content
         const candidateStart = content.indexOf(matchedCandidate, m.index)

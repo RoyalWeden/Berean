@@ -325,11 +325,6 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
               {activeEntry.gloss}
             </div>
           )}
-          {typeof activeEntry.occurrences === 'number' && activeEntry.occurrences > 0 && (
-            <div className="text-[10px] text-[rgb(var(--color-text-muted))]">
-              Used {activeEntry.occurrences} time{activeEntry.occurrences !== 1 ? 's' : ''}
-            </div>
-          )}
           {!expanded && (
             <button
               onClick={() => setExpanded(true)}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
@@ -323,6 +323,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [isPiPActive, setIsPiPActive] = useState(false)
   const [copyToast, setCopyToast] = useState(false)
   const [videoMenu, setVideoMenu] = useState<{ video: VideoEntry; x: number; y: number } | null>(null)
+  useEffect(() => {
+    function onClose() { setVideoMenu(null) }
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+  }, [])
   const [videoNotes, setVideoNotes] = useState<VideoNoteLink[]>([])
   const [inlinePanelNoteId, setInlinePanelNoteId] = useState<string | null>(null)
   const [inlinePanelContent, setInlinePanelContent] = useState('')

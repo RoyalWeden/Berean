@@ -191,7 +191,16 @@ export function listItemNodeView(getPos: () => number | undefined) {
       return { dom: li, contentDOM }
     }
 
-    // Ordered list — no customization, default numbered rendering.
-    return { dom: li, contentDOM: li }
+    // Ordered list — numbered via CSS counter (pmEditor.css). Needs the same
+    // wrapping content div as bullet/task items above: li is `display:flex`
+    // (for the counter + content to sit in a row), so without a div any
+    // nested block content — most visibly a nested ordered/bullet sub-list —
+    // becomes a flex-ROW sibling of the paragraph instead of stacking below
+    // it, which read as a huge indent shoving the sub-list off to the right.
+    const contentDOM = document.createElement('div')
+    contentDOM.className = 'pm-ol-content'
+    contentDOM.style.flex = '1'
+    li.appendChild(contentDOM)
+    return { dom: li, contentDOM }
   }
 }

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { BookMarked, ExternalLink, Layers } from 'lucide-react'
+import { BookMarked, ExternalLink, Layers, Copy, Hash } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 
 export interface StrongsContextTarget {
   strongsNum: string
@@ -30,6 +31,8 @@ export function StrongsContextMenu({
     if (!target) return
     const close = () => onClose()
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // Close when any OTHER context menu opens (or a right-click hits empty space).
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
     const t = setTimeout(() => {
       window.addEventListener('click', close)
       window.addEventListener('contextmenu', close)
@@ -37,6 +40,7 @@ export function StrongsContextMenu({
     }, 0)
     return () => {
       clearTimeout(t)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
       window.removeEventListener('click', close)
       window.removeEventListener('contextmenu', close)
       window.removeEventListener('keydown', onKey)
@@ -101,6 +105,21 @@ export function StrongsContextMenu({
         <ExternalLink size={12} className="flex-shrink-0" />
         Open in floating tab
       </button>
+      <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+      <button
+        className={ITEM}
+        onClick={() => { navigator.clipboard.writeText(target.strongsNum); onClose() }}
+      >
+        <Copy size={12} className="flex-shrink-0" />
+        Copy Strong's
+      </button>
+      <button
+        className={ITEM}
+        onClick={() => { navigator.clipboard.writeText(`Strong's ${target.strongsNum}`); onClose() }}
+      >
+        <Hash size={12} className="flex-shrink-0" />
+        Copy reference
+      </button>
     </div>,
     document.body,
   )
@@ -111,6 +130,7 @@ export function useStrongsContextMenu() {
   const open = useCallback((e: React.MouseEvent, strongsNum: string) => {
     e.preventDefault()
     e.stopPropagation()
+    dispatchCloseContextMenus()
     setTarget({ strongsNum, x: e.clientX, y: e.clientY })
   }, [])
   const close = useCallback(() => setTarget(null), [])

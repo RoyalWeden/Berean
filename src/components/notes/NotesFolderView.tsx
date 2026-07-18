@@ -193,7 +193,7 @@ export default function NotesFolderView({
 
   // Close all menus when floating search opens
   useEffect(() => {
-    function onClose() { setNoteMenu(null); setFolderMenu(null); setFolderMoveOpen(false); setNoteMoveMenu(null) }
+    function onClose() { setNoteMenu(null); setFolderMenu(null); setFolderMoveOpen(false); setNoteMoveMenu(null); setEmptyMenu(null) }
     window.addEventListener('berean:closeContextMenus', onClose)
     return () => window.removeEventListener('berean:closeContextMenus', onClose)
   }, [])

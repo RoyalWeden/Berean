@@ -1,14 +1,11 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import {
-  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Plus, Check, Search, Trash2, Pencil, Palette, Hash,
+  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
-import { SESSION_ICONS } from './Sidebar'
-import { MenuPositioner } from '@/lib/usePositionedMenu'
 
 /**
  * Workspace-level rail, split out from Sidebar.tsx. Originally this held
@@ -53,15 +50,6 @@ export default function Ribbon() {
   const openFindBar = useAppStore((s) => s.openFindBar)
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
 
-  const sessions          = useAppStore((s) => s.sessions)
-  const currentSessionId  = useAppStore((s) => s.currentSessionId)
-  const switchSession     = useAppStore((s) => s.switchSession)
-  const createSession     = useAppStore((s) => s.createSession)
-  const deleteSession     = useAppStore((s) => s.deleteSession)
-  const renameSession     = useAppStore((s) => s.renameSession)
-  const setSessionIcon    = useAppStore((s) => s.setSessionIcon)
-  const openSettingsToSessions = useAppStore((s) => s.openSettingsToSessions)
-  const [sessionPopoverOpen, setSessionPopoverOpen] = useState(false)
   const [zoomPopoverOpen, setZoomPopoverOpen] = useState(false)
   // Hover-to-open/close for the zoom popover — same timing as TopBar.tsx's nav dropdown and
   // HeaderOverflowMenu.tsx's "..." menu (350ms open delay, 320ms close delay). Click still works
@@ -88,27 +76,8 @@ export default function Ribbon() {
     if (zoomCloseTimer.current) clearTimeout(zoomCloseTimer.current)
   }, [])
 
-  // ── Right-click on a session chip → rename / change icon / delete / manage.
-  // `mode` switches the same portaled menu between its default action list,
-  // an inline rename input, and an icon-picker grid — mirrors the pattern
-  // SessionsSection.tsx (Settings) already uses for the same two flows. ──
-  const [sessionMenu, setSessionMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
-  const [sessionMenuMode, setSessionMenuMode] = useState<'default' | 'rename' | 'icon'>('default')
-  const [renameValue, setRenameValue] = useState('')
-  const sessionMenuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!sessionMenu) return
-    function onDown(e: MouseEvent) {
-      if (sessionMenuRef.current && !sessionMenuRef.current.contains(e.target as Node)) { setSessionMenu(null); setSessionMenuMode('default') }
-    }
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') { setSessionMenu(null); setSessionMenuMode('default') } }
-    window.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onEsc)
-    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
-  }, [sessionMenu])
-
-  useEffect(() => {
-    function onClose() { setArchiveOpen(false); setSessionPopoverOpen(false); setZoomPopoverOpen(false); setSessionMenu(null); setSessionMenuMode('default') }
+    function onClose() { setArchiveOpen(false); setZoomPopoverOpen(false) }
     window.addEventListener('berean:closeMenus', onClose)
     return () => window.removeEventListener('berean:closeMenus', onClose)
   }, [])
@@ -361,111 +330,6 @@ export default function Ribbon() {
 
         <div className="flex-1" />
 
-        {/* ── Sessions — small chips. Default label is the 1-based session
-             index (a session's icon is undefined until the user explicitly
-             picks one via the context menu's "Change icon"); once set, the
-             chosen icon shows here instead of the number. Clicking a chip
-             switches directly, the trailing "+" opens the fuller quick-switch
-             popover (moved here from Sidebar.tsx's old bottom row). ── */}
-        {sessions.map((session, idx) => {
-          const CustomIcon = session.icon ? SESSION_ICONS.find(i => i.name === session.icon)?.Icon : null
-          return (
-          <Tooltip.Root key={session.id}>
-            <Tooltip.Trigger asChild>
-              <button
-                onClick={() => switchSession(session.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  // Close the "+" quick-switch popover first — otherwise both
-                  // it and this context menu could render open at once,
-                  // overlapping and making it unclear which one a click lands on.
-                  setSessionPopoverOpen(false)
-                  setSessionMenuMode('default')
-                  setRenameValue(session.name)
-                  setSessionMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
-                }}
-                className={`no-drag flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-semibold transition-colors cursor-pointer ${
-                  session.id === currentSessionId
-                    ? 'bg-[rgb(var(--color-accent))] text-white'
-                    : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
-                }`}
-              >
-                {CustomIcon ? <CustomIcon size={13} /> : idx + 1}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                {session.name}
-                <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-          )
-        })}
-        <Popover.Root
-          open={sessionPopoverOpen}
-          onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}
-        >
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Popover.Trigger asChild>
-                <button className="no-drag flex items-center justify-center w-7 h-7 rounded-full text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-                  <Plus size={13} />
-                </button>
-              </Popover.Trigger>
-            </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                Sessions
-                <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-              </Tooltip.Content>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-          <Popover.Portal>
-            <Popover.Content
-              side="right"
-              align="end"
-              sideOffset={6}
-              className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1"
-            >
-              <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Sessions</div>
-              {sessions.map((session, idx) => {
-                const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
-                return (
-                  <button
-                    key={session.id}
-                    className={`no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
-                      ${session.id === currentSessionId
-                        ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
-                        : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
-                      }`}
-                    onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
-                  >
-                    <SessionIcon size={13} className="flex-shrink-0" />
-                    <span className="flex-1 text-xs truncate">{idx + 1}. {session.name}</span>
-                    {session.id === currentSessionId && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
-                  </button>
-                )
-              })}
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { createSession(); setSessionPopoverOpen(false) }}
-              >
-                <Plus size={12} />
-                New session <span className="ml-auto opacity-50">⌘⇧0</span>
-              </button>
-              <button
-                className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
-              >
-                <Settings size={12} />
-                Manage sessions…
-              </button>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
@@ -488,89 +352,6 @@ export default function Ribbon() {
           </Tooltip.Portal>
         </Tooltip.Root>
       </div>
-
-      {sessionMenu && createPortal(
-        <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}
-          className={`rounded-shell glass-panel p-1 text-xs ${sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}`}
-        >
-          {sessionMenuMode === 'rename' ? (
-            <input
-              autoFocus
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onFocus={(e) => e.currentTarget.select()}
-              onBlur={() => {
-                if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
-                setSessionMenu(null); setSessionMenuMode('default')
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
-              }}
-              className="w-full px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:ring-1 focus:ring-[rgb(var(--color-accent))]"
-            />
-          ) : sessionMenuMode === 'icon' ? (
-            <>
-              <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Session icon</div>
-              <div className="grid grid-cols-7 gap-0.5 p-1">
-                <button
-                  title="No icon (show number)"
-                  className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                  onClick={() => { setSessionIcon(sessionMenu.sessionId, ''); setSessionMenu(null); setSessionMenuMode('default') }}
-                >
-                  <Hash size={13} />
-                </button>
-                {SESSION_ICONS.map(({ name, Icon }) => (
-                  <button
-                    key={name}
-                    title={name}
-                    className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                    onClick={() => { setSessionIcon(sessionMenu.sessionId, name); setSessionMenu(null); setSessionMenuMode('default') }}
-                  >
-                    <Icon size={13} />
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => setSessionMenuMode('rename')}
-              >
-                <Pencil size={12} />
-                Rename
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => setSessionMenuMode('icon')}
-              >
-                <Palette size={12} />
-                Change icon
-              </button>
-              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-              <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { openSettingsToSessions(); setSessionMenu(null) }}
-              >
-                <Settings size={12} />
-                Manage sessions…
-              </button>
-              {sessions.length > 1 && (
-                <button
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
-                  onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }}
-                >
-                  <Trash2 size={12} />
-                  Delete session
-                </button>
-              )}
-            </>
-          )}
-        </MenuPositioner>,
-        document.body
-      )}
     </Tooltip.Provider>
   )
 }

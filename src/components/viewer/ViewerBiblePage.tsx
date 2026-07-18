@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
-import { bookChapterLabel } from '@/lib/parseRef'
+import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { laserToPoint } from '@/lib/presenterOverlay'
@@ -400,7 +400,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         className="text-center select-none mb-8"
         style={{ fontSize: Math.round(baseFontSize * 0.75), color: muteColor, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500 }}
       >
-        {bookChapterLabel(bookId, chapter)}{textId === 'lxx' ? ' LXX' : ''}
+        {hermasAwareChapterLabel(bookId, chapter, textId)}{textId === 'lxx' ? ' LXX' : ''}
       </div>
 
       {/* line-height and per-verse margin-bottom deliberately match

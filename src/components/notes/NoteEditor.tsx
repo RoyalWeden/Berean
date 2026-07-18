@@ -22,6 +22,7 @@
 // package.json. Not done in the same turn as the live-editor cutover to
 // avoid rushing a wide extraction under time pressure on a production app.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { EditorView, keymap, ViewPlugin, Decoration, WidgetType } from '@codemirror/view'
 import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 import { EditorState, EditorSelection, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state'
@@ -48,7 +49,7 @@ import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethr
 import type { Note } from '@/types'
 import { HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
 import { headingStyle, bereanSyntaxOverrides, bereanTheme } from './editorTheme'
-import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { useAppStore } from '@/store'
@@ -728,7 +729,8 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
         // on phrases like "is 99% fulfilled" or "her 3 children".
         const bookWords = words.slice(start)
         const lastBookWord = bookWords[bookWords.length - 1].toLowerCase().replace(/\.$/, '')
-        if (AMBIGUOUS_PATTERNS.has(lastBookWord)) {
+        const fullBookPhrase = bookWords.join(' ')
+        if (AMBIGUOUS_PATTERNS.has(lastBookWord) || !isExactBookToken(fullBookPhrase)) {
           const hasColon = numPart.includes(':')
           const firstCharOfBook = bookPhrase[wordStarts[start]] ?? ''
           const isCapitalised = /[A-Z]/.test(firstCharOfBook)
@@ -2877,6 +2879,12 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const [selToolbar, setSelToolbar] = useState<{ x: number; y: number } | null>(null)
   // Right-click link editor popup (raw markdown + WYSIWYG edit views)
   const [linkEditMenu, setLinkEditMenu] = useState<{ x: number; y: number; from: number; to: number; text: string; url: string } | null>(null)
+  useEffect(() => {
+    if (!linkEditMenu) return
+    function onClose() { setLinkEditMenu(null) }
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+  }, [!!linkEditMenu])
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set())
   const [headingMode, setHeadingMode] = useState(false)
   const [listMode, setListMode] = useState(false)

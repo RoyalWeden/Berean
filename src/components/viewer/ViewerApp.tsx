@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAppStore } from '@/store'
-import { bookChapterLabel } from '@/lib/parseRef'
+import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import type { ViewerPayload, ViewerSidePanel } from '@/types/viewer'
@@ -230,10 +230,10 @@ export default function ViewerApp() {
   const titleNote = useNote(payload.kind === 'note' ? payload.noteId : undefined)
   const titleLex = useLexicon(payload.kind === 'lexicon' ? payload.strongsId : undefined)
   let title = 'Berean'
-  if (payload.kind === 'bible') title = `${bookChapterLabel(payload.bookId, payload.chapter)}${payload.textId === 'lxx' ? ' LXX' : ''}`
+  if (payload.kind === 'bible') title = `${hermasAwareChapterLabel(payload.bookId, payload.chapter, payload.textId)}${payload.textId === 'lxx' ? ' LXX' : ''}`
   else if (payload.kind === 'note') title = titleNote?.title || 'Note'
   else if (payload.kind === 'lexicon') title = `${titleLex?.strongsNum ?? payload.strongsId}${titleLex?.lemma ? ` · ${titleLex.lemma}` : ''}`
-  else if (payload.kind === 'compare' && payload.columns[0]) title = `Compare — ${bookChapterLabel(payload.columns[0].bookId, payload.columns[0].chapter)}`
+  else if (payload.kind === 'compare' && payload.columns[0]) title = `Compare — ${hermasAwareChapterLabel(payload.columns[0].bookId, payload.columns[0].chapter, payload.columns[0].textId)}`
 
   // ── Transient "flash" overlay: shows the content label big, then fades ─────────
   // Keyed to the content identity so it re-fires on each navigation (chapter/note/lexicon).

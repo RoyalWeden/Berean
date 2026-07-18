@@ -8,7 +8,7 @@ import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
 import { applyFindHighlight } from '@/lib/highlight'
-import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
 import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
@@ -113,6 +113,27 @@ function parseTaggedTokens(tagged: string): TaggedToken[] {
     }
   }
   return tokens
+}
+
+/**
+ * Indices of tokens that fall inside an LXX supply span — text the Brenton translator
+ * added that isn't in the Greek, marked with square brackets in `text_tagged`. A span
+ * opens on the token whose word contains '[' and closes on the one containing ']';
+ * both single-token (`[is]`) and multi-token (`[It … is]`) spans are covered. Used to
+ * drop these tokens when the `lxx_supply` annotation is hidden — the token-level
+ * analogue of the `\[…\]` regex strip that stripAnnotations() applies to plain text.
+ */
+export function supplyBracketIndices(tokens: { word: string }[]): Set<number> {
+  const set = new Set<number>()
+  let inSupply = false
+  tokens.forEach((t, i) => {
+    const opens = t.word.includes('[')
+    const closes = t.word.includes(']')
+    if (inSupply || opens) set.add(i)
+    if (opens) inSupply = true
+    if (closes) inSupply = false
+  })
+  return set
 }
 
 /**
@@ -346,6 +367,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const idiomCache = useAppStore((s) => s.idiomCache)
   const [idiomTooltip, setIdiomTooltip] = useState<{ x: number; y: number; term: string; meaning: string } | null>(null)
   const [idiomContextMenu, setIdiomContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  useEffect(() => {
+    if (!idiomContextMenu) return
+    function onClose() { setIdiomContextMenu(null) }
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+  }, [!!idiomContextMenu])
   const expandedIdioms = expandIdiomPatterns(idiomCache)
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
@@ -460,6 +487,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       setPopoverPos({ x: rect.left, y: rect.bottom + 4 })
       setPopoverAbove(rect.top > window.innerHeight * 0.6)
     }
+    dispatchCloseContextMenus()
     setPopoverOpen(true)
     bumpVersePopoverToken()
   }
@@ -471,8 +499,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         setPopoverOpen(false)
       }
     }
+    function onClose() { setPopoverOpen(false) }
     document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    }
   }, [popoverOpen])
 
 
@@ -820,8 +853,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     // This handles: showStrongs ON/OFF, kjva_italics hidden/shown, find highlights, and
     // char-level highlights — all simultaneously. Char positions are tracked from the
     // raw (pre-filter) token list so they align with verse.text offsets.
-    if ((textId === 'kjva' || textId === 'lxx') && verse.text_tagged) {
-      const tokens = parsedTokens ?? parseTaggedTokens(verse.text_tagged)
+    // Guard `tokens.length`: a truthy-but-tokenless text_tagged (e.g. a stray whitespace
+    // string, which parseTaggedTokens yields [] for) would otherwise render an empty
+    // <span> — a blank verse with its number badge still showing. Fall through to the
+    // plain-text path below, which renders verse.text.
+    const taggedTokens = verse.text_tagged ? (parsedTokens ?? parseTaggedTokens(verse.text_tagged)) : null
+    if ((textId === 'kjva' || textId === 'lxx') && taggedTokens && taggedTokens.length > 0) {
+      const tokens = taggedTokens
 
       // Compute char start position in verse.text for each token (before any filtering).
       // Parenthetical tokens (~{H853}) have no English word — they don't advance charPos.
@@ -835,7 +873,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       })
 
       const hideItalics = hiddenAnnotations.includes('kjva_italics')
-      const baseTokens = hideItalics ? tokensWithCharPos.filter(t => !t.isItalic) : tokensWithCharPos
+      // LXX supply brackets ([word]) live inside `text_tagged` as bracket chars on the
+      // span's boundary tokens — stripAnnotations()'s regex only runs on the plain-text
+      // (non-tagged) path, so without this the tagged LXX render ignored `lxx_supply`.
+      const hideLxxSupply = textId === 'lxx' && hiddenAnnotations.includes('lxx_supply')
+      const supplyIdx = hideLxxSupply ? supplyBracketIndices(tokensWithCharPos) : null
+      const baseTokens = (hideItalics || supplyIdx)
+        ? tokensWithCharPos.filter((t, i) => !(hideItalics && t.isItalic) && !supplyIdx?.has(i))
+        : tokensWithCharPos
       // Apply word replacer to each token's word:
       //  1. Text-pattern rules (applyWordReplacer) — skips rules with strongsNum
       //  2. Strong's-number rules (applyStrongsWordReplacer) — KJVA-precise divine name substitution

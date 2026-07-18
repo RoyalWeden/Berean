@@ -44,6 +44,22 @@ describe('markdown-shortcut input rules (live conversion while typing, not just 
     view.destroy()
   })
 
+  // Reported bug: a note stayed permanently unconverted ("# gregerg" saved
+  // to disk as escaped plain text "\# gregerg") because a non-breaking space
+  // (U+00A0 — e.g. a stray Option+Space on macOS) was typed right after "#"
+  // instead of a regular space. headingSpaceRule's old `[^ #]` exclusion
+  // only recognized literal ASCII space, so it treated the NBSP as "some
+  // other character" and inserted a SECOND regular space ahead of it,
+  // corrupting the "# " trigger sequence before headingRule ever got a
+  // clean shot at it.
+  it('# + NON-BREAKING space converts to a heading too (not a doubled space that never converts)', () => {
+    const view = makeView()
+    type(view, '# Title')
+    expect(view.state.doc.firstChild?.type.name).toBe('heading')
+    expect(view.state.doc.firstChild?.attrs.level).toBe(1)
+    view.destroy()
+  })
+
   it('> + space wraps the line in a real blockquote node', () => {
     const view = makeView()
     type(view, '> quoted text')

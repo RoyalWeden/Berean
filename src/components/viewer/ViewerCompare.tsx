@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAppStore } from '@/store'
-import { bookChapterLabel } from '@/lib/parseRef'
+import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { TRANSLATIONS } from '@/lib/bibleTexts'
 import { buildVerseDisplayTokens } from '@/lib/verseUtils'
 import { renderVerseText } from './ViewerBiblePage'
@@ -87,7 +87,7 @@ function CompareColumn({ col, colIndex, fontScale, scrollPercent, muteColor, tex
         style={{ borderColor: 'rgb(var(--color-surface-3, 50 50 70))', background: 'rgb(var(--color-surface-2, 24 24 32))', fontSize: Math.round(13 * fontScale), fontWeight: 700, color: accentColor, letterSpacing: '0.04em' }}
       >
         {translationLabel(col.textId)}
-        <span style={{ color: muteColor, fontWeight: 500, marginLeft: 6 }}>{bookChapterLabel(col.bookId, col.chapter)}{col.textId === 'lxx' ? ' LXX' : ''}</span>
+        <span style={{ color: muteColor, fontWeight: 500, marginLeft: 6 }}>{hermasAwareChapterLabel(col.bookId, col.chapter, col.textId)}{col.textId === 'lxx' ? ' LXX' : ''}</span>
       </div>
       <div ref={scrollRef} onScroll={report} className="flex-1 overflow-y-auto px-6 py-4" style={{ fontSize: base, lineHeight: 1.85, color: textColor }}>
         {verses.map((v) => (

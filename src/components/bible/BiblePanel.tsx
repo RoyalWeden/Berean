@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, Check, Columns2, Info, Eye, EyeOff, ArrowLeft, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Plus, FileUp, SplitSquareHorizontal, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -23,8 +23,10 @@ import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
 
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
+import { bookName } from '@/lib/parseRef'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
-import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter } from '@/lib/hermasMap'
+import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter, hermasVariantForTextId } from '@/lib/hermasMap'
+import { hasPrologueChapter } from '@/lib/prologueBooks'
 
 function normalizeBookName(name: string): string {
   return name
@@ -159,6 +161,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   const textId = (tabState.translation ?? 'KJVA').toLowerCase()
   const [books, setBooks] = useState<Book[]>([])
+  // Book ids present in the KJVA<->LXX counterpart edition, used to decide whether the
+  // quick KJV/LXX switch button applies to the CURRENT book (not just OT books — many
+  // Apocrypha books like Sirach exist in both editions too).
+  const [counterpartBookIds, setCounterpartBookIds] = useState<Set<string>>(new Set())
   const [pdfPicker, setPdfPicker] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const infoRef = useRef<HTMLButtonElement>(null)
@@ -211,6 +217,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
     }).catch(() => {})
   }, [textId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the counterpart edition's book ids so the quick KJV/LXX switch button only shows
+  // for books that actually exist in the target edition (this mirrors the availability check
+  // in selectPickerTranslation, so the button never offers a switch that would just bounce
+  // the user to the target's first book).
+  useEffect(() => {
+    const counterpart = textId === 'kjva' ? 'lxx' : textId === 'lxx' ? 'kjva' : null
+    if (!counterpart) { setCounterpartBookIds(new Set()); return }
+    window.bible.getBooks(counterpart)
+      .then((bks) => setCounterpartBookIds(new Set((bks as Book[]).map((b) => b.id))))
+      .catch(() => setCounterpartBookIds(new Set()))
+  }, [textId])
 
   // Restore scroll position when switching back to a tab or back to the scripture space.
   // ChapterView loads verses asynchronously via IPC, so double-RAF is not enough —
@@ -552,7 +570,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
       ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
       : isHermasBook(tabState.bookId)
-        ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter)}`
+        ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
         : `${currentBook.name} ${tabState.chapter}`
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
     // Record navigation in history
@@ -562,6 +580,27 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       bookId: tabState.bookId,
       chapter: tabState.chapter,
       translation: textId,
+    })
+    // Per-tab back/forward stack (Cmd+[ / Cmd+]) — Notes/Lexicon already push
+    // onto this on every real navigation; the Scripture tab never did, so
+    // Cmd+[ from a Bible tab was a no-op regardless of how you got there
+    // (including the now-removed "← Search: ..." pill's own back button,
+    // which was the ONLY way back for that specific case).
+    // translation must be UPPERCASE here (textId is lowercased for DB lookups) —
+    // updateTabState's own internal auto-push (store/index.ts) already pushes a
+    // nav entry for bookId/chapter changes using the uppercase `tabState.translation`
+    // convention. If this push used lowercase `textId` instead, the two entries for
+    // the same navigation would differ only in translation casing, defeating
+    // pushTabNav's dedup check (top.translation === full.translation) and leaving a
+    // spurious duplicate entry in the stack — confirmed bug: every chapter nav (most
+    // visibly landing on a verse from Advanced Search) required an extra back-press
+    // to skip past the duplicate before reaching the previous real entry.
+    useAppStore.getState().pushTabNav(activeTab.id, {
+      type: 'bible',
+      title,
+      bookId: tabState.bookId,
+      chapter: tabState.chapter,
+      translation: textId.toUpperCase(),
     })
   }, [tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -815,8 +854,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return endChapter
       ? (bookId === 'PSA' ? `Psalm ${chapter}–${endChapter}` : book ? `${book.name} ${chapter}–${endChapter}` : `${bookId} ${chapter}–${endChapter}`)
       : isHermasBook(bookId)
-        ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
-        : singular(chapter)
+        ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(textId))}`
+        : (hasPrologueChapter(bookId) && chapter === 0)
+          ? `${book ? book.name : bookId} — Prologue`
+          : singular(chapter)
   }
 
   function navigate(bookId: string, chapter: number, endChapter?: number) {
@@ -826,6 +867,25 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
     })
     renameTab('scripture', activeTab.id, title)
+  }
+
+  // Header for the "add comparison panel" picker's popover — names every panel
+  // already open (tabState.compareColumns, when compare mode is already active)
+  // rather than just the current chapter, so adding a THIRD+ panel reads as
+  // "Compare Sirach 1, Genesis 5, and Exodus 2 with…" instead of only ever
+  // naming the one panel the picker happens to be attached to.
+  function describeComparePanels(): string {
+    const cols = tabState.compareColumns
+    const list = cols && cols.length > 0
+      ? cols.map((c) => {
+          const b = books.find((bk) => bk.id === c.bookId)
+          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+        })
+      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+    if (list.length === 0) return 'Compare with…'
+    if (list.length === 1) return `Compare ${list[0]} with…`
+    if (list.length === 2) return `Compare ${list[0]} and ${list[1]} with…`
+    return `Compare ${list.slice(0, -1).join(', ')}, and ${list[list.length - 1]} with…`
   }
 
   function prevChapter() {
@@ -839,11 +899,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // In multi-chapter mode, go to previous single chapter
       navigate(tabState.bookId, tabState.chapter - 1)
     } else if (isHermasBook(tabState.bookId)) {
-      const prev = getHermasPrevChapter(tabState.bookId, tabState.chapter)
+      const prev = getHermasPrevChapter(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))
       if (prev !== null) navigate(tabState.bookId, prev)
       // else: already at first Hermas chapter, no cross-book wrap for pseudepigrapha
     } else if (tabState.chapter > 1) {
       navigate(tabState.bookId, tabState.chapter - 1)
+    } else if (hasPrologueChapter(tabState.bookId) && tabState.chapter === 1) {
+      // Step into the book's unnumbered chapter-0 Prologue before wrapping to the previous book.
+      navigate(tabState.bookId, 0)
+    } else if (tabState.chapter === 0) {
+      // Already at the Prologue — nothing before it in this book, no cross-book wrap.
     } else {
       const bookIdx = books.findIndex((b) => b.id === tabState.bookId)
       if (bookIdx > 0) { const prev = books[bookIdx - 1]; navigate(prev.id, prev.chapters_count) }
@@ -861,7 +926,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // In multi-chapter mode, go to next single chapter after the range
       navigate(tabState.bookId, tabState.endChapter + 1)
     } else if (isHermasBook(tabState.bookId)) {
-      const next = getHermasNextChapter(tabState.bookId, tabState.chapter)
+      const next = getHermasNextChapter(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))
       if (next !== null) navigate(tabState.bookId, next)
       // else: already at last Hermas chapter
     } else if (tabState.chapter < chapterCount) {
@@ -1140,8 +1205,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             const savedQuery = tabState.scriptureSearchQuery ?? ''
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
-              ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
+              ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
               : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
+            // Record the search itself as a nav-stack entry BEFORE leaving it, so
+            // Cmd+[ (navTabBack) from the verse we're about to open returns to
+            // these search results (with the query restored) instead of
+            // skipping straight past it to whatever was open before the search.
+            if (savedQuery) {
+              useAppStore.getState().pushTabNav(activeTab.id, { type: 'bible', title: `Search: "${savedQuery}"`, query: savedQuery })
+            }
             // Navigate within this tab (search → reader), preserving search state for back button
             updateTabState('scripture', activeTab.id, {
               translation: newTranslation, bookId, chapter, targetVerse: verse,
@@ -1153,7 +1225,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           onOpenInNewTab={(bookId, chapter, verse, tid) => {
             const book = books.find((b) => b.id === bookId)
             const title = isHermasBook(bookId)
-              ? `Hermas ${getHermasShortLabel(bookId, chapter)}`
+              ? `Hermas ${getHermasShortLabel(bookId, chapter, hermasVariantForTextId(tid))}`
               : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
             addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
@@ -1183,45 +1255,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     >
       {/* Reference bar */}
       <TabHeaderPortal floating={floating}>
-        {/* The "← my note" back-to-note pill (tabState.noteBack) was removed —
-            redundant with the global TopBar nav pill and the per-tab home
-            button, which already track "where did I come from" for every
-            tab type without needing a second, panel-local affordance. */}
-        {!isCompareMode && tabState.scriptureBack && (
-          <button
-            onClick={() => {
-              if (!activeTab || !tabState.scriptureBack) return
-              const { bookId, chapter, verse, translation: backTranslation } = tabState.scriptureBack
-              updateTabState('scripture', activeTab.id, {
-                bookId, chapter,
-                targetVerse: verse,
-                scrollPosition: 0,
-                scriptureBack: null,
-                ...(backTranslation ? { translation: backTranslation } : {}),
-              })
-            }}
-            title={`Back to ${tabState.scriptureBack.label}`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer flex-shrink-0 max-w-[140px] truncate"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
-            <span className="truncate">{tabState.scriptureBack.label}</span>
-          </button>
-        )}
-        {!isCompareMode && !floating && tabState.searchBack && (
-          <button
-            onClick={() => {
-              if (!activeTab) return
-              updateTabState('scripture', activeTab.id, { searchMode: true, searchBack: null })
-            }}
-            title={`Back to search${tabState.searchBack.query ? `: "${tabState.searchBack.query}"` : ''}`}
-            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[180px]"
-          >
-            <ArrowLeft size={11} className="flex-shrink-0" />
-            <span className="truncate">
-              Search{tabState.searchBack.query ? `: "${tabState.searchBack.query}"` : ' results'}
-            </span>
-          </button>
-        )}
+        {/* The "← my note" back-to-note pill (tabState.noteBack), and the
+            "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
+            tabState.searchBack) that used to render here, were removed —
+            redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the
+            per-tab home button, which now correctly track "where did I come
+            from" for the Scripture tab too (including search results —
+            see the pushTabNav call in onNavigate below), without needing a
+            second, panel-local affordance. */}
         {isCompareMode ? (
           <BookChapterPicker
             books={books}
@@ -1231,31 +1272,42 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             editions={EDITIONS}
             currentTextId={addPanelTextId ?? textId}
             onSelectTranslation={setAddPanelTextId}
-            triggerLabel={<><Plus size={12} /><span>Add panel</span></>}
+            triggerLabel={<PanelRightDashed size={16} />}
             triggerTitle="Add comparison panel"
-            triggerClassName="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors font-medium flex-shrink-0"
+            triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+            popoverHeader={describeComparePanels()}
           />
         ) : (
           <>
-            {/* ◄ prev chapter */}
-            <button onClick={prevChapter} title="Previous chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-              <ChevronLeft size={18} />
-            </button>
-            {/* ── Unified book / chapter / edition / translation picker ── */}
-            <BookChapterPicker
-              books={books}
-              currentBookId={tabState.bookId}
-              currentChapter={tabState.chapter}
-              onNavigate={navigate}
-              editions={EDITIONS}
-              currentTextId={textId}
-              onSelectTranslation={selectPickerTranslation}
-            />
-            {/* ► next chapter */}
-            <button onClick={nextChapter} title="Next chapter" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-              <ChevronRight size={18} />
-            </button>
-            {/* Add comparison panel */}
+            {/* Prev chapter / book+chapter+edition picker / next chapter — one
+                segmented pill (shared border, divider lines between segments,
+                hover highlights only the segment under the cursor) instead of
+                three separate floating buttons. */}
+            <div className="flex items-stretch rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden divide-x divide-[rgb(var(--color-surface-4))] flex-shrink-0">
+              <button onClick={prevChapter} title="Previous chapter" className="flex items-center justify-center w-8 h-8 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+                <ChevronLeft size={17} />
+              </button>
+              {/* ── Unified book / chapter / edition / translation picker ──
+                  The PDF library button now lives at the end of this picker's own
+                  Edition row (as an icon) instead of a separate standalone toolbar
+                  button next to it. */}
+              <BookChapterPicker
+                books={books}
+                currentBookId={tabState.bookId}
+                currentChapter={tabState.chapter}
+                onNavigate={navigate}
+                editions={EDITIONS}
+                currentTextId={textId}
+                onSelectTranslation={selectPickerTranslation}
+                onOpenPdfLibrary={!floating ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
+                segmented
+              />
+              <button onClick={nextChapter} title="Next chapter" className="flex items-center justify-center w-8 h-8 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+                <ChevronRight size={17} />
+              </button>
+            </div>
+            {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
+                column will open here", distinct from the solid picker pill. */}
             <BookChapterPicker
               books={books}
               currentBookId={tabState.bookId}
@@ -1264,22 +1316,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               editions={EDITIONS}
               currentTextId={addPanelTextId ?? textId}
               onSelectTranslation={setAddPanelTextId}
-              triggerLabel={<SplitSquareHorizontal size={16} />}
+              triggerLabel={<PanelRightDashed size={16} />}
               triggerTitle="Add comparison panel (pick a book/chapter)"
+              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+              popoverHeader={describeComparePanels()}
             />
-            {/* PDF import / library button */}
-            {!floating && (
-              <button
-                onClick={(e) => {
-                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setPdfPicker({ x: r.left, y: r.bottom + 4 })
-                }}
-                title="PDF library — import or open a PDF"
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer flex-shrink-0"
-              >
-                <FileUp size={14} />
-              </button>
-            )}
             {/* Annotation info button — the panel below is portaled to document.body with
                 fixed positioning (computed from the trigger's rect on open) rather than
                 absolutely positioned inline: this toolbar row is portaled into TopBar.tsx's
@@ -1410,7 +1451,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               label: 'Search scripture',
               icon: <SearchIcon />,
               shortcut: '⌘/',
-              onClick: () => { openSearch('current'); closeFindBar() },
+              onClick: () => { openSearch('current', 'verses'); closeFindBar() },
             },
             {
               key: 'compare',
@@ -1457,7 +1498,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             }] : []),
           ]}
         />
-        {((textId === 'kjva' && currentBook?.testament === 'OT') || textId === 'lxx') && (
+        {(textId === 'kjva' || textId === 'lxx') && currentBook && counterpartBookIds.has(currentBook.id) && (
           <HintTooltip label={textId === 'lxx' ? 'Switch to KJV' : 'Switch to Brenton LXX'}>
           <button
             onClick={() => {

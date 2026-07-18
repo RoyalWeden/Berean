@@ -6,12 +6,13 @@ import type { Book } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
-import { applyWordReplacer } from '@/lib/wordReplacer'
+import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
 import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { toggleBook, bookPassesFilter } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
+import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index). */
 function highlightStrongs(text: string, matchWordIndices: number[]): React.ReactNode {
@@ -190,12 +191,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [focusedIdx, setFocusedIdx] = useState(-1)
   const [showContext, setShowContext] = useState(false)
-  const [railExpanded, setRailExpanded] = useState(false)
   const [railSearch, setRailSearch] = useState('')
-  const [railPanelPos, setRailPanelPos] = useState<{ centerY: number; right: number } | null>(null)
   const railSearchRef = useRef<HTMLInputElement>(null)
-  const railTriggerRef = useRef<HTMLDivElement>(null)
-  const railCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const railPanelRef = useRef<FloatingHoverPanelHandle>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -289,35 +287,57 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     if (trimmed.length < 2) { setResults([]); return }
     setLoading(true)
     const effectiveWordMode = wMode ?? wordMode
+    // Bidirectional word-replacer search: the DB still stores the ORIGINAL word
+    // (e.g. "Jesus"), only display-side applyWordReplacer below shows "Yeshua" —
+    // so without expanding the search itself, searching "Yeshua" here found nothing.
+    // Each variant is a REAL, independent, plain query string run through
+    // window.bible.searchText separately and merged below — NOT a single "term1 OR
+    // term2" string. electron/ipc/bible.ts's own FTS query builder deliberately
+    // treats every word (including a literal "OR") as a required token, so a
+    // one-string "OR"-joined query silently became an impossible AND-query
+    // requiring the literal word "or" too — confirmed broken in both this view and
+    // the floating quick search. Skipped for phrase mode — a substituted variant is
+    // still one coherent phrase, so this stays correct there too, just run as
+    // several exact-phrase searches instead of one.
+    const variants = wordReplacerEnabled
+      ? getWordReplacerSearchVariants(trimmed, wordReplacerRules)
+      : [trimmed]
     try {
+      const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
+      const seen = new Set<string>()
       let raw: RawResult[] = []
-      if (tid === 'all') {
-        const allResults = await Promise.all(
-          ALL_TEXTS.map(async (t) => {
-            try {
-              const res = await window.bible.searchText(trimmed, t.id, effectiveWordMode)
-              return (res as unknown as RawResult[]).map((r) => ({ ...r, _textId: t.id }))
-            } catch { return [] }
-          })
-        )
-        raw = allResults.flat()
-      } else {
-        const res = await window.bible.searchText(trimmed, tid, effectiveWordMode)
-        raw = (res as unknown as RawResult[]).map((r) => ({ ...r, _textId: tid }))
+      for (const textId of textTargets) {
+        for (const variant of variants) {
+          let res: RawResult[]
+          try {
+            res = (await window.bible.searchText(variant, textId, effectiveWordMode)) as unknown as RawResult[]
+          } catch { continue }
+          for (const r of res) {
+            const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
+            if (seen.has(key)) continue
+            seen.add(key)
+            raw.push({ ...r, _textId: textId })
+          }
+        }
       }
 
       // ── Phrase mode: JS post-filter guarantees only exact-phrase matches ──────
       // FTS5 phrase search is correct in most cases, but this catches edge cases
-      // and makes the filtering strict regardless of FTS5 tokenizer quirks.
+      // and makes the filtering strict regardless of FTS5 tokenizer quirks. Checked
+      // against every VARIANT phrase (not just the user's literal typed text) — a
+      // result found via the substituted-wording variant (e.g. "jesus christ") will
+      // never literally contain the user's own typed phrase ("yeshua messiah"), so
+      // checking only the original phrase here would silently discard exactly the
+      // bidirectional matches the variant search above exists to surface.
       if (effectiveWordMode === 'phrase') {
-        const phrase = trimmed.toLowerCase()
-        raw = raw.filter((r) => r.text.toLowerCase().includes(phrase))
+        const phrases = variants.map((v) => v.toLowerCase())
+        raw = raw.filter((r) => { const t = r.text.toLowerCase(); return phrases.some((p) => t.includes(p)) })
       }
 
       setResults(raw)
     } catch { setResults([]) }
     finally { setLoading(false) }
-  }, [wordMode])
+  }, [wordMode, wordReplacerEnabled, wordReplacerRules])
 
   const runCrossRefSearch = useCallback(async (q: string) => {
     const parsed = parseRef(q.trim())
@@ -395,27 +415,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     setTimeout(() => scopeSearchRef.current?.focus(), 30)
   }
 
-  // Jump-rail hover handling. The expanded panel is portaled to document.body (not rendered as
-  // a child of the trigger), so onMouseEnter/onMouseLeave on the trigger alone would fire
-  // onMouseLeave the instant the pointer crosses from the trigger onto the (DOM-disconnected)
-  // panel — a short close delay, cancelled by re-entering either element, lets the pointer
-  // travel between them without the panel slamming shut mid-move.
-  //
-  // The panel stays mounted (position known) as soon as the trigger exists, not just once
-  // hovered — its visibility is controlled purely by opacity/scale classes tied to
-  // railExpanded. That's what makes the fade+slide a real CSS transition even on the very
-  // first hover: a conditionally-mounted element has no prior style to transition FROM, so
-  // toggling it into existence already-visible would just pop in with no animation.
-  function openRail() {
-    if (railCloseTimerRef.current) { clearTimeout(railCloseTimerRef.current); railCloseTimerRef.current = null }
-    const r = railTriggerRef.current?.getBoundingClientRect()
-    if (r) setRailPanelPos({ centerY: r.top + r.height / 2, right: window.innerWidth - r.left + 6 })
-    setRailExpanded(true)
-    setTimeout(() => railSearchRef.current?.focus(), 30)
-  }
-  function scheduleCloseRail() {
-    if (railCloseTimerRef.current) clearTimeout(railCloseTimerRef.current)
-    railCloseTimerRef.current = setTimeout(() => { setRailExpanded(false); setRailSearch('') }, 180)
+  // FloatingHoverPanel owns open/close/hover-timer/positioning; this just
+  // reacts to its expanded-state changes to autofocus the search input and
+  // reset the search text once it closes.
+  function handleRailExpandedChange(expanded: boolean) {
+    if (expanded) setTimeout(() => railSearchRef.current?.focus(), 30)
+    else setRailSearch('')
   }
 
   function handleWordModeChange(mode: WordMode) {
@@ -511,6 +516,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   })()
 
   const totalCount = filteredGroups.reduce((n, g) => n + g.results.length, 0)
+
   const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
 
   // Flat ordered list of visible results (respects collapsed groups) for keyboard nav, plus an
@@ -537,14 +543,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   // Reset focused index when results change
   useEffect(() => { setFocusedIdx(-1) }, [results])
-
-  // Position the jump-rail panel as soon as its trigger exists, not just on first hover —
-  // see openRail's comment for why this matters for the entrance animation.
-  useEffect(() => {
-    if (filteredGroups.length <= 1) return
-    const r = railTriggerRef.current?.getBoundingClientRect()
-    if (r) setRailPanelPos({ centerY: r.top + r.height / 2, right: window.innerWidth - r.left + 6 })
-  }, [filteredGroups.length])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return }
@@ -1020,92 +1018,62 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         )}
       </div>
 
-      {/* Jump-to-book: a small floating pill (not a docked full-height rail), vertically
-           centered against the results column rather than pinned to the top corner. An earlier
-           version rendered its expanded panel as an absolutely-positioned child inside this
-           results row's `overflow-hidden` container — that clipped the panel to invisibility,
-           which is why hovering appeared to "do nothing." It's now portaled to document.body
-           (like the scope modal) so nothing can clip it, with its own search box and a real
-           fade+slide-in animation. A ListTree icon (not just unlabeled dots) plus a native title
-           makes its purpose legible before you've ever hovered it; it sits at reduced opacity by
-           default and reaches full opacity on hover, reading as an on-demand affordance rather
-           than a permanent fixture. */}
-      {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (
-        <div
-          ref={railTriggerRef}
-          title="Jump to book"
-          className="absolute top-1/2 -translate-y-1/2 right-2 z-10 flex flex-col items-center gap-1 py-1.5 px-1.5 rounded-full bg-[rgb(var(--color-surface-2))]/95 border border-[rgb(var(--color-surface-4))] shadow-lg backdrop-blur-sm cursor-pointer opacity-55 hover:opacity-100 transition-opacity"
-          onMouseEnter={openRail}
-          onMouseLeave={scheduleCloseRail}
-        >
-          <ListTree size={11} className="text-[rgb(var(--color-text-muted))] mb-0.5" />
-          {filteredGroups.slice(0, 8).map((g) => {
-            const key = `${g.textId}::${g.bookId}`
-            const editionColor = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
-            return <span key={key} className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionColor} opacity-80`} />
-          })}
-          {filteredGroups.length > 8 && <span className="text-[8px] text-[rgb(var(--color-text-muted))] leading-none">+{filteredGroups.length - 8}</span>}
-        </div>
-      )}
-      {railPanelPos && createPortal(
-        (() => {
-          const railQuery = normalizeBookQuery(railSearch.trim().toLowerCase())
-          const railGroups = railQuery ? filteredGroups.filter((g) => g.bookName.toLowerCase().includes(railQuery)) : filteredGroups
-          return (
-            <div
-              className={`fixed z-[9999] w-64 max-h-[70vh] flex flex-col bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl origin-right transition-[opacity,transform] duration-150 ease-out ${
-                railExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-              }`}
-              style={{
-                top: railPanelPos.centerY,
-                right: railPanelPos.right,
-                // Vertical centering (translateY(-50%) against centerY) and the show/hide
-                // slide+scale both need the same `transform` property, so they're combined
-                // into one inline value here rather than split across this and Tailwind's
-                // translate-x-*/scale-* utility classes, which would silently overwrite each
-                // other (inline style always wins the whole property, not just the parts a
-                // class happens to also set) — that's also why the panel was previously
-                // anchored to the trigger's top edge instead of centered on it.
-                transform: `translateY(-50%) ${railExpanded ? 'translateX(0) scale(1)' : 'translateX(4px) scale(0.95)'}`,
-              }}
-              onMouseEnter={openRail}
-              onMouseLeave={scheduleCloseRail}
-            >
-              <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                <input
-                  ref={railSearchRef}
-                  value={railSearch}
-                  onChange={(e) => setRailSearch(e.target.value)}
-                  placeholder="Jump to book…"
-                  className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
-                />
-              </div>
-              <div className="overflow-y-auto flex-1 py-1">
-                {railGroups.length === 0 && (
-                  <div className="px-3 py-3 text-xs text-center text-[rgb(var(--color-text-muted))]">No match</div>
-                )}
-                {railGroups.map((g) => {
+      {/* Jump-to-book — shared floating trigger/panel widget, see
+           FloatingHoverPanel.tsx for the resize/positioning/clipping mechanics. */}
+      {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (() => {
+        const railQuery = normalizeBookQuery(railSearch.trim().toLowerCase())
+        const railGroups = railQuery ? filteredGroups.filter((g) => g.bookName.toLowerCase().includes(railQuery)) : filteredGroups
+        return (
+          <FloatingHoverPanel
+            ref={railPanelRef}
+            expandedWidth={256}
+            expandedHeight={400}
+            anchorRightClass="right-2"
+            onExpandedChange={handleRailExpandedChange}
+            collapsedContent={
+              <div className="flex flex-col items-center justify-center gap-1">
+                <ListTree size={11} className="text-[rgb(var(--color-text-muted))]" />
+                {filteredGroups.slice(0, 3).map((g) => {
                   const key = `${g.textId}::${g.bookId}`
-                  const editionDot = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => { groupHeaderRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setRailExpanded(false); setRailSearch('') }}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
-                    >
-                      {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${editionDot}`} />}
-                      <span className="flex-1 truncate">{g.bookName}</span>
-                      {textId === 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide flex-shrink-0">{g.textLabel}</span>}
-                    </button>
-                  )
+                  const editionColor = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
+                  return <span key={key} className={`w-1 h-1 rounded-full flex-shrink-0 ${editionColor} opacity-80`} />
                 })}
               </div>
+            }
+          >
+            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+              <Search size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+              <input
+                ref={railSearchRef}
+                value={railSearch}
+                onChange={(e) => setRailSearch(e.target.value)}
+                placeholder="Jump to book…"
+                className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
+              />
             </div>
-          )
-        })(),
-        document.body
-      )}
+            <div className="overflow-y-auto flex-1 py-1">
+              {railGroups.length === 0 && (
+                <div className="px-3 py-3 text-xs text-center text-[rgb(var(--color-text-muted))]">No match</div>
+              )}
+              {railGroups.map((g) => {
+                const key = `${g.textId}::${g.bookId}`
+                const editionDot = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
+                return (
+                  <button
+                    key={key}
+                    onClick={() => { groupHeaderRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); railPanelRef.current?.close() }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                  >
+                    {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${editionDot}`} />}
+                    <span className="flex-1 truncate">{g.bookName}</span>
+                    {textId === 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide flex-shrink-0">{g.textLabel}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </FloatingHoverPanel>
+        )
+      })()}
       </div>
 
       {/* Right-click context menu for search results */}

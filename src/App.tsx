@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
+import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import Sidebar from '@/components/shell/Sidebar'
 import Ribbon from '@/components/shell/Ribbon'
 import ActivePanel from '@/components/shell/ActivePanel'
@@ -260,6 +261,17 @@ export default function App() {
     window.addEventListener('berean:closeMenus', onCloseMenus)
     return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
   }, [])
+
+  // Global right-click guard: only ONE context menu open at a time, app-wide.
+  // Every right-click fires the context-menu close event in the capture phase —
+  // before React's onContextMenu handlers run — so any already-open context menu
+  // (even one from an unrelated component) closes first. The target's own handler
+  // then opens its menu after; right-clicking empty space closes all and opens none.
+  useEffect(() => {
+    function onContextMenu() { dispatchCloseContextMenus() }
+    document.addEventListener('contextmenu', onContextMenu, true)
+    return () => document.removeEventListener('contextmenu', onContextMenu, true)
+  }, [])
   // ─────────────────────────────────────────────────────────────────────────
 
   // Viewer window sync is handled by useViewerSync() above
@@ -290,6 +302,31 @@ export default function App() {
   useEffect(() => { findBarOpenRef.current = findBarOpen }, [findBarOpen])
   useEffect(() => { findBarAutoOpenRef.current = findBarAutoOpen }, [findBarAutoOpen])
   useEffect(() => { findBarQueryRef.current = findBarQuery }, [findBarQuery])
+
+  // FindBar.tsx dispatches this on hover-start/hover-end/click/focus so the
+  // auto-dismiss countdown resets on those interactions too, not just on
+  // printable-character keydowns (the only thing the keydown handler below
+  // used to reset on) — a real reported gap: hovering the bar to read a
+  // match, or clicking into it, didn't keep it open.
+  useEffect(() => {
+    function reset() {
+      if (!findBarAutoOpenRef.current) return
+      if (autoOpenDismissRef.current) clearTimeout(autoOpenDismissRef.current)
+      autoOpenDismissRef.current = setTimeout(() => {
+        if (findBarAutoOpenRef.current) closeFindBar()
+      }, 3500)
+    }
+    function pause() {
+      if (autoOpenDismissRef.current) { clearTimeout(autoOpenDismissRef.current); autoOpenDismissRef.current = null }
+    }
+    window.addEventListener('berean:findBarResetTimer', reset)
+    window.addEventListener('berean:findBarPauseTimer', pause)
+    return () => {
+      window.removeEventListener('berean:findBarResetTimer', reset)
+      window.removeEventListener('berean:findBarPauseTimer', pause)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Ctrl+Tab MRU switcher ────────────────────────────────────────────────
   const [switcherOpen, setSwitcherOpen] = useState(false)
