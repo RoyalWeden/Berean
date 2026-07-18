@@ -122,6 +122,58 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.8] - 2026-07-18
+
+Scripture reading
+- The Scripture tab now participates in back/forward navigation (Cmd+[ / ])
+  for the first time, including landing back on Advanced Search results as
+  their own stop in the history.
+- Fixed back/forward becoming permanently unresponsive after visiting a
+  search-results entry once.
+- Fixed an extra, invisible back/forward step being recorded on every
+  chapter navigation, which made the buttons feel like they needed an extra
+  click to do anything.
+- Removed the inline "← Proverbs 25" / "← Search: ..." breadcrumb pills —
+  redundant with the global nav pill and per-tab history.
+- Fixed opening a verse from Advanced Search not scrolling down to it.
+- Fixed the KJV/LXX edition-switch button being hidden for Apocrypha books
+  (e.g. Sirach) that exist in both editions, and showing incorrectly for
+  books that don't have a real counterpart in the other edition.
+- Redesigned the chapter picker: the prev/next arrows and the book/chapter/
+  edition picker now share one connected control; "add comparison panel" is
+  a dashed panel icon instead of a text button, with a popover that names
+  every panel already open when comparing three or more texts.
+- Moved the PDF library button into the edition picker's own row.
+- The "Search Scripture" button now filters the floating search bar down to
+  verse results only.
+- Added Sirach's traditional Prologue (previously missing entirely) as its
+  own unnumbered section before chapter 1.
+- Fixed LXX's "hide translator-supplied words" setting being silently
+  ignored for verses that use inline Strong's numbers.
+
+Notes editor
+- Right-clicking an auto-linked verse reference or Strong's number in a note
+  (main editor and the Scripture side panel) now offers a menu: open, open
+  in new tab, open in floating tab, and copy actions.
+- Fixed the Notes side panel's "Contents" list not scrolling to headings
+  when clicked.
+- Right-click menus are now mutually exclusive app-wide — opening one (or
+  right-clicking empty space) closes any other open menu.
+- Rebuilt the Notes side panel and Advanced Search jump-rail's floating
+  hover panels with smoother animation and no more corner-clipping.
+- Fixed inconsistent vertical spacing between a list item and its indented
+  child compared to non-indented list items.
+
+Lexicon
+- Removed the duplicate "Used N times" line now that an Occurrences section
+  already shows the same count.
+
+Misc
+- The auto-hide find bar now resets its timer while hovered, clicked, or
+  typed into, instead of disappearing out from under you.
+
+---
+
 ## [0.4.7] - 2026-07-16
 
 Scripture reading
