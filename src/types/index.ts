@@ -301,6 +301,12 @@ export interface TabNavEntry {
   videoId?: string
   pdfId?: string
   page?: number
+  /** Scripture search query — present when this entry represents "was viewing
+   *  Advanced Search results for this query" rather than a specific chapter.
+   *  Lets Cmd+[ (navTabBack) from a verse opened out of search results return
+   *  to the search itself instead of skipping straight to whatever chapter
+   *  was open before the search. */
+  query?: string
 }
 
 /** A single entry in the global back/forward navigation stack (all tab types). */

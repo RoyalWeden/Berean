@@ -4,6 +4,7 @@ import { Copy, Hash, BookOpen, ExternalLink } from 'lucide-react'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { getTranslationForBook } from '@/lib/parseRef'
+import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 
 export interface VerseCopyTarget {
   bookId: string
@@ -26,6 +27,8 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
     const close = () => onClose()
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     // Defer so the opening right-click doesn't immediately close it.
+    // Close when any OTHER context menu opens (or a right-click hits empty space).
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
     const t = setTimeout(() => {
       window.addEventListener('click', close)
       window.addEventListener('contextmenu', close)
@@ -33,6 +36,7 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
     }, 0)
     return () => {
       clearTimeout(t)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, close)
       window.removeEventListener('click', close)
       window.removeEventListener('contextmenu', close)
       window.removeEventListener('keydown', onKey)
@@ -130,6 +134,7 @@ export function useVerseCopyMenu() {
   const open = useCallback((e: React.MouseEvent, v: { bookId: string; chapter: number; verse: number; text: string; lxx?: boolean }) => {
     e.preventDefault()
     e.stopPropagation()
+    dispatchCloseContextMenus()
     setTarget({ ...v, x: e.clientX, y: e.clientY })
   }, [])
   const close = useCallback(() => setTarget(null), [])

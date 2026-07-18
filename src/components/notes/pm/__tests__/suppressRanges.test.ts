@@ -11,11 +11,11 @@ import { createRefDecorationsPlugin } from '../refDecorations'
 // Selection API through jsdom (which doesn't reliably sync into PM's own
 // selection tracking), and verifies the actual behavior instead of just
 // "doesn't crash."
-function makeView(content: string) {
+function makeView(content: string, getNoteId?: () => string | null | undefined) {
   const state = EditorState.create({
     schema,
     doc: parseMarkdown(content),
-    plugins: [suppressRangesKeymap, createSuppressRangesPlugin(), createRefDecorationsPlugin()],
+    plugins: [suppressRangesKeymap, createSuppressRangesPlugin(getNoteId), createRefDecorationsPlugin()],
   })
   const dom = document.createElement('div')
   document.body.appendChild(dom)
@@ -60,5 +60,43 @@ describe('suppress-range plugin', () => {
     expect(handled).toBe(false)
     expect(suppressRangesKey.getState(view.state)).toEqual([])
     view.destroy()
+  })
+
+  // The reported bug: unlink (suppress) a verse ref in a note, switch away from
+  // its tab (which unmounts/remounts the editor, rebuilding EditorState from
+  // scratch via EditorState.create — same as a real note switch), then come
+  // back — it must still be suppressed, not silently re-linked.
+  it('a suppressed range survives a full EditorState rebuild for the same noteId (leaving and returning to a note)', () => {
+    const noteId = 'note-abc'
+    const view1 = makeView('See Gen 1:1 for context.', () => noteId)
+    const text = view1.state.doc.textContent
+    const from = text.indexOf('Gen 1:1') + 1
+    const to = from + 'Gen 1:1'.length
+    view1.dispatch(view1.state.tr.setSelection(TextSelection.create(view1.state.doc, from, to)))
+    suppressRangesKeymap.props.handleKeyDown?.call(suppressRangesKeymap, view1, new KeyboardEvent('keydown', { key: 'r', ctrlKey: true, shiftKey: true }))
+    expect(suppressRangesKey.getState(view1.state)?.length).toBe(1)
+    view1.destroy()
+
+    // Simulate leaving the tab and coming back: a brand-new EditorState/EditorView
+    // for the SAME noteId, exactly like NoteEditorPM's note-switch effect does.
+    const view2 = makeView('See Gen 1:1 for context.', () => noteId)
+    expect(suppressRangesKey.getState(view2.state)?.length).toBe(1)
+    expect(view2.dom.querySelector('.pm-verse-ref')).toBeFalsy()
+    view2.destroy()
+  })
+
+  it('a different noteId does not inherit another note\'s suppressed ranges', () => {
+    const view1 = makeView('See Gen 1:1 for context.', () => 'note-one')
+    const text = view1.state.doc.textContent
+    const from = text.indexOf('Gen 1:1') + 1
+    const to = from + 'Gen 1:1'.length
+    view1.dispatch(view1.state.tr.setSelection(TextSelection.create(view1.state.doc, from, to)))
+    suppressRangesKeymap.props.handleKeyDown?.call(suppressRangesKeymap, view1, new KeyboardEvent('keydown', { key: 'r', ctrlKey: true, shiftKey: true }))
+    view1.destroy()
+
+    const view2 = makeView('See Gen 1:1 for context.', () => 'note-two')
+    expect(suppressRangesKey.getState(view2.state)).toEqual([])
+    expect(view2.dom.querySelector('.pm-verse-ref')).toBeTruthy()
+    view2.destroy()
   })
 })

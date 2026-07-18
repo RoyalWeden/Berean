@@ -710,3 +710,37 @@ describe('verseTextMatchRatio — verse-coverage direction', () => {
     expect(verseTextMatchRatio(GEN_1_5, 'my own thoughts about creation')).toBeLessThan(0.3)
   })
 })
+
+// ── 9. Ambiguous-guard regression — words that only resolve via resolveBookToken's
+// prefix/fuzzy tiers (e.g. "to" -> Tobit, "so" -> Song of Songs) must not be
+// trusted as real refs unless capitalised or followed by a chapter:verse colon,
+// same as the curated AMBIGUOUS_PATTERNS words (see isExactBookToken in parseRef.ts).
+
+describe('extractRefsFromNote — prefix/fuzzy-tier ambiguous words (the reported "to 2" bug)', () => {
+  it('lowercase, no colon: does not link', () => {
+    expect(extractRefsFromNote('I need to 2 things before we leave', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('this is so 2 much fun', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('as 2 witnesses testified', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('he 2 times denied it', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('be 2 minutes late', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('every man 5 cubits tall', 'Note')).toHaveLength(0)
+  })
+
+  it('capitalised: still links (book names are always capitalised when meant literally)', () => {
+    expect(extractRefsFromNote('See To 2 for the reference', 'Note')[0]?.bookId).toBe('TOB')
+  })
+
+  it('with a chapter:verse colon: still links even lowercase', () => {
+    expect(extractRefsFromNote('quoting to 2:1 here', 'Note')[0]?.bookId).toBe('TOB')
+    expect(extractRefsFromNote('so 2:1 says', 'Note')[0]?.bookId).toBe('SNG')
+  })
+
+  it('legitimate common abbreviations already in AMBIGUOUS_PATTERNS are unaffected', () => {
+    expect(extractRefsFromNote('landed the job 3 weeks ago', 'Note')).toHaveLength(0)
+    expect(extractRefsFromNote('Job 3 speaks of despair', 'Note')[0]?.bookId).toBe('JOB')
+  })
+
+  it('legitimate multi-word full names typed lowercase still link (regression check)', () => {
+    expect(extractRefsFromNote('reading song of songs 2:1 tonight', 'Note')[0]?.bookId).toBe('SNG')
+  })
+})

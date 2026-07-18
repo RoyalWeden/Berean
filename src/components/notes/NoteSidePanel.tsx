@@ -1,6 +1,8 @@
-import { useMemo, useState, useRef, useCallback } from 'react'
-import { List, Link2, ChevronRight, ChevronLeft, Folder } from 'lucide-react'
+import { useMemo } from 'react'
+import { List, Link2, ChevronRight, Folder, PanelRight, Pin } from 'lucide-react'
 import type { Note } from '@/types'
+import { useAppStore } from '@/store'
+import FloatingHoverPanel from '@/components/shell/FloatingHoverPanel'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
 
@@ -38,184 +40,130 @@ interface Props {
   folderPath?: string[]
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const MIN_WIDTH = 120
-const MAX_WIDTH = 360
-const DEFAULT_WIDTH = 176   // w-44 equivalent
-
-// ── Component ──────────────────────────────────────────────────────────────────
+const EXPANDED_WIDTH = 320
+const EXPANDED_HEIGHT = 440
 
 export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, onNoteClick, folderPath = [] }: Props) {
   const headings = useMemo(() => parseHeadings(content), [content])
   const backlinks = useMemo(() => findBacklinks(noteTitle, allNotes, noteId), [noteTitle, allNotes, noteId])
+  const hasContent = headings.length > 0 || backlinks.length > 0
 
-  const [collapsed, setCollapsed]   = useState(false)
-  const [width, setWidth]           = useState(DEFAULT_WIDTH)
-  const resizeRef                   = useRef<{ startX: number; startWidth: number } | null>(null)
+  const pinned    = useAppStore((s) => s.noteSidePanelPinned)
+  const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
 
   function scrollToHeading(text: string) {
     window.dispatchEvent(new CustomEvent('berean:scrollToHeading', { detail: { headingText: text } }))
   }
 
-  function indent(level: number): string {
-    return `${(level - 1) * 10}px`
-  }
-
-  const hasContent = headings.length > 0 || backlinks.length > 0
-
-  // ── Drag resize ────────────────────────────────────────────────────────────
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    resizeRef.current = { startX: e.clientX, startWidth: width }
-
-    function onMove(ev: MouseEvent) {
-      if (!resizeRef.current) return
-      // Dragging the left edge leftward → makes panel wider (panel is on the right)
-      const delta = resizeRef.current.startX - ev.clientX
-      const next = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, resizeRef.current.startWidth + delta))
-      setWidth(next)
-    }
-
-    function onUp() {
-      resizeRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [width])
-
-  // ── Collapsed state ─────────────────────────────────────────────────────────
-
-  if (collapsed) {
-    return (
-      <div
-        className="flex-shrink-0 flex flex-col border-l border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]"
-        style={{ width: 24 }}
-      >
-        <button
-          onClick={() => setCollapsed(false)}
-          title="Expand side panel"
-          className="flex items-center justify-center w-full py-3 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-        >
-          <ChevronLeft size={12} />
-        </button>
-      </div>
-    )
-  }
-
-  // ── Expanded state ──────────────────────────────────────────────────────────
-
   return (
-    <div
-      className="flex-shrink-0 flex flex-row border-l border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] overflow-hidden text-[11px] relative"
-      style={{ width }}
-    >
-      {/* Drag-resize handle on the left edge */}
-      <div
-        className="flex-shrink-0 w-1 cursor-col-resize hover:bg-[rgb(var(--color-accent))/30] active:bg-[rgb(var(--color-accent))/50] transition-colors"
-        onMouseDown={handleResizeMouseDown}
-        title="Drag to resize"
-      />
-
-      {/* Main panel content */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Collapse toggle + title row */}
-        <div className="flex items-center gap-1 px-2 pt-2 pb-1 flex-shrink-0">
-          <span className="flex-1 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
-            Panel
-          </span>
-          <button
-            onClick={() => setCollapsed(true)}
-            title="Collapse side panel"
-            className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
-          >
-            <ChevronRight size={11} />
-          </button>
+    <FloatingHoverPanel
+      expandedWidth={EXPANDED_WIDTH}
+      expandedHeight={EXPANDED_HEIGHT}
+      pinned={pinned}
+      collapsedContent={
+        <div className="relative flex items-center justify-center w-full h-full">
+          <PanelRight size={12} className="text-[rgb(var(--color-text-muted))]" />
+          {pinned && <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 rounded-full bg-[rgb(var(--color-accent))] border border-[rgb(var(--color-surface-2))]" />}
         </div>
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {/* Folder breadcrumb — where this note is filed */}
-          {folderPath.length > 0 && (
-            <div className="px-2 pt-1 pb-2">
-              <div className="flex items-center gap-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
-                <Folder size={9} />
-                Folder
-              </div>
-              <div className="flex items-center flex-wrap gap-0.5 text-[10px] text-[rgb(var(--color-text-secondary))]">
+      }
+      cornerBadge={
+        // Pin button — fills solid accent when pinned, otherwise a plain
+        // outline, so pinned state reads clearly at a glance. Rendered in
+        // FloatingHoverPanel's OUTER (unclipped) layer so it can float
+        // partly outside the card's own rounded corner without being cropped.
+        <button
+          onClick={() => setPinned(!pinned)}
+          title={pinned ? 'Unpin — hide when not hovered' : 'Pin — keep this open'}
+          className={`absolute -top-2 -right-2 z-10 p-1 rounded-full shadow-md transition-colors cursor-pointer ${
+            pinned
+              ? 'bg-[rgb(var(--color-accent))] text-white border border-transparent'
+              : 'bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+          }`}
+        >
+          <Pin size={11} />
+        </button>
+      }
+    >
+      <div className="overflow-y-auto flex-1 px-2.5 py-3 flex flex-col gap-2.5 text-[11px]">
+        {folderPath.length > 0 && (
+          <div className="rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+              <Folder size={9} />
+              Folder
+            </div>
+            <div className="px-2.5 pb-2">
+              <span className="inline-flex items-center gap-1 flex-wrap rounded-full bg-[rgb(var(--color-surface-4))] px-2.5 py-1 text-[10px] text-[rgb(var(--color-text-secondary))]">
                 {folderPath.map((seg, i) => (
-                  <span key={i} className="flex items-center gap-0.5">
-                    {i > 0 && <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))]" />}
-                    <span className="truncate max-w-[120px]">{seg}</span>
+                  <span key={i} className="flex items-center gap-1">
+                    {i > 0 && <ChevronRight size={8} className="text-[rgb(var(--color-text-muted))]" />}
+                    <span className="truncate max-w-[110px]">{seg}</span>
                   </span>
                 ))}
-              </div>
+              </span>
             </div>
-          )}
-          {/* TOC section */}
-          {headings.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 px-2 pt-1 pb-1 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] sticky top-0 bg-[rgb(var(--color-surface-2))]">
-                <List size={9} />
-                Contents
-              </div>
-              <div className="pb-1">
-                {headings.map((h, i) => (
-                  <button
-                    key={i}
-                    onClick={() => scrollToHeading(h.text)}
-                    className="block w-full text-left px-2 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer truncate leading-snug"
-                    style={{
-                      paddingLeft: `calc(8px + ${indent(h.level)})`,
-                      fontWeight: h.level === 1 ? 600 : 400,
-                      opacity: h.level >= 4 ? 0.65 : 1,
-                      fontSize: '10px',
-                    }}
-                    title={h.text}
-                  >
-                    {h.text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
+        )}
 
-          {/* Backlinks section */}
-          {backlinks.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 px-2 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))] sticky top-0 bg-[rgb(var(--color-surface-2))] border-t border-[rgb(var(--color-surface-4))] mt-1">
-                <Link2 size={9} />
-                Backlinks
-              </div>
-              <div className="pb-1">
-                {backlinks.map((note) => (
-                  <button
-                    key={note.id}
-                    onClick={() => onNoteClick(note)}
-                    className="block w-full text-left px-2 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer truncate leading-snug"
-                    style={{ fontSize: '10px' }}
-                    title={note.title || 'Untitled'}
-                  >
-                    {note.title || 'Untitled'}
-                  </button>
-                ))}
-              </div>
+        {headings.length > 0 && (
+          <div className="rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+              <List size={9} />
+              Contents
+              <span className="ml-auto rounded-full bg-[rgb(var(--color-surface-4))] px-1.5 py-0 text-[9px] text-[rgb(var(--color-text-secondary))]">{headings.length}</span>
             </div>
-          )}
+            <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
+              {headings.map((h, i) => (
+                <button
+                  key={i}
+                  onClick={() => scrollToHeading(h.text)}
+                  className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-shell text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer truncate leading-snug"
+                  style={{
+                    paddingLeft: `calc(6px + ${(h.level - 1) * 10}px)`,
+                    fontWeight: h.level === 1 ? 600 : 400,
+                    opacity: h.level >= 4 ? 0.65 : 1,
+                    fontSize: '10px',
+                  }}
+                  title={h.text}
+                >
+                  <span className="w-[3px] h-[3px] rounded-[1px] bg-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                  {h.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-          {/* Empty state */}
-          {!hasContent && (
-            <div className="px-2 pt-3 text-[rgb(var(--color-text-muted))] opacity-50 leading-snug">
-              <div className="text-[9px] uppercase tracking-widest mb-1 font-semibold">Contents</div>
-              <div style={{ fontSize: '10px' }}>No headings yet</div>
+        {backlinks.length > 0 && (
+          <div className="rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">
+              <Link2 size={9} />
+              Backlinks
+              <span className="ml-auto rounded-full bg-[rgb(var(--color-surface-4))] px-1.5 py-0 text-[9px] text-[rgb(var(--color-text-secondary))]">{backlinks.length}</span>
             </div>
-          )}
-        </div>
+            <div className="px-1.5 pb-1.5 flex flex-col gap-0.5">
+              {backlinks.map((note) => (
+                <button
+                  key={note.id}
+                  onClick={() => onNoteClick(note)}
+                  className="flex items-center gap-1.5 w-full text-left px-1.5 py-1 rounded-shell text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer truncate leading-snug"
+                  style={{ fontSize: '10px' }}
+                  title={note.title || 'Untitled'}
+                >
+                  <span className="w-[3px] h-[3px] rounded-full bg-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                  {note.title || 'Untitled'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!hasContent && folderPath.length === 0 && (
+          <div className="rounded-shell-lg border border-dashed border-[rgb(var(--color-surface-4))] px-2.5 py-3 text-[rgb(var(--color-text-muted))] opacity-60 leading-snug">
+            <div className="text-[9px] uppercase tracking-widest mb-1 font-semibold">Contents</div>
+            <div style={{ fontSize: '10px' }}>No headings yet</div>
+          </div>
+        )}
       </div>
-    </div>
+    </FloatingHoverPanel>
   )
 }

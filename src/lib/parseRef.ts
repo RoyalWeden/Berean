@@ -87,8 +87,15 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   // Pseudepigrapha — additional texts
   { id: 'AEL', name: 'Apocalypse of Elijah', patterns: ['ael', 'apoc elijah', 'apocalypse of elijah', 'apoc. elijah', 'revelation of elijah', 'rev elijah'] },
   { id: 'ABR', name: 'Apocalypse of Abraham', patterns: ['abr', 'apoc abraham', 'apocalypse of abraham', 'apoc. abraham', 'apoc abr'] },
-  // Recognitions of Clement — 10 books; 'rcl' / 'recognitions' defaults to Book I
-  { id: 'RCL1',  name: 'Recognitions - Book 1',  patterns: ['rcl1', 'rcl i', 'rec clem 1', 'recognitions book 1', 'recognitions book i'] },
+  // Recognitions of Clement — 10 books; 'rcl' / 'recognitions' defaults to Book I.
+  // The bare 'rcl'/'recognitions of clement' patterns are merged into THIS entry
+  // (rather than a second `{ id: 'RCL1', ... }` object further down) — two BOOK_MAP
+  // entries sharing the same id built ID_TO_NAME via `.set(id, name)` in array
+  // order, so the LATER entry's `name` silently won (Map last-write-wins) and
+  // `bookName('RCL1')` returned the generic "Recognitions of Clement" instead of
+  // this entry's more specific "Recognitions - Book 1" everywhere, even when
+  // displaying book 1 specifically. Same bug, same fix, for Hermas below.
+  { id: 'RCL1',  name: 'Recognitions - Book 1',  patterns: ['rcl1', 'rcl i', 'rec clem 1', 'recognitions book 1', 'recognitions book i', 'rcl', 'recognitions of clement', 'recog clement', 'rec clem'] },
   { id: 'RCL2',  name: 'Recognitions - Book 2',  patterns: ['rcl2', 'rcl ii', 'rec clem 2', 'recognitions book 2', 'recognitions book ii'] },
   { id: 'RCL3',  name: 'Recognitions - Book 3',  patterns: ['rcl3', 'rcl iii', 'rec clem 3', 'recognitions book 3', 'recognitions book iii'] },
   { id: 'RCL4',  name: 'Recognitions - Book 4',  patterns: ['rcl4', 'rcl iv', 'rec clem 4', 'recognitions book 4', 'recognitions book iv'] },
@@ -98,14 +105,12 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'RCL8',  name: 'Recognitions - Book 8',  patterns: ['rcl8', 'rcl viii', 'rec clem 8', 'recognitions book 8', 'recognitions book viii'] },
   { id: 'RCL9',  name: 'Recognitions - Book 9',  patterns: ['rcl9', 'rcl ix', 'rec clem 9', 'recognitions book 9', 'recognitions book ix'] },
   { id: 'RCL10', name: 'Recognitions - Book 10', patterns: ['rcl10', 'rcl x', 'rec clem 10', 'recognitions book 10', 'recognitions book x'] },
-  // 'rcl' / 'recognitions of clement' defaults to Book 1
-  { id: 'RCL1',  name: 'Recognitions of Clement', patterns: ['rcl', 'recognitions of clement', 'recog clement', 'rec clem'] },
-  // Shepherd of Hermas — 3 sections; 'hermas' defaults to Visions
-  { id: 'HER_VIS', name: 'Hermas - Visions',     patterns: ['her vis', 'hermas visions', 'visions of hermas', 'shepherd visions'] },
+  // Shepherd of Hermas — 3 sections; bare 'her'/'hermas' defaults to Visions, merged
+  // into the HER_VIS entry's own patterns (see the RCL1 comment above for why —
+  // same duplicate-id/Map-overwrite bug, same fix).
+  { id: 'HER_VIS', name: 'Hermas - Visions',     patterns: ['her vis', 'hermas visions', 'visions of hermas', 'shepherd visions', 'her', 'hermas', 'shepherd of hermas', 'shep hermas'] },
   { id: 'HER_MAN', name: 'Hermas - Mandates',    patterns: ['her man', 'hermas mandates', 'mandates of hermas', 'shepherd mandates', 'hermas commands'] },
   { id: 'HER_SIM', name: 'Hermas - Similitudes', patterns: ['her sim', 'hermas similitudes', 'similitudes of hermas', 'shepherd similitudes', 'hermas parables'] },
-  // 'her' / 'hermas' defaults to Visions
-  { id: 'HER_VIS', name: 'Shepherd of Hermas',   patterns: ['her', 'hermas', 'shepherd of hermas', 'shep hermas'] },
   { id: 'AIS', name: 'Ascension of Isaiah', patterns: ['ais', 'asc isaiah', 'ascension of isaiah', 'asc. isaiah', 'ascension isaiah'] },
   { id: 'EPB', name: 'Epistle of Barnabas', patterns: ['epb', 'barnabas', 'epistle of barnabas', 'ep barnabas', 'barn'] },
   // Testaments of the Twelve Patriarchs (each testament is a separate book in the same DB)
@@ -198,6 +203,22 @@ function editDistance(a: string, b: string): number {
  *        below that there are too many plausible fuzzy neighbors regardless.
  * Prefix matching needs ≥2 chars to avoid wild single-letter ambiguity.
  */
+
+/**
+ * True only for tokens that resolve via resolveBookToken's tier-1 exact
+ * match (a literal pattern, or the book's full canonical name) — never for
+ * tier-2 prefix matches or tier-3 fuzzy matches. Used to auto-flag any
+ * low-confidence resolution as ambiguous (see AMBIGUOUS_PATTERNS below)
+ * without having to hand-list every short word that happens to prefix-match
+ * some book's abbreviation (e.g. "to" -> "tob"/"tobit").
+ */
+export function isExactBookToken(raw: string): boolean {
+  const key = raw.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (PATTERN_LOOKUP.has(key)) return true
+  const noSpace = key.replace(/\s+/g, '')
+  return BOOK_MAP.some(({ name }) => name.toLowerCase().replace(/\s+/g, '') === noSpace)
+}
+
 export function resolveBookToken(raw: string): string | null {
   const key = raw.trim().toLowerCase().replace(/\s+/g, ' ')
   const exact = PATTERN_LOOKUP.get(key)
@@ -336,13 +357,25 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   '1ES': 9, '2ES': 16,
   ESG: 10, SUS: 1, BEL: 1, PRA: 1, PRM: 1, LJE: 1, PSS: 18,
   // Pseudepigrapha
+  // These caps were previously wrong for several books — verified here against
+  // each book's actual data/*.db (books.chapters_count / MAX(verses.chapter)),
+  // not just guessed. The Hermas values were the most dramatically off (4/12/10
+  // vs the DB's real 25/24/65 flat db-chapters — the traditional 4-visions/
+  // 12-mandates/10-similitudes numbering is a LITERARY structure the app maps
+  // separately via src/lib/hermasMap.ts, not the raw chapter count a typed
+  // reference like "Hermas Vis 15" is checked against here), which meant any
+  // reference past chapter 4/12/10 was silently rejected as out of range even
+  // though the text exists. RCL1–10 (Recognitions of Clement) weren't in this
+  // table at all, so those got no range validation whatsoever.
   ENO: 108, JUB: 50,
-  AEL: 7, ABR: 32,
-  HER_VIS: 4, HER_MAN: 12, HER_SIM: 10,
+  AEL: 5, ABR: 32,
+  HER_VIS: 25, HER_MAN: 24, HER_SIM: 65,
   AIS: 11, EPB: 21,
   TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
-  GAD: 28, TJOB: 53, '1CL': 65,
+  GAD: 14, TJOB: 12, '1CL': 66,
+  RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
+  RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 36, RCL10: 72,
 }
 
 /**
@@ -430,6 +463,7 @@ export const AMBIGUOUS_PATTERNS = new Set([
   'hb',    // Habakkuk  — "hb 3" (hardback, abbreviation)
   'zch',   // Zechariah — "ZCH 3" (abbreviation)
   'jnh',   // Jonah     — "JNH 4" (abbreviation)
+  'man',   // Prayer of Manasseh — "man 5" (the common English word "man")
 ])
 
 export interface ParsedRef {

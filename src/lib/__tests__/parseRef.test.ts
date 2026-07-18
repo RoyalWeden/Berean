@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken } from '../parseRef'
+import { parseRef, getTranslationForBook, bookName, isStrongsRef, resolveBookToken, isExactBookToken } from '../parseRef'
 
 // ─── parseRef ─────────────────────────────────────────────────────────────────
 
@@ -147,7 +147,13 @@ describe('bookName', () => {
   it('returns human-readable name for book IDs', () => {
     expect(bookName('GEN')).toBe('Genesis')
     expect(bookName('REV')).toBe('Revelation')
-    expect(bookName('HER_VIS')).toBe('Shepherd of Hermas')
+    // Was 'Shepherd of Hermas' — a duplicate BOOK_MAP entry for the same id (added
+    // only so bare "her"/"hermas" would also resolve to HER_VIS) redefined `name`
+    // too, and since ID_TO_NAME is built with `.set(id, name)` in array order, the
+    // later duplicate silently overwrote the correct, more specific name via
+    // Map last-write-wins. Fixed by merging those patterns into this entry instead
+    // of a second object — see parseRef.ts's BOOK_MAP comment.
+    expect(bookName('HER_VIS')).toBe('Hermas - Visions')
     expect(bookName('TREU')).toBe('Testament of Reuben')
   })
 
@@ -180,6 +186,42 @@ describe('resolveBookToken misspelling fallback', () => {
     expect(resolveBookToken('gen')).toBe('GEN')
     expect(resolveBookToken('john')).toBe('JHN')
     expect(resolveBookToken('revela')).toBe('REV')
+  })
+})
+
+// ─── isExactBookToken ─────────────────────────────────────────────────────────
+// resolveBookToken happily resolves short common words like "to" via its
+// prefix-match tier ("to" prefixes "tob"/"tobit"), which is fine for parsing
+// but too permissive to trust blindly when auto-linking free-typed note text
+// (see AMBIGUOUS_PATTERNS / findVerseRefMatches / extractRefsFromNote's guard).
+// isExactBookToken distinguishes "really is a listed abbreviation or full
+// name" (tier 1) from "merely happens to prefix- or fuzzy-match one" (tier 2/3).
+describe('isExactBookToken', () => {
+  it('is false for words that only resolve via the prefix-match tier', () => {
+    expect(resolveBookToken('to')).toBe('TOB') // confirms the tier-2 resolution exists
+    expect(isExactBookToken('to')).toBe(false)
+    expect(resolveBookToken('so')).toBe('SNG')
+    expect(isExactBookToken('so')).toBe(false)
+    expect(resolveBookToken('as')).toBe('AIS')
+    expect(isExactBookToken('as')).toBe(false)
+    expect(resolveBookToken('he')).toBe('HEB')
+    expect(isExactBookToken('he')).toBe(false)
+    expect(resolveBookToken('be')).toBe('BEL')
+    expect(isExactBookToken('be')).toBe(false)
+  })
+
+  it('is true for literal patterns and full canonical names', () => {
+    expect(isExactBookToken('tob')).toBe(true)
+    expect(isExactBookToken('tobit')).toBe(true)
+    expect(isExactBookToken('man')).toBe(true) // exact pattern for Prayer of Manasseh
+    expect(isExactBookToken('gen')).toBe(true)
+    expect(isExactBookToken('Genesis')).toBe(true)
+    expect(isExactBookToken('song of songs')).toBe(true)
+  })
+
+  it('is false for fuzzy-only misspelling matches', () => {
+    expect(resolveBookToken('Genesys')).toBe('GEN')
+    expect(isExactBookToken('Genesys')).toBe(false)
   })
 })
 

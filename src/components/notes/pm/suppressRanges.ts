@@ -6,15 +6,25 @@ import type { Command } from 'prosemirror-state'
 // suppressedRangesField + isInSuppressedRange, NoteEditor.tsx:151-166,
 // 3163-3176). Toggling on a selection excludes verse/lxx/lexicon-ref
 // decoration in that range (NOT wikilinks — matches the original's scope).
-// Pure in-memory: like the original, this is never serialized to markdown,
-// and — since note-switching rebuilds a fresh EditorState via
-// `EditorState.create` (see NoteEditorPM.tsx's note-switch effect), which
-// re-runs every stateful plugin's `init()` — suppressed ranges are
-// naturally cleared on note switch with no special-casing needed, exactly
-// mirroring the CM6 version's de-facto (not deliberately designed) behavior
-// from its own full-document-replace-on-switch transaction.
+//
+// Never serialized to markdown — but IS kept in an in-memory, per-noteId
+// cache below (cleared on app restart, not persisted to disk) so leaving a
+// note's tab and coming back doesn't silently re-link something the user
+// deliberately unlinked. Without this, note-switching rebuilding a fresh
+// EditorState via `EditorState.create` (see NoteEditorPM.tsx's note-switch
+// effect) re-runs every stateful plugin's `init()`, which wiped suppressed
+// ranges on every switch — a real bug (reported: unlink a verse ref, leave
+// the tab, come back, it's linked again), not deliberate design. The
+// plugin's `view().update()` hook mirrors the live ranges into the cache on
+// every transaction; `init()` seeds from it by the note id the caller
+// currently reports (via `getNoteId`), so the same Plugin instance (built
+// once at mount and reused across note switches — see NoteEditorPM.tsx)
+// correctly restores each note's own suppressed ranges as you switch
+// between notes, not just the most recent one.
 
 export interface SuppressedRange { from: number; to: number }
+
+const suppressedRangesCache = new Map<string, SuppressedRange[]>()
 
 export const suppressRangesKey = new PluginKey<SuppressedRange[]>('berean-suppress-ranges')
 
@@ -35,11 +45,14 @@ export const toggleSuppressCommand: Command = (state, dispatch) => {
   return true
 }
 
-export function createSuppressRangesPlugin() {
+export function createSuppressRangesPlugin(getNoteId?: () => string | null | undefined) {
   return new Plugin<SuppressedRange[]>({
     key: suppressRangesKey,
     state: {
-      init: () => [],
+      init: () => {
+        const id = getNoteId?.()
+        return id ? (suppressedRangesCache.get(id) ?? []) : []
+      },
       apply(tr, ranges) {
         const meta = tr.getMeta(suppressRangesKey) as SuppressedRange[] | undefined
         if (meta) return meta
@@ -48,6 +61,15 @@ export function createSuppressRangesPlugin() {
           .map((r) => ({ from: tr.mapping.map(r.from), to: tr.mapping.map(r.to, -1) }))
           .filter((r) => r.from < r.to)
       },
+    },
+    view() {
+      return {
+        update(view) {
+          const id = getNoteId?.()
+          if (!id) return
+          suppressedRangesCache.set(id, suppressRangesKey.getState(view.state) ?? [])
+        },
+      }
     },
   })
 }

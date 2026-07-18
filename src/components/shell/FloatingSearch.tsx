@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, resolveBookToken } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
-import { applyWordReplacer, expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
 import type { Book, LexiconEntry, Note } from '@/types'
@@ -139,6 +139,11 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
 export default function FloatingSearch() {
   const searchOpen = useAppStore((s) => s.searchOpen)
   const searchMode = useAppStore((s) => s.searchMode)
+  // 'verses' — set by the Scripture tab's "Search scripture" button — shows
+  // only the verse-results section below, reading as a lightweight version of
+  // Advanced Search rather than the app-wide mixed search.
+  const searchScope = useAppStore((s) => s.searchScope)
+  const versesOnly = searchScope === 'verses'
   const closeSearch = useAppStore((s) => s.closeSearch)
   const tabs = useAppStore((s) => s.tabs)
   const updateTabState = useAppStore((s) => s.updateTabState)
@@ -223,12 +228,18 @@ export default function FloatingSearch() {
     [cleanQuery, parsedRef]
   )
 
-  // Expand with original terms when the user typed a replacement word (e.g. "yeshua" → also
-  // "jesus"). Word-mode (all/any/phrase) is passed to window.bible.searchText as an explicit
-  // param rather than encoded into the query string with quotes/" OR " — see electron/ipc/bible.ts.
-  function expandForSearch(q: string): string {
+  // Bidirectional word-replacer search: return every variant query to run and merge —
+  // the original typed text plus, for any matching rule, the query with the matched
+  // word/phrase substituted for its counterpart (e.g. typed "yeshua" also searches
+  // "jesus", since the DB still stores the original word). Each variant is run as
+  // its OWN independent window.bible.searchText call below (see runSearch) — NOT
+  // encoded as a single "term1 OR term2" query string. electron/ipc/bible.ts's FTS
+  // query builder deliberately treats every word (including a literal "OR") as a
+  // required token, so that used to silently produce an impossible query requiring
+  // the literal word "or" too — confirmed broken (this was the actual bug report).
+  function expandForSearch(q: string): string[] {
     const trimmed = q.trim()
-    return wordReplacerEnabled ? expandQueryForWordReplacer(trimmed, wordReplacerRules) : trimmed
+    return wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, wordReplacerRules) : [trimmed]
   }
 
   // Debounced FTS search
@@ -273,7 +284,12 @@ export default function FloatingSearch() {
           )
         : []
 
-      const expandedQuery = expandForSearch(trimmed)
+      const variants = expandForSearch(trimmed)
+      const variantSearches = variants.map((variant) =>
+        window.bible.searchText(variant, tid, mode)
+          .then((rows) => rows as unknown as VerseResult[])
+          .catch(() => [] as VerseResult[])
+      )
       try {
         const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
           ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
@@ -283,15 +299,29 @@ export default function FloatingSearch() {
           ? window.youtube.searchTranscripts(trimmed, 5, 3).catch(() => [])
           : Promise.resolve([])
 
-        const [verses, notes, ytVideos, ytTranscripts, ...extraAll] = await Promise.allSettled([
-          window.bible.searchText(expandedQuery, tid, mode),
+        const [notes, ytVideos, ytTranscripts, ...rest] = await Promise.allSettled([
           window.notes.searchNotes(trimmed, 5),
           ytSearch,
           ytTranscriptSearch,
+          ...variantSearches,
           ...extraSearches,
         ])
+        const variantResults = rest.slice(0, variantSearches.length)
+        const extraAll = rest.slice(variantSearches.length)
 
-        const primaryVerse = verses.status === 'fulfilled' ? verses.value as unknown as VerseResult[] : []
+        // Merge + dedupe every variant's results (bidirectional word-replacer search
+        // can return the same verse from more than one variant query).
+        const seenVerse = new Set<string>()
+        const primaryVerse: VerseResult[] = []
+        for (const r of variantResults) {
+          if (r.status !== 'fulfilled') continue
+          for (const row of r.value as unknown as VerseResult[]) {
+            const key = `${row.book_id}|${row.chapter}|${row.verse_num}`
+            if (seenVerse.has(key)) continue
+            seenVerse.add(key)
+            primaryVerse.push(row)
+          }
+        }
         const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
         setVerseResults([...primaryVerse, ...extraVerses])
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
@@ -534,13 +564,15 @@ export default function FloatingSearch() {
     }
   }
 
-  for (const entry of lexiconResults) {
-    results.push({
-      type: 'lexicon',
-      label: `${entry.strongsNum}  ${entry.lemma}  (${entry.transliteration})`,
-      sub: entry.gloss,
-      action: () => { addRecentSearchQuery(query.trim()); goToLexicon(entry.strongsNum) },
-    })
+  if (!versesOnly) {
+    for (const entry of lexiconResults) {
+      results.push({
+        type: 'lexicon',
+        label: `${entry.strongsNum}  ${entry.lemma}  (${entry.transliteration})`,
+        sub: entry.gloss,
+        action: () => { addRecentSearchQuery(query.trim()); goToLexicon(entry.strongsNum) },
+      })
+    }
   }
 
   const subLen = DENSITY_SUB_LEN[floatingSearchDensity]
@@ -570,30 +602,32 @@ export default function FloatingSearch() {
   }
 
   // Then the user's notes.
-  for (const note of noteResults.slice(0, 4)) {
-    const rawSnippet = note.content
-      .replace(/^---[\s\S]*?---\n?/, '')
-      .replace(/[#*`_>~\[\]]/g, '')
-      .replace(/\n/g, ' ')
-      .trim()
-    const snippet = wr(rawSnippet)
-    results.push({
-      type: 'note' as const,
-      label: wr(note.title || 'Untitled note'),
-      sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
-      action: () => {
-        addRecentSearchQuery(query.trim())
-        ensureTab('note')
-        setActiveSpace('notes')
-        requestOpenNote(note.id)
-        closeSearch()
-      },
-    })
+  if (!versesOnly) {
+    for (const note of noteResults.slice(0, 4)) {
+      const rawSnippet = note.content
+        .replace(/^---[\s\S]*?---\n?/, '')
+        .replace(/[#*`_>~\[\]]/g, '')
+        .replace(/\n/g, ' ')
+        .trim()
+      const snippet = wr(rawSnippet)
+      results.push({
+        type: 'note' as const,
+        label: wr(note.title || 'Untitled note'),
+        sub: snippet ? makeSnippet(snippet, cleanQuery, subLen, searchWordMode) : 'Empty note',
+        action: () => {
+          addRecentSearchQuery(query.trim())
+          ensureTab('note')
+          setActiveSpace('notes')
+          requestOpenNote(note.id)
+          closeSearch()
+        },
+      })
+    }
   }
 
   // YouTube videos — transcript hits show the matching line + timestamp as the sub-label.
   // Multiple entries may exist for the same video when perVideoLimit > 1.
-  for (const vid of youtubeResults) {
+  for (const vid of versesOnly ? [] : youtubeResults) {
     const hasTimestamp = vid.startMs !== undefined && vid.startMs !== null
     const tsLabel = hasTimestamp ? formatTranscriptTs(vid.startMs!) : null
     results.push({

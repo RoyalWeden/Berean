@@ -11,7 +11,7 @@
 // strings and are consumed by pm/parser.ts, pm/refDecorations.ts,
 // pm/blockDecorations.ts, and pm/nodeViews.ts.
 
-import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { useAppStore } from '@/store'
 
@@ -125,7 +125,8 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
       if (parseRef(candidateRef)) {
         const bookWords = words.slice(start)
         const lastBookWord = bookWords[bookWords.length - 1].toLowerCase().replace(/\.$/, '')
-        if (AMBIGUOUS_PATTERNS.has(lastBookWord)) {
+        const fullBookPhrase = bookWords.join(' ')
+        if (AMBIGUOUS_PATTERNS.has(lastBookWord) || !isExactBookToken(fullBookPhrase)) {
           const hasColon = numPart.includes(':')
           const firstCharOfBook = bookPhrase[wordStarts[start]] ?? ''
           const isCapitalised = /[A-Z]/.test(firstCharOfBook)

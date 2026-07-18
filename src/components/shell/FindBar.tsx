@@ -84,11 +84,27 @@ export default function FindBar({
     onClose()
   }
 
+  // Auto-dismiss (autoOpen-only) countdown lives in App.tsx and previously only
+  // reset on printable-character keydowns while the input already had focus —
+  // hovering the bar to read a match, or clicking into it, didn't count as
+  // "still using it" and it could vanish out from under the pointer. Pausing
+  // on hover-enter (not just resetting) means it genuinely never counts down
+  // while the cursor is resting on it, resuming a fresh countdown on
+  // hover-leave; click/focus resets it the same way a keystroke does.
+  function pauseAutoDismiss() {
+    if (autoOpen) window.dispatchEvent(new Event('berean:findBarPauseTimer'))
+  }
+  function resetAutoDismiss() {
+    if (autoOpen) window.dispatchEvent(new Event('berean:findBarResetTimer'))
+  }
+
   return (
     <div
       className="glass-panel fixed z-[200] rounded-shell-lg overflow-hidden transition-[right] duration-150 animate-fade-in-drop"
       style={{ top: 50, right: rightOffset, width: 360 }}
       onMouseDown={(e) => e.stopPropagation()}
+      onMouseEnter={pauseAutoDismiss}
+      onMouseLeave={resetAutoDismiss}
     >
       <div className="flex items-center gap-1.5 px-3 py-2">
         <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -101,6 +117,8 @@ export default function FindBar({
             if (e.key === 'Escape') { e.preventDefault(); onClose() }
             if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? onPrev?.() : onNext?.() }
           }}
+          onClick={resetAutoDismiss}
+          onFocus={resetAutoDismiss}
           placeholder={placeholder}
           spellCheck={false}
           className={`flex-1 bg-transparent text-sm outline-none min-w-0 placeholder:text-[rgb(var(--color-text-muted))] ${

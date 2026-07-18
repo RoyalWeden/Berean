@@ -8,6 +8,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import {
   setHermasVariant, hermasVariantForTextId, getHermasSections, getHermasSection,
   getHermasValidChapters, getHermasValidChaptersFor, clampHermasChapter,
+  getHermasNextChapter, getHermasPrevChapter, getHermasShortLabel, hermasAwareChapterLabel,
 } from '../hermasMap'
 import { getTranslationForBook, setHermasTextId, getHermasTextId, isDedicatedTranslation } from '../parseRef'
 import { TRANSLATIONS, ANNOTATION_KEYS } from '../bibleTexts'
@@ -92,6 +93,54 @@ describe('getTranslationForBook honors the Hermas translation preference', () =>
     setHermasTextId('hermas_taylor')
     expect(getTranslationForBook('ENO')).toBe('enoch')
     expect(getTranslationForBook('GEN')).toBeNull()
+  })
+})
+
+// Reported bug: BiblePanel.tsx's next/prev chapter navigation (and its tab-title/
+// presenter-view chapter labeling) used to read the AMBIENT `activeVariant` global
+// only, ignoring which translation the tab whose button was actually clicked was
+// showing. With two Hermas tabs open on different translations (or after changing
+// the global Settings preference), navigating in one tab could silently use the
+// OTHER translation's chapter structure — RD and Taylor have different db-chapter
+// boundaries for the same book id, so "next chapter" could land on the wrong
+// chapter, and the label shown (tab title / presenter view header) could describe
+// the wrong Vision/Mandate/Similitude number. Fixed by making every one of these
+// functions accept an explicit `variant` argument that overrides the global,
+// mirroring `getHermasValidChaptersFor`'s existing (already correct) pattern.
+describe('explicit variant argument is honored regardless of the ambient global (the reported nav/label bug)', () => {
+  it('getHermasNextChapter/getHermasPrevChapter use the PASSED variant, not the active global', () => {
+    setHermasVariant('rd') // ambient global says RD
+    // Explicitly asking for 'taylor' must skip the RD-only gap at chapter 8 —
+    // Taylor is contiguous, so next(7) should be 8, not RD's 9.
+    expect(getHermasNextChapter('HER_MAN', 7, 'taylor')).toBe(8)
+    expect(getHermasPrevChapter('HER_MAN', 8, 'taylor')).toBe(7)
+    // And explicitly asking for 'rd' still gets RD's real gap-skipping behavior,
+    // even with the ambient global left at its default.
+    expect(getHermasNextChapter('HER_MAN', 7, 'rd')).toBe(9)
+  })
+
+  it('getHermasNextChapter/getHermasPrevChapter still fall back to the ambient global when no variant is passed (back-compat)', () => {
+    setHermasVariant('taylor')
+    expect(getHermasNextChapter('HER_MAN', 7)).toBe(8) // Taylor: contiguous
+    setHermasVariant('rd')
+    expect(getHermasNextChapter('HER_MAN', 7)).toBe(9) // RD: skips the gap at 8
+  })
+
+  it('getHermasShortLabel with an explicit variant differs from the ambient global when they disagree', () => {
+    setHermasVariant('rd')
+    // Same book+chapter, but under Taylor's different section boundaries — since
+    // Taylor's Mandate structure is contiguous, chapter 8 falls in a DIFFERENT
+    // Mandate/sub-index under 'taylor' than whatever RD (the active global) would say.
+    const taylorLabel = getHermasShortLabel('HER_MAN', 8, 'taylor')
+    const rdAmbientLabel = getHermasShortLabel('HER_MAN', 8) // uses ambient 'rd' global
+    expect(taylorLabel).not.toBe(rdAmbientLabel)
+  })
+
+  it('hermasAwareChapterLabel resolves the Hermas section label using textId, not a generic label', () => {
+    expect(hermasAwareChapterLabel('HER_MAN', 10, 'hermas')).toBe('Hermas Man. 5.2')
+    expect(hermasAwareChapterLabel('HER_MAN', 10, 'hermas_taylor')).not.toBe('Hermas Man. 5.2')
+    // Non-Hermas books still get the plain generic label.
+    expect(hermasAwareChapterLabel('GEN', 1)).toBe('Genesis 1')
   })
 })
 

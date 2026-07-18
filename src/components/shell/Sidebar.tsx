@@ -1,12 +1,13 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
+import * as Popover from '@radix-ui/react-popover'
 import { motion } from 'framer-motion'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, type LucideIcon } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey } from '@/components/notes/CalendarWidget'
 
@@ -77,6 +78,48 @@ export default function Sidebar() {
   const reorderTabDisplay    = useAppStore((s) => s.reorderTabDisplay)
   const noteChangeToken      = useAppStore((s) => s.noteChangeToken)
 
+  // ── Sessions — moved here from Ribbon.tsx's narrow icon rail, which only
+  // ever showed the current session's name on hover (a tooltip). The sidebar
+  // has real width to spend, so the current session's name is always visible
+  // as text in its own row above the search/location bar, not hidden behind
+  // a hover. Clicking it opens the same full session-list popover the old
+  // "+" trigger did; right-clicking (or the row's own icon button) still
+  // offers rename/change-icon/delete via the same portaled menu pattern as
+  // bookMenu/tabBarMenu below. ──
+  const sessions          = useAppStore((s) => s.sessions)
+  const switchSession     = useAppStore((s) => s.switchSession)
+  const createSession     = useAppStore((s) => s.createSession)
+  const deleteSession     = useAppStore((s) => s.deleteSession)
+  const renameSession     = useAppStore((s) => s.renameSession)
+  const setSessionIcon    = useAppStore((s) => s.setSessionIcon)
+  const openSettingsToSessions = useAppStore((s) => s.openSettingsToSessions)
+  const [sessionPopoverOpen, setSessionPopoverOpen] = useState(false)
+  const [sessionMenu, setSessionMenu] = useState<{ x: number; y: number; sessionId: string } | null>(null)
+  const [sessionMenuMode, setSessionMenuMode] = useState<'default' | 'rename' | 'icon'>('default')
+  const [renameValue, setRenameValue] = useState('')
+  const sessionMenuRef = useRef<HTMLDivElement>(null)
+  const currentSession = sessions.find((s) => s.id === currentSessionId) ?? sessions[0]
+  const currentSessionIdx = sessions.findIndex((s) => s.id === currentSessionId)
+  const CurrentSessionIcon = (SESSION_ICONS.find((i) => i.name === currentSession?.icon) ?? SESSION_ICONS[0]).Icon
+
+  useEffect(() => {
+    if (!sessionMenu) return
+    function onDown(e: MouseEvent) {
+      if (sessionMenuRef.current && !sessionMenuRef.current.contains(e.target as Node)) { setSessionMenu(null); setSessionMenuMode('default') }
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') { setSessionMenu(null); setSessionMenuMode('default') } }
+    window.addEventListener('mousedown', onDown, true)
+    window.addEventListener('keydown', onEsc)
+    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
+  }, [sessionMenu])
+
+  function openSessionMenu(x: number, y: number, sessionId: string, currentName: string) {
+    setSessionPopoverOpen(false)
+    setSessionMenuMode('default')
+    setRenameValue(currentName)
+    setSessionMenu({ x, y, sessionId })
+  }
+
   // ── Tab-bar right-click context menu ──
   const [tabBarMenu, setTabBarMenu] = useState<{ x: number; y: number } | null>(null)
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
@@ -98,9 +141,15 @@ export default function Sidebar() {
       }
     }
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') { setTabBarMenu(null); setBookMenu(null) } }
+    function onClose() { setTabBarMenu(null); setBookMenu(null) }
     window.addEventListener('mousedown', onDown, true)
     window.addEventListener('keydown', onEsc)
-    return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => {
+      window.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('keydown', onEsc)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    }
   }, [tabBarMenu, bookMenu])
 
   // Double-click empty tab-bar space → open floating search for a new tab. Four earlier attempts
@@ -284,6 +333,73 @@ export default function Sidebar() {
         // usePositionedMenu.ts), Sidebar just wasn't one of the places that fired it.
         onClickCapture={() => window.dispatchEvent(new Event('berean:closeMenus'))}
       >
+        {/* ── Session switcher — own row, full sidebar width, always shows the
+             current session's name as text (never just an icon behind a
+             hover tooltip). Deliberately quieter than the search/location bar
+             below it (no background/border at rest, muted text) — it's a
+             secondary, occasional action, not something that should compete
+             with the search bar for visual attention. Click opens the full
+             session list to switch; right-click (or the icon button) opens
+             rename/change-icon/delete. ── */}
+        <div className="px-2 pt-1 flex-shrink-0">
+          <Popover.Root open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
+            <Popover.Trigger asChild>
+              <button
+                className="no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-shell hover:bg-[rgb(var(--color-surface-3))] text-left transition-colors cursor-pointer min-w-0"
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  if (currentSession) openSessionMenu(e.clientX, e.clientY, currentSession.id, currentSession.name)
+                }}
+              >
+                <CurrentSessionIcon size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-70" />
+                <span className="flex-1 text-[11px] text-[rgb(var(--color-text-muted))] truncate" style={{ zoom: appZoom }}>
+                  {currentSession ? currentSession.name : `Session ${currentSessionIdx + 1}`}
+                </span>
+                <ChevronsUpDown size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-50" />
+              </button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content side="bottom" align="start" sideOffset={4} className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1">
+                <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Sessions</div>
+                {sessions.map((session) => {
+                  const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
+                  return (
+                    <button
+                      key={session.id}
+                      className={`no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
+                        ${session.id === currentSessionId
+                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                          : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
+                        }`}
+                      onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
+                      onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name) }}
+                    >
+                      <SessionIcon size={13} className="flex-shrink-0" />
+                      <span className="flex-1 text-xs truncate">{session.name}</span>
+                      {session.id === currentSessionId && <Check size={11} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                    </button>
+                  )
+                })}
+                <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+                <button
+                  className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  onClick={() => { createSession(); setSessionPopoverOpen(false) }}
+                >
+                  <Plus size={12} />
+                  New session <span className="ml-auto opacity-50">⌘⇧0</span>
+                </button>
+                <button
+                  className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
+                >
+                  <Settings size={12} />
+                  Manage sessions…
+                </button>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        </div>
+
         {/* ── Search / location bar — own row, full sidebar width. Back/forward nav,
              history, archive, settings, and collapse now live in the shared TopBar
              above the sidebar+content row, not here. ── */}
@@ -561,6 +677,89 @@ export default function Sidebar() {
               })
             })()}
           </div>
+        </MenuPositioner>,
+        document.body
+      )}
+
+      {sessionMenu && createPortal(
+        <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}
+          className={`rounded-shell glass-panel p-1 text-xs ${sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}`}
+        >
+          {sessionMenuMode === 'rename' ? (
+            <input
+              autoFocus
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              onBlur={() => {
+                if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
+                setSessionMenu(null); setSessionMenuMode('default')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
+              }}
+              className="w-full px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:ring-1 focus:ring-[rgb(var(--color-accent))]"
+            />
+          ) : sessionMenuMode === 'icon' ? (
+            <>
+              <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">Session icon</div>
+              <div className="grid grid-cols-7 gap-0.5 p-1">
+                <button
+                  title="No icon (show number)"
+                  className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  onClick={() => { setSessionIcon(sessionMenu.sessionId, ''); setSessionMenu(null); setSessionMenuMode('default') }}
+                >
+                  <Hash size={13} />
+                </button>
+                {SESSION_ICONS.map(({ name, Icon }) => (
+                  <button
+                    key={name}
+                    title={name}
+                    className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                    onClick={() => { setSessionIcon(sessionMenu.sessionId, name); setSessionMenu(null); setSessionMenuMode('default') }}
+                  >
+                    <Icon size={13} />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => setSessionMenuMode('rename')}
+              >
+                <Pencil size={12} />
+                Rename
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => setSessionMenuMode('icon')}
+              >
+                <Palette size={12} />
+                Change icon
+              </button>
+              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+              <button
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => { openSettingsToSessions(); setSessionMenu(null) }}
+              >
+                <Settings size={12} />
+                Manage sessions…
+              </button>
+              {sessions.length > 1 && (
+                <button
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
+                  onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }}
+                >
+                  <Trash2 size={12} />
+                  Delete session
+                </button>
+              )}
+            </>
+          )}
         </MenuPositioner>,
         document.body
       )}

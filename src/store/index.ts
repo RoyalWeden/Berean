@@ -99,6 +99,11 @@ export interface AppState {
   // UI modals
   searchOpen: boolean
   searchMode: 'current' | 'new'
+  // 'verses' = the floating search only shows scripture/verse results (no notes/
+  // lexicon/YouTube sections) — used by the Scripture tab's "Search scripture"
+  // button so it reads as a lightweight version of Advanced Search rather than
+  // the app-wide mixed search. Resets to 'all' for the normal Cmd+K/Cmd+T open.
+  searchScope: 'all' | 'verses'
   settingsOpen: boolean
 
   // Cross-panel note communication
@@ -257,6 +262,18 @@ export interface AppState {
   setNoteHeadingDivider: (v: boolean) => void
   noteBulletStyle: string
   setNoteBulletStyle: (s: string) => void
+  // Notes side panel (folder/contents/backlinks) is a floating trigger + card,
+  // same treatment as ScriptureSearchView's "jump to book" rail — pinned keeps
+  // the card open persistently; unpinned (the default) auto-hides on
+  // mouse-leave, only appearing on hover of the trigger pill.
+  noteSidePanelPinned: boolean
+  setNoteSidePanelPinned: (v: boolean) => void
+  // Curated "look" for the note editor while typing — bundles font/line-height/
+  // spacing as one named choice (see pmEditor.css's .pm-look-* rules), quick-
+  // access via the dropdown next to the Edit/View toggle rather than the fuller,
+  // separate font-family picker already in Settings → Display.
+  noteTypingLook: string
+  setNoteTypingLook: (s: string) => void
 
   // Idiom notes
   idiomHighlightEnabled: boolean
@@ -390,7 +407,7 @@ export interface AppState {
   updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
-  openSearch: (mode?: 'current' | 'new') => void
+  openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses') => void
   closeSearch: () => void
 
   // Recent search queries (persisted, max 10)
@@ -569,6 +586,7 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       searchOpen: false,
       searchMode: 'current' as const,
+      searchScope: 'all' as const,
       settingsOpen: false,
       pendingNoteId: null,
       pendingVerseFilter: null,
@@ -837,7 +855,8 @@ export const useAppStore = create<AppState>()(
               top.translation === full.translation &&
               top.noteId === full.noteId && top.strongsNum === full.strongsNum &&
               top.videoId === full.videoId &&
-              top.pdfId === full.pdfId && top.page === full.page) return {}
+              top.pdfId === full.pdfId && top.page === full.page &&
+              top.query === full.query) return {}
           const base = cur.stack.slice(0, cur.idx + 1)
           const maxStack = get().tabNavMaxStack ?? 100
           const newStack = [...base, full].slice(-maxStack)
@@ -867,11 +886,19 @@ export const useAppStore = create<AppState>()(
           return
         }
         const entry = tabStack.stack[newIdx]
-        if (entry.bookId) {
+        if (entry.query !== undefined) {
+          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
+        } else if (entry.bookId) {
+          // searchMode: false is required here — without it, landing on a bookId
+          // entry right after a query entry (i.e. stepping back INTO the reader
+          // from search results) updates bookId/chapter invisibly underneath the
+          // still-mounted ScriptureSearchView, since BiblePanel gates its render
+          // branch purely on tabState.searchMode. Confirmed bug: after visiting
+          // an Advanced Search entry once, back/forward looked like dead buttons.
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: 0, targetVerse: undefined,
+            scrollPosition: 0, targetVerse: undefined, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -894,11 +921,16 @@ export const useAppStore = create<AppState>()(
         const newIdx = tabStack.idx + 1
         const entry = tabStack.stack[newIdx]
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
-        if (entry.bookId) {
+        if (entry.query !== undefined) {
+          get().updateTabState(s.activeSpace, activeTabId, { searchMode: true, scriptureSearchQuery: entry.query })
+        } else if (entry.bookId) {
+          // searchMode: false — see the matching comment in navTabBack; without it,
+          // stepping forward out of a search entry into a bookId entry silently
+          // updates the tab underneath the still-mounted ScriptureSearchView.
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: 0, targetVerse: undefined,
+            scrollPosition: 0, targetVerse: undefined, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -999,7 +1031,9 @@ export const useAppStore = create<AppState>()(
       noteSpellCheck: true,
       autoCopyOnHighlight: false,
       noteHeadingDivider: true,
+      noteSidePanelPinned: false,
       noteBulletStyle: 'classic',
+      noteTypingLook: 'default',
       idiomHighlightEnabled: true,
       idiomHoverPreviewEnabled: true,
       idiomCache: [] as Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>,
@@ -1480,9 +1514,9 @@ export const useAppStore = create<AppState>()(
         }))
       },
 
-      openSearch: (mode = 'current') => {
+      openSearch: (mode = 'current', scope = 'all') => {
         window.dispatchEvent(new Event('berean:closeMenus'))
-        set({ searchOpen: true, searchMode: mode, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
+        set({ searchOpen: true, searchMode: mode, searchScope: scope, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
       },
       closeSearch: () => set({ searchOpen: false }),
       requestOpenNote: (noteId) => {
@@ -1732,7 +1766,9 @@ export const useAppStore = create<AppState>()(
       setNoteSpellCheck: (v) => set({ noteSpellCheck: v }),
       setAutoCopyOnHighlight: (v) => set({ autoCopyOnHighlight: v }),
       setNoteHeadingDivider: (v) => set({ noteHeadingDivider: v }),
+      setNoteSidePanelPinned: (v) => set({ noteSidePanelPinned: v }),
       setNoteBulletStyle: (s) => set({ noteBulletStyle: s }),
+      setNoteTypingLook: (s) => set({ noteTypingLook: s }),
       setIdiomHighlightEnabled: (v) => set({ idiomHighlightEnabled: v }),
       setIdiomHoverPreviewEnabled: (v) => set({ idiomHoverPreviewEnabled: v }),
       setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => set({ idiomCache: v }),
@@ -1853,6 +1889,8 @@ export const useAppStore = create<AppState>()(
         themePreset: state.themePreset,
         scriptureFontFamily: state.scriptureFontFamily,
         notesFontFamily: state.notesFontFamily,
+        noteTypingLook: state.noteTypingLook,
+        noteSidePanelPinned: state.noteSidePanelPinned,
         uiFontFamily: state.uiFontFamily,
         autoCloseTabsAfter: state.autoCloseTabsAfter,
         defaultScriptureLayout: state.defaultScriptureLayout,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { MenuPositioner } from '@/lib/usePositionedMenu'
+import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
@@ -12,6 +12,7 @@ import NoteEditor from './pm/NoteEditorPM'
 import PrintPreviewModal from './PrintPreviewModal'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
+import NoteLookDropdown from './NoteLookDropdown'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
@@ -44,6 +45,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const bumpNoteEditToken = useAppStore((s) => s.bumpNoteEditToken)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
+  const noteTypingLook = useAppStore((s) => s.noteTypingLook)
+  const setNoteTypingLook = useAppStore((s) => s.setNoteTypingLook)
   const noteFocusMode = useAppStore((s) => s.noteFocusMode)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const tabs = useAppStore((s) => s.tabs)
@@ -180,6 +183,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     function onCloseMenus() { setLocalFindOpen(false) }
     window.addEventListener('berean:closeMenus', onCloseMenus)
     return () => window.removeEventListener('berean:closeMenus', onCloseMenus)
+  }, [])
+
+  // Only one context menu app-wide: close the +/move menus when any other opens.
+  useEffect(() => {
+    function onClose() { setPlusMenu(null); setMoveMenu(null) }
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
   }, [])
 
   // Cmd+P (App.tsx) — same routing pattern as berean:openNotesFindBar/presenterPushNote
@@ -464,11 +474,31 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // If the currently-open note was changed externally (vault watcher wrote a
   // new version into the DB and bumped noteChangeToken), refetch it so the
   // editor doesn't keep showing stale content until the user reopens it.
+  //
+  // noteChangeToken also gets bumped by THIS panel's own debounced save
+  // (handleContentChange/handleTitleChange call bumpNoteToken() after
+  // window.notes.updateNote() so the presenter window refetches) — and the
+  // main-process update handler stamps its own updatedAt at write time,
+  // which practically never matches the client-side Date.now() this panel
+  // set optimistically when the user was typing 500ms earlier. Comparing
+  // updatedAt alone therefore treated every single autosave as an "external"
+  // change too, refetching and replacing activeNote with a new object
+  // reference on every save — which fed a new `content` prop into
+  // NoteEditorPM and forced its full EditorState-replace-and-reposition-
+  // cursor path (see NoteEditorPM.tsx's note-switch effect) after every
+  // debounced save, which is what read to the user as the cursor
+  // occasionally jumping/"entering" a new line right after saving. Requiring
+  // content OR title to actually differ (not just the timestamp) means a
+  // real external edit still triggers the refetch, but our own just-applied
+  // save — whose content/title we already hold — is recognized as a no-op.
   useEffect(() => {
     const current = activeNoteRef.current
     if (!current) return
     window.notes.getNote(current.id).then((note) => {
-      if (note && note.updatedAt !== activeNoteRef.current?.updatedAt) setActiveNote(note)
+      const cur = activeNoteRef.current
+      if (!note || !cur) return
+      const changedExternally = note.updatedAt !== cur.updatedAt && (note.content !== cur.content || note.title !== cur.title)
+      if (changedExternally) setActiveNote(note)
     }).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteChangeToken])
@@ -948,6 +978,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 className="flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
               />
             )}
+            {/* Quick "look" preset for the note editor while typing — separate,
+                curated shortcut next to the mode toggle; the fuller font-family
+                picker stays in Settings → Display. */}
+            <NoteLookDropdown value={noteTypingLook} onChange={setNoteTypingLook} />
             {/* ── Editor mode segmented toggle ── */}
             <HeaderSegmentedToggle
               value={editorMode}
@@ -1184,52 +1218,56 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         }}
       >
         {editing ? (
-          <div className="flex-1 overflow-hidden flex flex-row">
-            <div className="flex-1 overflow-hidden flex flex-col min-w-0">
-              {/* Idiom header strip — shown when editing an idiom note */}
-              {activeNote.type === 'idiom' && (
-                <IdiomHeader
-                  note={activeNote}
-                  onUpdate={async (updates) => {
-                    await window.notes.updateNote(activeNote.id, updates)
-                    const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
-                    setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
-                    setActiveNote(patched)
-                    window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
-                  }}
-                />
-              )}
-              <NoteEditor
-                content={activeNote.content}
-                onChange={handleContentChange}
-                onFocusRef={(fn) => { editorFocusRef.current = fn }}
-                onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
-                onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
-                initialScrollTop={restoredScrollTop}
-                initialCursorPos={restoredCursorPos}
-                autoFocus={autoFocusEditor}
-                mode={editorMode}
-                notes={notes}
-                onWikilinkClick={handleWikilinkClick}
-                onVerseRefClick={handleVerseRefClick}
-                onLexiconRefClick={handleLexiconRefClick}
-                findQuery={findBarVisible ? localFindQuery : ''}
-                importSource={
-                  activeNote.tags?.includes('biblegateway') ? 'biblegateway'
-                  : activeNote.tags?.includes('esword') ? 'esword'
-                  : undefined
-                }
-                importedAt={
-                  (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
-                    ? activeNote.importedAt
-                    : undefined
-                }
+          // `relative` here (not a flex-row split with NoteSidePanel as a sibling
+          // taking its own docked width) — NoteSidePanel is now a floating
+          // trigger pill + portaled card, positioned against THIS wrapper, same
+          // treatment as ScriptureSearchView's "jump to book" rail. The editor
+          // gets the full width always; the panel only ever overlays on top of
+          // it, never resizes it.
+          <div className="flex-1 overflow-hidden flex flex-col relative">
+            {/* Idiom header strip — shown when editing an idiom note */}
+            {activeNote.type === 'idiom' && (
+              <IdiomHeader
+                note={activeNote}
+                onUpdate={async (updates) => {
+                  await window.notes.updateNote(activeNote.id, updates)
+                  const patched = { ...activeNote, ...updates, updatedAt: Date.now() } as Note
+                  setNotes(prev => prev.map(n => n.id === activeNote.id ? patched : n))
+                  setActiveNote(patched)
+                  window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
+                }}
               />
-            </div>
+            )}
+            <NoteEditor
+              content={activeNote.content}
+              noteId={activeNote.id}
+              onChange={handleContentChange}
+              onFocusRef={(fn) => { editorFocusRef.current = fn }}
+              onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
+              onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
+              initialScrollTop={restoredScrollTop}
+              initialCursorPos={restoredCursorPos}
+              autoFocus={autoFocusEditor}
+              mode={editorMode}
+              typingLook={noteTypingLook}
+              notes={notes}
+              onWikilinkClick={handleWikilinkClick}
+              onVerseRefClick={handleVerseRefClick}
+              onLexiconRefClick={handleLexiconRefClick}
+              findQuery={findBarVisible ? localFindQuery : ''}
+              importSource={
+                activeNote.tags?.includes('biblegateway') ? 'biblegateway'
+                : activeNote.tags?.includes('esword') ? 'esword'
+                : undefined
+              }
+              importedAt={
+                (activeNote.tags?.includes('biblegateway') || activeNote.tags?.includes('esword'))
+                  ? activeNote.importedAt
+                  : undefined
+              }
+            />
             {/* Hidden in Focus mode — it's exactly the kind of secondary chrome (outline,
-                folder path, backlinks) Focus mode exists to get out of the way; keeping it
-                meant the whole NotesPanel (editor + this panel) got squeezed together into
-                App.tsx's centered max-w-3xl reading column instead of just the editor. */}
+                folder path, backlinks) Focus mode exists to get out of the way. */}
             {!noteFocusMode && (
               <NoteSidePanel
                 content={activeNote.content}

@@ -556,12 +556,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               <div
                 data-tab-idx={idx}
                 draggable
+                onClick={() => onTabClick(tab)}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e)  => handleTabDragOver(e, idx)}
                 onDragEnd={handleDragEnd}
                 onContextMenu={(e) => handleContextMenu(e, tab)}
                 className={`
-                  no-drag group relative flex items-center gap-2 rounded-shell px-2 py-1.5
+                  no-drag group relative flex items-stretch gap-2 rounded-shell px-2 py-1.5
                   select-none transition-colors duration-100
                   ${isDragging ? 'opacity-40 scale-95 cursor-grabbing' : 'cursor-pointer'}
                   ${isCrossSpaceTarget
@@ -579,9 +580,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                     transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                   />
                 )}
-                <button
-                  onClick={() => onTabClick(tab)}
-                  className="relative z-10 flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
+                {/* This inner element only needs to lay out the label content now — the
+                    click handler moved to the outer row div above, since this button's own
+                    `flex-1` box (sized/centered by the row's old `items-center`) left a
+                    non-clickable padding margin around it that swallowed clicks anywhere but
+                    dead center of the row. `items-stretch` on the row + no onClick here means
+                    the entire row (including that padding) is now one clickable hit area. */}
+                <div
+                  className="relative z-10 flex items-center gap-2 flex-1 min-w-0 text-left"
                 >
                   <span className="relative flex-shrink-0">
                     <Icon size={13} style={{ color: TAB_ICON_COLORS[tab.type] }} className="opacity-80" />
@@ -596,10 +602,10 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                   {isLXX && (
                     <span className="flex-shrink-0 text-[9px] px-1 py-0 rounded font-semibold bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">LXX</span>
                   )}
-                </button>
+                </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onTabClose(tab) }}
-                  className={`relative z-10 flex-shrink-0 rounded p-0.5
+                  className={`relative z-10 self-center flex-shrink-0 rounded p-0.5
                     text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]
                     hover:bg-[rgb(var(--color-surface-4))] transition-opacity cursor-pointer
                     ${isActive ? 'opacity-40 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}

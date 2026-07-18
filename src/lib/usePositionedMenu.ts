@@ -53,7 +53,7 @@ export function usePositionedMenu<T extends object>(): {
     setMenuRaw({ ...menu, x, y, _adjusted: true })
   }) // no deps — runs every render, but the `_adjusted` flag stops it after the first pass
 
-  // ── Click-outside / Escape / berean:closeMenus ────────────────────────────
+  // ── Click-outside / Escape / berean:closeMenus / closeContextMenus ─────────
   useEffect(() => {
     if (!menu) return
     function onDown(e: MouseEvent) {
@@ -68,14 +68,18 @@ export function usePositionedMenu<T extends object>(): {
     document.addEventListener('mousedown', onDown, true)
     document.addEventListener('keydown', onKey)
     window.addEventListener('berean:closeMenus', onClose)
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
     return () => {
       document.removeEventListener('mousedown', onDown, true)
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('berean:closeMenus', onClose)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
     }
   }, [!!menu]) // only re-subscribe when open/closed state changes
 
   function openMenu(data: T & { x: number; y: number }) {
+    // Close any other context menu first so only one is ever open at a time.
+    dispatchCloseContextMenus()
     setMenuRaw({ ...data, _adjusted: false })
   }
   function closeMenu() { setMenuRaw(null) }
@@ -86,6 +90,23 @@ export function usePositionedMenu<T extends object>(): {
 /** Dispatch the global close-all-menus event (call from modals, search bars, etc.) */
 export function dispatchCloseMenus() {
   window.dispatchEvent(new Event('berean:closeMenus'))
+}
+
+/**
+ * Dedicated event for right-click context menus only. Unlike `berean:closeMenus`
+ * (which also closes find bars, settings overlays, the "More" menu, etc.), this
+ * event is scoped to transient context menus so that opening one context menu
+ * closes every OTHER context menu app-wide without disturbing unrelated UI.
+ *
+ * Fired: (a) by every context-menu opener (via usePositionedMenu.openMenu), and
+ * (b) by a global capture-phase `contextmenu` listener (see App.tsx) so that
+ * right-clicking empty space — which opens no menu — still closes any open ones.
+ */
+export const CLOSE_CONTEXT_MENUS_EVENT = 'berean:closeContextMenus'
+
+/** Dispatch the context-menu-only close event. */
+export function dispatchCloseContextMenus() {
+  window.dispatchEvent(new Event(CLOSE_CONTEXT_MENUS_EVENT))
 }
 
 // ── MenuPositioner ────────────────────────────────────────────────────────────

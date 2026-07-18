@@ -66,9 +66,12 @@ export function buildVerseDisplayText(
 ): string {
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
 
-  // KJVA with tagged data: token-level processing for Strong's-number precision
-  if (textId === 'kjva' && textTagged && shouldReplace) {
-    const tokens = parseTaggedForText(textTagged)
+  // KJVA with tagged data: token-level processing for Strong's-number precision.
+  // Guard tokens.length: a truthy-but-tokenless textTagged (e.g. stray whitespace)
+  // would otherwise collapse the verse to '' — fall through to the plain-text return.
+  const tokens0 = (textId === 'kjva' && textTagged) ? parseTaggedForText(textTagged) : []
+  if (textId === 'kjva' && textTagged && shouldReplace && tokens0.length > 0) {
+    const tokens = tokens0
 
     // Apply both text-pattern and Strong's-number replacement rules
     const processed = tokens.map(t => {
@@ -131,12 +134,15 @@ export function buildVerseDisplayTokens(
 ): DisplayToken[] {
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
 
-  if (!(textId === 'kjva' && textTagged)) {
+  // Plain path for non-KJVA/non-tagged text, AND as a guard for a truthy-but-tokenless
+  // textTagged (e.g. stray whitespace → parseTaggedForText yields []) which would
+  // otherwise return an empty token list and render a blank verse.
+  const tokens = textId === 'kjva' && textTagged ? parseTaggedForText(textTagged) : []
+  if (!(textId === 'kjva' && textTagged) || tokens.length === 0) {
     const out = shouldReplace ? applyWordReplacer(text, wordReplacerRules) : text
     return [{ word: out, isRedLetter: false, isItalic: false }]
   }
 
-  const tokens = parseTaggedForText(textTagged)
   const processed = tokens.map(t => {
     if (t.isParenthetical || t.isStrongsBracket || !shouldReplace) return t
     let word = applyWordReplacer(t.word, wordReplacerRules)

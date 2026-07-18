@@ -105,6 +105,12 @@ export interface RefClickCallbacks {
   onWikilinkClick?: (title: string) => void
   onVerseRefClick?: (ref: ParsedRef & { forcedTranslation?: string }) => void
   onLexiconRefClick?: (strongsId: string) => void
+  /** Right-click on an auto-linked verse reference (plain, LXX, or a verse block's
+   *  own reference line) — (x, y) are the native MouseEvent's clientX/clientY. */
+  onVerseRefContextMenu?: (ref: ParsedRef & { forcedTranslation?: string }, x: number, y: number) => void
+  /** Right-click on an auto-linked Strong's number (plain or a lexicon block's own
+   *  reference line). */
+  onLexiconRefContextMenu?: (strongsId: string, x: number, y: number) => void
   // Port of NoteEditor.tsx's 350ms hover-delay wikilink preview card
   // (NoteEditor.tsx:4457-4478). The popup itself is rendered by the
   // consumer (same pattern as the block-suggest popups in Phase 4) — this
@@ -254,6 +260,66 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
             const strongsId = (lexBlockRefEl.getAttribute('data-strongs-id') || lexBlockRefEl.textContent || '').trim().toUpperCase()
             callbacks.onLexiconRefClick?.(strongsId)
             return true
+          }
+
+          return false
+        },
+        contextmenu(_view, event) {
+          const target = event.target as HTMLElement
+
+          const lxxEl = target.closest('.pm-lxx-ref') as HTMLElement | null
+          if (lxxEl) {
+            const raw = (lxxEl.getAttribute('data-ref') || lxxEl.textContent || '').trim()
+            const bare = raw.replace(/^(?:lxx|LXX):/i, '').replace(/\s+LXX$/i, '').trim()
+            const parsed = parseRef(bare)
+            if (parsed && callbacks.onVerseRefContextMenu) {
+              event.preventDefault()
+              callbacks.onVerseRefContextMenu({ ...parsed, forcedTranslation: 'LXX' }, event.clientX, event.clientY)
+              return true
+            }
+          }
+
+          const verseEl = target.closest('.pm-verse-ref') as HTMLElement | null
+          if (verseEl) {
+            const raw = (verseEl.getAttribute('data-ref') || verseEl.textContent || '').trim()
+            const parsed = parseRef(raw)
+            if (parsed && callbacks.onVerseRefContextMenu) {
+              event.preventDefault()
+              callbacks.onVerseRefContextMenu(parsed, event.clientX, event.clientY)
+              return true
+            }
+          }
+
+          const lexEl = target.closest('.pm-lexicon-ref') as HTMLElement | null
+          if (lexEl) {
+            const strongsId = (lexEl.getAttribute('data-strongs-id') || lexEl.textContent || '').trim().toUpperCase()
+            if (callbacks.onLexiconRefContextMenu) {
+              event.preventDefault()
+              callbacks.onLexiconRefContextMenu(strongsId, event.clientX, event.clientY)
+              return true
+            }
+          }
+
+          const verseBlockRefEl = target.closest('.pm-verse-block-ref') as HTMLElement | null
+          if (verseBlockRefEl) {
+            const raw = (verseBlockRefEl.getAttribute('data-ref') || verseBlockRefEl.textContent || '').trim()
+            const isLxx = verseBlockRefEl.getAttribute('data-lxx') === 'true'
+            const parsed = parseRef(raw)
+            if (parsed && callbacks.onVerseRefContextMenu) {
+              event.preventDefault()
+              callbacks.onVerseRefContextMenu(isLxx ? { ...parsed, forcedTranslation: 'LXX' } : parsed, event.clientX, event.clientY)
+              return true
+            }
+          }
+
+          const lexBlockRefEl = target.closest('.pm-lexicon-block-ref') as HTMLElement | null
+          if (lexBlockRefEl) {
+            const strongsId = (lexBlockRefEl.getAttribute('data-strongs-id') || lexBlockRefEl.textContent || '').trim().toUpperCase()
+            if (callbacks.onLexiconRefContextMenu) {
+              event.preventDefault()
+              callbacks.onLexiconRefContextMenu(strongsId, event.clientX, event.clientY)
+              return true
+            }
           }
 
           return false

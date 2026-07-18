@@ -477,12 +477,6 @@ function EntryView({
           </div>
         )}
 
-        {typeof entry.occurrences === 'number' && entry.occurrences > 0 && (
-          <div className="text-xs text-[rgb(var(--color-text-muted))]">
-            Used {entry.occurrences} time{entry.occurrences !== 1 ? 's' : ''}
-          </div>
-        )}
-
         {!expanded && (
           <button
             onClick={() => setExpanded(true)}

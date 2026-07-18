@@ -9,6 +9,19 @@ import type { WordReplacerRule } from '@/store'
  *   → returns "yeshua OR jesus"  (FTS will find "jesus" records that the UI shows as "Yeshua")
  *
  * Also handles multi-word replacements: "yeshua messiah" expands to include "jesus christ".
+ *
+ * ⚠️ NOT actually usable as a query string passed to `window.bible.searchText` —
+ * electron/ipc/bible.ts's own `safeFtsQuery`/`cleanWords` were deliberately hardened
+ * (see that file's comment) to treat EVERY word in the input as a required token,
+ * specifically so a literal "OR" typed by the user can't accidentally flip "All
+ * words" mode into "any words" mode. That hardening means the literal " OR " this
+ * function inserts is *also* read as just another required search word, not a
+ * boolean operator — turning "yeshua OR jesus" into an impossible query requiring
+ * the literal words "yeshua", "or", AND "jesus" all in the same verse. Real bug,
+ * confirmed: this was silently broken in both Advanced Search and the floating
+ * quick search. Kept only as the single-string-expansion primitive still covered
+ * by existing tests; real search call sites must use
+ * `getWordReplacerSearchVariants` below and issue one search per variant instead.
  */
 export function expandQueryForWordReplacer(query: string, rules: WordReplacerRule[]): string {
   const lq = query.trim().toLowerCase()
@@ -37,6 +50,51 @@ export function expandQueryForWordReplacer(query: string, rules: WordReplacerRul
   if (extra.length === 0) return query
   // Build "original_query OR extra1 OR extra2 …" — FTS will match any
   return `${query} OR ${extra.join(' OR ')}`
+}
+
+/**
+ * Real, working replacement for bidirectional word-replacer search: returns a list
+ * of complete, independent query strings to search for and union the results of —
+ * the ORIGINAL query plus, for each word-replacer rule that matches, the query with
+ * the matched word/phrase SUBSTITUTED (not appended) for its counterpart, so the
+ * rest of a multi-word query is preserved on both sides (e.g. "yeshua wept" also
+ * searches "jesus wept", not just bare "jesus").
+ *
+ * Each returned string is a normal, plain query — safe to pass individually to
+ * `window.bible.searchText`, unlike `expandQueryForWordReplacer`'s output.
+ */
+export function getWordReplacerSearchVariants(query: string, rules: WordReplacerRule[]): string[] {
+  const trimmed = query.trim()
+  if (!trimmed) return [query]
+  const lq = trimmed.toLowerCase()
+  const variants = new Set<string>([trimmed])
+
+  const sorted = [...rules].filter(r => r.enabled && !r.strongsNum).sort((a, b) =>
+    b.replacement.length - a.replacement.length
+  )
+
+  const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  for (const rule of sorted) {
+    const lReplacement = rule.replacement.toLowerCase()
+    for (const orig of rule.queries) {
+      const lOrig = orig.toLowerCase()
+      // Replacement wording is in the query (e.g. typed "Yeshua") → also search the
+      // DB's original wording (e.g. "Jesus"), substituted in place.
+      if (lq.includes(lReplacement)) {
+        const re = new RegExp(escapeRe(rule.replacement), 'ig')
+        variants.add(trimmed.replace(re, orig))
+      }
+      // Original wording is in the query (e.g. typed "Jesus") → also search the
+      // replacement's own wording, so results display-transform consistently either way.
+      if (lq.includes(lOrig)) {
+        const re = new RegExp(escapeRe(orig), 'ig')
+        variants.add(trimmed.replace(re, rule.replacement))
+      }
+    }
+  }
+
+  return [...variants]
 }
 
 /**

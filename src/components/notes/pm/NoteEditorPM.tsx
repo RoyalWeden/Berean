@@ -32,6 +32,9 @@ import { stripLxxMarker } from '@/lib/noteTextBlocks'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { useAppStore } from '@/store'
 import type { Note } from '@/types'
+import { VerseCopyMenu, type VerseCopyTarget } from '@/components/bible/VerseCopyMenu'
+import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexicon/StrongsContextMenu'
+import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import './pmEditor.css'
 
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
@@ -43,6 +46,7 @@ import './pmEditor.css'
 // refined cursor/scroll position restore (Phase 7).
 export interface NoteEditorPMProps {
   content: string
+  noteId?: string
   onChange: (content: string) => void
   placeholder?: string
   onFocusRef?: (focusFn: () => void) => void
@@ -68,10 +72,15 @@ export interface NoteEditorPMProps {
   findQuery?: string
   importSource?: 'biblegateway' | 'esword'
   importedAt?: number
+  // Curated visual "look" while typing (see pmEditor.css's .pm-look-* rules) —
+  // a quick-access preset next to the Edit/View toggle, separate from the
+  // fuller font-family picker in Settings. 'default' needs no extra class.
+  typingLook?: string
 }
 
 export default function NoteEditorPM({
   content,
+  noteId,
   onChange,
   placeholder,
   onFocusRef,
@@ -93,6 +102,7 @@ export default function NoteEditorPM({
   findQuery = '',
   importSource,
   importedAt,
+  typingLook = 'default',
 }: NoteEditorPMProps) {
   const [importFooterOpen, setImportFooterOpen] = useState(false)
   // Flips true right after viewRef.current is set in the mount effect below — viewRef is a
@@ -110,6 +120,14 @@ export default function NoteEditorPM({
   const onCursorPositionRef = useRef(onCursorPosition)
   onCursorPositionRef.current = onCursorPosition
   const lastContentPropRef = useRef(content)
+  // Read by createSuppressRangesPlugin's getNoteId — the plugin instance is
+  // built once at mount and reused across every note switch (plugins are
+  // baked into EditorState, see the mount effect below), so it can't take
+  // noteId as a one-time constructor argument; it reads this ref instead,
+  // which is kept current on every render, ahead of the note-switch effect
+  // that rebuilds EditorState with the new note's content.
+  const noteIdRef = useRef(noteId)
+  noteIdRef.current = noteId
 
   const [wikilinkTrigger, setWikilinkTrigger] = useState<WikilinkTrigger | null>(null)
   const [strongsTrigger, setStrongsTrigger] = useState<StrongsTrigger | null>(null)
@@ -118,6 +136,8 @@ export default function NoteEditorPM({
   const [wikilinkIdx, setWikilinkIdx] = useState(0)
   const [slashIdx, setSlashIdx] = useState(0)
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null)
+  const [verseCtxTarget, setVerseCtxTarget] = useState<VerseCopyTarget | null>(null)
+  const [strongsCtxTarget, setStrongsCtxTarget] = useState<StrongsContextTarget | null>(null)
   const notesRef = useRef(notes)
   notesRef.current = notes
 
@@ -127,6 +147,15 @@ export default function NoteEditorPM({
   // whole plugin/state on every render.
   const refCallbacksRef = useRef({ onWikilinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd })
   refCallbacksRef.current = { onWikilinkClick, onVerseRefClick, onLexiconRefClick, onWikilinkHoverStart, onWikilinkHoverEnd }
+
+  // Verse-ref/Strong's-ref right-click menus are handled entirely inside this
+  // component (unlike the click callbacks above, which the parent supplies) —
+  // kept in a ref for the same reason: the plugin instance is built once at
+  // mount, so it must always call through to the LATEST handler identity.
+  const ctxMenuHandlersRef = useRef({
+    onVerseRefContextMenu: (_ref: ParsedRef & { forcedTranslation?: string }, _x: number, _y: number) => {},
+    onLexiconRefContextMenu: (_id: string, _x: number, _y: number) => {},
+  })
 
   // ── Mount: build the EditorView once ──────────────────────────────────────
   useEffect(() => {
@@ -149,7 +178,7 @@ export default function NoteEditorPM({
         gapCursor(),
         dropCursor(),
         bereanPastePlugin,
-        createSuppressRangesPlugin(),
+        createSuppressRangesPlugin(() => noteIdRef.current),
         createRefDecorationsPlugin(),
         createRefClickPlugin({
           onWikilinkClick: (title) => refCallbacksRef.current.onWikilinkClick?.(title),
@@ -157,6 +186,8 @@ export default function NoteEditorPM({
           onLexiconRefClick: (id) => refCallbacksRef.current.onLexiconRefClick?.(id),
           onWikilinkHoverStart: (title, rect) => refCallbacksRef.current.onWikilinkHoverStart?.(title, rect),
           onWikilinkHoverEnd: () => refCallbacksRef.current.onWikilinkHoverEnd?.(),
+          onVerseRefContextMenu: (ref, x, y) => ctxMenuHandlersRef.current.onVerseRefContextMenu(ref, x, y),
+          onLexiconRefContextMenu: (id, x, y) => ctxMenuHandlersRef.current.onLexiconRefContextMenu(id, x, y),
         }),
         createPlaceholderPlugin(),
         createAutocompletePlugin({
@@ -292,6 +323,38 @@ export default function NoteEditorPM({
     if (viewRef.current) setFindQuery(viewRef.current, findQuery)
   }, [findQuery])
 
+  // Scroll to a heading when NoteSidePanel's Contents list fires
+  // berean:scrollToHeading — the ProseMirror-migration equivalent of the
+  // legacy CM6 editor's own handler (NoteEditor.tsx). That legacy handler is
+  // dead code (NotesPanel.tsx renders NoteEditorPM, not NoteEditor, as the
+  // live editor), so the event fired but nothing was listening — the side
+  // panel's Contents clicks silently did nothing.
+  useEffect(() => {
+    function handler(e: Event) {
+      const { headingText } = (e as CustomEvent<{ headingText: string }>).detail
+      const view = viewRef.current
+      if (!view) return
+      let targetPos: number | null = null
+      view.state.doc.descendants((node, pos) => {
+        if (targetPos !== null) return false
+        if (node.type.name === 'heading' && node.textContent.trim() === headingText.trim()) {
+          targetPos = pos
+          return false
+        }
+        return true
+      })
+      if (targetPos === null) return
+      const dom = view.nodeDOM(targetPos)
+      const el = dom instanceof HTMLElement ? dom : (dom as ChildNode | null)?.parentElement
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const selection = TextSelection.near(view.state.doc.resolve(Math.min(targetPos + 1, view.state.doc.content.size)))
+      view.dispatch(view.state.tr.setSelection(selection))
+      if (mode === 'edit') view.focus()
+    }
+    window.addEventListener('berean:scrollToHeading', handler)
+    return () => window.removeEventListener('berean:scrollToHeading', handler)
+  }, [mode])
+
   const filteredNotes = wikilinkTrigger
     ? (notesRef.current ?? [])
         .filter((n) => (n.title || 'Untitled').toLowerCase().includes(wikilinkTrigger.query.toLowerCase()))
@@ -356,6 +419,38 @@ export default function NoteEditorPM({
     }
   }
 
+  async function handleVerseRefContextMenu(ref: ParsedRef & { forcedTranslation?: string }, x: number, y: number) {
+    if (!ref.verse) return
+    dispatchCloseContextMenus()
+    const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
+    const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
+    setVerseCtxTarget({
+      bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, text: v?.text ?? '',
+      lxx: ref.forcedTranslation === 'LXX', x, y,
+    })
+  }
+
+  function handleLexiconRefContextMenu(strongsId: string, x: number, y: number) {
+    dispatchCloseContextMenus()
+    setStrongsCtxTarget({ strongsNum: strongsId, x, y })
+  }
+
+  function openStrongsEntry(strongsId: string) {
+    const store = useAppStore.getState()
+    if (store.tabs['lexicon'].length === 0) store.createTab('lexicon')
+    useAppStore.getState().setActiveSpace('lexicon')
+    useAppStore.getState().openLexiconEntry(strongsId)
+  }
+
+  function openStrongsEntryInNewTab(strongsId: string) {
+    const store = useAppStore.getState()
+    store.createTab('lexicon')
+    useAppStore.getState().openLexiconEntry(strongsId)
+    useAppStore.getState().setActiveSpace('lexicon')
+  }
+
+  ctxMenuHandlersRef.current = { onVerseRefContextMenu: handleVerseRefContextMenu, onLexiconRefContextMenu: handleLexiconRefContextMenu }
+
   // Keyboard nav for whichever popup is open — mirrors NoteEditor.tsx's
   // document-level capture-phase keydown listener (arrow keys move the
   // wikilink list selection, Enter accepts the active item/block, Escape
@@ -412,7 +507,7 @@ export default function NoteEditorPM({
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${className}`}
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
         <div className="flex-shrink-0 border-t border-[rgb(var(--color-surface-4))] select-none">
@@ -474,6 +569,13 @@ export default function NoteEditorPM({
       {selectionToolbar && mode === 'edit' && viewRef.current && (
         <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
       )}
+      <VerseCopyMenu target={verseCtxTarget} onClose={() => setVerseCtxTarget(null)} />
+      <StrongsContextMenu
+        target={strongsCtxTarget}
+        onClose={() => setStrongsCtxTarget(null)}
+        onOpen={openStrongsEntry}
+        onOpenNewTab={openStrongsEntryInNewTab}
+      />
     </div>
   )
 }

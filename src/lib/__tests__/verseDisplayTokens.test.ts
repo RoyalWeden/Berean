@@ -42,4 +42,23 @@ describe('buildVerseDisplayTokens — red-letter & italics', () => {
     expect(toks).toHaveLength(1)
     expect(toks[0]).toMatchObject({ word: 'In the beginning', isRedLetter: false, isItalic: false })
   })
+
+  // A truthy-but-tokenless text_tagged (e.g. stray whitespace) must not collapse the
+  // verse to an empty string / empty token list — fall back to the plain text.
+  describe('tokenless-but-truthy text_tagged guard', () => {
+    const PLAIN = 'All wisdom cometh from the Lord'
+
+    // Space strings split to zero tokens; that's the tokenless case the guard targets.
+    it.each(['   ', ' '])('buildVerseDisplayText falls back to plain for %j tagged', (tagged) => {
+      expect(buildVerseDisplayText(PLAIN, tagged, 'kjva', true, [
+        { id: 'r', queries: ['Lord'], replacement: 'Yehovah', wholeWord: true, enabled: true },
+      ])).toContain('All wisdom cometh')
+    })
+
+    it('buildVerseDisplayTokens falls back to a single plain token for whitespace tagged', () => {
+      const toks = buildVerseDisplayTokens(PLAIN, '   ', 'kjva', false, noRules)
+      expect(toks).toHaveLength(1)
+      expect(toks[0].word).toBe(PLAIN)
+    })
+  })
 })

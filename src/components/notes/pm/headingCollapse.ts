@@ -99,11 +99,13 @@ const CHEVRON_DOWN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" hei
 export function headingNodeView(getPos: () => number | undefined) {
   return (node: PMNode, view: EditorView): NodeView => {
     const dom = document.createElement(`h${node.attrs.level}`)
-    dom.style.display = 'flex'
-    // 'center' rather than 'baseline': baseline-aligned a small arrow glyph against a much
-    // taller H1/H2 line noticeably low/off-center.
-    dom.style.alignItems = 'center'
-    dom.style.gap = '4px'
+    // Arrow lives in the left gutter (absolutely positioned, out of normal
+    // flow — see below) rather than as a flex sibling ahead of the text, so
+    // it no longer pushes the heading's own text start to the right of
+    // where every other block's text starts (a real, reported indent bug —
+    // headings visibly began further right than paragraphs/lists). `dom`
+    // just needs to be the positioning anchor for that absolute arrow now.
+    dom.style.position = 'relative'
     // Hover-reveal: the arrow used to sit at a constant 50% opacity, always visible before
     // every heading's text — that's the "arrow/triangle thing" cluttering headings. It now
     // stays fully transparent until the pointer is over the heading row (this class, applied
@@ -119,7 +121,18 @@ export function headingNodeView(getPos: () => number | undefined) {
     arrow.style.lineHeight = '1'
     arrow.style.display = 'inline-flex'
     arrow.style.alignItems = 'center'
-    arrow.style.flexShrink = '0'
+    // Gutter placement: pulled fully out of flow and into the editor's own
+    // left padding (pmEditor.css's `.ProseMirror` has 16px of it), so it sits
+    // to the left of wherever this heading's text column actually starts —
+    // including nested headings inside a blockquote/list, where that
+    // anchor point is this element itself, not the page edge. -19px put the
+    // 14px-wide arrow 3px PAST that 16px padding box (touching/overflowing
+    // the editor's own outer edge, a reported bug) — -14px keeps it fully
+    // inside the padding with a small gap from the edge instead.
+    arrow.style.position = 'absolute'
+    arrow.style.left = '-14px'
+    arrow.style.top = '50%'
+    arrow.style.transform = 'translateY(-50%)'
     const updateArrow = () => {
       const pos = getPos()
       const collapsed = pos !== undefined && headingCollapseKey.getState(view.state)?.has(pos)
@@ -141,7 +154,14 @@ export function headingNodeView(getPos: () => number | undefined) {
     })
     dom.appendChild(arrow)
 
+    // pm-heading-content: gives the (otherwise bare) content span an explicit
+    // min-height/line-height in pmEditor.css. Without it, a genuinely empty
+    // heading's content span has no line box for the browser to size — under
+    // this element's `display:flex; align-items:center` it can collapse to
+    // zero height, so the caret has nothing to render/blink against until
+    // the first character is typed (which then establishes a line box).
     const contentDOM = document.createElement('span')
+    contentDOM.className = 'pm-heading-content'
     dom.appendChild(contentDOM)
 
     return {
