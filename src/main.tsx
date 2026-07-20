@@ -3,8 +3,11 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import ViewerApp from '@/components/viewer/ViewerApp'
+import { initScrollbarAutoHide } from '@/lib/scrollbarAutoHide'
 import './styles/global.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
+
+initScrollbarAutoHide()
 
 // Very first line of renderer JS — confirms the bundle is executing.
 

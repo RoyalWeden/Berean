@@ -621,7 +621,11 @@ body {
   color: inherit;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling — regular size, true auto-hide: invisible at rest, and only
+   revealed while actively scrolling (`.scrollbar-visible`, toggled with a
+   fade-out timeout by src/lib/scrollbarAutoHide.ts's global scroll listener)
+   or while the cursor is over the scrollable area at all (`:hover` — covers
+   "near it" generally, not just exactly over the thumb). */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -630,10 +634,16 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-surface-4));
+  background: transparent;
   border-radius: 3px;
+  transition: background-color 0.2s ease;
 }
-::-webkit-scrollbar-thumb:hover {
+:hover::-webkit-scrollbar-thumb,
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-surface-4));
+}
+:hover::-webkit-scrollbar-thumb:hover,
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-text-muted));
 }
 

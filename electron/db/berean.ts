@@ -514,7 +514,12 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
     // External-content table (index only) kept in sync by triggers, mirroring the
     // youtube_transcripts_fts pattern. `rebuild` backfills every existing note in
     // one shot, so upgraded databases with pre-existing notes get indexed here.
-    version: 18,
+    //
+    // NOTE: version 18 was already consumed by an unrelated migration on another
+    // branch (Octarine vault integration) that ran against the same shared dev
+    // database, so this migration is stamped 19 instead to avoid being silently
+    // skipped by the `migration.version > current` guard below.
+    version: 19,
     up(db) {
       db.exec(`
         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
@@ -547,7 +552,7 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       // Backfill existing notes into the index (idempotent full rebuild).
       db.exec(`INSERT INTO notes_fts(notes_fts) VALUES('rebuild')`)
-      console.log('[berean-db] v18: notes_fts FTS5 + triggers + backfill')
+      console.log('[berean-db] v19: notes_fts FTS5 + triggers + backfill')
     }
   }
 ]

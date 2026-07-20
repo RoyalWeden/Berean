@@ -42,12 +42,13 @@ function formatVerseRef(ref: string): string {
 export default function NotesPanel({ floating = false }: { floating?: boolean }) {
   const pendingNoteId = useAppStore((s) => s.pendingNoteId)
   const clearPendingNote = useAppStore((s) => s.clearPendingNote)
+  const pendingNotesSearchTab = useAppStore((s) => s.pendingNotesSearchTab)
+  const clearNotesSearchTab = useAppStore((s) => s.clearNotesSearchTab)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const bumpNoteEditToken = useAppStore((s) => s.bumpNoteEditToken)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const noteTypingLook = useAppStore((s) => s.noteTypingLook)
   const setNoteTypingLook = useAppStore((s) => s.setNoteTypingLook)
-  const noteFocusMode = useAppStore((s) => s.noteFocusMode)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const tabs = useAppStore((s) => s.tabs)
   const renameTab = useAppStore((s) => s.renameTab)
@@ -106,6 +107,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const SNAPSHOT_IDLE_MS = 2 * 60 * 1000
   const notesContentRef = useRef<HTMLDivElement>(null)
   const activeNoteRef = useRef<Note | null>(null)
+  // Snapshot of exactly what THIS panel last told the DB to persist (set at the
+  // moment handleContentChange/handleTitleChange's debounced save actually
+  // fires) — used by the noteChangeToken reconciliation effect below to tell
+  // "this token bump was our own save echoing back" apart from a real external
+  // edit, without racing against the user having typed further in the
+  // meantime. See that effect's comment for the full race it closes.
+  const lastSelfSaveRef = useRef<{ content: string; title: string } | null>(null)
   // NotesPanel is a single shared instance reused across every Notes tab (PanelLayout.tsx
   // renders one, not one per tab). Right after switching tabs, `activeNote` still holds the
   // PREVIOUS tab's note for one render until the restore effect below catches up — the persist
@@ -143,9 +151,36 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [localFindQuery, setLocalFindQuery] = useState('')
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const [noteSearch, setNoteSearch] = useState('')
+  const [noteSearchWordMode, setNoteSearchWordMode] = useState<'all' | 'any' | 'phrase'>('all')
+  // Real FTS5 results for the current noteSearch/noteSearchWordMode — replaces the
+  // plain substring `.includes()` filter this used to be. `null` means "no search
+  // active" (visibleNotes then falls back to the full locally-loaded `notes` list,
+  // as before); an empty array means "searched, found nothing." Debounced so fast
+  // typing doesn't fire a query per keystroke.
+  const [noteSearchResults, setNoteSearchResults] = useState<Note[] | null>(null)
+  useEffect(() => {
+    const q = noteSearch.trim()
+    if (!q) { setNoteSearchResults(null); return }
+    const timer = setTimeout(() => {
+      window.notes.searchNotes(q, 500, noteSearchWordMode)
+        .then(setNoteSearchResults)
+        .catch(() => setNoteSearchResults([]))
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [noteSearch, noteSearchWordMode])
 
   // Keep ref in sync so the event handler always sees the latest activeNote
   useEffect(() => { activeNoteRef.current = activeNote }, [activeNote])
+
+  // Pick up a query pushed in from the floating search bar's "Notes" button —
+  // reveal the list view (the search box lives there) and seed its search input.
+  useEffect(() => {
+    if (!pendingNotesSearchTab) return
+    const term = pendingNotesSearchTab
+    clearNotesSearchTab()
+    setActiveNote(null)
+    setNoteSearch(term)
+  }, [pendingNotesSearchTab, clearNotesSearchTab])
 
   // Listen for App.tsx's routed find-bar open event (also handles type-anywhere seed char)
   useEffect(() => {
@@ -477,26 +512,42 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   //
   // noteChangeToken also gets bumped by THIS panel's own debounced save
   // (handleContentChange/handleTitleChange call bumpNoteToken() after
-  // window.notes.updateNote() so the presenter window refetches) — and the
-  // main-process update handler stamps its own updatedAt at write time,
-  // which practically never matches the client-side Date.now() this panel
-  // set optimistically when the user was typing 500ms earlier. Comparing
-  // updatedAt alone therefore treated every single autosave as an "external"
-  // change too, refetching and replacing activeNote with a new object
-  // reference on every save — which fed a new `content` prop into
-  // NoteEditorPM and forced its full EditorState-replace-and-reposition-
-  // cursor path (see NoteEditorPM.tsx's note-switch effect) after every
-  // debounced save, which is what read to the user as the cursor
-  // occasionally jumping/"entering" a new line right after saving. Requiring
-  // content OR title to actually differ (not just the timestamp) means a
-  // real external edit still triggers the refetch, but our own just-applied
-  // save — whose content/title we already hold — is recognized as a no-op.
+  // window.notes.updateNote() so the presenter window refetches). An earlier
+  // version of this effect compared the fetch against `cur.updatedAt` alone,
+  // which practically never matched (the main process stamps its own
+  // updatedAt at write time, different from the client's optimistic
+  // Date.now()) — treating literally every autosave as "external" and
+  // forcing NoteEditorPM's full EditorState-replace-and-reposition-cursor
+  // path (see its note-switch effect) after every single save, which read to
+  // the user as the cursor jumping/entering a new line right after saving.
+  //
+  // Comparing content/title too (not just updatedAt) mostly fixed that, but
+  // left a real race: this fetch is an async IPC round-trip against
+  // `current.id` — if the user RESUMES typing while it's in flight (a common
+  // "brief pause then keep typing" pattern), `activeNoteRef.current` (`cur`)
+  // has advanced past the DB snapshot the fetch returns by the time it
+  // resolves. The comparison then sees a real difference and wrongly
+  // concludes "changed externally," overwriting activeNote with the STALE,
+  // pre-resume content — dropping whatever was typed during the race window
+  // (confirmed root cause of frequent dropped letters / undone Enter presses
+  // / cursor jumps while typing).
+  //
+  // Fix: compare the fetch against a stable snapshot of what THIS panel
+  // itself last told the DB to persist (`lastSelfSaveRef`, set at save time
+  // in handleContentChange/handleTitleChange) instead of the live, still-
+  // advancing `activeNoteRef`. If the fetched note matches our own last
+  // save, this bump is that save echoing back — a no-op — regardless of how
+  // far the user has typed since. Only a fetch that differs from BOTH our
+  // last save AND the live ref is a genuine external edit.
   useEffect(() => {
     const current = activeNoteRef.current
     if (!current) return
     window.notes.getNote(current.id).then((note) => {
       const cur = activeNoteRef.current
       if (!note || !cur) return
+      const lastSave = lastSelfSaveRef.current
+      const isOwnSaveEcho = lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
+      if (isOwnSaveEcho) return
       const changedExternally = note.updatedAt !== cur.updatedAt && (note.content !== cur.content || note.title !== cur.title)
       if (changedExternally) setActiveNote(note)
     }).catch(() => {})
@@ -807,6 +858,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       const id = activeNote.id
+      lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(id, { content }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
       maybeSyncNote(id)
@@ -823,6 +875,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     setActiveNote(updated)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      lastSelfSaveRef.current = { content: updated.content, title: updated.title }
       window.notes.updateNote(activeNote.id, { title }).catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? updated : n)))
       bumpNoteToken()
@@ -901,14 +954,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const editing = activeNote !== null
 
   const visibleNotes = useMemo(() => {
-    let filtered = [...notes]
-    // Text search
-    if (noteSearch.trim()) {
-      const q = noteSearch.toLowerCase()
-      filtered = filtered.filter(n =>
-        n.title?.toLowerCase().includes(q) || n.content?.toLowerCase().includes(q)
-      )
-    }
+    // Text search — real FTS5 (via noteSearchResults, see the debounced effect above)
+    // instead of a plain substring filter, so word-mode (all/any/phrase) actually
+    // changes matching behavior. Falls back to the full locally-loaded `notes` list
+    // when no search is active, exactly as before.
+    let filtered = noteSearch.trim() ? [...(noteSearchResults ?? [])] : [...notes]
     // Type filter
     const isDailyLike = (n: Note) =>
       n.type === 'daily' || n.type === 'journal' ||
@@ -925,7 +975,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     else if (noteSort === 'created') filtered.sort((a, b) => b.createdAt - a.createdAt)
     else if (noteSort === 'name') filtered.sort((a, b) => (a.title || 'Untitled').localeCompare(b.title || 'Untitled'))
     return filtered
-  }, [notes, noteSearch, noteFilter, noteSort])
+  }, [notes, noteSearch, noteSearchResults, noteFilter, noteSort])
 
   return (
     <div
@@ -1266,18 +1316,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   : undefined
               }
             />
-            {/* Hidden in Focus mode — it's exactly the kind of secondary chrome (outline,
-                folder path, backlinks) Focus mode exists to get out of the way. */}
-            {!noteFocusMode && (
-              <NoteSidePanel
-                content={activeNote.content}
-                noteTitle={activeNote.title || 'Untitled'}
-                noteId={activeNote.id}
-                allNotes={notes}
-                onNoteClick={navigateToNote}
-                folderPath={folderPathFor(activeNote, folders)}
-              />
-            )}
+            {/* Stays visible in Focus mode too — it's a floating trigger pill the user
+                summons on demand (outline/folder path/backlinks stay tucked away until
+                clicked), not persistent chrome Focus mode needs to clear away. */}
+            <NoteSidePanel
+              content={activeNote.content}
+              noteTitle={activeNote.title || 'Untitled'}
+              noteId={activeNote.id}
+              allNotes={notes}
+              onNoteClick={navigateToNote}
+              folderPath={folderPathFor(activeNote, folders)}
+            />
           </div>
         ) : (
           <>
@@ -1295,6 +1344,22 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <button onClick={() => setNoteSearch('')} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer flex-shrink-0">
                   <X size={13} />
                 </button>
+              )}
+              {/* Word mode — only meaningful while actively searching; matches the same
+                  all/any/phrase pills used in the floating search bar. */}
+              {noteSearch.trim() && (
+                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-shrink-0">
+                  {(['all', 'any', 'phrase'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setNoteSearchWordMode(m)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
+                        ${noteSearchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
               )}
               <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
               <select

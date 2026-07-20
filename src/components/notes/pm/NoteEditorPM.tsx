@@ -34,7 +34,7 @@ import { useAppStore } from '@/store'
 import type { Note } from '@/types'
 import { VerseCopyMenu, type VerseCopyTarget } from '@/components/bible/VerseCopyMenu'
 import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexicon/StrongsContextMenu'
-import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
+import { dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import './pmEditor.css'
 
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
@@ -136,6 +136,43 @@ export default function NoteEditorPM({
   const [wikilinkIdx, setWikilinkIdx] = useState(0)
   const [slashIdx, setSlashIdx] = useState(0)
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null)
+
+  // Dismiss the floating "select text to format" toolbar on: any right-click
+  // anywhere in the app (App.tsx's capture-phase contextmenu listener already
+  // dispatches CLOSE_CONTEXT_MENUS_EVENT for every right-click, not just ones
+  // that open a menu), the floating search bar opening (openSearch() already
+  // dispatches berean:closeMenus), or a click anywhere outside the editor
+  // entirely. Previously this toolbar only reacted to its own internal
+  // dropdown state and to the ProseMirror selection collapsing via a
+  // transaction — clicking somewhere that fires no PM transaction at all
+  // (the sidebar, a different panel) left it stranded on screen even though
+  // focus had moved away, since neither global dismiss event nor an outside-
+  // editor click were wired up at all.
+  useEffect(() => {
+    if (!selectionToolbar) return
+    const onGlobalClose = () => setSelectionToolbar(null)
+    window.addEventListener('berean:closeMenus', onGlobalClose)
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onGlobalClose)
+    function onDocMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      // Clicking inside the editor is left to ProseMirror's own selection-
+      // change handling (already correct); clicking the toolbar itself (or
+      // one of its dropdown popovers, all sharing the .pm-toolbar-solid
+      // class — SelectionToolbar isn't portaled, but also isn't a DOM
+      // descendant of hostRef, so it needs its own class-based exclusion)
+      // must not dismiss it either.
+      if (hostRef.current?.contains(target)) return
+      if (target.closest('.pm-toolbar-solid')) return
+      setSelectionToolbar(null)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => {
+      window.removeEventListener('berean:closeMenus', onGlobalClose)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onGlobalClose)
+      document.removeEventListener('mousedown', onDocMouseDown)
+    }
+  }, [selectionToolbar])
+
   const [verseCtxTarget, setVerseCtxTarget] = useState<VerseCopyTarget | null>(null)
   const [strongsCtxTarget, setStrongsCtxTarget] = useState<StrongsContextTarget | null>(null)
   const notesRef = useRef(notes)
@@ -499,10 +536,12 @@ export default function NoteEditorPM({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="relative flex flex-col h-full min-h-0">
       {/* Persistent toolbar — not shown in the compact side-panel editor (BibleRightPanel's
           quick note view) or in read-only 'view' mode, matching SelectionToolbar.tsx's own
-          edit-mode gating. */}
+          edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
+          `absolute` positioning docks against it) rather than sitting in normal flow, so it
+          never changes the editor's available height. */}
       {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} />}
       <div
         ref={hostRef}

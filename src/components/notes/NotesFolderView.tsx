@@ -102,6 +102,29 @@ export default function NotesFolderView({
   // Snapshot of expanded state before search started — restored when search clears
   const preSearchExpandedRef = useRef<Set<string> | null>(null)
 
+  // Every folder that contains a matching note, plus all its ancestors up to root —
+  // used both to auto-expand (below) and to HIDE folders with zero matches while a
+  // search is active (renderUserFolder's two call sites) so an empty folder row
+  // doesn't sit there looking like "nothing matched here" when really the whole
+  // folder just isn't relevant to the search. Empty (irrelevant) when no search is
+  // active — callers must check `searchQuery` themselves before using this to hide
+  // anything, same as this already only DRIVES auto-expand under that condition.
+  const foldersWithMatches = useMemo(() => {
+    const folderMap = new Map(folders.map(f => [f.id, f]))
+    const result = new Set<string>()
+    function addAncestors(folderId: string) {
+      if (result.has(folderId)) return
+      const folder = folderMap.get(folderId)
+      if (!folder) return
+      result.add(folderId)
+      if (folder.parentId) addAncestors(folder.parentId)
+    }
+    for (const note of notes) {
+      if (note.folderId) addAncestors(note.folderId)
+    }
+    return result
+  }, [notes, folders])
+
   useEffect(() => {
     if (!searchQuery) {
       // Search cleared — restore pre-search expansion state
@@ -118,23 +141,11 @@ export default function NotesFolderView({
       preSearchExpandedRef.current = new Set(expandedRef.current)
     }
     // Auto-expand every user folder that contains a visible (matching) note, and all its ancestors
-    const folderMap = new Map(folders.map(f => [f.id, f]))
-    const toExpand = new Set<string>()
-    function addAncestors(folderId: string) {
-      if (toExpand.has(folderId)) return
-      const folder = folderMap.get(folderId)
-      if (!folder) return
-      toExpand.add(folderId)
-      if (folder.parentId) addAncestors(folder.parentId)
-    }
-    for (const note of notes) {
-      if (note.folderId) addAncestors(note.folderId)
-    }
-    if (toExpand.size > 0) {
+    if (foldersWithMatches.size > 0) {
       setExpanded(prev => {
         let changed = false
         const next = new Set(prev)
-        for (const id of toExpand) { if (!next.has(id)) { next.add(id); changed = true } }
+        for (const id of foldersWithMatches) { if (!next.has(id)) { next.add(id); changed = true } }
         return changed ? next : prev
       })
     }
@@ -610,7 +621,9 @@ export default function NotesFolderView({
         </div>
         {isOpen && (
           <div>
-            {kids.map((k) => renderUserFolder(k, depth + 1))}
+            {kids
+              .filter((k) => !searchQuery || foldersWithMatches.has(k.id))
+              .map((k) => renderUserFolder(k, depth + 1))}
             {fNotes.map((n) => renderNote(n, depth + 1))}
           </div>
         )}
@@ -836,7 +849,9 @@ export default function NotesFolderView({
           <button onClick={() => onCreateFolder(null)} title="New folder"
             className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><FolderPlus size={12} /></button>
         </div>
-        {childFolders(null).map((f) => renderUserFolder(f, 0))}
+        {childFolders(null)
+          .filter((f) => !searchQuery || foldersWithMatches.has(f.id))
+          .map((f) => renderUserFolder(f, 0))}
         {rootNotes.map((n) => renderNote(n, 0))}
       </div>
 

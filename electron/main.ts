@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme, screen } from 'electron'
 import type Electron from 'electron'
 import { join } from 'path'
 import { mkdirSync, openSync, writeSync } from 'fs'
@@ -261,6 +261,47 @@ function buildAppMenu(): Electron.Menu {
   return Menu.buildFromTemplate(template)
 }
 
+const VIEWER_BOUNDS_KEY = 'viewerWindowBounds'
+const VIEWER_DEFAULT_BOUNDS = { width: 900, height: 700 }
+
+interface WindowBounds { x?: number; y?: number; width: number; height: number }
+
+/** Reads the last-saved viewer window bounds from the settings table (same table/
+ *  pattern already used for `vaultSync` above), clamped to fit some currently-
+ *  connected display so a bounds saved on a monitor that's no longer attached
+ *  can't place the window off-screen. Falls back to the hardcoded default size
+ *  with no x/y (Electron auto-positions) if nothing was saved or it doesn't fit. */
+function loadViewerBounds(): WindowBounds {
+  try {
+    const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(VIEWER_BOUNDS_KEY) as { value: string } | undefined
+    if (!row) return { ...VIEWER_DEFAULT_BOUNDS }
+    const saved = JSON.parse(row.value) as Partial<WindowBounds>
+    const width = Math.max(500, Math.round(saved.width ?? VIEWER_DEFAULT_BOUNDS.width))
+    const height = Math.max(400, Math.round(saved.height ?? VIEWER_DEFAULT_BOUNDS.height))
+    if (typeof saved.x !== 'number' || typeof saved.y !== 'number') {
+      return { width, height }
+    }
+    // Only keep x/y if they'd place the window (at least partially) within some
+    // currently-connected display's work area — otherwise let Electron auto-position.
+    const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
+    const fits = screen.getAllDisplays().some((d) => {
+      const a = d.workArea
+      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
+             candidate.y < a.y + a.height && candidate.y + height > a.y
+    })
+    return fits ? candidate : { width, height }
+  } catch {
+    return { ...VIEWER_DEFAULT_BOUNDS }
+  }
+}
+
+function saveViewerBounds(bounds: WindowBounds): void {
+  try {
+    getBereanDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(VIEWER_BOUNDS_KEY, JSON.stringify(bounds))
+  } catch { /* best-effort — never block window close/resize on a settings-write failure */ }
+}
+
 function createViewerWindow(): void {
   if (viewerWindow && !viewerWindow.isDestroyed()) {
     viewerWindow.focus()
@@ -271,9 +312,9 @@ function createViewerWindow(): void {
     : join(process.resourcesPath, 'assets/icon.icns')
   const appIcon = nativeImage.createFromPath(iconPath)
   const isWin = process.platform === 'win32'
+  const bounds = loadViewerBounds()
   viewerWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
+    ...bounds,
     minWidth: 500,
     minHeight: 400,
     titleBarStyle: isWin ? 'default' : 'hiddenInset',
@@ -301,6 +342,27 @@ function createViewerWindow(): void {
   }
 
   // viewer:ready is now sent from viewer:signalReady (fired by React after onContent listener is registered)
+
+  // Persist bounds live (debounced) so an ungraceful full-app-quit (e.g. Cmd+Q
+  // while this window is open) still captures the latest position/size, not just
+  // a clean window close — the window is fully destroyed+recreated each time
+  // (never hidden/reused), so there's no other point bounds would naturally
+  // survive from.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const scheduleSave = () => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      if (viewerWindow && !viewerWindow.isDestroyed()) saveViewerBounds(viewerWindow.getBounds())
+    }, 400)
+  }
+  viewerWindow.on('resize', scheduleSave)
+  viewerWindow.on('move', scheduleSave)
+  // 'close' (not 'closed') — the window still exists here, so getBounds() is safe;
+  // by 'closed' it's already destroyed and getBounds() would throw.
+  viewerWindow.on('close', () => {
+    if (saveTimer) clearTimeout(saveTimer)
+    if (viewerWindow && !viewerWindow.isDestroyed()) saveViewerBounds(viewerWindow.getBounds())
+  })
 
   viewerWindow.on('closed', () => {
     viewerWindow = null
@@ -803,14 +865,37 @@ app.whenReady().then(async () => {
   })
 
   // Update IPC
-  // ── Window controls (frameless Windows title bar) ────────────────────────
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
-  ipcMain.on('window:maximize', () => {
-    if (!mainWindow) return
-    mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize()
+  // ── Window controls (frameless Windows title bar; also used by the note
+  //    editor's floating toolbar for its Focus-mode close/minimize/maximize
+  //    buttons, on any platform) — target whichever window actually sent the
+  //    request, falling back to mainWindow, so this behaves correctly whether
+  //    it's called from the main window or a floating note tab window. ──────
+  ipcMain.on('window:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    win?.minimize()
   })
-  ipcMain.on('window:close', () => mainWindow?.close())
-  ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
+  ipcMain.on('window:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    if (!win) return
+    win.isMaximized() ? win.unmaximize() : win.maximize()
+  })
+  ipcMain.on('window:close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    win?.close()
+  })
+  ipcMain.handle('window:isMaximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    return win?.isMaximized() ?? false
+  })
+  // macOS-only native API (no-op elsewhere) to hide/show the native traffic-light
+  // buttons — used so Focus mode's floating toolbar can show its own matching-style
+  // close/minimize/maximize buttons instead of the OS-drawn ones, which otherwise
+  // remain visible regardless of any DOM/TopBar visibility change (they aren't web
+  // content at all, just window-frame chrome).
+  ipcMain.on('window:setButtonsVisible', (event, visible: boolean) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    try { win?.setWindowButtonVisibility(visible) } catch { /* non-macOS: no-op */ }
+  })
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:isMasBuild', () => isMasBuild)

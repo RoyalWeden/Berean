@@ -122,6 +122,69 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.9] - 2026-07-19
+
+Notes editor
+- Fixed a race condition where typing right after autosave could briefly
+  revert or corrupt recent keystrokes (Enter presses undone, letters dropped,
+  cursor jumping) if you paused and then resumed typing quickly.
+- Fixed notes search returning no results — a database migration ordering bug
+  meant the search index never got created, and a tokenizer mismatch meant
+  verse-reference-shaped titles (e.g. "Genesis 1:1-3") couldn't be found by
+  their own reference.
+- Notes edited in one window (e.g. a floating note tab) now refresh the notes
+  list in other open windows' Scripture side panels instead of going stale.
+- Fixed whole-chapter notes being silently excluded from the Scripture side
+  panel's "chapter notes" section.
+- Fixed general/daily notes that merely mention a chapter not appearing in
+  the side panel at all — they now show in their own collapsed section,
+  matching the existing chapter-notes section's treatment.
+- The Notes side panel's floating hover trigger no longer disappears in
+  Focus mode; its hover zone is narrower and slightly delayed while focused
+  so it doesn't intercept the cursor on its way to the scrollbar.
+- Fixed the selection formatting bubble menu not dismissing when
+  right-clicking, opening the floating search bar, or clicking elsewhere in
+  the app.
+- Focus mode redesigned: the top bar is now fully hidden while focused
+  (previously it reappeared on hovering near the top) and the formatting
+  toolbar is a floating, rounded, blurred-backdrop capsule — dimmed at rest
+  outside Focus mode, fully hidden until the cursor comes near it while
+  focused. Entering/exiting Focus mode now animates instead of snapping.
+- Focus mode's window controls: real macOS traffic-light-style close/
+  minimize/maximize buttons on the left of the toolbar (the native ones are
+  hidden while focused), matching Windows-style controls on the right on
+  Windows.
+- Fixed a rendering glitch that showed a stray white square in the corner of
+  the floating toolbar when hovering the Focus button.
+- The Focus toggle is now an icon with a small hover/click animation instead
+  of a text label.
+
+Scripture reading & search
+- Fixed intermittent verse navigation from search stopping short of the
+  target verse on chapters with cross-reference banners or notes.
+- Fixed the Presenter window's outline indicator showing the wrong region
+  after a search-driven chapter jump.
+- Bumped the flash-highlight duration on a searched verse so it's easier to
+  spot.
+- The floating search bar's word-mode (All/Any/Phrase) toggle moved next to
+  the input instead of living in the footer.
+- Redesigned the floating search bar's destination buttons (Scripture/Notes/
+  Lexicon/YouTube) as small icon+arrow buttons in the footer, replacing
+  "Advanced →".
+- The floating search bar feels noticeably faster — results for the primary
+  translation and notes now appear almost immediately, with additional
+  apocryphal-text and YouTube results filling in a moment later instead of
+  every search blocking on all of them together.
+- The Presenter/Viewer window now reopens at the same position and size it
+  was last at, even after fully quitting the app.
+
+Misc
+- The scrollbar is now fully hidden at rest and only appears while actively
+  scrolling or when the cursor is over a scrollable area, fading back out
+  about a second after you stop.
+
+---
+
 ## [0.4.8] - 2026-07-18
 
 Scripture reading

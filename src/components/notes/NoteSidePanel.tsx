@@ -50,6 +50,7 @@ export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, on
 
   const pinned    = useAppStore((s) => s.noteSidePanelPinned)
   const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
+  const focusMode = useAppStore((s) => s.noteFocusMode)
 
   function scrollToHeading(text: string) {
     window.dispatchEvent(new CustomEvent('berean:scrollToHeading', { detail: { headingText: text } }))
@@ -57,6 +58,14 @@ export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, on
 
   return (
     <FloatingHoverPanel
+      // Focus mode narrows the editor's own content column, so the gap between
+      // visible text and the scrollbar at its right edge is much tighter — a
+      // narrower, delayed-open hover zone here means a cursor passing through
+      // on its way to the scrollbar doesn't trigger this panel before it
+      // arrives. Outside Focus mode there's plenty of clearance, so this keeps
+      // its original instant, easy-to-land-on size.
+      anchorWidthClass={focusMode ? 'w-3' : 'w-8'}
+      openDelayMs={focusMode ? 200 : 0}
       expandedWidth={EXPANDED_WIDTH}
       expandedHeight={EXPANDED_HEIGHT}
       pinned={pinned}

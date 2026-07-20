@@ -1277,6 +1277,13 @@ export default function BibleRightPanel({
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
   const [expandAll, setExpandAll] = useState(false)
+  // Whole-chapter notes (verseRef like "GEN.1", no verse segment) are collapsed by
+  // default so they don't crowd out the verse-specific notes below, which is what
+  // this panel's chapter scope is really for — see the section below `filtered`.
+  const [chapterNotesCollapsed, setChapterNotesCollapsed] = useState(true)
+  // General/daily notes that merely mention this chapter (not chapter/verse notes
+  // themselves) — collapsed by default, same treatment as chapter notes above.
+  const [mentionNotesCollapsed, setMentionNotesCollapsed] = useState(true)
   const [notes, setNotes] = useState<Note[]>([])
   const [sidebarNote, setSidebarNote] = useState<Note | null>(null)
   const [noteSearch, setNoteSearch] = useState('')
@@ -1357,11 +1364,24 @@ export default function BibleRightPanel({
       window.notes.getChapterNotes(bookId, chapter).then(async (verseNotes) => {
         setNotes(verseNotes)
         const verseNoteIds = new Set(verseNotes.map(n => n.id))
-        const chapterLabel = `${bookName(bookId)} ${chapter}:`
+        const label = bookName(bookId)
         try {
-          const candidates = await window.notes.searchNotes(chapterLabel, 30)
+          // Cast a wide net via FTS on just the book name — searching for the book
+          // name + bare chapter number together (as one AND query) made the second
+          // term an extremely low-selectivity prefix match ("1"* matches 1, 10-19,
+          // 100s...), and with a low result LIMIT ordered by recency, a real match
+          // could get pushed out before ever reaching the client-side filter below.
+          // Book name alone is far more selective, so a real mention survives a much
+          // larger candidate set, which is then precisely tested for an actual
+          // "<Book> <chapter>" mention (not just "<Book>" appearing anywhere).
+          const candidates = await window.notes.searchNotes(label, 300)
+          const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const mentionRe = new RegExp(`\\b${escaped}\\b\\D{0,10}${chapter}(?!\\d)`, 'i')
           setChapterMentionNotes(
-            candidates.filter(n => !verseNoteIds.has(n.id) && !n.verseRef)
+            candidates.filter(n =>
+              !verseNoteIds.has(n.id) && !n.verseRef &&
+              mentionRe.test(`${n.title ?? ''} ${n.content ?? ''}`)
+            )
           )
         } catch {
           setChapterMentionNotes([])
@@ -1443,6 +1463,24 @@ export default function BibleRightPanel({
     return result
   }, [notes, sort, verseFilter, noteSearch])
 
+  // Whole-chapter notes (verseRef has no verse segment, e.g. "GEN.1" vs "GEN.1.5")
+  // vs verse-specific ones — see chapterNotesCollapsed above. When a specific
+  // verse filter is active, `filtered` can never contain a chapter-level note
+  // (verseRef equality requires an exact match), so this split is a no-op then.
+  // Keeps each note paired with its ORIGINAL index in `filtered` (not a local
+  // per-section index) since `selectedNoteIdx`'s keyboard-nav/Enter-to-open
+  // indexes directly into `filtered` — rendering from these entries instead
+  // of `filtered` directly must not disturb that indexing.
+  const filteredWithIdx = useMemo(() => filtered.map((note, i) => ({ note, i })), [filtered])
+  const chapterLevelEntries = useMemo(
+    () => filteredWithIdx.filter(({ note }) => (note.verseRef?.split('.').length ?? 0) === 2),
+    [filteredWithIdx],
+  )
+  const verseSpecificEntries = useMemo(
+    () => filteredWithIdx.filter(({ note }) => (note.verseRef?.split('.').length ?? 0) !== 2),
+    [filteredWithIdx],
+  )
+
   // Close the sort menu on outside click
   useEffect(() => {
     if (!sortMenuOpen) return
@@ -1523,6 +1561,73 @@ export default function BibleRightPanel({
   function clearVerseFilter() {
     setVerseFilter(null)
     onVerseFilterChange?.(null)
+  }
+
+  // Shared note-row renderer for both the "chapter notes" and "Direct verse
+  // notes" sections — `i` is the note's index in `filtered` (not a per-
+  // section index), since selectedNoteIdx's keyboard-nav/Enter-to-open reads
+  // directly from `filtered`.
+  function renderNoteRow(note: Note, i: number) {
+    const rawSnippet = note.content
+      .replace(/^---[\s\S]*?---\n?/, '')
+      .replace(/[#*`_>~\[\]]/g, '')
+      .trim()
+    const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
+    return (
+      <div
+        key={note.id}
+        className={`relative group transition-colors ${i === selectedNoteIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))/60]'}`}
+      >
+        {/* The "open in notes tab" button below is absolutely positioned
+            (not a flex sibling) so it doesn't reserve layout space on the
+            right of every row even while invisible (opacity-0 still occupies
+            its box in normal flow) — that reserved gap was what read as
+            "too much padding on the right" in this list. */}
+        <button
+          onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
+          onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
+          className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            {/* Note color dot — the same color-coding shown as a verse indicator
+                dot in the chapter view (VerseRow.tsx), surfaced here too so the
+                list itself communicates each note's category at a glance. */}
+            <span
+              className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+              style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
+            />
+            <span className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
+              {note.title || 'Untitled'}
+            </span>
+          </div>
+          <div className={`text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
+            {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            {note.verseRef && (
+              <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px leading-none">
+                {formatRef(note.verseRef)}
+              </span>
+            )}
+            <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 tabular-nums">
+              created {timeAgo(note.createdAt)}
+              {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
+            </span>
+          </div>
+        </button>
+        <button
+          onClick={() => {
+            createNoteTab('note')
+            setActiveSpace('notes')
+            requestOpenNote(note.id)
+          }}
+          title="Open in notes tab"
+          className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+        >
+          <ExternalLink size={11} />
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -1718,109 +1823,83 @@ export default function BibleRightPanel({
               </div>
             ) : (
               <>
-                {/* General / daily notes that mention this chapter (indirect connections) */}
+                {/* General/daily/etc. notes that mention this chapter (indirect connections,
+                    not chapter/verse notes themselves) — collapsed by default, same toggle
+                    treatment as the "chapter notes" section below. */}
                 {scope === 'chapter' && !verseFilter && chapterMentionNotes.length > 0 && (
                   <div className="border-b border-[rgb(var(--color-surface-4))]">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-[rgb(var(--color-surface-3))]">
-                      <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
-                      <span className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] whitespace-nowrap">
+                    <button
+                      onClick={() => setMentionNotesCollapsed((v) => !v)}
+                      className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))/60] cursor-pointer transition-colors"
+                    >
+                      {mentionNotesCollapsed
+                        ? <ChevronRight size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                        : <ChevronDown size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />}
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] flex-1 text-left">
                         mentions this chapter
                       </span>
-                      <div className="h-px flex-1 bg-[rgb(var(--color-surface-4))]" />
-                    </div>
-                    <div className="divide-y divide-[rgb(var(--color-surface-4))]">
-                      {chapterMentionNotes.map((note) => {
-                        const rawSnippet = note.content
-                          .replace(/^---[\s\S]*?---\n?/, '')
-                          .replace(/[#*`_>~\[\]]/g, '')
-                          .trim().replace(/\n/g, ' ')
-                        return (
-                          <div key={note.id} className="relative group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]">
-                            <button
-                              onClick={() => openSidebarNote(note)}
-                              className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
-                            >
-                              <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{note.title || 'Untitled'}</div>
-                              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
-                            </button>
-                            <button
-                              onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
-                              title="Open in notes tab"
-                              className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
-                            >
-                              <ExternalLink size={11} />
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
+                      <span className="text-[9px] text-[rgb(var(--color-text-muted))] tabular-nums">{chapterMentionNotes.length}</span>
+                    </button>
+                    {!mentionNotesCollapsed && (
+                      <div className="divide-y divide-[rgb(var(--color-surface-4))]">
+                        {chapterMentionNotes.map((note) => {
+                          const rawSnippet = note.content
+                            .replace(/^---[\s\S]*?---\n?/, '')
+                            .replace(/[#*`_>~\[\]]/g, '')
+                            .trim().replace(/\n/g, ' ')
+                          return (
+                            <div key={note.id} className="relative group transition-colors hover:bg-[rgb(var(--color-surface-4))/60]">
+                              <button
+                                onClick={() => openSidebarNote(note)}
+                                className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
+                              >
+                                <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">{note.title || 'Untitled'}</div>
+                                <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 truncate">{rawSnippet.slice(0, 80) || 'Empty note'}</div>
+                              </button>
+                              <button
+                                onClick={() => { createNoteTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
+                                title="Open in notes tab"
+                                className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
+                              >
+                                <ExternalLink size={11} />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Whole-chapter notes — collapsed by default so they don't crowd out the
+                    verse-specific notes below, which is what this panel's chapter scope is
+                    really for. Reuses the same row rendering as "Direct verse notes" below
+                    via renderNoteRow, just grouped under its own toggle-able header. */}
+                {chapterLevelEntries.length > 0 && (
+                  <div className="border-b border-[rgb(var(--color-surface-4))]">
+                    <button
+                      onClick={() => setChapterNotesCollapsed((v) => !v)}
+                      className="w-full flex items-center gap-1.5 px-3 py-1.5 bg-[rgb(var(--color-surface-3))] hover:bg-[rgb(var(--color-surface-4))/60] cursor-pointer transition-colors"
+                    >
+                      {chapterNotesCollapsed
+                        ? <ChevronRight size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                        : <ChevronDown size={10} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />}
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] flex-1 text-left">
+                        chapter notes
+                      </span>
+                      <span className="text-[9px] text-[rgb(var(--color-text-muted))] tabular-nums">{chapterLevelEntries.length}</span>
+                    </button>
+                    {!chapterNotesCollapsed && (
+                      <div className="divide-y divide-[rgb(var(--color-surface-4))]">
+                        {chapterLevelEntries.map(({ note, i }) => renderNoteRow(note, i))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Direct verse notes */}
                 <div className="divide-y divide-[rgb(var(--color-surface-4))]">
-                  {filtered.map((note, i) => {
-                    const rawSnippet = note.content
-                      .replace(/^---[\s\S]*?---\n?/, '')
-                      .replace(/[#*`_>~\[\]]/g, '')
-                      .trim()
-                    const snippet = expandAll ? rawSnippet : rawSnippet.replace(/\n/g, ' ')
-                    return (
-                      <div
-                        key={note.id}
-                        className={`relative group transition-colors ${i === selectedNoteIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))/60]'}`}
-                      >
-                        {/* The "open in notes tab" button below is absolutely positioned
-                            (not a flex sibling) so it doesn't reserve layout space on the
-                            right of every row even while invisible (opacity-0 still occupies
-                            its box in normal flow) — that reserved gap was what read as
-                            "too much padding on the right" in this list. */}
-                        <button
-                          onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
-                          onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                          className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {/* Note color dot — the same color-coding shown as a verse indicator
-                                dot in the chapter view (VerseRow.tsx), surfaced here too so the
-                                list itself communicates each note's category at a glance. */}
-                            <span
-                              className="w-[6px] h-[6px] rounded-full flex-shrink-0"
-                              style={{ backgroundColor: NOTE_DOT_COLOR[note.color ?? 'blue'] ?? NOTE_DOT_COLOR.blue }}
-                            />
-                            <span className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
-                              {note.title || 'Untitled'}
-                            </span>
-                          </div>
-                          <div className={`text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
-                            {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            {note.verseRef && (
-                              <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px leading-none">
-                                {formatRef(note.verseRef)}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 tabular-nums">
-                              created {timeAgo(note.createdAt)}
-                              {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
-                            </span>
-                          </div>
-                        </button>
-                        <button
-                          onClick={() => {
-                            createNoteTab('note')
-                            setActiveSpace('notes')
-                            requestOpenNote(note.id)
-                          }}
-                          title="Open in notes tab"
-                          className="absolute right-1 top-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 p-1.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-all cursor-pointer"
-                        >
-                          <ExternalLink size={11} />
-                        </button>
-                      </div>
-                    )
-                  })}
+                  {verseSpecificEntries.map(({ note, i }) => renderNoteRow(note, i))}
                 </div>
 
                 {/* Referencing general notes — shown only when a verse filter is active */}

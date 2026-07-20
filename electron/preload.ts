@@ -26,8 +26,8 @@ contextBridge.exposeInMainWorld('notes', {
     ipcRenderer.invoke('notes:getByChapter', bookId, chapter, textId),
   getChapterCounts: (bookId: string, chapter: number, textId?: string) =>
     ipcRenderer.invoke('notes:getChapterCounts', bookId, chapter, textId),
-  searchNotes: (query: string, limit?: number) =>
-    ipcRenderer.invoke('notes:search', query, limit),
+  searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') =>
+    ipcRenderer.invoke('notes:search', query, limit, mode),
   // Version history
   createNoteVersion: (noteId: string, title: string, content: string, kind?: string) =>
     ipcRenderer.invoke('notes:createVersion', noteId, title, content, kind),
@@ -46,6 +46,12 @@ contextBridge.exposeInMainWorld('notes', {
   setFolderParent: (id: string, parentId: string | null) =>
     ipcRenderer.invoke('folders:setParent', id, parentId),
   listIdioms: () => ipcRenderer.invoke('notes:listIdioms'),
+  // Cross-window sync: main process broadcasts this to every OTHER window whenever
+  // any note mutation succeeds, so each renderer's own noteChangeToken can bump.
+  onChanged: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('notes:changed')
+    ipcRenderer.on('notes:changed', () => cb())
+  },
 })
 
 contextBridge.exposeInMainWorld('lexicon', {
@@ -274,7 +280,9 @@ contextBridge.exposeInMainWorld('eSwordImport', {
 // Expose platform so renderer can adapt window chrome without Node access
 contextBridge.exposeInMainWorld('__berean_platform', process.platform)
 
-// Window controls for the custom frameless title bar (Windows only)
+// Window controls for the custom frameless title bar (Windows), and reused by
+// the note editor's Focus-mode floating toolbar (any platform) for its own
+// close/minimize/maximize buttons + hiding the native macOS traffic lights.
 contextBridge.exposeInMainWorld('windowControls', {
   minimize:  () => ipcRenderer.send('window:minimize'),
   maximize:  () => ipcRenderer.send('window:maximize'),
@@ -284,6 +292,7 @@ contextBridge.exposeInMainWorld('windowControls', {
     ipcRenderer.removeAllListeners('window:maximizeChanged')
     ipcRenderer.on('window:maximizeChanged', (_, v) => cb(v as boolean))
   },
+  setButtonsVisible: (visible: boolean) => ipcRenderer.send('window:setButtonsVisible', visible),
 })
 
 contextBridge.exposeInMainWorld('bgImport', {

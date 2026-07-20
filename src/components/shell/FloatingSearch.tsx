@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal, ArrowRight } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -157,6 +157,9 @@ export default function FloatingSearch() {
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const defaultBibleTranslation = useAppStore((s) => s.defaultBibleTranslation)
   const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const openLexiconSearchTab = useAppStore((s) => s.openLexiconSearchTab)
+  const openNotesSearchTab = useAppStore((s) => s.openNotesSearchTab)
+  const openYouTubeSearchTab = useAppStore((s) => s.openYouTubeSearchTab)
   const floatingSearchDensity = useAppStore((s) => s.floatingSearchDensity)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -184,6 +187,10 @@ export default function FloatingSearch() {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const crossRefDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Bumped once per runSearch invocation; every async result-setter below checks its
+  // own captured generation against this before writing state, so a slow-resolving
+  // batch from an earlier keystroke can never clobber a faster-resolving later one.
+  const searchGenRef = useRef(0)
 
   useEffect(() => {
     if (searchOpen) {
@@ -242,72 +249,71 @@ export default function FloatingSearch() {
     return wordReplacerEnabled ? getWordReplacerSearchVariants(trimmed, wordReplacerRules) : [trimmed]
   }
 
-  // Debounced FTS search
+  // Debounced FTS search. Split into two phases so the search *feels* instant:
+  // a small "fast" phase (primary-translation verses + notes, ~2 IPC calls) renders
+  // first, then a "slow" phase (12+ extra apocryphal/pseudepigrapha texts + YouTube)
+  // is only dispatched afterward and merges in once ready. Previously all ~16 IPC
+  // calls were fired in one batch — Electron's IPC is a single channel into one
+  // main-process event loop, so even though the renderer dispatched them "in
+  // parallel", the main process still executed all of the underlying synchronous
+  // better-sqlite3 queries one after another before ANY of them resolved, so the
+  // rarely-relevant extra-book searches were silently blocking the primary,
+  // highest-value results too. A `searchGenRef` generation counter guards every
+  // async result-setter so a slow-resolving batch from an earlier keystroke can
+  // never clobber state a faster, later keystroke already set (previously
+  // unguarded — a real stale-response race on fast typing).
   const runSearch = useCallback((q: string, tid: string, mode: SearchWordMode = 'all') => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(async () => {
       const trimmed = q.trim()
-      setVerseResults([])
-      setLexiconResults([])
-      setNoteResults([])
-      setYoutubeResults([])
-      if (!trimmed) return
+      const gen = ++searchGenRef.current
+
+      if (!trimmed) {
+        setVerseResults([])
+        setLexiconResults([])
+        setNoteResults([])
+        setYoutubeResults([])
+        return
+      }
 
       if (isStrongsRef(trimmed)) {
+        setVerseResults([]); setNoteResults([]); setYoutubeResults([])
         try {
           const entry = await window.lexicon.getEntry(trimmed)
+          if (gen !== searchGenRef.current) return
           setLexiconResults(entry ? [entry] : [])
         } catch {
-          setLexiconResults([])
+          if (gen === searchGenRef.current) setLexiconResults([])
         }
         return
       }
 
-      if (parseRef(trimmed)) return
+      if (parseRef(trimmed)) {
+        setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
+        return
+      }
 
-      if (trimmed.length < 3) return
+      if (trimmed.length < 3) {
+        setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
+        return
+      }
 
-      // When searching the primary text and no text-prefix was detected,
-      // also search all extra books in parallel.
+      setLexiconResults([])
       const isDefaultSearch = !Object.keys(EXTRA_TEXT_IDS).includes(tid)
-      const extraSearches = isDefaultSearch
-        ? Object.entries(EXTRA_TEXT_IDS).map(([extraId, label]) =>
-            window.bible.searchText(trimmed, extraId, mode)
-              .then((rows) =>
-                (rows as unknown as VerseResult[]).slice(0, 3).map((r) => ({
-                  ...r,
-                  sourceTextId: extraId,
-                  sourceTextName: label,
-                }))
-              )
-              .catch(() => [] as VerseResult[])
-          )
-        : []
-
       const variants = expandForSearch(trimmed)
       const variantSearches = variants.map((variant) =>
         window.bible.searchText(variant, tid, mode)
           .then((rows) => rows as unknown as VerseResult[])
           .catch(() => [] as VerseResult[])
       )
-      try {
-        const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
-          ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
-          : Promise.resolve([])
-        // Request up to 3 transcript segments per video for rich results
-        const ytTranscriptSearch = (window.youtube && typeof window.youtube.searchTranscripts === 'function')
-          ? window.youtube.searchTranscripts(trimmed, 5, 3).catch(() => [])
-          : Promise.resolve([])
 
-        const [notes, ytVideos, ytTranscripts, ...rest] = await Promise.allSettled([
-          window.notes.searchNotes(trimmed, 5),
-          ytSearch,
-          ytTranscriptSearch,
+      try {
+        // ── Fast phase — dispatched and awaited first ──────────────────────
+        const [notes, ...variantResults] = await Promise.allSettled([
+          window.notes.searchNotes(trimmed, 5, searchWordMode),
           ...variantSearches,
-          ...extraSearches,
         ])
-        const variantResults = rest.slice(0, variantSearches.length)
-        const extraAll = rest.slice(variantSearches.length)
+        if (gen !== searchGenRef.current) return
 
         // Merge + dedupe every variant's results (bidirectional word-replacer search
         // can return the same verse from more than one variant query).
@@ -322,9 +328,40 @@ export default function FloatingSearch() {
             primaryVerse.push(row)
           }
         }
-        const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
-        setVerseResults([...primaryVerse, ...extraVerses])
+        setVerseResults(primaryVerse)
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
+
+        // ── Slow phase — only dispatched now, so it can never delay the above ──
+        const extraSearches = isDefaultSearch
+          ? Object.entries(EXTRA_TEXT_IDS).map(([extraId, label]) =>
+              window.bible.searchText(trimmed, extraId, mode)
+                .then((rows) =>
+                  (rows as unknown as VerseResult[]).slice(0, 3).map((r) => ({
+                    ...r,
+                    sourceTextId: extraId,
+                    sourceTextName: label,
+                  }))
+                )
+                .catch(() => [] as VerseResult[])
+            )
+          : []
+        const ytSearch = (window.youtube && typeof window.youtube.searchVideos === 'function')
+          ? window.youtube.searchVideos(trimmed, 5).catch(() => [])
+          : Promise.resolve([])
+        // Request up to 3 transcript segments per video for rich results
+        const ytTranscriptSearch = (window.youtube && typeof window.youtube.searchTranscripts === 'function')
+          ? window.youtube.searchTranscripts(trimmed, 5, 3).catch(() => [])
+          : Promise.resolve([])
+
+        const [ytVideos, ytTranscripts, ...extraAll] = await Promise.allSettled([
+          ytSearch,
+          ytTranscriptSearch,
+          ...extraSearches,
+        ])
+        if (gen !== searchGenRef.current) return
+
+        const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
+        if (extraVerses.length) setVerseResults((prev) => [...prev, ...extraVerses])
 
         // Build merged YouTube results:
         // • Title hits appear first (each with best-matching snippet if a transcript hit exists)
@@ -365,7 +402,7 @@ export default function FloatingSearch() {
         setYoutubeResults(merged.slice(0, 10))
       } catch (err) {
       }
-    }, 350)
+    }, 120)
   }, [])
 
   // Load cross-references when the query is a verse ref with a verse number
@@ -755,6 +792,21 @@ export default function FloatingSearch() {
                 ))}
               </div>
             )}
+            {/* Word mode toggle — moved here (right-aligned in the input row, where the
+                user is actually typing) from the footer, so it's immediately next to the
+                query instead of below a whole results list's worth of scroll distance. */}
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-shrink-0">
+              {(['all', 'any', 'phrase'] as SearchWordMode[]).map(m => (
+                <button
+                  key={m}
+                  onClick={() => handleWordModeChange(m)}
+                  className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
+                    ${searchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Results */}
@@ -857,25 +909,40 @@ export default function FloatingSearch() {
             <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">↵</kbd> Open</span>
             <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">⇧↵</kbd> Adv. search</span>
             <div className="flex-1" />
-            {/* Word mode toggle */}
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5">
-              {(['all', 'any', 'phrase'] as SearchWordMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => handleWordModeChange(m)}
-                  className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
-                    ${searchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => { closeSearch(); openScriptureSearchTab(query.trim() || undefined) }}
-              className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-            >
-              Advanced →
-            </button>
+            {/* Destination buttons — replace the old "Advanced →" link. Always present
+                (no mount/unmount layout snap as the query goes empty/non-empty), dimmed
+                and inert until a query exists. Each is icon + arrow; hovering expands
+                the button to reveal the destination name inline rather than a tooltip. */}
+            {!isCommandMode && (
+              <div className="flex items-center gap-0.5">
+                {([
+                  { label: 'Scripture', icon: <Search size={12} />, run: () => openScriptureSearchTab(query.trim() || undefined) },
+                  { label: 'Notes',     icon: <StickyNote size={12} />, run: () => openNotesSearchTab(query.trim()) },
+                  { label: 'Lexicon',   icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
+                  { label: 'YouTube',   icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
+                ] as const).map((d) => {
+                  const active = !!query.trim()
+                  return (
+                    <button
+                      key={d.label}
+                      disabled={!active}
+                      onClick={() => { if (active) { closeSearch(); d.run() } }}
+                      className={`group flex items-center gap-1 pl-1.5 pr-1 py-1 rounded transition-colors cursor-pointer ${
+                        active
+                          ? 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
+                          : 'opacity-40 pointer-events-none text-[rgb(var(--color-text-muted))]'
+                      }`}
+                    >
+                      {d.icon}
+                      <span className="max-w-0 group-hover:max-w-[5rem] overflow-hidden whitespace-nowrap text-[10px] font-medium transition-[max-width] duration-150">
+                        {d.label}
+                      </span>
+                      <ArrowRight size={10} className="flex-shrink-0" />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
               searchMode === 'new'
                 ? 'bg-emerald-500/20 text-emerald-400'

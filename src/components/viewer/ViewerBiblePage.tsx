@@ -280,6 +280,24 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     ro.observe(el)
     return () => ro.disconnect()
   }, [reportVisible])
+  // Track the viewer's OWN live scroll position, not just load/resize/reflow.
+  // Without this, reportVisible() only ever reported the region as of the
+  // instant chapter data loaded — before either of this component's own
+  // scroll-adjustment effects (verse-centering smooth-scroll above, or the
+  // proportional scrollPercent jump) had actually taken effect. That's most
+  // visible right after a search navigation: the main window's auto-sync
+  // pushes `scrollPercent: 0` the moment tab state changes (well before this
+  // component's own async chapter fetch and scroll settle), so the outline
+  // band in the main window ends up drawn for a stale top-of-chapter region
+  // that doesn't match where the presenter content actually ends up.
+  // `reportVisible` is already internally rAF-throttled (`reportRAFRef`), so
+  // this can subscribe directly without its own extra debounce.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    el.addEventListener('scroll', reportVisible, { passive: true })
+    return () => el.removeEventListener('scroll', reportVisible)
+  }, [reportVisible])
   // Main window can explicitly ask for a fresh report (after unpausing / "Re-sync now") even
   // when our content hasn't changed — see requestViewerVisibleRegion for why this is needed.
   useEffect(() => {

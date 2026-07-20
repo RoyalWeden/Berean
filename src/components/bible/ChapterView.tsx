@@ -244,6 +244,10 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   // tab remount. Without this split, the highlight would vanish the instant it appeared.
   const [flashVerse, setFlashVerse] = useState<{ verse: number; end?: number } | null>(null)
   const flashVerseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Verse we just scrollIntoView'd for, kept until the cross-ref banner effect
+  // confirms settled so a corrective re-scroll can fire once layout has
+  // finished shifting (see the two scroll effects below).
+  const lastScrolledVerseRef = useRef<number | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const versesRef = useRef(verses)
   useEffect(() => { versesRef.current = verses }, [verses])
@@ -348,11 +352,38 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     if (!targetVerse || !containerRef.current || verses.length === 0) return
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    lastScrolledVerseRef.current = targetVerse
     if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
     setFlashVerse({ verse: targetVerse, end: endVerse })
-    flashVerseTimerRef.current = setTimeout(() => setFlashVerse(null), 1800)
+    // 1800ms wasn't long enough for the user to actually register which verse
+    // just got highlighted before it faded — bumped to give it a fair chance
+    // to be noticed.
+    flashVerseTimerRef.current = setTimeout(() => setFlashVerse(null), 3000)
     onTargetVerseConsumed?.()
   }, [targetVerse, verses.length])
+
+  // Correct the scroll position once the chapter cross-ref banner has settled.
+  // The banner (ChapterCrossRefBanner, rendered above the verse list when
+  // chapterSources.length > 0) is populated by a separate async effect and can
+  // mount AFTER the smooth-scroll above has already committed to its target
+  // pixel offset — a layout shift mid-animation isn't honored by CSS smooth-
+  // scroll, so the scroll can land short of the verse's real (shifted-down)
+  // position on any chapter that has notes/cross-refs. This re-issues the
+  // scroll once chapterSources updates (which happens exactly once per
+  // chapter, when that async fetch resolves — including to an empty array
+  // for chapters with no cross-refs, a harmless no-op re-scroll in that case),
+  // then clears the ref so it doesn't refire for unrelated later updates
+  // (e.g. a note added while reading). If chapterSources happens to settle
+  // BEFORE the scroll effect above runs, this simply no-ops — the initial
+  // scroll will already be accurate since the banner is already in place.
+  useEffect(() => {
+    const verse = lastScrolledVerseRef.current
+    if (!verse || !containerRef.current) return
+    const el = containerRef.current.querySelector(`[data-verse="${verse}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    lastScrolledVerseRef.current = undefined
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterSources])
 
   useEffect(() => () => { if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current) }, [])
 
