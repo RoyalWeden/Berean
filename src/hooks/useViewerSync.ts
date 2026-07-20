@@ -57,7 +57,11 @@ export function computeViewerPayload(): ViewerPayload {
     // the presenter doesn't apply a stale percent (e.g. a previous tab's near-bottom position).
     const chapterKey = `${bs.bookId}:${bs.chapter}`
     const scrollPercent = lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined
-    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse, textId, sidePanel, scrollPercent }
+    // Fall back to targetVerse when verse isn't set — search-navigation (and other
+    // one-shot scroll-to-verse jumps) only ever sets targetVerse, not verse. Without
+    // this fallback, the viewer would have no verse to center on for a search-nav even
+    // once BiblePanel.tsx stops forcing scrollPercent to 0 for that case (see there).
+    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse ?? bs.targetVerse, textId, sidePanel, scrollPercent }
   }
 
   if (tab.type === 'note') {

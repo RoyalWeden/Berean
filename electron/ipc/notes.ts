@@ -1,6 +1,19 @@
-import type { IpcMain } from 'electron'
+import type { IpcMain, WebContents } from 'electron'
+import { BrowserWindow } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
+
+/** Notify every OTHER open window (including floating/detached ones) that notes
+ *  changed, so each window's own `noteChangeToken` bumps and any open Scripture/
+ *  Notes tab refetches. Each renderer has its own in-memory store, so a note edit
+ *  in one window otherwise never reaches another window's side panels. The
+ *  originating window already bumps its own token locally after a successful save,
+ *  so it's excluded here to avoid a redundant refetch. */
+function broadcastNotesChanged(exclude?: WebContents): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.webContents !== exclude) win.webContents.send('notes:changed')
+  }
+}
 
 // Cache compiled statements per DB instance so hot IPC handlers don't re-compile
 // the same SQL on every call. Keyed by the db object so a close/reopen (new
@@ -14,14 +27,34 @@ function prep(db: ReturnType<typeof getBereanDb>, sql: string): any {
   return s
 }
 
-// Build an FTS5 MATCH expression for a notes search. Splits into tokens, strips
-// characters that would break FTS5 query syntax (quotes, hyphens, operators),
-// and prefix-matches each token. Returns '' when nothing searchable remains.
-function safeNotesFts(query: string): string {
-  const words = query.trim().split(/\s+/).filter(Boolean)
-    .map(w => w.replace(/[^a-zA-Z0-9']/g, ''))
-    .filter(w => w.length >= 1)
+type NotesWordMode = 'all' | 'any' | 'phrase'
+
+/** Split a raw query into cleaned, FTS5-safe word tokens. Splits on the same
+ *  punctuation classes the `unicode61` tokenizer splits on (whitespace, colons,
+ *  hyphens, periods, etc.) rather than stripping punctuation and gluing the
+ *  surrounding digits together — verse-reference-shaped titles like
+ *  "Genesis 1:1-3" must tokenize as ["Genesis","1","1","3"], matching how
+ *  notes_fts itself indexes that same text, not as a single glued "113" token
+ *  that never appears in the index. */
+function cleanNotesWords(query: string): string[] {
+  return query.trim().split(/[^a-zA-Z0-9']+/).filter(w => w.length >= 1)
+}
+
+// Build an FTS5 MATCH expression for a notes search. `mode` is passed explicitly by
+// the caller rather than sniffed from the query string, mirroring bible.ts's
+// safeFtsQuery — same reasoning: a literal "OR" or quote mark typed as part of the
+// user's own query text must not silently flip the mode the UI shows as selected.
+//   'all'    (default) — every word must appear (prefix-matched), the original/only
+//            behavior this function had before word-modes existed.
+//   'phrase' — the words as one exact contiguous phrase (no per-word prefix).
+//   'any'    — handled by the caller, not here (see notes:search below): FTS5 OR with
+//            prefix wildcards is unreliable for common/short tokens, so 'any' mode
+//            runs one query per word and unions results in JS instead, same
+//            approach bible.ts's searchText already uses for the same reason.
+function safeNotesFts(query: string, mode: 'all' | 'phrase' = 'all'): string {
+  const words = cleanNotesWords(query)
   if (words.length === 0) return ''
+  if (mode === 'phrase') return `"${words.join(' ')}"`
   return words.map(w => `"${w}"*`).join(' ')
 }
 
@@ -113,7 +146,7 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
 
-  ipcMain.handle('notes:create', (_event, data: {
+  ipcMain.handle('notes:create', (event, data: {
     type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) => {
     const db = getBereanDb()
@@ -139,10 +172,11 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       data.idiomAutoVariants ? 1 : 0
     )
     const row = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow
+    broadcastNotesChanged(event.sender)
     return { success: true, note: rowToNote(row) }
   })
 
-  ipcMain.handle('notes:update', (_event, id: string, data: {
+  ipcMain.handle('notes:update', (event, id: string, data: {
     title?: string; content?: string; color?: string; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
   }) => {
     const db = getBereanDb()
@@ -164,6 +198,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
 
     values.push(id)
     db.prepare(`UPDATE notes SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+    broadcastNotesChanged(event.sender)
     return { success: true }
   })
 
@@ -180,10 +215,11 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     }))
   })
 
-  ipcMain.handle('notes:delete', (_event, id: string) => {
+  ipcMain.handle('notes:delete', (event, id: string) => {
     const db = getBereanDb()
     db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
     db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+    broadcastNotesChanged(event.sender)
     return { success: true }
   })
 
@@ -264,13 +300,15 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   // Assign a note to a user folder (or NULL for root).
-  ipcMain.handle('notes:setFolder', (_event, noteId: string, folderId: string | null) => {
+  ipcMain.handle('notes:setFolder', (event, noteId: string, folderId: string | null) => {
     getBereanDb().prepare('UPDATE notes SET folder_id = ? WHERE id = ?').run(folderId, noteId)
+    broadcastNotesChanged(event.sender)
     return { success: true }
   })
 
-  ipcMain.handle('notes:deleteAll', () => {
+  ipcMain.handle('notes:deleteAll', (event) => {
     getBereanDb().prepare('DELETE FROM notes').run()
+    broadcastNotesChanged(event.sender)
     return { success: true }
   })
 
@@ -311,10 +349,42 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return row ? rowToNote(row) : null
   })
 
-  ipcMain.handle('notes:search', (_event, query: string, limit = 20) => {
-    const match = safeNotesFts(query)
-    if (!match) return []
+  ipcMain.handle('notes:search', (_event, query: string, limit = 20, mode: NotesWordMode = 'all') => {
     const db = getBereanDb()
+
+    // 'any' mode: one FTS5 query per word, union + de-dupe in JS — see safeNotesFts's
+    // comment for why this can't just be an FTS5 OR expression.
+    if (mode === 'any') {
+      const terms = cleanNotesWords(query)
+      const seen = new Set<string>()
+      const rows: NoteRow[] = []
+      let stmt: any
+      try {
+        stmt = prep(db, `
+          SELECT n.* FROM notes_fts f
+          JOIN notes n ON n.rowid = f.rowid
+          WHERE notes_fts MATCH ?
+          ORDER BY n.updated_at DESC
+          LIMIT ?
+        `)
+      } catch {
+        return []
+      }
+      for (const term of terms) {
+        const ftsQ = safeNotesFts(term, 'all')
+        if (!ftsQ) continue
+        try {
+          const termRows = stmt.all(ftsQ, Math.max(limit * 3, 100)) as NoteRow[]
+          for (const row of termRows) {
+            if (!seen.has(row.id)) { seen.add(row.id); rows.push(row) }
+          }
+        } catch { /* skip terms that FTS5 rejects */ }
+      }
+      return rows.slice(0, limit).map(rowToNote)
+    }
+
+    const match = safeNotesFts(query, mode === 'phrase' ? 'phrase' : 'all')
+    if (!match) return []
     try {
       const rows = prep(db, `
         SELECT n.* FROM notes_fts f
@@ -329,27 +399,32 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     }
   })
 
-  ipcMain.handle('notes:deleteByTag', (_event, tag: string) => {
+  ipcMain.handle('notes:deleteByTag', (event, tag: string) => {
     const db = getBereanDb()
     const result = db.prepare(`DELETE FROM notes WHERE tags LIKE ?`).run(`%"${tag}"%`)
+    broadcastNotesChanged(event.sender)
     return { success: true, deleted: (result as { changes: number }).changes }
   })
 
   // Returns all notes for a chapter. KJV and LXX are cross-linked (each sees the other's notes).
   ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
-    const prefix = `${bookId}.${chapter}.`
+    const chapterRef = `${bookId}.${chapter}`
+    const prefix = `${chapterRef}.`
     const tidClause = textId === 'kjva'
       ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
       : textId === 'lxx'
       ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
+    // verse_ref is either the exact chapter-level form ("BOOK.CH", no verse segment —
+    // e.g. a whole-chapter note) or a verse-specific form under it ("BOOK.CH.verse")
+    // but NOT a deeper sub-range ("BOOK.CH.verse.something").
     const stmt = prep(getBereanDb(),
-      `SELECT * FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}
+      `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND ${tidClause}
        ORDER BY verse_ref ASC`
     )
     const rows = (textId === 'kjva' || textId === 'lxx'
-      ? stmt.all(`${prefix}%`, `${prefix}%.%`)
-      : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
+      ? stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`)
+      : stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`, textId)
     ) as NoteRow[]
     return rows.map(rowToNote)
   })
@@ -399,7 +474,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return rows.map(rowToVersion)
   })
 
-  ipcMain.handle('notes:restoreVersion', (_event, noteId: string, versionId: string) => {
+  ipcMain.handle('notes:restoreVersion', (event, noteId: string, versionId: string) => {
     const db = getBereanDb()
     const ver = db.prepare('SELECT * FROM note_versions WHERE id = ?').get(versionId) as VersionRow | undefined
     if (!ver) return { success: false, error: 'Version not found' }
@@ -412,6 +487,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     }
     db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(ver.content, Date.now(), noteId)
     pruneNoteVersions(db, noteId)
+    broadcastNotesChanged(event.sender)
     return { success: true, content: ver.content }
   })
 

@@ -129,6 +129,20 @@ export interface AppState {
   pendingLexiconSearch: string | null
   requestLexiconSearch: (term: string) => void
   clearLexiconSearch: () => void
+  // Carry a query from the floating search bar into the Lexicon SPACE/tab's own
+  // search box (distinct from pendingLexiconSearch, which the bible right-panel
+  // inline Strong's lookup consumes).
+  pendingLexiconSearchTab: string | null
+  openLexiconSearchTab: (term: string) => void
+  clearLexiconSearchTab: () => void
+  // Carry a query into the Notes space's own search box.
+  pendingNotesSearchTab: string | null
+  openNotesSearchTab: (term: string) => void
+  clearNotesSearchTab: () => void
+  // Carry a query into the YouTube tab's own search box.
+  pendingYouTubeSearch: string | null
+  openYouTubeSearchTab: (term: string) => void
+  clearYouTubeSearch: () => void
 
   // Bible right-panel triggers (from VerseRow actions)
   pendingRightPanelNoteId: string | null
@@ -594,6 +608,9 @@ export const useAppStore = create<AppState>()(
       presenterPushToken: 0,
       pendingLexiconEntry: null,
       pendingLexiconSearch: null,
+      pendingLexiconSearchTab: null,
+      pendingNotesSearchTab: null,
+      pendingYouTubeSearch: null,
       pendingRightPanelNoteId: null,
       pendingRightPanelVerseFilter: null,
       pendingRightPanelCrossRefVerse: null,
@@ -1571,6 +1588,27 @@ export const useAppStore = create<AppState>()(
       clearLexiconEntry: () => set({ pendingLexiconEntry: null }),
       requestLexiconSearch: (term) => set({ pendingLexiconSearch: term }),
       clearLexiconSearch: () => set({ pendingLexiconSearch: null }),
+      openLexiconSearchTab: (term) => {
+        get().ensureTab('lexicon')
+        get().setActiveSpace('lexicon')
+        get().addHistoryEntry({ type: 'search', title: `Lexicon: "${term}"`, query: term })
+        set({ pendingLexiconSearchTab: term })
+      },
+      clearLexiconSearchTab: () => set({ pendingLexiconSearchTab: null }),
+      openNotesSearchTab: (term) => {
+        get().ensureTab('note')
+        get().setActiveSpace('notes')
+        get().addHistoryEntry({ type: 'search', title: `Notes: "${term}"`, query: term })
+        set({ pendingNotesSearchTab: term })
+      },
+      clearNotesSearchTab: () => set({ pendingNotesSearchTab: null }),
+      openYouTubeSearchTab: (term) => {
+        get().ensureTab('youtube')
+        get().setActiveSpace('youtube')
+        get().addHistoryEntry({ type: 'search', title: `YouTube: "${term}"`, query: term })
+        set({ pendingYouTubeSearch: term })
+      },
+      clearYouTubeSearch: () => set({ pendingYouTubeSearch: null }),
       openNoteInBiblePanel: (noteId) => set({ pendingRightPanelNoteId: noteId }),
       filterBiblePanelByVerse: (verseRef) => set({ pendingRightPanelVerseFilter: verseRef }),
       openCrossRefsInBiblePanel: (verseRef) => set({ pendingRightPanelCrossRefVerse: verseRef }),

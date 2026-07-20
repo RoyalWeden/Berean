@@ -62,6 +62,14 @@ export interface FloatingHoverPanelProps {
   children: ReactNode
   /** Horizontal offset of the anchor from the right edge of its container (Tailwind spacing scale, default `right-3`). */
   anchorRightClass?: string
+  /** Width of the hover-trigger zone (Tailwind width scale, default `w-8`) — callers
+   *  with less horizontal clearance (e.g. right next to a scrollbar) can narrow this. */
+  anchorWidthClass?: string
+  /** Delay, in ms, the cursor must dwell inside the hover zone before it actually
+   *  expands (default 0 — expands immediately on enter). A cursor merely passing
+   *  THROUGH the zone on its way somewhere else (e.g. toward a scrollbar right at
+   *  the content's edge) won't trigger it if it clears the zone before this fires. */
+  openDelayMs?: number
   /** Fires whenever the expanded state changes — e.g. to autofocus a search input the instant it opens. */
   onExpandedChange?: (expanded: boolean) => void
 }
@@ -74,12 +82,15 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
   pinned = false,
   children,
   anchorRightClass = 'right-3',
+  anchorWidthClass = 'w-8',
+  openDelayMs = 0,
   onExpandedChange,
 }, ref) {
   const [expanded, setExpanded] = useState(false)
   const [anchor, setAnchor] = useState<{ centerY: number; right: number } | null>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     function measure() {
@@ -93,11 +104,34 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
 
   useEffect(() => { onExpandedChange?.(expanded) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function open() {
+  useEffect(() => () => {
+    if (openTimerRef.current) clearTimeout(openTimerRef.current)
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+  }, [])
+
+  // Used once already expanded (moving from the anchor into the card itself, or
+  // back into the anchor while the card is open) — always instant, so the open
+  // card never flickers shut-then-reopens while the cursor is still over it.
+  function openImmediate() {
+    if (openTimerRef.current) { clearTimeout(openTimerRef.current); openTimerRef.current = null }
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
     setExpanded(true)
   }
+  // Used only for the FIRST hover into the anchor zone while collapsed — honors
+  // `openDelayMs` so a cursor merely passing through the zone (e.g. traveling to
+  // a scrollbar right at the content's edge) doesn't trigger it.
+  function openFromAnchor() {
+    if (expanded) { openImmediate(); return }
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
+    if (openDelayMs <= 0) { setExpanded(true); return }
+    if (openTimerRef.current) clearTimeout(openTimerRef.current)
+    openTimerRef.current = setTimeout(() => { openTimerRef.current = null; setExpanded(true) }, openDelayMs)
+  }
+  function cancelPendingOpen() {
+    if (openTimerRef.current) { clearTimeout(openTimerRef.current); openTimerRef.current = null }
+  }
   function scheduleClose() {
+    cancelPendingOpen()
     if (pinned) return
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     closeTimerRef.current = setTimeout(() => setExpanded(false), CLOSE_DELAY_MS)
@@ -119,16 +153,16 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
           the pointer on, positioned so the visible circle sits centered inside it. */}
       <div
         ref={anchorRef}
-        className={`absolute top-1/2 -translate-y-1/2 ${anchorRightClass} w-8`}
+        className={`absolute top-1/2 -translate-y-1/2 ${anchorRightClass} ${anchorWidthClass}`}
         style={{ height: HOVER_ZONE_HEIGHT }}
-        onMouseEnter={open}
-        onMouseLeave={scheduleClose}
+        onMouseEnter={openFromAnchor}
+        onMouseLeave={() => { cancelPendingOpen(); scheduleClose() }}
       />
 
       {anchor && createPortal(
         <div
           style={{ position: 'fixed', top: anchor.centerY, right: anchor.right, transform: 'translateY(-50%)' }}
-          onMouseEnter={open}
+          onMouseEnter={openImmediate}
           onMouseLeave={scheduleClose}
         >
           <motion.div

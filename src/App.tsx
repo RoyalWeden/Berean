@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import type { ReactNode } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
@@ -239,6 +240,15 @@ export default function App() {
       applyExternalTabSync(payload as { tabs: typeof storeTabs; theme?: string; themePreset?: string })
       setTimeout(() => { isBroadcastingRef.current = false }, 0)
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    // Cross-window note sync: main process broadcasts 'notes:changed' to every
+    // other window on any note mutation (create/update/delete/etc). Each window
+    // has its own in-memory store, so without this a note edited in a floating
+    // window would never refresh another window's Scripture notes side panels.
+    window.notes.onChanged?.(() => { bumpNoteToken() })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -875,19 +885,65 @@ export default function App() {
         {/* Focus mode hides the rail/sidebar chrome and centers the active panel at a
             constrained reading width — ActivePanel itself is never unmounted (a note tab
             shouldn't lose scroll/cursor state just from toggling this), only the surrounding
-            chrome and the extra horizontal space are removed. TopBar stays mounted even in
-            Focus mode (an earlier version hid it too) — the note's own title/header controls
-            portal INTO TopBar's slot (TabHeaderPortal.tsx), so unmounting TopBar silently
-            dropped the note title and any tab-specific controls with no way to see or rename
-            the note while focused, which read as "doesn't look right" more than "distraction-
-            free." Only the left-side app chrome (sidebar app-switcher icons, collapse toggle,
-            back/forward) is what Focus mode is actually about hiding. */}
-        <TopBar slotRef={setTopBarSlot} />
+            chrome and the extra horizontal space are removed. TopBar stays MOUNTED even in
+            Focus mode (an earlier version unmounted it entirely, which silently dropped the
+            note's title/header controls that portal INTO its slot, TabHeaderPortal.tsx) —
+            only its visibility is toggled, so the portal target never disappears. Per the
+            user's explicit request, TopBar does NOT reveal on hover-near-top in Focus mode
+            (only the floating formatting toolbar should show) — window min/max/close
+            controls that would otherwise only live in TopBar are rendered inside the
+            Toolbar capsule itself in Focus mode instead (Toolbar.tsx), so they're still
+            reachable without ever bringing TopBar back. */}
+        <div
+          className={noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''}
+        >
+          <TopBar slotRef={setTopBarSlot} />
+        </div>
         <div className="flex flex-1 overflow-hidden">
-          {!noteFocusMode && <Ribbon />}
-          {!noteFocusMode && <Sidebar />}
+          {/* Ribbon/Sidebar collapse (width → 0) and fade instead of an instant mount/
+              unmount, and the content column's own width change (full ↔ max-w-3xl) is
+              handled via `layout` on the motion.main/motion.div below — framer-motion
+              animates both with the same FLIP-based transition so entering/exiting
+              Focus mode reads as one smooth reflow rather than a jump cut. */}
+          <AnimatePresence initial={false}>
+            {!noteFocusMode && (
+              <motion.div
+                key="ribbon"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                style={{ overflow: 'hidden' }}
+              >
+                <Ribbon />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {!noteFocusMode && (
+              <motion.div
+                key="sidebar"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                style={{ overflow: 'hidden' }}
+              >
+                <Sidebar />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {/* Plain CSS transition (not framer's `layout`/FLIP) for the content column's
+              own width change — ActivePanel hosts CodeMirror/ProseMirror/react-mosaic,
+              which don't expect to be momentarily transform-scaled the way a FLIP
+              animation would render them mid-transition. An inline `maxWidth` between
+              two real lengths (`100%` ↔ `48rem`, never the keyword `none`, which CSS
+              can't interpolate from) animates smoothly as a genuine reflow instead. */}
           <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
-            <div className={noteFocusMode ? 'w-full max-w-3xl h-full' : 'w-full h-full'}>
+            <div
+              className="w-full h-full transition-[max-width] duration-200 ease-in-out"
+              style={{ maxWidth: noteFocusMode ? '48rem' : '100%' }}
+            >
               <ActivePanel />
             </div>
           </main>

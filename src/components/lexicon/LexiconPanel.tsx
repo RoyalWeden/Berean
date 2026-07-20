@@ -879,6 +879,8 @@ type LexHistoryItem =
 export default function LexiconPanel({ floating = false }: { floating?: boolean }) {
   const pendingLexiconEntry = useAppStore((s) => s.pendingLexiconEntry)
   const clearLexiconEntry = useAppStore((s) => s.clearLexiconEntry)
+  const pendingLexiconSearchTab = useAppStore((s) => s.pendingLexiconSearchTab)
+  const clearLexiconSearchTab = useAppStore((s) => s.clearLexiconSearchTab)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const tabs = useAppStore((s) => s.tabs)
   const renameTab = useAppStore((s) => s.renameTab)
@@ -901,6 +903,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const searchStateRef = useRef<{ query: string; lang: 'H' | 'G' | 'all' }>({ query: '', lang: 'all' })
   // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView
   const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(null)
+  // Bumped whenever a query is pushed in from the floating search bar, so SearchView
+  // remounts and re-runs the search even when it was already the visible view.
+  const [searchRemountToken, setSearchRemountToken] = useState(0)
 
   // ── Find bar — local state, per-panel routing ─────────────────────────────
   // App.tsx dispatches 'berean:openLexiconFindBar' when Cmd+F is pressed while
@@ -1145,6 +1150,17 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       .catch(() => {})
   }, [pendingLexiconEntry, clearLexiconEntry])
 
+  // Pick up a query pushed in from the floating search bar's "Lexicon" button —
+  // show the search view (clear any open entry) and seed its input with the term.
+  useEffect(() => {
+    if (!pendingLexiconSearchTab) return
+    const term = pendingLexiconSearchTab
+    clearLexiconSearchTab()
+    setActiveEntry(null)
+    setSavedSearch({ query: term, lang: 'all' })
+    setSearchRemountToken((t) => t + 1)
+  }, [pendingLexiconSearchTab, clearLexiconSearchTab])
+
   // Keep tab title in sync
   useEffect(() => {
     if (!lexiconTabId) return
@@ -1237,6 +1253,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         />
       ) : (
         <SearchView
+          key={searchRemountToken}
           onSelect={(entry) => {
             setActiveEntry(entry)
             addHistoryEntry({ type: 'lexicon', title: entry.strongsNum, strongsNum: entry.strongsNum })

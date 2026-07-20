@@ -18,7 +18,7 @@ interface NotesAPI {
   getNote: (id: string) => Promise<Note | null>
   getChapterNotes: (bookId: string, chapter: number, textId?: string) => Promise<Note[]>
   getChapterCounts: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, number>>
-  searchNotes: (query: string, limit?: number) => Promise<Note[]>
+  searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
   createNoteVersion: (noteId: string, title: string, content: string, kind?: string) => Promise<{ success: boolean; id?: string; skipped?: boolean }>
   getNoteVersions: (noteId: string) => Promise<NoteVersion[]>
@@ -30,6 +30,7 @@ interface NotesAPI {
   deleteFolderDeep: (id: string) => Promise<{ success: boolean }>
   setFolderParent: (id: string, parentId: string | null) => Promise<{ success: boolean; error?: string }>
   listIdioms: () => Promise<Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>>
+  onChanged: (cb: () => void) => void
 }
 
 type HighlightColor = 'yellow' | 'red' | 'green' | 'blue' | 'purple'
@@ -407,13 +408,15 @@ declare global {
     // Platform string injected by preload for renderer-side platform detection
     __berean_platform: NodeJS.Platform
 
-    // Custom frameless window controls (Windows only)
+    // Custom frameless window controls (Windows), also reused by the note
+    // editor's Focus-mode floating toolbar on any platform.
     windowControls: {
       minimize: () => void
       maximize: () => void
       close: () => void
       isMaximized: () => Promise<boolean>
       onMaximizeChange: (cb: (isMax: boolean) => void) => void
+      setButtonsVisible: (visible: boolean) => void
     }
   }
 

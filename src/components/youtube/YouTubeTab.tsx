@@ -241,6 +241,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const youtubeNoteBack = useAppStore((s) => s.youtubeNoteBack)
   const setYoutubeNoteBack = useAppStore((s) => s.setYoutubeNoteBack)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const pendingYouTubeSearch = useAppStore((s) => s.pendingYouTubeSearch)
+  const clearYouTubeSearch = useAppStore((s) => s.clearYouTubeSearch)
   const tabs = useAppStore((s) => s.tabs)
 
   // ─── YouTube layout state ────────────────────────────────────────────────────
@@ -1208,6 +1210,18 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     else if (!active && prevSearchActive.current && sort === 'relevance') setSort('newest')
     prevSearchActive.current = active
   }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pick up a query pushed in from the floating search bar's "YouTube" button —
+  // feed it into the tab's own search box (which drives title + transcript search,
+  // filtering, and ranking). Reset to the video list so results are visible.
+  useEffect(() => {
+    if (!pendingYouTubeSearch) return
+    const term = pendingYouTubeSearch
+    clearYouTubeSearch()
+    setActiveVideoId(null)
+    setSearch(term)
+    setPage(1)
+  }, [pendingYouTubeSearch, clearYouTubeSearch])
 
   // Debounced transcript FTS search: when the scope includes transcripts, resolve the set
   // of videoIds whose transcript matches the current query (used by filterVideosBySearch).

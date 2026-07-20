@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
 import type { EditorView } from 'prosemirror-view'
 import { TextSelection } from 'prosemirror-state'
 import { deleteTable } from 'prosemirror-tables'
@@ -7,6 +8,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
   Table2, Minus, BookOpen, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
+  Square, X, Maximize2, Focus as FocusIcon,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
@@ -15,6 +17,7 @@ import { insertBlockNode, buildEmptyTable } from './slashCommands'
 import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
+import { useProximityReveal } from '@/hooks/useProximityReveal'
 
 type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
 
@@ -34,10 +37,35 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
 export default function Toolbar({ view }: { view: EditorView | null }) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const [hovering, setHovering] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const focusMode = useAppStore((s) => s.noteFocusMode)
   const toggleFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
+  // In Focus mode the capsule fades to fully hidden and reveals only when the
+  // cursor comes near its own docked position. Outside Focus mode `revealed`
+  // stays true and the bar is just dimmed at rest (via CSS :hover below), not
+  // hidden. TopBar itself has no reveal mechanism at all in Focus mode (per the
+  // user's request, only this floating bar should show) — its own window
+  // min/max/close controls are rendered inside this capsule instead, below.
+  const { ref: rootRef, revealed } = useProximityReveal<HTMLDivElement>(focusMode)
+
+  // Native macOS traffic lights (or the Windows frameless title bar's own controls)
+  // are OS/window-frame chrome, not DOM content — hiding TopBar can't hide them.
+  // In Focus mode, hide them and show this bar's own matching-style close/
+  // minimize/maximize buttons instead; restore them on exiting Focus mode or on
+  // unmount (in case the toolbar goes away — e.g. switching to 'view' mode —
+  // while Focus mode is still on, so they're never left hidden with no way back).
+  useEffect(() => {
+    window.windowControls?.setButtonsVisible?.(!focusMode)
+    return () => { window.windowControls?.setButtonsVisible?.(true) }
+  }, [focusMode])
+
+  const [isMaximized, setIsMaximized] = useState(false)
+  useEffect(() => {
+    window.windowControls?.isMaximized().then(setIsMaximized).catch(() => {})
+    window.windowControls?.onMaximizeChange(setIsMaximized)
+  }, [])
+  const isMac = window.__berean_platform === 'darwin'
 
   function openDropdownAt(kind: DropdownKind, e: React.MouseEvent<HTMLButtonElement>) {
     if (openDropdown === kind) { setOpenDropdown('none'); return }
@@ -92,11 +120,64 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
   const cls = (isActive: boolean) => `${iconBtn} ${isActive ? active : inactive}`
   const sep = <div className="w-px h-5 bg-[rgb(var(--color-surface-4))] mx-0.5 flex-shrink-0" />
 
+  // Any dropdown open (portaled to document.body) counts as "in use" even if the
+  // cursor has moved off the capsule itself to reach the dropdown — otherwise the
+  // capsule would dim/fade out from under an open dropdown mid-interaction.
+  const inUse = hovering || openDropdown !== 'none'
+  const opacityCls = focusMode
+    ? (revealed || inUse ? 'opacity-100' : 'opacity-0 pointer-events-none')
+    : (inUse ? 'opacity-100' : 'opacity-65')
+
   return (
     <div
       ref={rootRef}
-      className="flex items-center gap-0.5 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 overflow-x-auto"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      className={`
+        absolute top-2 left-1/2 -translate-x-1/2 z-20 max-w-[calc(100%-1.5rem)]
+        flex items-center gap-0.5 px-2 py-1 rounded-full
+        bg-[rgb(var(--color-surface-2))]/70 backdrop-blur-md
+        border border-[rgb(var(--color-surface-4))]/70 shadow-lg shadow-black/10
+        flex-shrink-0 overflow-x-auto overflow-y-hidden transition-opacity duration-200 ${opacityCls}
+      `}
     >
+      {/* Focus mode hides the native traffic lights (see the `setButtonsVisible` effect
+          above — they're window-frame chrome, not DOM, and can't just be relocated) and
+          replaces them with real close/minimize/maximize buttons on the LEFT of this bar,
+          styled like actual macOS traffic lights (not the toolbar's own icon-button style)
+          since that's the convention this is standing in for. */}
+      {focusMode && isMac && (
+        <>
+          {/* `group` lives on this wrapper (not the individual buttons) so hovering
+              ANY one of the three dots reveals all three glyphs at once, matching
+              real macOS traffic-light behavior. */}
+          <div className="group flex items-center gap-2.5 mr-1 ml-0.5 flex-shrink-0">
+            <button
+              title="Close"
+              onMouseDown={() => window.windowControls?.close()}
+              className="w-3 h-3 rounded-full bg-[#FF5F57] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
+            >
+              <X size={7} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#4d0000]/70" />
+            </button>
+            <button
+              title="Minimize"
+              onMouseDown={() => window.windowControls?.minimize()}
+              className="w-3 h-3 rounded-full bg-[#FFBD2E] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
+            >
+              <Minus size={8} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#5a3d00]/70" />
+            </button>
+            <button
+              title={isMaximized ? 'Restore' : 'Maximize'}
+              onMouseDown={() => window.windowControls?.maximize()}
+              className="w-3 h-3 rounded-full bg-[#28C840] hover:brightness-90 active:brightness-75 flex items-center justify-center cursor-pointer transition-[filter]"
+            >
+              <Maximize2 size={6} strokeWidth={3.5} className="opacity-0 group-hover:opacity-100 text-[#003d0a]/70" />
+            </button>
+          </div>
+          {sep}
+        </>
+      )}
+
       {/* Text type */}
       <button
         title="Text type"
@@ -175,13 +256,44 @@ export default function Toolbar({ view }: { view: EditorView | null }) {
       <button title="Scripture verse — type a reference (e.g. Romans 14:3)" onMouseDown={insertVerseStarter} className={cls(false)}><BookOpen size={14} /></button>
 
       {sep}
-      <button
+      {/* `isolate` + `willChange` give this button its own compositing layer —
+          without it, animating `rotate` on a child of the capsule's own
+          `backdrop-blur-md` background triggers a Chromium repaint glitch where
+          a stray solid-color box flashes at the blurred container's corner
+          during the transform. */}
+      <motion.button
         title={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
         onMouseDown={() => toggleFocusMode()}
-        className={`${cls(focusMode)} text-[10px] font-medium px-2`}
+        whileHover={{ rotate: 90, scale: 1.12 }}
+        whileTap={{ scale: 0.8, rotate: 90 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+        className={`${cls(focusMode)} isolate`}
+        style={{ willChange: 'transform' }}
       >
-        Focus
-      </button>
+        <FocusIcon size={14} />
+      </motion.button>
+
+      {/* Windows: standard convention is minimize/maximize/close on the RIGHT, styled
+          like the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red
+          close) rather than the Mac traffic-light treatment above. */}
+      {focusMode && !isMac && (
+        <>
+          {sep}
+          <button title="Minimize" onMouseDown={() => window.windowControls?.minimize()} className={cls(false)}>
+            <Minus size={14} />
+          </button>
+          <button title={isMaximized ? 'Restore' : 'Maximize'} onMouseDown={() => window.windowControls?.maximize()} className={cls(false)}>
+            <Square size={12} />
+          </button>
+          <button
+            title="Close"
+            onMouseDown={() => window.windowControls?.close()}
+            className={`${iconBtn} text-[rgb(var(--color-text-secondary))] hover:bg-red-500/20 hover:text-red-400`}
+          >
+            <X size={14} />
+          </button>
+        </>
+      )}
 
       {/* ── Dropdowns — portaled, see the file-level comment above for why ── */}
       {openDropdown !== 'none' && dropdownPos && createPortal(

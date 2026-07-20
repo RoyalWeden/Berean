@@ -242,8 +242,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Reset to top immediately to avoid flash of old position
     el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
-    // chapter's position to a freshly-loaded chapter before the new scroll fires.
-    setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
+    // chapter's position to a freshly-loaded chapter before the new scroll fires — EXCEPT
+    // when a specific targetVerse is pending (e.g. a search-navigation): forcing
+    // scrollPercent to 0 here would tell the viewer "jump to top of chapter," permanently
+    // pre-empting its own verse-centering path (ViewerBiblePage.tsx only takes that path
+    // when scrollPercent is undefined) before this window's own targetVerse-scroll (fired
+    // later, once ChapterView's data loads) ever gets a chance to run. Leaving the scroll
+    // percent/chapterKey stale here makes computeViewerPayload() report `undefined` for
+    // this chapter, so the viewer centers on `verse` instead — see useViewerSync.ts.
+    if (!tabState.targetVerse) {
+      setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
+    }
     virtualScrollPctRef.current = 0
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
@@ -863,8 +872,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function navigate(bookId: string, chapter: number, endChapter?: number) {
     if (!activeTab) return
     const title = makeTitle(bookId, chapter, endChapter)
+    // Clear any verse-specific right-panel filter left over from before this
+    // navigation (e.g. from clicking into a verse's notes) — without this, the
+    // side panel's "mentions this chapter" section stayed suppressed by its own
+    // `!verseFilter` guard on every later chapter the user paged to, since nothing
+    // else ever reset it on plain chapter navigation.
+    setRightPanelVerseFilter(null)
     updateTabState('scripture', activeTab.id, {
       bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
+      rightPanelVerseFilter: null,
     })
     renameTab('scripture', activeTab.id, title)
   }
@@ -1676,7 +1692,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           if (!activeTab) return
           const book = books.find((b) => b.id === tabState.bookId)
           const chTitle = book ? `${book.name} ${ch}` : `${tabState.bookId} ${ch}`
-          updateTabState('scripture', activeTab.id, { chapter: ch })
+          // Same reset as navigate() — continuous scroll changes tabState.chapter
+          // through this callback instead, so it needs the same verse-filter clear.
+          setRightPanelVerseFilter(null)
+          updateTabState('scripture', activeTab.id, { chapter: ch, rightPanelVerseFilter: null })
           renameTab('scripture', activeTab.id, chTitle)
         }}
         onVersesLoaded={onVersesLoaded}
