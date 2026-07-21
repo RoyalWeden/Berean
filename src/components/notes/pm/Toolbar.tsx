@@ -34,13 +34,15 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
 // overflow-x:auto to overflow-y:auto/hidden on the same box, which silently clipped any
 // absolutely-positioned dropdown child that extended below the row (the dropdowns rendered
 // into the DOM but were invisible — looked exactly like "clicking the button does nothing").
-export default function Toolbar({ view }: { view: EditorView | null }) {
+export default function Toolbar({ view, tabId }: { view: EditorView | null; tabId?: string }) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const focusMode = useAppStore((s) => s.noteFocusMode)
-  const toggleFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
+  const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
+  const focusMode = tabId != null && noteFocusModeTabId === tabId
+  const toggleNoteFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
+  const toggleFocusMode = () => { if (tabId != null) toggleNoteFocusMode(tabId) }
   // In Focus mode the capsule fades to fully hidden and reveals only when the
   // cursor comes near its own docked position. Outside Focus mode `revealed`
   // stays true and the bar is just dimmed at rest (via CSS :hover below), not

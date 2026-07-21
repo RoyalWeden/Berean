@@ -35,6 +35,7 @@ interface Props {
   content: string
   noteTitle: string
   noteId: string
+  tabId?: string
   allNotes: Note[]
   onNoteClick: (note: Note) => void
   folderPath?: string[]
@@ -43,14 +44,15 @@ interface Props {
 const EXPANDED_WIDTH = 320
 const EXPANDED_HEIGHT = 440
 
-export default function NoteSidePanel({ content, noteTitle, noteId, allNotes, onNoteClick, folderPath = [] }: Props) {
+export default function NoteSidePanel({ content, noteTitle, noteId, tabId, allNotes, onNoteClick, folderPath = [] }: Props) {
   const headings = useMemo(() => parseHeadings(content), [content])
   const backlinks = useMemo(() => findBacklinks(noteTitle, allNotes, noteId), [noteTitle, allNotes, noteId])
   const hasContent = headings.length > 0 || backlinks.length > 0
 
   const pinned    = useAppStore((s) => s.noteSidePanelPinned)
   const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
-  const focusMode = useAppStore((s) => s.noteFocusMode)
+  const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
+  const focusMode = tabId != null && noteFocusModeTabId === tabId
 
   function scrollToHeading(text: string) {
     window.dispatchEvent(new CustomEvent('berean:scrollToHeading', { detail: { headingText: text } }))

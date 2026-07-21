@@ -122,6 +122,51 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+Shell
+- Ribbon, Sidebar, and the top bar now read as one continuous surface instead
+  of four visibly stitched-together panels — merged into a single header bar
+  with shared material/vibrancy, matching corner rounding, and a synced
+  collapse animation.
+- Context menus (note right-click, tab bar, notes folder view) now use a
+  flat, opaque style matching real macOS menus instead of frosted glass.
+- Buttons in the Ribbon, Sidebar, and header now have a subtle press effect
+  and a real keyboard focus ring.
+- The "System" UI font option now resolves to the real macOS system font
+  instead of silently falling back to Inter.
+- Added a "System" theme preset that follows your live macOS accent color
+  instead of a fixed one.
+
+Scripture reading & search
+- Fixed verse navigation from search still not landing on the target verse
+  in some cases (typing a reference like "Jer 51:13" and pressing Enter) —
+  the previous fix covered one race condition but not the more common case
+  where the previous chapter's verses briefly linger in state during the
+  navigation, silently cancelling the pending scroll before the new chapter
+  ever loaded.
+- Fixed the Advanced Search input swallowing the letter "k" while typing
+  (it was bound as a vim-style "move up" shortcut on the same field you type
+  your query into — e.g. typing "dark" silently dropped the k). Replaced
+  with Arrow Up/Down only.
+
+Notes
+- Note titles in the tab header are now draggable (moves the window) by
+  default, and a click activates editing — previously the title was always
+  a live text field, which silently blocked window-dragging from that part
+  of the header.
+- Right-click a date in the sidebar's Daily Notes calendar (or the "Today"
+  shortcut) for Open / Open in new tab / Open in floating tab / Delete note.
+
+Experimental
+- Added a Settings → Experimental section. PDF import/viewing is now an
+  opt-in toggle there, off by default — long PDFs can build up significant
+  memory over a session since viewed pages aren't released yet; this hides
+  the PDF library and viewer until turned back on. Existing imported PDFs
+  are unaffected.
+
+---
+
 ## [0.4.9] - 2026-07-19
 
 Notes editor

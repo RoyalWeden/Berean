@@ -351,7 +351,19 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   useEffect(() => {
     if (!targetVerse || !containerRef.current || verses.length === 0) return
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // The verses currently in the DOM can still belong to the PREVIOUS chapter for one
+    // render — bookId/chapter/targetVerse all update together, but the fetch effect's
+    // setVerses([]) reset (and the real new-chapter data after it) only lands on a LATER
+    // render, so this effect can fire with a non-empty `verses` that doesn't contain
+    // `targetVerse` at all (e.g. switching Genesis 1 → Jeremiah 51:50 while Genesis 1's
+    // 31 verses are still in state). Previously this unconditionally called
+    // onTargetVerseConsumed() below regardless of whether `el` was found, clearing
+    // targetVerse before the real chapter data ever arrived — so the scroll never
+    // happened once the correct verses did load. Bail out without consuming targetVerse
+    // when the element isn't there yet; the effect re-fires once verses.length changes
+    // again (the real chapter load) and gets another chance.
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     lastScrolledVerseRef.current = targetVerse
     if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
     setFlashVerse({ verse: targetVerse, end: endVerse })
@@ -380,7 +392,12 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     const verse = lastScrolledVerseRef.current
     if (!verse || !containerRef.current) return
     const el = containerRef.current.querySelector(`[data-verse="${verse}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Instant, not smooth — this can fire while the primary effect's smooth scroll
+    // above is still mid-animation (confirmed as little as ~100ms after it starts).
+    // Restarting a SECOND smooth scroll to the same element mid-flight was landing
+    // noticeably short of the real target instead of cleanly continuing to it; a
+    // correction firing this soon isn't meant to be seen animating anyway.
+    el?.scrollIntoView({ behavior: 'auto', block: 'center' })
     lastScrolledVerseRef.current = undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterSources])

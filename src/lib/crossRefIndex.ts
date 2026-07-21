@@ -9,6 +9,7 @@
  * real ref parser over each, caching the parsed result per noteChangeToken.
  */
 import { extractRefsFromNote, refMatchesVerse } from './noteRefs'
+import { getAllNotes } from './notesCache'
 import type { NoteVerseRef } from './noteRefs'
 
 export interface CrossRefSource {
@@ -152,8 +153,7 @@ export function getCrossRefSources(token: number): Promise<CrossRefSource[]> {
   if (!cache || cache.token !== token) {
     cache = {
       token,
-      promise: window.notes
-        .getNotes(100000, 0)
+      promise: getAllNotes(token)
         .then((notes) => buildCrossRefSources(notes as MinimalNote[]))
         .catch(() => [] as CrossRefSource[]),
     }

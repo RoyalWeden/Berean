@@ -4,6 +4,7 @@ import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Colu
 import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
+import { getAllNotes } from '@/lib/notesCache'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -324,7 +325,7 @@ export default function HistoryModal() {
   const [noteTitles, setNoteTitles] = useState<Map<string, string>>(new Map())
   useEffect(() => {
     if (!historyOpen) return
-    window.notes.getNotes(100000, 0)
+    getAllNotes(noteChangeToken)
       .then((notes) => setNoteTitles(new Map(notes.map((n) => [n.id, n.title ?? '']))))
       .catch(() => {})
   }, [historyOpen, noteChangeToken])

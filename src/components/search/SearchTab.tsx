@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import type { Book, SearchTabState } from '@/types'
@@ -86,8 +87,14 @@ function highlight(text: string, query: string): React.ReactNode[] {
 }
 
 export default function SearchTab({ floating = false }: { floating?: boolean }) {
-  const tabs = useAppStore((s) => s.tabs)
-  const activeTabId = useAppStore((s) => s.activeTabId)
+  // Narrowed to just the two spaces this component actually reads (search + scripture, for
+  // "open in current scripture panel") instead of the whole `tabs` record (all 5 spaces) — see
+  // BiblePanel.tsx's identical comment for why that matters. useShallow so a write to an
+  // unrelated space's array (which doesn't change these two references) doesn't re-render this.
+  const { search: searchSpaceTabs, scripture: scriptureSpaceTabs } = useAppStore(
+    useShallow((s) => ({ search: s.tabs.search, scripture: s.tabs.scripture }))
+  )
+  const activeTabId = useAppStore((s) => s.activeTabId.search)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
@@ -95,7 +102,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const pendingSearchQuery = useAppStore((s) => s.pendingSearchQuery)
   const clearSearchQuery = useAppStore((s) => s.clearSearchQuery)
 
-  const searchTab = tabs['search'].find((t) => t.id === activeTabId['search'])
+  const searchTab = searchSpaceTabs.find((t) => t.id === activeTabId)
   const tabState = (searchTab?.state ?? { query: '', results: [] }) as SearchTabState
 
   const [query, setQuery] = useState(tabState.query ?? '')
@@ -222,7 +229,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     const title = `${bookLabel} ${chapter}:${verseNum}`
     const translation = tid.toUpperCase()
 
-    const activeScripture = tabs['scripture'].find((t) => t.id === activeTabId['scripture'])
+    const activeScripture = scriptureSpaceTabs.find((t) => t.id === useAppStore.getState().activeTabId.scripture)
     if (activeScripture) {
       updateTabState('scripture', activeScripture.id, { bookId, chapter, targetVerse: verseNum, scrollPosition: 0, translation, endVerse: undefined })
       renameTab('scripture', activeScripture.id, title)

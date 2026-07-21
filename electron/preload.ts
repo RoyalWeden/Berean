@@ -158,6 +158,11 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:nativeThemeChanged')
     ipcRenderer.on('app:nativeThemeChanged', (_, isDark) => cb(isDark as boolean))
   },
+  getAccentColor: () => ipcRenderer.invoke('app:getAccentColor') as Promise<string | null>,
+  onAccentColorChanged: (cb: (rgb: string | null) => void) => {
+    ipcRenderer.removeAllListeners('app:accentColorChanged')
+    ipcRenderer.on('app:accentColorChanged', (_, rgb) => cb(rgb as string | null))
+  },
   onUpdateStatus: (cb: (status: unknown) => void) => {
     ipcRenderer.removeAllListeners('app:updateStatus')
     ipcRenderer.on('app:updateStatus', (_, status) => cb(status))

@@ -41,7 +41,11 @@ export function getCommands(): Command[] {
     { id: 'insert-timestamp', label: 'Insert YouTube timestamp into note', keywords: ['youtube', 'video', 'time'], shortcut: '⌘⇧L', run: () => dispatch('berean:insertTimestamp') },
     { id: 'toggle-pip', label: 'Toggle YouTube Picture-in-Picture', keywords: ['pip', 'video'], shortcut: '⌘⇧P', run: () => dispatch('berean:togglePiP') },
     { id: 'toggle-sidebar', label: 'Toggle sidebar explorer', keywords: ['explorer', 'collapse', 'expand'], shortcut: '⌘⇧S', run: () => store().toggleSidebar() },
-    { id: 'toggle-focus-mode', label: 'Toggle Focus mode', keywords: ['zen', 'distraction free', 'writing'], shortcut: '⌘⇧U', run: () => store().toggleNoteFocusMode() },
+    { id: 'toggle-focus-mode', label: 'Toggle Focus mode', keywords: ['zen', 'distraction free', 'writing'], shortcut: '⌘⇧U', run: () => {
+      const s = store()
+      const tabId = s.activeTabId[s.activeSpace]
+      if (tabId) s.toggleNoteFocusMode(tabId)
+    } },
     { id: 'open-history', label: 'Open History', keywords: ['recent', 'visited'], shortcut: '⌘H', run: () => store().openHistory() },
     { id: 'open-settings', label: 'Open Settings', keywords: ['preferences', 'options'], shortcut: '⌘,', run: () => store().openSettings() },
     { id: 'open-markdown-reference', label: 'Markdown reference guide', keywords: ['help', 'formatting', 'syntax'], run: () => store().openMarkdownReference() },
