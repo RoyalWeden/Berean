@@ -21,6 +21,7 @@ import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
+import { getAllNotes } from '@/lib/notesCache'
 import CalendarWidget, { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
@@ -49,12 +50,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const noteTypingLook = useAppStore((s) => s.noteTypingLook)
   const setNoteTypingLook = useAppStore((s) => s.setNoteTypingLook)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const tabs = useAppStore((s) => s.tabs)
+  const activeTabId = useAppStore((s) => s.activeTabId.notes)
+  // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
+  const tabs = useAppStore((s) => s.tabs.notes)
   const renameTab = useAppStore((s) => s.renameTab)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const youtubeIsPlaying = useAppStore((s) => s.youtubeIsPlaying)
-  const notesTabId = activeTabId['notes']
+  const notesTabId = activeTabId
   const pushTabNav = useAppStore((s) => s.pushTabNav)
   const resetTabNavHome = useAppStore((s) => s.resetTabNavHome)
   const notesHomeToken = useAppStore((s) => s.notesHomeToken)
@@ -478,6 +480,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const noteScrollRAF = useRef<number | null>(null)
   const editorFocusRef = useRef<(() => void) | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  // The title sits in the shared drag-region header bar. While it's a plain <input>, a
+  // mousedown-drag on it can't also move the window (Electron/Chromium can't treat the
+  // same element as both an app-drag-region and a text field taking its own mousedown for
+  // cursor placement). Default to a static, drag-region span showing the title; a real
+  // click (not a drag — Chromium itself resolves that distinction on a drag-region
+  // element, same as a native title bar) swaps in the actual input for editing.
+  const [titleFocused, setTitleFocused] = useState(false)
+  useEffect(() => { setTitleFocused(false) }, [activeNote?.id])
   // Track latest scroll position via scroll events (more reliable than reading DOM on unmount)
   const lastScrollTopRef = useRef(0)
   // Track latest cursor position so it can be persisted on tab switch
@@ -503,7 +513,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [activeNote?.id, activeNote?.title, notesTabId, noteRestorePending, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
+    // Shared cache (notesCache.ts) — Sidebar/ShellHeader/HistoryModal all fetch "all notes" on
+    // the same noteChangeToken bump; without sharing the fetch, a single note autosave fanned
+    // out into 5+ independent IPC round-trips each holding their own copy of the full table.
+    getAllNotes(noteChangeToken).then(setNotes).catch(() => {})
   }, [noteChangeToken])
 
   // If the currently-open note was changed externally (vault watcher wrote a
@@ -576,7 +589,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     // runs unconditionally after this render's effects have flushed, regardless of whether state
     // actually changed, so the ref reliably clears exactly one pass later either way.
     function deferClear() { setTimeout(() => { tabSwitchInFlightRef.current = false }, 0) }
-    const tab = tabs['notes'].find((t) => t.id === notesTabId)
+    const tab = tabs.find((t) => t.id === notesTabId)
     const tabState = tab?.state as NoteTabState | undefined
     if (tabState?.isNew) { setActiveNote(null); setNoteRestorePending(false); deferClear(); return } // fresh tab → show list
     const savedNoteId = tabState?.noteId ?? null
@@ -1018,14 +1031,28 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   </span>
                 )}
               </div>
+            ) : !titleFocused ? (
+              // Static span, not an <input> — Electron auto-excludes interactive elements
+              // (inputs, buttons) from the drag region regardless of an ancestor's
+              // app-drag-region, which is exactly why this needed to NOT be an input by
+              // default: a real click still enters edit mode below, but a mousedown-drag
+              // here now moves the window the same as anywhere else in the header bar.
+              <span
+                onClick={() => setTitleFocused(true)}
+                className="app-drag-region flex-1 text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))]"
+              >
+                {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
+              </span>
             ) : (
               <input
                 ref={titleInputRef}
+                autoFocus
                 value={activeNote.title ?? ''}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 onKeyDown={handleTitleKeyDown}
+                onBlur={() => setTitleFocused(false)}
                 placeholder="Untitled"
-                className="flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                className="no-drag flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
               />
             )}
             {/* Quick "look" preset for the note editor while typing — separate,
@@ -1291,6 +1318,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             <NoteEditor
               content={activeNote.content}
               noteId={activeNote.id}
+              tabId={notesTabId ?? undefined}
               onChange={handleContentChange}
               onFocusRef={(fn) => { editorFocusRef.current = fn }}
               onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
@@ -1323,6 +1351,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               content={activeNote.content}
               noteTitle={activeNote.title || 'Untitled'}
               noteId={activeNote.id}
+              tabId={notesTabId ?? undefined}
               allNotes={notes}
               onNoteClick={navigateToNote}
               folderPath={folderPathFor(activeNote, folders)}

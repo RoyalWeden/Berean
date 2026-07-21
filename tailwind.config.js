@@ -20,7 +20,9 @@ module.exports = {
         'text-muted': 'rgb(var(--color-text-muted) / <alpha-value>)'
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Native OS font stack by default — matches the 'system' UI font option in
+        // Settings, which is also the app default (App.tsx's NATIVE_FONT_STACK).
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Helvetica Neue', 'sans-serif'],
         serif: ['Georgia', 'ui-serif', 'serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace']
       },

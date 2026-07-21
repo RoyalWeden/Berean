@@ -200,6 +200,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scopeSearchRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  // Debounces the scroll-position store write below, matching BiblePanel.tsx's own scroll
+  // handler (150ms) — onScroll fires on every native scroll tick, and each write there replaces
+  // the store's whole `tabs` object (one Record spanning all 5 spaces), which every component
+  // subscribed to `s.tabs` re-renders on. Writing that on every tick while scrolling search
+  // results fanned out re-renders across ~11 unrelated components continuously.
+  const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const groupHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const resultButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
   type CtxData = Omit<CtxItem, 'x' | 'y'>
@@ -555,13 +561,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       runForMode(query)
       return
     }
-    if ((e.key === 'j' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    // ArrowDown/ArrowUp only — NOT vim-style j/k. This handler is on the live query
+    // input itself (below), not a results list, so binding plain letter keys here
+    // swallows them out of anything the user is actively typing (e.g. "dark", "jerusalem").
+    if (e.key === 'ArrowDown' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       if (visibleResults.length === 0) return
       e.preventDefault()
       setFocusedIdx((i) => Math.min(i + 1, visibleResults.length - 1))
       return
     }
-    if ((e.key === 'k' || e.key === 'ArrowUp') && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === 'ArrowUp' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
       if (visibleResults.length === 0) return
       e.preventDefault()
       setFocusedIdx((i) => { if (i <= 0) { inputRef.current?.focus(); return -1 } return i - 1 })
@@ -867,7 +876,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       <div
         ref={resultsRef}
         className="flex-1 overflow-y-auto min-w-0"
-        onScroll={(e) => onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop: (e.currentTarget as HTMLDivElement).scrollTop })}
+        onScroll={(e) => {
+          const scrollTop = (e.currentTarget as HTMLDivElement).scrollTop
+          if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+          scrollSaveTimerRef.current = setTimeout(() => {
+            onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop })
+          }, 150)
+        }}
       >
         {/* Cross-ref results */}
         {effectiveMode(query) === 'crossref' && crossRefsLoading && (

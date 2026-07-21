@@ -626,7 +626,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         <div
           ref={menuRef}
           style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
-          className="min-w-44 rounded-shell glass-panel p-1 text-xs"
+          className="min-w-44 rounded-shell context-menu p-1 text-xs"
         >
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"

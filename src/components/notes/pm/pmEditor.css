@@ -413,6 +413,13 @@
   box-sizing: border-box;
   line-height: 1.4;
 }
+/* The floating formatting toolbar (Toolbar.tsx) docks `absolute top-2` over
+   this editor rather than taking up flow space, so without this the first
+   1-2 lines of any note sat directly underneath it. Reserves just enough
+   top padding to clear the capsule (8px offset + ~34px tall + margin). */
+.berean-pm-editor.pm-has-floating-toolbar .ProseMirror {
+  padding-top: 52px;
+}
 /* Base paragraph spacing — this was previously UNSET, meaning every
    paragraph fell back to the browser's default ~1em top/bottom margin.
    That's what made general note spacing feel loose, and — combined with

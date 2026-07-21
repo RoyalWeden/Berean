@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast,
+  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
@@ -20,6 +20,7 @@ import SessionsSection from './sections/SessionsSection'
 import ImportSection from './sections/ImportSection'
 import AboutSection from './sections/AboutSection'
 import DangerSection from './sections/DangerSection'
+import ExperimentalSection from './sections/ExperimentalSection'
 
 function MarkdownRefButton({ onClose }: { onClose: () => void }) {
   const open = useAppStore((s) => s.openMarkdownReference)
@@ -187,7 +188,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'shortcuts' | 'data' | 'about' | 'viewer'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -205,6 +206,7 @@ export default function SettingsModal() {
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const setThemePreset = useAppStore((s) => s.setThemePreset)
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
@@ -432,6 +434,7 @@ export default function SettingsModal() {
     { id: 'data',       label: 'Data',       icon: Database,  keywords: ['import', 'esword', 'biblegateway', 'migrate', 'history', 'workspace', 'saved', 'reset', 'clear', 'delete', 'wipe', 'factory', 'danger'] },
     { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
     { id: 'viewer',     label: 'Viewer Window', icon: Cast,   keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
+    { id: 'experimental', label: 'Experimental', icon: FlaskConical, keywords: ['experimental', 'beta', 'pdf', 'opt-in', 'feature flag'] },
   ]
 
   // Filter nav items by settings search query
@@ -667,6 +670,63 @@ export default function SettingsModal() {
                           </button>
                         )
                       })}
+
+                      {/* "System" preset — Default's bg/text with a live macOS accent color
+                          instead of a fixed one. Not part of THEME_PRESETS since its accent
+                          is a runtime value, not a static swatch color like the others. */}
+                      {(() => {
+                        const isActive = themePreset === 'system-accent'
+                        const accent = systemAccentColor ?? THEME_PRESETS[0].dark.accent
+                        const defaultColors = theme === 'system'
+                          ? null
+                          : (previewVariant === 'dark' ? THEME_PRESETS[0].dark : THEME_PRESETS[0].light)
+                        return (
+                          <button
+                            onClick={() => setThemePreset(isActive ? '' : 'system-accent')}
+                            title="System — matches your macOS accent color"
+                            className={`
+                              rounded-lg p-1.5 border transition-all cursor-pointer text-left
+                              ${isActive
+                                ? 'border-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/60]'
+                                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))]'
+                              }
+                            `}
+                          >
+                            <div className="h-9 rounded-md overflow-hidden mb-1.5 relative">
+                              {defaultColors === null ? (
+                                <>
+                                  <div className="absolute inset-0" style={{
+                                    background: `linear-gradient(135deg, rgb(${THEME_PRESETS[0].dark.bg}) 50%, rgb(${THEME_PRESETS[0].light.bg}) 50%)`
+                                  }} />
+                                  <div className="absolute inset-y-0 left-0 w-2" style={{ background: `rgb(${accent})` }} />
+                                  <div className="absolute inset-0" style={{
+                                    background: 'linear-gradient(135deg, transparent calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% + 0.75px), transparent calc(50% + 0.75px))'
+                                  }} />
+                                </>
+                              ) : (
+                                <>
+                                  <div className="absolute inset-0" style={{ background: `rgb(${defaultColors.bg})` }} />
+                                  <div className="absolute inset-y-0 left-0 w-2" style={{ background: `rgb(${accent})` }} />
+                                  <div className="absolute inset-0 flex flex-col justify-center pl-3.5 pr-1.5 gap-1">
+                                    <div className="h-1 rounded-full" style={{ background: `rgb(${defaultColors.text})`, opacity: 0.65, width: '85%' }} />
+                                    <div className="h-1 rounded-full" style={{ background: `rgb(${defaultColors.text})`, opacity: 0.4, width: '55%' }} />
+                                  </div>
+                                </>
+                              )}
+                              {isActive && (
+                                <div className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-white/90 flex items-center justify-center">
+                                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                    <path d="M1.5 4L3 5.5L6.5 2" stroke={`rgb(${accent})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-medium leading-none ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
+                              System
+                            </span>
+                          </button>
+                        )
+                      })()}
                     </div>
                   </div>
 
@@ -1784,6 +1844,16 @@ export default function SettingsModal() {
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Updates</p>
                     <UpdatesSection />
                   </div>
+                </div>
+              )}
+
+              {section === 'experimental' && (
+                <div className="space-y-6">
+                  <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
+                    Opt-in features that are off by default — usually because of a known cost or
+                    rough edge, not because they&apos;re unfinished.
+                  </p>
+                  <ExperimentalSection />
                 </div>
               )}
             </div>

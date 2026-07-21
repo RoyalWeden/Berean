@@ -186,6 +186,11 @@ export interface AppState {
   openPdf: (pdfId: string, title: string, page?: number) => void
   clearPendingYouTubeVideo: () => void
 
+  // Experimental features — off by default; PDF library/viewer is gated behind this
+  // pending a fix for unbounded page-canvas memory growth (see ui-polish-july punch list).
+  pdfFeatureEnabled: boolean
+  setPdfFeatureEnabled: (v: boolean) => void
+
   // YouTube playback preferences
   autoPiP: boolean
   setAutoPiP: (v: boolean) => void
@@ -217,10 +222,13 @@ export interface AppState {
   sidePanelScriptureBlock: boolean
   setSidePanelScriptureBlock: (v: boolean) => void
   // Focus/Zen writing mode — hides sidebar/rail/top-bar chrome and centers the active note.
-  // A single global flag (not per-tab) since it's about the whole window's chrome, not one
-  // note's own state — toggling it while a different tab is active would be surprising.
-  noteFocusMode: boolean
-  toggleNoteFocusMode: () => void
+  // Scoped to the tab it was turned on for (noteFocusModeTabId), not a single global flag —
+  // switching to a different tab should not keep chrome hidden for tabs that never asked for
+  // it. Consumers compare `noteFocusModeTabId === theirOwnTabId` themselves (a selector
+  // returning a plain value stays reactive; a getter closure returning the same function
+  // reference every render would not re-trigger consumers on state change).
+  noteFocusModeTabId: string | null
+  toggleNoteFocusMode: (tabId: string) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -370,8 +378,13 @@ export interface AppState {
 
   // Theme — base + optional preset overlay
   theme: 'dark' | 'light' | 'system'
-  themePreset: string  // '' = default, or one of the preset class names
+  themePreset: string  // '' = default, 'system-accent', or one of the preset class names
   setThemePreset: (preset: string) => void
+  // Live macOS accent color ("r g b" string, matching the other palette fields) — runtime
+  // only, not persisted; populated from systemPreferences.getAccentColor() via IPC and kept
+  // live via the 'accent-color-changed' event. Backs the 'system-accent' theme preset.
+  systemAccentColor: string | null
+  setSystemAccentColor: (v: string | null) => void
 
   // Per-section font families
   scriptureFontFamily: string
@@ -667,6 +680,8 @@ export const useAppStore = create<AppState>()(
       theme: 'system' as const,
       themePreset: '',
       setThemePreset: (preset) => set({ themePreset: preset }),
+      systemAccentColor: null,
+      setSystemAccentColor: (v) => set({ systemAccentColor: v }),
       scriptureFontFamily: 'system',
       notesFontFamily: 'system',
       uiFontFamily: 'system',
@@ -730,8 +745,14 @@ export const useAppStore = create<AppState>()(
             last.query === newEntry.query &&
             last.parentId === newEntry.parentId
           ) return {}
-          // No in-memory cap — history is unbounded; older entries are lazy-loaded.
-          return { history: [newEntry, ...prev] }
+          // Capped in memory (full history always lives in SQLite regardless — this only
+          // bounds the in-memory copy) — a long single session with a lot of navigation grew
+          // this array without limit. Trims from the tail (oldest), including any older pages
+          // pulled in via loadMoreHistory; if the user paged deep into history and then keeps
+          // navigating past the cap, re-opening the History modal re-pages those back in.
+          const HISTORY_MEMORY_CAP = 1000
+          const next = [newEntry, ...prev]
+          return { history: next.length > HISTORY_MEMORY_CAP ? next.slice(0, HISTORY_MEMORY_CAP) : next }
         })
         // Persist to SQLite (non-blocking)
         window.appHistory?.add(newEntry).catch(() => {})
@@ -1016,6 +1037,9 @@ export const useAppStore = create<AppState>()(
       setHistoryMaxEntries: (n) => set({ historyMaxEntries: Math.max(50, Math.min(10000, n)) }),
       clearAllTabNavStacks: () => set({ tabNavStacks: {} }),
 
+      pdfFeatureEnabled: false,
+      setPdfFeatureEnabled: (v) => set({ pdfFeatureEnabled: v }),
+
       pendingYouTubeVideo: null,
       autoPiP: true,
       youtubeIsPlaying: false,
@@ -1026,7 +1050,7 @@ export const useAppStore = create<AppState>()(
       noteLexiconRefsEnabled: true,
       noteScriptureBlock: false,
       sidePanelScriptureBlock: true,
-      noteFocusMode: false,
+      noteFocusModeTabId: null,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -1728,7 +1752,7 @@ export const useAppStore = create<AppState>()(
       setNoteLexiconRefsEnabled: (v) => set({ noteLexiconRefsEnabled: v }),
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setSidePanelScriptureBlock: (v) => set({ sidePanelScriptureBlock: v }),
-      toggleNoteFocusMode: () => set((s) => ({ noteFocusMode: !s.noteFocusMode })),
+      toggleNoteFocusMode: (tabId) => set((s) => ({ noteFocusModeTabId: s.noteFocusModeTabId === tabId ? null : tabId })),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),
@@ -1920,6 +1944,7 @@ export const useAppStore = create<AppState>()(
         defaultBibleTranslation: state.defaultBibleTranslation,
         hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,
+        pdfFeatureEnabled: state.pdfFeatureEnabled,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,

@@ -232,7 +232,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
         onClick={() => setOpen((o) => !o)}
         className={segmented
           ? `
-            flex items-center gap-1 h-8 cursor-pointer transition-colors
+            flex items-center gap-1 h-7 cursor-pointer transition-colors
             ${compact ? 'px-2 text-xs' : 'px-3 text-sm'}
             ${open
               ? 'bg-[rgb(var(--color-accent))/12] text-[rgb(var(--color-accent))]'

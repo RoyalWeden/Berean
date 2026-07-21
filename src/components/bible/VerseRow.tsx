@@ -373,7 +373,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
     return () => window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onClose)
   }, [!!idiomContextMenu])
-  const expandedIdioms = expandIdiomPatterns(idiomCache)
+  // idiomCache rarely changes; recomputing this on every render (highlight, selection,
+  // hover state, etc. all re-render this row) was pure waste for every visible verse.
+  // Also skip entirely when the feature is off — no reason to pay for it unused.
+  const expandedIdioms = useMemo(
+    () => (idiomHighlightEnabled ? expandIdiomPatterns(idiomCache) : []),
+    [idiomCache, idiomHighlightEnabled],
+  )
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText

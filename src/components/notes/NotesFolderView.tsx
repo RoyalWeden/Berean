@@ -155,15 +155,17 @@ export default function NotesFolderView({
   // Track what's being dragged so we can show "→ FolderName" on the note row
   const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null)
   const draggingNoteRef = useRef<Note | null>(null)
-  // Imported PDFs (locked folder)
+  // Imported PDFs (locked folder) — feature is off by default (Settings → Experimental)
+  const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const [pdfs, setPdfs] = useState<PdfDoc[]>([])
   const openPdf = useAppStore((s) => s.openPdf)
   useEffect(() => {
+    if (!pdfFeatureEnabled) return
     window.pdf?.list?.().then(setPdfs).catch(() => {})
     function onChange() { window.pdf?.list?.().then(setPdfs).catch(() => {}) }
     window.addEventListener('berean:pdfsChanged', onChange)
     return () => window.removeEventListener('berean:pdfsChanged', onChange)
-  }, [])
+  }, [pdfFeatureEnabled])
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -266,7 +268,10 @@ export default function NotesFolderView({
   // Notes without a parseable verseRef go into withoutRef and render flat above the book groups.
   const systemSubGroups = useMemo(() => {
     const keys: SystemKey[] = ['verse', 'esword', 'biblegateway']
-    const result = {} as Record<SystemKey, { withoutRef: Note[]; byBook: Map<string, Map<number, Note[]>> }>
+    const result = {} as Record<SystemKey, {
+      withoutRef: Note[]
+      sortedBooks: [string, [number, Note[]][]][]
+    }>
     for (const key of keys) {
       const withoutRef: Note[] = []
       const byBook = new Map<string, Map<number, Note[]>>()
@@ -283,7 +288,12 @@ export default function NotesFolderView({
           withoutRef.push(n)
         }
       }
-      result[key] = { withoutRef, byBook }
+      // Sort once here (book order, then chapter number) instead of on every
+      // renderSystemContent() call — this Map only changes when `bySystem` does.
+      const sortedBooks: [string, [number, Note[]][]][] = [...byBook.entries()]
+        .sort(([aId], [bId]) => bookOrder(aId) - bookOrder(bId))
+        .map(([bid, chapters]) => [bid, [...chapters.entries()].sort(([a], [b]) => a - b)])
+      result[key] = { withoutRef, sortedBooks }
     }
     return result
   }, [bySystem])
@@ -310,7 +320,20 @@ export default function NotesFolderView({
       if (!months.has(monthKey)) months.set(monthKey, [])
       months.get(monthKey)!.push(n)
     }
-    return { withoutDate, byYear }
+    // Sort once here (newest year/month/note first) instead of on every
+    // renderDailyContent() call — this Map only changes when `bySystem` does.
+    const sortedYears: [string, [string, Note[]][]][] = [...byYear.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([year, months]) => [
+        year,
+        [...months.entries()]
+          .sort(([a], [b]) => b.localeCompare(a))
+          .map(([monthKey, mNotes]) => [
+            monthKey,
+            [...mNotes].sort((a, b) => (b.title ?? '').localeCompare(a.title ?? '') || (b.createdAt ?? 0) - (a.createdAt ?? 0)),
+          ] as [string, Note[]]),
+      ])
+    return { withoutDate, sortedYears }
   }, [bySystem])
 
   // Grouped once per `folders` change instead of re-filtering the full array on
@@ -483,7 +506,7 @@ export default function NotesFolderView({
               <FolderInput size={11} />
             </button>
             {isMoveMenuOpen && (
-              <div className="glass-panel absolute right-0 top-full mt-0.5 z-50 min-w-[150px] max-h-48 overflow-y-auto rounded-shell-lg py-1">
+              <div className="context-menu absolute right-0 top-full mt-0.5 z-50 min-w-[150px] max-h-48 overflow-y-auto rounded-shell-lg py-1">
                 {note.folderId != null && (
                   <button
                     className={MENU_ITEM}
@@ -634,16 +657,14 @@ export default function NotesFolderView({
   // Render the body of a system folder that uses book/chapter virtual sub-folders.
   // Virtual folder IDs: "sys:{key}:{bookId}" and "sys:{key}:{bookId}:{chapter}"
   const renderSystemContent = (key: SystemKey) => {
-    const { withoutRef, byBook } = systemSubGroups[key]
-    const sortedBooks = [...byBook.entries()].sort(([aId], [bId]) => bookOrder(aId) - bookOrder(bId))
+    const { withoutRef, sortedBooks } = systemSubGroups[key]
     return (
       <>
         {withoutRef.map((n) => renderNote(n, 1))}
-        {sortedBooks.map(([bid, chapters]) => {
+        {sortedBooks.map(([bid, sortedChapters]) => {
           const bookFolderId = `sys:${key}:${bid}`
           const bookIsOpen = expanded.has(bookFolderId)
-          const totalNotes = [...chapters.values()].reduce((sum, ns) => sum + ns.length, 0)
-          const sortedChapters = [...chapters.entries()].sort(([a], [b]) => a - b)
+          const totalNotes = sortedChapters.reduce((sum, [, ns]) => sum + ns.length, 0)
           return (
             <div key={bookFolderId}>
               {/* Book virtual folder — depth=1, paddingLeft=8+1*16=24 */}
@@ -692,16 +713,14 @@ export default function NotesFolderView({
   // Render the Daily Notes body as Year → Month virtual subfolders (newest first).
   // Virtual folder IDs: "sys:daily:{year}" and "sys:daily:{year}-{month}".
   const renderDailyContent = () => {
-    const { withoutDate, byYear } = dailySubGroups
-    const sortedYears = [...byYear.entries()].sort(([a], [b]) => b.localeCompare(a)) // newest year first
+    const { withoutDate, sortedYears } = dailySubGroups
     return (
       <>
         {withoutDate.map((n) => renderNote(n, 1))}
-        {sortedYears.map(([year, months]) => {
+        {sortedYears.map(([year, sortedMonths]) => {
           const yearFolderId = `sys:daily:${year}`
           const yearIsOpen = expanded.has(yearFolderId)
-          const totalNotes = [...months.values()].reduce((sum, ns) => sum + ns.length, 0)
-          const sortedMonths = [...months.entries()].sort(([a], [b]) => b.localeCompare(a)) // newest month first
+          const totalNotes = sortedMonths.reduce((sum, [, ns]) => sum + ns.length, 0)
           return (
             <div key={yearFolderId}>
               {/* Year virtual folder — depth=1 */}
@@ -737,10 +756,8 @@ export default function NotesFolderView({
                       <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{mNotes.length || ''}</span>
                     </div>
-                    {/* Notes inside month — depth=3, newest first */}
-                    {monthIsOpen && [...mNotes]
-                      .sort((a, b) => (b.title ?? '').localeCompare(a.title ?? '') || (b.createdAt ?? 0) - (a.createdAt ?? 0))
-                      .map((n) => renderNote(n, 3))}
+                    {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
+                    {monthIsOpen && mNotes.map((n) => renderNote(n, 3))}
                   </div>
                 )
               })}
@@ -798,7 +815,8 @@ export default function NotesFolderView({
         )
       })}
 
-      {/* PDFs (locked) — imported PDF documents */}
+      {/* PDFs (locked) — imported PDF documents; hidden unless the experimental feature is on */}
+      {pdfFeatureEnabled && (
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <div
           onClick={() => toggle('pdfs')}
@@ -824,6 +842,7 @@ export default function NotesFolderView({
               ))
         )}
       </div>
+      )}
 
       {/* Divider */}
       <div className="my-1 h-px bg-[rgb(var(--color-surface-4))] mx-2" />
@@ -858,7 +877,7 @@ export default function NotesFolderView({
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
         <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
-          className="glass-panel min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
+          className="context-menu min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
@@ -896,7 +915,7 @@ export default function NotesFolderView({
       {/* Folder context menu */}
       {folderMenu && createPortal(
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
-          className="glass-panel min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
+          className="context-menu min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
         >
               {onCreateNoteInFolder && (
                 <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>

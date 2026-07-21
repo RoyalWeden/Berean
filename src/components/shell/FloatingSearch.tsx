@@ -145,10 +145,10 @@ export default function FloatingSearch() {
   const searchScope = useAppStore((s) => s.searchScope)
   const versesOnly = searchScope === 'verses'
   const closeSearch = useAppStore((s) => s.closeSearch)
-  const tabs = useAppStore((s) => s.tabs)
+  // Narrowed to the one space this reads — see BiblePanel.tsx's identical comment for why.
+  const tabs = useAppStore((s) => s.tabs.scripture)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
-  const activeTabId = useAppStore((s) => s.activeTabId)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const createTab = useAppStore((s) => s.createTab)
@@ -468,10 +468,10 @@ export default function FloatingSearch() {
     // no current tab should still open the verse, not do nothing.
     const targetTab = searchMode === 'current'
       ? (() => {
-          const activeId = activeTabId['scripture']
+          const activeId = useAppStore.getState().activeTabId.scripture
           return activeId
-            ? tabs['scripture'].find((t) => t.id === activeId)
-            : tabs['scripture'].find((t) => t.type === 'bible')
+            ? tabs.find((t) => t.id === activeId)
+            : tabs.find((t) => t.type === 'bible')
         })()
       : undefined
 

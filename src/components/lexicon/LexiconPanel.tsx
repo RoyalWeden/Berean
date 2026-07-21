@@ -881,8 +881,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   const clearLexiconEntry = useAppStore((s) => s.clearLexiconEntry)
   const pendingLexiconSearchTab = useAppStore((s) => s.pendingLexiconSearchTab)
   const clearLexiconSearchTab = useAppStore((s) => s.clearLexiconSearchTab)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const tabs = useAppStore((s) => s.tabs)
+  const activeTabId = useAppStore((s) => s.activeTabId.lexicon)
+  // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
+  const tabs = useAppStore((s) => s.tabs.lexicon)
   const renameTab = useAppStore((s) => s.renameTab)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const createTab = useAppStore((s) => s.createTab)
@@ -1034,7 +1035,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     setFindMatchIdx((prev) => (prev + 1) % findMatchCount)
   }
 
-  const lexiconTabId = activeTabId['lexicon']
+  const lexiconTabId = activeTabId
   const entryScrollRef = useRef<HTMLDivElement>(null)
   const lexScrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // LexiconPanel is a single shared instance reused across every Lexicon tab (PanelLayout.tsx
@@ -1076,7 +1077,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     // effect below. setTimeout(0) runs unconditionally after this render's effects have flushed,
     // regardless of whether state actually changed, so the ref reliably clears one pass later either way.
     function deferClear() { setTimeout(() => { tabSwitchInFlightRef.current = false }, 0) }
-    const tab = tabs['lexicon'].find((t) => t.id === lexiconTabId)
+    const tab = tabs.find((t) => t.id === lexiconTabId)
     const state = tab?.state as {
       strongsNum?: string | null
       scrollTop?: number

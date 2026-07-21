@@ -243,7 +243,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const pendingYouTubeSearch = useAppStore((s) => s.pendingYouTubeSearch)
   const clearYouTubeSearch = useAppStore((s) => s.clearYouTubeSearch)
-  const tabs = useAppStore((s) => s.tabs)
+  // Was `const tabs = useAppStore((s) => s.tabs)` — subscribed to the whole `tabs` record (all
+  // 5 spaces, re-rendering this component on any tab-state write anywhere in the app) but the
+  // value was never actually read anywhere in this file; every real read below goes through
+  // `useAppStore.getState().tabs[...]` snapshots instead. Removed rather than narrowed.
 
   // ─── YouTube layout state ────────────────────────────────────────────────────
   // Read initial layout from persisted tab state; fallback to 'video-full'
@@ -1095,9 +1098,14 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // Poll live playback time (~400ms) while a transcript is loaded, to drive the synced
   // highlight. Reads window.__yt.t (embed wrapper) or video.currentTime (watch fallback).
+  // Only while the transcript UI is actually visible (activeSpace) or the video is in PiP —
+  // this panel stays mounted (and the webview keeps running) even after switching to Bible/
+  // Notes/Lexicon, so without this gate the poll kept firing into the hidden webview forever
+  // as long as a transcript was loaded, regardless of whether anyone could see the highlight.
   useEffect(() => {
     if (timePollRef.current) { clearInterval(timePollRef.current); timePollRef.current = null }
     if (!activeVideoId || !playerReady || activeTranscript.length === 0) return
+    if (activeSpace !== 'youtube' && !isPiPActive) return
     const wv = webviewRef.current
     if (!wv) return
     timePollRef.current = setInterval(async () => {
@@ -1111,7 +1119,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       } catch { /* ignore */ }
     }, 400)
     return () => { if (timePollRef.current) { clearInterval(timePollRef.current); timePollRef.current = null } }
-  }, [activeVideoId, playerReady, watchFallback, activeTranscript.length])
+  }, [activeVideoId, playerReady, watchFallback, activeTranscript.length, activeSpace, isPiPActive])
 
   // Seek the player to a given time (seconds) and resume playback.
   const seekTo = useCallback((seconds: number) => {
@@ -1150,6 +1158,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // detection for the second play-through — without requiring the "Watch again" button.
   useEffect(() => {
     if (!activeVideoId || !playerReady) return
+    // Same reasoning as the transcript-time poll above — only keep polling while the video is
+    // actually visible (active space) or tracked via PiP; auto-PiP already engages whenever a
+    // playing video is backgrounded (see the berean:togglePiP effect), so a video that's
+    // neither visible nor in PiP is paused/idle and doesn't need position tracked every 2s —
+    // the explicit saveCurrentPosition callback (on back/close/unmount) still covers that case.
+    if (activeSpace !== 'youtube' && !isPiPActive) return
     const video = videos.find((v) => v.videoId === activeVideoId)
     // Watch fallback: pull paused + duration so we can detect near-end-while-paused
     const js = watchFallback
@@ -1191,7 +1205,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       } catch { /* ignore */ }
     }, 2000)
     return () => { if (positionPollRef.current) clearInterval(positionPollRef.current) }
-  }, [activeVideoId, playerReady, videos, watchFallback, videoEnded, setYoutubeIsPlaying])
+  }, [activeVideoId, playerReady, videos, watchFallback, videoEnded, setYoutubeIsPlaying, activeSpace, isPiPActive])
 
 
   // ─── Data loading ────────────────────────────────────────────────────────────
@@ -1957,6 +1971,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     <div className="flex-1 min-h-0 overflow-hidden">
                       <NoteEditor
                         content={inlinePanelContent}
+                        tabId={ytTabId ?? undefined}
                         onChange={handleInlinePanelContentChange}
                         mode={inlinePanelEditing ? 'edit' : 'view'}
                         onCommandsRef={(cmds) => { inlinePanelCommandsRef.current = cmds }}

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, session, dialog, shell, nativeImage, Menu, nativeTheme, screen, systemPreferences } from 'electron'
 import type Electron from 'electron'
 import { join } from 'path'
 import { mkdirSync, openSync, writeSync } from 'fs'
@@ -18,6 +18,27 @@ const EARLY_LOG = join(EARLY_LOG_DIR, 'berean-startup.log')
 // open()+write()+close() every call, so a persistent fd + writeSync keeps the exact
 // same synchronous durability while dropping the redundant open/close syscalls from
 // each of the ~20 boot breadcrumbs.
+// systemPreferences.getAccentColor() is macOS/Windows-only and can throw on other
+// platforms or when no accent color is available — treat any failure as "unknown".
+function safeGetAccentColor(): string | null {
+  try {
+    return systemPreferences.getAccentColor?.() ?? null
+  } catch {
+    return null
+  }
+}
+
+// Electron returns accent color as hex ("rrggbb" or "rrggbbaa") — convert to the "r g b"
+// decimal-triple string the rest of the app's palette (--color-accent etc.) uses.
+function hexToRgbTriple(hex: string | null): string | null {
+  if (!hex || hex.length < 6) return null
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  if ([r, g, b].some((n) => Number.isNaN(n))) return null
+  return `${r} ${g} ${b}`
+}
+
 let earlyLogFd: number | null = null
 function earlyLog(msg: string) {
   try {
@@ -899,6 +920,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:isMasBuild', () => isMasBuild)
+  // Live macOS accent color, for the "System" theme preset — converts Electron's hex
+  // ("rrggbb[aa]") into the "r g b" decimal-triple string the rest of the palette uses.
+  ipcMain.handle('app:getAccentColor', () => hexToRgbTriple(safeGetAccentColor()))
   ipcMain.handle('app:checkForUpdates', async () => {
     if (isMasBuild) {
       sendUpdateStatus('mas')   // renderer shows "updates via App Store"
@@ -1003,6 +1027,15 @@ app.whenReady().then(async () => {
     const isDark = nativeTheme.shouldUseDarkColors
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed()) win.webContents.send('app:nativeThemeChanged', isDark)
+    })
+  })
+
+  // Same pattern for the live macOS accent color (System theme preset).
+  // systemPreferences.on is only available on macOS/Windows; guard for other platforms.
+  systemPreferences.on?.('accent-color-changed', () => {
+    const rgb = hexToRgbTriple(safeGetAccentColor())
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('app:accentColorChanged', rgb)
     })
   })
 

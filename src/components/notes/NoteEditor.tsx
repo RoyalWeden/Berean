@@ -3055,15 +3055,20 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
   const backlinkRef       = useRef<HTMLDivElement>(null)
   const wikiHoverRef      = useRef<HTMLDivElement>(null)
 
-  // Clamp each popup immediately after it first renders (before paint).
-  useLayoutEffect(() => { clampEl(strongsSuggestRef.current) })  // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { clampEl(verseSuggestRef.current) })    // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { clampEl(backlinkRef.current) })        // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { clampEl(wikiHoverRef.current) })       // eslint-disable-line react-hooks/exhaustive-deps
+  // Clamp each popup immediately after it first renders (before paint). Deps tied to each
+  // popup's own state (not dep-less/every-render) — clampEl forces a synchronous layout via
+  // getBoundingClientRect(), and NoteEditor re-renders on every keystroke while typing; running
+  // that unconditionally on every render meant a layout thrash on each keystroke any time one
+  // of these popups happened to be open, even though the popup's own position only actually
+  // needs re-clamping when ITS state (which also drives its on-screen x/y) changes.
+  useLayoutEffect(() => { clampEl(strongsSuggestRef.current) }, [strongsSuggest])
+  useLayoutEffect(() => { clampEl(verseSuggestRef.current) }, [verseSuggest])
+  useLayoutEffect(() => { clampEl(backlinkRef.current) }, [backlinkInfo])
+  useLayoutEffect(() => { clampEl(wikiHoverRef.current) }, [wikiHover])
 
   // Dismiss selection toolbar on mousedown outside the editor + toolbar
   const selToolbarRef = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => { clampEl(selToolbarRef.current) })      // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { clampEl(selToolbarRef.current) }, [selToolbar])
   useEffect(() => {
     if (!selToolbar) return
     function onDown(e: MouseEvent) {

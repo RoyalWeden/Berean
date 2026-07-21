@@ -12,6 +12,7 @@ import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import HeaderOverflowMenu from '@/components/shell/HeaderOverflowMenu'
+import ActionPillGroup from '@/components/shell/ActionPillGroup'
 import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
@@ -37,8 +38,14 @@ function normalizeBookName(name: string): string {
 }
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
-  const tabs = useAppStore((s) => s.tabs)
-  const activeTabId = useAppStore((s) => s.activeTabId)
+  // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
+  // meant a tab-state write in ANY space (scroll position, panel resize, YouTube layout, etc.)
+  // re-rendered this component too, since the store replaces the whole record's reference on
+  // every per-space write. `tabs.scripture`'s own reference only changes when scripture's own
+  // array actually changes, so this only re-renders on writes that are actually relevant here.
+  const tabs = useAppStore((s) => s.tabs.scripture)
+  const activeTabId = useAppStore((s) => s.activeTabId.scripture)
+  const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const pendingRightPanelNoteId = useAppStore((s) => s.pendingRightPanelNoteId)
@@ -154,7 +161,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const pendingComparePanelRef = useRef<{ bookId: string; chapter: number; textId?: string } | null>(null)
 
 
-  const activeTab = tabs['scripture'].find((t) => t.id === activeTabId['scripture'])
+  const activeTab = tabs.find((t) => t.id === activeTabId)
   const tabState = (activeTab?.state ?? {
     bookId: 'GEN', chapter: 1, translation: 'KJVA', showStrongs: false, scrollPosition: 0
   }) as BibleTabState
@@ -259,7 +266,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (savedPos === 0) return
     // Store it — will be applied by onVersesLoaded once ChapterView data arrives
     pendingScrollRef.current = savedPos
-  }, [activeSpace, activeTabId['scripture'], tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSpace, activeTabId, tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Continuous Chapter Scroll's own equivalent of the effect above, deliberately NOT keyed
   // on tabState.chapter: ContinuousChapterScroll calls onChapterChange (updating
@@ -277,7 +284,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (savedPos === 0) return
     pendingScrollRef.current = savedPos
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSpace, activeTabId['scripture'], continuousChapterScroll])
+  }, [activeSpace, activeTabId, continuousChapterScroll])
 
   // Cancel any pending debounced scroll save when the tab changes.
   // The actual save now happens via berean:saveScrollBeforeTabChange (fired synchronously
@@ -289,7 +296,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         scrollSaveTimerRef.current = null
       }
     }
-  }, [activeTabId['scripture']]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTabId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Presenter visible-region outline ─────────────────────────────────────────
   // Subscribe to the presenter's visible fraction (changes only on its load/zoom/resize).
@@ -1298,9 +1305,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {/* Prev chapter / book+chapter+edition picker / next chapter — one
                 segmented pill (shared border, divider lines between segments,
                 hover highlights only the segment under the cursor) instead of
-                three separate floating buttons. */}
-            <div className="flex items-stretch rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden divide-x divide-[rgb(var(--color-surface-4))] flex-shrink-0">
-              <button onClick={prevChapter} title="Previous chapter" className="flex items-center justify-center w-8 h-8 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+                three separate floating buttons. Shared ActionPillGroup — this
+                pill and SidebarTopBar's nav pill independently invented the
+                same grouped-button treatment with different radii/dividers
+                before being unified onto one primitive. */}
+            <ActionPillGroup align="stretch">
+              <button onClick={prevChapter} title="Previous chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
                 <ChevronLeft size={17} />
               </button>
               {/* ── Unified book / chapter / edition / translation picker ──
@@ -1315,13 +1325,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 editions={EDITIONS}
                 currentTextId={textId}
                 onSelectTranslation={selectPickerTranslation}
-                onOpenPdfLibrary={!floating ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
+                onOpenPdfLibrary={!floating && pdfFeatureEnabled ? (r) => setPdfPicker({ x: r.left, y: r.bottom + 4 }) : undefined}
                 segmented
               />
-              <button onClick={nextChapter} title="Next chapter" className="flex items-center justify-center w-8 h-8 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
+              <button onClick={nextChapter} title="Next chapter" className="flex items-center justify-center w-7 h-7 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
                 <ChevronRight size={17} />
               </button>
-            </div>
+            </ActionPillGroup>
             {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
                 column will open here", distinct from the solid picker pill. */}
             <BookChapterPicker

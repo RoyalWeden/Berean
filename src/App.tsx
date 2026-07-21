@@ -9,7 +9,7 @@ import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import Sidebar from '@/components/shell/Sidebar'
 import Ribbon from '@/components/shell/Ribbon'
 import ActivePanel from '@/components/shell/ActivePanel'
-import TopBar from '@/components/shell/TopBar'
+import ShellHeader from '@/components/shell/ShellHeader'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
@@ -39,7 +39,7 @@ function LazyOnce({ when, children }: { when: boolean; children: ReactNode }) {
 }
 
 export default function App() {
-  // DOM node for the top bar's portal slot — set once TopBar mounts, consumed
+  // DOM node for the top bar's portal slot — set once ShellHeader mounts, consumed
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
   const theme = useAppStore((s) => s.theme)
@@ -58,7 +58,7 @@ export default function App() {
   const openSearch = useAppStore((s) => s.openSearch)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const noteFocusMode = useAppStore((s) => s.noteFocusMode)
+  const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const createTab = useAppStore((s) => s.createTab)
   const ensureTab = useAppStore((s) => s.ensureTab)
@@ -77,6 +77,10 @@ export default function App() {
   const storeTabs = useAppStore((s) => s.tabs)
   const activeSpace = useAppStore((s) => s.activeSpace)
   const activeTabId = useAppStore((s) => s.activeTabId)
+  // Focus mode only hides chrome while the tab it was turned on for is the one actually
+  // showing — switching to a different tab (even a different space) drops it immediately
+  // rather than leaving the sidebar/top-bar hidden for tabs that never asked for that.
+  const noteFocusMode = noteFocusModeTabId !== null && noteFocusModeTabId === activeTabId[activeSpace]
   const autoCloseTabsAfter = useAppStore((s) => s.autoCloseTabsAfter)
   const createSession = useAppStore((s) => s.createSession)
   const setBgImportProgress = useAppStore((s) => s.setBgImportProgress)
@@ -413,6 +417,14 @@ export default function App() {
     }
   }, [])
 
+  // Live macOS accent color — backs the "System" theme preset. Fetched once on mount,
+  // then kept live via IPC (System Preferences accent color can change while running).
+  const setSystemAccentColor = useAppStore((s) => s.setSystemAccentColor)
+  useEffect(() => {
+    window.app?.getAccentColor?.().then((rgb) => setSystemAccentColor(rgb)).catch(() => {})
+    window.app?.onAccentColorChanged?.((rgb) => setSystemAccentColor(rgb))
+  }, [setSystemAccentColor])
+
   // Sync theme class on <html>; 'system' follows the OS preference
   useEffect(() => {
     const html = document.documentElement
@@ -436,7 +448,7 @@ export default function App() {
       'theme-royal','theme-ember','theme-ocean','theme-slate','theme-terminal',
     ])
 
-    if (themePreset) {
+    if (themePreset && themePreset !== 'system-accent') {
       // Extract the base preset ID (strip any -dark / -light suffix)
       const baseId = themePreset.replace(/-(?:dark|light)$/, '')
 
@@ -460,6 +472,8 @@ export default function App() {
         applyPreset(theme === 'dark')
       }
     } else {
+      // 'system-accent' behaves like Default (no .theme-* class) for bg/text — only the
+      // accent channel is overridden, further down, from the live macOS accent color.
       const applyTheme = (isDark: boolean) => {
         html.classList.toggle('dark', isDark)
         html.classList.toggle('light', !isDark)
@@ -468,10 +482,26 @@ export default function App() {
     }
   }, [theme, themePreset, systemIsDark])
 
+  // 'system-accent' preset: override just --color-accent with the live macOS accent
+  // color; clear the override the moment a different preset (or Default) is selected.
+  const systemAccentColor = useAppStore((s) => s.systemAccentColor)
+  useEffect(() => {
+    const html = document.documentElement
+    if (themePreset === 'system-accent' && systemAccentColor) {
+      html.style.setProperty('--color-accent', systemAccentColor)
+    } else {
+      html.style.removeProperty('--color-accent')
+    }
+  }, [themePreset, systemAccentColor])
+
   // Sync per-section font families
   useEffect(() => {
+    // The real OS UI font, not a web font — 'system' previously silently mapped to Inter
+    // for the UI font specifically (this constant), while scripture/notes used 'inherit'
+    // for the same choice. Both now resolve to the same native stack.
+    const NATIVE_FONT_STACK = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
     const fontMap: Record<string, string> = {
-      system:     'inherit',
+      system:     NATIVE_FONT_STACK,
       serif:      'Georgia, "Times New Roman", Times, serif',
       sansserif:  'Inter, ui-sans-serif, system-ui, sans-serif',
       mono:       '"JetBrains Mono", "Fira Code", "Menlo", monospace',
@@ -487,7 +517,7 @@ export default function App() {
     document.documentElement.style.setProperty('--font-notes', fontMap[notesFontFamily] ?? 'inherit')
     // UI font — applied to body so all chrome (sidebar, settings, tabs) inherits it;
     // scripture and notes sections override it with their own vars.
-    const uiFont = uiFontFamily === 'system' ? 'Inter, ui-sans-serif, system-ui, sans-serif' : (fontMap[uiFontFamily] ?? 'inherit')
+    const uiFont = uiFontFamily === 'system' ? NATIVE_FONT_STACK : (fontMap[uiFontFamily] ?? 'inherit')
     document.body.style.fontFamily = uiFont
   }, [scriptureFontFamily, notesFontFamily, uiFontFamily])
 
@@ -794,7 +824,11 @@ export default function App() {
         // (BibleRightPanel's quick note view, etc) — this shortcut is the only
         // way to reach Focus mode from those contexts.
         e.preventDefault()
-        useAppStore.getState().toggleNoteFocusMode()
+        {
+          const s = useAppStore.getState()
+          const tabId = s.activeTabId[s.activeSpace]
+          if (tabId) s.toggleNoteFocusMode(tabId)
+        }
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'd') {
         // ── Cmd+Shift+D → open today's daily note from anywhere ──────────
         e.preventDefault()
@@ -882,63 +916,59 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
       <TopBarSlotContext.Provider value={topBarSlot}>
-        {/* Focus mode hides the rail/sidebar chrome and centers the active panel at a
-            constrained reading width — ActivePanel itself is never unmounted (a note tab
-            shouldn't lose scroll/cursor state just from toggling this), only the surrounding
-            chrome and the extra horizontal space are removed. TopBar stays MOUNTED even in
-            Focus mode (an earlier version unmounted it entirely, which silently dropped the
-            note's title/header controls that portal INTO its slot, TabHeaderPortal.tsx) —
-            only its visibility is toggled, so the portal target never disappears. Per the
-            user's explicit request, TopBar does NOT reveal on hover-near-top in Focus mode
-            (only the floating formatting toolbar should show) — window min/max/close
-            controls that would otherwise only live in TopBar are rendered inside the
-            Toolbar capsule itself in Focus mode instead (Toolbar.tsx), so they're still
-            reachable without ever bringing TopBar back. */}
+        {/* ShellHeader spans the FULL window width — it folds what used to be two separate
+            bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
+            into one continuous bar, so there's no seam where they used to meet. Focus mode
+            hides it the same way the old TopBar was hidden: stays MOUNTED (an earlier version
+            unmounted it entirely, which silently dropped the note title/header controls that
+            portal INTO its slot, TabHeaderPortal.tsx) with only opacity/pointer-events/drag-
+            region toggled, so the portal target never disappears and drag hit-testing doesn't
+            leak through hidden chrome (Electron's OS-level drag hit-testing ignores CSS
+            visibility — see ShellHeader.tsx's own noteFocusMode handling). */}
         <div
           className={noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''}
         >
-          <TopBar slotRef={setTopBarSlot} />
+          <ShellHeader slotRef={setTopBarSlot} />
         </div>
         <div className="flex flex-1 overflow-hidden">
           {/* Ribbon/Sidebar collapse (width → 0) and fade instead of an instant mount/
               unmount, and the content column's own width change (full ↔ max-w-3xl) is
               handled via `layout` on the motion.main/motion.div below — framer-motion
               animates both with the same FLIP-based transition so entering/exiting
-              Focus mode reads as one smooth reflow rather than a jump cut. */}
+              Focus mode reads as one smooth reflow rather than a jump cut. Ribbon and
+              Sidebar share ONE AnimatePresence/motion.div (not two independent ones) so
+              there's structurally a single animated box revealing/hiding both together —
+              they can't drift apart mid-transition because they're the same DOM subtree,
+              not two parallel boxes racing on separately-scheduled instances. (A `layout` +
+              LayoutGroup approach was tried first to sync two separate wrappers, but
+              `layout` measures a box's size independently of the width already being driven
+              by animate/exit, risking the two fighting instead of cooperating — merging the
+              wrappers avoids that class of bug entirely instead of trying to synchronize
+              around it.) Sidebar's own separate manual-collapse spring (Sidebar.tsx's
+              internal motion.div, `sidebarCollapsed` width 224→0) is untouched by this —
+              it's nested inside here and animates independently, same as before. */}
           <AnimatePresence initial={false}>
             {!noteFocusMode && (
               <motion.div
-                key="ribbon"
+                key="rail-and-sidebar"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 'auto', opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.22, ease: 'easeInOut' }}
+                className="flex"
                 style={{ overflow: 'hidden' }}
               >
                 <Ribbon />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <AnimatePresence initial={false}>
-            {!noteFocusMode && (
-              <motion.div
-                key="sidebar"
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}
-              >
                 <Sidebar />
               </motion.div>
             )}
           </AnimatePresence>
-          {/* Plain CSS transition (not framer's `layout`/FLIP) for the content column's
-              own width change — ActivePanel hosts CodeMirror/ProseMirror/react-mosaic,
-              which don't expect to be momentarily transform-scaled the way a FLIP
-              animation would render them mid-transition. An inline `maxWidth` between
-              two real lengths (`100%` ↔ `48rem`, never the keyword `none`, which CSS
-              can't interpolate from) animates smoothly as a genuine reflow instead. */}
+          {/* Plain CSS transition (not framer's `layout`/FLIP) for the content column's own
+              width change — ActivePanel hosts CodeMirror/ProseMirror/react-mosaic, which
+              don't expect to be momentarily transform-scaled the way a FLIP animation would
+              render them mid-transition. An inline `maxWidth` between two real lengths
+              (`100%` ↔ `48rem`, never the keyword `none`, which CSS can't interpolate from)
+              animates smoothly as a genuine reflow instead. */}
           <main className={`flex-1 overflow-hidden bg-[rgb(var(--color-surface-3))] ${noteFocusMode ? 'flex justify-center' : ''}`}>
             <div
               className="w-full h-full transition-[max-width] duration-200 ease-in-out"

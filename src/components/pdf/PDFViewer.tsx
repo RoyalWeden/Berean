@@ -34,12 +34,13 @@ interface Bookmark { page: number; label: string; createdAt: number }
 interface RawOutlineNode { title: string; dest: string | unknown[] | null; items?: RawOutlineNode[] }
 
 export default function PDFViewer({ floating = false }: { floating?: boolean }) {
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const tabs = useAppStore((s) => s.tabs)
+  const activeTabId = useAppStore((s) => s.activeTabId.scripture)
+  // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
+  const tabs = useAppStore((s) => s.tabs.scripture)
   const updateTabState = useAppStore((s) => s.updateTabState)
 
-  const tabId = activeTabId['scripture']
-  const tab = tabs['scripture'].find((t) => t.id === tabId)
+  const tabId = activeTabId
+  const tab = tabs.find((t) => t.id === tabId)
   const tabState = tab?.state as PdfTabState | undefined
   const pdfId = tabState?.pdfId ?? null
   const title = tabState?.title ?? 'PDF'

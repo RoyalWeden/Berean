@@ -47,6 +47,9 @@ import './pmEditor.css'
 export interface NoteEditorPMProps {
   content: string
   noteId?: string
+  // The tab this editor instance belongs to — scopes Focus mode (Toolbar.tsx) to just this
+  // tab, so toggling it on doesn't leave chrome hidden after switching to a different tab.
+  tabId?: string
   onChange: (content: string) => void
   placeholder?: string
   onFocusRef?: (focusFn: () => void) => void
@@ -81,6 +84,7 @@ export interface NoteEditorPMProps {
 export default function NoteEditorPM({
   content,
   noteId,
+  tabId,
   onChange,
   placeholder,
   onFocusRef,
@@ -542,11 +546,11 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} />}
+      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} />}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
         <div className="flex-shrink-0 border-t border-[rgb(var(--color-surface-4))] select-none">

@@ -6,6 +6,25 @@ export function toDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+/** Resolve the existing daily/journal note for a given date, if any — same title-parsing
+ *  logic CalendarGrid uses to populate its note-dot indicators, exposed so callers (e.g. a
+ *  right-click "Delete note" action) can look up the actual Note without re-deriving it. */
+export function findDailyNote(notes: Note[], date: Date): Note | undefined {
+  const key = toDateKey(date)
+  return notes.find(n => {
+    const isDaily = n.type === 'daily' || n.type === 'journal' ||
+      (n.type === 'general' && !!(n.title?.startsWith('Daily — ') || n.title?.startsWith('Journal — ')))
+    if (!isDaily) return false
+    const raw = n.title ?? ''
+    const dateStr = raw.replace(/^(Daily|Journal) — /, '')
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr === key
+    try {
+      const d = new Date(dateStr)
+      return !isNaN(d.getTime()) && toDateKey(d) === key
+    } catch { return false }
+  })
+}
+
 interface CalendarGridProps {
   date: Date
   notes: Note[]
@@ -15,6 +34,10 @@ interface CalendarGridProps {
   compact?: boolean
   /** Date to highlight distinctly from "today" — e.g. the currently active daily note. */
   selectedDate?: Date | null
+  /** Right-click a day cell — caller owns the actual menu (open/open-in-new-tab/
+   *  open-floating/delete), since those actions need note-opening plumbing this
+   *  presentational grid doesn't have. */
+  onContextMenu?: (date: Date, x: number, y: number) => void
 }
 
 /**
@@ -25,7 +48,7 @@ interface CalendarGridProps {
  * section) or wrapped in a floating popover (CalendarWidget below,
  * NotesPanel's header calendar button) without duplicating the date math.
  */
-export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate }: CalendarGridProps) {
+export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate, onContextMenu }: CalendarGridProps) {
   const year = date.getFullYear()
   const month = date.getMonth()
   const today = new Date()
@@ -74,9 +97,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
 
   return (
     <div>
-      {/* Month navigation */}
+      {/* Month navigation — icon-only, color-only hover (no button-chrome box) so the nav
+          arrows sit flush and low-contrast like a native mini-calendar's, not a discrete
+          toolbar control. */}
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={prevMonth} className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
+        <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
           <ChevronLeft size={14} />
         </button>
         <span className="flex-1 text-center text-xs font-medium text-[rgb(var(--color-text-primary))]">{monthLabel}</span>
@@ -84,12 +109,12 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           <button
             onClick={() => onDateChange(new Date())}
             title="Jump to current month"
-            className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer"
+            className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
           >
             <Undo2 size={12} />
           </button>
         )}
-        <button onClick={nextMonth} className="p-0.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
+        <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
           <ChevronRight size={14} />
         </button>
       </div>
@@ -99,8 +124,15 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           <div key={d} className="text-center text-[9px] text-[rgb(var(--color-text-muted))] font-medium py-0.5">{d}</div>
         ))}
       </div>
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-y-0.5">
+      {/* Day cells — each cell is a column (number + note-dot slot below it, naturally a
+          rectangle), but the today/selected highlight lives on a small fixed-size CIRCLE around
+          just the digit, matching how macOS's own mini-calendar marks dates, rather than a
+          rounded-rect chip stretched across the whole (non-square) cell. Today gets a solid
+          filled circle (the same bg-accent + text-white treatment used for the equivalent
+          "selected day" state in BookChapterPicker.tsx's own date grid) so it reads as
+          unambiguously "the true today" — selected is deliberately lighter (a ring only, no
+          fill, no bold) so it doesn't compete with today for visual weight. */}
+      <div className="grid grid-cols-7 gap-0.5">
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1
@@ -108,21 +140,26 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           const isToday = dateKey === todayStr
           const isSelected = !isToday && dateKey === selectedStr
           const hasNote = dailyDates.has(dateKey)
+          const circleSize = compact ? 'w-[20px] h-[20px]' : 'w-6 h-6'
           return (
             <button
               key={day}
               onClick={() => onSelectDate(new Date(year, month, day))}
-              className={`flex flex-col items-center justify-center text-center ${dayCellText} rounded-shell pt-0.5 cursor-pointer transition-colors leading-none
-                ${isToday ? 'bg-[rgb(var(--color-accent))]/35 text-[rgb(var(--color-text-secondary))] font-semibold ring-1 ring-inset ring-[rgb(var(--color-accent))]/50'
-                  : isSelected ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] font-semibold ring-1 ring-inset ring-[rgb(var(--color-accent))]/40'
-                  : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+              onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(new Date(year, month, day), e.clientX, e.clientY) } : undefined}
+              className="flex flex-col items-center justify-center gap-0.5 cursor-pointer group"
             >
-              <span>{day}</span>
-              {/* Reserved-height row below the number (not absolutely
-                  positioned/overlapping) so the indicator can never be
-                  clipped by a neighboring row or an ancestor's overflow. */}
-              <span className="h-[7px] flex items-center justify-center leading-none">
-                {hasNote && <span className="w-[5px] h-[5px] rounded-full bg-[rgb(var(--color-accent))]" />}
+              <span className={`flex items-center justify-center ${circleSize} ${dayCellText} rounded-full leading-none transition-colors
+                ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
+                  : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40'
+                  : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}
+              >
+                {day}
+              </span>
+              {/* Reserved-height row below the circle (not absolutely positioned/overlapping)
+                  so the indicator can never be clipped by a neighboring row or an ancestor's
+                  overflow. */}
+              <span className="h-[5px] flex items-center justify-center leading-none">
+                {hasNote && <span className="w-[4px] h-[4px] rounded-full bg-[rgb(var(--color-accent))]" />}
               </span>
             </button>
           )

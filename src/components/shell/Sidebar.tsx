@@ -1,15 +1,16 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { motion } from 'framer-motion'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, type LucideIcon } from 'lucide-react'
+import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
+import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
-import { CalendarGrid, toDateKey } from '@/components/notes/CalendarWidget'
+import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -171,7 +172,7 @@ export default function Sidebar() {
   const [sbCalendarNotes, setSbCalendarNotes] = useState<Note[]>([])
 
   useEffect(() => {
-    window.notes.getNotes(100000, 0).then(setSbCalendarNotes).catch(() => {})
+    getAllNotes(noteChangeToken).then(setSbCalendarNotes).catch(() => {})
   }, [noteChangeToken])
 
   // Resolve (find-or-create) the daily note BEFORE creating a tab, then stamp the new tab's
@@ -180,7 +181,7 @@ export default function Sidebar() {
   // dispatch an event a frame later to swap in the real note) visibly flashed an empty "New Note"
   // tab before the daily note appeared. Resolving first means the tab is created already pointing
   // at the right note, so NotesPanel's restore effect loads it directly with no intermediate state.
-  async function openDailyNoteInTab(date: Date) {
+  async function resolveDailyNoteId(date: Date): Promise<string | null> {
     const title = `Daily — ${toDateKey(date)}`
     let noteId: string | null = null
     try {
@@ -191,6 +192,11 @@ export default function Sidebar() {
       const result = await window.notes.createNote({ title, content: '', type: 'daily' })
       if (result.success && result.note) noteId = result.note.id
     }
+    return noteId
+  }
+
+  async function openDailyNoteInTab(date: Date) {
+    const noteId = await resolveDailyNoteId(date)
     if (!noteId) return
     useAppStore.getState().createTab('note')
     const store = useAppStore.getState()
@@ -198,6 +204,58 @@ export default function Sidebar() {
     if (newTabId) store.updateTabState('notes', newTabId, { noteId, isNew: false })
     useAppStore.getState().bumpNoteToken()
   }
+
+  async function openDailyNoteInNewTab(date: Date) {
+    const noteId = await resolveDailyNoteId(date)
+    if (!noteId) return
+    const store = useAppStore.getState()
+    const notesTabId = store.activeTabId['notes']
+    store.addTab({
+      id: `note-${noteId}-${Date.now()}`,
+      spaceId: 'notes',
+      type: 'note',
+      title: `Daily — ${toDateKey(date)}`,
+      state: { noteId, isNew: false },
+      ...(notesTabId ? { originTabId: notesTabId, originSpaceId: 'notes' as const } : {}),
+    })
+    useAppStore.getState().bumpNoteToken()
+  }
+
+  async function openDailyNoteInFloatingTab(date: Date) {
+    const noteId = await resolveDailyNoteId(date)
+    if (!noteId) return
+    window.app.openFloatingTab('notes', { noteId })
+    useAppStore.getState().bumpNoteToken()
+  }
+
+  async function deleteDailyNoteForDate(date: Date) {
+    const note = findDailyNote(sbCalendarNotes, date)
+    if (!note) return
+    await window.notes.deleteNote(note.id).catch(() => {})
+    useAppStore.getState().bumpNoteToken()
+  }
+
+  // Right-click on a calendar date (grid cell or the "Today" shortcut) — open/open-in-new-tab/
+  // open-floating all create the daily note if it doesn't exist yet (same as a left click would);
+  // delete only applies when one already exists, so the menu hides that option otherwise.
+  const [dailyNoteMenu, setDailyNoteMenu] = useState<{ date: Date; x: number; y: number } | null>(null)
+  const dailyNoteMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!dailyNoteMenu) return
+    function onDown(e: MouseEvent) {
+      if (dailyNoteMenuRef.current && !dailyNoteMenuRef.current.contains(e.target as Node)) setDailyNoteMenu(null)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setDailyNoteMenu(null) }
+    function onCloseAll() { setDailyNoteMenu(null) }
+    window.addEventListener('mousedown', onDown, true)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener(CLOSE_CONTEXT_MENUS_EVENT, onCloseAll)
+    return () => {
+      window.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener(CLOSE_CONTEXT_MENUS_EVENT, onCloseAll)
+    }
+  }, [dailyNoteMenu])
 
   function selectSidebarCalendarDate(d: Date) {
     openDailyNoteInTab(d)
@@ -323,7 +381,7 @@ export default function Sidebar() {
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <aside
         className={`
-          app-drag-region flex flex-col flex-shrink-0 h-full w-56
+          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full w-56
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}
@@ -359,7 +417,7 @@ export default function Sidebar() {
               </button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content side="bottom" align="start" sideOffset={4} className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1">
+              <Popover.Content side="bottom" align="start" sideOffset={4} className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1">
                 <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Sessions</div>
                 {sessions.map((session) => {
                   const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
@@ -539,14 +597,22 @@ export default function Sidebar() {
         {/* ── Daily-note calendar — pinned permanently at the bottom, not
              gated to the Notes space and not a toggle (sessions used to
              live in this footer slot; they moved to the rail as numbered
-             chips, freeing this spot for the calendar). ── */}
-        <div className="px-2 pb-2 pt-1.5 border-t border-[rgb(var(--color-surface-4))] flex-shrink-0">
+             chips, freeing this spot for the calendar). Its own rounded card
+             (matching the search bar's surface-4 pill treatment above)
+             rather than a bare `border-t` hairline — now that Ribbon+Sidebar
+             read as one continuous vibrant surface, a single top-only line
+             was the one remaining "seam" in an otherwise unbroken field and
+             read as arbitrary rather than intentional. A self-contained
+             card gives it the same deliberate weight as the sidebar's other
+             grouped elements instead of floating on a lone divider. ── */}
+        <div className="mx-2 mb-2 mt-1.5 p-2 rounded-shell bg-[rgb(var(--color-surface-4))/40] border border-[rgb(var(--color-surface-4))/60] flex-shrink-0">
           <div className="flex items-center justify-between px-0.5 pb-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))]" style={{ zoom: appZoom }}>Daily notes</span>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <button
                   onClick={openTodaysDailyNote}
+                  onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: new Date(), x: e.clientX, y: e.clientY }) }}
                   className="no-drag flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                 >
                   <CalendarDays size={11} />
@@ -566,6 +632,7 @@ export default function Sidebar() {
             notes={sbCalendarNotes}
             onDateChange={setSbCalendarDate}
             onSelectDate={selectSidebarCalendarDate}
+            onContextMenu={(d, x, y) => setDailyNoteMenu({ date: d, x, y })}
             selectedDate={activeDailyDate}
             compact
           />
@@ -681,10 +748,21 @@ export default function Sidebar() {
         document.body
       )}
 
-      {sessionMenu && createPortal(
+      {sessionMenu && (() => {
+        const menuSession = sessions.find((s) => s.id === sessionMenu.sessionId)
+        const MenuSessionIcon = (SESSION_ICONS.find((i) => i.name === menuSession?.icon) ?? SESSION_ICONS[0]).Icon
+        return createPortal(
         <MenuPositioner ref={sessionMenuRef} x={sessionMenu.x} y={sessionMenu.y}
           className={`rounded-shell glass-panel p-1 text-xs ${sessionMenuMode === 'icon' ? 'w-48' : 'min-w-44'}`}
         >
+          {/* Live preview header — icon + name update in place as edits are made below,
+              so renaming/changing the icon is visible without closing the menu to check. */}
+          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 border-b border-[rgb(var(--color-surface-4))]">
+            <MenuSessionIcon size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+            <span className="flex-1 text-[11px] font-medium text-[rgb(var(--color-text-secondary))] truncate">
+              {menuSession?.name ?? 'Session'}
+            </span>
+          </div>
           {sessionMenuMode === 'rename' ? (
             <input
               autoFocus
@@ -694,13 +772,13 @@ export default function Sidebar() {
               onFocus={(e) => e.currentTarget.select()}
               onBlur={() => {
                 if (renameValue.trim()) renameSession(sessionMenu.sessionId, renameValue.trim())
-                setSessionMenu(null); setSessionMenuMode('default')
+                setSessionMenuMode('default')
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
                 if (e.key === 'Escape') { e.preventDefault(); setSessionMenu(null); setSessionMenuMode('default') }
               }}
-              className="w-full px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:ring-1 focus:ring-[rgb(var(--color-accent))]"
+              className="w-full px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none transition-shadow focus:ring-2 focus:ring-[rgb(var(--color-accent))]"
             />
           ) : sessionMenuMode === 'icon' ? (
             <>
@@ -708,8 +786,12 @@ export default function Sidebar() {
               <div className="grid grid-cols-7 gap-0.5 p-1">
                 <button
                   title="No icon (show number)"
-                  className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                  onClick={() => { setSessionIcon(sessionMenu.sessionId, ''); setSessionMenu(null); setSessionMenuMode('default') }}
+                  className={`flex items-center justify-center w-6 h-6 rounded-shell transition-all duration-100 cursor-pointer hover:scale-110 active:scale-90 ${
+                    !menuSession?.icon
+                      ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/50]'
+                      : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                  }`}
+                  onClick={() => setSessionIcon(sessionMenu.sessionId, '')}
                 >
                   <Hash size={13} />
                 </button>
@@ -717,25 +799,35 @@ export default function Sidebar() {
                   <button
                     key={name}
                     title={name}
-                    className="flex items-center justify-center w-6 h-6 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                    onClick={() => { setSessionIcon(sessionMenu.sessionId, name); setSessionMenu(null); setSessionMenuMode('default') }}
+                    className={`flex items-center justify-center w-6 h-6 rounded-shell transition-all duration-100 cursor-pointer hover:scale-110 active:scale-90 ${
+                      menuSession?.icon === name
+                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/50]'
+                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+                    }`}
+                    onClick={() => setSessionIcon(sessionMenu.sessionId, name)}
                   >
                     <Icon size={13} />
                   </button>
                 ))}
               </div>
+              <button
+                className="w-full flex items-center justify-center gap-1.5 mt-1 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                onClick={() => setSessionMenuMode('default')}
+              >
+                Done
+              </button>
             </>
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
                 onClick={() => setSessionMenuMode('rename')}
               >
                 <Pencil size={12} />
                 Rename
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
                 onClick={() => setSessionMenuMode('icon')}
               >
                 <Palette size={12} />
@@ -743,7 +835,7 @@ export default function Sidebar() {
               </button>
               <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
                 onClick={() => { openSettingsToSessions(); setSessionMenu(null) }}
               >
                 <Settings size={12} />
@@ -751,13 +843,51 @@ export default function Sidebar() {
               </button>
               {sessions.length > 1 && (
                 <button
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 hover:translate-x-0.5 transition-all duration-100 cursor-pointer"
                   onClick={() => { deleteSession(sessionMenu.sessionId); setSessionMenu(null) }}
                 >
                   <Trash2 size={12} />
                   Delete session
                 </button>
               )}
+            </>
+          )}
+        </MenuPositioner>,
+        document.body
+      )})()}
+
+      {/* ── Daily-note calendar right-click (grid cells + the "Today" shortcut) ── */}
+      {dailyNoteMenu && createPortal(
+        <MenuPositioner ref={dailyNoteMenuRef} x={dailyNoteMenu.x} y={dailyNoteMenu.y}
+          className="min-w-[190px] rounded-shell context-menu py-1 overflow-hidden text-xs"
+        >
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            onClick={() => { openDailyNoteInTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
+          >
+            <PanelRightOpen size={13} className="flex-shrink-0" /> Open
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            onClick={() => { openDailyNoteInNewTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
+          >
+            <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
+          </button>
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+            onClick={() => { openDailyNoteInFloatingTab(dailyNoteMenu.date); setDailyNoteMenu(null) }}
+          >
+            <Monitor size={13} className="flex-shrink-0" /> Open in floating tab
+          </button>
+          {findDailyNote(sbCalendarNotes, dailyNoteMenu.date) && (
+            <>
+              <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
+                onClick={() => { deleteDailyNoteForDate(dailyNoteMenu.date); setDailyNoteMenu(null) }}
+              >
+                <Trash2 size={13} className="flex-shrink-0" /> Delete note
+              </button>
             </>
           )}
         </MenuPositioner>,
