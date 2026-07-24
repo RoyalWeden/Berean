@@ -124,6 +124,58 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ## [Unreleased]
 
+Scripture search
+- The Advanced Scripture Search "scope" filter (which editions/books to
+  search) is no longer split across three tabs — it's one unified,
+  searchable list now, and typing in it filters editions, testaments, and
+  books all at once instead of only whichever tab happened to be open.
+- Multi-book pseudepigrapha editions — Recognitions of Clement, Shepherd of
+  Hermas, Testament of the Twelve Patriarchs — can now be filtered down to
+  individual books/sections (e.g. just "Visions" instead of all of Hermas),
+  each with a "Select all" shortcut.
+- Number searches now also match the written-out word form and vice versa
+  (e.g. searching "7" also finds "seven", and "fourscore" also finds "80"),
+  in both Scripture search and note search, with matches highlighted either
+  way.
+- The floating "jump to book" rail in search results is narrower, uses a
+  clearer icon, and no longer truncates long book names.
+- Search tabs (both the Notes search tab and Advanced Scripture Search) now
+  show what you searched for directly in the tab itself, updating as you type.
+
+Notes
+- Fixed renaming a note sometimes silently failing — clicking the title was
+  occasionally mistaken for dragging the window instead of starting an edit.
+- Fixed the auto em dash setting ("--" → "—") never actually converting
+  while typing.
+- Fixed searching for a note that has no title ("Untitled").
+- Fixed duplicating a tab sometimes doing nothing instead of creating a copy.
+- The Strong's/verse "suggest a block" popup settings are easier to find —
+  previously tucked inside a collapsed "Advanced" section in Settings.
+
+Shell & Settings
+- The global icon rail (search, history, archived tabs, presenter, zoom,
+  settings) now floats and expands on hover instead of sitting permanently
+  docked in its own column.
+- Fixed the top bar's rounded corners revealing a mismatched background
+  color behind them.
+- Settings no longer has a compact/expanded toggle — descriptions are
+  always visible now.
+- Fixed low-contrast text in a couple of Settings' informational callout
+  boxes that could be hard to read on lighter themes.
+- Berean now checks for updates periodically while open (every 5 minutes),
+  not just once at launch.
+
+Sidebar
+- The Daily Notes calendar's month navigation is now left-aligned with a
+  "Today" button on the right, and hovering a date shows which day it is.
+- The daily note breadcrumb now shows its date as its own segment
+  (Notes › Daily › 2026-07-24) instead of folded into one label.
+- Removed the redundant "SESSIONS" label from the session switcher menu.
+
+---
+
+## [0.4.10] - 2026-07-20
+
 Shell
 - Ribbon, Sidebar, and the top bar now read as one continuous surface instead
   of four visibly stitched-together panels — merged into a single header bar
