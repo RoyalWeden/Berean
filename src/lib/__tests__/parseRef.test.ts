@@ -25,6 +25,17 @@ describe('parseRef', () => {
     expect(parseRef('2 Cor 5:17')).toMatchObject({ bookId: '2CO', chapter: 5, verse: 17 })
   })
 
+  it('parses Recognitions of Clement "Book N" subdivision (3-level Book.Chapter.Verse addressing)', () => {
+    expect(parseRef('Recognitions, Book 10 41:8')).toMatchObject({ bookId: 'RCL10', chapter: 41, verse: 8 })
+    expect(parseRef('Recognitions Book 10 41:8')).toMatchObject({ bookId: 'RCL10', chapter: 41, verse: 8 })
+    expect(parseRef('RCL10 41:8')).toMatchObject({ bookId: 'RCL10', chapter: 41, verse: 8 })
+    expect(parseRef('Recognitions of Clement, Book 5 3:5')).toMatchObject({ bookId: 'RCL5', chapter: 3, verse: 5 })
+    // No "Book N" → defaults to Book 1
+    expect(parseRef('Recognitions of Clement 5:3')).toMatchObject({ bookId: 'RCL1', chapter: 5, verse: 3 })
+    // "Book N" subdivision doesn't apply to editions without a numbered-book convention
+    expect(parseRef('Hermas, Book 3 5:2')).toBeNull()
+  })
+
   it('parses pseudepigrapha book IDs', () => {
     expect(parseRef('Hermas 1')).toMatchObject({ bookId: 'HER_VIS', chapter: 1 })
     expect(parseRef('Barnabas 3')).toMatchObject({ bookId: 'EPB', chapter: 3 })
@@ -153,7 +164,9 @@ describe('bookName', () => {
     // later duplicate silently overwrote the correct, more specific name via
     // Map last-write-wins. Fixed by merging those patterns into this entry instead
     // of a second object — see parseRef.ts's BOOK_MAP comment.
-    expect(bookName('HER_VIS')).toBe('Hermas - Visions')
+    // Comma (not dash) — a literal " - " in the name broke note auto-linking, since
+    // the reference regexes don't allow a dash inside the book-name phrase.
+    expect(bookName('HER_VIS')).toBe('Hermas, Visions')
     expect(bookName('TREU')).toBe('Testament of Reuben')
   })
 

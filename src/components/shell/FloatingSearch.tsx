@@ -3,7 +3,7 @@ import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
-import { parseRef, isStrongsRef, getTranslationForBook, bookName, resolveBookToken } from '@/lib/parseRef'
+import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName } from '@/lib/parseRef'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
 import { decodeEntities } from '@/lib/youtubeSearch'
@@ -76,13 +76,14 @@ const TRANSLATION_PREFIXES: Array<[string[], string]> = [
   [['hermas:', 'hermas '], 'hermas'],
   [['barnabas:', 'barnabas ', 'ep barnabas:', 'epistle of barnabas '], 'ep_barnabas'],
   [['ascension of isaiah:', 'asc isaiah:', 'asc_isaiah '], 'asc_isaiah'],
-  [['recognitions:', 'recog_clement '], 'recog_clement'],
+  [['recognitions:', 'recog_clement ', 'roc:', 'roc '], 'recog_clement'],
   [['apoc elijah:', 'apocalypse of elijah '], 'apoc_elijah'],
   [['t12p:', 'testaments:', 'twelve patriarchs '], 't12p'],
   [['gad the seer:', 'gad seer:', 'words of gad '], 'gad'],
   [['testament of job:', 'test job:', 'tjob '], 't_job'],
   [['1 clement:', '1clement:', '1clem '], '1clement'],
   [['apoc abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
+  [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
 ]
 
 /** All extra-book text IDs searched automatically in parallel for keyword queries */
@@ -100,10 +101,7 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   t_job:         'T. Job',
   '1clement':    '1 Clement',
   apoc_abraham:  'Apoc. Abraham',
-}
-
-function normalizeBookName(name: string): string {
-  return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
+  t_jacob:       'T. Jacob',
 }
 
 function detectTranslationPrefix(q: string): { textId: string; cleanQuery: string } | null {
@@ -476,6 +474,8 @@ export default function FloatingSearch() {
       : undefined
 
     if (targetTab) {
+      // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
+      console.warn('[BereanDebug] FloatingSearch.navigate updateTabState', { tabId: targetTab.id, bookId, chapter, targetVerse, translation })
       // Navigating to a verse exits the advanced-search view if the tab was in it.
       updateTabState('scripture', targetTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation, searchMode: false })
       renameTab('scripture', targetTab.id, title)
@@ -539,7 +539,9 @@ export default function FloatingSearch() {
     // when the user starts typing, or (for non-canonical/Pseudepigrapha books) might not be
     // in `books` at all depending on which text is currently selected, both of which
     // previously fell back to showing the bare 3-letter bookId ("GEN") instead of a name.
-    const label = `${bookName(parsedRef.bookId)} ${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
+    const refName = bookName(parsedRef.bookId)
+    const refSep = /Book \d+$/.test(refName) ? ', ' : ' '
+    const label = `${refName}${refSep}${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
     const subLabel = detected
       ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${detected.textId.toUpperCase()}`
       : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
@@ -568,7 +570,7 @@ export default function FloatingSearch() {
     // with digits in it (that case is parsedRef's job, or genuinely didn't parse for a
     // different reason — e.g. an out-of-range chapter — and shouldn't silently become ch.1).
     if (bareBookId) {
-      const label = `${bookName(bareBookId)} 1`
+      const label = bookChapterVerseLabel(bareBookId, 1)
       results.push({
         type: 'ref',
         label,
@@ -585,8 +587,8 @@ export default function FloatingSearch() {
   if (parsedRef?.verse && crossRefResults.length > 0) {
     for (const cr of crossRefResults.slice(0, 5)) {
       const ref = cr.endVerse
-        ? `${bookName(cr.bookId)} ${cr.chapter}:${cr.verse}–${cr.endVerse}`
-        : `${bookName(cr.bookId)} ${cr.chapter}:${cr.verse}`
+        ? `${bookChapterVerseLabel(cr.bookId, cr.chapter, cr.verse)}–${cr.endVerse}`
+        : bookChapterVerseLabel(cr.bookId, cr.chapter, cr.verse)
       const strength = Math.max(0, Math.min(Math.ceil(cr.votes / 3), 5))
       const dots = '●'.repeat(strength) + '○'.repeat(5 - strength)
       results.push({
@@ -907,19 +909,31 @@ export default function FloatingSearch() {
           <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
             <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">↑↓</kbd> Navigate</span>
             <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">↵</kbd> Open</span>
-            <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">⇧↵</kbd> Adv. search</span>
             <div className="flex-1" />
-            {/* Destination buttons — replace the old "Advanced →" link. Always present
-                (no mount/unmount layout snap as the query goes empty/non-empty), dimmed
-                and inert until a query exists. Each is icon + arrow; hovering expands
-                the button to reveal the destination name inline rather than a tooltip. */}
             {!isCommandMode && (
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-1.5">
+                {/* Advanced Scripture search — pulled out of the generic destination-button
+                    row and given its own permanently-labeled, accent-colored pill (rather
+                    than a tiny icon that only reveals its label on hover, and rather than
+                    staying dimmed/inert until a query exists) since this is the one
+                    destination that genuinely deserves to read as a clear, always-clickable
+                    CTA, not just one of four equally-weighted icon buttons — reported as too
+                    easy to miss. Works with or without a typed query (opens blank if empty). */}
+                <button
+                  onClick={() => { closeSearch(); openScriptureSearchTab(query.trim() || undefined) }}
+                  className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border border-[rgb(var(--color-accent))/40] bg-[rgb(var(--color-accent))/12] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/20] hover:border-[rgb(var(--color-accent))/60] transition-colors cursor-pointer"
+                >
+                  <Search size={12} />
+                  <span className="text-[10.5px] font-semibold whitespace-nowrap">Advanced scripture search</span>
+                  <kbd className="font-mono text-[9px] px-1 py-0.5 rounded bg-[rgb(var(--color-accent))/15]">⇧↵</kbd>
+                </button>
+                {/* Remaining destination buttons — icon + arrow, hover-expand label, dimmed
+                    until a query exists (unlike Scripture above, these genuinely need a
+                    query to be useful). */}
                 {([
-                  { label: 'Scripture', icon: <Search size={12} />, run: () => openScriptureSearchTab(query.trim() || undefined) },
-                  { label: 'Notes',     icon: <StickyNote size={12} />, run: () => openNotesSearchTab(query.trim()) },
-                  { label: 'Lexicon',   icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
-                  { label: 'YouTube',   icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
+                  { label: 'Notes',   icon: <StickyNote size={12} />, run: () => openNotesSearchTab(query.trim()) },
+                  { label: 'Lexicon', icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
+                  { label: 'YouTube', icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
                 ] as const).map((d) => {
                   const active = !!query.trim()
                   return (

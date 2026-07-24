@@ -11,7 +11,7 @@ import { X, ExternalLink, ChevronLeft, ChevronRight, ArrowLeft, Search } from 'l
 import ChapterView from '@/components/bible/ChapterView'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import { useAppStore } from '@/store'
-import { getTranslationForBook } from '@/lib/parseRef'
+import { getTranslationForBook, normalizeBookName } from '@/lib/parseRef'
 import type { YouTubePanelState, Note, LexiconEntry } from '@/types'
 
 // ── Notes panel ──────────────────────────────────────────────────────────────
@@ -124,7 +124,8 @@ function ScripturePanel({ panel, onUpdate, onBack, onClose }: {
 
   useEffect(() => {
     window.bible.getBooks(translation.toLowerCase())
-      .then((b) => setBooks(b as { id: string; name: string; chapters_count: number }[])).catch(() => {})
+      .then((b) => setBooks((b as { id: string; name: string; chapters_count: number }[]).map((bk) => ({ ...bk, name: normalizeBookName(bk.name) }))))
+      .catch(() => {})
   }, [translation])
 
   const currentBook = books.find((b) => b.id === panel.bookId)

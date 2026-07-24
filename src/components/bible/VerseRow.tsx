@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen } from 'lucide-react'
 import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
-import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
+import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
@@ -411,7 +411,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const filterBiblePanelByVerse = useAppStore((s) => s.filterBiblePanelByVerse)
   const openCrossRefsInBiblePanel = useAppStore((s) => s.openCrossRefsInBiblePanel)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
-  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
+  // NOT a useAppStore() subscription: noteChangeToken here is only ever read inside the
+  // handleCrossRefIconMouseEnter callback below (to key a cache lookup), never in render
+  // output. Subscribing via the hook would re-render every mounted VerseRow in the chapter
+  // on ANY note change anywhere in the app, defeating this component's memo() wrap. Reading
+  // it fresh from getState() at call time avoids that while still seeing the latest value.
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [crossRefHover, setCrossRefHover] = useState<{ refs: NoteVerseRef[]; x: number; y: number; placeUp: boolean } | null>(null)
   const crossRefHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -516,7 +520,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
 
   const lxxSuffix = textId === 'lxx' ? ' LXX' : ''
-  const verseRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}${lxxSuffix}`
+  const verseRef = `${bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)}${lxxSuffix}`
 
   function copyVerse() {
     const displayText = buildVerseDisplayText(verse.text, verse.text_tagged, textId ?? 'kjva', wordReplacerEnabled, wordReplacerRules)
@@ -532,7 +536,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   async function addVerseNote() {
     const verseRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
     // Title carries the LXX marker so it reads as Septuagint; the note is keyed to its translation.
-    const title = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}${lxxSuffix}`
+    const title = `${bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)}${lxxSuffix}`
     const result = await window.notes.createNote({ type: 'verse', title, verseRef, content: '', textId })
     setPopoverOpen(false)
     if (result.success && result.note) {
@@ -585,7 +589,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         //    Uses the parsed cross-ref index so it catches every ref form
         //    (abbreviations, ranges, whole-chapter), not just exact-name matches.
         try {
-          const sources = await getCrossRefSources(noteChangeToken)
+          const sources = await getCrossRefSources(useAppStore.getState().noteChangeToken)
           // excludeChapterRefs=true: chapter-level refs ("see Numbers 5") are shown
           // in the ChapterView banner, not in the per-verse hover — they'd be noise here.
           for (const ref of reciprocalRefsFor(sources, verse.book_id, verse.chapter, verse.verse_num, true)) {
@@ -614,7 +618,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       try {
         const verseNotes = await window.notes.getVerseNotes(vRef, textId)
         // Also find general notes whose content references this verse
-        const humanRef = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
+        const humanRef = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
         const candidates = await window.notes.searchNotes(humanRef, 40)
         const verseNoteIds = new Set(verseNotes.map(n => n.id))
         const refNotes: Note[] = []
@@ -838,8 +842,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     bumpHighlightToken()
   }
 
-  // Find-bar: does this verse contain the query?
-  const isFindMatch = (() => {
+  // Find-bar: does this verse contain the query? Memoized on the actual inputs so ChapterView
+  // passing the same findQuery/findWordMode to every VerseRow doesn't force this string work
+  // to redo on every keystroke-triggered render of every OTHER verse in the chapter.
+  const isFindMatch = useMemo(() => {
     if (!findQuery.trim()) return false
     const t = verse.text.toLowerCase()
     const q = findQuery.trim().toLowerCase()
@@ -847,7 +853,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     const words = q.split(/\s+/).filter(Boolean)
     if (findWordMode === 'all') return words.every(w => t.includes(w))
     return words.some(w => t.includes(w))
-  })()
+  }, [findQuery, findWordMode, verse.text])
 
   const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch })
 
@@ -1149,7 +1155,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
+      className={`flex gap-3 group relative transition-[background-color,border-color] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1447,7 +1453,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                       } else if (isDedicatedTranslation(currentTranslation)) {
                         newTranslation = 'kjva'
                       }
-                      const originLabel = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
+                      const originLabel = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
                       fresh.updateTabState('scripture', tabId, {
                         bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
                         ...(newTranslation ? { translation: newTranslation } : {}),
@@ -1459,7 +1465,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
                   <p className="text-[9px]" style={{ lineHeight: 1.1 }}>
-                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">{bookName(r.bookId)} {r.chapter}{r.verse > 0 ? `:${r.verse}` : ''}</span>
+                    <span className="font-mono font-semibold text-[rgb(var(--color-accent))] group-hover:underline">{r.verse > 0 ? bookChapterVerseLabel(r.bookId, r.chapter, r.verse) : bookChapterVerseLabel(r.bookId, r.chapter)}</span>
                     <HoverVerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} />
                   </p>
                 </button>
@@ -1600,7 +1606,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   const fresh = useAppStore.getState()
                   const tabId = fresh.activeTabId['scripture']
                   if (tabId) {
-                    const label = `${bookName(verse.book_id)} ${verse.chapter}:${verse.verse_num}`
+                    const label = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
                     fresh.updateTabState('scripture', tabId, {
                       bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
                       scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label },
@@ -1620,7 +1626,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   const s = useAppStore.getState()
                   // Canonical ref opened from a dedicated text (e.g. Luke from 1 Enoch) → KJVA, not 'enoch'
                   const translation = (getTranslationForBook(r.bookId) ?? (isDedicatedTranslation(textId) ? 'kjva' : textId) ?? 'kjva').toUpperCase()
-                  const title = `${bookName(r.bookId)} ${r.chapter}`
+                  const title = bookChapterVerseLabel(r.bookId, r.chapter)
                   const originTabId = s.activeTabId[s.activeSpace] ?? undefined
                   s.addTab({
                     id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,

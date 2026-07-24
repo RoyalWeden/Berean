@@ -3,11 +3,13 @@ import * as Popover from '@radix-ui/react-popover'
 import { motion } from 'framer-motion'
 import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
+import { normalizeBookName } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
@@ -63,7 +65,12 @@ const SPACE_LABEL: Record<SpaceId, string> = {
 
 export default function Sidebar() {
   const activeSpace  = useAppStore((s) => s.activeSpace)
-  const tabs         = useAppStore((s) => s.tabs)
+  // Sidebar genuinely needs all 5 spaces — it lists tabs across scripture/notes/lexicon/youtube
+  // (SPACES.flatMap below) and can show a currentTab from any space (activeSpace, including
+  // 'search'). useShallow compares each space's array reference individually, so a write in one
+  // space (e.g. a scroll-position tick in Scripture) no longer re-renders this on writes that
+  // don't touch that space's own array. See BiblePanel.tsx's comment for the underlying cause.
+  const tabs         = useAppStore(useShallow((s) => s.tabs))
   const activeTabId  = useAppStore((s) => s.activeTabId)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const createTab    = useAppStore((s) => s.createTab)
@@ -114,8 +121,12 @@ export default function Sidebar() {
     return () => { window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onEsc) }
   }, [sessionMenu])
 
-  function openSessionMenu(x: number, y: number, sessionId: string, currentName: string) {
-    setSessionPopoverOpen(false)
+  // `closePopover` defaults to true (right-clicking the trigger button, where the session
+  // list popover isn't open yet). Right-clicking a row INSIDE the already-open popover
+  // passes false, so the session list stays visible behind the rename/icon/delete submenu
+  // instead of vanishing the instant you right-click.
+  function openSessionMenu(x: number, y: number, sessionId: string, currentName: string, closePopover = true) {
+    if (closePopover) setSessionPopoverOpen(false)
     setSessionMenuMode('default')
     setRenameValue(currentName)
     setSessionMenu({ x, y, sessionId })
@@ -310,7 +321,7 @@ export default function Sidebar() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openBookMenu(x: number, y: number) {
-    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham']
+    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham', 't_jacob']
     const results = await Promise.allSettled(
       TEXT_IDS.map(id => window.bible.getBooks(id).then(bs => ({ id, books: bs })))
     )
@@ -319,7 +330,7 @@ export default function Sidebar() {
     for (const r of results) {
       if (r.status !== 'fulfilled') continue
       for (const book of r.value.books) {
-        if (!seen.has(book.id)) { seen.add(book.id); entries.push({ book, textId: r.value.id }) }
+        if (!seen.has(book.id)) { seen.add(book.id); entries.push({ book: { ...book, name: normalizeBookName(book.name) }, textId: r.value.id }) }
       }
     }
     setBookMenu({ x, y, books: entries, filter: '' })
@@ -339,10 +350,16 @@ export default function Sidebar() {
     }, 0)
   }
 
-  // Current breadcrumb: Space › Tab title
+  // Current breadcrumb: Space › Tab title. Daily notes get a THIRD segment (Space ›
+  // Daily › date) instead of collapsing "Daily" and the date into one — their title
+  // is stored as "Daily — 2026-07-24" (dailyNoteTitle in NotesPanel.tsx), which read
+  // fine as a single breadcrumb segment but buried the date (the part someone
+  // actually wants to glance at) behind the word "Daily" every time.
   const currentTab = tabs[activeSpace].find((t) => t.id === activeTabId[activeSpace])
   const spaceLabel = SPACE_LABEL[activeSpace]
   const tabTitle = currentTab?.title ?? ''
+  const dailyNoteMatch = /^Daily — (\d{4}-\d{2}-\d{2})$/.exec(tabTitle)
+  const breadcrumbTail = dailyNoteMatch ? ['Daily', dailyNoteMatch[1]] : [tabTitle]
 
   // Build the unified tab list, respecting the session's custom display order.
   // New tabs not yet in the order are appended; closed tabs are silently dropped.
@@ -417,8 +434,18 @@ export default function Sidebar() {
               </button>
             </Popover.Trigger>
             <Popover.Portal>
-              <Popover.Content side="bottom" align="start" sideOffset={4} className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1">
-                <div className="text-[10px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide px-2 pt-1 pb-1.5">Sessions</div>
+              <Popover.Content
+                side="bottom" align="start" sideOffset={4}
+                className="no-drag z-50 w-52 rounded-shell-lg bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] shadow-xl p-1"
+                // The rename/icon/delete submenu is portaled separately (to document.body,
+                // outside this Popover.Content), so Radix's own outside-interaction dismissal
+                // would otherwise treat clicks inside it as "outside" and auto-close this
+                // popover — undoing the point of keeping it open. Ignore interactions that
+                // land inside the still-open submenu.
+                onInteractOutside={(e) => {
+                  if (sessionMenuRef.current && sessionMenuRef.current.contains(e.target as Node)) e.preventDefault()
+                }}
+              >
                 {sessions.map((session) => {
                   const SessionIcon = (SESSION_ICONS.find(i => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
                   return (
@@ -430,7 +457,7 @@ export default function Sidebar() {
                           : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
                         }`}
                       onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
-                      onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name) }}
+                      onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
                     >
                       <SessionIcon size={13} className="flex-shrink-0" />
                       <span className="flex-1 text-xs truncate">{session.name}</span>
@@ -479,8 +506,12 @@ export default function Sidebar() {
                 ) : (
                   <span className="flex items-center gap-0.5 min-w-0 flex-1" style={{ zoom: appZoom }}>
                     <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">{spaceLabel}</span>
-                    <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-50" />
-                    <span className="text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{tabTitle}</span>
+                    {breadcrumbTail.map((seg, i) => (
+                      <span key={i} className="flex items-center gap-0.5 min-w-0">
+                        <ChevronRight size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0 opacity-50" />
+                        <span className={`text-[11px] text-[rgb(var(--color-text-secondary))] truncate ${i < breadcrumbTail.length - 1 ? 'flex-shrink-0' : ''}`}>{seg}</span>
+                      </span>
+                    ))}
                   </span>
                 )
               ) : (
@@ -606,27 +637,6 @@ export default function Sidebar() {
              card gives it the same deliberate weight as the sidebar's other
              grouped elements instead of floating on a lone divider. ── */}
         <div className="mx-2 mb-2 mt-1.5 p-2 rounded-shell bg-[rgb(var(--color-surface-4))/40] border border-[rgb(var(--color-surface-4))/60] flex-shrink-0">
-          <div className="flex items-center justify-between px-0.5 pb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))]" style={{ zoom: appZoom }}>Daily notes</span>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  onClick={openTodaysDailyNote}
-                  onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: new Date(), x: e.clientX, y: e.clientY }) }}
-                  className="no-drag flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
-                >
-                  <CalendarDays size={11} />
-                  Today
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-                  Today's daily note
-                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
-          </div>
           <CalendarGrid
             date={sbCalendarDate}
             notes={sbCalendarNotes}
@@ -635,6 +645,26 @@ export default function Sidebar() {
             onContextMenu={(d, x, y) => setDailyNoteMenu({ date: d, x, y })}
             selectedDate={activeDailyDate}
             compact
+            todayAction={
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    onClick={openTodaysDailyNote}
+                    onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: new Date(), x: e.clientX, y: e.clientY }) }}
+                    className="no-drag flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                  >
+                    <CalendarDays size={11} />
+                    Today
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+                    Today's daily note
+                    <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            }
           />
         </div>
 

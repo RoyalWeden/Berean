@@ -5,6 +5,7 @@ import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, FileText, BookMarked, FileType, ScrollText, Youtube,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { getAllNotes } from '@/lib/notesCache'
 import ActionPillGroup from './ActionPillGroup'
@@ -37,10 +38,24 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar    = useAppStore((s) => s.toggleSidebar)
   const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
-  const activeSpace  = useAppStore((s) => s.activeSpace)
   const activeTabId  = useAppStore((s) => s.activeTabId[s.activeSpace])
   const noteFocusMode = noteFocusModeTabId !== null && noteFocusModeTabId === activeTabId
-  const tabs         = useAppStore((s) => s.tabs)
+  // Derive currentTab/originTab inside the selector itself (rather than subscribing to the whole
+  // `s.tabs` record) — originTab's space is dynamic (whatever the tab's originSpaceId says), so
+  // there's no single fixed space to narrow to ahead of time. Computing both objects in the
+  // selector means useShallow only sees their two (rarely-changing) references, so a tab-state
+  // write in an unrelated space (which doesn't change these specific tab objects) doesn't
+  // re-render this. See BiblePanel.tsx's comment for the underlying cause.
+  const { currentTab, originTab } = useAppStore(
+    useShallow((s) => {
+      const tabId = s.activeTabId[s.activeSpace]
+      const currentTab = tabId ? s.tabs[s.activeSpace]?.find((t) => t.id === tabId) ?? null : null
+      const originTab = currentTab?.originTabId
+        ? s.tabs[currentTab.originSpaceId ?? s.activeSpace]?.find((t) => t.id === currentTab.originTabId) ?? null
+        : null
+      return { currentTab, originTab }
+    })
+  )
   const tabNavStacks = useAppStore((s) => s.tabNavStacks)
   const navTabBack    = useAppStore((s) => s.navTabBack)
   const navTabForward = useAppStore((s) => s.navTabForward)
@@ -64,10 +79,6 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const navSupportsHome = navStackType === 'note' || navStackType === 'lexicon' || navStackType === 'youtube'
   const canNavBack    = currentTabNav ? currentTabNav.idx > (navSupportsHome ? -1 : 0) : false
   const canNavForward = currentTabNav ? currentTabNav.idx < currentTabNav.stack.length - 1 : false
-  const currentTab = currentTabId ? tabs[activeSpace]?.find((t) => t.id === currentTabId) ?? null : null
-  const originTab = currentTab?.originTabId
-    ? tabs[currentTab.originSpaceId ?? activeSpace]?.find((t) => t.id === currentTab.originTabId) ?? null
-    : null
   const canReturnToOrigin = !canNavBack && !!originTab
   const canGoBack = canNavBack || canReturnToOrigin
   const [navDropdown, setNavDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
@@ -110,8 +121,8 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
       <div
         className={`
           native-buttons ${noteFocusMode ? '' : 'app-drag-region'} flex-shrink-0 border-b border-[rgb(var(--color-surface-4))]
-          ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
-          pr-3
+          ${window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
+          pr-3 rounded-b-shell
           ${!isWin ? 'pl-[76px]' : 'pl-2'}
         `}
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
@@ -127,6 +138,20 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
         // outer div, outside the `zoom: appZoom` scaling below — the traffic lights are real,
         // fixed-pixel OS chrome, so this clearance must stay true pixels regardless of the
         // user's zoom preference, not get inflated/shrunk along with it.
+        //
+        // Rounded BOTTOM corners only (rounded-b-shell), deliberately NOT touching the top
+        // edge or left/right edges: the top-left corner sits directly under the real macOS
+        // traffic-light buttons (the 76px inset above), and Electron's drag-region
+        // hit-testing is a plain rectangle that doesn't follow border-radius — rounding or
+        // insetting the TOP would either visually clip near the traffic lights or leave a
+        // sliver of "looks like content, still drags the window" mismatch right where the
+        // user is most likely to click. No shadow (removed per feedback — even a tight
+        // custom value still read as too pronounced), and no bottom margin either (also
+        // removed per feedback — the gap it created exposed the app root's background
+        // color as a visible mismatched bar between the header and Sidebar/main below,
+        // since that gap sits directly above surface-3 main content, not the header's own
+        // surface-2 tone). The header now sits flush against Sidebar/FloatingRail/main —
+        // rounding alone gives the corners a softened edge without needing a gap to read.
         style={{ height: 44 * appZoom }}
       >
         <div className="flex items-center gap-1 h-full" style={{ zoom: appZoom }}>

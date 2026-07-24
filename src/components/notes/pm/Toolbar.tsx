@@ -34,7 +34,7 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
 // overflow-x:auto to overflow-y:auto/hidden on the same box, which silently clipped any
 // absolutely-positioned dropdown child that extended below the row (the dropdowns rendered
 // into the DOM but were invisible — looked exactly like "clicking the button does nothing").
-export default function Toolbar({ view, tabId }: { view: EditorView | null; tabId?: string }) {
+export default function Toolbar({ view, tabId, inTable }: { view: EditorView | null; tabId?: string; inTable?: boolean }) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
@@ -87,6 +87,10 @@ export default function Toolbar({ view, tabId }: { view: EditorView | null; tabI
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [openDropdown])
+
+  useEffect(() => {
+    if (!inTable && openDropdown === 'table') setOpenDropdown('none')
+  }, [inTable, openDropdown])
 
   if (!view) return null
   const editorView = view // narrowed local — TS doesn't carry the null-check narrowing of a
@@ -233,16 +237,18 @@ export default function Toolbar({ view, tabId }: { view: EditorView | null; tabI
         }}
         className={cls(false)}
       ><Table2 size={14} /></button>
-      {/* Table row/column management — only meaningful with the cursor inside an existing
-          table; addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops (return
-          false, dispatch nothing) outside one, so this dropdown is always safe to show. */}
-      <button
-        title="Table row/column"
-        onMouseDown={(e) => openDropdownAt('table', e)}
-        className={`${iconBtn} ${openDropdown === 'table' ? active : inactive}`}
-      >
-        <Rows3 size={14} />
-      </button>
+      {/* Table row/column management — only shown with the cursor inside an existing table;
+          addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops outside one, but
+          a button doing nothing reads as broken, so it's hidden rather than left enabled. */}
+      {inTable && (
+        <button
+          title="Table row/column"
+          onMouseDown={(e) => openDropdownAt('table', e)}
+          className={`${iconBtn} ${openDropdown === 'table' ? active : inactive}`}
+        >
+          <Rows3 size={14} />
+        </button>
+      )}
       <button
         title="Divider"
         onMouseDown={() => {

@@ -5,6 +5,7 @@ import ChapterView from './ChapterView'
 import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
+import { normalizeBookName } from '@/lib/parseRef'
 import { zoomedFontSize } from '@/lib/zoom'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
 import { useAppStore } from '@/store'
@@ -211,7 +212,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     if (requestedBooksRef.current.has(textId)) return
     requestedBooksRef.current.add(textId)
     window.bible.getBooks(textId)
-      .then(bks => setBooksByText(prev => ({ ...prev, [textId]: bks })))
+      .then(bks => setBooksByText(prev => ({ ...prev, [textId]: bks.map(b => ({ ...b, name: normalizeBookName(b.name) })) })))
       .catch(() => {})
   }
 
@@ -336,6 +337,7 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
 
   // ── Mirror the compare layout to the presenter window ────────────────────────
   const comparePushRaf = useRef<number | null>(null)
+  const colBandRaf = useRef<Record<number, number>>({})
   const colScrollRef = useRef<number[]>([])             // per-column scroll percent
   // Per-column presenter visible region + computed outline band.
   const [compareRegions, setCompareRegions] = useState<Record<number, ViewerVisibleRegion>>({})
@@ -449,7 +451,11 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               // Only this column's scroll is pushed (others keep their own positions).
               if (comparePushRaf.current) cancelAnimationFrame(comparePushRaf.current)
               comparePushRaf.current = requestAnimationFrame(() => pushCompareToViewer())
-              computeColBand(colIdx) // live outline follow
+              // Throttled the same way as the push above — computeColBand does a querySelectorAll
+              // + getBoundingClientRect pass over every verse in the column, which is too expensive
+              // to run synchronously on every scroll event across every mounted column.
+              if (colBandRaf.current[colIdx]) cancelAnimationFrame(colBandRaf.current[colIdx])
+              colBandRaf.current[colIdx] = requestAnimationFrame(() => computeColBand(colIdx))
             }}
             className="overflow-y-auto min-w-0 flex flex-col relative"
             style={{ flexGrow: colFlex[colIdx] ?? 1, flexBasis: 0 }}

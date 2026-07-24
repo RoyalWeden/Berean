@@ -2,6 +2,7 @@ import type { IpcMain, WebContents } from 'electron'
 import { BrowserWindow } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
+import { numberTokenAlternates } from './numberWords'
 
 /** Notify every OTHER open window (including floating/detached ones) that notes
  *  changed, so each window's own `noteChangeToken` bumps and any open Scripture/
@@ -55,7 +56,14 @@ function safeNotesFts(query: string, mode: 'all' | 'phrase' = 'all'): string {
   const words = cleanNotesWords(query)
   if (words.length === 0) return ''
   if (mode === 'phrase') return `"${words.join(' ')}"`
-  return words.map(w => `"${w}"*`).join(' ')
+  // Expand a number-shaped word into "(digits OR words)" so a query in either
+  // form finds notes written in the other (e.g. a verse note referencing
+  // "seven" is still found searching "7"). Only in 'all' mode — an exact
+  // phrase shouldn't get fuzzed.
+  return words.map(w => {
+    const alts = numberTokenAlternates(w)
+    return alts.length > 1 ? `(${alts.map(a => `"${a}"*`).join(' OR ')})` : `"${w}"*`
+  }).join(' ')
 }
 
 interface NoteRow {
@@ -349,8 +357,24 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return row ? rowToNote(row) : null
   })
 
+  // Untitled notes store title as '' (schema: `title TEXT NOT NULL DEFAULT ''`) — the
+  // "Untitled" text a user sees is only a client-side placeholder (NotesPanel.tsx etc.),
+  // never actually written to the DB or indexed in notes_fts. So typing "untitled" to
+  // find a blank-titled note matched nothing at all, even though that's the one label
+  // the user actually has to go on for a note with no other distinguishing text.
+  // Special-cased here rather than indexing a literal "Untitled" string into notes_fts,
+  // since that would permanently pollute the index (and get out of sync if the disambig
+  // wording ever changes) for something that's purely a UI-layer label.
+  function matchesUntitledQuery(query: string): boolean {
+    return cleanNotesWords(query).some((w) => w.toLowerCase() === 'untitled')
+  }
+  function untitledNoteRows(db: ReturnType<typeof getBereanDb>, limit: number): NoteRow[] {
+    return prep(db, `SELECT * FROM notes WHERE title = '' ORDER BY updated_at DESC LIMIT ?`).all(limit) as NoteRow[]
+  }
+
   ipcMain.handle('notes:search', (_event, query: string, limit = 20, mode: NotesWordMode = 'all') => {
     const db = getBereanDb()
+    const includeUntitled = matchesUntitledQuery(query)
 
     // 'any' mode: one FTS5 query per word, union + de-dupe in JS — see safeNotesFts's
     // comment for why this can't just be an FTS5 OR expression.
@@ -380,23 +404,36 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
           }
         } catch { /* skip terms that FTS5 rejects */ }
       }
+      if (includeUntitled) {
+        for (const row of untitledNoteRows(db, limit)) {
+          if (!seen.has(row.id)) { seen.add(row.id); rows.push(row) }
+        }
+      }
       return rows.slice(0, limit).map(rowToNote)
     }
 
     const match = safeNotesFts(query, mode === 'phrase' ? 'phrase' : 'all')
-    if (!match) return []
-    try {
-      const rows = prep(db, `
-        SELECT n.* FROM notes_fts f
-        JOIN notes n ON n.rowid = f.rowid
-        WHERE notes_fts MATCH ?
-        ORDER BY n.updated_at DESC
-        LIMIT ?
-      `).all(match, limit) as NoteRow[]
-      return rows.map(rowToNote)
-    } catch {
-      return []
+    let rows: NoteRow[] = []
+    if (match) {
+      try {
+        rows = prep(db, `
+          SELECT n.* FROM notes_fts f
+          JOIN notes n ON n.rowid = f.rowid
+          WHERE notes_fts MATCH ?
+          ORDER BY n.updated_at DESC
+          LIMIT ?
+        `).all(match, limit) as NoteRow[]
+      } catch {
+        rows = []
+      }
     }
+    if (includeUntitled) {
+      const seen = new Set(rows.map((r) => r.id))
+      for (const row of untitledNoteRows(db, limit)) {
+        if (!seen.has(row.id)) { seen.add(row.id); rows.push(row) }
+      }
+    }
+    return rows.slice(0, limit).map(rowToNote)
   })
 
   ipcMain.handle('notes:deleteByTag', (event, tag: string) => {

@@ -112,15 +112,16 @@ export default function Ribbon() {
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <div
         className={`
-          native-buttons app-drag-region flex flex-col items-center flex-shrink-0 h-full w-[46px] py-2 gap-1
-          ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
+          native-buttons no-drag flex flex-col items-center flex-shrink-0 w-[46px] py-2 gap-1
         `}
-        // No border-r here — Ribbon and Sidebar.tsx share one continuous strip with nothing
-        // dividing them (Sidebar.tsx's own border-r, against the main content column, is the
-        // only edge this combined rail+sidebar draws). Two independent borders here used to sit
-        // back to back at the exact width Sidebar animates through on collapse. The non-mac
-        // fallback also now matches Sidebar.tsx's own (surface-2, not surface-3) — the two
-        // disagreed before despite playing the same visual role.
+        // Was `app-drag-region` when this was a permanently-docked column — now mounted inside
+        // FloatingRail.tsx's floating/portaled wrapper, which is deliberately `no-drag` all over
+        // (see that file's comment on why: Electron's drag-region hit-testing doesn't reliably
+        // follow portaled content's visual bounds, a class of bug this app has hit before).
+        // `app-drag-region` on THIS element would win over an ancestor's `no-drag` for its own
+        // pixels (region rules follow normal CSS specificity, innermost wins), so it has to be
+        // explicitly `no-drag` here too, not just on the wrapper. Background/border now also
+        // owned by FloatingRail's own wrapper div instead of duplicated here.
       >
         {/* No traffic-light clearance spacer here — Ribbon sits BELOW ShellHeader.tsx (which
              spans the full window width and owns that clearance), not at the window's own top
@@ -128,14 +129,6 @@ export default function Ribbon() {
              (before SidebarTopBar.tsx/TopBar.tsx were merged into ShellHeader.tsx) and needed
              its own spacer then; that's no longer true, and re-adding one here would just push
              every icon down by an extra, unneeded 44px under ShellHeader's own 44px. */}
-
-        {/* Top spacer — vertically centers the action-button cluster below instead of leaving
-            it pinned to the top with all the rail's excess height collapsing into one large gap
-            above the bottom-pinned Settings button. Paired with the existing flex-1 spacer
-            further down (which keeps Settings anchored at the very bottom, a common pattern —
-            VS Code's activity bar does the same), this turns one big ambiguous gap into two
-            smaller, symmetric ones either side of the cluster. */}
-        <div className="flex-1" />
 
         {/* ── Floating search — only shown when the Explorer (Sidebar.tsx)
              is collapsed, since its own search/location bar normally covers
@@ -347,8 +340,6 @@ export default function Ribbon() {
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
-
-        <div className="flex-1" />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

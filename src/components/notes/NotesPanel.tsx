@@ -15,7 +15,7 @@ import NoteSidePanel from './NoteSidePanel'
 import NoteLookDropdown from './NoteLookDropdown'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
-import { bookName, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
+import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
@@ -36,8 +36,8 @@ function dailyNoteTitle(date: Date): string {
 
 function formatVerseRef(ref: string): string {
   const [bookId, chapter, verse] = ref.split('.')
-  const name = bookId ? bookName(bookId) : ref
-  return verse ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
+  if (!bookId) return ref
+  return bookChapterVerseLabel(bookId, Number(chapter), verse ? Number(verse) : undefined)
 }
 
 export default function NotesPanel({ floating = false }: { floating?: boolean }) {
@@ -311,13 +311,17 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Load folders + persisted folder-view preference on mount
   useEffect(() => {
     loadFolders()
-    window.settings?.get('notesFolderView').then((v) => { if (v === true) setFolderView(true) }).catch(() => {})
+    window.settings?.get('notesFolderView').then((v) => { if (v === true) { setFolderView(true); setNoteFilter('all') } }).catch(() => {})
   }, [loadFolders])
 
   const toggleFolderView = useCallback(() => {
     setFolderView((v) => {
       const next = !v
       window.settings?.set('notesFolderView', next).catch(() => {})
+      // Entering folder view: a stale non-'all' filter left over from list view
+      // (its chip UI is hidden here) would silently keep narrowing folder-view
+      // search results with no visible indication a filter is active.
+      if (next) setNoteFilter('all')
       return next
     })
   }, [])
@@ -325,9 +329,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
   function idiomExportEntries() {
     const fmt = (r: NoteVerseRef): string => {
-      const name = bookName(r.bookId)
-      if (r.isChapter || r.verse === 0) return `${name} ${r.chapter}`
-      return `${name} ${r.chapter}:${r.verse}${r.endVerse ? `-${r.endVerse}` : ''}`
+      if (r.isChapter || r.verse === 0) return bookChapterVerseLabel(r.bookId, r.chapter)
+      return `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${r.endVerse ? `-${r.endVerse}` : ''}`
     }
     return notes.filter((n) => n.type === 'idiom').map((n) => {
       const d = n.idiomData ?? {}
@@ -483,9 +486,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // The title sits in the shared drag-region header bar. While it's a plain <input>, a
   // mousedown-drag on it can't also move the window (Electron/Chromium can't treat the
   // same element as both an app-drag-region and a text field taking its own mousedown for
-  // cursor placement). Default to a static, drag-region span showing the title; a real
-  // click (not a drag — Chromium itself resolves that distinction on a drag-region
-  // element, same as a native title bar) swaps in the actual input for editing.
+  // cursor placement). Default to a static span showing the title; clicking it swaps in
+  // the actual (`no-drag`) input for editing. The static span itself is ALSO `no-drag` —
+  // an earlier version made it a drag region on the assumption that Chromium reliably
+  // tells a real click apart from a drag-start on such elements, but in practice any
+  // perceptible mouse movement mid-click got swallowed as a window-drag attempt instead of
+  // firing onClick, making rename unreliable (reported: "it thinks I'm trying to drag the
+  // topbar"). Losing this one small strip of drag surface is the trade for renaming
+  // actually working — the rest of the header bar stays draggable.
   const [titleFocused, setTitleFocused] = useState(false)
   useEffect(() => { setTitleFocused(false) }, [activeNote?.id])
   // Track latest scroll position via scroll events (more reliable than reading DOM on unmount)
@@ -993,7 +1001,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={notesContentRef}
-      className="flex flex-col h-full bg-[rgb(var(--color-surface-3))] relative"
+      className="native-buttons flex flex-col h-full bg-[rgb(var(--color-surface-3))] relative"
       onMouseDown={() => setActivePanelId('notes')}
     >
       <FindBar
@@ -1032,14 +1040,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 )}
               </div>
             ) : !titleFocused ? (
-              // Static span, not an <input> — Electron auto-excludes interactive elements
-              // (inputs, buttons) from the drag region regardless of an ancestor's
-              // app-drag-region, which is exactly why this needed to NOT be an input by
-              // default: a real click still enters edit mode below, but a mousedown-drag
-              // here now moves the window the same as anywhere else in the header bar.
+              // `no-drag`, not `app-drag-region` — this WAS marked as a drag region on the
+              // theory that clicking it would still fire onClick and enter edit mode below.
+              // In practice Electron's drag-region hit-testing treats any perceptible mouse
+              // movement between mousedown and mouseup as the start of a window drag, not a
+              // click — so a slightly-imprecise click here (extremely common on a small text
+              // target) got silently swallowed as a drag attempt instead of renaming the note
+              // (reported: "it thinks I'm trying to drag the topbar"). `no-drag` trades away
+              // this one small strip of window-drag surface for reliable click-to-rename —
+              // the rest of the header bar remains draggable.
               <span
                 onClick={() => setTitleFocused(true)}
-                className="app-drag-region flex-1 text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))]"
+                className="no-drag flex-1 text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))]"
               >
                 {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
               </span>
@@ -1145,14 +1157,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   setCalendarOpen(v => !v)
                 }}
                 title="Daily notes calendar"
-                className={`p-1 rounded cursor-pointer transition-colors ${calendarOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                className={`p-1 rounded-shell cursor-pointer transition-colors ${calendarOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
               >
                 <Calendar size={15} />
               </button>
               <button
                 onClick={() => openDailyNote(new Date())}
                 title="Open today's daily note (⌘⇧D)"
-                className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
+                className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
               >
                 <CalendarDays size={15} />
               </button>
@@ -1172,7 +1184,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             <button
               onClick={toggleFolderView}
               title={folderView ? 'List view' : 'Folder view'}
-              className={`p-1 rounded cursor-pointer transition-colors ${folderView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+              className={`p-1 rounded-shell cursor-pointer transition-colors ${folderView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
             >
               <FolderTree size={15} />
             </button>
@@ -1183,7 +1195,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               <button
                 onClick={() => setExpandAll(v => !v)}
                 title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-                className={`p-1 rounded cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                className={`p-1 rounded-shell cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
               >
                 <AlignJustify size={15} />
               </button>
@@ -1192,7 +1204,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             <button
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
               title="Select notes"
-              className={`p-1 rounded cursor-pointer transition-colors ${selectMode ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+              className={`p-1 rounded-shell cursor-pointer transition-colors ${selectMode ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
             >
               <CheckSquare size={15} />
             </button>
@@ -1203,7 +1215,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 setPlusMenu({ x: e.clientX, y: e.clientY })
               }}
               title="New note (⌘⇧N) · right-click for more"
-              className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             >
               <Plus size={16} />
             </button>
@@ -1351,9 +1363,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               content={activeNote.content}
               noteTitle={activeNote.title || 'Untitled'}
               noteId={activeNote.id}
+              noteType={activeNote.type}
               tabId={notesTabId ?? undefined}
               allNotes={notes}
               onNoteClick={navigateToNote}
+              onOpenNewTab={openNoteInNewTab}
+              onOpenInFloatingTab={openNoteInFloatingTab}
               folderPath={folderPathFor(activeNote, folders)}
             />
           </div>

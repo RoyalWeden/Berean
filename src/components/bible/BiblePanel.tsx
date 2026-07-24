@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor } from 'lucide-react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -24,18 +24,10 @@ import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
 
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
-import { bookName } from '@/lib/parseRef'
+import { bookName, normalizeBookName } from '@/lib/parseRef'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
-
-function normalizeBookName(name: string): string {
-  return name
-    .replace(/^III /, '3 ')
-    .replace(/^II /, '2 ')
-    .replace(/^I /, '1 ')
-    .replace(/^Revelation of John$/, 'Revelation')
-}
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
@@ -132,15 +124,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
+  // Holds the in-flight Strong's-toggle view transition (if any) — see toggleStrongsForTab.
+  const pendingStrongsTransitionRef = useRef<{ finished: Promise<unknown>; skipTransition: () => void } | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTabRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const viewerScrollRAFRef = useRef<number | null>(null)
   // Stores a scroll position to apply after ChapterView finishes loading its verses async.
   // The double-RAF approach is insufficient because IPC data arrives much later than 2 frames.
   const pendingScrollRef = useRef<number | null>(null)
-  // Stores the top-visible verse anchor before a Strong's toggle so the same verse stays
-  // visible at roughly the same screen position after the layout reflows.
+  // Stores the top-visible verse anchor before a Strong's toggle or KJV/LXX switch so the
+  // same verse stays visible at roughly the same screen position after the layout reflows.
   const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
+  // Briefly highlights the anchor verse right after it's restored, so the eye has an
+  // obvious landing point confirming "you're still here" through the Strong's/KJV-LXX
+  // reflow — see ChapterView's flashAnchor prop. A fresh nonce re-triggers the flash even
+  // when it's the same verse number as the previous toggle.
+  const [flashAnchor, setFlashAnchor] = useState<{ verse: number; nonce: number } | null>(null)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   const compareColRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -246,6 +246,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const el = chapterViewRef.current
     if (!el) return
     if (activeSpace !== 'scripture') return
+    // Read targetVerse via the ref, NOT tabState.targetVerse directly, and deliberately do NOT
+    // list it as a dependency below — confirmed regression: when it WAS a dependency, this
+    // effect refired the instant ChapterView cleared targetVerse after a successful scroll
+    // (onTargetVerseConsumed), and the unconditional `el.scrollTop = 0` a few lines down wiped
+    // out that scroll immediately after it landed. Reading the ref instead still lets this
+    // effect make the right call using the CURRENT targetVerse value when a genuine navigation
+    // (book/chapter/tab/space change) fires it, without also firing on the pure consumption.
+    const hasTargetVerse = !!tabStateRef.current?.targetVerse
+    // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
+    console.warn('[BereanDebug] scroll-restore effect fired, resetting scrollTop=0', { hasTargetVerse, targetVerse: tabStateRef.current?.targetVerse, bookId: tabState.bookId, chapter: tabState.chapter })
     // Reset to top immediately to avoid flash of old position
     el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
@@ -257,11 +267,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // later, once ChapterView's data loads) ever gets a chance to run. Leaving the scroll
     // percent/chapterKey stale here makes computeViewerPayload() report `undefined` for
     // this chapter, so the viewer centers on `verse` instead — see useViewerSync.ts.
-    if (!tabState.targetVerse) {
+    if (!hasTargetVerse) {
       setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
     }
     virtualScrollPctRef.current = 0
     pendingScrollRef.current = null
+    // A pending targetVerse owns scrolling for this load (see the scroll-to-verse effect in
+    // ChapterView.tsx) — restoring the old saved scrollPosition here would fight it. Some
+    // navigation paths that set targetVerse don't also clear scrollPosition, so this guard
+    // is the actual fix; onVersesLoaded has a second backstop check for the same reason.
+    if (hasTargetVerse) return
     const savedPos = tabState.scrollPosition ?? 0
     if (savedPos === 0) return
     // Store it — will be applied by onVersesLoaded once ChapterView data arrives
@@ -483,6 +498,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+      if (searchTabRenameTimerRef.current) clearTimeout(searchTabRenameTimerRef.current)
       const tab = activeTabRef.current
       const el = getScrollEl()
       const pos = el?.scrollTop ?? 0
@@ -589,12 +605,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
         : `${currentBook.name} ${tabState.chapter}`
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
-    // Record navigation in history
+    // Record navigation in history — the entry's own title gets a ":verse" suffix when a
+    // specific verse was targeted (e.g. from search), distinct from the tab title (which
+    // intentionally stays chapter-level).
+    const historyTitle = tabState.targetVerse && !(tabState.endChapter && tabState.endChapter > tabState.chapter)
+      ? `${title}:${tabState.targetVerse}`
+      : title
     useAppStore.getState().addHistoryEntry({
       type: 'bible',
-      title,
+      title: historyTitle,
       bookId: tabState.bookId,
       chapter: tabState.chapter,
+      verse: tabState.targetVerse,
       translation: textId,
     })
     // Per-tab back/forward stack (Cmd+[ / Cmd+]) — Notes/Lexicon already push
@@ -619,6 +641,37 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       translation: textId.toUpperCase(),
     })
   }, [tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Record a verse-level history entry when a search navigates to a specific verse WITHIN
+  // an already-open chapter — the effect above only re-runs on book/chapter changes, so a
+  // verse-only jump (e.g. searching a different verse in the same chapter) never recorded
+  // anything. Deliberately does NOT fire when targetVerse clears back to undefined (that
+  // happens right after the scroll consumes it — see onTargetVerseConsumed callers), which
+  // would otherwise write a spurious duplicate entry for the same chapter with no verse. When
+  // a search also changes chapter, the effect above already records the correct verse (it
+  // reads tabState.targetVerse directly), and the store's own last-entry dedup silently drops
+  // this effect's identical follow-up write.
+  const lastVerseRecordRef = useRef<{ bookId: string; chapter: number; verse: number } | null>(null)
+  useEffect(() => {
+    if (!activeTab || !currentBook || tabState.searchMode) return
+    if (tabState.targetVerse == null) return
+    const last = lastVerseRecordRef.current
+    if (last && last.bookId === tabState.bookId && last.chapter === tabState.chapter && last.verse === tabState.targetVerse) return
+    lastVerseRecordRef.current = { bookId: tabState.bookId, chapter: tabState.chapter, verse: tabState.targetVerse }
+    const title = tabState.endChapter && tabState.endChapter > tabState.chapter
+      ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
+      : isHermasBook(tabState.bookId)
+        ? `Hermas ${getHermasShortLabel(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))}`
+        : `${currentBook.name} ${tabState.chapter}`
+    useAppStore.getState().addHistoryEntry({
+      type: 'bible',
+      title: `${title}:${tabState.targetVerse}`,
+      bookId: tabState.bookId,
+      chapter: tabState.chapter,
+      verse: tabState.targetVerse,
+      translation: textId,
+    })
+  }, [tabState.targetVerse, tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, textId])
 
   // ── Strong's scroll-anchor helpers ───────────────────────────────────────
   // Find the topmost verse whose top edge is at or below the container's visible top,
@@ -656,7 +709,31 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const containerTop = container.getBoundingClientRect().top
       const elTop = el.getBoundingClientRect().top
       container.scrollTop += elTop - containerTop - anchor.offsetPx
+      setFlashAnchor({ verse: anchor.verseNum, nonce: Date.now() })
     }))
+  }
+
+  // Toggling Strong's swaps the verse rows to/from an entirely different DOM structure
+  // (stacked word+chip vs. plain inline text — see VerseRow.tsx), so there's no shared
+  // layout to CSS-transition between. The View Transitions API sidesteps that: it
+  // screenshots the before/after DOM and crossfades between them regardless of how
+  // different the structure is, turning the previous instant jump into a smooth
+  // ~250ms crossfade. flushSync forces the state update (and its re-render) to commit
+  // synchronously inside the callback, so the "after" snapshot the browser captures is
+  // the real new layout rather than a stale one taken before React re-rendered.
+  function toggleStrongsForTab(tabId: string, next: boolean) {
+    captureStrongsAnchor()
+    const apply = () => updateTabState('scripture', tabId, { showStrongs: next })
+    if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+      // A still-running transition from a rapid previous toggle would otherwise race this
+      // one for the same named chapter element(s) — skip it first so only the latest wins.
+      pendingStrongsTransitionRef.current?.skipTransition()
+      const vt = document.startViewTransition(() => flushSync(apply))
+      pendingStrongsTransitionRef.current = vt
+      vt.finished.finally(() => { if (pendingStrongsTransitionRef.current === vt) pendingStrongsTransitionRef.current = null })
+    } else {
+      apply()
+    }
   }
 
   // ── Cmd+G → toggle Strong's numbers ─────────────────────────────────────
@@ -664,9 +741,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     function onToggleStrongs() {
       const tab = activeTabRef.current
       if (!tab) return
-      captureStrongsAnchor()
       const state = tab.state as import('@/types').BibleTabState
-      updateTabState('scripture', tab.id, { showStrongs: !state.showStrongs })
+      toggleStrongsForTab(tab.id, !state.showStrongs)
     }
     window.addEventListener('berean:toggleStrongs', onToggleStrongs)
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
@@ -996,9 +1072,34 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Called by ChapterView after it finishes loading verses via IPC.
   // At that point the content is in the DOM and we can reliably restore scroll.
   const onVersesLoaded = useCallback(() => {
+    // Verse-anchored restore (KJV/LXX switch) takes priority over the raw-pixel
+    // pendingScrollRef path below — anchoring by verse number tracks the same passage
+    // across two texts with different word counts/wrapping far better than reusing a
+    // pixel offset that was measured against the OLD text's layout, and it flashes the
+    // anchor verse so the eye has an obvious landing point through the reflow.
+    const verseAnchor = strongsAnchorRef.current
+    if (verseAnchor) {
+      strongsAnchorRef.current = null
+      const container = getScrollEl()
+      const el = container?.querySelector<HTMLElement>(`[data-verse="${verseAnchor.verseNum}"]`)
+      if (container && el) {
+        const containerTop = container.getBoundingClientRect().top
+        const elTop = el.getBoundingClientRect().top
+        container.scrollTop += elTop - containerTop - verseAnchor.offsetPx
+        setFlashAnchor({ verse: verseAnchor.verseNum, nonce: Date.now() })
+      }
+      return
+    }
     const pos = pendingScrollRef.current
     if (!pos || pos === 0) return
     pendingScrollRef.current = null
+    // A pending targetVerse means ChapterView's own scroll-to-verse effect owns scrolling
+    // for this load — jumping to the old saved scrollPosition here would fight (or, in
+    // some effect-ordering cases, permanently win against) that scroll. Some navigation
+    // paths that set targetVerse don't also clear scrollPosition (e.g. translation-switch-
+    // with-verse-carryover, cross-ref/note/lexicon verse links), so pendingScrollRef can
+    // still end up populated even when a verse jump is in flight — this is the backstop.
+    if (tabStateRef.current?.targetVerse) return
     const el = getScrollEl()
     if (el) {
       el.scrollTop = pos
@@ -1212,15 +1313,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             scrollTop: tabState.searchScrollTop,
           }}
           onStateChange={(s) => {
-            if (activeTab) updateTabState('scripture', activeTab.id, {
-              scriptureSearchQuery: s.query,
-              searchTextId: s.textId,
-              searchWordMode: s.wordMode,
-              searchTestamentFilter: s.testamentFilter,
-              searchBookFilter: s.bookFilter,
-              searchSortMode: s.sortMode,
-              searchScrollTop: s.scrollTop,
-            })
+            if (activeTab) {
+              updateTabState('scripture', activeTab.id, {
+                scriptureSearchQuery: s.query,
+                searchTextId: s.textId,
+                searchWordMode: s.wordMode,
+                searchTestamentFilter: s.testamentFilter,
+                searchBookFilter: s.bookFilter,
+                searchSortMode: s.sortMode,
+                searchScrollTop: s.scrollTop,
+              })
+              // Reflect the live query in the tab's own title — this tab's title was
+              // otherwise stuck at the static "Search" it was created with, giving no
+              // way to tell multiple advanced-search tabs apart in the sidebar/tab bar.
+              // Debounced (not renamed on literally every keystroke): a rename touches
+              // `tabs`, which both the Sidebar's tab list AND its own breadcrumb button
+              // subscribe to — firing it synchronously on every single character sent
+              // rapid-fire re-renders through that whole subtree while typing fast,
+              // which showed up as the tab bar / breadcrumb text visibly flickering
+              // instead of settling. A short debounce still reads as "live" to someone
+              // typing at normal speed, just without hammering a render on every key.
+              const tabId = activeTab.id
+              if (searchTabRenameTimerRef.current) clearTimeout(searchTabRenameTimerRef.current)
+              searchTabRenameTimerRef.current = setTimeout(() => {
+                const trimmedQuery = (s.query ?? '').trim()
+                useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
+              }, 150)
+            }
           }}
           onNavigate={(bookId, chapter, verse, tid) => {
             if (!activeTab) return
@@ -1237,6 +1356,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             if (savedQuery) {
               useAppStore.getState().pushTabNav(activeTab.id, { type: 'bible', title: `Search: "${savedQuery}"`, query: savedQuery })
             }
+            // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
+            console.warn('[BereanDebug] ScriptureSearchView onNavigate updateTabState', { tabId: activeTab.id, bookId, chapter, verse, newTranslation })
             // Navigate within this tab (search → reader), preserving search state for back button
             updateTabState('scripture', activeTab.id, {
               translation: newTranslation, bookId, chapter, targetVerse: verse,
@@ -1530,17 +1651,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             onClick={() => {
               if (!activeTab) return
               const target = textId === 'lxx' ? 'KJVA' : 'LXX'
-              // Explicitly capture and re-queue the CURRENT scroll position before switching —
-              // switching translation reloads verses (ChapterView.tsx's fetch effect is keyed
-              // on textId), and once the new text lands shorter/longer than the old, the
-              // browser can clamp/reset scrollTop on its own even though nothing here
-              // explicitly zeroes it. onVersesLoaded (below) already restores from
-              // pendingScrollRef once the new verses are in the DOM — it just needs a FRESH
-              // value here rather than relying on tabState.scrollPosition, which is only
-              // synced periodically/on tab-switch and can be stale at the moment of a
-              // same-tab translation switch.
-              const el = getScrollEl()
-              if (el) pendingScrollRef.current = el.scrollTop
+              // Anchor by VERSE NUMBER (not raw pixel offset) before switching — KJV and LXX
+              // have different word counts and line-wrapping, so "scroll to this many pixels
+              // down" in the old text can land on an unrelated passage in the new one, which
+              // is what made this switch hard to follow. Anchoring by verse tracks the same
+              // passage across both texts (onVersesLoaded below restores it once the new
+              // verses are in the DOM, and flashes the anchor verse as a landing cue).
+              captureStrongsAnchor()
               // Books like Psalms, Jeremiah, Joel, and Malachi use different chapter
               // divisions between KJV/MT and LXX numbering (e.g. KJV Ps 116 = LXX Ps
               // 114-115) — map the chapter, don't just carry the number over unchanged.
@@ -1561,7 +1678,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )}
         <HintTooltip label="Toggle Strong's numbers" shortcut="⌘G">
         <button
-          onClick={() => { if (!activeTab) return; captureStrongsAnchor(); updateTabState('scripture', activeTab.id, { showStrongs: !tabState.showStrongs }) }}
+          onClick={() => { if (!activeTab) return; toggleStrongsForTab(activeTab.id, !tabState.showStrongs) }}
           className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
             tabState.showStrongs
               ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
@@ -1696,6 +1813,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         hiddenAnnotations={tabState.hiddenAnnotations}
         findQuery={findQuery}
         findWordMode={findWMode}
+        flashAnchor={flashAnchor}
         onStrongsClick={handleStrongsClick}
         onWordClick={handleWordClick}
         onChapterChange={(ch) => {
@@ -1709,6 +1827,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           renameTab('scripture', activeTab.id, chTitle)
         }}
         onVersesLoaded={onVersesLoaded}
+        onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
         onScroll={handleBibleScroll}
         presenterBand={presenterBand}
         viewerPaused={viewerPaused}
@@ -1849,7 +1968,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 chapter={ch}
                 showStrongs={tabState.showStrongs}
                 textId={textId}
-                targetVerse={undefined}
+                targetVerse={ch === tabState.chapter ? tabState.targetVerse : undefined}
                 endVerse={undefined}
                 hiddenAnnotations={tabState.hiddenAnnotations}
                 findQuery={findQuery}
@@ -1857,6 +1976,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onStrongsClick={handleStrongsClick}
                 onWordClick={handleWordClick}
                 onVersesLoaded={ch === tabState.chapter ? onVersesLoaded : undefined}
+                onTargetVerseConsumed={ch === tabState.chapter ? (() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }) : undefined}
+                flashAnchor={ch === tabState.chapter ? flashAnchor : undefined}
               />
             ))
           : (
@@ -1874,6 +1995,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onWordClick={handleWordClick}
                 onVersesLoaded={onVersesLoaded}
                 onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
+                flashAnchor={flashAnchor}
               />
             )
         }
@@ -1913,7 +2035,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const hDivider = (
       <div
         onMouseDown={handleResizeMouseDown}
-        className="group relative w-1 flex-shrink-0 cursor-col-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+        className="group relative w-1 flex-shrink-0 cursor-col-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
@@ -1925,7 +2047,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const vDivider = (
       <div
         onMouseDown={handleVResizeMouseDown}
-        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+        className="group relative h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
@@ -1971,7 +2093,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl()}</div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1992,7 +2114,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   className="flex-shrink-0 flex overflow-hidden"
                 >
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">{panelEl()}</div>
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl()}</div>
                   {hDivider}
                 </motion.div>
               )}
@@ -2009,7 +2131,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)] min-w-0">
+                <div className="flex-[3] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
                   {panelEl()}
                 </div>
               </>
@@ -2025,7 +2147,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)] min-w-0">
+                <div className="flex-[1.5] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
                   {panelEl()}
                 </div>
               </>
@@ -2049,7 +2171,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   className="flex-shrink-0 flex overflow-hidden"
                 >
                   {hDivider}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                     {panelEl('notes')}
                   </div>
                 </motion.div>
@@ -2064,7 +2186,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl()}
             </div>
           </div>
@@ -2076,7 +2198,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
           </div>
@@ -2086,7 +2208,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
             {vDivider}
@@ -2117,7 +2239,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
           </div>
@@ -2129,7 +2251,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
                 {panelEl('lexicon')}
               </div>
@@ -2146,7 +2268,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const lcVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
           />
         )
         return (
@@ -2155,18 +2277,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 flex overflow-hidden min-h-0">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('crossrefs')}
               </div>
             </div>
@@ -2178,7 +2300,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
             {hDivider}
@@ -2190,13 +2312,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('lexicon')}
             </div>
           </div>
@@ -2208,7 +2330,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const sbVDivider = (
           <div
             onMouseDown={handleLCVResizeMouseDown}
-            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-[rgb(var(--color-surface-4))]"
+            className="h-1 flex-shrink-0 cursor-row-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
           />
         )
         return (
@@ -2216,11 +2338,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
-              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.5)]">
+              <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('lexicon')}
               </div>
             </div>

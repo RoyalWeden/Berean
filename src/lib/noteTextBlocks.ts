@@ -93,8 +93,24 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // greedily grab a leading non-book word ("vs Deuteronomy"); we recover by retrying
 // parseRef on progressively shorter suffixes until one parses, then adjust the
 // match start so only the real reference is decorated.
+// The final book-word component allows an optional trailing digit run (\d*) so fused
+// per-book shorthand ids like "RCL1" (Recognitions of Clement, book 1) — letters directly
+// abutting a digit with no space — are captured as one token instead of the required
+// whitespace-before-the-chapter-number failing to match at "RCL"+"1" and silently dropping
+// the whole reference. parseRef() still has to resolve the captured phrase to a real book,
+// so this doesn't introduce false positives beyond what already silently fails downstream.
+// Group 2 (optional) captures a "Book N" subdivision (e.g. "Recognitions, Book 10 41:8") —
+// Recognitions of Clement's real addressing is 3-level Book.Chapter.Verse; the number is
+// re-joined with the book phrase before parseRef() in findVerseRefMatches below, which
+// resolves the combined "book + Book N" token to the right per-book id (e.g. RCL10).
+// The (?!Book[ \t]+\d) lookaheads (on both the {0,2} prefix-word slots and the final
+// required word) keep the ordinary book-phrase word matching from swallowing "Book" as
+// a plain word before the explicit group gets a chance — without them, the no-comma form
+// "Recognitions Book 10 41:8" matched "Recognitions Book" as the book phrase and silently
+// dropped "41:8" (the comma form worked by accident, since a comma isn't part of the
+// ordinary prefix-word separator).
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:[A-Za-z][a-z]*\.?[ \t]+){0,2}[A-Za-z][a-z]+\.?)[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number
@@ -109,8 +125,9 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
   let m: RegExpExecArray | null
   while ((m = VERSE_REF_SCAN_RE.exec(text)) !== null) {
     const bookPhrase = m[1]
-    const numPart = m[2]
-    const lxx = !!m[3]
+    const bookSub = m[2]
+    const numPart = m[3]
+    const lxx = !!m[4]
     const words = bookPhrase.split(/[ \t]+/).filter(Boolean)
     const wordStarts: number[] = []
     let search = 0
@@ -121,7 +138,7 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
     }
     let matched = false
     for (let start = 0; start < words.length; start++) {
-      const candidateRef = words.slice(start).join(' ') + ' ' + numPart
+      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart
       if (parseRef(candidateRef)) {
         const bookWords = words.slice(start)
         const lastBookWord = bookWords[bookWords.length - 1].toLowerCase().replace(/\.$/, '')

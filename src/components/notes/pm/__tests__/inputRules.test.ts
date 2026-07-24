@@ -159,6 +159,40 @@ describe('markdown-shortcut input rules (live conversion while typing, not just 
   // only ever created by parseMarkdown at note-LOAD time — there was no
   // live-typing conversion rule at all, unlike every other markdown
   // shortcut above.
+  // Reported bug: typing "--" never produced an em dash. Root cause: the
+  // rule handler receives the PRE-insertion editor state (the just-typed
+  // '-' isn't in the document yet when the handler runs), but the guard
+  // logic read the current line text as if it already included that
+  // character — so every check was silently off by one, and the rule could
+  // never actually fire for a real two-keystroke "--" sequence.
+  it('typing -- converts the two dashes into a real em dash', () => {
+    const view = makeView()
+    type(view, 'hello--world')
+    expect(view.state.doc.textContent).toBe('hello—world')
+    view.destroy()
+  })
+
+  // Follow-up report: "-- still isn't becoming a dash ... all I typed on a
+  // separate line is '--'". Root cause: emDashRule deliberately left a bare
+  // "--" (nothing else on the line) unconverted, on the theory that the user
+  // might be about to type a 3rd dash for a horizontal rule — but that meant
+  // a bare "--" typed alone and left as-is could NEVER convert, since
+  // nothing ever re-triggered the rule afterward. Converting immediately and
+  // unconditionally fixes this.
+  it('typing -- ALONE on an empty line converts immediately, with nothing typed after it', () => {
+    const view = makeView()
+    type(view, '--')
+    expect(view.state.doc.textContent).toBe('—')
+    view.destroy()
+  })
+
+  it('typing --- (horizontal rule) still works even though the first two dashes convert to an em dash along the way', () => {
+    const view = makeView()
+    type(view, '---')
+    expect(view.state.doc.firstChild?.type.name).toBe('horizontal_rule')
+    view.destroy()
+  })
+
   it('[[Title]] applies the wikilink mark live and strips the brackets', () => {
     const view = makeView()
     type(view, 'see [[My Note]]')

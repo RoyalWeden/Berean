@@ -876,6 +876,16 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 1px 0 12px -4px rgb(0 0 0 / 0.25);
 }
 
+/* Same translucent-vibrancy background as .sidebar-vibrant, WITHOUT its box-shadow —
+   ShellHeader.tsx uses this instead of .sidebar-vibrant: the right-edge shadow that
+   class bakes in was designed for a vertical sidebar's side edge, but on the header
+   it rendered as an unwanted shadow along the header's bottom edge (reported as
+   "the top bar still has the shadow" even after ShellHeader's own shadow-* class was
+   removed — this box-shadow, inherited from .sidebar-vibrant, was the real source). */
+.topbar-vibrant {
+  background: rgb(var(--color-surface-2) / 0.6);
+}
+
 /* ── Glass panel (Arc/Zen-style frosted chrome) ──────────────────────────────
    Reusable treatment for sidebar, floating search, context menus, tooltips.
    NOTE: PresenterControls.tsx's older glass pattern (95% opaque + default 8px
@@ -958,4 +968,24 @@ body {
 .native-buttons button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgb(var(--color-surface-1)), 0 0 0 4px rgb(var(--color-accent) / 0.7);
+}
+
+/* ── Strong's/KJV-LXX crossfade (BiblePanel.tsx toggleStrongsForTab, ChapterView.tsx's
+   translation-switch commit) ──────────────────────────────────────────────
+   Each ChapterView instance sets its own unique view-transition-name (see
+   ChapterView.tsx) so only that chapter's own content is captured/animated —
+   the implicit "root" group (header, sidebar, other panels, everything else in the
+   window) has its animation disabled below so the rest of the app just snaps to the
+   new state instantly instead of visibly crossfading along with the chapter content.
+   The browser's default view-transition duration (250ms) reads slow for a toggle
+   flipped repeatedly; shortened further (was 160ms) per feedback that it still felt
+   laggy rather than snappy. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 100ms;
+  animation-timing-function: ease-out;
 }

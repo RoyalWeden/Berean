@@ -1018,6 +1018,27 @@ app.whenReady().then(async () => {
         })
       }
       setTimeout(() => attemptStartupCheck(false), 6000)
+
+      // Keep checking periodically while the app stays open, not just once at
+      // startup — a user who leaves Berean running for hours/days previously
+      // never learned about a new release until their next relaunch. Re-reads
+      // the "autoUpdate" setting on every tick (not just once) so toggling it
+      // off in Settings mid-session actually stops future checks, and re-reads
+      // the beta-channel preference too in case that changed. `checkForUpdates`
+      // itself is just a small metadata HTTPS request — `autoDownload` stays
+      // false (line ~172), so this never starts an actual download on its own,
+      // just negligible periodic network/CPU cost, not a real memory/CPU/GPU
+      // concern at this interval.
+      const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
+      setInterval(() => {
+        const enabledNow = db.prepare("SELECT value FROM settings WHERE key='autoUpdate'").get() as { value: string } | undefined
+        if (enabledNow && enabledNow.value === 'false') return
+        const channelNow = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
+        autoUpdater.allowPrerelease = channelNow?.value === 'beta'
+        autoUpdater.checkForUpdates().catch((err: unknown) => {
+          log.warn('Periodic update check failed:', err instanceof Error ? err.message : String(err))
+        })
+      }, UPDATE_CHECK_INTERVAL_MS)
     }
   }
 

@@ -23,6 +23,7 @@ import { bereanTablePlugins } from './tablePlugins'
 import { createSuppressRangesPlugin, suppressRangesKeymap } from './suppressRanges'
 import { createFindHighlightPlugin, setFindQuery } from './findHighlight'
 import { createSelectionToolbarPlugin, type SelectionToolbarState } from './selectionToolbarPlugin'
+import { createTableStatusPlugin } from './tableStatusPlugin'
 import SelectionToolbar from './SelectionToolbar'
 import Toolbar from './Toolbar'
 import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup } from './AutocompletePopups'
@@ -140,6 +141,7 @@ export default function NoteEditorPM({
   const [wikilinkIdx, setWikilinkIdx] = useState(0)
   const [slashIdx, setSlashIdx] = useState(0)
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null)
+  const [inTable, setInTable] = useState(false)
 
   // Dismiss the floating "select text to format" toolbar on: any right-click
   // anywhere in the app (App.tsx's capture-phase contextmenu listener already
@@ -243,6 +245,7 @@ export default function NoteEditorPM({
         createBlockDecorationsPlugin(),
         createFindHighlightPlugin(),
         createSelectionToolbarPlugin(setSelectionToolbar),
+        createTableStatusPlugin(setInTable),
       ],
     })
 
@@ -546,7 +549,7 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} />}
+      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}

@@ -456,7 +456,7 @@ export default function NotesFolderView({
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
         style={{ paddingLeft: 12 + depth * 16 }}
-        className={`group relative flex items-center gap-2 pr-2 py-1.5 cursor-pointer transition-colors ${
+        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
           activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
@@ -589,7 +589,7 @@ export default function NotesFolderView({
           onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id) } }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
           style={{ paddingLeft: 8 + depth * 16 }}
-          className={`group flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer transition-colors ${
+          className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
             dragOverId === folder.id ? 'bg-[rgb(var(--color-accent))/20] ring-1 ring-inset ring-[rgb(var(--color-accent))]'
               : isSelected ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))]'
           }`}
@@ -671,7 +671,7 @@ export default function NotesFolderView({
               <div
                 onClick={() => toggle(bookFolderId)}
                 style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
               >
                 <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${bookIsOpen ? 'rotate-90' : ''}`} />
                 {bookIsOpen
@@ -689,7 +689,7 @@ export default function NotesFolderView({
                     <div
                       onClick={() => toggle(chFolderId)}
                       style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
                     >
                       <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${chIsOpen ? 'rotate-90' : ''}`} />
                       {chIsOpen
@@ -727,7 +727,7 @@ export default function NotesFolderView({
               <div
                 onClick={() => toggle(yearFolderId)}
                 style={{ paddingLeft: 24 }}
-                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
               >
                 <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${yearIsOpen ? 'rotate-90' : ''}`} />
                 {yearIsOpen
@@ -747,7 +747,7 @@ export default function NotesFolderView({
                     <div
                       onClick={() => toggle(monthFolderId)}
                       style={{ paddingLeft: 40 }}
-                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
+                      className="flex items-center gap-1.5 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors select-none"
                     >
                       <ChevronRight size={11} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${monthIsOpen ? 'rotate-90' : ''}`} />
                       {monthIsOpen
@@ -796,7 +796,7 @@ export default function NotesFolderView({
           <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
             <div
               onClick={() => toggle(key)}
-              className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+              className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
             >
               <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${isOpen ? 'rotate-90' : ''}`} />
               <Icon size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
@@ -820,7 +820,7 @@ export default function NotesFolderView({
       <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
         <div
           onClick={() => toggle('pdfs')}
-          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
         >
           <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
           <FileType2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
@@ -835,7 +835,7 @@ export default function NotesFolderView({
                 <div key={p.id}
                   onClick={() => openPdf(p.id, p.title)}
                   style={{ paddingLeft: 28 }}
-                  className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors">
+                  className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
                   <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
                 </div>
@@ -877,7 +877,7 @@ export default function NotesFolderView({
       {/* Empty-space right-click menu — create note or folder */}
       {emptyMenu && onCreateNote && createPortal(
         <MenuPositioner ref={emptyMenuRef} x={emptyMenu.x} y={emptyMenu.y}
-          className="context-menu min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
+          className="native-buttons context-menu min-w-[170px] rounded-shell-lg py-1 overflow-hidden"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
@@ -915,7 +915,7 @@ export default function NotesFolderView({
       {/* Folder context menu */}
       {folderMenu && createPortal(
         <MenuPositioner ref={folderMenuRef} x={folderMenu.x} y={folderMenu.y}
-          className="context-menu min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
+          className="native-buttons context-menu min-w-[190px] rounded-shell-lg py-1 overflow-hidden"
         >
               {onCreateNoteInFolder && (
                 <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
@@ -977,7 +977,7 @@ export default function NotesFolderView({
       )}
       {/* Custom confirm dialog for "Delete folder & contents" */}
       {confirmDelete && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
+        <div className="native-buttons fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
           <div className="glass-panel rounded-shell-lg p-5 w-80 max-w-full">
             <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))] mb-1">
               Delete &ldquo;{confirmDelete.folder.name}&rdquo;?
@@ -996,7 +996,7 @@ export default function NotesFolderView({
             </label>
             <div className="flex gap-2 justify-end">
               <button
-                className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
                 onClick={() => setConfirmDelete(null)}
               >
                 Cancel

@@ -4,6 +4,7 @@ import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
+import { numberTokenAlternates } from '@/lib/numberWords'
 import type { Book, SearchTabState } from '@/types'
 
 function normalizeBookName(name: string): string {
@@ -25,6 +26,7 @@ const SEARCH_TRANSLATIONS = [
   { id: 't_job',         label: 'T. Job',            category: 'pseudo' },
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' },
+  { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' },
 ]
 
 // Detect if query starts with a translation hint like "lxx: ..." or "enoch ..."
@@ -38,12 +40,13 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
     [['asc isaiah:', 'asc isaiah ', 'asc. isaiah:', 'ascension of isaiah:', 'ascension of isaiah '], 'asc_isaiah'],
     [['ep barnabas:', 'ep barnabas ', 'ep. barnabas:', 'epistle of barnabas:', 'epistle of barnabas ', 'barnabas:', 'barnabas '], 'ep_barnabas'],
     [['t12p:', 't12p ', 'testaments:', 'testaments ', '12 patriarchs:', '12 patriarchs '], 't12p'],
-    [['recog clement:', 'recog clement ', 'recog. clement:', 'recognitions:', 'recognitions '], 'recog_clement'],
+    [['recog clement:', 'recog clement ', 'recog. clement:', 'recognitions:', 'recognitions ', 'roc:', 'roc '], 'recog_clement'],
     [['hermas:', 'hermas ', 'shepherd of hermas:', 'shepherd of hermas '], 'hermas'],
     [['gad the seer:', 'gad seer:', 'words of gad '], 'gad'],
     [['testament of job:', 'test job:', 'tjob '], 't_job'],
     [['1 clement:', '1clement:', '1clem '], '1clement'],
     [['apoc abraham:', 'apoc abraham ', 'apoc. abraham:', 'apocalypse of abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
+    [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
   ]
   for (const [patterns, id] of prefixes) {
     for (const pat of patterns) {
@@ -76,11 +79,19 @@ type TestamentFilter = 'all' | 'OT' | 'NT' | 'Apocrypha' | 'Pseudepigrapha'
 type SortMode = 'relevance' | 'bookOrder'
 
 function highlight(text: string, query: string): React.ReactNode[] {
-  if (!query.trim()) return [text]
-  const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  const words = query.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return [text]
+  // Per-word, not the whole query as one phrase — matches how the underlying FTS
+  // search actually works ('all words' mode: every word must appear, not necessarily
+  // adjacent), and lets each word's number alternate (numberTokenAlternates: "7" also
+  // matches "seven", and vice versa) highlight too, not just the literal typed form.
+  const patterns = Array.from(new Set(
+    words.flatMap((w) => numberTokenAlternates(w)).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  ))
+  const combined = patterns.join('|')
+  const parts = text.split(new RegExp(`(${combined})`, 'gi'))
   return parts.map((p, i) =>
-    new RegExp(escaped, 'gi').test(p)
+    new RegExp(`^(?:${combined})$`, 'i').test(p)
       ? <mark key={i} className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{p}</mark>
       : p
   )
@@ -118,6 +129,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
   const translationRef = useRef<HTMLDivElement>(null)
   const resultsScrollRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const renameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Restore scroll position on mount
   useEffect(() => {
@@ -195,6 +207,23 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
 
   function handleInput(val: string) {
     setQuery(val)
+    // Reflect the live query in the tab's own title so the sidebar tab list shows a
+    // preview of what's being searched — NOT tied to runSearch below, which is
+    // debounced 400ms and skips anything under 2 characters, both of which made the
+    // tab title lag behind or never update at all for short queries. Debounced
+    // separately (short, ~150ms) rather than firing on literally every keystroke: a
+    // rename touches `tabs`, which both the sidebar's tab list AND its own breadcrumb
+    // button subscribe to, so renaming on every single character sent a render
+    // through that whole subtree per keystroke while typing fast — visible as the
+    // tab bar/breadcrumb text flickering instead of settling. This still reads as
+    // "live" at normal typing speed.
+    if (searchTab) {
+      const tabId = searchTab.id
+      if (renameTimerRef.current) clearTimeout(renameTimerRef.current)
+      renameTimerRef.current = setTimeout(() => {
+        useAppStore.getState().renameTab('search', tabId, val.trim() ? `"${val.trim()}"` : 'Search')
+      }, 150)
+    }
     // Auto-detect translation prefix (e.g. "lxx creation" → switch to LXX)
     const detected = detectTranslationPrefix(val)
     let effectiveTid = textId

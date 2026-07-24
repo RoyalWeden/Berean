@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { useAppStore } from '@/store'
+import { useShallow } from 'zustand/react/shallow'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
@@ -27,16 +28,22 @@ function EmptyState() {
 
 export default function ActivePanel() {
   const activeSpace = useAppStore((s) => s.activeSpace)
-  const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
+  // Only two spaces are ever read here: whichever is active, and 'youtube' (kept always-mounted
+  // for PiP continuity — see below). useShallow so a tab-state write in any OTHER space (e.g. a
+  // Scripture scroll-position tick) doesn't re-render this, unlike subscribing to the whole
+  // `s.tabs` record. See BiblePanel.tsx's comment for the underlying cause.
+  const { activeSpaceTabs, youtubeTabs } = useAppStore(
+    useShallow((s) => ({ activeSpaceTabs: s.tabs[s.activeSpace], youtubeTabs: s.tabs.youtube }))
+  )
 
   const tabId = activeTabId[activeSpace]
-  const tab = tabs[activeSpace].find((t) => t.id === tabId)
+  const tab = activeSpaceTabs.find((t) => t.id === tabId)
 
   // Always-mounted YouTube: keeps the webview alive across space switches so PiP and
   // video state are never lost. CSS visibility hides it without unmounting.
   const ytTabId = activeTabId['youtube']
-  const ytTab = ytTabId ? tabs['youtube'].find((t) => t.id === ytTabId) : null
+  const ytTab = ytTabId ? youtubeTabs.find((t) => t.id === ytTabId) : null
   const isYouTubeActive = activeSpace === 'youtube'
 
   return (

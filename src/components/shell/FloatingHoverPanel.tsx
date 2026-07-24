@@ -60,7 +60,7 @@ export interface FloatingHoverPanelProps {
   pinned?: boolean
   /** The expanded card's own body content (scrolls internally as needed). */
   children: ReactNode
-  /** Horizontal offset of the anchor from the right edge of its container (Tailwind spacing scale, default `right-3`). */
+  /** Horizontal offset of the anchor from the right edge of its container (Tailwind spacing scale, default `right-1`). */
   anchorRightClass?: string
   /** Width of the hover-trigger zone (Tailwind width scale, default `w-8`) — callers
    *  with less horizontal clearance (e.g. right next to a scrollbar) can narrow this. */
@@ -72,6 +72,13 @@ export interface FloatingHoverPanelProps {
   openDelayMs?: number
   /** Fires whenever the expanded state changes — e.g. to autofocus a search input the instant it opens. */
   onExpandedChange?: (expanded: boolean) => void
+  /** Collapsed-state width/height/radius, in px (default 32/32/16 — a perfect circle).
+   *  Override together to get a different idle shape, e.g. a thin vertical pill
+   *  (16/44/8) matching FloatingRail.tsx's own idle trigger — the collapsed shape is
+   *  otherwise ALWAYS a circle, which doesn't fit every caller's surrounding chrome. */
+  collapsedWidth?: number
+  collapsedHeight?: number
+  collapsedRadius?: number
 }
 
 const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPanelProps>(function FloatingHoverPanel({
@@ -81,10 +88,13 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
   cornerBadge,
   pinned = false,
   children,
-  anchorRightClass = 'right-3',
+  anchorRightClass = 'right-1',
   anchorWidthClass = 'w-8',
   openDelayMs = 0,
   onExpandedChange,
+  collapsedWidth = COLLAPSED_SIZE,
+  collapsedHeight = COLLAPSED_SIZE,
+  collapsedRadius = RADIUS,
 }, ref) {
   const [expanded, setExpanded] = useState(false)
   const [anchor, setAnchor] = useState<{ centerY: number; right: number } | null>(null)
@@ -166,9 +176,9 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
           onMouseLeave={scheduleClose}
         >
           <motion.div
-            animate={{ width: expanded ? expandedWidth : COLLAPSED_SIZE, height: expanded ? expandedHeight : COLLAPSED_SIZE }}
+            animate={{ width: expanded ? expandedWidth : collapsedWidth, height: expanded ? expandedHeight : collapsedHeight }}
             transition={{ type: 'spring', stiffness: 500, damping: 45 }}
-            style={{ borderRadius: RADIUS }}
+            style={{ borderRadius: expanded ? RADIUS : collapsedRadius }}
             className={`relative z-[9999] border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]/95 backdrop-blur-sm ${
               expanded
                 ? 'shadow-2xl cursor-default'
@@ -176,7 +186,7 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
             }`}
           >
             {expanded && cornerBadge}
-            <div className="absolute inset-0 overflow-hidden flex flex-col" style={{ borderRadius: RADIUS }}>
+            <div className="absolute inset-0 overflow-hidden flex flex-col" style={{ borderRadius: expanded ? RADIUS : collapsedRadius }}>
               <div
                 className="absolute inset-0 flex items-center justify-center transition-opacity duration-100"
                 style={{ opacity: expanded ? 0 : 1, pointerEvents: expanded ? 'none' : 'auto' }}

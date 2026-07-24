@@ -106,6 +106,11 @@ export const ANNOTATION_KEYS: Record<string, { canHide: boolean; description?: s
     description: 'Trans. Charles H. Hoole (1894). 16 chapters — the Two Ways (1–6), church practice and sacraments (7–10), ministry (11–15), and a closing eschatological warning (16). Verse numbering follows the Hoole edition.',
     keys: [],
   },
+  t_jacob: {
+    canHide: false,
+    description: 'Trans. W.F. Stinespring, in Charlesworth (ed.), Old Testament Pseudepigrapha Vol. 1 ("Testaments of the Three Patriarchs"). 8 chapters. Chapter 5, verses 10–15 are the translator\'s own bracketed summary of a lacuna in the Arabic manuscript, supplied from the Bohairic.',
+    keys: [],
+  },
 }
 
 export const TRANSLATIONS = [
@@ -125,6 +130,7 @@ export const TRANSLATIONS = [
   { id: '1clement',      label: '1 Clement',        description: 'First Epistle of Clement to the Corinthians, trans. J.B. Lightfoot' },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',    description: 'Apocalypse of Abraham, trans. G.H. Box (1918)' },
   { id: 'didache_hoole', label: 'Didache',          description: 'The Teaching of the Twelve Apostles, trans. Charles H. Hoole (1894)' },
+  { id: 't_jacob',       label: 'T. Jacob',         description: 'Testament of Jacob, trans. W.F. Stinespring' },
 ]
 
 // ── Editions ──────────────────────────────────────────────────────────────────
@@ -151,6 +157,7 @@ export const EDITIONS: Edition[] = [
   { id: '1clement',      label: 'First Epistle of Clement',           translations: [{ id: '1clement', label: 'J.B. Lightfoot' }] },
   { id: 'apoc_abraham',  label: 'Apocalypse of Abraham',              translations: [{ id: 'apoc_abraham', label: 'G.H. Box (1918)' }] },
   { id: 'didache_hoole', label: 'Didache',                            translations: [{ id: 'didache_hoole', label: 'Charles H. Hoole (1894)' }] },
+  { id: 't_jacob',       label: 'Testament of Jacob',                 translations: [{ id: 't_jacob', label: 'W.F. Stinespring' }] },
 ]
 
 /** The edition that contains a given translation textId. */

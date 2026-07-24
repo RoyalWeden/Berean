@@ -344,6 +344,7 @@ export interface HistoryEntry {
   // Type-specific navigation payload
   bookId?: string       // bible
   chapter?: number      // bible
+  verse?: number        // bible — the specific verse navigated to, if any (e.g. via search)
   translation?: string  // bible
   noteId?: string       // note
   verseRef?: string     // note — the verse it's attached to, if it's a verse note (links study history back to the passage)
