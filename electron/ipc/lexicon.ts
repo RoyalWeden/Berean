@@ -152,8 +152,12 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
             //      positions for the first non-function content word (≥5 chars).
             //   c) Otherwise keep the original position.
 
-            // Short words that are never the "content" word being lexically tagged
-            const FW = new Set(['the', 'a', 'an', 'his', 'her', 'its', 'our', 'your', 'their', 'my', 'thy', 'thine', 'by', 'in', 'of', 'on', 'at', 'to', 'for', 'or', 'and', 'but', 'yet', 'so', 'if', 'as', 'he', 'she', 'it', 'we', 'us', 'me', 'him', 'be', 'is', 'was', 'are', 'not', 'no', 'do', 'did', 'had', 'who', 'whom', 'its', 'now'])
+            // Short words that are never the "content" word being lexically tagged.
+            // Confirmed gap (G1707 in 2Ti 2:4): "with{G1707}" wasn't re-anchored to the
+            // actual translated word "entangleth" because "with" wasn't in this set —
+            // widened to cover the other common short prepositions/conjunctions/pronouns/
+            // auxiliary verbs that show up in the same mistagging pattern.
+            const FW = new Set(['the', 'a', 'an', 'his', 'her', 'its', 'our', 'your', 'their', 'my', 'thy', 'thine', 'by', 'in', 'of', 'on', 'at', 'to', 'for', 'or', 'and', 'but', 'yet', 'so', 'if', 'as', 'he', 'she', 'it', 'we', 'us', 'me', 'him', 'be', 'is', 'was', 'are', 'not', 'no', 'do', 'did', 'had', 'who', 'whom', 'its', 'now', 'with', 'from', 'unto', 'upon', 'into', 'than', 'then', 'that', 'this', 'these', 'those', 'them', 'they', 'i', 'you', 'ye', 'thou', 'thee', 'shall', 'will', 'hath', 'have', 'been', 'were', 'am', 'up', 'out', 'over', 'under', 'again', 'also', 'even', 'unto'])
 
             const reanchored: number[] = []
             const glossHasContentWords = fallbackWords.some((fw) => fw.length >= 5)

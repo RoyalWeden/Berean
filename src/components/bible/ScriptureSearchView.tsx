@@ -8,9 +8,10 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
 import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight } from '@/lib/strongsSearch'
-import { toggleBook, bookPassesFilter } from '@/lib/scriptureSearchFilters'
+import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
+import { numberTokenAlternates } from '@/lib/numberWords'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
@@ -68,6 +69,7 @@ const ALL_TEXTS = [
   { id: 't_job',         label: 'T. Job',            category: 'pseudo' as const },
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' as const },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
+  { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' as const },
 ]
 
 // Module-level cache: this view remounts every time the search tab is (re)opened (BiblePanel
@@ -107,6 +109,45 @@ interface RawResult {
 type TestamentFilter = 'all' | 'OT' | 'NT' | 'Apocrypha' | 'Pseudepigrapha'
 type SortMode = 'relevance' | 'bookOrder'
 
+// Compact "all words" results only had room to show one line, but blind CSS line-clamping
+// starts at character 0 — for an "all words" query, all the query words are guaranteed to be
+// somewhere in the verse (that's what made it match), yet a clamp starting at the verse's
+// first word frequently clipped before reaching later query words, so the truncated snippet
+// looked like it only matched one of the several typed words. This instead finds each word's
+// position, picks a window that covers as many distinct query words as possible within a
+// character budget (greedy left-to-right from the first match), and marks truncated ends with
+// an ellipsis — the same idea as a search engine's result snippet.
+function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string {
+  const words = query.trim().split(/\s+/).filter(w => w.length > 0)
+  if (words.length === 0 || text.length <= maxLen) return text
+  const escaped = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const positions: number[] = []
+  for (const w of escaped) {
+    const m = new RegExp(`\\b${w}\\w*`, 'i').exec(text)
+    if (m) positions.push(m.index)
+  }
+  if (positions.length === 0) return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
+  positions.sort((a, b) => a - b)
+  const first = positions[0]
+  const last = positions[positions.length - 1]
+  let start: number, end: number
+  if (last - first + 20 <= maxLen) {
+    // All matches fit — center the window on the matched span with some padding.
+    const pad = Math.floor((maxLen - (last - first)) / 2)
+    start = Math.max(0, first - pad)
+    end = Math.min(text.length, start + maxLen)
+    start = Math.max(0, end - maxLen)
+  } else {
+    // Matches are too spread out to all fit — start at the first match so at least it's
+    // visible, rather than centering and losing it entirely.
+    start = Math.max(0, first - 10)
+    end = Math.min(text.length, start + maxLen)
+  }
+  const prefix = start > 0 ? '…' : ''
+  const suffix = end < text.length ? '…' : ''
+  return `${prefix}${text.slice(start, end)}${suffix}`
+}
+
 function highlight(text: string, query: string, wordMode: WordMode = 'all'): React.ReactNode {
   if (!query.trim()) return text
   let pattern: string
@@ -120,7 +161,13 @@ function highlight(text: string, query: string, wordMode: WordMode = 'all'): Rea
     // matched word gets highlighted, not just the typed prefix.
     const words = query.trim().split(/\s+/).filter(w => w.length > 0)
     if (words.length === 0) return text
-    pattern = words.map(w => `\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`).join('|')
+    // Each word's number-form alternate (numberTokenAlternates: "7" also matches
+    // "seven", and vice versa) gets its own highlight pattern too, so a result matched
+    // via the number<->word FTS expansion still gets visibly highlighted either way.
+    pattern = words
+      .flatMap((w) => numberTokenAlternates(w))
+      .map(w => `\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`)
+      .join('|')
   }
   const re = new RegExp(`(${pattern})`, 'gi')
   const matchRe = new RegExp(`^(?:${pattern})$`, 'i')
@@ -183,9 +230,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return s && s !== 'all' ? s.split(',').filter(Boolean) : []
   })
   const [scopePaletteOpen, setScopePaletteOpen] = useState(false)
-  const [scopeTab, setScopeTab] = useState<'edition' | 'canon' | 'other'>('canon')
   const [scopeSearch, setScopeSearch] = useState('')
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['OT', 'NT']))
   const [sortMode, setSortMode] = useState<SortMode>(persistedState?.sortMode ?? 'relevance')
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -414,8 +459,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     }
   }
 
-  function openScopePalette(tab?: 'edition' | 'canon' | 'other') {
-    setScopeTab(tab ?? 'canon')
+  function openScopePalette() {
     setScopePaletteOpen(true)
     setScopeSearch('')
     setTimeout(() => scopeSearchRef.current?.focus(), 30)
@@ -695,19 +739,86 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const sq = normalizeBookQuery(scopeSearch.trim().toLowerCase())
         const bibleEditions = ALL_TEXTS.filter((t) => t.category === 'bible')
         const otherBooks = ALL_TEXTS.filter((t) => t.category === 'pseudo')
-        const filteredOtherBooks = sq ? otherBooks.filter((t) => fullEditionLabel(t.id, t.label).toLowerCase().includes(sq)) : otherBooks
+        // These "Other Books" editions are internally subdivided (T12P: 12 patriarchs,
+        // Hermas: Visions/Mandates/Similitudes, Recognitions of Clement: 10 books) — expose
+        // each subdivision as its own pickable book (via selectedBooks/bookPassesFilter,
+        // the exact same mechanism Canon Books already uses) instead of only being able to
+        // search the whole edition at once.
+        const MULTI_BOOK_OTHER = new Set(['t12p', 'hermas', 'recog_clement'])
+        const subBooksFor = (textId: string) => allBooks[textId] ?? []
+        // DB book names carry the full edition name as a prefix ("Recognitions of Clement
+        // — Book I", "Shepherd of Hermas — Visions") so they read correctly standalone
+        // (search results, tab titles, etc.) — but repeated 66+ times down a narrow 2-
+        // column checkbox grid under a header that already says the edition name, that
+        // shared prefix just eats the row's width and truncates away the one part that's
+        // actually different between rows, leaving every row looking identical. The group
+        // header already establishes what edition these belong to, so only the distinguishing
+        // remainder needs to show here (and RCL's roman numerals become plain digits).
+        function shortSubBookName(textId: string, book: { id: string; name: string }): string {
+          if (textId === 'recog_clement') return `Book ${book.id.replace('RCL', '')}`
+          return book.name.replace(/^.*—\s*/, '')
+        }
+        const filteredOtherBooks = sq
+          ? otherBooks.filter((t) =>
+              fullEditionLabel(t.id, t.label).toLowerCase().includes(sq) ||
+              (MULTI_BOOK_OTHER.has(t.id) && subBooksFor(t.id).some((b) => b.name.toLowerCase().includes(sq)))
+            )
+          : otherBooks
 
-        const canonTestamentOptions: Array<Exclude<TestamentFilter, 'Pseudepigrapha'>> = ['all', 'OT', 'NT', 'Apocrypha']
+        const scopeOptions: TestamentFilter[] = ['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha']
         const canonBooksInTestament = canonBooksAll.filter((b) => testamentFilter === 'all' || testamentFilter === 'Pseudepigrapha' || b.testament === testamentFilter)
         const filteredCanonBooks = sq
           ? canonBooksInTestament.filter((b) => b.name.toLowerCase().includes(sq) || b.id.toLowerCase().includes(sq))
           : canonBooksInTestament
 
+        // Filtered per-section item lists, computed once so both the "does this section
+        // have anything to show" check and the actual render use the exact same list.
+        const showAllEditionsOption = !sq || 'all editions'.includes(sq)
+        const filteredEditions = bibleEditions.filter((t) => !sq || fullEditionLabel(t.id, t.label).toLowerCase().includes(sq))
+        // The single scope pill (All/OT/NT/Apocrypha/Pseudepigrapha) now governs which
+        // sections are even relevant, not just which canon books show — picking "OT"
+        // means "I want an Old Testament book," so Bible Edition and Other Books (neither
+        // of which IS a testament) drop out entirely instead of sitting there unrelated.
+        const showEditionSection = testamentFilter === 'all'
+        const showCanonSection = testamentFilter !== 'Pseudepigrapha'
+        const showOtherSection = testamentFilter === 'all' || testamentFilter === 'Pseudepigrapha'
+        const hasEditionMatch = showEditionSection && (showAllEditionsOption || filteredEditions.length > 0)
+        const hasCanonMatch = showCanonSection && filteredCanonBooks.length > 0
+        const hasOtherMatch = showOtherSection && filteredOtherBooks.length > 0
+
+        // One consistent checkbox-style row for every pickable item across all three
+        // sections (Bible Edition, Canon Books, Other Books) — an earlier version used a
+        // plain checkmark-list style for Edition/Other rows but a square-checkbox grid
+        // for Canon Books, which read as two different pickers glued together even
+        // though they're all "select the thing(s) to search."
+        function scopeItem(key: string, selected: boolean, onClick: () => void, content: React.ReactNode, full = true) {
+          return (
+            <button
+              key={key}
+              onClick={onClick}
+              className={`flex items-center gap-2 ${full ? 'w-full px-3 py-2 text-sm' : 'px-2 py-1.5 text-[13px] rounded-md'} text-left cursor-pointer transition-colors ${selected ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+            >
+              <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${selected ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
+                {selected && <Check size={9} className="text-white" />}
+              </span>
+              {content}
+            </button>
+          )
+        }
+
         return (
           <>
-            {/* Scope modal — tabbed: Bible Edition / Canon Books / Other Books. A centered
-                modal with real tabs (one section visible at a time) reads more clearly than
-                the earlier version's three sections stacked in one long scrolling list. */}
+            {/* Scope modal — Bible Edition / Canon Books / Other Books all live in ONE
+                continuous scrollable list, plain section labels (not tabs, not collapsible).
+                An earlier tabbed version showed one section at a time, so the search box
+                could only ever filter within whichever tab happened to be open — searching
+                "genesis" while on the "Other Books" tab found nothing, even though Genesis
+                is right there in Canon Books. A later version fixed that but added its own
+                complexity back (collapse/expand toggles on every section, plus a SECOND
+                independent collapse toggle per testament inside Canon Books) — simplified
+                again here: everything just shows, and the testament pills (All/OT/NT/
+                Apocrypha) ARE the one narrowing control for Canon Books' size, instead of
+                pills PLUS separate expand state doing overlapping jobs. */}
             {scopePaletteOpen && createPortal(
               <div
                 className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
@@ -722,7 +833,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       value={scopeSearch}
                       onChange={(e) => setScopeSearch(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Escape') { setScopePaletteOpen(false); setScopeSearch('') } }}
-                      placeholder={scopeTab === 'edition' ? 'Search editions…' : scopeTab === 'other' ? 'Search other books…' : 'Search canon books…'}
+                      placeholder="Search editions, testaments, or books…"
                       className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
                     />
                     {isFiltered && (
@@ -733,125 +844,99 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     )}
                   </div>
 
-                  {/* Tab bar */}
-                  <div className="flex items-center gap-1 px-3 pt-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                    {([['edition', 'Bible Edition'], ['canon', 'Canon Books'], ['other', 'Other Books']] as [typeof scopeTab, string][]).map(([tab, label]) => (
+                  {/* One scope pill row, governing everything below it — not just a
+                      Canon-Books-only filter anymore. "OT"/"NT"/"Apocrypha" narrow to canon
+                      books of that testament (Edition and Other Books drop out, since
+                      neither one IS a testament); "Pseudepigrapha" narrows to Other Books
+                      the same way. This replaces having a whole separate pill row nested
+                      inside the Canon Books section specifically. */}
+                  <div className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+                    {scopeOptions.map((s) => (
                       <button
-                        key={tab}
-                        onClick={() => { setScopeTab(tab); setScopeSearch('') }}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-t-md border-b-2 -mb-px cursor-pointer transition-colors ${scopeTab === tab ? 'border-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-3))]' : 'border-transparent text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        key={s}
+                        onClick={() => { setTestamentFilter(s); setSelectedBooks([]) }}
+                        className={`text-[10.5px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                       >
-                        {label}
+                        {s === 'all' ? 'All' : s}
                       </button>
                     ))}
                   </div>
 
                   <div className="overflow-y-auto flex-1 py-1 min-h-[240px]">
-                    {/* Bible Edition tab — which translation of the canon to search */}
-                    {scopeTab === 'edition' && (
+                    {!hasEditionMatch && !hasCanonMatch && !hasOtherMatch && (
+                      <div className="px-3 py-6 text-sm text-center text-[rgb(var(--color-text-muted))]">
+                        {scopeSearch ? `Nothing matches "${scopeSearch}"` : 'Nothing in this scope'}
+                      </div>
+                    )}
+
+                    {/* ── Bible Edition — which translation of the canon to search. ── */}
+                    {hasEditionMatch && (
                       <div>
-                        {(!sq || 'all editions'.includes(sq)) && (
-                          <button
-                            onClick={() => selectTranslation('all')}
-                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left cursor-pointer transition-colors ${textId === 'all' ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/8' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                          >
-                            <Check size={12} className={textId === 'all' ? 'opacity-100' : 'opacity-0'} />
-                            📖 All editions
-                          </button>
-                        )}
-                        {bibleEditions.filter((t) => !sq || fullEditionLabel(t.id, t.label).toLowerCase().includes(sq)).map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => selectTranslation(t.id)}
-                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left cursor-pointer transition-colors ${textId === t.id ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/8' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                          >
-                            <Check size={12} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
+                        {showAllEditionsOption && scopeItem('edition-all', textId === 'all', () => selectTranslation('all'), 'All editions')}
+                        {filteredEditions.map((t) => scopeItem(
+                          t.id,
+                          textId === t.id,
+                          () => selectTranslation(t.id),
+                          <>
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.id === 'kjva' ? 'bg-amber-500' : 'bg-sky-500'}`} />
                             {fullEditionLabel(t.id, t.label)}
-                          </button>
+                          </>
                         ))}
                       </div>
                     )}
 
-                    {/* Canon Books tab — OT/NT/Apocrypha, works across whichever edition is selected */}
-                    {scopeTab === 'canon' && (
+                    {hasEditionMatch && (hasCanonMatch || hasOtherMatch) && (
+                      <div className="mx-3 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+                    )}
+
+                    {/* ── Canon Books — flat grid, no OT/NT/Apocrypha sub-headers: the scope
+                         pill row above already tells you what you're looking at when it's
+                         narrowed, and when it's "All" the testament order (OT then NT then
+                         Apocrypha, canonBooksAll's own natural order) still reads fine
+                         without a label repeating what's visually obvious from scrolling. ── */}
+                    {hasCanonMatch && (
+                      <div className="grid grid-cols-2 gap-0.5 px-2 py-1">
+                        {filteredCanonBooks.map((book) =>
+                          scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false)
+                        )}
+                      </div>
+                    )}
+
+                    {hasCanonMatch && hasOtherMatch && (
+                      <div className="mx-3 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+                    )}
+
+                    {/* ── Other Books — each pseudepigrapha text is its own single-book edition ── */}
+                    {hasOtherMatch && (
                       <div>
-                        {!sq && (
-                          <div className="flex items-center gap-1 px-3 pb-2 flex-wrap">
-                            {canonTestamentOptions.map((s) => (
-                              <button
-                                key={s}
-                                onClick={() => { setTestamentFilter(s); setSelectedBooks([]) }}
-                                className={`text-[10.5px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                              >
-                                {s === 'all' ? 'All' : s === 'Apocrypha' ? 'Apocrypha' : s}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {filteredCanonBooks.length === 0 && (
-                          <div className="px-3 py-6 text-sm text-center text-[rgb(var(--color-text-muted))]">No canon books match</div>
-                        )}
-                        {(['OT', 'NT', 'Apocrypha'] as const).map((section) => {
-                          const sectionBooks = filteredCanonBooks.filter((b) => b.testament === section)
-                          if (sectionBooks.length === 0) return null
-                          const sectionLabel = section === 'OT' ? 'Old Testament' : section === 'NT' ? 'New Testament' : 'Apocrypha'
-                          const expanded = expandedSections.has(section)
+                        {filteredOtherBooks.map((t) => {
+                          if (!MULTI_BOOK_OTHER.has(t.id)) {
+                            return scopeItem(t.id, textId === t.id, () => selectTranslation(t.id), fullEditionLabel(t.id, t.label))
+                          }
+                          const subBooks = subBooksFor(t.id)
+                          const filteredSubBooks = sq ? subBooks.filter((b) => b.name.toLowerCase().includes(sq)) : subBooks
+                          if (filteredSubBooks.length === 0) return null
+                          const group = { id: t.id, label: fullEditionLabel(t.id, t.label), books: subBooks.map((b) => b.id) }
+                          const wholeGroupSelected = isGroupActive(selectedBooks, group)
                           return (
-                            <div key={section}>
-                              <div className="flex items-center gap-1 px-2 py-1.5 select-none sticky top-0 bg-[rgb(var(--color-surface-2))]">
+                            <div key={t.id}>
+                              <div className="flex items-center justify-between px-3 pt-1.5 pb-0.5">
+                                <p className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{group.label}</p>
                                 <button
-                                  onClick={() => setExpandedSections((prev) => { const s = new Set(prev); s.has(section) ? s.delete(section) : s.add(section); return s })}
-                                  className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] flex-shrink-0 cursor-pointer"
+                                  onClick={() => setSelectedBooks((cur) => toggleGroup(cur, group))}
+                                  className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${wholeGroupSelected ? 'text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                                 >
-                                  {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                  {wholeGroupSelected ? 'Clear all' : 'Select all'}
                                 </button>
-                                <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-secondary))]">
-                                  {sectionLabel}
-                                  <span className="ml-1.5 font-normal normal-case text-[10px] text-[rgb(var(--color-text-muted))]">{sectionBooks.length}</span>
-                                </span>
                               </div>
-                              {expanded && (
-                                <div className="grid grid-cols-2 gap-0.5 px-2 pb-1.5">
-                                  {sectionBooks.map((book) => {
-                                    const on = selectedBooks.includes(book.id)
-                                    return (
-                                      <button
-                                        key={book.id}
-                                        onClick={() => setSelectedBooks((cur) => toggleBook(cur, book.id))}
-                                        className={`flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-left cursor-pointer transition-colors rounded-md ${on ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                                      >
-                                        <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
-                                          {on && <Check size={9} className="text-white" />}
-                                        </span>
-                                        <span className="flex-1 truncate">{book.name}</span>
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )}
+                              <div className="grid grid-cols-2 gap-0.5 px-2 pb-1.5">
+                                {filteredSubBooks.map((b) =>
+                                  scopeItem(b.id, selectedBooks.includes(b.id), () => setSelectedBooks((cur) => toggleBook(cur, b.id)), <span className="flex-1 truncate">{shortSubBookName(t.id, b)}</span>, false)
+                                )}
+                              </div>
                             </div>
                           )
                         })}
-                      </div>
-                    )}
-
-                    {/* Other Books tab — each pseudepigrapha text is its own single-book edition */}
-                    {scopeTab === 'other' && (
-                      <div>
-                        {filteredOtherBooks.length === 0 && (
-                          <div className="px-3 py-6 text-sm text-center text-[rgb(var(--color-text-muted))]">No other books match</div>
-                        )}
-                        {filteredOtherBooks.map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => selectTranslation(t.id)}
-                            className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left cursor-pointer transition-colors ${textId === t.id ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/8' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
-                          >
-                            <Check size={12} className={textId === t.id ? 'opacity-100' : 'opacity-0'} />
-                            📘 {fullEditionLabel(t.id, t.label)}
-                          </button>
-                        ))}
                       </div>
                     )}
                   </div>
@@ -1005,15 +1090,21 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                         "did nothing" — clamping to a single line makes the two modes clearly
                         different at a glance. */}
                     <span className={`flex-1 text-[13px] text-[rgb(var(--color-text-primary))] leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
-                      {effectiveMode(query) === 'strongs'
-                        ? highlightStrongs(r.text, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [])
-                        : highlight(
-                            wordReplacerEnabled && wordReplacerRules.length > 0
-                              ? applyWordReplacer(r.text, wordReplacerRules)
-                              : r.text,
-                            query,
-                            wordMode
-                          )}
+                      {(() => {
+                        const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
+                          ? applyWordReplacer(r.text, wordReplacerRules)
+                          : r.text
+                        if (effectiveMode(query) === 'strongs') {
+                          return highlightStrongs(r.text, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [])
+                        }
+                        // Only "all words" mode needs the dynamic-start snippet — "any word" only
+                        // needs one match visible (line-clamp already lands on it often enough),
+                        // and "phrase" highlights a single contiguous span CSS clamping already handles.
+                        const displayText = !showContext && wordMode === 'all'
+                          ? buildAllWordsSnippet(rawText, query)
+                          : rawText
+                        return highlight(displayText, query, wordMode)
+                      })()}
                     </span>
                     <ChevronRight size={13} className="flex-shrink-0 mt-1 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
@@ -1034,25 +1125,39 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       </div>
 
       {/* Jump-to-book — shared floating trigger/panel widget, see
-           FloatingHoverPanel.tsx for the resize/positioning/clipping mechanics. */}
+           FloatingHoverPanel.tsx for the resize/positioning/clipping mechanics.
+           Collapsed shape matches FloatingRail.tsx's own idle trigger (thin vertical
+           pill, not FloatingHoverPanel's default circle) and sits flush against the
+           results panel's right edge — this widget IS a jump rail, so it should read
+           as one instead of a generic floating hover-circle. Collapsed content is a
+           stack of BookOpen glyphs (this IS a book-jumping rail, and consistent icons
+           read more clearly than one icon + a separate dot stack) with generous gap
+           between them so they read as distinct marks, not a smear — the count tracks
+           how many book sections are jumpable right now (clamped to a sensible 2–4
+           range), which also drives the pill's own height instead of a fixed height
+           that doesn't reflect what's actually in the results. */}
       {filteredGroups.length > 1 && (effectiveMode(query) === 'text' || effectiveMode(query) === 'strongs') && (() => {
         const railQuery = normalizeBookQuery(railSearch.trim().toLowerCase())
         const railGroups = railQuery ? filteredGroups.filter((g) => g.bookName.toLowerCase().includes(railQuery)) : filteredGroups
+        const railIconCount = Math.min(Math.max(filteredGroups.length, 2), 4)
+        const railIconSize = 10
+        const railIconGap = 8
+        const railCollapsedHeight = railIconCount * railIconSize + (railIconCount - 1) * railIconGap + 16
         return (
           <FloatingHoverPanel
             ref={railPanelRef}
-            expandedWidth={256}
+            expandedWidth={300}
             expandedHeight={400}
-            anchorRightClass="right-2"
+            anchorRightClass="right-0"
+            collapsedWidth={16}
+            collapsedHeight={railCollapsedHeight}
+            collapsedRadius={8}
             onExpandedChange={handleRailExpandedChange}
             collapsedContent={
-              <div className="flex flex-col items-center justify-center gap-1">
-                <ListTree size={11} className="text-[rgb(var(--color-text-muted))]" />
-                {filteredGroups.slice(0, 3).map((g) => {
-                  const key = `${g.textId}::${g.bookId}`
-                  const editionColor = g.textId === 'kjva' ? 'bg-amber-500' : g.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
-                  return <span key={key} className={`w-1 h-1 rounded-full flex-shrink-0 ${editionColor} opacity-80`} />
-                })}
+              <div className="flex flex-col items-center justify-center" style={{ gap: railIconGap }}>
+                {Array.from({ length: railIconCount }).map((_, i) => (
+                  <BookOpen key={i} size={railIconSize} className="text-[rgb(var(--color-text-muted))]" />
+                ))}
               </div>
             }
           >
@@ -1077,11 +1182,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   <button
                     key={key}
                     onClick={() => { groupHeaderRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); railPanelRef.current?.close() }}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                    className="flex items-start gap-2 w-full px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
                   >
-                    {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${editionDot}`} />}
-                    <span className="flex-1 truncate">{g.bookName}</span>
-                    {textId === 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide flex-shrink-0">{g.textLabel}</span>}
+                    {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${editionDot}`} />}
+                    {/* Wraps to 2 lines instead of truncating — a fixed-width panel plus
+                        single-line truncation was cutting off names like "Recognitions,
+                        Book 10" to the point of being unreadable. Widening the panel to fit
+                        the single longest name outright would make it noticeably bulkier
+                        for every OTHER (mostly short) row just to cover a few edge cases;
+                        wrapping keeps the panel's width modest while never losing text. */}
+                    <span className="flex-1 line-clamp-2 leading-snug">{g.bookName}</span>
+                    {textId === 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide flex-shrink-0 mt-0.5">{g.textLabel}</span>}
                   </button>
                 )
               })}

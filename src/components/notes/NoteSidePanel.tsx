@@ -3,6 +3,8 @@ import { List, Link2, ChevronRight, Folder, PanelRight, Pin } from 'lucide-react
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import FloatingHoverPanel from '@/components/shell/FloatingHoverPanel'
+import DailyNoteEditsSection from './DailyNoteEditsSection'
+import { dailyNoteDateKey } from '@/lib/noteUtils'
 
 // ── Heading parsing ────────────────────────────────────────────────────────────
 
@@ -35,19 +37,37 @@ interface Props {
   content: string
   noteTitle: string
   noteId: string
+  noteType?: string
   tabId?: string
   allNotes: Note[]
   onNoteClick: (note: Note) => void
+  onOpenNewTab?: (note: Note) => void
+  onOpenInFloatingTab?: (note: Note) => void
   folderPath?: string[]
 }
 
 const EXPANDED_WIDTH = 320
 const EXPANDED_HEIGHT = 440
 
-export default function NoteSidePanel({ content, noteTitle, noteId, tabId, allNotes, onNoteClick, folderPath = [] }: Props) {
+export default function NoteSidePanel({ content, noteTitle, noteId, noteType, tabId, allNotes, onNoteClick, onOpenNewTab, onOpenInFloatingTab, folderPath = [] }: Props) {
   const headings = useMemo(() => parseHeadings(content), [content])
   const backlinks = useMemo(() => findBacklinks(noteTitle, allNotes, noteId), [noteTitle, allNotes, noteId])
-  const hasContent = headings.length > 0 || backlinks.length > 0
+  // Only set for daily/journal notes — drives the "Edited today" section below, matched
+  // against THIS note's own date (not necessarily literal today, for a past daily note).
+  const dailyDateKey = useMemo(
+    () => dailyNoteDateKey({ id: noteId, title: noteTitle, type: noteType } as Note),
+    [noteId, noteTitle, noteType]
+  )
+  const hasEditsToday = useMemo(() => {
+    if (!dailyDateKey) return false
+    return allNotes.some((n) => {
+      if (n.id === noteId) return false
+      const d = new Date(n.updatedAt)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      return key === dailyDateKey
+    })
+  }, [allNotes, noteId, dailyDateKey])
+  const hasContent = headings.length > 0 || backlinks.length > 0 || hasEditsToday
 
   const pinned    = useAppStore((s) => s.noteSidePanelPinned)
   const setPinned = useAppStore((s) => s.setNoteSidePanelPinned)
@@ -96,6 +116,16 @@ export default function NoteSidePanel({ content, noteTitle, noteId, tabId, allNo
       }
     >
       <div className="overflow-y-auto flex-1 px-2.5 py-3 flex flex-col gap-2.5 text-[11px]">
+        {dailyDateKey && onOpenNewTab && onOpenInFloatingTab && (
+          <DailyNoteEditsSection
+            dateKey={dailyDateKey}
+            dailyNoteId={noteId}
+            allNotes={allNotes}
+            onSelect={onNoteClick}
+            onOpenNewTab={onOpenNewTab}
+            onOpenInFloatingTab={onOpenInFloatingTab}
+          />
+        )}
         {folderPath.length > 0 && (
           <div className="rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden">
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-[rgb(var(--color-text-muted))]">

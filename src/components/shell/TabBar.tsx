@@ -541,6 +541,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           const bibleState = tab.type === 'bible' ? (tab.state as BibleTabState) : null
           const isCompare  = bibleState?.compareMode ?? false
           const isLXX      = (bibleState?.translation?.toUpperCase() ?? '') === 'LXX'
+          // Search tabs (both the dedicated 'search' space and an advanced-Scripture-
+          // search 'bible' tab) get their title set to a bare `"query"` (or literal
+          // "Search" when empty) by SearchTab.tsx/BiblePanel.tsx's renameTab calls — this
+          // prefixes it with "Search: " specifically for the tab bar row, per explicit
+          // request that ONLY the tab bar read this way, not the sidebar's own location-
+          // bar breadcrumb (which shows the bare tab.title directly, unprefixed).
+          const isSearchTab = tab.type === 'search' || (bibleState?.searchMode ?? false)
+          const displayTitle = isSearchTab && tab.title.startsWith('"') ? `Search: ${tab.title}` : tab.title
 
           const showInsertBefore    = dragOverIdx === idx && dragInsertBefore  && draggingIdx !== idx
           const showInsertAfter     = dragOverIdx === idx && !dragInsertBefore && draggingIdx !== idx
@@ -595,7 +603,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                       <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     )}
                   </span>
-                  <span className="truncate text-xs" style={{ zoom: appZoom }}>{tab.title}</span>
+                  <span className="truncate text-xs" style={{ zoom: appZoom }}>{displayTitle}</span>
                   {isCompare && (
                     <GitCompare size={10} className="flex-shrink-0 text-[rgb(var(--color-accent))] opacity-80" aria-label="Compare mode" />
                   )}
@@ -659,7 +667,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               const store = useAppStore.getState()
               const newTab = {
                 ...contextMenu.tab,
-                id: `${contextMenu.tab.type}-${Date.now()}`,
+                // Random suffix, not just Date.now() — a bare timestamp can collide with
+                // another tab created/duplicated in the same millisecond (e.g. clicking
+                // "Duplicate tab" twice in quick succession), and addTab() treats a
+                // matching id as "this tab already exists," silently switching to the
+                // existing tab instead of creating a real duplicate — the reported
+                // "duplicating tabs isn't working." Matches createTab's own id scheme.
+                id: `${contextMenu.tab.type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                 // Deep-clone the state so the duplicate is independent
                 state: JSON.parse(JSON.stringify(contextMenu.tab.state)),
               }

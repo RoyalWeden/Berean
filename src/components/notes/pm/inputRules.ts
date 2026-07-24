@@ -26,15 +26,30 @@ function currentLineTextBefore(state: EditorState): string {
 
 // ─── Auto em dash ───────────────────────────────────────────────────────────
 // Port of NoteEditor.tsx's autoEmDashHandler: converts the 2nd of two
-// consecutive '-' keystrokes into '—', guarded against inline code and
-// against a horizontal-rule-in-progress ("---").
+// consecutive '-' keystrokes into '—', guarded against inline code.
 const emDashRule = new InputRule(/-$/, (state, _match, start, end) => {
   if (!useAppStore.getState().autoEmDash) return null
-  const lineBefore = currentLineTextBefore(state) // includes the just-typed '-'
+  // `state` here is the PRE-insertion state — prosemirror-inputrules matches
+  // the rule's regex against a simulated "text so far + the character about
+  // to be typed" string, but only passes the ORIGINAL state (without that
+  // character yet) into the handler. currentLineTextBefore(state) therefore
+  // does NOT actually include the just-typed '-' despite what this used to
+  // assume — every guard below was silently checking one character short
+  // (e.g. for "hello--", it saw "hello-" and compared the wrong index),
+  // so the rule could never actually fire. Appending the character here
+  // makes `lineBefore` match what's really on screen.
+  const lineBefore = currentLineTextBefore(state) + '-'
   if (lineBefore.length < 2 || lineBefore[lineBefore.length - 2] !== '-') return null
-  if (/^-+$/.test(lineBefore)) return null // "---" horizontal-rule-in-progress
-  const beforeFirstDash = lineBefore.slice(0, -2)
-  if (beforeFirstDash.trim() === '') return null
+  // No "line is only dashes so far, might become ---" guard here (an earlier
+  // version bailed out in exactly that case, which also meant a bare "--"
+  // typed alone on its own line — reported: "all I typed ... is '--'" —
+  // could NEVER convert, since there was no later keystroke to retroactively
+  // trigger it). Converting immediately and unconditionally on the 2nd dash
+  // is safe: horizontalRuleRule below now also recognizes "—-" (an
+  // auto-converted em dash immediately followed by one more literal dash) as
+  // equivalent to "---", so typing a 3rd dash right after still produces a
+  // horizontal rule — the em dash conversion is a transient, self-correcting
+  // step in that sequence rather than something that has to be avoided.
   const tr: Transaction = state.tr.replaceWith(start - 1, end, state.schema.text('—'))
   return tr
 }, { inCodeMark: false })
@@ -111,6 +126,29 @@ const orderedListRule = wrappingInputRule(
   (match, node) => node.childCount + node.attrs.order === +match[1],
 )
 
+// ─── Horizontal rule ─────────────────────────────────────────────────────────
+// Was entirely missing — nothing converted a typed "---" into a real
+// horizontal_rule node, so it just sat as literal dashes until save/reopen
+// ran it through parseMarkdown. horizontal_rule isn't a textblock (no
+// content to hold text), so this can't use textblockTypeInputRule like
+// headingRule/codeFenceRule — it replaces the whole paragraph the same way the
+// "Divider" slash command does (slashCommands.ts's insertBlockNode).
+//
+// The `—-` branch handles typing "---" fast: emDashRule now converts the
+// FIRST two dashes into an em dash immediately and unconditionally (no more
+// "might become ---" guard — see its own comment), so by the time the 3rd
+// dash arrives, the line reads "—-" (em dash + one literal dash) rather than
+// "---". Recognizing that combination here too means the em-dash step is a
+// transient, self-correcting part of typing a horizontal rule rather than
+// something that has to be avoided.
+const horizontalRuleRule = new InputRule(/^(?:-{3}|\*{3}|_{3}|—-)$/, (state, _match, start) => {
+  const $start = state.doc.resolve(start)
+  if ($start.parent.type.name !== 'paragraph') return null
+  const paraStart = $start.before()
+  const paraEnd = $start.after()
+  return state.tr.replaceWith(paraStart, paraEnd, schema.nodes.horizontal_rule.create())
+})
+
 // Task list items are a TWO-STAGE conversion, not a single atomic one — a
 // real bug in an earlier version tried to match the whole "- [ ] " string
 // in one InputRule, but bulletListRule (above) ALREADY fires as soon as
@@ -162,7 +200,7 @@ const headingSpaceRule = new InputRule(/^(#{1,6})([^\s#])$/, (state, match, star
 export const bereanInputRules = buildInputRulesPlugin({
   rules: [
     emDashRule, headingSpaceRule,
-    headingRule, codeFenceRule, blockquoteRule, bulletListRule, orderedListRule, taskCheckboxRule,
+    headingRule, codeFenceRule, blockquoteRule, bulletListRule, orderedListRule, taskCheckboxRule, horizontalRuleRule,
     boldRule, boldUnderscoreRule, italicRule, italicUnderscoreRule, strikeRule, codeRule, highlightRule,
     wikilinkRule,
   ],

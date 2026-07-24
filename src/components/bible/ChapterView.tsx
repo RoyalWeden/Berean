@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useId, memo } from 'react'
+import { flushSync } from 'react-dom'
 import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
@@ -19,6 +20,34 @@ const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLOR
 // equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
 type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
 const EMPTY_HIGHLIGHTS: VerseHighlight[] = []
+
+/**
+ * Merge a freshly-fetched per-verse record into the previous one, keeping the OLD value
+ * reference for any key whose contents are unchanged. `noteChangeToken`/`highlightChangeToken`
+ * are global bump counters (any note/highlight edit anywhere bumps them), so a naive
+ * `setState(freshData)` hands every VerseRow a brand-new object/array identity on every
+ * edit — even verses nothing happened to — which breaks VerseRow's React.memo and forces
+ * the whole chapter to re-render on every keystroke in an unrelated note. Comparing by
+ * value (JSON.stringify — these records are small, per-chapter) and reusing the prior
+ * reference when equal scopes the re-render down to just the verse(s) that actually changed.
+ */
+function mergeStableRecord<V>(prev: Record<number, V>, next: Record<number, V>): Record<number, V> {
+  const nextKeys = Object.keys(next)
+  const prevKeys = Object.keys(prev)
+  let changed = nextKeys.length !== prevKeys.length
+  const merged: Record<number, V> = {}
+  for (const k of nextKeys) {
+    const nv = next[k as unknown as number]
+    const pv = prev[k as unknown as number]
+    if (pv !== undefined && JSON.stringify(pv) === JSON.stringify(nv)) {
+      merged[k as unknown as number] = pv
+    } else {
+      merged[k as unknown as number] = nv
+      changed = true
+    }
+  }
+  return changed ? merged : prev
+}
 
 interface TaylorRef { bookId: string; chapter: number; verse: number; raw: string; text: string }
 
@@ -94,6 +123,12 @@ interface ChapterViewProps {
   /** Fired once after the scroll-to-verse effect scrolls to `targetVerse`, so the
       caller can clear it and make the scroll a one-shot (not re-fired on remount). */
   onTargetVerseConsumed?: () => void
+  /** Flash-highlight a verse without scrolling to it or treating it as a search-style
+   *  navigation (no history entry, doesn't touch targetVerse) — used when a Strong's
+   *  toggle or KJV/LXX switch reflows the page around an already-visible verse, so the
+   *  eye has something to land on confirming "you're still here." A fresh object
+   *  (new `nonce`) re-triggers the flash even for the same verse number as last time. */
+  flashAnchor?: { verse: number; nonce: number } | null
   /** Fired when a chapter/translation switch has been loading long enough (200ms) to be
       worth surfacing — lets the caller show a small indicator near the controls that
       triggered the switch (e.g. the LXX/KJV button), which is more visible than anything
@@ -213,7 +248,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-export default function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, compact = false }: ChapterViewProps) {
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -226,6 +261,11 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
 
   const [verses, setVerses] = useState<Verse[]>([])
+  // Which (bookId, chapter, textId) the current `verses` array actually belongs to — lets the
+  // scroll-to-verse effect tell "real new-chapter data" apart from "old chapter's verses still
+  // in state while a switch is in flight" without needing to clear `verses` to signal that (see
+  // the fetch effect below for why clearing it was the cause of the KJV/LXX switch flash).
+  const [versesKey, setVersesKey] = useState<string | null>(null)
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
@@ -248,6 +288,22 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   // confirms settled so a corrective re-scroll can fire once layout has
   // finished shifting (see the two scroll effects below).
   const lastScrolledVerseRef = useRef<number | undefined>(undefined)
+  // Incremented on every fetch effect run; a resolved promise whose generation no longer
+  // matches was superseded by a later switch and its data is discarded.
+  const fetchGenRef = useRef(0)
+  // Tracks the previous fetch's textId so the effect below can tell "translation actually
+  // changed" (KJV/LXX switch — worth a crossfade) apart from "same translation, new chapter"
+  // (plain next/prev navigation — should stay snappy, not softened with a transition).
+  const prevTextIdRef = useRef(textId)
+  // Unique per mounted ChapterView instance (continuous scroll and multi-chapter range
+  // view can mount several at once, and split-panel layouts can mount several BiblePanels)
+  // — the CSS spec allows only one element at a time to carry a given view-transition-name,
+  // so a static name would throw once more than one instance is on screen simultaneously.
+  const rawInstanceId = useId()
+  const viewTransitionName = `chapter-${rawInstanceId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+  // Holds the in-flight transition (if any) so a rapid second toggle can cancel it via
+  // skipTransition() instead of letting two transitions race for the same named element.
+  const pendingViewTransitionRef = useRef<{ finished: Promise<unknown>; skipTransition: () => void } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const versesRef = useRef(verses)
   useEffect(() => { versesRef.current = verses }, [verses])
@@ -258,19 +314,42 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   useEffect(() => {
     setLoading(true)
-    // Reset immediately, not just after the fetch resolves — the scroll-to-verse
-    // effect below guards on `verses.length === 0` to avoid firing before content
-    // exists, but if the PREVIOUS chapter's verses were left in state during this
-    // async gap, that guard is a no-op (length is already non-zero) and the effect
-    // fires against stale (old-chapter) DOM, consumes targetVerse, and clears it —
-    // so once the real new verses load a moment later, there's nothing left to
-    // scroll to. Confirmed bug: opening a verse from Advanced Search never scrolled
-    // to it because of exactly this race.
-    setVerses([])
+    // Deliberately do NOT clear `verses` here (it used to via setVerses([])) — that reset was
+    // added to stop the scroll-to-verse effect from firing against stale (previous-chapter) DOM,
+    // but it also meant every chapter/translation switch briefly showed the empty-state skeleton
+    // before real data replaced it (the "flash" on KJV/LXX switching). Keeping the previous
+    // chapter's verses on screen during the fetch avoids that; `versesKey` (set only once the
+    // real data for THIS bookId/chapter/textId lands) is what the scroll effect below checks
+    // instead, so it still can't fire against stale DOM.
+    const gen = ++fetchGenRef.current
+    const isTranslationSwitch = prevTextIdRef.current !== textId
+    prevTextIdRef.current = textId
     const slowTimer = setTimeout(() => { setShowSlowLoadIndicator(true); onSlowLoadChangeRef.current?.(true) }, 200)
     window.bible.queryChapter(bookId, chapter, textId)
-      .then((data) => { setVerses(data); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then((data) => {
+        if (fetchGenRef.current !== gen) return // superseded by a newer switch — ignore stale data
+        const commit = () => {
+          setVerses(data)
+          setVersesKey(`${bookId}:${chapter}:${textId}`)
+          setLoading(false)
+        }
+        // Crossfade specifically for a translation switch (KJV/LXX) — the old chapter's verses
+        // are still on screen (see the no-clear comment above), so without this the swap to the
+        // new text's different word count/wrapping lands as a hard instant cut, which is exactly
+        // the "hard to follow" jump the View Transition on the Strong's toggle already solves.
+        // Plain chapter navigation (same textId) deliberately skips this and stays instant/snappy.
+        if (isTranslationSwitch && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+          // A still-running transition from a rapid previous switch would otherwise race
+          // this one for the same named element — skip it first so only the latest wins.
+          pendingViewTransitionRef.current?.skipTransition()
+          const vt = document.startViewTransition(() => flushSync(commit))
+          pendingViewTransitionRef.current = vt
+          vt.finished.finally(() => { if (pendingViewTransitionRef.current === vt) pendingViewTransitionRef.current = null })
+        } else {
+          commit()
+        }
+      })
+      .catch(() => { if (fetchGenRef.current === gen) setLoading(false) })
       .finally(() => { clearTimeout(slowTimer); setShowSlowLoadIndicator(false); onSlowLoadChangeRef.current?.(false) })
     return () => clearTimeout(slowTimer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,7 +371,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   useEffect(() => {
     window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva')
-      .then(setNoteCounts)
+      .then((data) => setNoteCounts((prev) => mergeStableRecord(prev, data)))
       .catch(() => {})
   }, [bookId, chapter, textId, noteChangeToken])
 
@@ -335,8 +414,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
       } catch { /* best-effort */ }
 
       if (!cancelled) {
-        setVerseHasNoteCrossRefs(flags)
-        setNoteColorsMap(colorMap)
+        setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, flags))
+        setNoteColorsMap((prev) => mergeStableRecord(prev, colorMap))
       }
     })()
     return () => { cancelled = true }
@@ -344,26 +423,39 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
 
   useEffect(() => {
     window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
-      .then(setHighlights)
+      .then((data) => setHighlights((prev) => mergeStableRecord(prev, data)))
       .catch(() => {})
   }, [bookId, chapter, textId, highlightChangeToken])
 
   useEffect(() => {
-    if (!targetVerse || !containerRef.current || verses.length === 0) return
+    // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
+    console.warn('[BereanDebug] scroll-to-verse effect fired', { targetVerse, hasContainer: !!containerRef.current, versesLength: verses.length, versesKey, expectedKey: `${bookId}:${chapter}:${textId}` })
+    if (!targetVerse || !containerRef.current || verses.length === 0) {
+      console.warn('[BereanDebug] bailed: missing targetVerse/container/verses')
+      return
+    }
+    // `verses` can still hold the PREVIOUS chapter's data for one render — bookId/chapter/
+    // targetVerse all update together, but the real new-chapter data only lands once the fetch
+    // effect's promise resolves. versesKey is only set at that point, so this bails out (without
+    // consuming targetVerse) until `verses` genuinely belongs to the chapter/text currently being
+    // shown — avoiding scrolling to (and clearing targetVerse for) a same-numbered verse that
+    // happens to exist in the stale, previous chapter.
+    if (versesKey !== `${bookId}:${chapter}:${textId}`) {
+      console.warn('[BereanDebug] bailed: versesKey mismatch', { versesKey, expected: `${bookId}:${chapter}:${textId}` })
+      return
+    }
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
-    // The verses currently in the DOM can still belong to the PREVIOUS chapter for one
-    // render — bookId/chapter/targetVerse all update together, but the fetch effect's
-    // setVerses([]) reset (and the real new-chapter data after it) only lands on a LATER
-    // render, so this effect can fire with a non-empty `verses` that doesn't contain
-    // `targetVerse` at all (e.g. switching Genesis 1 → Jeremiah 51:50 while Genesis 1's
-    // 31 verses are still in state). Previously this unconditionally called
-    // onTargetVerseConsumed() below regardless of whether `el` was found, clearing
-    // targetVerse before the real chapter data ever arrived — so the scroll never
-    // happened once the correct verses did load. Bail out without consuming targetVerse
-    // when the element isn't there yet; the effect re-fires once verses.length changes
-    // again (the real chapter load) and gets another chance.
-    if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (!el) {
+      console.warn('[BereanDebug] bailed: no element found for data-verse', targetVerse, 'available verses:', Array.from(containerRef.current.querySelectorAll('[data-verse]')).map(e => e.getAttribute('data-verse')))
+      return
+    }
+    console.warn('[BereanDebug] scrolling to verse', targetVerse)
+    // Instant, not smooth, and aligned to the top of the viewport (not centered) — a
+    // smooth-scroll animation can get interrupted/fought by other layout-settling effects
+    // firing around the same time (cross-ref banner, note counts, etc.), which is how this
+    // ended up silently not scrolling at all in practice. An instant jump can't be
+    // interrupted mid-animation the same way.
+    el.scrollIntoView({ behavior: 'auto', block: 'start' })
     lastScrolledVerseRef.current = targetVerse
     if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
     setFlashVerse({ verse: targetVerse, end: endVerse })
@@ -372,7 +464,18 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     // to be noticed.
     flashVerseTimerRef.current = setTimeout(() => setFlashVerse(null), 3000)
     onTargetVerseConsumed?.()
-  }, [targetVerse, verses.length])
+  }, [targetVerse, verses.length, versesKey, bookId, chapter, textId])
+
+  // Flash-highlight a verse the caller already scrolled/anchored to itself (Strong's
+  // toggle, KJV/LXX switch) — deliberately independent of the targetVerse/onTargetVerse-
+  // Consumed machinery above, which is for search-style navigation and feeds history
+  // recording; this is purely a "you're still here" visual cue after a layout reflow.
+  useEffect(() => {
+    if (!flashAnchor) return
+    if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
+    setFlashVerse({ verse: flashAnchor.verse })
+    flashVerseTimerRef.current = setTimeout(() => setFlashVerse(null), 1400)
+  }, [flashAnchor])
 
   // Correct the scroll position once the chapter cross-ref banner has settled.
   // The banner (ChapterCrossRefBanner, rendered above the verse list when
@@ -392,12 +495,10 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     const verse = lastScrolledVerseRef.current
     if (!verse || !containerRef.current) return
     const el = containerRef.current.querySelector(`[data-verse="${verse}"]`)
-    // Instant, not smooth — this can fire while the primary effect's smooth scroll
-    // above is still mid-animation (confirmed as little as ~100ms after it starts).
-    // Restarting a SECOND smooth scroll to the same element mid-flight was landing
-    // noticeably short of the real target instead of cleanly continuing to it; a
-    // correction firing this soon isn't meant to be seen animating anyway.
-    el?.scrollIntoView({ behavior: 'auto', block: 'center' })
+    // Top-aligned to match the primary effect above; instant since a layout shift from the
+    // cross-ref banner mounting can land right after the initial jump and this just corrects
+    // for it — not meant to be seen animating.
+    el?.scrollIntoView({ behavior: 'auto', block: 'start' })
     lastScrolledVerseRef.current = undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterSources])
@@ -627,7 +728,7 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
   }
 
   return (
-    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize }} onMouseUp={handleContainerMouseUp}>
+    <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
           columns) — sticky so it stays visible regardless of scroll position. */}
@@ -738,3 +839,8 @@ export default function ChapterView({ bookId, chapter, showStrongs, textId, targ
     </div>
   )
 }
+
+// Every chapter mounted-but-offscreen in ContinuousChapterScroll re-renders whenever its parent
+// does without this — hiddenAnnotations/onStrongsClick/onWordClick etc. are typically stable
+// references from the parent, so memo lets scrolled-away chapters skip re-rendering entirely.
+export default memo(ChapterView)

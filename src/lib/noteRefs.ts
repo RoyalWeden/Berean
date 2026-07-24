@@ -34,7 +34,21 @@ export function refMatchesVerse(ref: NoteVerseRef, bookId: string, chapter: numb
 function makeVerseRefRe() {
   // Matches "Gen 1:1", "Genesis 1:1-5", "Romans 9:21–22", "1 Kings 4:3", [[wikilinks]]
   // The verse-range suffix (?:[-–]\d{1,3})? captures end-verse for ranges like "9:21-22".
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*(?:\s+(?:of\s+)?[A-Za-z][a-z]*)*\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3})?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  // Each book-word component allows an optional trailing digit run (\d*) so fused per-book
+  // shorthand ids like "RCL1" (Recognitions of Clement, book 1) are captured as one token —
+  // without it, "RCL1 1:1" never matched at all (the required \s+ before the chapter number
+  // failed right at the letters/digit boundary). parseRef() still validates the resolved
+  // book, so this doesn't introduce new false-positive links.
+  // The optional (?:,?\s*Book\s+\d{1,3})? group lets a book-subdivision like "Book 10"
+  // (Recognitions of Clement's real 3-level Book.Chapter.Verse addressing) be included
+  // in the captured span, so "Recognitions, Book 10 41:8" is handed to parseRef() whole
+  // (which resolves the subdivision) instead of the "Book 10" text being dropped/mismatched.
+  // The (?!Book\s+\d) lookahead keeps the generic "extra word" repeat from swallowing
+  // "Book" as an ordinary book-name word before the explicit group gets a chance — without
+  // it, "Recognitions Book 10 41:8" (no comma) matched "Recognitions Book" as the book
+  // phrase and silently dropped "41:8" (comma-separated form worked by accident, since a
+  // comma isn't part of the ordinary word-repeat's \s+ separator).
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3})?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {

@@ -739,6 +739,7 @@ export const useAppStore = create<AppState>()(
             last.type === newEntry.type &&
             last.bookId === newEntry.bookId &&
             last.chapter === newEntry.chapter &&
+            last.verse === newEntry.verse &&
             last.noteId === newEntry.noteId &&
             last.strongsNum === newEntry.strongsNum &&
             last.videoId === newEntry.videoId &&
@@ -1440,6 +1441,20 @@ export const useAppStore = create<AppState>()(
         const key = `${spaceId}:${tabId}`
         const prevTabId = state.activeTabId[spaceId]
 
+        // Give the currently-active panel (BiblePanel.tsx, NotesPanel.tsx, YouTubeTab.tsx —
+        // whichever is listening) a chance to synchronously flush live view state (scroll
+        // position, compare-mode column layout, note cursor, etc.) into this tab's
+        // persisted state BEFORE it's no longer the active tab. This used to be the
+        // caller's responsibility (dispatching this event by hand right before calling
+        // setActiveTab), but only 2 of the 13+ call sites across the app actually did so —
+        // every other path (TabSwitcher, history nav, search-result "open tab", floating
+        // search, etc.) silently skipped it, so scroll/layout/compare state only survived
+        // a tab switch some of the time depending on how you switched. Centralizing it here,
+        // as the one place ALL tab switches funnel through, means it now always fires.
+        if (prevTabId && prevTabId !== tabId) {
+          window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))
+        }
+
         // When leaving a dynamic scripture search tab (searchMode: true), exit its
         // search mode so re-visiting it shows Bible text and the next search opens fresh.
         // The dedicated tab ('scripture-search-dedicated') is exempt — it always stays as a search.
@@ -1949,6 +1964,7 @@ export const useAppStore = create<AppState>()(
         wordReplacerRules: state.wordReplacerRules,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,
         noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
+        autoEmDash: state.autoEmDash,
         themePreset: state.themePreset,
         scriptureFontFamily: state.scriptureFontFamily,
         notesFontFamily: state.notesFontFamily,
@@ -1993,6 +2009,7 @@ export const useAppStore = create<AppState>()(
         tabNavStacks: state.tabNavStacks,
         tabNavMaxStack: state.tabNavMaxStack,
         historyMaxEntries: state.historyMaxEntries,
+        recentSearchQueries: state.recentSearchQueries,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

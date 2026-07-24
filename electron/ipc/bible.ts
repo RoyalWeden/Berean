@@ -1,5 +1,6 @@
 import type { IpcMain } from 'electron'
 import { getTextDb } from '../db/bible'
+import { numberTokenAlternates } from './numberWords'
 
 // Cache compiled statements per text-DB instance so hot handlers (chapter/verse
 // navigation, keystroke-driven search) don't re-compile identical SQL each call.
@@ -70,7 +71,14 @@ function safeFtsQuery(q: string, wordMode: 'all' | 'phrase'): string {
   const words = cleanWords(q)
   if (words.length === 0) return ''
   if (wordMode === 'phrase') return `"${words.join(' ')}"`
-  return words.map(w => `${w}*`).join(' ')
+  // Expand a number-shaped word into "(digits OR words)" so a query in either
+  // form finds text written in the other — the KJV spells numbers out as
+  // words ("seven") far more often than it uses digits ("7"). Only in 'all'
+  // mode: a phrase query's exact wording shouldn't get fuzzed.
+  return words.map(w => {
+    const alts = numberTokenAlternates(w)
+    return alts.length > 1 ? `(${alts.map(a => `${a}*`).join(' OR ')})` : `${w}*`
+  }).join(' ')
 }
 
 export function registerBibleHandlers(ipcMain: IpcMain): void {

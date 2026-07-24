@@ -744,3 +744,43 @@ describe('extractRefsFromNote — prefix/fuzzy-tier ambiguous words (the reporte
     expect(extractRefsFromNote('reading song of songs 2:1 tonight', 'Note')[0]?.bookId).toBe('SNG')
   })
 })
+
+// ── 10. Recognitions of Clement — "Book N" subdivision auto-linking ────────────
+// RCL's real addressing is 3-level Book.Chapter.Verse. The pretty form ("Recognitions,
+// Book 10 41:8") must resolve to the same book id as the existing fused shorthand
+// ("RCL10 41:8"), and the dash-free book name ("Recognitions, Book 10") must not
+// itself break linking (the old " - " name did).
+
+describe('extractRefsFromNote — Recognitions of Clement "Book N" subdivision', () => {
+  it('"Recognitions, Book 10 41:8" links to RCL10 41:8', () => {
+    const refs = extractRefsFromNote('See Recognitions, Book 10 41:8 on this.', 'Note')
+    const r = refs.find(r => r.bookId === 'RCL10')
+    expect(r).toBeTruthy()
+    expect(r!.chapter).toBe(41)
+    expect(r!.verse).toBe(8)
+  })
+
+  it('"Recognitions Book 10 41:8" (no comma) links the same way', () => {
+    const refs = extractRefsFromNote('See Recognitions Book 10 41:8 on this.', 'Note')
+    const r = refs.find(r => r.bookId === 'RCL10')
+    expect(r).toBeTruthy()
+    expect(r!.chapter).toBe(41)
+    expect(r!.verse).toBe(8)
+  })
+
+  it('"RCL10 41:8" fused shorthand still resolves to the same book/chapter/verse', () => {
+    const refs = extractRefsFromNote('See RCL10 41:8 on this.', 'Note')
+    const r = refs.find(r => r.bookId === 'RCL10')
+    expect(r).toBeTruthy()
+    expect(r!.chapter).toBe(41)
+    expect(r!.verse).toBe(8)
+  })
+
+  it('bare "Recognitions of Clement 5:3" (no Book N) defaults to Book 1', () => {
+    const refs = extractRefsFromNote('quoting Recognitions of Clement 5:3 here', 'Note')
+    const r = refs.find(r => r.bookId === 'RCL1')
+    expect(r).toBeTruthy()
+    expect(r!.chapter).toBe(5)
+    expect(r!.verse).toBe(3)
+  })
+})

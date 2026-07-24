@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
@@ -19,7 +20,7 @@ interface StrongsInlineProps {
   onWordClick?: (word: string) => void
 }
 
-export default function StrongsInline({
+function StrongsInline({
   word,
   strongsNum,
   isItalic = false,
@@ -150,3 +151,7 @@ export default function StrongsInline({
     </span>
   )
 }
+
+// Instantiated once per word for every Strong's-tagged verse — memo keeps a full chapter's
+// worth of these from re-rendering when only a sibling word's highlight/find state changes.
+export default memo(StrongsInline)

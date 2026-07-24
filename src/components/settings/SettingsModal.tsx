@@ -109,6 +109,7 @@ const DEFAULT_TRANSLATIONS = [
   { id: 't_job',         label: 'Testament of Job — M.R. James (1897)' },
   { id: '1clement',      label: '1 Clement — J.B. Lightfoot' },
   { id: 'apoc_abraham',  label: 'Apocalypse of Abraham — G.H. Box (1918)' },
+  { id: 't_jacob',       label: 'Testament of Jacob — W.F. Stinespring' },
 ]
 
 // Theme preset data — bg/accent/text are "r g b" strings matching global.css vars
@@ -289,18 +290,6 @@ export default function SettingsModal() {
 
   const [section, setSection] = useState<Section>('appearance')
   const [settingsSearch, setSettingsSearch] = useState('')
-  // Compact mode — hides description text and reduces spacing so more settings
-  // fit on screen at once. Default ON; user can toggle to expanded view.
-  const [compact, setCompact] = useState(() => {
-    try { return localStorage.getItem('settings-compact') !== 'false' } catch { return true }
-  })
-  function toggleCompact() {
-    setCompact((v) => {
-      const next = !v
-      try { localStorage.setItem('settings-compact', String(next)) } catch { /* ignore */ }
-      return next
-    })
-  }
   // previewVariant: which palette to show in the preset swatches
   // follows base theme (dark/light) and can be toggled independently
   const [previewVariant, setPreviewVariant] = useState<'dark' | 'light'>(
@@ -466,18 +455,6 @@ export default function SettingsModal() {
             <Dialog.Title className="text-base font-semibold text-[rgb(var(--color-text-primary))] flex-1">
               Settings
             </Dialog.Title>
-            {/* Compact / Expanded toggle */}
-            <button
-              onClick={toggleCompact}
-              title={compact ? 'Switch to expanded view (show descriptions)' : 'Switch to compact view (hide descriptions)'}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-shell text-[10px] font-medium transition-colors cursor-pointer border ${
-                compact
-                  ? 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
-                  : 'border-[rgb(var(--color-accent))/40] bg-[rgb(var(--color-accent))/8] text-[rgb(var(--color-accent))]'
-              }`}
-            >
-              <span>{compact ? '⊟ Compact' : '⊞ Expanded'}</span>
-            </button>
             <button
               onClick={closeSettings}
               className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -485,13 +462,6 @@ export default function SettingsModal() {
               <X size={18} />
             </button>
           </div>
-          {/* Compact-mode style injection — hides .s-desc description text and tightens gaps */}
-          {compact && (
-            <style>{`
-              .settings-content .s-desc { display: none !important; }
-              .settings-content .s-section { margin-bottom: 0.25rem !important; }
-            `}</style>
-          )}
 
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left nav */}
@@ -548,7 +518,7 @@ export default function SettingsModal() {
             </div>
 
             {/* Content */}
-            <div className={`settings-content flex-1 overflow-y-auto ${compact ? 'px-4 py-3 space-y-4' : 'px-6 py-6 space-y-6'}`}>
+            <div className="settings-content flex-1 overflow-y-auto px-6 py-6 space-y-6">
               {section === 'appearance' && (
                 <>
                   {/* Color mode: Dark / Light / System — controls all themes including presets */}
@@ -1061,8 +1031,32 @@ export default function SettingsModal() {
                     </button>
                   </div>
 
+                  {/* Strong's block suggestion — was previously tucked inside the collapsed
+                      "Advanced" details block below, where it was easy to miss entirely
+                      (reported: "I don't see the setting to turn off the suggestions for
+                      verse and strongs things in notes"). This is the actual toggle for
+                      that popup, just labeled around what it offers (expanding into a
+                      block) rather than "suggestion popup" — promoted up to sit with the
+                      other everyday, always-visible toggles instead. */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
+                    </div>
+                    <Switch checked={noteStrongsBlockSuggest} onCheckedChange={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)} />
+                  </div>
+
+                  {/* Verse block suggestion — same promotion, same reason */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
+                    </div>
+                    <Switch checked={noteVerseBlockSuggest} onCheckedChange={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)} />
+                  </div>
+
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
                       To suppress auto-detection for a specific piece of text, select it in the editor and press <kbd className="font-mono text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧R</kbd> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
@@ -1107,24 +1101,6 @@ export default function SettingsModal() {
                           </p>
                         </div>
                       )}
-
-                      {/* Strong's block suggestion */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Strong's block suggestion</p>
-                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a Strong's number (H1234 / G5678) offering to expand it into a full lexicon block.</p>
-                        </div>
-                        <Switch checked={noteStrongsBlockSuggest} onCheckedChange={() => setNoteStrongsBlockSuggest(!noteStrongsBlockSuggest)} />
-                      </div>
-
-                      {/* Verse block suggestion */}
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse block suggestion</p>
-                          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Show a popup when you type a verse reference (e.g. Gen 1:1) offering to expand it into a scripture block.</p>
-                        </div>
-                        <Switch checked={noteVerseBlockSuggest} onCheckedChange={() => setNoteVerseBlockSuggest(!noteVerseBlockSuggest)} />
-                      </div>
                     </div>
                   </details>
 
@@ -1522,7 +1498,7 @@ export default function SettingsModal() {
                   )}
 
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
-                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
                       All data is always stored in Berean's internal database. The vault folder is a backup destination — Berean writes files there as you edit, watches for external changes, and periodically re-exports everything as a safety net. Vault data is never deleted when the app is uninstalled — to restore after a reinstall or on a new machine, just point to the same vault folder; it imports automatically when data is found.
                     </p>
                   </div>

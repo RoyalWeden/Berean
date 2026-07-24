@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import type { Note } from '@/types'
 
@@ -38,6 +39,11 @@ interface CalendarGridProps {
    *  open-floating/delete), since those actions need note-opening plumbing this
    *  presentational grid doesn't have. */
   onContextMenu?: (date: Date, x: number, y: number) => void
+  /** Rendered in the month-nav row, right after the month label — e.g. Sidebar.tsx's
+   *  "Today" shortcut (open today's daily note), which used to live in its own separate
+   *  header row above this whole grid. Optional: other callers (CalendarWidget's floating
+   *  date-picker popover) don't have an equivalent action to offer here. */
+  todayAction?: React.ReactNode
 }
 
 /**
@@ -48,7 +54,7 @@ interface CalendarGridProps {
  * section) or wrapped in a floating popover (CalendarWidget below,
  * NotesPanel's header calendar button) without duplicating the date math.
  */
-export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate, onContextMenu }: CalendarGridProps) {
+export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate, onContextMenu, todayAction }: CalendarGridProps) {
   const year = date.getFullYear()
   const month = date.getMonth()
   const today = new Date()
@@ -93,35 +99,46 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   }
 
   const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-  const dayCellText = compact ? 'text-[10px]' : 'text-[11px]'
+  const dayCellText = compact ? 'text-[9px]' : 'text-[11px]'
+  const weekdayHeaderText = compact ? 'text-[8px] py-0' : 'text-[9px] py-0.5'
+  const gridGap = compact ? 'gap-px' : 'gap-0.5'
 
   return (
     <div>
       {/* Month navigation — icon-only, color-only hover (no button-chrome box) so the nav
           arrows sit flush and low-contrast like a native mini-calendar's, not a discrete
           toolbar control. */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className={`flex items-center gap-2 ${compact ? 'mb-1' : 'mb-2'}`}>
+        {/* Month-navigation cluster (< label [jump-to-current] >) — all grouped together
+            and left-aligned, not spread across the row. Today is the one thing pushed to
+            the far right (via the flex-1 spacer after this cluster, not within it). */}
         <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-          <ChevronLeft size={14} />
+          <ChevronLeft size={compact ? 12 : 14} />
         </button>
-        <span className="flex-1 text-center text-xs font-medium text-[rgb(var(--color-text-primary))]">{monthLabel}</span>
+        <span className={`font-medium text-[rgb(var(--color-text-primary))] ${compact ? 'text-[10px]' : 'text-xs'}`}>{monthLabel}</span>
         {!isCurrentMonth && (
           <button
             onClick={() => onDateChange(new Date())}
             title="Jump to current month"
             className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
           >
-            <Undo2 size={12} />
+            <Undo2 size={compact ? 10 : 12} />
           </button>
         )}
         <button onClick={nextMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
-          <ChevronRight size={14} />
+          <ChevronRight size={compact ? 12 : 14} />
         </button>
+        <span className="flex-1" />
+        {/* Today action sits after everything else in this row (per explicit direction:
+            "needs to be on the right of everything else in that part of the calendar") —
+            a separate, more consequential action (opens/creates a note) than the plain
+            month-navigation controls to its left. */}
+        {todayAction}
       </div>
       {/* Day headers */}
-      <div className="grid grid-cols-7 mb-1">
+      <div className={`grid grid-cols-7 ${compact ? 'mb-0.5' : 'mb-1'}`}>
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className="text-center text-[9px] text-[rgb(var(--color-text-muted))] font-medium py-0.5">{d}</div>
+          <div key={d} className={`text-center ${weekdayHeaderText} text-[rgb(var(--color-text-muted))] font-medium`}>{d}</div>
         ))}
       </div>
       {/* Day cells — each cell is a column (number + note-dot slot below it, naturally a
@@ -132,7 +149,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           "selected day" state in BookChapterPicker.tsx's own date grid) so it reads as
           unambiguously "the true today" — selected is deliberately lighter (a ring only, no
           fill, no bold) so it doesn't compete with today for visual weight. */}
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className={`grid grid-cols-7 ${gridGap}`}>
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1
@@ -140,28 +157,41 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
           const isToday = dateKey === todayStr
           const isSelected = !isToday && dateKey === selectedStr
           const hasNote = dailyDates.has(dateKey)
-          const circleSize = compact ? 'w-[20px] h-[20px]' : 'w-6 h-6'
+          const circleSize = compact ? 'w-[17px] h-[17px]' : 'w-6 h-6'
+          const dotRowHeight = compact ? 'h-[4px]' : 'h-[5px]'
+          const dotSize = compact ? 'w-[3px] h-[3px]' : 'w-[4px] h-[4px]'
+          const cellDate = new Date(year, month, day)
           return (
-            <button
-              key={day}
-              onClick={() => onSelectDate(new Date(year, month, day))}
-              onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(new Date(year, month, day), e.clientX, e.clientY) } : undefined}
-              className="flex flex-col items-center justify-center gap-0.5 cursor-pointer group"
-            >
-              <span className={`flex items-center justify-center ${circleSize} ${dayCellText} rounded-full leading-none transition-colors
-                ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
-                  : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40'
-                  : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}
-              >
-                {day}
-              </span>
-              {/* Reserved-height row below the circle (not absolutely positioned/overlapping)
-                  so the indicator can never be clipped by a neighboring row or an ancestor's
-                  overflow. */}
-              <span className="h-[5px] flex items-center justify-center leading-none">
-                {hasNote && <span className="w-[4px] h-[4px] rounded-full bg-[rgb(var(--color-accent))]" />}
-              </span>
-            </button>
+            <Tooltip.Root key={day} delayDuration={400}>
+              <Tooltip.Trigger asChild>
+                <button
+                  onClick={() => onSelectDate(cellDate)}
+                  onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
+                  className="flex flex-col items-center justify-center gap-0 cursor-pointer group"
+                >
+                  <span className={`flex items-center justify-center ${circleSize} ${dayCellText} rounded-full leading-none transition-colors
+                    ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
+                      : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40'
+                      : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}
+                  >
+                    {day}
+                  </span>
+                  {/* Reserved-height row below the circle (not absolutely positioned/overlapping) so
+                      the indicator can never be clipped by a neighboring row or an ancestor's overflow.
+                      Pulled up with a negative margin so the dot sits right against the circle instead
+                      of floating a visible gap below it. */}
+                  <span className={`${dotRowHeight} flex items-center justify-center leading-none -mt-[3px]`}>
+                    {hasNote && <span className={`${dotSize} rounded-full bg-[rgb(var(--color-accent))]`} />}
+                  </span>
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content side="top" sideOffset={6} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg whitespace-nowrap">
+                  {cellDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} Daily Note
+                  <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
           )
         })}
       </div>

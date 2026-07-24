@@ -93,24 +93,27 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   // entries sharing the same id built ID_TO_NAME via `.set(id, name)` in array
   // order, so the LATER entry's `name` silently won (Map last-write-wins) and
   // `bookName('RCL1')` returned the generic "Recognitions of Clement" instead of
-  // this entry's more specific "Recognitions - Book 1" everywhere, even when
+  // this entry's more specific "Recognitions, Book 1" everywhere, even when
   // displaying book 1 specifically. Same bug, same fix, for Hermas below.
-  { id: 'RCL1',  name: 'Recognitions - Book 1',  patterns: ['rcl1', 'rcl i', 'rec clem 1', 'recognitions book 1', 'recognitions book i', 'rcl', 'recognitions of clement', 'recog clement', 'rec clem'] },
-  { id: 'RCL2',  name: 'Recognitions - Book 2',  patterns: ['rcl2', 'rcl ii', 'rec clem 2', 'recognitions book 2', 'recognitions book ii'] },
-  { id: 'RCL3',  name: 'Recognitions - Book 3',  patterns: ['rcl3', 'rcl iii', 'rec clem 3', 'recognitions book 3', 'recognitions book iii'] },
-  { id: 'RCL4',  name: 'Recognitions - Book 4',  patterns: ['rcl4', 'rcl iv', 'rec clem 4', 'recognitions book 4', 'recognitions book iv'] },
-  { id: 'RCL5',  name: 'Recognitions - Book 5',  patterns: ['rcl5', 'rcl v', 'rec clem 5', 'recognitions book 5', 'recognitions book v'] },
-  { id: 'RCL6',  name: 'Recognitions - Book 6',  patterns: ['rcl6', 'rcl vi', 'rec clem 6', 'recognitions book 6', 'recognitions book vi'] },
-  { id: 'RCL7',  name: 'Recognitions - Book 7',  patterns: ['rcl7', 'rcl vii', 'rec clem 7', 'recognitions book 7', 'recognitions book vii'] },
-  { id: 'RCL8',  name: 'Recognitions - Book 8',  patterns: ['rcl8', 'rcl viii', 'rec clem 8', 'recognitions book 8', 'recognitions book viii'] },
-  { id: 'RCL9',  name: 'Recognitions - Book 9',  patterns: ['rcl9', 'rcl ix', 'rec clem 9', 'recognitions book 9', 'recognitions book ix'] },
-  { id: 'RCL10', name: 'Recognitions - Book 10', patterns: ['rcl10', 'rcl x', 'rec clem 10', 'recognitions book 10', 'recognitions book x'] },
+  // Names use a comma (not a dash) — a literal " - " broke note auto-linking,
+  // since the reference regexes don't allow a dash inside the book-name phrase.
+  { id: 'RCL1',  name: 'Recognitions, Book 1',  patterns: ['rcl1', 'rcl i', 'rec clem 1', 'recognitions book 1', 'recognitions book i', 'rcl', 'recognitions of clement', 'recog clement', 'rec clem', 'roc'] },
+  { id: 'RCL2',  name: 'Recognitions, Book 2',  patterns: ['rcl2', 'rcl ii', 'rec clem 2', 'recognitions book 2', 'recognitions book ii'] },
+  { id: 'RCL3',  name: 'Recognitions, Book 3',  patterns: ['rcl3', 'rcl iii', 'rec clem 3', 'recognitions book 3', 'recognitions book iii'] },
+  { id: 'RCL4',  name: 'Recognitions, Book 4',  patterns: ['rcl4', 'rcl iv', 'rec clem 4', 'recognitions book 4', 'recognitions book iv'] },
+  { id: 'RCL5',  name: 'Recognitions, Book 5',  patterns: ['rcl5', 'rcl v', 'rec clem 5', 'recognitions book 5', 'recognitions book v'] },
+  { id: 'RCL6',  name: 'Recognitions, Book 6',  patterns: ['rcl6', 'rcl vi', 'rec clem 6', 'recognitions book 6', 'recognitions book vi'] },
+  { id: 'RCL7',  name: 'Recognitions, Book 7',  patterns: ['rcl7', 'rcl vii', 'rec clem 7', 'recognitions book 7', 'recognitions book vii'] },
+  { id: 'RCL8',  name: 'Recognitions, Book 8',  patterns: ['rcl8', 'rcl viii', 'rec clem 8', 'recognitions book 8', 'recognitions book viii'] },
+  { id: 'RCL9',  name: 'Recognitions, Book 9',  patterns: ['rcl9', 'rcl ix', 'rec clem 9', 'recognitions book 9', 'recognitions book ix'] },
+  { id: 'RCL10', name: 'Recognitions, Book 10', patterns: ['rcl10', 'rcl x', 'rec clem 10', 'recognitions book 10', 'recognitions book x'] },
   // Shepherd of Hermas — 3 sections; bare 'her'/'hermas' defaults to Visions, merged
   // into the HER_VIS entry's own patterns (see the RCL1 comment above for why —
-  // same duplicate-id/Map-overwrite bug, same fix).
-  { id: 'HER_VIS', name: 'Hermas - Visions',     patterns: ['her vis', 'hermas visions', 'visions of hermas', 'shepherd visions', 'her', 'hermas', 'shepherd of hermas', 'shep hermas'] },
-  { id: 'HER_MAN', name: 'Hermas - Mandates',    patterns: ['her man', 'hermas mandates', 'mandates of hermas', 'shepherd mandates', 'hermas commands'] },
-  { id: 'HER_SIM', name: 'Hermas - Similitudes', patterns: ['her sim', 'hermas similitudes', 'similitudes of hermas', 'shepherd similitudes', 'hermas parables'] },
+  // same duplicate-id/Map-overwrite bug, same fix). Comma (not dash) for the same
+  // auto-link reason as RCL above.
+  { id: 'HER_VIS', name: 'Hermas, Visions',     patterns: ['her vis', 'hermas visions', 'visions of hermas', 'shepherd visions', 'her', 'hermas', 'shepherd of hermas', 'shep hermas'] },
+  { id: 'HER_MAN', name: 'Hermas, Mandates',    patterns: ['her man', 'hermas mandates', 'mandates of hermas', 'shepherd mandates', 'hermas commands'] },
+  { id: 'HER_SIM', name: 'Hermas, Similitudes', patterns: ['her sim', 'hermas similitudes', 'similitudes of hermas', 'shepherd similitudes', 'hermas parables'] },
   { id: 'AIS', name: 'Ascension of Isaiah', patterns: ['ais', 'asc isaiah', 'ascension of isaiah', 'asc. isaiah', 'ascension isaiah'] },
   { id: 'EPB', name: 'Epistle of Barnabas', patterns: ['epb', 'barnabas', 'epistle of barnabas', 'ep barnabas', 'barn'] },
   // Testaments of the Twelve Patriarchs (each testament is a separate book in the same DB)
@@ -132,6 +135,8 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'TJOB', name: 'Testament of Job', patterns: ['tjob', 't job', 't. job', 'testament job', 'testament of job', 'test of job'] },
   // 1 Clement
   { id: '1CL', name: '1 Clement', patterns: ['1cl', '1clem', '1clement', '1 clement', 'first clement', '1st clement', 'clement i'] },
+  // Testament of Jacob (distinct from the patriarch Jacob's own life, told in Genesis)
+  { id: 'TJAC', name: 'Testament of Jacob', patterns: ['tjac', 't jacob', 't. jacob', 'testament jacob', 'testament of jacob', 'test of jacob'] },
 ]
 
 const PATTERN_LOOKUP = new Map<string, string>()
@@ -251,8 +256,31 @@ export function resolveBookToken(raw: string): string | null {
   return null
 }
 
+/** Normalises roman-numeral book-name prefixes ("I Samuel" → "1 Samuel") to the
+ *  arabic-numeral form used throughout the UI. The underlying text DBs store book
+ *  names with roman numerals, so any raw book-name string read from the DB needs
+ *  this before being shown to the user. */
+export function normalizeBookName(name: string): string {
+  return name
+    .replace(/^III /, '3 ')
+    .replace(/^II /, '2 ')
+    .replace(/^I /, '1 ')
+    .replace(/^Revelation of John$/, 'Revelation')
+}
+
 export function bookName(bookId: string): string {
-  return ID_TO_NAME.get(bookId) ?? bookId
+  return normalizeBookName(ID_TO_NAME.get(bookId) ?? bookId)
+}
+
+/** bookName() joined with a chapter (and optional verse) for display.
+ *  Multi-book editions (Recognitions of Clement, Hermas, etc.) have a name
+ *  ending "...Book N" — a bare space before chapter:verse there reads as
+ *  "Recognitions, Book 10 41:8" (no comma between "10" and "41:8"). A comma
+ *  reads correctly in both positions: "Recognitions, Book 10, 41:8". */
+export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: number): string {
+  const name = bookName(bookId)
+  const sep = /Book \d+$/.test(name) ? ', ' : ' '
+  return verse != null ? `${name}${sep}${chapter}:${verse}` : `${name}${sep}${chapter}`
 }
 
 const BOOK_TRANSLATION: Record<string, string> = {
@@ -292,6 +320,7 @@ const BOOK_TRANSLATION: Record<string, string> = {
   GAD:     'gad',
   TJOB:    't_job',
   '1CL':   '1clement',
+  TJAC:    't_jacob',
 }
 
 // The Shepherd of Hermas ships in two translations sharing the same HER_* book ids:
@@ -373,7 +402,7 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   AIS: 11, EPB: 21,
   TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
-  GAD: 14, TJOB: 12, '1CL': 66,
+  GAD: 14, TJOB: 12, '1CL': 66, TJAC: 8,
   RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
   RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 36, RCL10: 72,
 }
@@ -485,26 +514,43 @@ export function parseRef(input: string): ParsedRef | null {
   // Regex handles:
   //   "Gen 1:1"  "Gen 1"  "Genesis 1:1-5"  "Gen1:1"  "Gen1"
   //   "Hosea 13-14"  (chapter range — no verse)
+  //   "Recognitions, Book 10 41:8"  (optional "Book N" subdivision — see below)
   // Group 1: book token (may include leading digit like "1 Samuel" or "1Sam")
-  // Group 2: start chapter
-  // Group 3: start verse (optional, present when colon/period separator used)
-  // Group 4: end verse (optional, when verse range)
-  // Group 5: end chapter (optional, when chapter range without verse)
+  // Group 2: book-subdivision number (optional, e.g. "10" in "Recognitions, Book 10 41:8" —
+  //   for editions like Recognitions of Clement whose real addressing is 3-level
+  //   Book.Chapter.Verse; combined with the resolved book id below)
+  // Group 3: start chapter
+  // Group 4: start verse (optional, present when colon/period separator used)
+  // Group 5: end verse (optional, when verse range)
+  // Group 6: end chapter (optional, when chapter range without verse)
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s]*?)\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
+    /^((?:\d\s*)?\w[\w\s]*?)(?:,?\s*Book\s+(\d{1,3}))?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
   )
   if (!m) return null
 
   const bookRaw = m[1].trim().toLowerCase().replace(/\s+/g, ' ')
-  const chapter   = parseInt(m[2])
-  const verse     = m[3] ? parseInt(m[3]) : undefined
-  const endVerse  = m[4] ? parseInt(m[4]) : undefined
-  const endChapter = m[5] ? parseInt(m[5]) : undefined
+  const bookNum   = m[2] ? parseInt(m[2]) : undefined
+  const chapter   = parseInt(m[3])
+  const verse     = m[4] ? parseInt(m[4]) : undefined
+  const endVerse  = m[5] ? parseInt(m[5]) : undefined
+  const endChapter = m[6] ? parseInt(m[6]) : undefined
 
   if (isNaN(chapter) || chapter < 1) return null
 
-  const bookId = resolveBookToken(bookRaw)
+  let bookId = resolveBookToken(bookRaw)
   if (!bookId) return null
+
+  if (bookNum !== undefined) {
+    // "Book N" subdivision: only valid for editions whose books are addressed as a
+    // shared name-prefix + number (currently just Recognitions of Clement, RCL1-10).
+    // Combine the resolved base id's prefix with the subdivision number and re-check
+    // it's a real book — e.g. resolveBookToken("recognitions") → "RCL1", combined
+    // with Book 10 → "RCL10". Editions without this convention (T12P, Hermas) have no
+    // "<prefix><N>" id to combine into, so the lookup fails and the ref is rejected.
+    const combined = bookId.replace(/\d+$/, '') + bookNum
+    if (!ID_TO_NAME.has(combined)) return null
+    bookId = combined
+  }
 
   // Reject chapters beyond the book's known maximum.
   const maxCh = MAX_CHAPTERS[bookId]

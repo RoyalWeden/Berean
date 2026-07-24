@@ -17,6 +17,15 @@ interface ContinuousChapterScrollProps {
   onWordClick?: (word: string) => void
   onChapterChange: (chapter: number) => void
   onVersesLoaded?: () => void
+  /** Fired once ChapterView has scrolled to `targetVerse`, so the parent can clear it —
+   * mirrors ChapterView's own onTargetVerseConsumed. Without this, targetVerse never
+   * clears in continuous-scroll mode: re-searching the same verse is a no-op (prop
+   * value unchanged, effect never re-fires) and stale targetVerse can trigger an
+   * unwanted scroll once the user navigates to a different chapter. */
+  onTargetVerseConsumed?: () => void
+  /** Flash-highlight cue after a Strong's toggle/KJV-LXX switch reflow — see ChapterView's
+   *  own flashAnchor prop for what this is (independent of targetVerse/history). */
+  flashAnchor?: { verse: number; nonce: number } | null
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   presenterBand?: { top: number; height: number } | null
   viewerPaused?: boolean
@@ -28,13 +37,18 @@ export interface ContinuousChapterScrollHandle {
 }
 
 const LOAD_AHEAD = 1  // chapters to load ahead/behind beyond what's visible
+// Chapters kept mounted on each side of the currently-most-visible chapter before eviction
+// kicks in. Must stay greater than LOAD_AHEAD — otherwise a just-prefetched chapter would sit
+// right at (or outside) the eviction boundary and get unmounted again before the visibility
+// observer catches up, undoing the prefetch on the very next scroll tick.
+const WINDOW_CHAPTERS = 2
 
 export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScrollProps>(
   function ContinuousChapterScroll(
     {
       bookId, chapter, totalChapters, showStrongs, textId,
       targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase',
-      onStrongsClick, onWordClick, onChapterChange, onVersesLoaded,
+      onStrongsClick, onWordClick, onChapterChange, onVersesLoaded, onTargetVerseConsumed, flashAnchor,
       onScroll, presenterBand, viewerPaused,
     },
     ref,
@@ -140,7 +154,23 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       if (scrollTop < clientHeight * 0.3) {
         setFirstCh((prev) => Math.max(prev - LOAD_AHEAD, 1))
       }
-    }, [onScroll, totalChapters])
+      // Evict chapters that have scrolled far outside the window around visibleCh — without
+      // this, firstCh/lastCh only ever grow and every chapter ever visited stays mounted as
+      // full non-virtualized DOM for the life of the tab. Skipped during a programmatic jump
+      // (scrollToChapter): visibleCh hasn't caught up to the new position yet (its observer
+      // updates are suppressed for the duration), so evicting against the stale value here
+      // would unmount the chapter we just jumped to.
+      if (!programmaticScrollRef.current) {
+        setFirstCh((prev) => {
+          const minAllowed = Math.min(Math.max(1, visibleCh - WINDOW_CHAPTERS), lastCh)
+          return minAllowed > prev ? minAllowed : prev
+        })
+        setLastCh((prev) => {
+          const maxAllowed = Math.max(Math.min(totalChapters, visibleCh + WINDOW_CHAPTERS), firstCh)
+          return maxAllowed < prev ? maxAllowed : prev
+        })
+      }
+    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh])
 
     // Public API: scroll a specific chapter's heading into view
     const scrollToChapter = useCallback((ch: number, verse?: number) => {
@@ -229,6 +259,8 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
               onStrongsClick={onStrongsClick}
               onWordClick={onWordClick}
               onVersesLoaded={ch === chapter ? onVersesLoaded : undefined}
+              onTargetVerseConsumed={ch === chapter ? onTargetVerseConsumed : undefined}
+              flashAnchor={ch === chapter ? flashAnchor : undefined}
             />
           </div>
         ))}

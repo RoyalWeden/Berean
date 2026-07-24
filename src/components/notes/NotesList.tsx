@@ -132,7 +132,7 @@ export default function NotesList({
   const virtualizer = useVirtualizer({
     count: notes.length,
     getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => 78,
+    estimateSize: () => 84,
     overscan: 8,
   })
 
@@ -172,7 +172,7 @@ export default function NotesList({
               key={note.id}
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
-              className="absolute top-0 left-0 w-full border-b border-[rgb(var(--color-surface-4))]"
+              className="absolute top-0 left-0 w-full px-2 py-0.5"
               style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
             <div
@@ -194,10 +194,10 @@ export default function NotesList({
                   window.app.openFloatingTab('notes', { noteId: note.id }).catch?.(() => {})
                 }
               }}
-              className={`relative group flex items-stretch transition-colors
+              className={`relative group flex items-stretch rounded-shell border transition-colors overflow-hidden
                 ${isSelected
-                  ? 'bg-[rgb(var(--color-accent))/10]'
-                  : 'hover:bg-[rgb(var(--color-surface-4))]'
+                  ? 'bg-[rgb(var(--color-accent))/10] border-[rgb(var(--color-accent))/25]'
+                  : 'bg-[rgb(var(--color-surface-2))] border-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-surface-4))]'
                 }`}
               onContextMenu={(e) => {
                 e.preventDefault()

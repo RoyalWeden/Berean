@@ -7,7 +7,7 @@ import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import Sidebar from '@/components/shell/Sidebar'
-import Ribbon from '@/components/shell/Ribbon'
+import FloatingRail from '@/components/shell/FloatingRail'
 import ActivePanel from '@/components/shell/ActivePanel'
 import ShellHeader from '@/components/shell/ShellHeader'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
@@ -393,8 +393,12 @@ export default function App() {
     mq.addEventListener('change', mqHandler)
 
     // 3. Polling fallback — Electron's nativeTheme event and matchMedia 'change'
-    //    can both be delayed by up to several seconds on macOS. Polling matchMedia
-    //    at 250ms guarantees the theme snaps within a quarter-second of the OS change.
+    //    can both be delayed by up to several seconds on macOS. This is a paranoid backstop
+    //    for the rare case where BOTH the IPC path and the matchMedia listener lag while the
+    //    window stays focused (the focus-sync handler below already covers the common
+    //    "switched away and back" case immediately). 2s still catches that rare case well
+    //    within human-perceptible delay, at an 8x lower steady-state tick rate than the
+    //    original 250ms, which polled 4x/sec for the app's entire lifetime.
     let lastPoll = mq.matches
     const pollId = setInterval(() => {
       const current = mq.matches
@@ -402,7 +406,7 @@ export default function App() {
         lastPoll = current
         applyDark(current)
       }
-    }, 250)
+    }, 2000)
 
     // 4. Focus sync — when the window regains focus after the user has been in
     //    System Preferences or another app, re-read immediately so the theme is
@@ -913,8 +917,18 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   })
 
+  // Same background treatment as ShellHeader.tsx's own root div (topbar-vibrant on mac,
+  // not just a token-equal flat color) — this root wrapper is what shows through behind
+  // ShellHeader's rounded bottom corners, and even matching the surface-2 token wasn't
+  // enough: the header renders with real translucent vibrancy (blended with the OS's
+  // window blur on mac), which a flat background can't visually reproduce, so the corner
+  // notch still read as a mismatched seam ("I can still see the corner"). Giving the root
+  // wrapper the identical vibrant treatment means literally everything behind the header,
+  // at every layer, renders the same way the header itself does.
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-1))]">
+    <div className={`flex flex-col h-screen overflow-hidden ${
+      window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'
+    }`}>
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
             bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
@@ -926,31 +940,41 @@ export default function App() {
             leak through hidden chrome (Electron's OS-level drag hit-testing ignores CSS
             visibility — see ShellHeader.tsx's own noteFocusMode handling). */}
         <div
-          className={noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''}
+          className={`${noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''} ${
+            window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'
+          }`}
+          // Same background treatment as ShellHeader.tsx's own root div — ShellHeader rounds
+          // its BOTTOM corners (rounded-b-shell), which reveals whatever is directly behind
+          // it in those two small corner notches. Without this, that reveal was the App root
+          // wrapper's flat background, which visibly differed from the header's own translucent
+          // vibrancy (blurred-through-the-window on mac; still a distinct render pass even when
+          // the flat token matches) — reported as "I can still see the corner." Giving this
+          // wrapper the identical background treatment means the notch shows the same rendered
+          // color as the header itself, so the rounded corner reads as a clean curve instead of
+          // a mismatched square peeking through.
         >
           <ShellHeader slotRef={setTopBarSlot} />
         </div>
         <div className="flex flex-1 overflow-hidden">
-          {/* Ribbon/Sidebar collapse (width → 0) and fade instead of an instant mount/
-              unmount, and the content column's own width change (full ↔ max-w-3xl) is
-              handled via `layout` on the motion.main/motion.div below — framer-motion
-              animates both with the same FLIP-based transition so entering/exiting
-              Focus mode reads as one smooth reflow rather than a jump cut. Ribbon and
-              Sidebar share ONE AnimatePresence/motion.div (not two independent ones) so
-              there's structurally a single animated box revealing/hiding both together —
-              they can't drift apart mid-transition because they're the same DOM subtree,
-              not two parallel boxes racing on separately-scheduled instances. (A `layout` +
-              LayoutGroup approach was tried first to sync two separate wrappers, but
-              `layout` measures a box's size independently of the width already being driven
-              by animate/exit, risking the two fighting instead of cooperating — merging the
-              wrappers avoids that class of bug entirely instead of trying to synchronize
-              around it.) Sidebar's own separate manual-collapse spring (Sidebar.tsx's
-              internal motion.div, `sidebarCollapsed` width 224→0) is untouched by this —
-              it's nested inside here and animates independently, same as before. */}
+          {/* Sidebar collapse (width → 0) and fade instead of an instant mount/unmount,
+              and the content column's own width change (full ↔ max-w-3xl) is handled via
+              `layout` on the motion.main/motion.div below — framer-motion animates both
+              with the same FLIP-based transition so entering/exiting Focus mode reads as
+              one smooth reflow rather than a jump cut. Ribbon used to share this same
+              motion.div as a docked sibling; it's now FloatingRail, which renders nothing
+              in this tree itself (it's a `position: fixed` portal to document.body,
+              positioned from Sidebar's own collapsed/expanded width — see FloatingRail.tsx)
+              — mounted here only so it hides/shows the same way via noteFocusMode. An
+              earlier version gave it a permanent in-flow dock column reserving its own
+              width in this row; that read as an unwanted "bar" of its own even with no
+              background, so it's back to floating, now with a small gap offset instead of
+              touching Sidebar's edge directly. Sidebar's own separate manual-collapse
+              spring (Sidebar.tsx's internal motion.div, `sidebarCollapsed` width 224→0) is
+              untouched by any of this. */}
           <AnimatePresence initial={false}>
             {!noteFocusMode && (
               <motion.div
-                key="rail-and-sidebar"
+                key="sidebar"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 'auto', opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
@@ -958,11 +982,11 @@ export default function App() {
                 className="flex"
                 style={{ overflow: 'hidden' }}
               >
-                <Ribbon />
                 <Sidebar />
               </motion.div>
             )}
           </AnimatePresence>
+          {!noteFocusMode && <FloatingRail />}
           {/* Plain CSS transition (not framer's `layout`/FLIP) for the content column's own
               width change — ActivePanel hosts CodeMirror/ProseMirror/react-mosaic, which
               don't expect to be momentarily transform-scaled the way a FLIP animation would

@@ -117,14 +117,14 @@ function useNavigate() {
             bookId: entry.bookId,
             chapter: entry.chapter ?? 1,
             scrollPosition: 0,
-            targetVerse: undefined,
+            targetVerse: entry.verse,
           })
           s.setActiveSpace('scripture')
         } else if (entry.bookId) {
           s.createTab('bible')
           const fresh = useAppStore.getState()
           const newTab = fresh.tabs['scripture'].find(t => t.id === fresh.activeTabId['scripture'])
-          if (newTab) fresh.updateTabState('scripture', newTab.id, { bookId: entry.bookId, chapter: entry.chapter ?? 1, scrollPosition: 0 })
+          if (newTab) fresh.updateTabState('scripture', newTab.id, { bookId: entry.bookId, chapter: entry.chapter ?? 1, scrollPosition: 0, targetVerse: entry.verse })
         }
         break
       }
@@ -323,12 +323,26 @@ export default function HistoryModal() {
   // Live note id → title map, so a renamed note shows its current title in History
   // instead of the string snapshotted into the entry when it was originally visited.
   const [noteTitles, setNoteTitles] = useState<Map<string, string>>(new Map())
+  // Note id → body content, for deep search (searching "nought" should find a bible/note/
+  // lexicon history entry whose underlying content contains that word, not just its title).
+  const [noteContents, setNoteContents] = useState<Map<string, string>>(new Map())
   useEffect(() => {
     if (!historyOpen) return
     getAllNotes(noteChangeToken)
-      .then((notes) => setNoteTitles(new Map(notes.map((n) => [n.id, n.title ?? '']))))
+      .then((notes) => {
+        setNoteTitles(new Map(notes.map((n) => [n.id, n.title ?? ''])))
+        setNoteContents(new Map(notes.map((n) => [n.id, n.content ?? ''])))
+      })
       .catch(() => {})
   }, [historyOpen, noteChangeToken])
+
+  // Bible chapter text and lexicon definitions caches (populated further below, once
+  // deferredSearch is declared — see the effect after it) so "deep search" can match
+  // history entries against their underlying content, not just their metadata.
+  const [chapterTextCache, setChapterTextCache] = useState<Map<string, string>>(new Map())
+  const [lexiconDefCache, setLexiconDefCache] = useState<Map<string, string>>(new Map())
+  const fetchedChapterKeysRef = useRef<Set<string>>(new Set())
+  const fetchedStrongsNumsRef = useRef<Set<string>>(new Set())
 
   // ── Filter / sort state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery]     = useState('')
@@ -380,6 +394,60 @@ export default function HistoryModal() {
   const deferredSort      = useDeferredValue(sortNewest)
   const deferredTab       = useDeferredValue(activeHistoryTab)
 
+  // Populate the content caches lazily — only once the user is actively searching (2+
+  // chars), and only for entries not already cached — so deep search doesn't pay hundreds
+  // of IPC round-trips just from opening History (most sessions never search at all).
+  // Cached forever per book/chapter/translation or strongsNum, so repeated searches during
+  // the same session are free after the first pass.
+  useEffect(() => {
+    if (!historyOpen || deferredSearch.trim().length < 2 || history.length === 0) return
+    let cancelled = false
+    const chapterKeys = new Set<string>()
+    const strongsNums = new Set<string>()
+    for (const e of history) {
+      if ((e.type === 'bible' || e.type === 'compare') && e.bookId && e.chapter) {
+        const key = `${e.bookId}:${e.chapter}:${(e.translation ?? 'kjva').toLowerCase()}`
+        if (!fetchedChapterKeysRef.current.has(key)) chapterKeys.add(key)
+      }
+      if ((e.type === 'lexicon' || e.type === 'strongs-click') && e.strongsNum) {
+        if (!fetchedStrongsNumsRef.current.has(e.strongsNum)) strongsNums.add(e.strongsNum)
+      }
+    }
+    if (chapterKeys.size === 0 && strongsNums.size === 0) return
+    ;(async () => {
+      const chapterEntries: [string, string][] = []
+      for (const key of chapterKeys) {
+        fetchedChapterKeysRef.current.add(key)
+        const [bookId, chapterStr, textId] = key.split(':')
+        try {
+          const verses = await window.bible.queryChapter(bookId, Number(chapterStr), textId)
+          chapterEntries.push([key, verses.map((v) => v.text).join(' ')])
+        } catch { /* skip on failure */ }
+      }
+      const lexiconEntries: [string, string][] = []
+      for (const num of strongsNums) {
+        fetchedStrongsNumsRef.current.add(num)
+        try {
+          const entry = await window.lexicon.getEntry(num)
+          if (entry) {
+            lexiconEntries.push([num, [entry.lemma, entry.transliteration, entry.gloss, entry.definition, entry.extendedDef].filter(Boolean).join(' ')])
+          }
+        } catch { /* skip on failure */ }
+      }
+      if (cancelled) return
+      if (chapterEntries.length) setChapterTextCache((prev) => new Map([...prev, ...chapterEntries]))
+      if (lexiconEntries.length) setLexiconDefCache((prev) => new Map([...prev, ...lexiconEntries]))
+    })()
+    return () => { cancelled = true }
+  }, [historyOpen, history, deferredSearch])
+
+  useEffect(() => {
+    if (!historyOpen) {
+      fetchedChapterKeysRef.current.clear()
+      fetchedStrongsNumsRef.current.clear()
+    }
+  }, [historyOpen])
+
   // Every filter EXCEPT the content-type tab — used both as the base for the
   // final `filtered` list and to compute a live count per tab (so switching
   // tabs shows how many entries are actually in each one given the current
@@ -392,20 +460,28 @@ export default function HistoryModal() {
       entries = entries.filter(e =>
         e.title.toLowerCase().includes(q) ||
         (e.type === 'note' && e.noteId && noteTitles.get(e.noteId)?.toLowerCase().includes(q)) ||
+        (e.type === 'note' && e.noteId && noteContents.get(e.noteId)?.toLowerCase().includes(q)) ||
         (e.query && e.query.toLowerCase().includes(q)) ||
         (e.bookId && e.bookId.toLowerCase().includes(q)) ||
         (e.strongsNum && e.strongsNum.toLowerCase().includes(q)) ||
         (e.videoId && e.videoId.toLowerCase().includes(q)) ||
         (e.translation && e.translation.toLowerCase().includes(q)) ||
         (e.sessionName && e.sessionName.toLowerCase().includes(q)) ||
-        typeQ[e.type].toLowerCase().includes(q)
+        typeQ[e.type].toLowerCase().includes(q) ||
+        // Deep content match — verse text for bible/compare entries, definition/gloss for
+        // lexicon/strongs-click entries. Caches are populated lazily above; entries not yet
+        // fetched simply don't match yet (no crash, just not found until the fetch lands).
+        ((e.type === 'bible' || e.type === 'compare') && e.bookId && e.chapter &&
+          chapterTextCache.get(`${e.bookId}:${e.chapter}:${(e.translation ?? 'kjva').toLowerCase()}`)?.toLowerCase().includes(q)) ||
+        ((e.type === 'lexicon' || e.type === 'strongs-click') && e.strongsNum &&
+          lexiconDefCache.get(e.strongsNum)?.toLowerCase().includes(q))
       )
     }
     if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
     if (hideRoutineReading && deferredTab !== 'scripture') entries = entries.filter(e => e.type !== 'bible')
     return entries
-  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab, noteTitles])
+  }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab, noteTitles, noteContents, chapterTextCache, lexiconDefCache])
 
   const tabCounts = useMemo(() => {
     const counts: Record<HistoryTabKey, number> = { all: preTabFiltered.length, scripture: 0, notes: 0, lexicon: 0, youtube: 0, search: 0 }

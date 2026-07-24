@@ -7,7 +7,7 @@ import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import { useAppStore } from '@/store'
-import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
+import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -38,8 +38,7 @@ function timeAgo(ts: number): string {
 function formatRef(verseRef: string): string {
   const parts = verseRef.split('.')
   if (parts.length < 2) return verseRef
-  const name = bookName(parts[0])
-  return parts[2] ? `${name} ${parts[1]}:${parts[2]}` : `${name} ${parts[1]}`
+  return bookChapterVerseLabel(parts[0], Number(parts[1]), parts[2] ? Number(parts[2]) : undefined)
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -437,7 +436,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                       key={i}
                       onClick={() => navToVerse(occ.book_id, occ.chapter, occ.verse_num)}
                       onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(occ.book_id, occ.chapter, occ.verse_num, e.clientX, e.clientY) }}
-                      className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
+                      className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                     >
                       <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">{refLabel}</span>
                       {occ.text && (() => {
@@ -538,7 +537,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
                     setActiveEntry(entry)
                   }
                 }}
-                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
+                className={`w-full flex items-start gap-2 px-2.5 py-2 rounded-shell text-left cursor-pointer transition-colors ${i === selectedResultIdx ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
               >
                 <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px flex-shrink-0 mt-0.5 leading-none">{entry.strongsNum}</span>
                 <div className="flex-1 min-w-0">
@@ -574,7 +573,7 @@ function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVer
   const cur = curTab?.state as BibleTabState | undefined
   const currentTranslation = cur?.translation ?? 'kjva'
   const scriptureBack = cur
-    ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: `${bookName(cur.bookId)} ${cur.chapter}`, translation: currentTranslation }
+    ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: bookChapterVerseLabel(cur.bookId, cur.chapter), translation: currentTranslation }
     : null
 
   // Auto-switch translation:
@@ -601,11 +600,11 @@ function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVer
 function RefLabel({ bookId, chapter, verse, endVerse }: { bookId: string; chapter: number; verse: number; endVerse?: number | null }) {
   let label: string
   if (verse === 0) {
-    label = `${bookName(bookId)} ${chapter}`
+    label = bookChapterVerseLabel(bookId, chapter)
   } else if (endVerse && endVerse > verse) {
-    label = `${bookName(bookId)} ${chapter}:${verse}–${endVerse}`
+    label = `${bookChapterVerseLabel(bookId, chapter, verse)}–${endVerse}`
   } else {
-    label = `${bookName(bookId)} ${chapter}:${verse}`
+    label = bookChapterVerseLabel(bookId, chapter, verse)
   }
   return <span className="font-mono text-[rgb(var(--color-accent))] group-hover:underline">{label}</span>
 }
@@ -756,7 +755,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                         <div className="flex flex-col gap-1 pl-5 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
                               <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                                 {r.verse === 0
@@ -804,7 +803,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                         <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
                             <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                              className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
                               <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                                 {r.verse === 0
@@ -876,7 +875,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
               const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
               return (
                 <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                  className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                  className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
@@ -1062,9 +1061,9 @@ function UserNotesChapterView({
               {indirectNotes.map(({ note, verses }) => {
                 const isExpanded = expandedIndirectIds.has(note.id)
                 return (
-                  <div key={note.id} className="rounded-lg overflow-hidden">
+                  <div key={note.id} className="rounded-shell overflow-hidden">
                     {/* Note title row */}
-                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[rgb(var(--color-surface-3))] group transition-colors">
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-3))] group transition-colors">
                       <button
                         onClick={() => setExpandedIndirectIds(prev => {
                           const n = new Set(prev)
@@ -1125,7 +1124,7 @@ function UserNotesChapterView({
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => (
               <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
-                className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
+                className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
                 <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
                   <RefLabel bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
@@ -1605,7 +1604,9 @@ export default function BibleRightPanel({
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             {note.verseRef && (
-              <span className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px leading-none">
+              <span
+                className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] rounded-[2px] px-[3px] leading-[1.2] bg-[rgb(var(--color-accent))/10]"
+              >
                 {formatRef(note.verseRef)}
               </span>
             )}
@@ -1632,7 +1633,7 @@ export default function BibleRightPanel({
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="native-buttons flex flex-col h-full"
       // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
       // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
       onScrollCapture={(e) => {
@@ -1996,14 +1997,14 @@ export default function BibleRightPanel({
           {sideCtxMenu.type === 'note' ? (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeSideCtxMenu(); openSidebarNote(sideCtxMenu.note) }}
               >
                 <StickyNote size={12} />
                 Open in panel
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeSideCtxMenu()
                   createNoteTab('note')
@@ -2015,7 +2016,7 @@ export default function BibleRightPanel({
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeSideCtxMenu()
                   window.app.openFloatingTab('notes', { noteId: sideCtxMenu.note.id })
@@ -2029,14 +2030,14 @@ export default function BibleRightPanel({
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeSideCtxMenu(); navToVerseFromPanel(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
               >
                 <BookOpen size={12} />
                 Open verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={async () => {
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   closeSideCtxMenu()
@@ -2048,14 +2049,14 @@ export default function BibleRightPanel({
                 Copy verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeSideCtxMenu(); copyVerseRef(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
               >
                 <Hash size={12} />
                 Copy reference
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeSideCtxMenu()
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
@@ -2073,7 +2074,7 @@ export default function BibleRightPanel({
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeSideCtxMenu()
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu

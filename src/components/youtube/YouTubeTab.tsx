@@ -847,6 +847,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // First tick is immediate so styles are confirmed right at the moment of fade-in.
   useEffect(() => {
     if (!playerReady || !watchFallback || !activeVideoId) return
+    // Same guard as the transcript/position pollers below — this tab stays mounted (hidden via
+    // CSS, not unmounted) for PiP continuity when the user switches to another space, so without
+    // this check the 1s style-injection poll would keep running forever even while the user is
+    // reading Scripture elsewhere.
+    if (activeSpace !== 'youtube' && !isPiPActive) return
     const wv = webviewRef.current
     if (!wv) return
     let count = 0
@@ -943,7 +948,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     applyStyles() // immediate first run at fade-in moment
     const interval = setInterval(applyStyles, 1000)
     return () => clearInterval(interval)
-  }, [playerReady, watchFallback, activeVideoId])
+  }, [playerReady, watchFallback, activeVideoId, activeSpace, isPiPActive])
 
   // Pause immediately when the video ends; reset saved position to 0 so next open starts fresh
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, Search, FileUp } from 'lucide-react'
 import type { Book } from '@/types'
@@ -89,7 +89,11 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
 
   const currentBook = books.find((b) => b.id === currentBookId)
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so `pos` is corrected before the browser paints — with a
+  // plain useEffect, the first frame rendered with the initial {left:0, top:0} (top-left
+  // corner), then a visible jump to the real position once the effect ran post-paint. Mirrors
+  // the fix already used by MenuPositioner (usePositionedMenu.ts) for this exact class of bug.
+  useLayoutEffect(() => {
     if (open) {
       setActiveBookId(currentBookId)
       setSearch('')
