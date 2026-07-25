@@ -122,7 +122,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.4.11] - 2026-07-23
 
 Scripture search
 - The Advanced Scripture Search "scope" filter (which editions/books to
