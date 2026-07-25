@@ -5,6 +5,8 @@ import {
 import type { Note } from '@/types'
 import type { SlashCommand } from './slashCommands'
 import { CALLOUT_META } from '@/lib/noteTextBlocks'
+import { formatDottedVerseRef } from '@/lib/parseRef'
+import ShortcutKeys from '@/components/shell/ShortcutKeys'
 
 const SLASH_ICONS: Record<string, LucideIcon> = {
   text: Type, h1: Heading1, h2: Heading2, h3: Heading3,
@@ -32,7 +34,7 @@ export function StrongsSuggestPopup({
         onMouseDown={onInsert}
       >
         Insert Strong&apos;s block
-        <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+        <ShortcutKeys keys="↵" className="ml-0.5" />
       </button>
       <button
         className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
@@ -60,7 +62,7 @@ export function VerseSuggestPopup({
         onMouseDown={onInsert}
       >
         Insert scripture block
-        <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+        <ShortcutKeys keys="↵" className="ml-0.5" />
       </button>
       <button
         className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
@@ -106,7 +108,7 @@ export function WikilinkPopup({
             {active.title || 'Untitled'}
           </p>
           {active.verseRef && (
-            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{active.verseRef}</p>
+            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{formatDottedVerseRef(active.verseRef)}</p>
           )}
           <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
             {(active.content || '')

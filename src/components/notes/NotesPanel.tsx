@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, Calendar, CalendarDays, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -22,7 +23,7 @@ import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes } from '@/lib/notesCache'
-import CalendarWidget, { toDateKey } from './CalendarWidget'
+import { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type NoteSort = 'modified' | 'created' | 'name'
@@ -293,16 +294,22 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
   const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
-  const [calendarOpen, setCalendarOpen] = useState(false)
-  const [calendarDate, setCalendarDate] = useState(new Date())
-  const [calendarAnchor, setCalendarAnchor] = useState<{ left: number; top: number } | null>(null)
-  const calendarToggleRef = useRef<HTMLButtonElement>(null)
   const [expandAll, setExpandAll] = useState(false)
   const [folderView, setFolderView] = useState(false)
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string } | null>(null)
   const [convertIdiomModal, setConvertIdiomModal] = useState<{ note: Note; term: string; meaning: string; keepContent: boolean } | null>(null)
+  // One-time "click a note to open it" hint above the notes list — dismissed
+  // permanently (localStorage) the first time the user closes it or opens any note.
+  const OPEN_NOTE_HINT_KEY = 'berean:hint:clickNoteToOpen'
+  const [openNoteHintDismissed, setOpenNoteHintDismissed] = useState(() => {
+    try { return localStorage.getItem(OPEN_NOTE_HINT_KEY) === '1' } catch { return false }
+  })
+  const dismissOpenNoteHint = useCallback(() => {
+    setOpenNoteHintDismissed(true)
+    try { localStorage.setItem(OPEN_NOTE_HINT_KEY, '1') } catch { /* ignore */ }
+  }, [])
 
   const loadFolders = useCallback(() => {
     window.notes.getFolders().then(setFolders).catch(() => {})
@@ -435,7 +442,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const inMemory = notes.find(n => n.title === title && n.type === 'daily')
     if (inMemory) {
       setActiveNote(inMemory)
-      setCalendarOpen(false)
       return
     }
     // 2. Always query the DB before creating — guards against race conditions
@@ -447,7 +453,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         // Merge into local list so subsequent opens are fast
         setNotes(prev => prev.some(n => n.id === dbExisting.id) ? prev : [dbExisting, ...prev])
         setActiveNote(dbExisting)
-        setCalendarOpen(false)
         return
       }
     } catch { /* ignore search errors, fall through to create */ }
@@ -458,7 +463,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       setActiveNote(result.note!)
       bumpNoteToken()
     }
-    setCalendarOpen(false)
   }
 
   // Allow sidebar's daily-note button (berean:openDailyNote) to work when notes panel is mounted
@@ -740,6 +744,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   function navigateToNote(note: Note) {
+    dismissOpenNoteHint()
     if (activeNote && activeNote.id !== note.id) {
       snapshotVersion(activeNote, 'auto')   // snapshot the outgoing note
       // Reset scroll for the new note
@@ -1139,47 +1144,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         ) : (
           <>
             <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
-            {/* Daily calendar + today shortcut — grouped together */}
-            <div className="relative flex items-center gap-0.5">
-              <button
-                ref={calendarToggleRef}
-                data-calendar-toggle="true"
-                onClick={() => {
-                  // In docked mode this whole header is portaled into TopBar's
-                  // fixed-height, overflow-hidden slot — an absolutely
-                  // positioned popover here gets clipped to that 44px strip.
-                  // Compute the trigger's real screen position instead and
-                  // render the popover through its own portal to <body>.
-                  if (!calendarOpen) {
-                    const rect = calendarToggleRef.current?.getBoundingClientRect()
-                    if (rect) setCalendarAnchor({ left: rect.right, top: rect.bottom + 4 })
-                  }
-                  setCalendarOpen(v => !v)
-                }}
-                title="Daily notes calendar"
-                className={`p-1 rounded-shell cursor-pointer transition-colors ${calendarOpen ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-              >
-                <Calendar size={15} />
-              </button>
-              <button
-                onClick={() => openDailyNote(new Date())}
-                title="Open today's daily note (⌘⇧D)"
-                className="p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
-              >
-                <CalendarDays size={15} />
-              </button>
-              {calendarOpen && calendarAnchor && createPortal(
-                <CalendarWidget
-                  date={calendarDate}
-                  notes={notes}
-                  anchor={calendarAnchor}
-                  onDateChange={setCalendarDate}
-                  onSelectDate={openDailyNote}
-                  onClose={() => setCalendarOpen(false)}
-                />,
-                document.body
-              )}
-            </div>
             {/* Folder view toggle */}
             <button
               onClick={toggleFolderView}
@@ -1746,6 +1710,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             maybeSyncNote(id)
           }}
         />
+      )}
+
+      {/* One-time "click a note to open it" hint — a floating corner toast (not inline in the
+          list, so it doesn't shift layout) shown until the user opens any note or dismisses it. */}
+      {createPortal(
+        <AnimatePresence>
+          {!openNoteHintDismissed && !editing && !selectMode && !noteSearch && visibleNotes.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="fixed bottom-4 right-4 z-[500] flex items-center gap-2 pl-3 pr-2 py-2 rounded-shell-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-xl text-[12px] text-[rgb(var(--color-text-secondary))]"
+            >
+              <span>Click a note to open it</span>
+              <button
+                onClick={dismissOpenNoteHint}
+                title="Dismiss"
+                className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
+              >
+                <X size={12} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   )

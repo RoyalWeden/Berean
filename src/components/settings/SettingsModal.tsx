@@ -10,6 +10,7 @@ import type { ScriptureLayout } from '@/types'
 import { BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { migrateAllNotes, type MigrationResult } from '@/lib/noteMigration'
 import Switch from '@/components/shell/Switch'
+import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
 import HistorySection from './sections/HistorySection'
@@ -1057,7 +1058,7 @@ export default function SettingsModal() {
 
                   <div className="px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
                     <p className="s-desc text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
-                      To suppress auto-detection for a specific piece of text, select it in the editor and press <kbd className="font-mono text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧R</kbd> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
+                      To suppress auto-detection for a specific piece of text, select it in the editor and press <ShortcutKeys keys="⌘⇧R" className="align-middle" /> or click the <span className="font-mono">↗︎̵</span> button in the selection toolbar. Suppression is per-session — retyping the text removes it.
                     </p>
                   </div>
 
@@ -1726,7 +1727,7 @@ export default function SettingsModal() {
                           {group.shortcuts.map((s) => (
                             <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-[rgb(var(--color-surface-4))/50]">
                               <span className="text-sm text-[rgb(var(--color-text-secondary))]">{s.action}</span>
-                              <kbd className="text-xs font-mono bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] px-2 py-0.5 rounded">{s.key}</kbd>
+                              <ShortcutKeys keys={s.key} />
                             </div>
                           ))}
                         </div>
@@ -1741,7 +1742,7 @@ export default function SettingsModal() {
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Viewer window</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-0">
-                      Open a second window to display Bible text on an external monitor or projector. Toggle with <kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧B</kbd>.
+                      Open a second window to display Bible text on an external monitor or projector. Toggle with <ShortcutKeys keys="⌘⇧B" className="align-middle" />.
                     </p>
                   </div>
 

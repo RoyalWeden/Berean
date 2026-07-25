@@ -1,6 +1,7 @@
 import * as Popover from '@radix-ui/react-popover'
 import { MoreHorizontal } from 'lucide-react'
 import { useState, useEffect, useRef, type ReactNode } from 'react'
+import ShortcutKeys from './ShortcutKeys'
 
 export interface OverflowItem {
   key: string
@@ -143,11 +144,7 @@ export default function HeaderOverflowMenu({ items, className = '' }: { items: O
                     )}
                   </span>
                   <span className="flex-1 truncate">{item.label}</span>
-                  {item.shortcut && (
-                    <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] flex-shrink-0">
-                      {item.shortcut}
-                    </kbd>
-                  )}
+                  {item.shortcut && <ShortcutKeys keys={item.shortcut} className="flex-shrink-0" />}
                 </button>
               )}
             </div>

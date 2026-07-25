@@ -5,6 +5,7 @@ import { BookOpen, FolderOpen, Folder, FileText, Keyboard, CheckCircle, ChevronR
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
 import ESwordImporter from '@/components/settings/ESwordImporter'
+import ShortcutKeys from './ShortcutKeys'
 
 // ── Step definitions ──────────────────────────────────────────────────────────
 
@@ -1160,9 +1161,9 @@ function StepShortcuts() {
       <div className="space-y-1.5">
         {shortcuts.map(({ key, action }) => (
           <div key={key} className="flex items-center gap-3">
-            <kbd className="min-w-[72px] text-center px-2 py-1 rounded-md bg-[rgb(var(--color-surface-4))] text-[10px] font-mono text-[rgb(var(--color-text-primary))] border border-[rgb(var(--color-surface-4))] flex-shrink-0">
-              {key}
-            </kbd>
+            <span className="min-w-[72px] flex-shrink-0">
+              <ShortcutKeys keys={key} />
+            </span>
             <span className="text-sm text-[rgb(var(--color-text-secondary))]">{action}</span>
           </div>
         ))}
@@ -1189,9 +1190,9 @@ function StepDone() {
       </div>
       <div className="px-4 py-3 rounded-shell bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-left w-full max-w-sm">
         <p className="text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">
-          Press <kbd className="px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] font-mono text-[10px]">⌘1</kbd> to open Scripture,{' '}
-          <kbd className="px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] font-mono text-[10px]">⌘T</kbd> to open a passage,{' '}
-          and <kbd className="px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] font-mono text-[10px]">⌘,</kbd> for settings.
+          Press <ShortcutKeys keys="⌘1" /> to open Scripture,{' '}
+          <ShortcutKeys keys="⌘T" /> to open a passage,{' '}
+          and <ShortcutKeys keys="⌘," /> for settings.
         </p>
       </div>
     </div>

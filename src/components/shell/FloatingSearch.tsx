@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal, ArrowRight } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName } from '@/lib/parseRef'
+import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
+import { parseMultiStrongsQuery, searchMultiStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
+import ShortcutKeys from './ShortcutKeys'
 import type { Book, LexiconEntry, Note } from '@/types'
 
 interface CrossRef {
@@ -166,6 +170,7 @@ export default function FloatingSearch() {
 
   type SearchWordMode = 'all' | 'any' | 'phrase'
   type ScopeFilter = 'all' | 'ot' | 'nt'
+  const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All words', any: 'Any word', phrase: 'Exact phrase' }
 
   const inputRef = useRef<HTMLInputElement>(null)
   const selectedItemRef = useRef<HTMLButtonElement>(null)
@@ -182,7 +187,35 @@ export default function FloatingSearch() {
   const [youtubeResults, setYoutubeResults] = useState<Array<{ videoId: string; title: string; channelName: string; snippet?: string; startMs?: number }>>([])
   const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
   const openYouTubeVideo         = useAppStore((s) => s.openYouTubeVideo)
-  const [selectedIdx, setSelectedIdx] = useState(0)
+  // -1 means "nothing selected yet" — no result row is highlighted until the user
+  // explicitly arrows through the list OR hovers a row with the mouse. Distinguishes
+  // "pressed Enter without selecting anything" (fires the smart destination
+  // prediction below, when one exists) from "selected a specific row, then Enter"
+  // (always fires that row's own action, unchanged from prior behavior). Reset to
+  // -1 on every keystroke — new typing invalidates any prior selection.
+  const [selectedIdx, setSelectedIdx] = useState(-1)
+  // Word-mode dropdown — was a 3-button segmented control ("all"/"any"/"phrase"
+  // always all visible at once); replaced with a single trigger + portaled popover,
+  // same pattern as ScriptureSearchView.tsx's sort/context-length dropdowns (portal
+  // to document.body with a fixed position computed from the trigger's own rect —
+  // an in-flow `absolute` dropdown here would sit inside this modal's own stacking
+  // context and risk the same "renders behind other content" bug that pattern was
+  // introduced to fix there).
+  const [wordModeMenuOpen, setWordModeMenuOpen] = useState(false)
+  const [wordModeMenuPos, setWordModeMenuPos] = useState<{ left: number; top: number } | null>(null)
+  const wordModeTriggerRef = useRef<HTMLButtonElement>(null)
+  const wordModeMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!wordModeMenuOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (wordModeTriggerRef.current?.contains(t)) return
+      if (wordModeMenuRef.current?.contains(t)) return
+      setWordModeMenuOpen(false)
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [wordModeMenuOpen])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const crossRefDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Bumped once per runSearch invocation; every async result-setter below checks its
@@ -202,7 +235,7 @@ export default function FloatingSearch() {
       setLexiconResults([])
       setNoteResults([])
       setYoutubeResults([])
-      setSelectedIdx(0)
+      setSelectedIdx(-1)
     }
   }, [searchOpen, defaultBibleTranslation])
 
@@ -223,8 +256,19 @@ export default function FloatingSearch() {
   // noticeable input lag on some keystrokes.
   const detected = useMemo(() => (query.trim() ? detectTranslationPrefix(query) : null), [query])
   const cleanQuery = detected ? detected.cleanQuery : query
-  const parsedRef = useMemo(() => (cleanQuery.trim() ? parseRef(cleanQuery) : null), [cleanQuery])
+  // Recognitions of Clement / Shepherd of Hermas get their own richer grammar first
+  // (book-numbered/section-numbered addressing parseRef's own regex can't express —
+  // see multiBookSearch.ts) — falls through to the general-purpose parseRef for
+  // everything else, including a remainder multiBookSearch didn't recognize.
+  const parsedRef = useMemo(
+    () => (cleanQuery.trim() ? (parseMultiBookQuery(cleanQuery) ?? parseRef(cleanQuery)) : null),
+    [cleanQuery]
+  )
   const isStrongs = isStrongsRef(query)
+  // Render-scope mirror of the same check `runSearch`'s debounced callback does — needed
+  // here too so the smart destination-prediction logic (below) can exclude Strong's-number
+  // combinations from prediction the same way it excludes bare Strong's numbers and refs.
+  const multiStrongs = useMemo(() => parseMultiStrongsQuery(cleanQuery), [cleanQuery])
   // Only meaningful once parsedRef has already failed to match (see the bare-book-name
   // fallback below) — computed here too so it shares the same memoization key as parsedRef
   // instead of re-running resolveBookToken's Levenshtein scan again inline during render.
@@ -275,6 +319,7 @@ export default function FloatingSearch() {
       }
 
       if (isStrongsRef(trimmed)) {
+        // Bare single Strong's number — jump straight to its lexicon entry, same as before.
         setVerseResults([]); setNoteResults([]); setYoutubeResults([])
         try {
           const entry = await window.lexicon.getEntry(trimmed)
@@ -286,7 +331,24 @@ export default function FloatingSearch() {
         return
       }
 
-      if (parseRef(trimmed)) {
+      // A combination of Strong's numbers and/or a Strong's number plus plain word(s)
+      // ("G5485 G54", "G5485 jacob") — not a bare single number, so there's no single
+      // lexicon entry to jump to. Runs the same AND'd occurrence search Advanced Scripture
+      // Search uses (strongsSearch.ts) and shows matching verses instead.
+      const multiStrongs = parseMultiStrongsQuery(trimmed)
+      if (multiStrongs) {
+        setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
+        try {
+          const found = await searchMultiStrongs(multiStrongs, window.lexicon.getOccurrences)
+          if (gen !== searchGenRef.current) return
+          setVerseResults(found.map((o) => ({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text })))
+        } catch {
+          if (gen === searchGenRef.current) setVerseResults([])
+        }
+        return
+      }
+
+      if (parseMultiBookQuery(trimmed) ?? parseRef(trimmed)) {
         setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
         return
       }
@@ -424,7 +486,7 @@ export default function FloatingSearch() {
 
   function handleInput(val: string) {
     setQuery(val)
-    setSelectedIdx(0)
+    setSelectedIdx(-1)
     // Command mode (">") — no reference/keyword lookup to run at all, the
     // `>`-prefixed text is matched against the command list client-side.
     if (val.trim().startsWith('>')) {
@@ -627,6 +689,29 @@ export default function FloatingSearch() {
         return scopeFilter === 'ot' ? bk.testament === 'OT' : bk.testament === 'NT'
       })
 
+  // Smart destination prediction — guesses which single space (Scripture/Notes/YouTube)
+  // a plain keyword query is most likely aimed at, from the live result counts each
+  // space's search already produced (no separate intent-classifier exists anywhere in
+  // the app; this reuses data the component was already fetching). Deliberately scoped
+  // to plain keyword queries only — a parsed reference, Strong's number/combination, or
+  // command-mode query already has an unambiguous, correct top result, and changing
+  // Enter's behavior for those would regress the "type a ref, hit Enter, jump there" flow.
+  // Lexicon is excluded from the signal: lexicon results only ever populate via Strong's-
+  // number syntax today, never plain-keyword search, so there's no live lexicon count to
+  // compare against here. Scripture wins ties (the app's home space); no prediction at
+  // all when every count is 0 (nothing confident to suggest).
+  const predictedSpace: 'scripture' | 'notes' | 'youtube' | null = (() => {
+    if (parsedRef || isStrongs || multiStrongs || query.trim().startsWith('>') || cleanQuery.trim().length < 3) return null
+    const counts: Array<['scripture' | 'notes' | 'youtube', number]> = [
+      ['scripture', scopedVerseResults.length],
+      ['notes', versesOnly ? 0 : noteResults.length],
+      ['youtube', versesOnly ? 0 : youtubeResults.length],
+    ]
+    const max = Math.max(...counts.map(([, n]) => n))
+    if (max === 0) return null
+    return counts.find(([, n]) => n === max)![0]
+  })()
+
   for (const v of scopedVerseResults.slice(0, 12)) {
     const book = books.find((b) => b.id === v.book_id)
     const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
@@ -690,14 +775,15 @@ export default function FloatingSearch() {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIdx((i) => {
-        const next = Math.min(i + 1, results.length - 1)
+        // From "nothing selected" (-1), land on the first row rather than the second.
+        const next = i < 0 ? 0 : Math.min(i + 1, results.length - 1)
         setTimeout(() => selectedItemRef.current?.scrollIntoView({ block: 'nearest' }), 0)
         return next
       })
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setSelectedIdx((i) => {
-        const prev = Math.max(i - 1, 0)
+        const prev = i < 0 ? 0 : Math.max(i - 1, 0)
         setTimeout(() => selectedItemRef.current?.scrollIntoView({ block: 'nearest' }), 0)
         return prev
       })
@@ -705,9 +791,20 @@ export default function FloatingSearch() {
       e.preventDefault()
       closeSearch()
       openScriptureSearchTab(query.trim())
+    } else if (e.key === 'Enter' && selectedIdx < 0 && predictedSpace) {
+      // Enter with nothing selected (no arrowing, no mouse hover) — jump straight to
+      // the predicted destination's own search tab with the current query, rather
+      // than the somewhat arbitrary first item in a merged results list. Selecting a
+      // row (arrow keys or hovering it with the cursor) opts back into the old
+      // "activate that specific row" behavior below.
+      e.preventDefault()
+      closeSearch()
+      if (predictedSpace === 'scripture') openScriptureSearchTab(query.trim())
+      else if (predictedSpace === 'notes') openNotesSearchTab(query.trim())
+      else openYouTubeSearchTab(query.trim())
     } else if (e.key === 'Enter' && results.length > 0) {
       e.preventDefault()
-      results[selectedIdx]?.action()
+      results[Math.max(0, selectedIdx)]?.action()
     }
   }
 
@@ -756,18 +853,38 @@ export default function FloatingSearch() {
           {/* Input */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgb(var(--color-surface-4))]">
             <Search size={18} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => handleInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Gen 1:1 · Exodus 20 · in the beginning..."
-              className="
-                flex-1 bg-transparent text-[rgb(var(--color-text-primary))]
-                placeholder:text-[rgb(var(--color-text-muted))] text-sm outline-none
-              "
-            />
+            {/* Ghost-text destination hint (Safari/Spotlight-style) — an invisible spacer
+                spanning the already-typed text, so the actual suggestion label starts
+                exactly at the caret, sitting behind the real <input> (which has a
+                transparent background so its own typed text renders on top, and the
+                ghost label shows through in the space after it). Both this div and the
+                input below must share identical font/size/padding for the alignment to
+                hold — both already use text-sm with no extra padding on either side. */}
+            <div className="relative flex-1 min-w-0">
+              <div aria-hidden className="absolute inset-0 flex items-center text-sm pointer-events-none whitespace-pre overflow-hidden">
+                <span className="invisible">{query}</span>
+                {predictedSpace && selectedIdx < 0 && (
+                  <span className="flex items-center gap-1 ml-1 flex-shrink-0 opacity-60">
+                    <span className="text-[rgb(var(--color-text-muted))]">
+                      → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
+                    </span>
+                    <ShortcutKeys keys="↵" />
+                  </span>
+                )}
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => handleInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Gen 1:1 · Exodus 20 · in the beginning..."
+                className="
+                  relative w-full bg-transparent text-[rgb(var(--color-text-primary))]
+                  placeholder:text-[rgb(var(--color-text-muted))] text-sm outline-none
+                "
+              />
+            </div>
             {crossRefLoading && (
               <span className="text-[10px] text-[rgb(var(--color-text-muted))] animate-pulse flex-shrink-0">…</span>
             )}
@@ -794,21 +911,51 @@ export default function FloatingSearch() {
                 ))}
               </div>
             )}
-            {/* Word mode toggle — moved here (right-aligned in the input row, where the
+            {/* Word mode dropdown — moved here (right-aligned in the input row, where the
                 user is actually typing) from the footer, so it's immediately next to the
-                query instead of below a whole results list's worth of scroll distance. */}
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-shrink-0">
-              {(['all', 'any', 'phrase'] as SearchWordMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => handleWordModeChange(m)}
-                  className={`px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors capitalize
-                    ${searchWordMode === m ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'}`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+                query instead of below a whole results list's worth of scroll distance.
+                Was a 3-button segmented control always showing all three options at once;
+                now a single trigger + popover, matching the app's other refined dropdowns
+                (BookChapterPicker's trigger styling, ScriptureSearchView's sort/context
+                menus' portal pattern). */}
+            <button
+              ref={wordModeTriggerRef}
+              onClick={() => {
+                if (!wordModeMenuOpen) { const r = wordModeTriggerRef.current?.getBoundingClientRect(); if (r) setWordModeMenuPos({ left: r.right - 130, top: r.bottom + 4 }) }
+                setWordModeMenuOpen((v) => !v)
+              }}
+              title="Word matching"
+              className="flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] px-1.5 py-0.5 text-[10px] font-medium text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))/50] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer flex-shrink-0"
+            >
+              {WORD_MODE_LABELS[searchWordMode]}
+              <ChevronDown size={9} className={`transition-transform ${wordModeMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {wordModeMenuOpen && wordModeMenuPos && createPortal(
+              <div
+                ref={wordModeMenuRef}
+                // pointerEvents: 'auto' is required here — Radix's Dialog (this whole search
+                // bar is a Dialog.Root) sets `pointer-events: none` on <body> while modal-open
+                // so only ITS OWN portaled content stays interactive; this dropdown is a
+                // SEPARATE portal appended directly to document.body (a sibling to Radix's
+                // own portal, not inside it), so without overriding it back to 'auto' here it
+                // inherited that body-level lock — clicks passed straight through it to
+                // whatever result row sat behind it (reported as "cursor going through it").
+                style={{ position: 'fixed', left: wordModeMenuPos.left, top: wordModeMenuPos.top, zIndex: 9999, pointerEvents: 'auto' }}
+                className="min-w-[130px] rounded-shell context-menu overflow-hidden py-1"
+              >
+                {(['all', 'any', 'phrase'] as SearchWordMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => { handleWordModeChange(m); setWordModeMenuOpen(false) }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                  >
+                    <span className="flex-1">{WORD_MODE_LABELS[m]}</span>
+                    {searchWordMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                  </button>
+                ))}
+              </div>,
+              document.body
+            )}
           </div>
 
           {/* Results */}
@@ -835,6 +982,11 @@ export default function FloatingSearch() {
                     key={i}
                     ref={i === selectedIdx ? selectedItemRef : undefined}
                     onClick={r.action}
+                    // Moving the mouse over a row selects it too (not just arrow keys) — so
+                    // Enter after a hover activates that specific row, consistent with arrow
+                    // navigation, rather than only ever falling back to the smart-prediction
+                    // jump once the cursor has clearly indicated an actual row.
+                    onMouseEnter={() => setSelectedIdx(i)}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer hover:bg-[rgb(var(--color-surface-3))]"
                     style={sharedStyle}
                   >
@@ -853,9 +1005,7 @@ export default function FloatingSearch() {
                         )}
                       </span>
                       {r.type === 'command' && r.sub && (
-                        <kbd className="flex-shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">
-                          {r.sub}
-                        </kbd>
+                        <ShortcutKeys keys={r.sub} className="flex-shrink-0" />
                       )}
                     </span>
                   </button>
@@ -879,7 +1029,7 @@ export default function FloatingSearch() {
                     key={i}
                     onClick={() => {
                       setQuery(q)
-                      setSelectedIdx(0)
+                      setSelectedIdx(-1)
                       const det = q.trim() ? detectTranslationPrefix(q) : null
                       const tid = det ? det.textId : searchTextId
                       runSearch(det ? det.cleanQuery : q, tid, searchWordMode)
@@ -907,34 +1057,37 @@ export default function FloatingSearch() {
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
-            <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">↑↓</kbd> Navigate</span>
-            <span><kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 rounded text-[10px]">↵</kbd> Open</span>
+            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↑↓" /> Navigate</span>
+            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↵" /> Open</span>
             <div className="flex-1" />
             {!isCommandMode && (
               <div className="flex items-center gap-1.5">
-                {/* Advanced Scripture search — pulled out of the generic destination-button
-                    row and given its own permanently-labeled, accent-colored pill (rather
-                    than a tiny icon that only reveals its label on hover, and rather than
-                    staying dimmed/inert until a query exists) since this is the one
-                    destination that genuinely deserves to read as a clear, always-clickable
-                    CTA, not just one of four equally-weighted icon buttons — reported as too
-                    easy to miss. Works with or without a typed query (opens blank if empty). */}
+                {/* Advanced Scripture search — previously its own accent-colored CTA pill
+                    with a Search icon; restyled to match the plain "↑↓ Navigate"/"↵ Open"
+                    hint labels at the left edge of this same footer (shortcut keycap + text,
+                    muted color, no icon) rather than standing out as a visually distinct
+                    button — the icon didn't fit that minimal language, so it's dropped
+                    rather than swapped for another one. Still a real clickable action (unlike
+                    the inert hint spans), so it keeps a hover color shift for affordance.
+                    Works with or without a typed query (opens blank if empty). */}
                 <button
                   onClick={() => { closeSearch(); openScriptureSearchTab(query.trim() || undefined) }}
-                  className="flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full border border-[rgb(var(--color-accent))/40] bg-[rgb(var(--color-accent))/12] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/20] hover:border-[rgb(var(--color-accent))/60] transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 >
-                  <Search size={12} />
-                  <span className="text-[10.5px] font-semibold whitespace-nowrap">Advanced scripture search</span>
-                  <kbd className="font-mono text-[9px] px-1 py-0.5 rounded bg-[rgb(var(--color-accent))/15]">⇧↵</kbd>
+                  <ShortcutKeys keys="⇧↵" />
+                  <span className="text-[10.5px] font-medium whitespace-nowrap">Advanced scripture search</span>
                 </button>
                 {/* Remaining destination buttons — icon + arrow, hover-expand label, dimmed
                     until a query exists (unlike Scripture above, these genuinely need a
-                    query to be useful). */}
-                {([
+                    query to be useful). All three are hidden entirely in `versesOnly` mode
+                    (opened via the Scripture tab's own "Search scripture" button/shortcut)
+                    — that entry point is scoped to scripture, so offering destinations for
+                    other spaces there is out of place. */}
+                {(versesOnly ? [] : [
                   { label: 'Notes',   icon: <StickyNote size={12} />, run: () => openNotesSearchTab(query.trim()) },
                   { label: 'Lexicon', icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
                   { label: 'YouTube', icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
-                ] as const).map((d) => {
+                ]).map((d) => {
                   const active = !!query.trim()
                   return (
                     <button

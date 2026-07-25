@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
-import { ChevronLeft, ChevronRight, X, Info, Check, ArrowLeft, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Info } from 'lucide-react'
 import BookChapterPicker from './BookChapterPicker'
 import ChapterView from './ChapterView'
-import { ANNOTATION_KEYS, TRANSLATIONS } from '@/lib/bibleTexts'
+import ActionPillGroup from '@/components/shell/ActionPillGroup'
+import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { normalizeBookName } from '@/lib/parseRef'
 import { zoomedFontSize } from '@/lib/zoom'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
+import { encodeScrollPosition, decodeScrollPosition } from '@/lib/verseScrollSync'
 import { useAppStore } from '@/store'
 import type { Verse, Book } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
@@ -71,6 +73,13 @@ interface Props {
   initialColumns?: Array<{ textId: string; bookId: string; chapter: number }>
   /** Persist the current columns to tab state whenever they change. */
   onColumnsChange?: (cols: Array<{ textId: string; bookId: string; chapter: number }>) => void
+  /** Scroll any column and every OTHER column sharing its exact bookId+chapter (a
+   *  different translation of the same passage) follows by verse position. */
+  syncScrollEnabled?: boolean
+  /** Reports whether syncing is currently possible (2+ columns share a chapter) —
+   *  recomputed live as columns/chapters change, so the host's toggle button can
+   *  gray itself out without a separate "auto-disable" mechanism. */
+  onSyncEligibleChange?: (eligible: boolean) => void
 }
 
 // ── Annotation info popover (read-only, per column) ───────────────────────────
@@ -115,56 +124,15 @@ function ColInfoPopover({ textId, onClose }: { textId: string; onClose: () => vo
   )
 }
 
-// ── Per-column translation dropdown ──────────────────────────────────────────
-
-function TranslationDropdown({ textId, onChange }: { textId: string; onChange: (id: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
-
-  const label = TRANSLATIONS.find(t => t.id === textId)?.label ?? textId.toUpperCase()
-
-  return (
-    <div ref={ref} className="relative flex-shrink-0">
-      <button
-        onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-      >
-        {label}
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-0.5 z-50 min-w-[170px] bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-lg shadow-xl overflow-hidden py-1">
-          {TRANSLATIONS.map(t => (
-            <button
-              key={t.id}
-              onClick={e => { e.stopPropagation(); onChange(t.id); setOpen(false) }}
-              className={`flex items-center gap-2 w-full px-2.5 py-1 text-left transition-colors cursor-pointer ${
-                textId === t.id
-                  ? 'text-[rgb(var(--color-accent))]'
-                  : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'
-              }`}
-            >
-              <Check size={10} className={textId === t.id ? 'opacity-100 flex-shrink-0' : 'opacity-0 flex-shrink-0'} />
-              <span className="text-[11px] font-medium">{t.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Main compare view ──────────────────────────────────────────────────────────
+// Each column's header used to be a separate `TranslationDropdown` (this file) plus a
+// plain book/chapter picker on its own row — that duplicated functionality
+// `BookChapterPicker` already has built in via its `editions`/`currentTextId`/
+// `onSelectTranslation` props (the same ones BiblePanel.tsx's single-panel toolbar
+// already uses), so it's been removed in favor of one unified pill per column,
+// matching that toolbar's visual language. See the column header render below.
 
-export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle, initialColumns, onColumnsChange }: Props) {
+export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', targetVerse, findQuery = '', findWordMode = 'phrase', showStrongs = false, onColumnFocus, onColumnRef, onStrongsClick, onWordClick, books: propBooks, addColRef, initialAddPanel, onConsumeInitialPanel, onCollapseToSingle, initialColumns, onColumnsChange, syncScrollEnabled = false, onSyncEligibleChange }: Props) {
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
@@ -201,7 +169,11 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const [focusedCol, setFocusedCol] = useState(0)
   const [infoOpenFor, setInfoOpenFor] = useState<string | null>(null)
   // Per-column flex-grow weights so the dividers between columns can be dragged to resize.
-  const [colFlex, setColFlex] = useState<number[]>([])
+  // Keyed by column ID (not array index) — with drag-to-reorder now changing a column's
+  // index without changing its identity, an index-keyed array would need every reorder to
+  // also carefully re-splice this in lockstep or widths silently land on the wrong column;
+  // keying by id sidesteps that class of bug entirely.
+  const [colFlex, setColFlex] = useState<Record<string, number>>({})
   const rowRef = useRef<HTMLDivElement>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const fetchingRef = useRef<Set<string>>(new Set())
@@ -302,16 +274,130 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     })
   }
 
-  function moveColumn(colId: string, dir: -1 | 1) {
+  // ── Drag-to-reorder columns ────────────────────────────────────────────────
+  // Replaces the old move-left/move-right arrow buttons. Hand-rolled native HTML5
+  // drag events (dataTransfer + a cloned-node custom drag image), the same event
+  // model TabBar.tsx already uses for tab reordering — kept consistent with that
+  // rather than introducing a second drag paradigm (e.g. framer-motion's Reorder,
+  // which would also fight with startColumnResize's own raw mousedown/mousemove
+  // handling on the adjacent column dividers). Only a column's header row is
+  // draggable, not the whole column (which holds selectable/scrollable verse text).
+  const [draggingColIdx, setDraggingColIdx] = useState<number | null>(null)
+  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null)
+  const [dragInsertBefore, setDragInsertBefore] = useState(true)
+  const draggingColIdxRef = useRef<number | null>(null)
+
+  function handleColDragStart(e: React.DragEvent, idx: number) {
+    draggingColIdxRef.current = idx
+    setDraggingColIdx(idx)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('berean-compare-col', String(idx))
+    const el = e.currentTarget as HTMLElement
+    const rect = el.getBoundingClientRect()
+    const clone = el.cloneNode(true) as HTMLElement
+    Object.assign(clone.style, {
+      position: 'fixed', top: '-9999px', left: '0px',
+      width: `${rect.width}px`, height: `${rect.height}px`,
+      margin: '0', pointerEvents: 'none', opacity: '1',
+      background: getComputedStyle(el).backgroundColor,
+    })
+    document.body.appendChild(clone)
+    e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top)
+    setTimeout(() => document.body.removeChild(clone), 0)
+  }
+
+  function handleColDragOver(e: React.DragEvent, idx: number) {
+    if (draggingColIdxRef.current === null) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const relX = (e.clientX - rect.left) / rect.width
+    setDragOverColIdx(idx)
+    setDragInsertBefore(relX < 0.5)
+  }
+
+  function handleColDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const fromIdx = draggingColIdxRef.current
+    draggingColIdxRef.current = null
+    setDraggingColIdx(null)
+    const toIdx = dragOverColIdx
+    const before = dragInsertBefore
+    setDragOverColIdx(null)
+    if (fromIdx === null || toIdx === null || fromIdx === toIdx) return
     setColumns(prev => {
-      const idx = prev.findIndex(c => c.id === colId)
-      if (idx < 0) return prev
-      const newIdx = idx + dir
-      if (newIdx < 0 || newIdx >= prev.length) return prev
       const next = [...prev]
-      ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+      const [moved] = next.splice(fromIdx, 1)
+      let insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx
+      if (!before) insertAt += 1
+      next.splice(Math.max(0, Math.min(next.length, insertAt)), 0, moved)
       return next
     })
+  }
+
+  function handleColDragEnd() {
+    draggingColIdxRef.current = null
+    setDraggingColIdx(null)
+    setDragOverColIdx(null)
+  }
+
+  // ── Sync scroll across columns sharing the same passage ──────────────────────
+  // Only columns with the SAME bookId+chapter (different translations of the same
+  // passage — e.g. KJV vs LXX, or the two Hermas translations) sync with each
+  // other; with 3+ columns where only some match, those sync as their own group
+  // while the rest scroll independently, rather than an all-or-nothing toggle.
+  function syncGroupFor(colIdx: number): number[] {
+    const col = columns[colIdx]
+    if (!col) return []
+    return columns
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) => c.bookId === col.bookId && c.chapter === col.chapter)
+      .map(({ i }) => i)
+  }
+
+  // Reports eligibility (2+ columns currently share a chapter) whenever columns
+  // change, so the host's toggle button can gray itself out live — e.g. navigating
+  // one column to a different chapter drops it out of sync without needing an
+  // explicit "disable" action from the user.
+  useEffect(() => {
+    const groupSizes = new Map<string, number>()
+    for (const c of columns) {
+      const key = `${c.bookId}:${c.chapter}`
+      groupSizes.set(key, (groupSizes.get(key) ?? 0) + 1)
+    }
+    const eligible = Math.max(0, ...groupSizes.values()) >= 2
+    onSyncEligibleChange?.(eligible)
+  }, [columns, onSyncEligibleChange])
+
+  // Which column is currently "driving" a sync-scroll write — a column id (not a
+  // boolean) so that with 3+ columns, a genuinely new user-initiated scroll on a
+  // DIFFERENT column during the brief release window isn't also swallowed. Released
+  // on the next animation frame, after the synchronous scrollTop writes below have
+  // had a chance to fire (and be ignored by) the peers' own onScroll handlers.
+  const scrollSyncSourceRef = useRef<string | null>(null)
+
+  function handleSyncScroll(colIdx: number, el: HTMLElement) {
+    if (!syncScrollEnabled) return
+    const col = columns[colIdx]
+    if (!col) return
+    if (scrollSyncSourceRef.current !== null && scrollSyncSourceRef.current !== col.id) return
+    const group = syncGroupFor(colIdx)
+    if (group.length < 2) return
+    const pos = encodeScrollPosition(el)
+    if (!pos) return
+    scrollSyncSourceRef.current = col.id
+    for (const otherIdx of group) {
+      if (otherIdx === colIdx) continue
+      const otherEl = colRefs.current[otherIdx]
+      if (!otherEl) continue
+      const target = decodeScrollPosition(otherEl, pos)
+      // Direct write, not scrollTo({behavior:'smooth'}) — needs to track the driving
+      // column 1:1 during the gesture for a fluid feel; smoothing here would make
+      // the follower visibly lag behind.
+      if (target !== null) otherEl.scrollTop = target
+    }
+    const sourceId = col.id
+    requestAnimationFrame(() => { if (scrollSyncSourceRef.current === sourceId) scrollSyncSourceRef.current = null })
   }
 
   function navigateColumn(colId: string, newBookId: string, newChapter: number) {
@@ -330,10 +416,15 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     }))
   }
 
-  // Keep the flex-weight array in sync with the column count (new columns start at weight 1).
+  // Keep the flex-weight map in sync with the current columns (new columns start at
+  // weight 1; a removed column's leftover weight is dropped, not just orphaned).
   useEffect(() => {
-    setColFlex(prev => columns.map((_, i) => prev[i] ?? 1))
-  }, [columns.length])
+    setColFlex(prev => {
+      const next: Record<string, number> = {}
+      for (const c of columns) next[c.id] = prev[c.id] ?? 1
+      return next
+    })
+  }, [columns])
 
   // ── Mirror the compare layout to the presenter window ────────────────────────
   const comparePushRaf = useRef<number | null>(null)
@@ -410,13 +501,16 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     if (!row) return
     const totalW = row.clientWidth
     const startX = e.clientX
-    const base = columns.map((_, i) => colFlex[i] ?? 1)
-    const sumTwo = (base[idx] ?? 1) + (base[idx + 1] ?? 1)
+    const leftId = columns[idx]?.id
+    const rightId = columns[idx + 1]?.id
+    if (!leftId || !rightId) return
+    const base = { left: colFlex[leftId] ?? 1, right: colFlex[rightId] ?? 1 }
+    const sumTwo = base.left + base.right
     function move(ev: MouseEvent) {
       const frac = (ev.clientX - startX) / Math.max(1, totalW) * columns.length
-      const left = Math.max(0.25, Math.min(sumTwo - 0.25, (base[idx] ?? 1) + frac))
+      const left = Math.max(0.25, Math.min(sumTwo - 0.25, base.left + frac))
       const right = sumTwo - left
-      setColFlex(() => { const n = [...base]; n[idx] = left; n[idx + 1] = right; return n })
+      setColFlex((prev) => ({ ...prev, [leftId]: left, [rightId]: right }))
     }
     function up() { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.cursor = '' }
     document.body.style.cursor = 'col-resize'
@@ -456,10 +550,21 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               // to run synchronously on every scroll event across every mounted column.
               if (colBandRaf.current[colIdx]) cancelAnimationFrame(colBandRaf.current[colIdx])
               colBandRaf.current[colIdx] = requestAnimationFrame(() => computeColBand(colIdx))
+              handleSyncScroll(colIdx, el)
             }}
             className="overflow-y-auto min-w-0 flex flex-col relative"
-            style={{ flexGrow: colFlex[colIdx] ?? 1, flexBasis: 0 }}
+            style={{ flexGrow: colFlex[col.id] ?? 1, flexBasis: 0 }}
+            onDragOver={(e) => handleColDragOver(e, colIdx)}
+            onDrop={handleColDrop}
           >
+            {/* Drag-reorder insert-line indicator — left/right edge of the column being
+                dragged over (horizontal equivalent of TabBar.tsx's top/bottom insert line,
+                since columns sit side-by-side rather than stacked). */}
+            {dragOverColIdx === colIdx && draggingColIdx !== colIdx && (
+              <div
+                className={`absolute top-0 bottom-0 w-0.5 bg-[rgb(var(--color-accent))] z-20 pointer-events-none ${dragInsertBefore ? 'left-0' : 'right-0'}`}
+              />
+            )}
             {/* Presenter visible-region outline for this column */}
             {colBands[colIdx] && (
               <div
@@ -471,84 +576,78 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
                 }}
               />
             )}
-            {/* Column header */}
+            {/* Column header — one row: prev | unified book+chapter+edition pill | next,
+                then info/close. Draggable (grab anywhere on the row, matching TabBar.tsx's
+                "grab the whole tab" reorder feel) — NOT the column body below, which holds
+                selectable/scrollable verse text. */}
             <div
-              className={`sticky top-0 z-10 border-b border-[rgb(var(--color-surface-4))] flex flex-col flex-shrink-0 ${isFocused ? 'bg-[rgb(var(--color-surface-3))]' : 'bg-[rgb(var(--color-surface-2))]'}`}
+              draggable
+              onDragStart={(e) => handleColDragStart(e, colIdx)}
+              onDragEnd={handleColDragEnd}
+              className={`sticky top-0 z-10 border-b border-[rgb(var(--color-surface-4))] flex items-center gap-1 px-1.5 py-1 cursor-grab active:cursor-grabbing ${isFocused ? 'bg-[rgb(var(--color-surface-3))]' : 'bg-[rgb(var(--color-surface-2))]'} ${draggingColIdx === colIdx ? 'opacity-40' : ''}`}
               onClick={e => e.stopPropagation()}
             >
-              {/* Row 1: translation + reorder/close controls */}
-              <div className="flex items-center gap-1 px-2 pt-1.5 pb-1">
-                <TranslationDropdown
-                  textId={col.textId}
-                  onChange={id => changeTranslation(col.id, id)}
-                />
-                <div className="flex-1" />
-                {hasInfo && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setInfoOpenFor(infoOpenFor === col.id ? null : col.id)}
-                      title="Annotation key"
-                      className={`p-0.5 rounded transition-colors cursor-pointer ${infoOpenFor === col.id ? 'text-[rgb(var(--color-text-primary))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      <Info size={11} />
-                    </button>
-                    {infoOpenFor === col.id && (
-                      <ColInfoPopover textId={col.textId} onClose={() => setInfoOpenFor(null)} />
-                    )}
-                  </div>
-                )}
-                <button
-                  onClick={() => moveColumn(col.id, -1)}
-                  disabled={colIdx === 0}
-                  title="Move left"
-                  className="p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default"
-                >
-                  <ArrowLeft size={11} />
-                </button>
-                <button
-                  onClick={() => moveColumn(col.id, 1)}
-                  disabled={colIdx === columns.length - 1}
-                  title="Move right"
-                  className="p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default"
-                >
-                  <ArrowRight size={11} />
-                </button>
-                <button
-                  onClick={() => removeColumn(col.id)}
-                  disabled={columns.length <= 1}
-                  title="Close panel"
-                  className="p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default"
-                >
-                  <X size={11} />
-                </button>
-              </div>
-
-              {/* Row 2: prev | book/chapter picker | next */}
-              <div className="flex items-center gap-0.5 px-2 pb-1.5">
+              {/* min-w-0 so the pill can still shrink/truncate in a genuinely narrow column,
+                  but no longer `w-full` — it was stretching to fill the ENTIRE column width
+                  (leaving a wide stretch of empty pill after the book/chapter/edition text)
+                  instead of hugging its own content like the single-panel toolbar's pill does. */}
+              <ActionPillGroup className="min-w-0 flex-shrink" align="stretch">
                 <button
                   onClick={() => navigateColumn(col.id, col.bookId, Math.max(1, col.chapter - 1))}
                   disabled={col.chapter <= 1}
-                  className="p-0.5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default transition-colors flex-shrink-0"
+                  className="flex items-center justify-center w-6 h-6 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer flex-shrink-0"
                 >
                   <ChevronLeft size={12} />
                 </button>
-                <div className="flex-1 min-w-0">
-                  <BookChapterPicker
-                    books={booksForCol}
-                    currentBookId={col.bookId}
-                    currentChapter={col.chapter}
-                    onNavigate={(bId, ch) => navigateColumn(col.id, bId, ch)}
-                    compact
-                  />
-                </div>
+                <BookChapterPicker
+                  books={booksForCol}
+                  currentBookId={col.bookId}
+                  currentChapter={col.chapter}
+                  onNavigate={(bId, ch) => navigateColumn(col.id, bId, ch)}
+                  editions={EDITIONS}
+                  currentTextId={col.textId}
+                  onSelectTranslation={(id) => changeTranslation(col.id, id)}
+                  segmented
+                  compact
+                  wrapperClassName="relative min-w-0"
+                />
                 <button
                   onClick={() => navigateColumn(col.id, col.bookId, Math.min(maxChapter, col.chapter + 1))}
                   disabled={col.chapter >= maxChapter}
-                  className="p-0.5 rounded cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default transition-colors flex-shrink-0"
+                  className="flex items-center justify-center w-6 h-6 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer flex-shrink-0"
                 >
                   <ChevronRight size={12} />
                 </button>
-              </div>
+              </ActionPillGroup>
+              {/* Spacer pins info/close to the row's right edge now that the pill itself no
+                  longer stretches to fill the row on its own. */}
+              <div className="flex-1" />
+              {hasInfo && (
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setInfoOpenFor(infoOpenFor === col.id ? null : col.id)}
+                    title="Annotation key"
+                    // Same background-box hover treatment as its chevron/close peers in this
+                    // row (was text-color-only, the one button in the toolbar that didn't
+                    // highlight a background on hover — inconsistent as the cursor moved
+                    // across the row).
+                    className={`p-0.5 rounded transition-colors cursor-pointer ${infoOpenFor === col.id ? 'text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                  >
+                    <Info size={11} />
+                  </button>
+                  {infoOpenFor === col.id && (
+                    <ColInfoPopover textId={col.textId} onClose={() => setInfoOpenFor(null)} />
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => removeColumn(col.id)}
+                disabled={columns.length <= 1}
+                title="Close panel"
+                className="flex-shrink-0 p-0.5 rounded transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-[rgb(var(--color-surface-4))] disabled:opacity-30 disabled:cursor-default"
+              >
+                <X size={11} />
+              </button>
             </div>
 
             {/* Verse content — full ChapterView so highlights, notes, and Strong's all work */}

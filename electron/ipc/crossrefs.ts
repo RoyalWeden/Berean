@@ -26,6 +26,14 @@ function openDb(): DB | null {
   return db
 }
 
+// tske_refs.db's heading/context columns were seeded with a literal HTML entity
+// (`&#x0027;`) in place of every apostrophe (e.g. "king&#x0027;s") rather than a real
+// `'` — decode it here so the UI never has to. No other entities were found in these
+// columns, so this stays a single targeted replace rather than a general HTML decoder.
+function decodeTskeText<T extends string | null>(s: T): T {
+  return (s == null ? s : (s.replace(/&#x0027;/gi, "'") as T))
+}
+
 function openTskeDb(): DB | null {
   if (tskeDb) return tskeDb
   const p = dataPath('tske_refs.db')
@@ -154,9 +162,9 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
         if (!byVerse.has(r.from_vs)) byVerse.set(r.from_vs, new Map())
         const verseMap = byVerse.get(r.from_vs)!
         const key = r.is_reciprocal ? '__RECIPROCAL__' : (r.heading ?? '__NONE__')
-        if (!verseMap.has(key)) verseMap.set(key, { heading: r.is_reciprocal ? null : r.heading, isReciprocal: r.is_reciprocal === 1, refs: [] })
+        if (!verseMap.has(key)) verseMap.set(key, { heading: r.is_reciprocal ? null : decodeTskeText(r.heading), isReciprocal: r.is_reciprocal === 1, refs: [] })
         const text = texts.get(`${r.to_book}|${r.to_ch}|${r.to_vs}`) ?? ''
-        verseMap.get(key)!.refs.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, text, context: r.context ?? null })
+        verseMap.get(key)!.refs.push({ bookId: r.to_book, chapter: r.to_ch, verse: r.to_vs, endVerse: r.to_vs_end ?? null, text, context: decodeTskeText(r.context ?? null) })
       }
 
       const verseRefs = Array.from(byVerse.entries())
@@ -255,7 +263,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
         const key = r.is_reciprocal ? '__RECIPROCAL__' : (r.heading ?? '__NONE__')
         if (!groupMap.has(key)) {
           groupMap.set(key, {
-            heading: r.is_reciprocal ? null : r.heading,
+            heading: r.is_reciprocal ? null : decodeTskeText(r.heading),
             isReciprocal: r.is_reciprocal === 1,
             refs: [],
           })
@@ -267,7 +275,7 @@ export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
           verse: r.to_vs,
           endVerse: r.to_vs_end ?? null,
           text,
-          context: r.context ?? null,
+          context: decodeTskeText(r.context ?? null),
         })
       }
 

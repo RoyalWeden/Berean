@@ -49,11 +49,12 @@ import { Undo2, Redo2, Bold, Italic, Underline, Code, Link2, Link2Off, Strikethr
 import type { Note } from '@/types'
 import { HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
 import { headingStyle, bereanSyntaxOverrides, bereanTheme } from './editorTheme'
-import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS, isExactBookToken, formatDottedVerseRef } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { useAppStore } from '@/store'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
+import ShortcutKeys from '@/components/shell/ShortcutKeys'
 
 const PERSISTENT_TOOLBAR_MIN_WIDTH = 380
 
@@ -631,8 +632,16 @@ const autoHeadingSpaceHandler = EditorView.inputHandler.of((view, from, to, text
 
 // Single-line "Book c:v rest" — verse-level ref (colon) then text.
 // Book name may be 1–3 words ("Song of Songs", "Testament of Levi", "1 John").
+// Optional ", Book N" subdivision (+ optional comma before chapter:verse) for multi-book
+// editions like Recognitions of Clement — kept in sync with noteTextBlocks.ts's copy of
+// this same regex (this file, still used for print/export/version-history rendering,
+// duplicates rather than imports it — see that file's comment for the full "the app
+// generates this exact comma'd shape via bookChapterVerseLabel" round-trip-bug reasoning).
+// Each book-name word may also carry a trailing comma (Hermas's bookName() label is
+// "Hermas, Similitudes" etc. — see noteTextBlocks.ts's copy of this regex for the full
+// reasoning) — kept in sync with that copy.
 export const SINGLE_VERSE_LINE_RE =
-  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+(?:[ \t]+[A-Za-z][a-z]+){0,2}[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
+  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
 // A body line in a multi-line block: starts with a verse number then text.
 export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
@@ -688,8 +697,15 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // greedily grab a leading non-book word ("vs Deuteronomy"); we recover by retrying
 // parseRef on progressively shorter suffixes until one parses, then adjust the
 // match start so only the real reference is decorated.
+// Kept in sync with noteTextBlocks.ts's copy of this regex (this file, still used for
+// print/export/version-history rendering, duplicates rather than imports it) — that copy
+// gained "Book N" subdivision support (multi-book editions like Recognitions of Clement)
+// plus the optional comma before chapter:verse that the app's own generated text
+// ("Recognitions, Book 1, 1:3") needs; this one had drifted and had neither at all.
+// Each ordinary book-name word may also carry a trailing comma (Hermas's bookName() label)
+// — see noteTextBlocks.ts's copy of this regex for the full reasoning; kept in sync.
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:[A-Za-z][a-z]*\.?[ \t]+){0,2}[A-Za-z][a-z]+\.?)[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number      // start offset of the recognised reference within `text`
@@ -704,8 +720,9 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
   let m: RegExpExecArray | null
   while ((m = VERSE_REF_SCAN_RE.exec(text)) !== null) {
     const bookPhrase = m[1]
-    const numPart = m[2]
-    const lxx = !!m[3]
+    const bookSub = m[2]
+    const numPart = m[3]
+    const lxx = !!m[4]
     const words = bookPhrase.split(/[ \t]+/).filter(Boolean)
     // Precompute each word's offset within bookPhrase
     const wordStarts: number[] = []
@@ -718,7 +735,7 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
     // Try the full phrase, then drop leading words until parseRef succeeds.
     let matched = false
     for (let start = 0; start < words.length; start++) {
-      const candidateRef = words.slice(start).join(' ') + ' ' + numPart
+      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart
       if (parseRef(candidateRef)) {
         // ── Ambiguous-pattern guard ────────────────────────────────────────────
         // If the last word of the book portion is a common English word/abbrev
@@ -4008,7 +4025,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             onMouseDown={() => insertStrongsBlock(strongsSuggest.num, strongsSuggest.from, strongsSuggest.to)}
           >
             Insert Strong&apos;s block
-            <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+            <ShortcutKeys keys="↵" className="ml-0.5" />
           </button>
           <button
             className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
@@ -4034,7 +4051,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             onMouseDown={() => insertVerseBlock(verseSuggest.ref, verseSuggest.from, verseSuggest.to)}
           >
             Insert scripture block
-            <kbd className="font-mono text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded ml-0.5">↵</kbd>
+            <ShortcutKeys keys="↵" className="ml-0.5" />
           </button>
           <button
             className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
@@ -4078,7 +4095,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
                 {filteredNotes[backlinkIdx].title || 'Untitled'}
               </p>
               {filteredNotes[backlinkIdx].verseRef && (
-                <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{filteredNotes[backlinkIdx].verseRef}</p>
+                <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{formatDottedVerseRef(filteredNotes[backlinkIdx].verseRef!)}</p>
               )}
               <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
                 {/* Strip markdown syntax for a clean preview */}
@@ -4100,7 +4117,7 @@ export default function NoteEditor({ content, onChange, placeholder, onFocusRef,
             {wikiHover.note.title || 'Untitled'}
           </p>
           {wikiHover.note.verseRef && (
-            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{wikiHover.note.verseRef}</p>
+            <p className="text-[9px] text-[rgb(var(--color-accent))] mb-1.5 font-mono">{formatDottedVerseRef(wikiHover.note.verseRef)}</p>
           )}
           <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-relaxed whitespace-pre-wrap line-clamp-[10] break-words">
             {(wikiHover.note.content || '').replace(/^---[\s\S]*?---\n?/, '').replace(/#{1,6}\s/g, '').replace(/[*_`~]/g, '').replace(/\[\[([^\]]+)\]\]/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim().slice(0, 400) || 'No content'}

@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
-import type { Book } from '@/types'
+import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
 import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
-import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
@@ -15,16 +16,21 @@ import { numberTokenAlternates } from '@/lib/numberWords'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
-/** Render a verse with its Strong's-tagged words highlighted (by word index). */
-function highlightStrongs(text: string, matchWordIndices: number[]): React.ReactNode {
+/** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
+ *  combined Strong's+word query like "G5485 god" — any plain word from that same query
+ *  highlighted too, wherever it appears as its own word in the text. Previously only the
+ *  Strong's-indexed word(s) got marked, so a combined search silently highlighted just
+ *  half of what actually matched. */
+function highlightStrongs(text: string, matchWordIndices: number[], extraWords: string[] = []): React.ReactNode {
+  const segs = splitStrongsHighlight(text, matchWordIndices, extraWords)
   return (
     <>
-      {splitStrongsHighlight(text, matchWordIndices).map((seg, i) => (
+      {segs.map((seg, i) => (
         <span key={i}>
           {seg.match
             ? <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm font-semibold">{seg.text}</mark>
             : seg.text}
-          {i < text.split(' ').length - 1 ? ' ' : ''}
+          {i < segs.length - 1 ? ' ' : ''}
         </span>
       ))}
     </>
@@ -94,9 +100,9 @@ function loadAllBooksCached(): Promise<Record<string, Book[]>> {
 }
 
 // Common Strong's numbers (e.g. H853 direct-object marker) have 1,000+ occurrences.
-// Rendering every one as a real DOM row locks the UI, so cap what we load/render and
-// surface a "refine your search" affordance instead.
-const STRONGS_RESULT_CAP = 200
+// Previously capped at 200 rendered rows with a "refine your search" message — the
+// results list below is now virtualized (@tanstack/react-virtual), so every occurrence
+// loads and is searchable/scrollable, but only the rows actually on screen ever mount.
 
 interface RawResult {
   book_id: string
@@ -193,8 +199,20 @@ interface PersistedState {
   scrollTop?: number
 }
 
+/** What matched, passed along on navigation so the landed verse can highlight it —
+ *  the searched text (query/wordMode) or the specific Strong's-tagged word(s)
+ *  (strongsWords, word indices). */
+export interface SearchNavHighlight {
+  query?: string
+  wordMode?: WordMode
+  strongsWords?: number[]
+  /** Plain-word part of a combined Strong's+word query ("G5485 god") — highlighted
+   *  alongside strongsWords by text match rather than word index. */
+  strongsExtraWords?: string[]
+}
+
 interface Props {
-  onNavigate: (bookId: string, chapter: number, verse: number, textId: string) => void
+  onNavigate: (bookId: string, chapter: number, verse: number, textId: string, highlight?: SearchNavHighlight) => void
   onOpenInNewTab?: (bookId: string, chapter: number, verse: number, textId: string) => void
   onOpenInFloating?: (bookId: string, chapter: number, verse: number) => void
   onClose: () => void
@@ -213,9 +231,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [searchMode, setSearchMode] = useState<SearchMode>('auto')
   const [textId, setTextId] = useState<string>(persistedState?.textId ?? 'all')
   const [results, setResults] = useState<RawResult[]>([])
-  // True occurrence count for a Strong's search before the render cap is applied — drives
-  // the "showing first N of M" affordance. 0 when not a Strong's search or when uncapped.
-  const [strongsTotal, setStrongsTotal] = useState(0)
   // Strong's-search highlight indices, keyed by "bookId:chapter:verse".
   const [strongsMatches, setStrongsMatches] = useState<Record<string, number[]>>({})
   const [crossRefs, setCrossRefs] = useState<CrossRef[]>([])
@@ -232,10 +247,75 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const [scopePaletteOpen, setScopePaletteOpen] = useState(false)
   const [scopeSearch, setScopeSearch] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>(persistedState?.sortMode ?? 'relevance')
+  // Ascending/descending flip, independent of which mode is active — 'desc' is the natural
+  // baseline for both (best-match-first for relevance; the bookOrder sort below already
+  // produces canonical Genesis→Revelation order, which 'asc' keeps and 'desc' reverses).
+  // Not persisted in tab state (unlike sortMode) — a lower-stakes secondary preference.
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [sortMenuPos, setSortMenuPos] = useState<{ left: number; top: number } | null>(null)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
+  // The dropdown itself is portaled to document.body (see below — fixes a stacking-context
+  // bug where it rendered behind other content), so it's no longer a DOM descendant of
+  // sortMenuRef — this second ref covers the portaled content too, or every click inside the
+  // open menu would register as "outside" and close it before its own onClick even ran.
+  const sortMenuContentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!sortMenuOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (sortMenuRef.current?.contains(t)) return
+      if (sortMenuContentRef.current?.contains(t)) return
+      setSortMenuOpen(false)
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [sortMenuOpen])
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [focusedIdx, setFocusedIdx] = useState(-1)
-  const [showContext, setShowContext] = useState(false)
+  // 'default' (compact, line-clamped snippet) / 'full' (whole verse, no clamp) / 'plusMinus1'
+  // / 'plusMinus2' (the matched verse plus 1 or 2 verses of surrounding context on each side).
+  const [contextMode, setContextMode] = useState<'default' | 'full' | 'plusMinus1' | 'plusMinus2'>('default')
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const [contextMenuPos, setContextMenuPos] = useState<{ right: number; top: number } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
+  // See sortMenuContentRef's comment — same reason, same fix.
+  const contextMenuContentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!contextMenuOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node
+      if (contextMenuRef.current?.contains(t)) return
+      if (contextMenuContentRef.current?.contains(t)) return
+      setContextMenuOpen(false)
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return () => window.removeEventListener('mousedown', onDown, true)
+  }, [contextMenuOpen])
+  const showContext = contextMode !== 'default'
+  // Cache of whole-chapter verse data, keyed "textId:bookId:chapter" — fetched lazily, only
+  // once a plusMinus mode is active and a given result's chapter is actually visible/rendered,
+  // and shared across every result that happens to land in the same chapter. contextToken
+  // forces a re-render once a fetch resolves (the cache itself lives in a ref, not state, so
+  // mutating it alone wouldn't trigger one).
+  const contextCacheRef = useRef<Map<string, Verse[] | 'pending'>>(new Map())
+  const [contextToken, setContextToken] = useState(0)
+  function getContextVerses(r: RawResult): Verse[] | null {
+    const tid = r._textId ?? textId
+    const key = `${tid}:${r.book_id}:${r.chapter}`
+    const cached = contextCacheRef.current.get(key)
+    if (cached === 'pending' || cached === undefined) {
+      if (cached === undefined) {
+        contextCacheRef.current.set(key, 'pending')
+        window.bible.queryChapter(r.book_id, r.chapter, tid)
+          .then((verses) => { contextCacheRef.current.set(key, verses); setContextToken((t) => t + 1) })
+          .catch(() => { contextCacheRef.current.set(key, []); setContextToken((t) => t + 1) })
+      }
+      return null
+    }
+    return cached
+  }
   const [railSearch, setRailSearch] = useState('')
   const railSearchRef = useRef<HTMLInputElement>(null)
   const railPanelRef = useRef<FloatingHoverPanelHandle>(null)
@@ -251,8 +331,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // subscribed to `s.tabs` re-renders on. Writing that on every tick while scrolling search
   // results fanned out re-renders across ~11 unrelated components continuously.
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const groupHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const resultButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map())
   type CtxData = Omit<CtxItem, 'x' | 'y'>
   const { menu: ctxMenu, menuRef: ctxMenuRef, openMenu: openCtxMenu, closeMenu: closeCtxMenu } = usePositionedMenu<CtxData>()
   const onStateChangeRef = useRef(onStateChange)
@@ -402,32 +480,40 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   }, [])
 
   function effectiveMode(q: string): 'text' | 'crossref' | 'strongs' {
+    // An explicit segment pick always wins over shape-based detection — previously
+    // `isStrongsQuery` was checked before the explicit 'text' pick, so a Strong's-shaped
+    // query (e.g. "G5485") silently ran as a Strong's search even with "Text" selected,
+    // and there was no way to force a literal keyword search for that string. Only
+    // 'auto' mode (no explicit pick) infers strongs/crossref/text from the query's shape.
     if (searchMode === 'crossref') return 'crossref'
-    if (searchMode === 'strongs') return 'strongs'          // explicit segment pick
-    if (isStrongsQuery(q)) return 'strongs'                 // "g5485" / "h1319"
+    if (searchMode === 'strongs') return 'strongs'
     if (searchMode === 'text') return 'text'
+    // isMultiStrongsQuery covers both a bare number ("g5485") and a combination
+    // ("g5485 g54" / "g5485 jacob") — see strongsSearch.ts.
+    if (parseMultiStrongsQuery(q) !== null) return 'strongs'
     return parseRef(q.trim()) ? 'crossref' : 'text'
   }
 
-  // Strong's-number search: find every verse whose tagged text carries the number, and
-  // remember which words to highlight. Powered by the same lexicon occurrence data as the
-  // side panel, so "open all occurrences" lands here.
+  // Strong's-number search: find every verse whose tagged text carries the number(s) —
+  // supports combining several Strong's numbers ("G5485 G54", AND'd) and/or a plain word
+  // ("G5485 jacob") via searchMultiStrongs. Powered by the same lexicon occurrence data as
+  // the side panel, so "open all occurrences" lands here. No result cap — the render below
+  // is virtualized (@tanstack/react-virtual), so even a common number's full occurrence
+  // list (thousands of rows) renders only what's actually on screen.
   const runStrongsSearch = useCallback(async (q: string) => {
-    const num = parseStrongsQuery(q)
-    if (!num) { setResults([]); setStrongsMatches({}); setStrongsTotal(0); return }
+    const parsed = parseMultiStrongsQuery(q)
+    if (!parsed) { setResults([]); setStrongsMatches({}); return }
     setLoading(true)
     try {
-      const occ = await window.lexicon.getOccurrences(num)
-      const capped = occ.slice(0, STRONGS_RESULT_CAP)
+      const found = await searchMultiStrongs(parsed, window.lexicon.getOccurrences)
       const matches: Record<string, number[]> = {}
-      const rows: RawResult[] = capped.map((o) => {
-        matches[`${o.book_id}:${o.chapter}:${o.verse_num}`] = o.matchWordIndices ?? []
+      const rows: RawResult[] = found.map((o) => {
+        matches[`${o.book_id}:${o.chapter}:${o.verse_num}`] = o.matchWordIndices
         return { book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' }
       })
       setStrongsMatches(matches)
-      setStrongsTotal(occ.length > capped.length ? occ.length : 0)
       setResults(rows)
-    } catch { setResults([]); setStrongsMatches({}); setStrongsTotal(0) }
+    } catch { setResults([]); setStrongsMatches({}) }
     finally { setLoading(false) }
   }, [])
 
@@ -436,7 +522,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // to the keyword search.
   function runForMode(q: string) {
     const mode = effectiveMode(q)
-    if (mode !== 'strongs') setStrongsTotal(0)
     if (mode === 'crossref') runCrossRefSearch(q)
     else if (mode === 'strongs') runStrongsSearch(q)
     else runSearch(q, textId)
@@ -539,7 +624,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const tInfo = ALL_TEXTS.find((t) => t.id === rid)
         groupMap.set(key, {
           bookId: r.book_id,
-          bookName: bookData?.name ?? r.book_id,
+          // The canonical display name (parseRef.ts's own BOOKS table), not the raw DB book
+          // name — some texts (e.g. 3 Maccabees) store an abbreviation like "3MA" as their
+          // literal book name, which normalizeBookName's Roman-numeral-only handling didn't
+          // catch, so it leaked straight through into the jump rail / group headers as-is.
+          bookName: bookName(r.book_id),
           testament: bookData?.testament ?? (tInfo?.category === 'pseudo' ? 'Pseudepigrapha' : ''),
           textId: rid,
           textLabel: tInfo?.label ?? rid.toUpperCase(),
@@ -561,6 +650,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       groups.forEach((g) => {
         g.results.sort((a, b) => a.chapter !== b.chapter ? a.chapter - b.chapter : a.verse_num - b.verse_num)
       })
+      // 'asc' (Genesis→Revelation) is the sort above's natural order; 'desc' reverses both
+      // the group order and each group's own verse order.
+      if (sortDirection === 'desc') {
+        groups.reverse()
+        groups.forEach((g) => g.results.reverse())
+      }
+    } else if (sortDirection === 'asc') {
+      // Relevance mode's natural (unsorted) order is "best match first" — treated as the
+      // 'desc' baseline, so 'asc' just reverses it to show the weakest matches first.
+      groups.reverse()
+      groups.forEach((g) => g.results.reverse())
     }
     return groups
   })()
@@ -569,37 +669,80 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   const bookNameOf = (id: string) => availableBooks.find((b) => b.id === id)?.name ?? id
 
-  // Flat ordered list of visible results (respects collapsed groups) for keyboard nav, plus an
-  // index by row identity for O(1) lookup — an earlier version had each result row call
-  // visibleResults.findIndex(...) during render, which made rendering the results list
-  // O(n²) and was the source of the scroll lag on any search with more than a couple hundred
-  // matches.
-  const visibleResults: Array<RawResult & { _groupKey: string }> = []
-  const visibleResultIdxByKey = new Map<string, number>()
+  // Flat row model driving BOTH the virtualized render below and keyboard nav — one header
+  // row per group (always present) plus one row per result (only when its group isn't
+  // collapsed). `visibleIdx` is the keyboard-nav position (what focusedIdx indexes into,
+  // skipping headers); the row's own position in this array is what the virtualizer and
+  // scrollToIndex use instead. Results are no longer capped/sliced anywhere (a common
+  // Strong's number's occurrence list can run into the thousands) — virtualizing here is
+  // what keeps that safe: only rows actually on screen are ever mounted as real DOM nodes.
+  type FlatRow =
+    | { type: 'header'; key: string; group: GroupedResult }
+    | { type: 'result'; key: string; group: GroupedResult; result: RawResult; indexInGroup: number; visibleIdx: number }
+  const flatRows: FlatRow[] = []
+  const headerFlatIndex = new Map<string, number>()
+  let visibleIdx = 0
   for (const g of filteredGroups) {
     const key = `${g.textId}::${g.bookId}`
+    headerFlatIndex.set(key, flatRows.length)
+    flatRows.push({ type: 'header', key, group: g })
     if (!collapsedGroups.has(key)) {
-      for (const r of g.results) {
-        visibleResultIdxByKey.set(`${r.book_id}:${r.chapter}:${r.verse_num}:${key}`, visibleResults.length)
-        visibleResults.push({ ...r, _groupKey: key })
-      }
+      g.results.forEach((r, i) => {
+        flatRows.push({ type: 'result', key, group: g, result: r, indexInGroup: i, visibleIdx })
+        visibleIdx++
+      })
     }
   }
+  const visibleResults: Array<RawResult & { _groupKey: string }> =
+    flatRows.filter((row): row is Extract<FlatRow, { type: 'result' }> => row.type === 'result')
+      .map((row) => ({ ...row.result, _groupKey: row.key }))
+
+  const rowVirtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => resultsRef.current,
+    estimateSize: (i) => {
+      if (flatRows[i]?.type === 'header') return 37
+      if (contextMode === 'plusMinus1') return 130
+      if (contextMode === 'plusMinus2') return 190
+      return showContext ? 88 : 48
+    },
+    overscan: 12,
+  })
 
   // Scroll focused result into view when focusedIdx changes
   useEffect(() => {
-    if (focusedIdx >= 0) resultButtonRefs.current.get(focusedIdx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    if (focusedIdx < 0) return
+    const flatRowIdx = flatRows.findIndex((row) => row.type === 'result' && row.visibleIdx === focusedIdx)
+    if (flatRowIdx >= 0) rowVirtualizer.scrollToIndex(flatRowIdx, { align: 'auto' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedIdx])
 
   // Reset focused index when results change
   useEffect(() => { setFocusedIdx(-1) }, [results])
+
+  // What to highlight once we land on a result's verse — the searched text (word-replaced
+  // the same way the results themselves are, so the highlighted term matches what's on
+  // screen) for a text search, or the specific Strong's-tagged word indices for a Strong's
+  // search. Shared by every onNavigate call site below.
+  function highlightForResult(r: RawResult): SearchNavHighlight | undefined {
+    if (effectiveMode(query) === 'strongs') {
+      const words = strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`]
+      const parsed = parseMultiStrongsQuery(query)
+      if ((!words || words.length === 0) && (!parsed?.words.length)) return undefined
+      return { strongsWords: words ?? [], strongsExtraWords: parsed?.words }
+    }
+    const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
+      ? applyWordReplacer(query, wordReplacerRules)
+      : query
+    return highlightQuery.trim() ? { query: highlightQuery, wordMode } : undefined
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return }
     if (e.key === 'Enter') {
       if (focusedIdx >= 0 && visibleResults[focusedIdx]) {
         const r = visibleResults[focusedIdx]
-        onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)
+        onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))
         return
       }
       runForMode(query)
@@ -698,24 +841,119 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         />
         {effectiveMode(query) !== 'crossref' && (
           <>
-            <button
-              onClick={() => setSortMode((s) => s === 'relevance' ? 'bookOrder' : 'relevance')}
-              title={sortMode === 'relevance' ? 'Sorted by relevance — click for book order' : 'Sorted by book order — click for relevance'}
-              className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer flex-shrink-0"
-            >
-              {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
-              {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
-            </button>
-            {/* Compact/full refreshed to match the relevance pill's icon+label style instead of
-                a bare "≡ Compact" text button. */}
-            <button
-              onClick={() => setShowContext((v) => !v)}
-              title={showContext ? 'Showing full verse text — click for compact' : 'Showing compact snippets — click for full text'}
-              className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${showContext ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
-            >
-              {showContext ? <Rows size={11} /> : <AlignJustify size={11} />}
-              {showContext ? 'Full' : 'Compact'}
-            </button>
+            {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
+                single-button relevance/book-order cycle. Direction is its own control
+                (applies to whichever mode is active) rather than folded into the cycle. */}
+            <div ref={sortMenuRef} className="flex items-stretch rounded-full border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (!sortMenuOpen) { const r = sortMenuRef.current?.getBoundingClientRect(); if (r) setSortMenuPos({ left: r.left, top: r.bottom + 4 }) }
+                  setSortMenuOpen((v) => !v)
+                }}
+                title="Sort order"
+                className="flex items-center gap-1.5 text-[10px] font-medium pl-2 pr-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+              >
+                {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
+                {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
+                <ChevronDown size={9} className={`transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <div className="w-px bg-[rgb(var(--color-surface-4))]" />
+              <button
+                onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
+                title={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+                className="flex items-center px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+              >
+                {sortDirection === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+              </button>
+              {/* Portaled to document.body with a fixed position computed from the trigger's
+                  own rect (like every other menu in this file, e.g. the results' right-click
+                  ctxMenu below) — an in-flow `absolute` dropdown here sat inside the header
+                  row's own stacking context, which a sibling ancestor elsewhere in the tree
+                  outranked, so it rendered visually BEHIND other content instead of on top of
+                  it despite its own z-50. Escaping to the body's top-level stacking context via
+                  a portal is what actually fixes that, not a bigger z-index number. */}
+              {sortMenuOpen && sortMenuPos && createPortal(
+                <div
+                  ref={sortMenuContentRef}
+                  style={{ position: 'fixed', left: sortMenuPos.left, top: sortMenuPos.top, zIndex: 9999 }}
+                  className="min-w-[130px] rounded-shell context-menu overflow-hidden py-1"
+                >
+                  {([['relevance', 'Relevance', ArrowUpDown], ['bookOrder', 'Book order', ListTree]] as const).map(([m, label, Icon]) => (
+                    <button
+                      key={m}
+                      onClick={() => { setSortMode(m); setSortMenuOpen(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                    >
+                      <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <span className="flex-1">{label}</span>
+                      {sortMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                    </button>
+                  ))}
+                </div>,
+                document.body
+              )}
+            </div>
+
+            {/* Context-length dropdown — was a compact/full flip button; now a 4-way picker
+                (default snippet / full verse / ± context) since "±1 verse" / "±2 verses" have
+                no natural binary toggle counterpart. */}
+            <div ref={contextMenuRef} className="flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (!contextMenuOpen) { const r = contextMenuRef.current?.getBoundingClientRect(); if (r) setContextMenuPos({ right: window.innerWidth - r.right, top: r.bottom + 4 }) }
+                  setContextMenuOpen((v) => !v)
+                }}
+                title="Result length"
+                className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${showContext ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              >
+                {contextMode === 'default' && <AlignJustify size={11} />}
+                {contextMode === 'full' && <Rows size={11} />}
+                {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') && <span className="font-mono font-bold leading-none">±</span>}
+                {contextMode === 'default' && 'Compact'}
+                {contextMode === 'full' && 'Full'}
+                {contextMode === 'plusMinus1' && '±1 verse'}
+                {contextMode === 'plusMinus2' && '±2 verses'}
+                <ChevronDown size={9} className={`transition-transform ${contextMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {contextMenuOpen && contextMenuPos && createPortal(
+                <div
+                  ref={contextMenuContentRef}
+                  style={{ position: 'fixed', right: contextMenuPos.right, top: contextMenuPos.top, zIndex: 9999 }}
+                  className="min-w-[150px] rounded-shell context-menu overflow-hidden py-1"
+                >
+                  {([
+                    ['default', 'Compact', AlignJustify],
+                    ['full', 'Full verse', Rows],
+                  ] as const).map(([m, label, Icon]) => (
+                    <button
+                      key={m}
+                      onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                    >
+                      <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <span className="flex-1">{label}</span>
+                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                    </button>
+                  ))}
+                  <div className="h-px my-1 bg-[rgb(var(--color-surface-4))]" />
+                  {([
+                    ['plusMinus1', '±1 verse'],
+                    ['plusMinus2', '±2 verses'],
+                  ] as const).map(([m, label]) => (
+                    <button
+                      key={m}
+                      onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                    >
+                      <span className="font-mono font-bold leading-none w-3 flex-shrink-0 text-center text-[rgb(var(--color-text-muted))]">±</span>
+                      <span className="flex-1">{label}</span>
+                      {contextMode === m && <Check size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                    </button>
+                  ))}
+                </div>,
+                document.body
+              )}
+            </div>
           </>
         )}
       </div>
@@ -824,7 +1062,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
                 onMouseDown={(e) => { if (e.target === e.currentTarget) { setScopePaletteOpen(false); setScopeSearch('') } }}
               >
-                <div className="flex flex-col bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden w-[420px] max-h-[75vh]">
+                <div className="flex flex-col bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] rounded-xl shadow-2xl overflow-hidden w-[600px] max-h-[75vh]">
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
                     <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                     <input
@@ -895,7 +1133,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                          Apocrypha, canonBooksAll's own natural order) still reads fine
                          without a label repeating what's visually obvious from scrolling. ── */}
                     {hasCanonMatch && (
-                      <div className="grid grid-cols-2 gap-0.5 px-2 py-1">
+                      <div className="grid grid-cols-3 gap-0.5 px-2 py-1">
                         {filteredCanonBooks.map((book) =>
                           scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false)
                         )}
@@ -929,7 +1167,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                   {wholeGroupSelected ? 'Clear all' : 'Select all'}
                                 </button>
                               </div>
-                              <div className="grid grid-cols-2 gap-0.5 px-2 pb-1.5">
+                              <div className="grid grid-cols-3 gap-0.5 px-2 pb-1.5">
                                 {filteredSubBooks.map((b) =>
                                   scopeItem(b.id, selectedBooks.includes(b.id), () => setSelectedBooks((cur) => toggleBook(cur, b.id)), <span className="flex-1 truncate">{shortSubBookName(t.id, b)}</span>, false)
                                 )}
@@ -1042,76 +1280,158 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 mode where there's no query text visible elsewhere to explain the results. */}
             <p className="px-4 pt-0.5 pb-1 text-[10px] text-[rgb(var(--color-text-muted))]">
               {totalCount} result{totalCount !== 1 ? 's' : ''}
-              {effectiveMode(query) === 'strongs' && ` for ${parseStrongsQuery(query)}`}
-              {effectiveMode(query) === 'strongs' && strongsTotal > 0 && (
-                <span className="text-[rgb(var(--color-text-secondary))]"> — showing first {STRONGS_RESULT_CAP} of {strongsTotal}; refine your search to narrow</span>
-              )}
+              {effectiveMode(query) === 'strongs' && (() => {
+                const parsed = parseMultiStrongsQuery(query)
+                return parsed ? ` for ${[...parsed.strongsNums, ...parsed.words].join(' + ')}` : ''
+              })()}
             </p>
-            {filteredGroups.map((group) => {
-              const key = `${group.textId}::${group.bookId}`
-              const collapsed = collapsedGroups.has(key)
-              const editionDot = group.textId === 'kjva' ? 'bg-amber-500' : group.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
-              return (
-              <div key={key} className="mx-2 mb-1.5 rounded-lg border border-[rgb(var(--color-surface-4))] overflow-hidden bg-[rgb(var(--color-surface-2))]">
-                <div
-                  ref={(el) => { if (el) groupHeaderRefs.current.set(key, el); else groupHeaderRefs.current.delete(key) }}
-                  className="flex items-center gap-2 px-3 py-2 bg-[rgb(var(--color-surface-3))] cursor-pointer select-none hover:bg-[rgb(var(--color-surface-4))] transition-colors"
-                  onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
-                >
-                  <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
-                  <BookOpen size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-                  <span className="text-[13px] font-semibold text-[rgb(var(--color-text-primary))]">{group.bookName}</span>
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 rounded-full px-1.5 py-0.5">{group.results.length}</span>
-                  <div className="flex-1" />
-                  {textId === 'all' && (
-                    <span className="flex items-center gap-1 text-[9.5px] text-[rgb(var(--color-text-secondary))] font-semibold uppercase tracking-wide">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionDot}`} />
-                      {group.textLabel}
-                    </span>
-                  )}
-                  {group.testament && textId !== 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>}
-                </div>
-                {!collapsed && group.results.map((r, i) => {
-                  const flatIdx = visibleResultIdxByKey.get(`${r.book_id}:${r.chapter}:${r.verse_num}:${key}`) ?? -1
-                  const isFocused = flatIdx === focusedIdx
+            {/* Virtualized flat row list — each book/chapter GROUP still reads as its own
+                separated, rounded card (not one merged continuous panel — an earlier
+                virtualization pass collapsed all groups into a single bordered box, which
+                lost that separation and was reported as "you combined all the sections").
+                Restoring the per-group card look while staying virtualized means the visual
+                gap between groups can't be a CSS margin (tanstack-virtual's measureElement
+                doesn't account for a child's margin escaping the measured box via margin
+                collapsing, which would silently throw off the computed total height/
+                positions) — it's `pt-1.5` PADDING on each group's header wrapper instead,
+                which the virtualizer's own height measurement always includes correctly.
+                Only rows actually scrolled into view are ever mounted — this is what makes
+                an uncapped, thousands-of-rows Strong's occurrence list safe to render at all. */}
+            <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = flatRows[virtualRow.index]
+                  if (!row) return null
+                  if (row.type === 'header') {
+                    const key = row.key
+                    const group = row.group
+                    const collapsed = collapsedGroups.has(key)
+                    const editionDot = group.textId === 'kjva' ? 'bg-amber-500' : group.textId === 'lxx' ? 'bg-sky-500' : 'bg-[rgb(var(--color-text-muted))]'
+                    // A collapsed group (or one with no results, in practice never happens
+                    // since groups are only created from an actual match) has no result row
+                    // to close the card's bottom — the header closes it itself instead.
+                    const selfClosing = collapsed || group.results.length === 0
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        className={`absolute top-0 left-0 w-full ${virtualRow.index > 0 ? 'pt-1.5' : ''}`}
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      >
+                        <div
+                          className={`mx-2 flex items-center gap-2 px-3 py-2 bg-[rgb(var(--color-surface-3))] border-t border-l border-r border-[rgb(var(--color-surface-4))] rounded-t-lg cursor-pointer select-none hover:bg-[rgb(var(--color-surface-4))] transition-colors ${selfClosing ? 'border-b rounded-b-lg' : ''}`}
+                          onClick={() => setCollapsedGroups((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })}
+                        >
+                          <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+                          <BookOpen size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                          <span className="text-[13px] font-semibold text-[rgb(var(--color-text-primary))]">{group.bookName}</span>
+                          <span className="text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 rounded-full px-1.5 py-0.5">{group.results.length}</span>
+                          <div className="flex-1" />
+                          {textId === 'all' && (
+                            <span className="flex items-center gap-1 text-[9.5px] text-[rgb(var(--color-text-secondary))] font-semibold uppercase tracking-wide">
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${editionDot}`} />
+                              {group.textLabel}
+                            </span>
+                          )}
+                          {group.testament && textId !== 'all' && <span className="text-[9.5px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide">{group.testament}</span>}
+                        </div>
+                      </div>
+                    )
+                  }
+                  const r = row.result
+                  const isFocused = row.visibleIdx === focusedIdx
+                  const isLastInGroup = row.indexInGroup === row.group.results.length - 1
                   return (
-                  <button
-                    key={`${r._textId}-${r.book_id}-${r.chapter}-${r.verse_num}`}
-                    ref={(el) => { if (el && flatIdx >= 0) resultButtonRefs.current.set(flatIdx, el) }}
-                    onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId)}
-                    onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
-                    className={`w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group ${i > 0 ? 'border-t border-[rgb(var(--color-surface-4))/50]' : ''} ${isFocused ? 'bg-[rgb(var(--color-accent))]/10 ring-inset ring-1 ring-[rgb(var(--color-accent))]/30' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
-                  >
-                    <span className="text-[10.5px] font-mono font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded-md w-14 flex-shrink-0 text-center py-1">
-                      {r.chapter}:{r.verse_num}
-                    </span>
-                    {/* line-clamp-2 (the earlier default) rarely differed visually from full text
-                        for typical one-sentence verse snippets, which made the toggle feel like it
-                        "did nothing" — clamping to a single line makes the two modes clearly
-                        different at a glance. */}
-                    <span className={`flex-1 text-[13px] text-[rgb(var(--color-text-primary))] leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
-                      {(() => {
-                        const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
-                          ? applyWordReplacer(r.text, wordReplacerRules)
-                          : r.text
-                        if (effectiveMode(query) === 'strongs') {
-                          return highlightStrongs(r.text, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [])
-                        }
-                        // Only "all words" mode needs the dynamic-start snippet — "any word" only
-                        // needs one match visible (line-clamp already lands on it often enough),
-                        // and "phrase" highlights a single contiguous span CSS clamping already handles.
-                        const displayText = !showContext && wordMode === 'all'
-                          ? buildAllWordsSnippet(rawText, query)
-                          : rawText
-                        return highlight(displayText, query, wordMode)
-                      })()}
-                    </span>
-                    <ChevronRight size={13} className="flex-shrink-0 mt-1 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                )})}
-              </div>
-              )
-            })}
+                    <div
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      className="absolute top-0 left-0 w-full"
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      <button
+                        onClick={() => onNavigate(r.book_id, r.chapter, r.verse_num, r._textId ?? textId, highlightForResult(r))}
+                        onContextMenu={(e) => { e.preventDefault(); const tid = r._textId ?? textId; openCtxMenu({ bookId: r.book_id, chapter: r.chapter, verse: r.verse_num, textId: tid, text: r.text, x: e.clientX, y: e.clientY }) }}
+                        className={`mx-2 w-[calc(100%-16px)] flex items-start gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer group bg-[rgb(var(--color-surface-2))] border-l border-r border-[rgb(var(--color-surface-4))] ${isLastInGroup ? 'border-b rounded-b-lg' : ''} ${row.indexInGroup > 0 ? 'border-t border-[rgb(var(--color-surface-4))/50]' : ''} ${isFocused ? 'bg-[rgb(var(--color-accent))]/10 ring-inset ring-1 ring-[rgb(var(--color-accent))]/30' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
+                      >
+                        <span className="text-[10.5px] font-mono font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded-md w-14 flex-shrink-0 text-center py-1">
+                          {r.chapter}:{r.verse_num}
+                        </span>
+                        {(contextMode === 'plusMinus1' || contextMode === 'plusMinus2') ? (() => {
+                          const span = contextMode === 'plusMinus1' ? 1 : 2
+                          const chapterVerses = getContextVerses(r)
+                          if (!chapterVerses) {
+                            return <span className="flex-1 text-[13px] text-[rgb(var(--color-text-muted))] italic pt-0.5">Loading context…</span>
+                          }
+                          const lo = r.verse_num - span
+                          const hi = r.verse_num + span
+                          const contextRows = chapterVerses
+                            .filter((v) => v.verse_num >= lo && v.verse_num <= hi)
+                            .sort((a, b) => a.verse_num - b.verse_num)
+                          return (
+                            <span className="flex-1 flex flex-col gap-0.5 pt-0.5">
+                              {contextRows.map((v) => {
+                                const isMatch = v.verse_num === r.verse_num
+                                const vText = wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(v.text, wordReplacerRules) : v.text
+                                return (
+                                  <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
+                                    <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
+                                    {isMatch && effectiveMode(query) === 'strongs'
+                                      ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
+                                      : isMatch
+                                        ? highlight(vText, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
+                                        : vText}
+                                  </span>
+                                )
+                              })}
+                            </span>
+                          )
+                        })() : (
+                          // line-clamp-2 (the earlier default) rarely differed visually from full text
+                          // for typical one-sentence verse snippets, which made the toggle feel like it
+                          // "did nothing" — clamping to a single line makes the two modes clearly
+                          // different at a glance.
+                          <span className={`flex-1 text-[13px] text-[rgb(var(--color-text-primary))] leading-relaxed pt-0.5 ${showContext ? '' : 'line-clamp-1'}`}>
+                            {(() => {
+                              const rawText = wordReplacerEnabled && wordReplacerRules.length > 0
+                                ? applyWordReplacer(r.text, wordReplacerRules)
+                                : r.text
+                              if (effectiveMode(query) === 'strongs') {
+                                // rawText here too (not r.text) — Strong's results were skipping the
+                                // word replacer entirely, so a search for "G5485" still showed "Jesus"
+                                // even with the Yeshua replacer rule on. Word indices from
+                                // getOccurrences are positional and replacer rules are (in practice)
+                                // single-word swaps, so alignment holds.
+                                // extraWords: a combined query like "G5485 god" has a plain-word part
+                                // too (parseMultiStrongsQuery's `.words`) — that needs highlighting
+                                // alongside the Strong's-indexed word(s), not just the latter alone.
+                                const parsed = parseMultiStrongsQuery(query)
+                                return highlightStrongs(rawText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parsed?.words ?? [])
+                              }
+                              // Only "all words" mode needs the dynamic-start snippet — "any word" only
+                              // needs one match visible (line-clamp already lands on it often enough),
+                              // and "phrase" highlights a single contiguous span CSS clamping already handles.
+                              const displayText = !showContext && wordMode === 'all'
+                                ? buildAllWordsSnippet(rawText, query)
+                                : rawText
+                              // The highlight query goes through the SAME word-replacer transform as the
+                              // text it's matched against — text shows "Yeshua" (replaced), so a query of
+                              // literal "jesus" needs to become "Yeshua" too, or it never matches the
+                              // (now-replaced) displayed text at all. Applying the identical transform to
+                              // both sides keeps them in sync regardless of which wording the user typed.
+                              const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
+                                ? applyWordReplacer(query, wordReplacerRules)
+                                : query
+                              return highlight(displayText, highlightQuery, wordMode)
+                            })()}
+                          </span>
+                        )}
+                        <ChevronRight size={13} className="flex-shrink-0 mt-1 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </div>
+                  )
+                })}
+            </div>
           </div>
         )}
 
@@ -1148,7 +1468,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             ref={railPanelRef}
             expandedWidth={300}
             expandedHeight={400}
-            anchorRightClass="right-0"
+            anchorRightClass="-right-2"
             collapsedWidth={16}
             collapsedHeight={railCollapsedHeight}
             collapsedRadius={8}
@@ -1181,8 +1501,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 return (
                   <button
                     key={key}
-                    onClick={() => { groupHeaderRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); railPanelRef.current?.close() }}
-                    className="flex items-start gap-2 w-full px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                    onClick={() => {
+                      const idx = headerFlatIndex.get(key)
+                      if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'smooth' })
+                      railPanelRef.current?.close()
+                    }}
+                    className="flex items-start gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
                   >
                     {textId === 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${editionDot}`} />}
                     {/* Wraps to 2 lines instead of truncating — a fixed-width panel plus
@@ -1211,7 +1535,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         >
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
-            onClick={() => { onNavigate(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
+            onClick={() => {
+              onNavigate(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId, highlightForResult({
+                book_id: ctxMenu.bookId, chapter: ctxMenu.chapter, verse_num: ctxMenu.verse, text: ctxMenu.text, _textId: ctxMenu.textId,
+              }))
+              closeCtxMenu()
+            }}
           >
             <ChevronRight size={12} />
             Open here
@@ -1223,6 +1552,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               closeCtxMenu()
               let text = tx
               if (!text) { const v = await window.bible.queryVerse(bId, ch, vs, tid).catch(() => null); text = v?.text ?? '' }
+              if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
               copyVerse(bId, ch, vs, text, tid === 'lxx')
             }}
           >

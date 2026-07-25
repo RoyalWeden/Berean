@@ -27,6 +27,16 @@ export interface BibleTabState {
   verse?: number
   targetVerse?: number
   endVerse?: number
+  // Set alongside targetVerse when navigating in from a scripture search result, so the
+  // landed verse can highlight the specific thing that matched — the searched word/phrase
+  // (targetVerseQuery/targetVerseWordMode, reusing the same find-in-chapter highlight the
+  // Find bar uses) or the specific Strong's-tagged word(s) (targetVerseStrongsWords, word
+  // indices — same convention getOccurrences/searchMultiStrongs already use). Cleared
+  // together with targetVerse once ChapterView consumes it (onTargetVerseConsumed).
+  targetVerseQuery?: string
+  targetVerseWordMode?: 'all' | 'any' | 'phrase'
+  targetVerseStrongsWords?: number[]
+  targetVerseStrongsExtraWords?: string[]
   translation: string
   showStrongs: boolean
   scrollPosition: number
@@ -34,6 +44,9 @@ export interface BibleTabState {
   // Compare columns (text/book/chapter), persisted so chapter navigation survives
   // leaving and returning to the tab (which unmounts the panel).
   compareColumns?: Array<{ textId: string; bookId: string; chapter: number }>
+  // Persisted so a KJV/LXX (or other same-chapter, different-translation) sync-scroll
+  // session survives leaving and returning to the tab, same as compareColumns above.
+  compareSyncScroll?: boolean
   hiddenAnnotations?: string[]
   rightPanelOpen?: boolean
   rightPanelWidth?: number

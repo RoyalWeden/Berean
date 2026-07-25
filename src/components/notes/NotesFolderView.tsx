@@ -4,7 +4,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
-  BookMarked, CheckSquare, Square, FolderInput, FileType2,
+  BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
 } from 'lucide-react'
 import type { Note, NoteFolder, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
@@ -12,6 +12,7 @@ import { contentSnippets } from './NotesList'
 import { applyFindHighlight } from '@/lib/highlight'
 import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
+import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
 // Notes belong to a system folder by their type/tags. A note that has been moved
@@ -125,6 +126,14 @@ export default function NotesFolderView({
     return result
   }, [notes, folders])
 
+  // Which locked/system folders (Daily Notes, Verse Notes, e-Sword, BibleGateway) have at
+  // least one matching note during a search. Shared by the auto-expand effect below AND the
+  // jump rail (which lists every folder — user or system — worth jumping to).
+  const matchedSystemKeys = useMemo(
+    () => new Set(notes.map(systemFolderOf).filter((k): k is SystemKey => k !== null)),
+    [notes]
+  )
+
   useEffect(() => {
     if (!searchQuery) {
       // Search cleared — restore pre-search expansion state
@@ -140,12 +149,44 @@ export default function NotesFolderView({
     if (preSearchExpandedRef.current === null) {
       preSearchExpandedRef.current = new Set(expandedRef.current)
     }
-    // Auto-expand every user folder that contains a visible (matching) note, and all its ancestors
-    if (foldersWithMatches.size > 0) {
+    // Auto-expand every user folder that contains a visible (matching) note, and all its ancestors,
+    // PLUS any system (locked) folder — Daily Notes, Verse Notes, e-Sword, BibleGateway — that has
+    // a matching note. Those notes were always included in the search results (the backend query
+    // doesn't filter by type), but sat invisible inside a collapsed locked folder that nothing here
+    // used to auto-open, so a match there looked like "search doesn't search locked folders."
+    const systemKeysWithMatches = SYSTEM_FOLDERS.filter(({ key }) => matchedSystemKeys.has(key)).map(({ key }) => key)
+    // System folders render matches inside their own nested virtual subfolders (Daily Notes:
+    // Year → Month; Verse/e-Sword/BibleGateway: Book → Chapter) — expanding just the top-level
+    // system-folder row wasn't enough, the matching note still sat inside a collapsed year/month
+    // or book/chapter row one level deeper. Mirrors the same id scheme renderDailyContent /
+    // renderSystemContent use ("sys:daily:{year}" / "sys:daily:{year}-{month}" and
+    // "sys:{key}:{bookId}" / "sys:{key}:{bookId}:{chapter}") so `expanded.has(...)` matches.
+    const nestedSystemIds = new Set<string>()
+    for (const note of notes) {
+      const sys = systemFolderOf(note)
+      if (sys === 'daily') {
+        const m = (note.title ?? '').match(/(\d{4})-(\d{2})-(\d{2})/)
+        if (m) {
+          nestedSystemIds.add(`sys:daily:${m[1]}`)
+          nestedSystemIds.add(`sys:daily:${m[1]}-${m[2]}`)
+        }
+      } else if (sys === 'verse' || sys === 'esword' || sys === 'biblegateway') {
+        const parts = (note.verseRef ?? '').split('.')
+        const bookId = parts[0]
+        const ch = parts[1] ? parseInt(parts[1]) : NaN
+        if (bookId && !isNaN(ch)) {
+          nestedSystemIds.add(`sys:${sys}:${bookId}`)
+          nestedSystemIds.add(`sys:${sys}:${bookId}:${ch}`)
+        }
+      }
+    }
+    if (foldersWithMatches.size > 0 || systemKeysWithMatches.length > 0 || nestedSystemIds.size > 0) {
       setExpanded(prev => {
         let changed = false
         const next = new Set(prev)
         for (const id of foldersWithMatches) { if (!next.has(id)) { next.add(id); changed = true } }
+        for (const key of systemKeysWithMatches) { if (!next.has(key)) { next.add(key); changed = true } }
+        for (const id of nestedSystemIds) { if (!next.has(id)) { next.add(id); changed = true } }
         return changed ? next : prev
       })
     }
@@ -155,6 +196,12 @@ export default function NotesFolderView({
   // Track what's being dragged so we can show "→ FolderName" on the note row
   const [draggingNoteId, setDraggingNoteId] = useState<string | null>(null)
   const draggingNoteRef = useRef<Note | null>(null)
+  // Row DOM refs for the search jump rail below — keyed by folder id (user folders) or
+  // the SystemKey string (locked folders), scrollIntoView'd when a rail entry is clicked.
+  const folderRowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const [jumpRailSearch, setJumpRailSearch] = useState('')
+  const jumpRailSearchRef = useRef<HTMLInputElement>(null)
+  const jumpRailPanelRef = useRef<FloatingHoverPanelHandle>(null)
   // Imported PDFs (locked folder) — feature is off by default (Settings → Experimental)
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
   const [pdfs, setPdfs] = useState<PdfDoc[]>([])
@@ -571,6 +618,7 @@ export default function NotesFolderView({
       <div key={folder.id}>
         <div
           data-folder-row
+          ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id) }}
           draggable={!isRenaming && !selectMode}
           onDragStart={(e) => onFolderDragStart(e, folder.id)}
           onDragEnd={onFolderDragEnd}
@@ -787,14 +835,17 @@ export default function NotesFolderView({
 
   return (
     <div className="py-1 text-sm min-h-full flex flex-col" onContextMenu={handleEmptyContextMenu}>
-      {/* System folders (locked) — entire section blocks context menu to prevent "New note" appearing */}
-      {SYSTEM_FOLDERS.map(({ key, label, icon: Icon }) => {
+      {/* System folders (locked) — entire section blocks context menu to prevent "New note" appearing.
+          While searching, a folder with zero matching notes is hidden entirely rather than shown
+          collapsed-and-empty (matches how user folders already behave during search). */}
+      {SYSTEM_FOLDERS.filter(({ key }) => !searchQuery || bySystem[key].length > 0).map(({ key, label, icon: Icon }) => {
         const isOpen = expanded.has(key)
         const sysNotes = bySystem[key]
         const useSubFolders = key === 'verse' || key === 'esword' || key === 'biblegateway'
         return (
           <div key={key} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}>
             <div
+              ref={(el) => { if (el) folderRowRefs.current.set(key, el); else folderRowRefs.current.delete(key) }}
               onClick={() => toggle(key)}
               className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
             >
@@ -845,7 +896,11 @@ export default function NotesFolderView({
       )}
 
       {/* Divider */}
-      <div className="my-1 h-px bg-[rgb(var(--color-surface-4))] mx-2" />
+      {/* Divider + New note/New folder row — hidden while searching, since neither
+          action makes sense mid-search and the row was just clutter above the results. */}
+      {!searchQuery && (
+        <div className="my-1 h-px bg-[rgb(var(--color-surface-4))] mx-2" />
+      )}
 
       {/* User folders + root notes — flex-1 so blank space below notes is also droppable */}
       <div
@@ -859,15 +914,26 @@ export default function NotesFolderView({
         onDrop={(e) => onDropTo(e, null)}
         className={`flex-1 ${dragOverId === '__root__' ? 'bg-[rgb(var(--color-accent))/10]' : ''}`}
       >
-        <div className="flex items-center justify-between pl-2 pr-2 py-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
-            {(draggingNoteId || draggingFolderId) && dragOverId === '__root__'
-              ? <span className="text-[rgb(var(--color-accent))] animate-pulse">→ top level (no folder)</span>
-              : 'Folders'}
-          </span>
-          <button onClick={() => onCreateFolder(null)} title="New folder"
-            className="p-0.5 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><FolderPlus size={12} /></button>
-        </div>
+        {!searchQuery && (
+          <div className="flex items-center gap-1.5 pl-2 pr-2 py-1 min-h-[26px]">
+            {(draggingNoteId || draggingFolderId) && dragOverId === '__root__' && (
+              <span className="text-[10px] text-[rgb(var(--color-accent))] animate-pulse">→ top level (no folder)</span>
+            )}
+            <div className="flex items-center gap-1">
+              {onCreateNote && (
+                <button onClick={onCreateNote} title="New note"
+                  className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
+                  <FilePlus size={13} className="flex-shrink-0" /> New Note
+                </button>
+              )}
+              {onCreateNote && <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />}
+              <button onClick={() => onCreateFolder(null)} title="New folder"
+                className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
+                <FolderPlus size={13} className="flex-shrink-0" /> New Folder
+              </button>
+            </div>
+          </div>
+        )}
         {childFolders(null)
           .filter((f) => !searchQuery || foldersWithMatches.has(f.id))
           .map((f) => renderUserFolder(f, 0))}
@@ -1016,6 +1082,89 @@ export default function NotesFolderView({
         </div>,
         document.body
       )}
+
+      {/* Jump-to-folder rail — same floating hover-expand widget as ScriptureSearchView's
+          jump-to-book rail, listing every folder (user or locked/system) that has at least
+          one matching note during a search, so a match buried several folders/notes down
+          the list is one click away instead of requiring a manual scroll-and-hunt. Only
+          shown once there's a search active and more than one folder actually worth
+          jumping between (matches Scripture's own `> 1` gating). */}
+      {searchQuery && (() => {
+        const directMatchFolderIds = new Set(notes.map((n) => n.folderId).filter((id): id is string => !!id))
+        const jumpFolders = folders.filter((f) => directMatchFolderIds.has(f.id))
+        const jumpSystem = SYSTEM_FOLDERS.filter(({ key }) => matchedSystemKeys.has(key))
+        const totalJumpTargets = jumpFolders.length + jumpSystem.length
+        if (totalJumpTargets <= 1) return null
+        const railQuery = jumpRailSearch.trim().toLowerCase()
+        const filteredJumpFolders = railQuery ? jumpFolders.filter((f) => f.name.toLowerCase().includes(railQuery)) : jumpFolders
+        const filteredJumpSystem = railQuery ? jumpSystem.filter((s) => s.label.toLowerCase().includes(railQuery)) : jumpSystem
+        const railIconCount = Math.min(Math.max(totalJumpTargets, 2), 4)
+        const railIconSize = 10
+        const railIconGap = 8
+        const railCollapsedHeight = railIconCount * railIconSize + (railIconCount - 1) * railIconGap + 16
+        return (
+          <FloatingHoverPanel
+            ref={jumpRailPanelRef}
+            expandedWidth={260}
+            expandedHeight={340}
+            anchorRightClass="right-0"
+            collapsedWidth={16}
+            collapsedHeight={railCollapsedHeight}
+            collapsedRadius={8}
+            onExpandedChange={(expanded) => { if (expanded) setTimeout(() => jumpRailSearchRef.current?.focus(), 30); else setJumpRailSearch('') }}
+            collapsedContent={
+              <div className="flex flex-col items-center justify-center" style={{ gap: railIconGap }}>
+                {Array.from({ length: railIconCount }).map((_, i) => (
+                  <FolderTree key={i} size={railIconSize} className="text-[rgb(var(--color-text-muted))]" />
+                ))}
+              </div>
+            }
+          >
+            <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+              <FolderTree size={11} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+              <input
+                ref={jumpRailSearchRef}
+                value={jumpRailSearch}
+                onChange={(e) => setJumpRailSearch(e.target.value)}
+                placeholder="Jump to folder…"
+                className="flex-1 bg-transparent text-xs text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))] min-w-0"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 py-1">
+              {filteredJumpFolders.length === 0 && filteredJumpSystem.length === 0 && (
+                <div className="px-3 py-3 text-xs text-center text-[rgb(var(--color-text-muted))]">No match</div>
+              )}
+              {filteredJumpSystem.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    folderRowRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    jumpRailPanelRef.current?.close()
+                  }}
+                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                >
+                  <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <span className="flex-1 truncate">{label}</span>
+                  <Lock size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] opacity-50" />
+                </button>
+              ))}
+              {filteredJumpFolders.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    folderRowRefs.current.get(f.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    jumpRailPanelRef.current?.close()
+                  }}
+                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"
+                >
+                  <Folder size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <span className="flex-1 truncate">{f.name}</span>
+                </button>
+              ))}
+            </div>
+          </FloatingHoverPanel>
+        )
+      })()}
     </div>
   )
 }

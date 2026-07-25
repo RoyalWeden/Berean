@@ -122,6 +122,56 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.12] - 2026-07-25
+
+Floating search
+- The search bar now predicts which space a plain keyword search is most
+  likely aimed at (Scripture, Notes, or YouTube) and shows it as ghost text
+  right after what you've typed — pressing Enter with nothing else selected
+  jumps straight there. Nothing is highlighted by default anymore; use the
+  arrow keys or hover a result to select it.
+- The Advanced Scripture Search button now matches the plain "↑↓ Navigate /
+  ↵ Open" footer hints instead of standing out as its own accent-colored
+  button.
+- The All/Any/Phrase word-matching toggle is now a dropdown instead of a
+  three-button switch.
+- Fixed being unable to click options in the word-matching dropdown —
+  clicks were passing through to whatever was behind it.
+- The Notes/Lexicon/YouTube destination buttons are now hidden when the
+  search bar is opened from the Scripture tab's own "Search scripture"
+  shortcut, since that entry point is scripture-only.
+- "Recognitions of Clement" and "Shepherd of Hermas" references now parse
+  correctly when searching — e.g. "Recognitions of Clement 5" goes to Book
+  5 (not chapter 5 of Book 1), and Hermas can be addressed by its
+  traditional Vision/Mandate/Similitude numbering.
+- Keyboard-shortcut glyphs (⌘⇧⌥⌃↵ and arrows) now render as real icons
+  instead of plain unicode characters.
+- Fixed the floating icon rail's idle dots abruptly disappearing on hover
+  instead of fading smoothly.
+
+Compare mode
+- Each column's book/chapter/edition picker is now a single unified pill
+  matching the main reading view, replacing the old two-row header.
+- Columns can now be reordered by dragging instead of using move-left/
+  move-right buttons.
+- Added a scroll-sync toggle: when two or more columns are showing the same
+  chapter in different translations, scrolling one keeps the others aligned
+  by verse.
+- Minor hover-consistency fixes across the column toolbar.
+
+Scripture reading
+- The right side panel (Notes/Lexicon/Cross-refs) can now be opened and
+  closed with a two-finger trackpad swipe, sliding in from the edge like
+  macOS's Notification Center.
+- Fixed the TSKe cross-reference panel showing literal HTML like
+  "the Lord&#x0027;s" instead of an apostrophe.
+- The LXX indicator chip in the book picker is now a shorter pill.
+- Fixed a mismatched gray background showing behind the top bar's rounded
+  corners in light mode.
+- Fixed an unnaturally heavy shadow on the Scripture side panel.
+
+---
+
 ## [0.4.11] - 2026-07-23
 
 Scripture search

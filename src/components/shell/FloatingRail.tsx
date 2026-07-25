@@ -106,21 +106,39 @@ export default function FloatingRail() {
         }}
         transition={{ type: 'spring', stiffness: 500, damping: 45 }}
         style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}
-        className={`relative border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]/95 backdrop-blur-sm ${
-          hovered ? 'shadow-2xl cursor-default' : 'shadow-lg cursor-pointer opacity-55 hover:opacity-100 transition-opacity'
+        // More translucent (75%/85%) with a lighter blur — enough that content behind the
+        // rail is genuinely visible through it without being distracting, rather than the
+        // near-opaque 90%/95% this had before. The idle-state `opacity-55` that used to sit
+        // on THIS element doesn't anymore — it used to dim the box AND everything inside it
+        // together (background alpha and the dots' own color both getting scaled down at
+        // once), which on top of the newly-more-transparent background left the idle dots
+        // reading as barely-there/broken. The "recedes when idle" cue now lives on the
+        // background/shadow only (via bg-*/85 above and shadow-lg below); the dots get
+        // their own independent, much milder fade further down instead.
+        className={`relative border border-[rgb(var(--color-surface-4))] backdrop-blur-[2px] ${
+          hovered ? 'bg-[rgb(var(--color-surface-2))]/75 shadow-2xl cursor-default' : 'bg-[rgb(var(--color-surface-2))]/85 shadow-lg cursor-pointer'
         }`}
       >
         <div className="absolute inset-0 overflow-hidden flex flex-col" style={{ borderRadius: hovered ? EXPANDED_RADIUS : RADIUS }}>
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-100"
-            style={{ opacity: hovered ? 0 : 1, pointerEvents: hovered ? 'none' : 'auto' }}
+            // Own independent opacity (70% idle → 0 on hover) instead of inheriting the
+            // container's now-removed idle fade — see the comment above for why sharing one
+            // opacity value with the background broke this. Cross-fades with the Ribbon
+            // layer below on the SAME duration and no delay on either side — an earlier
+            // version snapped this to 0 instantly (inline style, no transition) while the
+            // Ribbon layer below waited on a `delay-100` before even starting its own
+            // fade-in, leaving a ~100ms+ window where hovering the rail made BOTH layers
+            // read as blank (reported as "the dots go away when I hover"). Same
+            // duration + no delay on both sides is what makes them swap in lockstep.
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 transition-opacity duration-150"
+            style={{ opacity: hovered ? 0 : 0.7, pointerEvents: hovered ? 'none' : 'auto' }}
           >
             {[0, 1, 2].map((i) => (
               <span key={i} className="w-1 h-1 rounded-full bg-[rgb(var(--color-text-muted))]" />
             ))}
           </div>
           <div
-            className="absolute inset-0 flex flex-col transition-opacity duration-150 delay-100"
+            className="absolute inset-0 flex flex-col transition-opacity duration-150"
             style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? 'auto' : 'none' }}
           >
             <div ref={ribbonRef} className="w-fit">

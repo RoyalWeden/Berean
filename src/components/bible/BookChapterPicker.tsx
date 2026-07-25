@@ -274,6 +274,14 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
             {currentTransLabel}
           </span>
         )}
+        {/* LXX chip — the picker otherwise gives no visual cue at a glance that you're
+            reading the Septuagint rather than KJVA, only distinguishable by actually reading
+            the verse text or opening the picker itself. */}
+        {currentTextId === 'lxx' && (
+          <span className="flex-shrink-0 text-[9px] font-bold tracking-wide leading-none px-1.5 py-[3px] rounded-full bg-sky-500/15 text-sky-500">
+            LXX
+          </span>
+        )}
         <ChevronDown size={compact ? 10 : 12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
       </button>
       )}

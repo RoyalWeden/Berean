@@ -102,6 +102,17 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:openSettings')
     ipcRenderer.on('app:openSettings', cb)
   },
+  // Real trackpad finger-down/finger-up signal (main process, see main.ts's
+  // 'web-contents-created'/'input-event' hook) — used by BiblePanel.tsx's
+  // swipe-to-open/close side-panel gesture instead of guessing from wheel-event silence.
+  onTrackpadSwipeBegin: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('app:trackpadSwipeBegin')
+    ipcRenderer.on('app:trackpadSwipeBegin', () => cb())
+  },
+  onTrackpadSwipeEnd: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('app:trackpadSwipeEnd')
+    ipcRenderer.on('app:trackpadSwipeEnd', () => cb())
+  },
   onMenuAction: (cb: (action: string, payload?: unknown) => void) => {
     ipcRenderer.removeAllListeners('berean:menuAction')
     ipcRenderer.on('berean:menuAction', (_, action, payload) => cb(action, payload))

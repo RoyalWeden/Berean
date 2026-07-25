@@ -110,6 +110,26 @@ if (app.isPackaged && process.mas) {
   app.commandLine.appendSwitch('log-file', chromiumLog)
 }
 
+// Two-finger trackpad swipe begin/end, forwarded to every window's renderer — the real
+// signal (macOS NSEventPhase-driven) for "fingers actually touched/lifted the trackpad,"
+// used by BiblePanel.tsx's swipe-to-open/close side-panel gesture instead of guessing from
+// a debounce on DOM `wheel`-event silence (which can't distinguish a genuine release from a
+// brief pause mid-gesture). `scroll-touch-begin`/`scroll-touch-end` (the old BrowserWindow
+// events that used to wrap this same NSEvent phase signal) were removed in Electron 23 —
+// `webContents.on('input-event', ...)` with `gestureScrollBegin`/`gestureScrollEnd` types is
+// their replacement (see electron/electron#35531). Hooked via `web-contents-created` so every
+// window this app creates (main, viewer, floating panel, etc.) is covered generically rather
+// than wiring each `new BrowserWindow(...)` call site individually. macOS-only in practice —
+// NSEventPhase is only populated by phase-aware devices (trackpad/Magic Mouse), so a plain
+// USB mouse wheel should never trigger these and this shouldn't affect mouse-wheel scrolling
+// anywhere else in the app.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('input-event', (_e, inputEvent) => {
+    if (inputEvent.type === 'gestureScrollBegin') contents.send('app:trackpadSwipeBegin')
+    else if (inputEvent.type === 'gestureScrollEnd') contents.send('app:trackpadSwipeEnd')
+  })
+})
+
 // Track ALL child process exits with full detail.
 app.on('child-process-gone', (_event, details) => {
   const msg = `[child-process-gone] type=${details.type} reason=${details.reason} exitCode=${details.exitCode} name=${details.name ?? '?'} pid=${(details as any).pid ?? '?'} serviceWorkerProcessType=${(details as any).serviceWorkerProcessType ?? '?'}`
@@ -168,9 +188,22 @@ const isMasBuild = process.mas === true
 
 if (!isMasBuild) {
   autoUpdater.logger = log
-  // Don't auto-download — wait for user to confirm
+  // Default: don't auto-download — wait for user to confirm. Overridable via the
+  // "Automatically download updates" setting (DB key 'autoDownloadUpdate') — see
+  // applyAutoDownloadPref, called right before every checkForUpdates() the same way
+  // allowPrerelease already is, so toggling the setting mid-session takes effect on
+  // the very next check rather than needing a relaunch.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
+}
+
+// Re-reads the 'autoDownloadUpdate' setting and applies it to autoUpdater.autoDownload.
+// Called at every point a check is about to run (startup, periodic interval, and the
+// manual "Check for Updates" IPC handler) — same pattern as the beta-channel
+// (allowPrerelease) preference just above/below each of those call sites.
+function applyAutoDownloadPref(db: ReturnType<typeof getBereanDb>): void {
+  const row = db.prepare("SELECT value FROM settings WHERE key='autoDownloadUpdate'").get() as { value: string } | undefined
+  autoUpdater.autoDownload = row?.value === 'true'
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -933,10 +966,11 @@ app.whenReady().then(async () => {
       return
     }
     try {
-      // Apply beta channel preference at check time
+      // Apply beta channel + auto-download preferences at check time
       const db = getBereanDb()
       const ch = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
       autoUpdater.allowPrerelease = ch?.value === 'beta'
+      applyAutoDownloadPref(db)
       await autoUpdater.checkForUpdates()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -996,9 +1030,10 @@ app.whenReady().then(async () => {
     const row = db.prepare("SELECT value FROM settings WHERE key='autoUpdate'").get() as { value: string } | undefined
     const autoCheckEnabled = !row || row.value !== 'false'
 
-    // Apply beta channel preference before the first check
+    // Apply beta channel + auto-download preferences before the first check
     const channelRow = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
     if (channelRow?.value === 'beta') autoUpdater.allowPrerelease = true
+    applyAutoDownloadPref(db)
 
     if (autoCheckEnabled) {
       // Delay so the window finishes rendering before we fire the network request.
@@ -1024,17 +1059,18 @@ app.whenReady().then(async () => {
       // never learned about a new release until their next relaunch. Re-reads
       // the "autoUpdate" setting on every tick (not just once) so toggling it
       // off in Settings mid-session actually stops future checks, and re-reads
-      // the beta-channel preference too in case that changed. `checkForUpdates`
-      // itself is just a small metadata HTTPS request — `autoDownload` stays
-      // false (line ~172), so this never starts an actual download on its own,
-      // just negligible periodic network/CPU cost, not a real memory/CPU/GPU
-      // concern at this interval.
+      // the beta-channel + auto-download preferences too in case those changed.
+      // `checkForUpdates` itself is just a small metadata HTTPS request — an
+      // actual download only starts if `autoDownload` is true (opt-in via
+      // Settings → "Automatically download updates", applyAutoDownloadPref
+      // above), so this stays negligible periodic network/CPU cost by default.
       const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
       setInterval(() => {
         const enabledNow = db.prepare("SELECT value FROM settings WHERE key='autoUpdate'").get() as { value: string } | undefined
         if (enabledNow && enabledNow.value === 'false') return
         const channelNow = db.prepare("SELECT value FROM settings WHERE key='updateChannel'").get() as { value: string } | undefined
         autoUpdater.allowPrerelease = channelNow?.value === 'beta'
+        applyAutoDownloadPref(db)
         autoUpdater.checkForUpdates().catch((err: unknown) => {
           log.warn('Periodic update check failed:', err instanceof Error ? err.message : String(err))
         })

@@ -10,6 +10,7 @@ import {
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store'
 import type { BibleTabState } from '@/types'
+import ShortcutKeys from './ShortcutKeys'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -876,9 +877,7 @@ export default function TasksPanel() {
                               {task.title}
                             </span>
                             {task.shortcut && !done && (
-                              <kbd className="px-1 py-0 text-[9px] font-mono rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] border border-[rgb(var(--color-surface-4))] leading-4 flex-shrink-0">
-                                {task.shortcut}
-                              </kbd>
+                              <ShortcutKeys keys={task.shortcut} className="flex-shrink-0" />
                             )}
                           </div>
                           {!done && (

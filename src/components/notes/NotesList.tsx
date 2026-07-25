@@ -5,13 +5,39 @@ import { bookName } from '@/lib/parseRef'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
+import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import type { Note } from '@/types'
+
+// Strip markdown syntax down to plain readable text — search snippets are a short
+// truncated excerpt, not a rendered note, so leftover `**`/`#`/`[text](url)` markup
+// read as raw formatting noise rather than the words the user actually searched for.
+function stripMarkdownFormatting(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, ' ')                 // fenced code blocks
+    .replace(/`([^`]+)`/g, '$1')                      // inline code
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')          // images -> alt text
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')     // [[target|alias]] -> alias
+    .replace(/\[\[([^\]]+)\]\]/g, '$1')                // [[wikilink]] -> target
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')           // [text](url) -> text
+    .replace(/^#{1,6}\s+/gm, '')                       // headings
+    .replace(/^>\s?/gm, '')                            // blockquotes
+    .replace(/^\s*[-*+]\s+(\[[ xX]\]\s*)?/gm, '')      // bullet/task list markers
+    .replace(/^\s*\d+\.\s+/gm, '')                     // numbered list markers
+    .replace(/^\s*[-*_]{3,}\s*$/gm, ' ')                // horizontal rules
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')              // bold+italic
+    .replace(/\*\*([^*]+)\*\*/g, '$1')                  // bold
+    .replace(/__([^_]+)__/g, '$1')                      // bold (underscore)
+    .replace(/\*([^*]+)\*/g, '$1')                      // italic
+    .replace(/_([^_]+)_/g, '$1')                        // italic (underscore)
+    .replace(/~~([^~]+)~~/g, '$1')                      // strikethrough
+    .replace(/\|/g, ' ')                                // table pipes
+}
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
-  const text = content.replace(/\s+/g, ' ').trim()
+  const text = stripMarkdownFormatting(content).replace(/\s+/g, ' ').trim()
   const lower = text.toLowerCase()
   const out: string[] = []
   let from = 0
@@ -143,7 +169,7 @@ export default function NotesList({
         <p className="text-sm text-[rgb(var(--color-text-secondary))]">No notes yet</p>
         <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
           Click a verse number to add a verse note, or press{' '}
-          <kbd className="font-mono bg-[rgb(var(--color-surface-4))] px-1 py-0.5 rounded text-[10px]">⌘⇧N</kbd>{' '}
+          <ShortcutKeys keys="⌘⇧N" className="align-middle" />{' '}
           for a general note.
         </p>
       </div>

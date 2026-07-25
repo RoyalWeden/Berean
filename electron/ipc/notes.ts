@@ -60,10 +60,17 @@ function safeNotesFts(query: string, mode: 'all' | 'phrase' = 'all'): string {
   // form finds notes written in the other (e.g. a verse note referencing
   // "seven" is still found searching "7"). Only in 'all' mode — an exact
   // phrase shouldn't get fuzzed.
+  // Joined with explicit AND (not just whitespace) — FTS5's implicit-AND parser
+  // throws a syntax error when a bare term is immediately followed by a
+  // parenthesized OR-group (e.g. `"Daily"* ("07"* OR "seven"*)`), which every
+  // number-bearing query hits once a term expands to alternates below. That
+  // silently failed (caught by the caller's try/catch → empty results), which
+  // for daily notes meant the existing note was never found and a duplicate
+  // blank one got created on every open.
   return words.map(w => {
     const alts = numberTokenAlternates(w)
     return alts.length > 1 ? `(${alts.map(a => `"${a}"*`).join(' OR ')})` : `"${w}"*`
-  }).join(' ')
+  }).join(' AND ')
 }
 
 interface NoteRow {
