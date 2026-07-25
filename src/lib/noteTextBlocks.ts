@@ -40,8 +40,19 @@ export const CALLOUT_META: Record<string, { icon: string; label: string; bg: str
 //   A) Multi-line: "Luke 16:29-31\n29 text\n30 text\n31 text"
 //   B) Single-line: "1 John 2:4 He that saith…"
 // NOT triggered: a bare reference like "Luke 16:29-31" (no verse text follows).
+// Optional ", Book N" subdivision (+ optional comma before chapter:verse) added for
+// multi-book editions like Recognitions of Clement — mirrors parseRef's own regex (see
+// that file's comment for the matching round-trip bug this was missing half of: the app
+// itself GENERATES "Recognitions, Book 10, 41:8"-shaped text via bookChapterVerseLabel,
+// which this regex couldn't recognize at all before, so a pasted/typed verse in that
+// format never triggered verse-block auto-detection.
+// Each book-name word may carry a trailing comma too (`,?` after every word slot, not just
+// before "Book N"/the final chapter:verse) — Hermas's canonical bookName() label is
+// "Hermas, Visions" / "Hermas, Mandates" / "Hermas, Similitudes" with a comma baked in
+// between the two words, and verseClipboard.ts's copy-verse output for those now puts a
+// further comma before the chapter:verse too ("Hermas, Similitudes, 35:1 <text>").
 export const SINGLE_VERSE_LINE_RE =
-  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+(?:[ \t]+[A-Za-z][a-z]+){0,2}[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
+  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
 export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
 /**
@@ -109,8 +120,19 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // "Recognitions Book 10 41:8" matched "Recognitions Book" as the book phrase and silently
 // dropped "41:8" (the comma form worked by accident, since a comma isn't part of the
 // ordinary prefix-word separator).
+// The `,?` immediately before the required `[ \t]+` (right after the "Book N" group) was
+// missing entirely — bookChapterVerseLabel (parseRef.ts) GENERATES "Recognitions, Book 10,
+// 41:8" with a comma in BOTH spots, but only the first comma was optional here; a comma
+// between "Book N" and the chapter:verse broke the match outright (no fallback path), so
+// text the app itself produces silently never got auto-linked. Same underlying bug as
+// parseRef.ts's own regex and SINGLE_VERSE_LINE_RE above — all three needed the same fix.
+// Each ordinary book-name word may also carry a trailing comma (`,?` after every word slot,
+// not just before "Book N") — Hermas's canonical bookName() label has one baked in ("Hermas,
+// Similitudes"), and its copy-verse output now adds a further comma before the chapter:verse
+// too. The comma stays attached to its word when findVerseRefMatches later splits bookPhrase
+// on whitespace, so it round-trips through the phrase-reconstruction below unchanged.
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number

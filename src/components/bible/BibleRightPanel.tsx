@@ -1585,7 +1585,7 @@ export default function BibleRightPanel({
         <button
           onClick={() => { openSidebarNote(note); setSelectedNoteIdx(-1) }}
           onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-          className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
+          className="w-full text-left px-2 py-2.5 cursor-pointer min-w-0"
         >
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Note color dot — the same color-coding shown as a verse indicator
@@ -1605,12 +1605,12 @@ export default function BibleRightPanel({
           <div className="flex items-center gap-1.5 mt-1">
             {note.verseRef && (
               <span
-                className="w-fit font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] rounded-[2px] px-[3px] leading-[1.2] bg-[rgb(var(--color-accent))/10]"
+                className="w-fit flex-shrink-0 whitespace-nowrap font-mono text-[9px] font-semibold text-[rgb(var(--color-accent))] rounded-[2px] px-[3px] leading-[1.2] bg-[rgb(var(--color-accent))/10]"
               >
                 {formatRef(note.verseRef)}
               </span>
             )}
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 tabular-nums">
+            <span className="min-w-0 flex-1 truncate whitespace-nowrap text-right text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 tabular-nums">
               created {timeAgo(note.createdAt)}
               {note.updatedAt !== note.createdAt ? ` · modified ${timeAgo(note.updatedAt)}` : ''}
             </span>
@@ -1928,7 +1928,7 @@ export default function BibleRightPanel({
                             <button
                               onClick={() => openSidebarNote(note)}
                               onContextMenu={(e) => { e.preventDefault(); openSideCtxMenu({ type: 'note', note, x: e.clientX, y: e.clientY }) }}
-                              className="w-full text-left px-3 py-2.5 cursor-pointer min-w-0"
+                              className="w-full text-left px-2 py-2.5 cursor-pointer min-w-0"
                             >
                               <div className="text-xs font-medium text-[rgb(var(--color-text-primary))] truncate">
                                 {note.title || 'Untitled'}
@@ -1936,7 +1936,7 @@ export default function BibleRightPanel({
                               <div className={`text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 ${expandAll ? 'whitespace-pre-wrap break-words' : 'truncate'}`}>
                                 {(expandAll ? snippet : snippet.slice(0, 80)) || 'Empty note'}
                               </div>
-                              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 opacity-70">
+                              <div className="text-[10px] text-[rgb(var(--color-text-muted))] mt-0.5 opacity-70 truncate whitespace-nowrap">
                                 {note.verseRef ? `${formatRef(note.verseRef)} · ` : 'General · '}
                                 modified {timeAgo(note.updatedAt)}
                               </div>

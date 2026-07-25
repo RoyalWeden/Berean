@@ -5,15 +5,24 @@ import { editionForTextId } from './bibleTexts'
  *  scheme, so its copy format spells out the edition's full name and book number
  *  explicitly (e.g. "Recognitions of Clement, Book 5, 3:5") rather than relying on
  *  bookName()'s per-book label, which for RCL is just "Recognitions, Book N" (missing
- *  "of Clement"). Other multi-book editions (T12P, Hermas) already have fully descriptive
- *  bookName() labels ("Testament of Reuben", "Hermas, Visions") and have no numbered
- *  book subdivision, so they're left as-is. */
+ *  "of Clement"). T12P's bookName() labels are single, unadorned names ("Testament of
+ *  Reuben") that read fine with a bare space before chapter:verse. Hermas's bookName()
+ *  labels ("Hermas, Visions" / "Hermas, Mandates" / "Hermas, Similitudes") already carry
+ *  their OWN internal comma — a bare space straight after "Similitudes" before the
+ *  chapter:verse number read as visually run-together, so those get the same "comma
+ *  before chapter:verse" treatment RCL already has, producing e.g. "Hermas, Similitudes,
+ *  35:1" — parseRef's own book-token group now tolerates an embedded comma either way
+ *  (see that file's comment), so this stays round-trippable for the notes auto-detection
+ *  system, not just display. */
 function bookRefLabel(bookId: string, chapter: number, verse: number): string {
   const rcl = bookId.match(/^RCL(\d{1,3})$/)
   if (rcl) {
     const textId = getTranslationForBook(bookId)
     const editionName = (textId && editionForTextId(textId)?.label) || 'Recognitions of Clement'
     return `${editionName}, Book ${rcl[1]}, ${chapter}:${verse}`
+  }
+  if (bookId === 'HER_VIS' || bookId === 'HER_MAN' || bookId === 'HER_SIM') {
+    return `${bookName(bookId)}, ${chapter}:${verse}`
   }
   return `${bookName(bookId)} ${chapter}:${verse}`
 }

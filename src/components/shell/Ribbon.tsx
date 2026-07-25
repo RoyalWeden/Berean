@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
+import ShortcutKeys from './ShortcutKeys'
 
 /**
  * Workspace-level rail, split out from Sidebar.tsx. Originally this held
@@ -147,7 +148,7 @@ export default function Ribbon() {
             <Tooltip.Portal>
               <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
                 Search / new tab
-                <kbd className="ml-2 font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘T</kbd>
+                <ShortcutKeys keys="⌘T" className="ml-2" />
                 <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
               </Tooltip.Content>
             </Tooltip.Portal>
@@ -168,7 +169,7 @@ export default function Ribbon() {
           <Tooltip.Portal>
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
               History
-              <kbd className="ml-2 font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘H</kbd>
+              <ShortcutKeys keys="⌘H" className="ml-2" />
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -271,7 +272,7 @@ export default function Ribbon() {
           <Tooltip.Portal>
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
               {viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'}
-              <kbd className="ml-2 font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘⇧B</kbd>
+              <ShortcutKeys keys="⌘⇧B" className="ml-2" />
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -295,7 +296,7 @@ export default function Ribbon() {
           <Tooltip.Portal>
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
               Find in panel
-              <kbd className="ml-2 font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘F</kbd>
+              <ShortcutKeys keys="⌘F" className="ml-2" />
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -357,7 +358,7 @@ export default function Ribbon() {
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
               Settings
               {updateStatus.status === 'ready' ? ' — update ready to install' : updateStatus.status === 'available' ? ' — update available' : ''}
-              <kbd className="ml-2 font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘,</kbd>
+              <ShortcutKeys keys="⌘," className="ml-2" />
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>

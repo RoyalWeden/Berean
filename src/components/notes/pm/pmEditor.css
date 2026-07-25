@@ -407,6 +407,10 @@
    touching the pane edges). */
 .berean-pm-editor .ProseMirror {
   padding: 16px;
+  /* Left gutter widened beyond the other sides' 16px — it has to hold the
+     heading-collapse arrow rail (headingCollapse.ts), which felt cramped
+     with almost no margin between the arrow and the editor's own edge. */
+  padding-left: 28px;
   padding-bottom: 96px;
   outline: none;
   min-height: 100%;

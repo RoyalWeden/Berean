@@ -16,6 +16,7 @@ import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/
 import type { Verse, HighlightColor, Note } from '@/types'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
+import { splitStrongsHighlight } from '@/lib/strongsSearch'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -45,6 +46,12 @@ interface VerseRowProps {
   textId?: string
   findQuery?: string
   findWordMode?: 'phrase' | 'all' | 'any'
+  /** Word indices (verse.text.split(' ') convention) to highlight — set briefly after
+   *  navigating in from a Strong's-number scripture search result. See ChapterView.tsx. */
+  highlightStrongsWords?: number[]
+  /** Plain-word part of a combined Strong's+word search ("G5485 god") — highlighted by
+   *  text match alongside highlightStrongsWords, not just the Strong's-indexed word(s). */
+  highlightStrongsExtraWords?: string[]
   onStrongsClick?: (num: string) => void
   onWordClick?: (word: string) => void
 }
@@ -358,7 +365,7 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', onStrongsClick, onWordClick }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -861,6 +868,29 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
 
   function renderVerseText() {
+    // ── Scripture-search Strong's-match highlight ──────────────────────────────
+    // Set only briefly (a few seconds) right after navigating in from a Strong's search
+    // result — see ChapterView.tsx's flashVerse/targetVerseStrongsWords. Takes priority
+    // over every other rendering mode below (red-letter, char highlights, showStrongs
+    // chips, etc.) for that short window: the point is showing the user exactly which
+    // word matched, not preserving every other visual detail during a transient flash.
+    // Word indices come from getOccurrences/searchMultiStrongs, which count words the
+    // same way `verse.text.split(' ')` does (see strongsSearch.ts), so splitting the
+    // plain, untagged text here lines up correctly without needing text_tagged at all.
+    if ((highlightStrongsWords && highlightStrongsWords.length > 0) || (highlightStrongsExtraWords && highlightStrongsExtraWords.length > 0)) {
+      return (
+        <span>
+          {splitStrongsHighlight(verse.text, highlightStrongsWords ?? [], highlightStrongsExtraWords).map((seg, i, arr) => (
+            <span key={i}>
+              {seg.match
+                ? <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm font-semibold">{seg.text}</mark>
+                : seg.text}
+              {i < arr.length - 1 ? ' ' : ''}
+            </span>
+          ))}
+        </span>
+      )
+    }
     // ── KJVA / LXX with text_tagged: unified Strong's + char-highlight rendering ──
     // This handles: showStrongs ON/OFF, kjva_italics hidden/shown, find highlights, and
     // char-level highlights — all simultaneously. Char positions are tracked from the
@@ -1179,8 +1209,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
         {popoverOpen && (
           <div
-            className="fixed z-[100] min-w-[160px] rounded-shell glass-panel overflow-hidden py-1"
-            style={{ left: popoverPos.x, top: popoverPos.y }}
+            // .context-menu for the border/shadow (flat, not .glass-panel's blur) — but with
+            // the background opacity overridden via inline style to ~94% instead of fully
+            // opaque: 100% opaque read as too flat/heavy for this single-verse popover
+            // specifically, while the multi-verse selection toolbar below (same family of
+            // menu) needed the opposite nudge (was too transparent, not enough contrast
+            // against selected/highlighted text) — so each gets its own explicit background
+            // opacity rather than sharing one value that can't satisfy both at once.
+            className="fixed z-[100] min-w-[160px] rounded-shell context-menu overflow-hidden py-1"
+            style={{ left: popoverPos.x, top: popoverPos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.94)' }}
           >
             <button
               onClick={copyVerse}
@@ -1484,12 +1521,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         </div>
       )}
 
-      {/* Selection toolbar — context menu */}
+      {/* Selection toolbar — context menu. Explicit fully-opaque backgroundColor (not just
+          the .context-menu class, which should already be 100% opaque on its own) — this
+          menu was reported as reading too see-through, particularly since it floats directly
+          over selected/highlighted verse text, so making the override explicit here removes
+          any doubt about cascade/specificity rather than relying on the shared class alone. */}
       {selToolbar && createPortal(
         <div
           ref={selToolbarRef}
-          className="fixed z-[9999] min-w-[180px] rounded-shell glass-panel overflow-hidden py-1"
-          style={{ left: selToolbar.x, top: selToolbar.y }}
+          className="fixed z-[9999] min-w-[180px] rounded-shell context-menu overflow-hidden py-1"
+          style={{ left: selToolbar.x, top: selToolbar.y, backgroundColor: 'rgb(var(--color-surface-2))' }}
         >
           {/* Color dot rows (3 rows × 5 colors) */}
           <div className="px-3 py-2 space-y-1.5">

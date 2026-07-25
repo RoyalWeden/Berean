@@ -917,18 +917,21 @@ export default function App() {
     return tab ? [{ spaceId, tabId, title: tab.title, tab }] : []
   })
 
-  // Same background treatment as ShellHeader.tsx's own root div (topbar-vibrant on mac,
-  // not just a token-equal flat color) — this root wrapper is what shows through behind
-  // ShellHeader's rounded bottom corners, and even matching the surface-2 token wasn't
-  // enough: the header renders with real translucent vibrancy (blended with the OS's
-  // window blur on mac), which a flat background can't visually reproduce, so the corner
-  // notch still read as a mismatched seam ("I can still see the corner"). Giving the root
-  // wrapper the identical vibrant treatment means literally everything behind the header,
-  // at every layer, renders the same way the header itself does.
+  // Deliberately a plain, DISTINCT background from ShellHeader's own (topbar-vibrant/
+  // surface-2) — an earlier version matched them so the notch behind ShellHeader's rounded
+  // bottom corners would render identically to the header itself, but that made the header
+  // read as a plain square bar again (the whole point of rounding those corners is for them
+  // to visibly stand out against what's behind).
+  // surface-3 (not surface-1) specifically — surface-1/2 are the app's "chrome" tone
+  // (deliberately a shade darker/grayer than content, e.g. 245/245/248 in the light theme,
+  // for the sidebar/header material), while surface-3 is the true content-area white
+  // (255/255/255 in light mode — <main> below uses this same token). The header's rounded
+  // corners sit above <main> on the right (always) and above Sidebar OR <main> on the left
+  // depending on collapse state — surface-1 showing through read as a visibly gray patch
+  // against the actually-white content beside it, reported as "a shadow"/gray fill in the
+  // corners that shouldn't be there. surface-3 is the closer match for the common case.
   return (
-    <div className={`flex flex-col h-screen overflow-hidden ${
-      window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'
-    }`}>
+    <div className="flex flex-col h-screen overflow-hidden bg-[rgb(var(--color-surface-3))]">
       <TopBarSlotContext.Provider value={topBarSlot}>
         {/* ShellHeader spans the FULL window width — it folds what used to be two separate
             bars (SidebarTopBar.tsx docked above just the sidebar, TopBar.tsx docked beside it)
@@ -940,18 +943,7 @@ export default function App() {
             leak through hidden chrome (Electron's OS-level drag hit-testing ignores CSS
             visibility — see ShellHeader.tsx's own noteFocusMode handling). */}
         <div
-          className={`${noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''} ${
-            window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'
-          }`}
-          // Same background treatment as ShellHeader.tsx's own root div — ShellHeader rounds
-          // its BOTTOM corners (rounded-b-shell), which reveals whatever is directly behind
-          // it in those two small corner notches. Without this, that reveal was the App root
-          // wrapper's flat background, which visibly differed from the header's own translucent
-          // vibrancy (blurred-through-the-window on mac; still a distinct render pass even when
-          // the flat token matches) — reported as "I can still see the corner." Giving this
-          // wrapper the identical background treatment means the notch shows the same rendered
-          // color as the header itself, so the rounded corner reads as a clean curve instead of
-          // a mismatched square peeking through.
+          className={noteFocusMode ? 'fixed top-0 left-0 right-0 z-40 opacity-0 pointer-events-none' : ''}
         >
           <ShellHeader slotRef={setTopBarSlot} />
         </div>
@@ -978,7 +970,13 @@ export default function App() {
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 'auto', opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                // Opacity on its own quicker transition, finishing before the width collapse —
+                // see Sidebar.tsx's internal collapse-toggle spring for the matching fix and the
+                // full reasoning (width-only animation reads as a clip, not a fade).
+                transition={{
+                  width: { duration: 0.22, ease: 'easeInOut' },
+                  opacity: { duration: 0.12, ease: 'easeOut' },
+                }}
                 className="flex"
                 style={{ overflow: 'hidden' }}
               >

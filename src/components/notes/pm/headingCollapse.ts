@@ -122,15 +122,15 @@ export function headingNodeView(getPos: () => number | undefined) {
     arrow.style.display = 'inline-flex'
     arrow.style.alignItems = 'center'
     // Gutter placement: pulled fully out of flow and into the editor's own
-    // left padding (pmEditor.css's `.ProseMirror` has 16px of it), so it sits
+    // left padding (pmEditor.css's `.ProseMirror` has a widened 28px of it
+    // on the left specifically, to give this arrow rail room), so it sits
     // to the left of wherever this heading's text column actually starts —
     // including nested headings inside a blockquote/list, where that
-    // anchor point is this element itself, not the page edge. -19px put the
-    // 14px-wide arrow 3px PAST that 16px padding box (touching/overflowing
-    // the editor's own outer edge, a reported bug) — -14px keeps it fully
-    // inside the padding with a small gap from the edge instead.
+    // anchor point is this element itself, not the page edge. -22px centers
+    // the 14px-wide arrow in that 28px gutter with a few px of margin on
+    // both the editor edge and the heading text.
     arrow.style.position = 'absolute'
-    arrow.style.left = '-14px'
+    arrow.style.left = '-22px'
     arrow.style.top = '50%'
     arrow.style.transform = 'translateY(-50%)'
     const updateArrow = () => {

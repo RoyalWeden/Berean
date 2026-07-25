@@ -173,6 +173,11 @@ export interface UpdateStatus {
 interface AppAPI {
   onCloseTab: (cb: () => void) => void
   onOpenSettings: (cb: () => void) => void
+  // Optional — a preload.ts change needs a full Electron restart (not just a Vite
+  // HMR renderer reload) to take effect, so callers should tolerate this being
+  // briefly absent rather than crash on it (see the call site in BiblePanel.tsx).
+  onTrackpadSwipeBegin?: (cb: () => void) => void
+  onTrackpadSwipeEnd?: (cb: () => void) => void
   onMenuAction: (cb: (action: string, payload?: unknown) => void) => void
   openFolderDialog: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>

@@ -113,6 +113,13 @@ interface ChapterViewProps {
   showStrongs: boolean
   textId?: string
   targetVerse?: number
+  /** What matched in the scripture search result that navigated here, so the landed verse
+   *  can highlight the specific term/word instead of just flashing the whole row — see
+   *  BiblePanel.tsx's onNavigate handler and ScriptureSearchView's SearchNavHighlight. */
+  targetVerseQuery?: string
+  targetVerseWordMode?: 'phrase' | 'all' | 'any'
+  targetVerseStrongsWords?: number[]
+  targetVerseStrongsExtraWords?: string[]
   endVerse?: number
   hiddenAnnotations?: string[]
   findQuery?: string
@@ -248,7 +255,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false }: ChapterViewProps) {
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -282,7 +289,10 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
   // independent of `targetVerse` itself, which the parent clears right after the scroll fires
   // (see onTargetVerseConsumed) so the scroll-restore logic in BiblePanel doesn't re-trigger on
   // tab remount. Without this split, the highlight would vanish the instant it appeared.
-  const [flashVerse, setFlashVerse] = useState<{ verse: number; end?: number } | null>(null)
+  const [flashVerse, setFlashVerse] = useState<{
+    verse: number; end?: number
+    query?: string; wordMode?: 'phrase' | 'all' | 'any'; strongsWords?: number[]; strongsExtraWords?: string[]
+  } | null>(null)
   const flashVerseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Verse we just scrollIntoView'd for, kept until the cross-ref banner effect
   // confirms settled so a corrective re-scroll can fire once layout has
@@ -338,7 +348,11 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
         // new text's different word count/wrapping lands as a hard instant cut, which is exactly
         // the "hard to follow" jump the View Transition on the Strong's toggle already solves.
         // Plain chapter navigation (same textId) deliberately skips this and stays instant/snappy.
-        if (isTranslationSwitch && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+        // ALSO skipped whenever scrolled away from the top — see toggleStrongsForTab's comment
+        // in BiblePanel.tsx for why (the transition's un-clipped snapshot can bleed over the
+        // top bar in that case); containerRef's own parent IS the scrollable viewport div.
+        const scrolledToTop = (containerRef.current?.parentElement?.scrollTop ?? 0) < 2
+        if (isTranslationSwitch && scrolledToTop && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
           // A still-running transition from a rapid previous switch would otherwise race
           // this one for the same named element — skip it first so only the latest wins.
           pendingViewTransitionRef.current?.skipTransition()
@@ -428,28 +442,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
   }, [bookId, chapter, textId, highlightChangeToken])
 
   useEffect(() => {
-    // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
-    console.warn('[BereanDebug] scroll-to-verse effect fired', { targetVerse, hasContainer: !!containerRef.current, versesLength: verses.length, versesKey, expectedKey: `${bookId}:${chapter}:${textId}` })
-    if (!targetVerse || !containerRef.current || verses.length === 0) {
-      console.warn('[BereanDebug] bailed: missing targetVerse/container/verses')
-      return
-    }
+    if (!targetVerse || !containerRef.current || verses.length === 0) return
     // `verses` can still hold the PREVIOUS chapter's data for one render — bookId/chapter/
     // targetVerse all update together, but the real new-chapter data only lands once the fetch
     // effect's promise resolves. versesKey is only set at that point, so this bails out (without
     // consuming targetVerse) until `verses` genuinely belongs to the chapter/text currently being
     // shown — avoiding scrolling to (and clearing targetVerse for) a same-numbered verse that
     // happens to exist in the stale, previous chapter.
-    if (versesKey !== `${bookId}:${chapter}:${textId}`) {
-      console.warn('[BereanDebug] bailed: versesKey mismatch', { versesKey, expected: `${bookId}:${chapter}:${textId}` })
-      return
-    }
+    if (versesKey !== `${bookId}:${chapter}:${textId}`) return
     const el = containerRef.current.querySelector(`[data-verse="${targetVerse}"]`)
-    if (!el) {
-      console.warn('[BereanDebug] bailed: no element found for data-verse', targetVerse, 'available verses:', Array.from(containerRef.current.querySelectorAll('[data-verse]')).map(e => e.getAttribute('data-verse')))
-      return
-    }
-    console.warn('[BereanDebug] scrolling to verse', targetVerse)
+    if (!el) return
     // Instant, not smooth, and aligned to the top of the viewport (not centered) — a
     // smooth-scroll animation can get interrupted/fought by other layout-settling effects
     // firing around the same time (cross-ref banner, note counts, etc.), which is how this
@@ -458,7 +460,14 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
     el.scrollIntoView({ behavior: 'auto', block: 'start' })
     lastScrolledVerseRef.current = targetVerse
     if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
-    setFlashVerse({ verse: targetVerse, end: endVerse })
+    // Carries whatever the search result matched (targetVerseQuery/Word/StrongsWords, read
+    // as props in this same render pass — they're cleared together with targetVerse right
+    // after this) so the verse can highlight the specific term, not just flash the whole row.
+    setFlashVerse({
+      verse: targetVerse, end: endVerse,
+      query: targetVerseQuery, wordMode: targetVerseWordMode,
+      strongsWords: targetVerseStrongsWords, strongsExtraWords: targetVerseStrongsExtraWords,
+    })
     // 1800ms wasn't long enough for the user to actually register which verse
     // just got highlighted before it faded — bumped to give it a fair chance
     // to be noticed.
@@ -750,6 +759,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
             ? verse.verse_num >= flashVerse.verse && verse.verse_num <= flashVerse.end
             : verse.verse_num === flashVerse.verse
         )
+        // Search-navigation highlight — only meaningful for the exact landed verse (word
+        // indices in particular are only valid for that one verse's own text), not the
+        // whole flashed range. Overrides the chapter-wide findQuery/findWordMode (which
+        // reflects the separate Find-in-chapter bar) just for this row, for as long as the
+        // flash itself lasts.
+        const isSearchNavTarget = isHighlighted && verse.verse_num === flashVerse?.verse
+        const rowFindQuery = isSearchNavTarget && flashVerse?.query ? flashVerse.query : findQuery
+        const rowFindWordMode = isSearchNavTarget && flashVerse?.query ? (flashVerse.wordMode ?? 'phrase') : findWordMode
+        const rowHighlightStrongsWords = isSearchNavTarget ? flashVerse?.strongsWords : undefined
+        const rowHighlightStrongsExtraWords = isSearchNavTarget ? flashVerse?.strongsExtraWords : undefined
         return (
           <VerseRow
             key={verse.verse_num}
@@ -763,8 +782,10 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
             highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}
             hiddenAnnotations={hiddenAnnotations}
             textId={textId}
-            findQuery={findQuery}
-            findWordMode={findWordMode}
+            findQuery={rowFindQuery}
+            findWordMode={rowFindWordMode}
+            highlightStrongsWords={rowHighlightStrongsWords}
+            highlightStrongsExtraWords={rowHighlightStrongsExtraWords}
             onStrongsClick={onStrongsClick}
             onWordClick={onWordClick}
           />
@@ -774,10 +795,15 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, endVer
       {/* Scripture cross-references from Taylor's footnotes (Taylor Hermas only) */}
       <HermasTaylorFootnoteRefs bookId={bookId} chapter={chapter} textId={textId} />
 
-      {/* Multi-verse selection toolbar — context menu */}
+      {/* Multi-verse selection toolbar — the actual "Copy verses"/"Copy selection"/
+          "Add note on range" menu (VerseRow.tsx has its own, separate word/phrase-
+          selection toolbar that already uses `.context-menu`). This one was still on
+          `.glass-panel`, whose 72%-opacity background (see global.css) reads as much
+          more transparent than the rest of the app's popup menus — switched to the
+          same opaque `.context-menu` treatment for consistency. */}
       {multiToolbar && (
         <MenuPositioner x={multiToolbar.x} y={multiToolbar.y}
-          className="min-w-[200px] rounded-shell glass-panel overflow-hidden py-1"
+          className="min-w-[200px] rounded-shell context-menu overflow-hidden py-1"
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           {/* Color grid: 3 rows × 5 colors */}

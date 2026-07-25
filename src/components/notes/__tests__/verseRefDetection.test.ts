@@ -380,6 +380,68 @@ describe('detectVerseBlock — single-line for every clean book', () => {
   }
 })
 
+// ── 8b. "Book N," comma form for multi-book editions (Recognitions of Clement) ──
+// bookChapterVerseLabel (parseRef.ts) GENERATES this exact comma'd shape ("Recognitions,
+// Book 1, 1:2") for search titles / copy-verse-reference output, but parseRef's own regex,
+// SINGLE_VERSE_LINE_RE, and VERSE_REF_SCAN_RE each independently required NO comma between
+// "Book N" and the chapter:verse — so text the app itself produces couldn't be parsed back.
+
+describe('detectVerseBlock — "Book N," comma form (Recognitions of Clement)', () => {
+  it('single-line: ref + body, comma before AND after "Book N"', () => {
+    const r = detectVerseBlock('Recognitions, Book 1, 1:2 For a thought that was in me constantly led me to think of my condition of mortality.')
+    expect(r).not.toBeNull()
+    expect(r!.kind).toBe('single')
+    expect(parseRef(r!.ref)?.bookId).toBe('RCL1')
+  })
+})
+
+describe('parseRef — "Book N," comma form', () => {
+  it('parses a bare reference with a comma before the chapter:verse', () => {
+    expect(parseRef('Recognitions, Book 1, 1:3')?.bookId).toBe('RCL1')
+  })
+})
+
+describe('findVerseRefMatches — "Book N," comma form', () => {
+  it('detects a bare reference (trailing period) with a comma before the chapter:verse', () => {
+    const matches = findVerseRefMatches('Recognitions, Book 1, 1:3.')
+    expect(matches.length).toBeGreaterThan(0)
+    expect(parseRef(matches[0].refText)?.bookId).toBe('RCL1')
+  })
+})
+
+// ── 8c. Embedded-comma book names (Shepherd of Hermas) ──────────────────────────
+// bookName() for Hermas is "Hermas, Visions" / "Hermas, Mandates" / "Hermas, Similitudes"
+// (a comma baked into the name itself), and verseClipboard.ts's copy-verse output adds a
+// further comma before the chapter:verse ("Hermas, Similitudes, 35:1") — the book-token
+// group in all three regexes needed to tolerate an embedded comma, not just the ones
+// around "Book N".
+
+describe('detectVerseBlock — embedded-comma book name (Hermas)', () => {
+  it('single-line: ref + body, comma within the book name AND before chapter:verse', () => {
+    const r = detectVerseBlock('Hermas, Similitudes, 35:1 Be careful, my children, to do what is right in all things.')
+    expect(r).not.toBeNull()
+    expect(r!.kind).toBe('single')
+    expect(parseRef(r!.ref)?.bookId).toBe('HER_SIM')
+  })
+})
+
+describe('parseRef — embedded-comma book name (Hermas)', () => {
+  it('parses a bare reference with a comma inside the book name and before chapter:verse', () => {
+    expect(parseRef('Hermas, Similitudes, 35:1')?.bookId).toBe('HER_SIM')
+  })
+  it('still parses the no-comma-before-chapter form (bookName\'s own comma only)', () => {
+    expect(parseRef('Hermas, Similitudes 35:1')?.bookId).toBe('HER_SIM')
+  })
+})
+
+describe('findVerseRefMatches — embedded-comma book name (Hermas)', () => {
+  it('detects a bare reference with the full comma\'d Hermas label', () => {
+    const matches = findVerseRefMatches('Hermas, Similitudes, 35:1.')
+    expect(matches.length).toBeGreaterThan(0)
+    expect(parseRef(matches[0].refText)?.bookId).toBe('HER_SIM')
+  })
+})
+
 // ── 9. Print HTML carries verse styles ───────────────────────────────────────
 
 describe('buildPrintHTML verse styling', () => {

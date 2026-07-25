@@ -153,6 +153,13 @@ export function bookOrder(bookId: string): number {
   return BOOK_ORDER_MAP.get(bookId) ?? 9999
 }
 
+/** The highest valid chapter number for a book, or undefined if unknown/unbounded.
+ *  Exported for multiBookSearch.ts's own range-checking on the book-numbered/
+ *  section-numbered editions it resolves outside parseRef's own regex. */
+export function maxChapterFor(bookId: string): number | undefined {
+  return MAX_CHAPTERS[bookId]
+}
+
 /** All books with a canonical display name (deduped by id, first occurrence wins). */
 export const ALL_BOOKS: ReadonlyArray<{ id: string; name: string; patterns: readonly string[] }> = (() => {
   const seen = new Set<string>()
@@ -256,16 +263,30 @@ export function resolveBookToken(raw: string): string | null {
   return null
 }
 
+// I–X is all multi-book Recognitions of Clement needs (RCL1..RCL10, its DB's actual max),
+// but written generally enough to handle any single roman numeral book/picker label safely.
+const ROMAN_TO_ARABIC: Record<string, string> = {
+  I: '1', II: '2', III: '3', IV: '4', V: '5',
+  VI: '6', VII: '7', VIII: '8', IX: '9', X: '10',
+  XI: '11', XII: '12', XIII: '13', XIV: '14', XV: '15',
+}
+
 /** Normalises roman-numeral book-name prefixes ("I Samuel" → "1 Samuel") to the
  *  arabic-numeral form used throughout the UI. The underlying text DBs store book
  *  names with roman numerals, so any raw book-name string read from the DB needs
- *  this before being shown to the user. */
+ *  this before being shown to the user. Also converts a trailing "Book <roman>"
+ *  subdivision (e.g. Recognitions of Clement's raw DB names, "Recognitions of
+ *  Clement — Book VII") — the leading-prefix replacements above only strip a roman
+ *  numeral at the very START of the string, so "Book VII" deeper in the name passed
+ *  through untouched, still reading in the book/chapter picker as "Book VII" instead
+ *  of the far more readable "Book 7". */
 export function normalizeBookName(name: string): string {
   return name
     .replace(/^III /, '3 ')
     .replace(/^II /, '2 ')
     .replace(/^I /, '1 ')
     .replace(/^Revelation of John$/, 'Revelation')
+    .replace(/\bBook\s+([IVX]+)\b/, (full, roman: string) => ROMAN_TO_ARABIC[roman] ? `Book ${ROMAN_TO_ARABIC[roman]}` : full)
 }
 
 export function bookName(bookId: string): string {
@@ -281,6 +302,19 @@ export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: n
   const name = bookName(bookId)
   const sep = /Book \d+$/.test(name) ? ', ' : ' '
   return verse != null ? `${name}${sep}${chapter}:${verse}` : `${name}${sep}${chapter}`
+}
+
+/** Formats a raw internal verse ref ("PRO.30.26", dot-separated: bookId.chapter[.verse])
+ *  into the human display form used everywhere else ("Proverbs 30:26"). A few UI spots
+ *  (note editor backlink/wikilink popups) were printing the raw dotted ref straight
+ *  through instead of going via bookChapterVerseLabel like every other verse display. */
+export function formatDottedVerseRef(ref: string): string {
+  const [bookId, chapter, verse] = ref.split('.')
+  if (!bookId || !chapter) return ref
+  const ch = Number(chapter)
+  if (!Number.isFinite(ch)) return ref
+  const v = verse ? Number(verse) : undefined
+  return bookChapterVerseLabel(bookId, ch, v != null && Number.isFinite(v) ? v : undefined)
 }
 
 const BOOK_TRANSLATION: Record<string, string> = {
@@ -523,8 +557,21 @@ export function parseRef(input: string): ParsedRef | null {
   // Group 4: start verse (optional, present when colon/period separator used)
   // Group 5: end verse (optional, when verse range)
   // Group 6: end chapter (optional, when chapter range without verse)
+  // The optional comma before chapter:verse (",?\s*(\d+)") matters just as much as the one
+  // before "Book N" — bookChapterVerseLabel (this file) GENERATES "Recognitions, Book 10,
+  // 41:8" with a comma in BOTH spots for multi-book editions, but this regex used to only
+  // accept the first comma, not the second. That meant text the app itself produces (search
+  // result titles, copy-verse-reference output, etc.) couldn't be parsed back by this same
+  // function — a real round-trip bug, confirmed via "Recognitions, Book 1, 1:2 <verse text>"
+  // silently failing to auto-detect as a verse block/reference in notes.
+  // Group 1 also allows a COMMA within the book token itself (`\w[\w\s,]*?`, not just
+  // `\w[\w\s]*?`) — bookName()'s own canonical names for some multi-book editions already
+  // contain one (Hermas: "Hermas, Visions" / "Hermas, Similitudes"), and verseClipboard.ts's
+  // copy-verse output now puts a comma before the chapter:verse for those too ("Hermas,
+  // Similitudes, 35:1"), so the book-token group needs to tolerate an embedded comma or the
+  // whole match fails past the book name instead of just treating it as part of the name.
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s]*?)(?:,?\s*Book\s+(\d{1,3}))?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
+    /^((?:\d\s*)?\w[\w\s,]*?)(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
   )
   if (!m) return null
 

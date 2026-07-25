@@ -179,10 +179,14 @@ const FloatingHoverPanel = forwardRef<FloatingHoverPanelHandle, FloatingHoverPan
             animate={{ width: expanded ? expandedWidth : collapsedWidth, height: expanded ? expandedHeight : collapsedHeight }}
             transition={{ type: 'spring', stiffness: 500, damping: 45 }}
             style={{ borderRadius: expanded ? RADIUS : collapsedRadius }}
-            className={`relative z-[9999] border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]/95 backdrop-blur-sm ${
+            // More translucent (75%/85%) with a lighter blur — matches FloatingRail.tsx's same
+            // tweak, so every one of these hover-expand rails (NoteSidePanel trigger,
+            // ScriptureSearchView's jump-to-book rail, the notes jump-to-folder rail, etc.)
+            // reads consistently as genuinely see-through rather than a near-opaque panel.
+            className={`relative z-[9999] border border-[rgb(var(--color-surface-4))] backdrop-blur-[2px] ${
               expanded
-                ? 'shadow-2xl cursor-default'
-                : 'shadow-lg cursor-pointer opacity-55 hover:opacity-100 transition-opacity'
+                ? 'bg-[rgb(var(--color-surface-2))]/75 shadow-2xl cursor-default'
+                : 'bg-[rgb(var(--color-surface-2))]/85 shadow-lg cursor-pointer opacity-55 hover:opacity-100 transition-opacity'
             }`}
           >
             {expanded && cornerBadge}

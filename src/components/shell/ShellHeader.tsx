@@ -3,12 +3,14 @@ import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, History, PanelLeft, Home, FileText, BookMarked, FileType, ScrollText, Youtube,
+  Download, RotateCcw,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { getAllNotes } from '@/lib/notesCache'
 import ActionPillGroup from './ActionPillGroup'
+import ShortcutKeys from './ShortcutKeys'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
 
@@ -63,6 +65,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const activateTab   = useAppStore((s) => s.activateTab)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const appZoom = useAppStore((s) => s.appZoom)
+  const updateStatus = useAppStore((s) => s.updateStatus)
 
   const isWin = window.__berean_platform === 'win32'
 
@@ -169,7 +172,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
               <Tooltip.Portal>
                 <Tooltip.Content side="bottom" sideOffset={6} className="z-50 flex items-center gap-2 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
                   {sidebarCollapsed ? 'Expand explorer' : 'Collapse explorer'}
-                  <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]">⌘⇧S</kbd>
+                  <ShortcutKeys keys="⌘⇧S" />
                   <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
                 </Tooltip.Content>
               </Tooltip.Portal>
@@ -250,6 +253,27 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                spacing (this div is flex-1, justify-end) is enough. ── */}
           <div ref={slotRef} className="flex-1 flex items-center justify-end gap-2 min-w-0 overflow-hidden" />
 
+          {/* ── Update available/ready — a persistent top-bar action, not just the small dot
+               badge on the Settings gear (Ribbon.tsx), so a download/restart being available
+               reads as an actual clickable next step wherever the user happens to be looking,
+               not something they have to already know to go find. Same window.app calls
+               Settings → Updates already uses; the status itself is the single shared
+               updateStatus store field (App.tsx owns the one onUpdateStatus subscription). ── */}
+          {(updateStatus.status === 'available' || updateStatus.status === 'ready') && (
+            <button
+              onClick={() => {
+                if (updateStatus.status === 'available') window.app.downloadUpdate()
+                else if (updateStatus.status === 'ready') window.app.installUpdate()
+              }}
+              title={updateStatus.status === 'available' ? `Download update${updateStatus.version ? ` (v${updateStatus.version})` : ''}` : 'Restart to finish installing the update'}
+              className="no-drag flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgb(var(--color-accent))] text-white hover:opacity-90 transition-opacity cursor-pointer flex-shrink-0"
+            >
+              {updateStatus.status === 'available'
+                ? <><Download size={12} /> Download update</>
+                : <><RotateCcw size={12} /> Restart to update</>}
+            </button>
+          )}
+
           {/* ── Windows min/max/close — same row, far right ── */}
           {isWin && <WindowControls />}
         </div>
@@ -266,10 +290,18 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
           // hit-testing does, so relying on CSS class alone here previously left the cursor
           // "inside" the panel while it still behaved as draggable underneath it.
           style={{ position: 'fixed', left: navDropdown.x, top: navDropdown.y, zIndex: 9999, minWidth: 240, maxWidth: 360, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          className="rounded-shell-lg glass-panel overflow-hidden text-xs"
+          // `overflow-hidden` moved to a nested inner div, off the same element as the shadow —
+          // combining overflow:hidden + border-radius + box-shadow on ONE element is a known
+          // WebKit/Chromium compositing gotcha where the shadow can render clipped to the
+          // element's square bounding box instead of following its own rounded corners (the
+          // "topbar" version of the same square-shadow-corner bug already fixed for the
+          // Bible side panel elsewhere — same root cause, different element). The outer div
+          // here now only carries the rounding + glass-panel shadow; the inner one clips.
+          className="rounded-shell-lg glass-panel text-xs"
           onMouseEnter={keepNavDropdownOpen}
           onMouseLeave={scheduleNavDropdownClose}
         >
+          <div className="rounded-shell-lg overflow-hidden">
           {(() => {
             const tabStack = currentTabNav?.stack ?? []
             const tabIdx   = currentTabNav?.idx ?? -1
@@ -356,6 +388,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
               </>
             )
           })()}
+          </div>
         </div>,
         document.body
       )}

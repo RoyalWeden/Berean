@@ -75,10 +75,12 @@ function safeFtsQuery(q: string, wordMode: 'all' | 'phrase'): string {
   // form finds text written in the other — the KJV spells numbers out as
   // words ("seven") far more often than it uses digits ("7"). Only in 'all'
   // mode: a phrase query's exact wording shouldn't get fuzzed.
+  // Explicit AND, not just whitespace — see notes.ts's safeNotesFts for why a
+  // bare term directly before a parenthesized OR-group is an FTS5 syntax error.
   return words.map(w => {
     const alts = numberTokenAlternates(w)
     return alts.length > 1 ? `(${alts.map(a => `${a}*`).join(' OR ')})` : `${w}*`
-  }).join(' ')
+  }).join(' AND ')
 }
 
 export function registerBibleHandlers(ipcMain: IpcMain): void {

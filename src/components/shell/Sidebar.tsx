@@ -381,13 +381,21 @@ export default function Sidebar() {
   // entirely (Obsidian's own "toggle the file explorer" behavior), rather
   // than shrinking down to a second icon rail beside the ribbon. Animated
   // via the outer motion.div's width (clipping the fixed-width aside inside
-  // it) rather than an instant unmount, so toggling reads as a slide instead
-  // of a jump cut.
+  // it) so toggling reads as a slide — width-only, though, read as an abrupt
+  // cut rather than a fade (the fixed-224px content just gets clipped away by
+  // the shrinking overflow-hidden box, with nothing actually fading). Opacity
+  // is now animated too, on its OWN faster transition that finishes well
+  // before the width spring does, so the content is already invisible by the
+  // time it starts getting visually clipped — the clip itself is never seen,
+  // and collapsing genuinely reads as a fade instead of a disappear.
   return (
     <motion.div
-      animate={{ width: sidebarCollapsed ? 0 : 224 }}
+      animate={{ width: sidebarCollapsed ? 0 : 224, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
-      transition={{ type: 'spring', stiffness: 500, damping: 45 }}
+      transition={{
+        width: { type: 'spring', stiffness: 500, damping: 45 },
+        opacity: { duration: 0.12, ease: 'easeOut', delay: sidebarCollapsed ? 0 : 0.05 },
+      }}
       className="h-full flex-shrink-0 overflow-hidden"
     >
     {/* disableHoverableContent — same fix as Ribbon.tsx: none of these

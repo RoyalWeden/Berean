@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
 import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -143,6 +143,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [flashAnchor, setFlashAnchor] = useState<{ verse: number; nonce: number } | null>(null)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
+  // Whether 2+ visible compare columns currently share the same bookId+chapter —
+  // reported live by CompareView (recomputed as columns/chapters change), so the
+  // toggle button below can gray itself out without a separate disable action.
+  const [compareSyncEligible, setCompareSyncEligible] = useState(false)
   const compareColRefs = useRef<(HTMLDivElement | null)[]>([])
   // Layout picker popover — now opened from the overflow menu (see items
   // below), so its anchor is computed from that trigger row's own rect
@@ -254,8 +258,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // effect make the right call using the CURRENT targetVerse value when a genuine navigation
     // (book/chapter/tab/space change) fires it, without also firing on the pure consumption.
     const hasTargetVerse = !!tabStateRef.current?.targetVerse
-    // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
-    console.warn('[BereanDebug] scroll-restore effect fired, resetting scrollTop=0', { hasTargetVerse, targetVerse: tabStateRef.current?.targetVerse, bookId: tabState.bookId, chapter: tabState.chapter })
+    // A translation switch that also remaps the chapter number (selectPickerTranslation,
+    // e.g. LXX/KJV Psalms numbering) changes tabState.chapter, which fires this same effect
+    // — but captureStrongsAnchor() already ran before that switch, and onVersesLoaded is
+    // about to restore that exact anchor once the new chapter's data lands. Snapping to 0
+    // here first would only produce a visible "flash to verse 1, then jump back down" —
+    // precisely the "should just flip, not scroll from verse one" behavior this guard
+    // avoids. Skip the reset entirely and let the pending anchor own this load instead.
+    if (strongsAnchorRef.current) return
     // Reset to top immediately to avoid flash of old position
     el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
@@ -539,6 +549,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // current book if the target has it, otherwise navigates to the target's first book.
   function selectPickerTranslation(tid: string) {
     if (!activeTab) return
+    // Capture the currently top-visible verse before ANY edition switch below (same
+    // mechanism the Strong's toggle uses — see captureStrongsAnchor's comment) so the
+    // translation change can restore roughly the same reading position instead of always
+    // snapping to the top of the chapter. Restored by the effect keyed on
+    // tabState.translation further down, once the new edition's data has loaded.
+    captureStrongsAnchor()
     const tgtEdition = editionForTextId(tid)
     const curEdition = editionForTextId(textId)
     if (tgtEdition && curEdition && tgtEdition.id === curEdition.id) {
@@ -550,20 +566,22 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     window.bible.getBooks(tid).then((bks) => {
       const hasBook = (bks as Book[]).some((b) => b.id === tabState.bookId)
       if (hasBook) {
-        // Always reset scroll position on an edition switch — even when the chapter number
-        // is unchanged (e.g. KJVA <-> LXX Genesis 3), the two editions can have a different
-        // verse layout, so carrying over the old pixel offset lands on the wrong verse.
+        // scrollPosition is deliberately left alone here (not forced to 0) — the anchor
+        // restore above handles repositioning for the common case (same/similar verse
+        // layout); if the anchor verse genuinely doesn't exist in the new edition,
+        // restoreStrongsAnchor's querySelector simply finds nothing and no-ops, which
+        // safely leaves the scroll wherever the reflow naturally landed rather than
+        // forcing a jump to the top for editions whose verse layout actually DOES differ.
         updateTabState('scripture', activeTab.id, {
           translation: tid.toUpperCase(),
           chapter: mappedChapter,
-          scrollPosition: 0,
           targetVerse: undefined,
           endVerse: undefined,
         })
       } else {
         const first = (bks as Book[])[0]
         updateTabState('scripture', activeTab.id, first
-          ? { translation: tid.toUpperCase(), bookId: first.id, chapter: 1, scrollPosition: 0, targetVerse: undefined, endVerse: undefined }
+          ? { translation: tid.toUpperCase(), bookId: first.id, chapter: 1, targetVerse: undefined, endVerse: undefined }
           : { translation: tid.toUpperCase() })
       }
     }).catch(() => updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() }))
@@ -594,10 +612,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   useEffect(() => {
     if (!activeTab) return
-    if (tabState.searchMode) {
-      if (activeTab.title !== 'Search') renameTab('scripture', activeTab.id, 'Search')
-      return
-    }
+    // Search-mode tabs get their title from ScriptureSearchView's own debounced
+    // onStateChange (below) instead of here — that one knows the live query and
+    // renders it as the title (e.g. `"seven"`). Forcing a synchronous rename to
+    // the literal string "Search" here as well raced against that debounce:
+    // switching to an existing search tab with a saved query briefly flashed
+    // "Search" before the real query-based title landed ~150ms later.
+    if (tabState.searchMode) return
     if (!currentBook) return
     const title = tabState.endChapter && tabState.endChapter > tabState.chapter
       ? `${currentBook.name} ${tabState.chapter}–${tabState.endChapter}`
@@ -682,6 +703,32 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = getScrollEl()
     if (!container) return
     const containerTop = container.getBoundingClientRect().top
+    // If the user has an active text selection inside this chapter, anchor on the
+    // selection's own on-screen position instead of just "whichever verse happens to sit
+    // at the very top" — a selection is very often mid-verse or mid-chapter, well below the
+    // container's top edge, so anchoring on the topmost verse could land the flip's
+    // corrective scroll far from where the user was actually looking/selecting. The
+    // selection itself isn't restored (the underlying text nodes are regenerated by the
+    // reflow either way) — only its screen position is, same mechanism as the verse anchor.
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0)
+      const startNode = range.startContainer
+      const startEl = startNode.nodeType === Node.ELEMENT_NODE ? (startNode as Element) : startNode.parentElement
+      const verseEl = startEl?.closest<HTMLElement>('[data-verse]')
+      if (verseEl && container.contains(verseEl)) {
+        const rect = range.getBoundingClientRect()
+        // A collapsed-looking rect (0-width/height, can happen for some range shapes) has
+        // nothing useful to anchor on — fall through to the topmost-visible-verse path below.
+        if (rect.width > 0 || rect.height > 0) {
+          strongsAnchorRef.current = {
+            verseNum: parseInt(verseEl.dataset.verse ?? '0', 10),
+            offsetPx: rect.top - containerTop,
+          }
+          return
+        }
+      }
+    }
     const verseEls = container.querySelectorAll<HTMLElement>('[data-verse]')
     for (const el of verseEls) {
       const rect = el.getBoundingClientRect()
@@ -724,7 +771,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function toggleStrongsForTab(tabId: string, next: boolean) {
     captureStrongsAnchor()
     const apply = () => updateTabState('scripture', tabId, { showStrongs: next })
-    if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+    // View Transitions capture/animate the named element as a plain snapshot image,
+    // rendered in a top-layer overlay that ignores the scroll container's own overflow
+    // clipping — while scrolled to the very top of the chapter that's harmless (the tall
+    // content div's top edge IS the visible viewport's top edge), but scrolled DOWN even a
+    // little, that same un-clipped snapshot's natural on-screen position extends up past
+    // the visible reading area and can paint over ShellHeader's top bar for the ~100ms the
+    // transition runs. Skipping the transition outright whenever scrolled — falling back to
+    // an instant, non-animated update — is what actually avoids that, not any amount of CSS
+    // clipping (tried and reverted; it clipped view transitions elsewhere in the app too).
+    const scrolledToTop = (getScrollEl()?.scrollTop ?? 0) < 2
+    if (scrolledToTop && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
       // A still-running transition from a rapid previous toggle would otherwise race this
       // one for the same named chapter element(s) — skip it first so only the latest wins.
       pendingStrongsTransitionRef.current?.skipTransition()
@@ -1106,6 +1163,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }
   }, []) // refs never change identity — getScrollEl reads refs directly
 
+  // Clears targetVerse AND its companion search-highlight fields together — leaving the
+  // latter behind after the former is consumed would highlight a stale term the next time
+  // targetVerse is set from somewhere that doesn't also pass a highlight (e.g. a plain
+  // cross-ref/note verse link).
+  function clearTargetVerse() {
+    if (!activeTab) return
+    updateTabState('scripture', activeTab.id, {
+      targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
+      targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
+    })
+  }
+
   function handleStrongsClick(strongsNum: string) {
     // No side panel in floating windows — skip opening it
     if (!floating) {
@@ -1239,6 +1308,205 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     document.addEventListener('mouseup', onUp)
   }
 
+  // ── Two-finger trackpad swipe to collapse/expand the right side panel ────────
+  // Notification-Center-style: the panel visibly tracks the gesture in real time
+  // (not a binary toggle at a threshold), snapping fully open/closed only once the
+  // user actually releases — based on distance + velocity — and never resizing,
+  // only sliding (see panelSize below, untouched by any of this). A native
+  // (non-React) `wheel` listener with `{ passive: false, capture: true }` is
+  // required — same precedent as PDFViewer.tsx's own manual wheel listener — so
+  // `preventDefault()` actually takes effect and nothing nested can consume the
+  // event first; React's synthetic wheel handler is attached passively.
+  //
+  // History of what didn't work, briefly (full reasoning lives in the git
+  // history / conversation): listening only on the thin resize divider was too
+  // small a target; requiring an edge-zone start when closed made opening
+  // unreliable since a swipe's starting cursor position is incidental; and a
+  // SINGLE piece of live state (`swipeCloseFrac`) that got unconditionally reset
+  // by a silence-debounce meant every natural pause between repeated swipe
+  // strokes threw away all progress and re-judged each stroke alone against the
+  // full open/close threshold — so unless one continuous stroke alone crossed
+  // halfway (hard on a real trackpad), the panel just sprang back. Tuning the
+  // debounce timing alone couldn't fix that (too short → premature snaps mid-
+  // swipe; too long → the panel visibly freezes in place for up to the full
+  // timeout after a genuine release before committing).
+  //
+  // Current design: a REST position that survives pauses (restFracRef/restFrac,
+  // "where the panel is currently sitting"), separate from per-SEGMENT gesture
+  // state (swipeStateRef, "this particular stretch of continuous wheel ticks").
+  // A short silence timer only PAUSES (holds position, decides nothing); a
+  // longer one — or, when available, the REAL trackpad finger-lift signal from
+  // Electron's main process (window.app.onTrackpadSwipeEnd, see main.ts's
+  // 'web-contents-created'/'input-event' → 'gestureScrollEnd' hook) — COMMITS
+  // (makes the actual open/closed decision). Multiple separate strokes
+  // naturally accumulate in restFracRef instead of each restarting from
+  // scratch, which is what makes reaching "open" via several short natural
+  // swipes actually work.
+  const PAUSE_MS = 180        // silence → hold position, no decision
+  const COMMIT_FALLBACK_MS = 550   // further silence after a pause → commit (only used if the real gesture-end IPC signal doesn't arrive first)
+  const SWIPE_REFERENCE_PX = 100   // fixed distance for a "full" swipe — independent of panel width, tuned for real trackpad travel rather than requiring 50% of an arbitrary panel width
+
+  // 0-1: where the panel is currently RESTING (0 = fully open, 1 = fully closed).
+  // Persists across pauses — only ever cleared once a commit actually happens —
+  // so a second swipe stroke continues from here rather than from the last
+  // committed rightPanelOpen boolean. null = fully at rest, no gesture session
+  // active at all (use rightPanelOpen directly).
+  const [restFrac, setRestFrac] = useState<number | null>(null)
+  const restFracRef = useRef<number | null>(null)
+  // Per-SEGMENT only (a segment = one unbroken stretch of wheel ticks between
+  // pauses) — re-seeded from restFracRef every time a new segment starts, NOT
+  // from the committed rightPanelOpen boolean, so segments chain together.
+  const swipeStateRef = useRef<{ segmentStartFrac: number; accumDeltaX: number; lastTime: number; recentTicks: Array<{ dx: number; dt: number }> } | null>(null)
+  // Smoothed velocity, kept even through a pause (recomputed fresh each segment,
+  // but not wiped by pauseSwipe itself) so a commit firing well after the last
+  // wheel tick can still see how fast that last segment was moving.
+  const lastVelocityRef = useRef(0)
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Kept fresh every render so the stable wheel listener below (attached once per
+  // DOM node via the callback ref, never recreated) always reads current values
+  // instead of a stale closure from whichever render happened to be active when it
+  // was attached.
+  const swipeLiveRef = useRef({ rightPanelOpen, rightPanelWidth, activeTab })
+  swipeLiveRef.current = { rightPanelOpen, rightPanelWidth, activeTab }
+
+  function clearSwipeTimers() {
+    if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null }
+    if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null }
+  }
+
+  // Silence (or, once wired, a lull the real IPC signal doesn't immediately
+  // resolve) → HOLD. Does not touch restFracRef/restFrac at all — the panel
+  // stays exactly where it visually is — and makes no open/closed decision.
+  // Only ends the current per-segment tracking (so the next wheel tick starts a
+  // fresh segment seeded from wherever restFracRef already sits) and lets the
+  // resting position ease normally instead of staying pinned to instant-jump
+  // mode. Schedules the fallback commit timer in case the real gesture-end
+  // signal never arrives.
+  function pauseSwipe() {
+    swipeStateRef.current = null
+    setIsResizingPanel(false)
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
+    commitTimerRef.current = setTimeout(() => commitSwipeRef.current('timeout'), COMMIT_FALLBACK_MS)
+  }
+
+  // The actual decision point — position (restFracRef) + smoothed velocity →
+  // open or closed. Called from the fallback timer OR (once Part A lands) the
+  // real `app:trackpadSwipeEnd` IPC event — either way ends the whole gesture
+  // session: restFracRef resets to null (back to pure rightPanelOpen-driven
+  // display) and no further segment can silently resume it.
+  function commitSwipe(_reason: 'timeout' | 'gesture-end') {
+    clearSwipeTimers()
+    swipeStateRef.current = null
+    const rest = restFracRef.current
+    restFracRef.current = null
+    setRestFrac(null)
+    setIsResizingPanel(false)
+    if (rest === null) return // no session was actually active — nothing to decide
+    const { rightPanelOpen: wasOpen, activeTab: curTab } = swipeLiveRef.current
+    const fastFlick = Math.abs(lastVelocityRef.current) > 0.5
+    const shouldOpen = fastFlick ? lastVelocityRef.current > 0 : rest < 0.5
+    if (shouldOpen !== wasOpen) {
+      setRightPanelOpen(shouldOpen)
+      if (curTab) updateTabState('scripture', curTab.id, { rightPanelOpen: shouldOpen })
+    }
+    // rightPanelWidth is never read from or written to here — the panel's width
+    // is untouched by this whole gesture, start to finish.
+  }
+  const commitSwipeRef = useRef(commitSwipe)
+  commitSwipeRef.current = commitSwipe
+
+  // Real trackpad finger-down/finger-up, from Electron's main process (macOS
+  // NSEventPhase-driven — see main.ts) — the actual fix for "only decide once
+  // fingers truly lift." Begin defensively cancels a stale pending fallback
+  // commit (in case a new physical gesture starts right as an old one's
+  // fallback timer was about to fire); End commits immediately rather than
+  // waiting out COMMIT_FALLBACK_MS. Optional-chained — preload.ts changes need
+  // a full Electron restart (not just a Vite HMR reload) to take effect, so a
+  // renderer that reloaded without one would otherwise hard-crash the whole
+  // panel on a missing function; the swipe gesture just falls back to the
+  // COMMIT_FALLBACK_MS timeout alone in that case, same as before Part A.
+  useEffect(() => {
+    window.app.onTrackpadSwipeBegin?.(() => { if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null } })
+    window.app.onTrackpadSwipeEnd?.(() => { if (swipeStateRef.current || restFracRef.current !== null) commitSwipeRef.current('gesture-end') })
+  }, [])
+
+  // Stable (never recreated) wheel handler — only reads through refs, so it's safe
+  // to attach once per DOM node without needing to re-run on every render.
+  const onSwipeWheelRef = useRef((e: WheelEvent) => {
+    // Real two-finger horizontal swipe only: pinch-zoom sets ctrlKey true, and a
+    // vertical-dominant wheel event is ordinary scrolling, neither of which
+    // should be read as a panel-toggle gesture.
+    if (e.ctrlKey) return
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+    const { rightPanelOpen: isOpen } = swipeLiveRef.current
+    e.preventDefault()
+    setIsResizingPanel(true)
+    const now = performance.now()
+    if (!swipeStateRef.current) {
+      // Seed from wherever the panel is CURRENTLY resting (mid-pause from an
+      // earlier stroke in this same session), falling back to the committed
+      // rightPanelOpen boolean only when there's no session in progress at all.
+      // This is what lets several short strokes accumulate instead of each one
+      // restarting from scratch.
+      const segmentStartFrac = restFracRef.current ?? (isOpen ? 0 : 1)
+      swipeStateRef.current = { segmentStartFrac, accumDeltaX: 0, lastTime: now, recentTicks: [] }
+    }
+    const s = swipeStateRef.current
+    const dt = Math.max(1, now - s.lastTime)
+    s.lastTime = now
+    s.accumDeltaX += e.deltaX
+    // Smoothed velocity over a short rolling window (not just the single most
+    // recent tick) — an unsmoothed last-tick-only read made the "fast flick"
+    // shortcut far more available to decisive closing swipes (which tend to
+    // end at high instantaneous velocity right as fingers lift) than to
+    // slower, more tentative opening swipes, which was the actual cause of
+    // "closing works, opening doesn't" (the distance math itself is symmetric).
+    s.recentTicks.push({ dx: e.deltaX, dt })
+    if (s.recentTicks.length > 4) s.recentTicks.shift()
+    const sumDx = s.recentTicks.reduce((a, t) => a + t.dx, 0)
+    const sumDt = s.recentTicks.reduce((a, t) => a + t.dt, 0)
+    lastVelocityRef.current = sumDx / Math.max(1, sumDt)
+    // macOS "natural" trackpad scrolling reports a LEFT two-finger swipe as
+    // positive deltaX — sliding content left, which for a right-edge panel
+    // reveals more of it (opening), matching Notification Center's own
+    // swipe-left-from-the-right-edge-to-open convention. Converted to a fraction
+    // of a FIXED reference distance (not the panel's own width — requiring 50%
+    // of e.g. a 280px panel, 140px of accumulated delta, was steep for real
+    // trackpad travel) — the panel still only ever slides between 0% (open)
+    // and 100% (closed) of its own unchanging size, this just controls how much
+    // physical swipe distance maps to the full 0-1 range.
+    const frac = Math.max(0, Math.min(1, s.segmentStartFrac - s.accumDeltaX / SWIPE_REFERENCE_PX))
+    restFracRef.current = frac
+    setRestFrac(frac)
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current)
+    // Also cancel any pending fallback commit — new activity means the previous
+    // pause wasn't actually a release, so don't let a stale commit fire out from
+    // under an in-progress resumed stroke.
+    if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null }
+    pauseTimerRef.current = setTimeout(pauseSwipeRef.current, PAUSE_MS)
+  })
+  const pauseSwipeRef = useRef(pauseSwipe)
+  pauseSwipeRef.current = pauseSwipe
+
+  // A callback ref (not a plain useRef) — this panel area only exists while
+  // currentLayout === 'standard', so it can mount/unmount independent of the rest
+  // of BiblePanel; a useEffect keyed on mount-once would miss re-attaching after
+  // switching away from and back to this layout. A callback ref fires on every
+  // attach/detach regardless of cause, so it always tracks whichever node (if any)
+  // is currently mounted.
+  const panelAreaElRef = useRef<HTMLDivElement | null>(null)
+  const panelAreaRef = useCallback((el: HTMLDivElement | null) => {
+    const prev = panelAreaElRef.current
+    if (prev) prev.removeEventListener('wheel', onSwipeWheelRef.current, true)
+    panelAreaElRef.current = el
+    // capture: true — fires on the way DOWN to whatever's under the cursor,
+    // before any nested element (verse text, a horizontally-scrollable Strong's
+    // row, etc.) gets a chance to see the event at all, so nothing nested can
+    // ever end up consuming/altering it first.
+    if (el) el.addEventListener('wheel', onSwipeWheelRef.current, { passive: false, capture: true })
+  }, [])
+
   // Vertical resize specifically for the lexicon-crossref bottom row height
   const lcResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   function handleLCVResizeMouseDown(e: React.MouseEvent) {
@@ -1341,7 +1609,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               }, 150)
             }
           }}
-          onNavigate={(bookId, chapter, verse, tid) => {
+          onNavigate={(bookId, chapter, verse, tid, highlight) => {
             if (!activeTab) return
             const newTranslation = tid.toUpperCase()
             const savedQuery = tabState.scriptureSearchQuery ?? ''
@@ -1356,11 +1624,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             if (savedQuery) {
               useAppStore.getState().pushTabNav(activeTab.id, { type: 'bible', title: `Search: "${savedQuery}"`, query: savedQuery })
             }
-            // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
-            console.warn('[BereanDebug] ScriptureSearchView onNavigate updateTabState', { tabId: activeTab.id, bookId, chapter, verse, newTranslation })
             // Navigate within this tab (search → reader), preserving search state for back button
             updateTabState('scripture', activeTab.id, {
               translation: newTranslation, bookId, chapter, targetVerse: verse,
+              // Carries what matched (searched word/phrase or Strong's word indices) so the
+              // landed verse can highlight it, not just flash — see ChapterView's scroll-to-
+              // verse effect and VerseRow's targetVerseStrongsWords handling.
+              targetVerseQuery: highlight?.query,
+              targetVerseWordMode: highlight?.wordMode,
+              targetVerseStrongsWords: highlight?.strongsWords,
+              targetVerseStrongsExtraWords: highlight?.strongsExtraWords,
               scrollPosition: 0, searchMode: false, noteBack: null,
               searchBack: savedQuery ? { query: savedQuery } : null,
             })
@@ -1408,19 +1681,37 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             see the pushTabNav call in onNavigate below), without needing a
             second, panel-local affordance. */}
         {isCompareMode ? (
-          <BookChapterPicker
-            books={books}
-            currentBookId={tabState.bookId}
-            currentChapter={tabState.chapter}
-            onNavigate={addComparePanel}
-            editions={EDITIONS}
-            currentTextId={addPanelTextId ?? textId}
-            onSelectTranslation={setAddPanelTextId}
-            triggerLabel={<PanelRightDashed size={16} />}
-            triggerTitle="Add comparison panel"
-            triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
-            popoverHeader={describeComparePanels()}
-          />
+          <>
+            <BookChapterPicker
+              books={books}
+              currentBookId={tabState.bookId}
+              currentChapter={tabState.chapter}
+              onNavigate={addComparePanel}
+              editions={EDITIONS}
+              currentTextId={addPanelTextId ?? textId}
+              onSelectTranslation={setAddPanelTextId}
+              triggerLabel={<PanelRightDashed size={16} />}
+              triggerTitle="Add comparison panel"
+              triggerClassName="flex items-center justify-center w-8 h-8 rounded-md border border-dashed border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+              popoverHeader={describeComparePanels()}
+            />
+            {/* Sync scroll — only meaningful once 2+ columns share the same chapter (a
+                different translation of the same passage); grays out otherwise rather
+                than disappearing, so it's discoverable before the precondition is met. */}
+            <HintTooltip label={compareSyncEligible ? (tabState.compareSyncScroll ? 'Stop syncing scroll' : 'Sync scroll across matching chapters') : 'Sync scroll (needs 2+ columns on the same chapter)'}>
+              <button
+                onClick={() => { if (activeTab) updateTabState('scripture', activeTab.id, { compareSyncScroll: !tabState.compareSyncScroll }) }}
+                disabled={!compareSyncEligible}
+                className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default ${
+                  tabState.compareSyncScroll
+                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'
+                }`}
+              >
+                <Link2 size={15} />
+              </button>
+            </HintTooltip>
+          </>
         ) : (
           <>
             {/* Prev chapter / book+chapter+edition picker / next chapter — one
@@ -1799,6 +2090,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         }}
         initialColumns={tabState.compareColumns}
         onColumnsChange={(cols) => { if (activeTab) updateTabState('scripture', activeTab.id, { compareColumns: cols }) }}
+        syncScrollEnabled={!!tabState.compareSyncScroll}
+        onSyncEligibleChange={setCompareSyncEligible}
       />
     ) : continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId) ? (
       <ContinuousChapterScroll
@@ -1827,7 +2120,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           renameTab('scripture', activeTab.id, chTitle)
         }}
         onVersesLoaded={onVersesLoaded}
-        onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
+        onTargetVerseConsumed={clearTargetVerse}
         onScroll={handleBibleScroll}
         presenterBand={presenterBand}
         viewerPaused={viewerPaused}
@@ -1969,6 +2262,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 showStrongs={tabState.showStrongs}
                 textId={textId}
                 targetVerse={ch === tabState.chapter ? tabState.targetVerse : undefined}
+                targetVerseQuery={ch === tabState.chapter ? tabState.targetVerseQuery : undefined}
+                targetVerseWordMode={ch === tabState.chapter ? tabState.targetVerseWordMode : undefined}
+                targetVerseStrongsWords={ch === tabState.chapter ? tabState.targetVerseStrongsWords : undefined}
+                targetVerseStrongsExtraWords={ch === tabState.chapter ? tabState.targetVerseStrongsExtraWords : undefined}
                 endVerse={undefined}
                 hiddenAnnotations={tabState.hiddenAnnotations}
                 findQuery={findQuery}
@@ -1976,7 +2273,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onStrongsClick={handleStrongsClick}
                 onWordClick={handleWordClick}
                 onVersesLoaded={ch === tabState.chapter ? onVersesLoaded : undefined}
-                onTargetVerseConsumed={ch === tabState.chapter ? (() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }) : undefined}
+                onTargetVerseConsumed={ch === tabState.chapter ? clearTargetVerse : undefined}
                 flashAnchor={ch === tabState.chapter ? flashAnchor : undefined}
               />
             ))
@@ -1987,6 +2284,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 showStrongs={tabState.showStrongs}
                 textId={textId}
                 targetVerse={tabState.targetVerse}
+                targetVerseQuery={tabState.targetVerseQuery}
+                targetVerseWordMode={tabState.targetVerseWordMode}
+                targetVerseStrongsWords={tabState.targetVerseStrongsWords}
+                targetVerseStrongsExtraWords={tabState.targetVerseStrongsExtraWords}
                 endVerse={tabState.endVerse}
                 hiddenAnnotations={tabState.hiddenAnnotations}
                 findQuery={findQuery}
@@ -1994,7 +2295,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onStrongsClick={handleStrongsClick}
                 onWordClick={handleWordClick}
                 onVersesLoaded={onVersesLoaded}
-                onTargetVerseConsumed={() => { if (activeTab) updateTabState('scripture', activeTab.id, { targetVerse: undefined }) }}
+                onTargetVerseConsumed={clearTargetVerse}
                 flashAnchor={flashAnchor}
               />
             )
@@ -2033,14 +2334,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     )
 
     const hDivider = (
-      <div
-        onMouseDown={handleResizeMouseDown}
-        className="group relative w-1 flex-shrink-0 cursor-col-resize hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
-      >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
-          <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+      // Widened from the original 4px (`w-1` below) to a 14px hit-area — the two-
+      // finger-swipe gesture itself listens on the much larger panelAreaRef below,
+      // not here, but the wider strip is still a nicer mouse-drag-resize target.
+      <div className="group relative w-3.5 flex-shrink-0 flex justify-center cursor-col-resize">
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="w-1 h-full hover:bg-[rgb(var(--color-accent))/40] transition-colors bg-transparent"
+        >
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+            <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
+          </div>
         </div>
       </div>
     )
@@ -2056,6 +2362,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         </div>
       </div>
     )
+    // Purely rightPanelWidth — the two-finger swipe (see the wheel listener above)
+    // never touches this. The panel's WIDTH stays constant through an entire swipe
+    // gesture; only its `x` translate (see restFrac, wired into the 'standard'
+    // case's motion.div below) tracks the gesture. Shared by every layout case
+    // below since panelSize is computed once here, not per-case.
     const panelSize = Math.max(160, Math.min(600, rightPanelWidth))
 
     switch (currentLayout) {
@@ -2077,23 +2388,71 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         )
 
       // ── Standard (panel right) ───────────────────────────────────────────────
+      // The panel FLOATS over the scripture pane (position: absolute) rather than sharing
+      // the row as a flex sibling — a flex sibling shrinks scriptureView's available width
+      // the instant the panel opens, which reads as the whole reading pane visibly shifting/
+      // shrinking left. Overlaying keeps the scripture pane's own width (and therefore its
+      // text layout/scroll position) completely undisturbed by the panel opening or resizing;
+      // the panel's own shadow-lg is what now actually does its job, floating on top instead
+      // of just decorating a box that was already sharing the row.
       case 'standard':
       default:
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
-            <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
+          // ref={panelAreaRef} — the two-finger-swipe wheel listener covers this whole
+          // area (not just a thin strip): any horizontal swipe anywhere over it, in
+          // either open or closed state, drives the gesture (see onSwipeWheelRef's
+          // own comment). Only wired up for this 'standard' layout — the one case
+          // whose container is a simple position:absolute area a listener can cover
+          // without disturbing the flex-based layouts every other case relies on.
+          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0">
+            <div className="absolute inset-0 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             <AnimatePresence initial={false}>
-              {rightPanelOpen && (
+              {(rightPanelOpen || restFrac !== null) && (
                 <motion.div
                   key="right-panel"
-                  initial={{ width: 0 }}
-                  animate={{ width: panelSize + 4 }}
-                  exit={{ width: 0 }}
+                  initial={{ x: '100%' }}
+                  // Live-tracks the swipe's REST position (0% = fully open, 100% =
+                  // fully closed) while a gesture session is active; otherwise the
+                  // normal open position. Width is NEVER part of this — panelSize/the
+                  // wrapper's own `width` style below stays fixed at rightPanelWidth
+                  // throughout, so the panel only ever slides horizontally, never
+                  // resizes, matching the click-driven open/close animation this
+                  // reuses (initial/exit at x:'100%' below).
+                  animate={{ x: restFrac !== null ? `${restFrac * 100}%` : 0 }}
+                  exit={{ x: '100%' }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  className="flex-shrink-0 flex overflow-hidden"
+                  // rounded-shell-lg on ALL corners (not just the right side, where the panel
+                  // itself sits) — this wrapper's overflow-hidden clips to a perfectly SQUARE
+                  // box by default, which cut the inner panel's shadow-2xl off in a hard
+                  // right-angle wherever it should have curved around the panel's own
+                  // rounded-shell-lg corners (reported as "the shadow isn't rounded," bottom-left
+                  // specifically — the shadow spreads left+down from that corner into the
+                  // hDivider strip on the wrapper's LEFT edge, which `rounded-r-shell-lg` alone
+                  // left square). Rounding every corner of the clip region, not just the two on
+                  // the panel's own side, is what actually closes that gap.
+                  className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-shell-lg"
+                  // +14 for hDivider (widened from 4px to 14px for the two-finger-swipe hit
+                  // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
+                  // OLD comment, same reasoning still applies) — this wrapper's overflow-hidden
+                  // needs the extra 6px of room or that right margin gets silently clipped.
+                  style={{ width: panelSize + 14 + 6 }}
                 >
                   {hDivider}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl()}</div>
+                  {/* overflow-hidden lives on the INNER div, off the same element as the
+                      border/shadow — combining overflow:hidden + rounded corners + box-shadow
+                      on ONE element is a WebKit/Chromium compositing gotcha where the shadow
+                      renders clipped to the element's square bounding box instead of its own
+                      rounded corners (independent of — and in addition to — the outer wrapper
+                      rounding fix above; this was the actual remaining "bottom-left corner
+                      still square" bug). Outer div now only carries rounding/border/shadow.
+                      shadow-lg (not shadow-2xl) — this panel floats via `position: absolute`
+                      directly over live scripture text rather than beside a neutral page
+                      background like the other layout cases, so shadow-2xl's much heavier/
+                      darker spread read as an unnatural dark bleed across the text underneath.
+                      shadow-lg matches what every other panel case here already uses. */}
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2109,12 +2468,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <motion.div
                   key="left-panel"
                   initial={{ width: 0 }}
-                  animate={{ width: panelSize + 4 }}
+                  // See the 'standard' case's comment — same fix, margin now on the left.
+                  animate={{ width: panelSize + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  className="flex-shrink-0 flex overflow-hidden"
+                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
+                  // comment; the previous right-only-corners attempt still left the OTHER two
+                  // corners' shadow spread square-clipped by this wrapper.
+                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
                 >
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl()}</div>
+                  {/* overflow-hidden on the inner div — see the 'standard' case's comment
+                      (same-element overflow+radius+shadow compositing bug). */}
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  </div>
                   {hDivider}
                 </motion.div>
               )}
@@ -2165,14 +2532,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <motion.div
                   key="notes-right-panel"
                   initial={{ width: 0 }}
-                  animate={{ width: panelSize + 4 }}
+                  // See the 'standard' case's comment — same clipped-margin fix.
+                  animate={{ width: panelSize + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
-                  className="flex-shrink-0 flex overflow-hidden"
+                  // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
+                  // comment; the previous right-only-corners attempt still left the OTHER two
+                  // corners' shadow spread square-clipped by this wrapper.
+                  className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
                 >
                   {hDivider}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    {panelEl('notes')}
+                  {/* overflow-hidden on the inner div — see the 'standard' case's comment
+                      (same-element overflow+radius+shadow compositing bug). */}
+                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('notes')}</div>
                   </div>
                 </motion.div>
               )}
@@ -2236,6 +2609,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 addColRef={compareAddColRef}
                 initialColumns={tabState.compareColumns}
                 onColumnsChange={(cols) => { if (activeTab) updateTabState('scripture', activeTab.id, { compareColumns: cols }) }}
+                syncScrollEnabled={!!tabState.compareSyncScroll}
+                onSyncEligibleChange={setCompareSyncEligible}
               />
             </div>
             {vDivider}
@@ -2284,7 +2659,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
@@ -2300,7 +2675,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'commentary':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
             {hDivider}
@@ -2312,7 +2687,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'triple-col':
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
-            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('notes')}
             </div>
             {hDivider}
@@ -2338,7 +2713,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                 {panelEl('notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />

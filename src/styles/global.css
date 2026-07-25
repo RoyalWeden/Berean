@@ -624,11 +624,13 @@ body {
   color: inherit;
 }
 
-/* Scrollbar styling — regular size, true auto-hide: invisible at rest, and only
+/* Scrollbar styling — regular size, true auto-hide: invisible at rest, only
    revealed while actively scrolling (`.scrollbar-visible`, toggled with a
-   fade-out timeout by src/lib/scrollbarAutoHide.ts's global scroll listener)
-   or while the cursor is over the scrollable area at all (`:hover` — covers
-   "near it" generally, not just exactly over the thumb). */
+   fade-out timeout by src/lib/scrollbarAutoHide.ts's global scroll listener).
+   Deliberately NOT revealed on plain `:hover` over the scrollable area — that
+   made panels that fill most of the window (Scripture reading pane especially)
+   look like the scrollbar was always visible, since the cursor sits over the
+   panel almost the entire time you're reading, not just when scrolling. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -641,11 +643,9 @@ body {
   border-radius: 3px;
   transition: background-color 0.2s ease;
 }
-:hover::-webkit-scrollbar-thumb,
 .scrollbar-visible::-webkit-scrollbar-thumb {
   background: rgb(var(--color-surface-4));
 }
-:hover::-webkit-scrollbar-thumb:hover,
 .scrollbar-visible::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-text-muted));
 }
@@ -989,3 +989,12 @@ body {
   animation-duration: 100ms;
   animation-timing-function: ease-out;
 }
+/* A clip-path on ::view-transition was tried here to keep a tall chapter's transition
+   snapshot from bleeding over ShellHeader's top bar while scrolled — reverted: it clipped
+   the top-layer overlay for EVERY view transition app-wide, not just the chapter one,
+   which introduced its own visible flashing/artifacts elsewhere. The actual fix is in
+   BiblePanel.tsx/ChapterView.tsx instead: the Strong's toggle and translation-switch
+   transitions are now skipped outright (falling back to an instant, non-animated update)
+   whenever the chapter is scrolled away from the top, since that's the only condition
+   under which the un-clipped snapshot could ever extend up into the header's screen
+   position in the first place. */

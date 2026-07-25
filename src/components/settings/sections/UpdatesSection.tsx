@@ -22,6 +22,7 @@ export default function UpdatesSection() {
   const [isMas, setIsMas] = useState(false)
   const [autoCheck, setAutoCheck] = useState(true)
   const [betaChannel, setBetaChannel] = useState(false)
+  const [autoDownload, setAutoDownload] = useState(false)
   // Read the mirrored status from the store (App.tsx owns the single global
   // onUpdateStatus subscription — see its comment) rather than subscribing
   // here too, since the preload bridge only supports one active listener.
@@ -33,6 +34,7 @@ export default function UpdatesSection() {
     window.app.getVersion().then(setVersion).catch(() => {})
     window.settings.get('autoUpdate').then((v) => setAutoCheck(v !== false)).catch(() => {})
     window.settings.get('updateChannel').then((v) => setBetaChannel(v === 'beta')).catch(() => {})
+    window.settings.get('autoDownloadUpdate').then((v) => setAutoDownload(v === true)).catch(() => {})
     window.app.isMasBuild?.().then((mas) => {
       if (mas) { setIsMas(true); setUpdateStatus({ status: 'mas' }) }
     }).catch(() => {})
@@ -41,11 +43,25 @@ export default function UpdatesSection() {
   async function toggleAutoCheck(enabled: boolean) {
     setAutoCheck(enabled)
     await window.settings.set('autoUpdate', enabled)
+    // Auto-download only makes sense alongside auto-check (nothing left to trigger a
+    // download otherwise) — turning auto-check off also turns it off, both in the UI
+    // (the toggle below is hidden entirely once autoCheck is false) and in the actual
+    // setting, so re-enabling auto-check later doesn't silently resurrect a stale
+    // auto-download preference the user never re-confirmed.
+    if (!enabled && autoDownload) {
+      setAutoDownload(false)
+      await window.settings.set('autoDownloadUpdate', false)
+    }
   }
 
   async function toggleBeta(enabled: boolean) {
     setBetaChannel(enabled)
     await window.settings.set('updateChannel', enabled ? 'beta' : 'stable')
+  }
+
+  async function toggleAutoDownload(enabled: boolean) {
+    setAutoDownload(enabled)
+    await window.settings.set('autoDownloadUpdate', enabled)
   }
 
   async function checkNow() {
@@ -111,11 +127,26 @@ export default function UpdatesSection() {
         <div>
           <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Check for updates automatically</p>
           <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
-            Check on launch, 6 seconds after startup
+            Checks on launch (6 seconds after startup), then again every 5 minutes while Berean stays open
           </p>
         </div>
         <Switch checked={autoCheck} onCheckedChange={() => toggleAutoCheck(!autoCheck)} />
       </div>
+
+      {/* Auto-download toggle — only meaningful (and only shown) while auto-check is on;
+          nothing triggers a download otherwise. toggleAutoCheck already turns this back off
+          whenever auto-check is turned off, so there's no stale "on" value hiding here. */}
+      {autoCheck && (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Automatically download updates</p>
+            <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+              Download as soon as a new version is found — you'll still confirm before restarting to install
+            </p>
+          </div>
+          <Switch checked={autoDownload} onCheckedChange={() => toggleAutoDownload(!autoDownload)} />
+        </div>
+      )}
 
       {/* Beta channel toggle */}
       <div className="flex items-start justify-between gap-4">

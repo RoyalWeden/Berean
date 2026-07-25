@@ -1,5 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import type { ReactNode } from 'react'
+import ShortcutKeys from './ShortcutKeys'
 
 /**
  * Shared hover hint that shows a button's function and (optionally) its keyboard
@@ -34,11 +35,7 @@ export function HintTooltip({
                 global.css radix-popup-in comment). */}
             <div className="flex items-center gap-2 px-2 py-1 rounded-md text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg select-none animate-radix-popup-in">
               <span className="whitespace-nowrap">{label}</span>
-              {shortcut && (
-                <kbd className="font-mono text-[10px] leading-none px-1.5 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] whitespace-nowrap">
-                  {shortcut}
-                </kbd>
-              )}
+              {shortcut && <ShortcutKeys keys={shortcut} className="whitespace-nowrap" />}
             </div>
             <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
           </Tooltip.Content>

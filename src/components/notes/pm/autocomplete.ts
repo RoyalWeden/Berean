@@ -2,7 +2,7 @@ import { Plugin, PluginKey, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { Fragment } from 'prosemirror-model'
 import { parseRef } from '@/lib/parseRef'
-import { stripLxxMarker } from '@/lib/noteTextBlocks'
+import { findVerseRefMatches } from '@/lib/noteTextBlocks'
 
 // ─── Trigger detection ──────────────────────────────────────────────────────
 // Ported from NoteEditor.tsx's updateListener-based trigger logic
@@ -120,18 +120,26 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
           }
 
           // Verse-reference block-suggest trigger (must resolve to a specific verse).
+          // Reuses findVerseRefMatches (noteTextBlocks.ts) — the same scanner
+          // findVerseRefMatches/blockDecorations.ts use for inline ref-linking and
+          // verse-block detection — instead of a separate, much narrower ad-hoc regex.
+          // That old regex only matched a single-word book name directly followed by
+          // " chapter:verse" (`\b\w[\w.]*(?: \d+):\d+`), so it never fired for ANY
+          // multi-word book ("Song of Songs", "1 Samuel", "Testament of Levi") or a
+          // "Book N" subdivision edition (Recognitions of Clement) — confirmed broken
+          // for exactly those cases. findVerseRefMatches already handles all of them.
           if (callbacks.enableVerseSuggest?.() !== false) {
-            const vm = /(\b\w[\w.]*(?: \d+):\d+(?:-\d+)?(?:[ \t]+LXX)?)\s?$/.exec(text)
-            if (vm) {
-              const candidate = vm[1]
-              const parsed = parseRef(stripLxxMarker(candidate).ref)
-              if (parsed?.verse) {
-                const from = lineStart + vm.index
-                const coords = view.coordsAtPos(from)
-                callbacks.onVerseSuggestTrigger?.({ ref: candidate, from, to: cursor, coords: { left: coords.left, bottom: coords.bottom } })
-              } else {
-                callbacks.onVerseSuggestTrigger?.(null)
-              }
+            const matches = findVerseRefMatches(text)
+            const last = matches[matches.length - 1]
+            // Must end at (or within one trailing space of) the cursor — a reference
+            // earlier in the line that the user has since typed past shouldn't re-trigger.
+            const endsNearCursor = last && last.index + last.length >= text.length - 1
+            const parsed = last ? parseRef(last.refText) : null
+            if (last && endsNearCursor && parsed?.verse) {
+              const candidate = last.lxx ? `${last.refText} LXX` : last.refText
+              const from = lineStart + last.index
+              const coords = view.coordsAtPos(from)
+              callbacks.onVerseSuggestTrigger?.({ ref: candidate, from, to: cursor, coords: { left: coords.left, bottom: coords.bottom } })
             } else {
               callbacks.onVerseSuggestTrigger?.(null)
             }
