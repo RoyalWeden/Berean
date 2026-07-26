@@ -298,7 +298,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [folderView, setFolderView] = useState(false)
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
-  const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string } | null>(null)
+  const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
   const [convertIdiomModal, setConvertIdiomModal] = useState<{ note: Note; term: string; meaning: string; keepContent: boolean } | null>(null)
   // One-time "click a note to open it" hint above the notes list — dismissed
   // permanently (localStorage) the first time the user closes it or opens any note.
@@ -712,6 +712,27 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }
   }
 
+  async function submitIdiomModal() {
+    if (!idiomModal) return
+    const term = idiomModal.term.trim()
+    const meaning = idiomModal.meaning.trim()
+    if (!term) return
+    setIdiomModal(null)
+    const res = await window.notes.createNote({
+      type: 'idiom',
+      title: term,
+      idiomTerm: term.toLowerCase(),
+      idiomMeaning: meaning,
+      content: '',
+      folderId: idiomModal.folderId ?? null,
+    })
+    if (res.success && res.note) {
+      setNotes(prev => [res.note!, ...prev])
+      setIdiomCache(await window.notes.listIdioms?.() ?? [])
+      setActiveNote(res.note)
+    }
+  }
+
   async function deleteNote(note?: Note) {
     const target = note ?? activeNote
     if (!target) return
@@ -734,9 +755,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // reaching the list/home position (notesHomeToken), not a local button anymore.
   async function goBack() {
     if (!activeNote) return
-    // Idiom notes may have empty content — keep them if they have a term or meaning
-    const hasIdiomData = activeNote.type === 'idiom' && (activeNote.idiomTerm || activeNote.idiomMeaning || activeNote.title?.trim())
-    if (activeNote.content.trim() === '' && !hasIdiomData) {
+    // Keep notes with a title even if the body is empty, and keep idiom notes
+    // that have term/meaning data — only truly blank notes get pruned on leave.
+    const hasTitle = activeNote.title?.trim()
+    const hasIdiomData = activeNote.type === 'idiom' && (activeNote.idiomTerm || activeNote.idiomMeaning)
+    if (activeNote.content.trim() === '' && !hasTitle && !hasIdiomData) {
       await deleteNote(activeNote)
     } else {
       snapshotVersion(activeNote, 'auto')   // consolidate a version on leaving the note
@@ -1156,6 +1179,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
+            <button
+              onClick={() => setIdiomModal({ term: '', meaning: '' })}
+              title="New idiom"
+              className="p-1 rounded-shell cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+            >
+              <BookOpen size={15} />
+            </button>
             {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
             {!folderView && (
               <button
@@ -1470,6 +1500,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                       bumpNoteToken()
                     }
                   }}
+                  onCreateIdiom={() => setIdiomModal({ term: '', meaning: '' })}
+                  onCreateIdiomInFolder={(folderId) => setIdiomModal({ term: '', meaning: '', folderId })}
                   onCreateFolder={handleCreateFolder}
                   onRenameFolder={handleRenameFolder}
                   onDeleteFolder={handleDeleteFolder}
@@ -1569,16 +1601,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   className="w-full px-2.5 py-1.5 text-sm rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))/60]"
                   onKeyDown={async e => {
                     if (e.key === 'Enter') {
-                      const term = idiomModal.term.trim()
-                      const meaning = idiomModal.meaning.trim()
-                      if (!term) return
-                      setIdiomModal(null)
-                      const res = await window.notes.createNote({ type: 'idiom', title: term, idiomTerm: term.toLowerCase(), idiomMeaning: meaning, content: '' })
-                      if (res.success && res.note) {
-                        setNotes(prev => [res.note!, ...prev])
-                        setIdiomCache(await window.notes.listIdioms?.() ?? [])
-                        setActiveNote(res.note)
-                      }
+                      await submitIdiomModal()
                     } else if (e.key === 'Escape') { setIdiomModal(null) }
                   }}
                 />
@@ -1588,18 +1611,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <button
                   disabled={!idiomModal.term.trim()}
                   className="px-3 py-1.5 text-xs rounded-lg bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer"
-                  onClick={async () => {
-                    const term = idiomModal.term.trim()
-                    const meaning = idiomModal.meaning.trim()
-                    if (!term) return
-                    setIdiomModal(null)
-                    const res = await window.notes.createNote({ type: 'idiom', title: term, idiomTerm: term.toLowerCase(), idiomMeaning: meaning, content: '' })
-                    if (res.success && res.note) {
-                      setNotes(prev => [res.note!, ...prev])
-                      setIdiomCache(await window.notes.listIdioms?.() ?? [])
-                      setActiveNote(res.note)
-                    }
-                  }}
+                  onClick={submitIdiomModal}
                 >
                   Create
                 </button>

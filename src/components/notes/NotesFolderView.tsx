@@ -51,6 +51,8 @@ interface Props {
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
   onCreateNote?: () => void
   onCreateNoteInFolder?: (folderId: string) => void
+  onCreateIdiom?: () => void
+  onCreateIdiomInFolder?: (folderId: string) => void
   onCreateFolder: (parentId: string | null) => void
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
@@ -79,7 +81,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
-  onCreateNote, onCreateNoteInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
+  onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
@@ -949,6 +951,11 @@ export default function NotesFolderView({
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
             <FileText size={13} className="flex-shrink-0" /> New note
           </button>
+          {onCreateIdiom && (
+            <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateIdiom() }}>
+              <BookOpen size={13} className="flex-shrink-0" /> New idiom
+            </button>
+          )}
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateFolder(null) }}>
             <FolderPlus size={13} className="flex-shrink-0" /> New folder
           </button>
@@ -986,6 +993,11 @@ export default function NotesFolderView({
               {onCreateNoteInFolder && (
                 <button className={MENU_ITEM} onClick={() => { onCreateNoteInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
                   <FilePlus size={13} className="flex-shrink-0" /> New note here
+                </button>
+              )}
+              {onCreateIdiomInFolder && (
+                <button className={MENU_ITEM} onClick={() => { onCreateIdiomInFolder(folderMenu.folder.id); setFolderMenu(null) }}>
+                  <BookOpen size={13} className="flex-shrink-0" /> New idiom here
                 </button>
               )}
               <button className={MENU_ITEM} onClick={() => { onCreateFolder(folderMenu.folder.id); setFolderMenu(null) }}>
