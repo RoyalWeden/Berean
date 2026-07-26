@@ -12,9 +12,10 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
-import { numberTokenAlternates } from '@/lib/numberWords'
+import { buildHighlightPattern } from '@/lib/scriptureHighlight'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
+import { useRovingGridNav } from '@/hooks/useRovingGridNav'
 
 /** Render a verse with its Strong's-tagged words highlighted (by word index), AND — for a
  *  combined Strong's+word query like "G5485 god" — any plain word from that same query
@@ -156,25 +157,8 @@ function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string
 
 function highlight(text: string, query: string, wordMode: WordMode = 'all'): React.ReactNode {
   if (!query.trim()) return text
-  let pattern: string
-  if (wordMode === 'phrase') {
-    // Highlight the whole phrase
-    pattern = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  } else {
-    // Highlight each individual word (handles 'all' and 'any' modes). These modes
-    // match server-side via FTS5 prefix wildcards (word*), so a search for "begin"
-    // can match "beginning" — append \w* and anchor to a word boundary so the whole
-    // matched word gets highlighted, not just the typed prefix.
-    const words = query.trim().split(/\s+/).filter(w => w.length > 0)
-    if (words.length === 0) return text
-    // Each word's number-form alternate (numberTokenAlternates: "7" also matches
-    // "seven", and vice versa) gets its own highlight pattern too, so a result matched
-    // via the number<->word FTS expansion still gets visibly highlighted either way.
-    pattern = words
-      .flatMap((w) => numberTokenAlternates(w))
-      .map(w => `\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`)
-      .join('|')
-  }
+  const pattern = buildHighlightPattern(query, wordMode)
+  if (!pattern) return text
   const re = new RegExp(`(${pattern})`, 'gi')
   const matchRe = new RegExp(`^(?:${pattern})$`, 'i')
   const parts = text.split(re)
@@ -271,6 +255,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     window.addEventListener('mousedown', onDown, true)
     return () => window.removeEventListener('mousedown', onDown, true)
   }, [sortMenuOpen])
+  // Sort pill dropdown: relevance / book order — 2 items, single column. Focus resets
+  // to 0 whenever the dropdown opens (below), so it never opens focused on a stale item.
+  const sortMenuNav = useRovingGridNav({ itemCount: 2, columns: 1 })
+  useEffect(() => { if (sortMenuOpen) sortMenuNav.setFocusedIndex(0) }, [sortMenuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [focusedIdx, setFocusedIdx] = useState(-1)
@@ -293,6 +281,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     window.addEventListener('mousedown', onDown, true)
     return () => window.removeEventListener('mousedown', onDown, true)
   }, [contextMenuOpen])
+  // Compact/context-length dropdown: 4 items (default, full, ±1, ±2) across two visually
+  // separated groups but one continuous nav sequence — single column.
+  const contextMenuNav = useRovingGridNav({ itemCount: 4, columns: 1 })
+  useEffect(() => { if (contextMenuOpen) contextMenuNav.setFocusedIndex(0) }, [contextMenuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const showContext = contextMode !== 'default'
   // Cache of whole-chapter verse data, keyed "textId:bookId:chapter" — fetched lazily, only
   // once a plusMinus mode is active and a given result's chapter is actually visible/rendered,
@@ -411,6 +403,25 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return () => document.removeEventListener('keydown', onKey)
   }, [scopePaletteOpen])
 
+  // Build flat list of all books available for the current text selection — computed here
+  // (above runSearch) rather than near its other consumers below, since runSearch's scoped-
+  // search logic reads it too and a const can't be used before its declaration.
+  const availableBooks: Array<{ id: string; name: string; textId: string; textLabel: string; testament: string }> = (() => {
+    const seen = new Set<string>()
+    const out: Array<{ id: string; name: string; textId: string; textLabel: string; testament: string }> = []
+    const texts = textId === 'all' ? ALL_TEXTS : ALL_TEXTS.filter((t) => t.id === textId)
+    for (const t of texts) {
+      for (const b of (allBooks[t.id] ?? [])) {
+        const key = `${t.id}::${b.id}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          out.push({ id: b.id, name: b.name, textId: t.id, textLabel: t.label, testament: b.testament ?? '' })
+        }
+      }
+    }
+    return out
+  })()
+
   const runSearch = useCallback(async (q: string, tid: string, wMode?: WordMode) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) { setResults([]); return }
@@ -431,6 +442,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const variants = wordReplacerEnabled
       ? getWordReplacerSearchVariants(trimmed, wordReplacerRules)
       : [trimmed]
+    // Push the already-known client-side scope down into the backend query so the
+    // relevance cap (electron/ipc/bible.ts) is applied AFTER book/testament filtering,
+    // not before — otherwise a book-filtered search can silently miss real matches that
+    // rank outside the unscoped cap's top N by BM25 relevance. 'Pseudepigrapha' is a
+    // text-level distinction (not a book_id), so it's left unscoped here.
+    const scopedBookIds: string[] | undefined = selectedBooks.length > 0
+      ? selectedBooks
+      : (testamentFilter !== 'all' && testamentFilter !== 'Pseudepigrapha')
+        ? availableBooks.filter((b) => b.testament === testamentFilter).map((b) => b.id)
+        : undefined
     try {
       const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
       const seen = new Set<string>()
@@ -439,7 +460,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         for (const variant of variants) {
           let res: RawResult[]
           try {
-            res = (await window.bible.searchText(variant, textId, effectiveWordMode)) as unknown as RawResult[]
+            res = (await window.bible.searchText(variant, textId, effectiveWordMode, scopedBookIds)) as unknown as RawResult[]
           } catch { continue }
           for (const r of res) {
             const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
@@ -466,7 +487,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       setResults(raw)
     } catch { setResults([]) }
     finally { setLoading(false) }
-  }, [wordMode, wordReplacerEnabled, wordReplacerRules])
+  }, [wordMode, wordReplacerEnabled, wordReplacerRules, selectedBooks, testamentFilter, availableBooks])
 
   const runCrossRefSearch = useCallback(async (q: string) => {
     const parsed = parseRef(q.trim())
@@ -565,23 +586,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       runSearch(query, textId, mode)
     }
   }
-
-  // Build flat list of all books available for the current text selection
-  const availableBooks: Array<{ id: string; name: string; textId: string; textLabel: string; testament: string }> = (() => {
-    const seen = new Set<string>()
-    const out: Array<{ id: string; name: string; textId: string; textLabel: string; testament: string }> = []
-    const texts = textId === 'all' ? ALL_TEXTS : ALL_TEXTS.filter((t) => t.id === textId)
-    for (const t of texts) {
-      for (const b of (allBooks[t.id] ?? [])) {
-        const key = `${t.id}::${b.id}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          out.push({ id: b.id, name: b.name, textId: t.id, textLabel: t.label, testament: b.testament ?? '' })
-        }
-      }
-    }
-    return out
-  })()
 
   // Canon books (OT/NT/Apocrypha) deduped across the Bible-category editions (KJVA, LXX),
   // independent of which edition is currently selected — so the "Canon Books" picker in the
@@ -878,10 +882,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   style={{ position: 'fixed', left: sortMenuPos.left, top: sortMenuPos.top, zIndex: 9999 }}
                   className="min-w-[130px] rounded-shell context-menu overflow-hidden py-1"
                 >
-                  {([['relevance', 'Relevance', ArrowUpDown], ['bookOrder', 'Book order', ListTree]] as const).map(([m, label, Icon]) => (
+                  {([['relevance', 'Relevance', ArrowUpDown], ['bookOrder', 'Book order', ListTree]] as const).map(([m, label, Icon], i) => (
                     <button
                       key={m}
                       onClick={() => { setSortMode(m); setSortMenuOpen(false) }}
+                      {...sortMenuNav.getItemProps(i)}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                     >
                       <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
@@ -924,10 +929,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   {([
                     ['default', 'Compact', AlignJustify],
                     ['full', 'Full verse', Rows],
-                  ] as const).map(([m, label, Icon]) => (
+                  ] as const).map(([m, label, Icon], i) => (
                     <button
                       key={m}
                       onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
+                      {...contextMenuNav.getItemProps(i)}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                     >
                       <Icon size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
@@ -939,10 +945,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   {([
                     ['plusMinus1', '±1 verse'],
                     ['plusMinus2', '±2 verses'],
-                  ] as const).map(([m, label]) => (
+                  ] as const).map(([m, label], i) => (
                     <button
                       key={m}
                       onClick={() => { setContextMode(m); setContextMenuOpen(false) }}
+                      {...contextMenuNav.getItemProps(i + 2)}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
                     >
                       <span className="font-mono font-bold leading-none w-3 flex-shrink-0 text-center text-[rgb(var(--color-text-muted))]">±</span>
@@ -971,7 +978,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
            axis, which made it hard to find/pick a specific canon book OR a specific other book
            without first fighting through edition/testament state that didn't map cleanly to
            either. ── */}
-      {effectiveMode(query) !== 'crossref' && (() => {
+      {(() => {
+        // NOTE: this whole IIFE runs every render (not gated behind `effectiveMode(query)
+        // !== 'crossref'` at the call site) because it calls useRovingGridNav below —
+        // hooks must run unconditionally in the same order every render. Only the final
+        // JSX return is conditioned on crossref mode.
         const isFiltered = textId !== 'all' || testamentFilter !== 'all' || selectedBooks.length > 0
 
         const sq = normalizeBookQuery(scopeSearch.trim().toLowerCase())
@@ -1024,16 +1035,42 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const hasCanonMatch = showCanonSection && filteredCanonBooks.length > 0
         const hasOtherMatch = showOtherSection && filteredOtherBooks.length > 0
 
+        // Roving-tabindex arrow-key nav — one independent instance per filter group in the
+        // Scope modal. Called unconditionally every render (see note above); itemCount is
+        // just a prop that changes as the underlying lists filter/load, not the hook call
+        // itself, so this is safe even though these lists change size on every keystroke.
+        const testamentNav = useRovingGridNav({ itemCount: scopeOptions.length, columns: 1 })
+        const editionItemCount = (showAllEditionsOption ? 1 : 0) + filteredEditions.length
+        const editionNav = useRovingGridNav({ itemCount: editionItemCount, columns: 1 })
+        const canonNav = useRovingGridNav({ itemCount: filteredCanonBooks.length, columns: 3 })
+        // "Other Books" multi-book groups (T12P, Hermas, Recognitions of Clement) are a
+        // fixed, known set — each gets its own independent sub-grid nav instance. No
+        // cross-group edge-of-grid handoff between different groups' sub-grids (deferred
+        // v2 simplification); native Tab moves between groups in v1.
+        const filteredSubBooksFor = (tid: string) => {
+          const books = subBooksFor(tid)
+          return sq ? books.filter((b) => b.name.toLowerCase().includes(sq)) : books
+        }
+        const t12pNav = useRovingGridNav({ itemCount: filteredSubBooksFor('t12p').length, columns: 3 })
+        const hermasNav = useRovingGridNav({ itemCount: filteredSubBooksFor('hermas').length, columns: 3 })
+        const recogClementNav = useRovingGridNav({ itemCount: filteredSubBooksFor('recog_clement').length, columns: 3 })
+        const otherGroupNav: Record<string, ReturnType<typeof useRovingGridNav>> = {
+          t12p: t12pNav, hermas: hermasNav, recog_clement: recogClementNav,
+        }
+
         // One consistent checkbox-style row for every pickable item across all three
         // sections (Bible Edition, Canon Books, Other Books) — an earlier version used a
         // plain checkmark-list style for Edition/Other rows but a square-checkbox grid
         // for Canon Books, which read as two different pickers glued together even
-        // though they're all "select the thing(s) to search."
-        function scopeItem(key: string, selected: boolean, onClick: () => void, content: React.ReactNode, full = true) {
+        // though they're all "select the thing(s) to search." `navProps` (roving-tabindex
+        // props from useRovingGridNav.getItemProps) is optional and merged onto the button
+        // alongside its own onClick — not every scopeItem call site participates in nav.
+        function scopeItem(key: string, selected: boolean, onClick: () => void, content: React.ReactNode, full = true, navProps?: ReturnType<ReturnType<typeof useRovingGridNav>['getItemProps']>) {
           return (
             <button
               key={key}
               onClick={onClick}
+              {...navProps}
               className={`flex items-center gap-2 ${full ? 'w-full px-3 py-2 text-sm' : 'px-2 py-1.5 text-[13px] rounded-md'} text-left cursor-pointer transition-colors ${selected ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10' : 'text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
             >
               <span className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center ${selected ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
@@ -1043,6 +1080,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             </button>
           )
         }
+
+        if (effectiveMode(query) === 'crossref') return null
 
         return (
           <>
@@ -1089,10 +1128,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       the same way. This replaces having a whole separate pill row nested
                       inside the Canon Books section specifically. */}
                   <div className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-                    {scopeOptions.map((s) => (
+                    {scopeOptions.map((s, i) => (
                       <button
                         key={s}
                         onClick={() => { setTestamentFilter(s); setSelectedBooks([]) }}
+                        {...testamentNav.getItemProps(i)}
                         className={`text-[10.5px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${testamentFilter === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                       >
                         {s === 'all' ? 'All' : s}
@@ -1110,15 +1150,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     {/* ── Bible Edition — which translation of the canon to search. ── */}
                     {hasEditionMatch && (
                       <div>
-                        {showAllEditionsOption && scopeItem('edition-all', textId === 'all', () => selectTranslation('all'), 'All editions')}
-                        {filteredEditions.map((t) => scopeItem(
+                        {showAllEditionsOption && scopeItem('edition-all', textId === 'all', () => selectTranslation('all'), 'All editions', true, editionNav.getItemProps(0))}
+                        {filteredEditions.map((t, i) => scopeItem(
                           t.id,
                           textId === t.id,
                           () => selectTranslation(t.id),
                           <>
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.id === 'kjva' ? 'bg-amber-500' : 'bg-sky-500'}`} />
                             {fullEditionLabel(t.id, t.label)}
-                          </>
+                          </>,
+                          true,
+                          editionNav.getItemProps((showAllEditionsOption ? 1 : 0) + i)
                         ))}
                       </div>
                     )}
@@ -1134,8 +1176,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                          without a label repeating what's visually obvious from scrolling. ── */}
                     {hasCanonMatch && (
                       <div className="grid grid-cols-3 gap-0.5 px-2 py-1">
-                        {filteredCanonBooks.map((book) =>
-                          scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false)
+                        {filteredCanonBooks.map((book, i) =>
+                          scopeItem(book.id, selectedBooks.includes(book.id), () => setSelectedBooks((cur) => toggleBook(cur, book.id)), <span className="flex-1 truncate">{book.name}</span>, false, canonNav.getItemProps(i))
                         )}
                       </div>
                     )}
@@ -1168,8 +1210,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 </button>
                               </div>
                               <div className="grid grid-cols-3 gap-0.5 px-2 pb-1.5">
-                                {filteredSubBooks.map((b) =>
-                                  scopeItem(b.id, selectedBooks.includes(b.id), () => setSelectedBooks((cur) => toggleBook(cur, b.id)), <span className="flex-1 truncate">{shortSubBookName(t.id, b)}</span>, false)
+                                {filteredSubBooks.map((b, i) =>
+                                  scopeItem(b.id, selectedBooks.includes(b.id), () => setSelectedBooks((cur) => toggleBook(cur, b.id)), <span className="flex-1 truncate">{shortSubBookName(t.id, b)}</span>, false, otherGroupNav[t.id]?.getItemProps(i))
                                 )}
                               </div>
                             </div>
