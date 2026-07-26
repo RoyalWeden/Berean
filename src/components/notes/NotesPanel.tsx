@@ -341,11 +341,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }
     return notes.filter((n) => n.type === 'idiom').map((n) => {
       const d = n.idiomData ?? {}
+      // Examples aren't part of the export output, but they're still useful text to mine
+      // for scripture references the idiom note otherwise doesn't list explicitly.
       const textForRefs = [...(d.examples ?? []), d.explanation ?? '', n.content ?? ''].join('\n')
       const seen = new Set<string>()
       const autoVerse = extractRefsFromNote(textForRefs, n.idiomTerm || n.title || '').map(fmt)
       const verses = [...new Set([...(d.verses ?? []), ...autoVerse])].filter((v) => { const ok = !seen.has(v); seen.add(v); return ok })
-      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, examples: d.examples, explanation: d.explanation, compare: d.compare, verses }
+      return { term: n.idiomTerm || n.title || '', meaning: n.idiomMeaning, aliases: n.idiomAliases, explanation: d.explanation, compare: d.compare, verses }
     })
   }
 

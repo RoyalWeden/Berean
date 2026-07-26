@@ -122,6 +122,18 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.13] - 2026-07-25
+
+Idioms export
+- Idiom entries no longer include numbered example sentences in the exported
+  PDF. Each idiom's known aliases are shown instead, as an "Also: ..." line
+  under the term.
+- "Compare to" references now link directly to that idiom's own entry within
+  the same exported document, when the compared idiom is included in the
+  export.
+
+---
+
 ## [0.4.12] - 2026-07-25
 
 Floating search
