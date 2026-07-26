@@ -415,7 +415,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Idioms — include</span>
                     {([
                       ['includeMeaning',     'Definition'],
-                      ['includeExamples',    'Examples'],
+                      ['includeAliases',     'Aliases'],
                       ['includeExplanation', 'Explanation'],
                       ['includeCompare',     'Compare to'],
                       ['includeReferences',  'Scripture references'],
