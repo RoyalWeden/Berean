@@ -124,12 +124,20 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     ).get(bookId, chapter, verseNum)
   })
 
-  ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva', wordMode: WordMode = 'all') => {
+  ipcMain.handle('bible:searchText', (_event, query: string, textId = 'kjva', wordMode: WordMode = 'all', bookIds?: string[]) => {
     if (!query.trim()) return []
     const db = getTextDb(textId)
     if (!db) return []
 
     const trimmed = query.trim()
+    const scoped = !!bookIds && bookIds.length > 0
+    // A book-scoped search's worst case is one book's full verse count (a few
+    // hundred) — a few thousand is effectively unbounded there. Unscoped searches
+    // keep a cap too, just raised well past the old 100/200/300 values: the
+    // results list is virtualized (@tanstack/react-virtual — see
+    // ScriptureSearchView.tsx), so only rows actually scrolled into view ever
+    // mount, making a much larger cap safe to render.
+    const bookIdsClause = scoped ? ` AND v.book_id IN (${bookIds!.map(() => '?').join(',')})` : ''
 
     // ── 'any' mode: run one FTS5 query per word and union the results in JS. ──
     // FTS5 OR with prefix wildcards (in* OR the* OR beginning*) is unreliable
@@ -138,19 +146,24 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
       const terms = cleanWords(trimmed)
       const seen = new Set<string>()
       const rows: unknown[] = []
-      const stmt = prep(db, `
+      const limit = scoped ? 5000 : 2000
+      // Placeholder count varies with bookIds.length per call, so this can't go
+      // through prep()'s cache (keyed only by raw SQL string) when scoped — search
+      // is human-triggered, not a hot path, so preparing fresh each call is fine.
+      const sql = `
         SELECT v.book_id, v.chapter, v.verse_num, v.text
         FROM verses_fts f
         JOIN verses v ON v.id = f.rowid
-        WHERE verses_fts MATCH ?
+        WHERE verses_fts MATCH ?${bookIdsClause}
         ORDER BY rank
-        LIMIT 200
-      `)
+        LIMIT ${limit}
+      `
+      const stmt = scoped ? (db as any).prepare(sql) : prep(db, sql)
       for (const term of terms) {
         const ftsQ = safeFtsQuery(term, 'all')
         if (!ftsQ) continue
         try {
-          const termRows = stmt.all(ftsQ) as Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
+          const termRows = stmt.all(...(scoped ? [ftsQ, ...bookIds!] : [ftsQ])) as Array<{ book_id: string; chapter: number; verse_num: number; text: string }>
           for (const row of termRows) {
             const key = `${row.book_id}|${row.chapter}|${row.verse_num}`
             if (!seen.has(key)) {
@@ -160,21 +173,24 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
           }
         } catch { /* skip terms that FTS5 rejects */ }
       }
-      return rows.slice(0, 300)
+      return scoped ? rows : rows.slice(0, 3000)
     }
 
     // ── phrase and all-words modes ───────────────────────────────────────────
     const ftsQ = safeFtsQuery(trimmed, wordMode === 'phrase' ? 'phrase' : 'all')
     if (!ftsQ) return []
     try {
-      return prep(db, `
+      const limit = scoped ? 5000 : 2000
+      const sql = `
         SELECT v.book_id, v.chapter, v.verse_num, v.text
         FROM verses_fts f
         JOIN verses v ON v.id = f.rowid
-        WHERE verses_fts MATCH ?
+        WHERE verses_fts MATCH ?${bookIdsClause}
         ORDER BY rank
-        LIMIT 100
-      `).all(ftsQ)
+        LIMIT ${limit}
+      `
+      const stmt = scoped ? (db as any).prepare(sql) : prep(db, sql)
+      return stmt.all(...(scoped ? [ftsQ, ...bookIds!] : [ftsQ]))
     } catch {
       return []
     }

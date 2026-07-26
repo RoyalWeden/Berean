@@ -3,7 +3,7 @@ import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchRe
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
   queryVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<Verse | null>
-  searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase') => Promise<SearchResult[]>
+  searchText: (query: string, textId?: string, wordMode?: 'all' | 'any' | 'phrase', bookIds?: string[]) => Promise<SearchResult[]>
   getBooks: (textId?: string) => Promise<Book[]>
 }
 
