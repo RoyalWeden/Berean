@@ -1191,15 +1191,36 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
     try {
       // bm25() ranks each matching segment (more negative = stronger match). We order by it
       // so the FIRST row per video is its best-matching line — used as the snippet + rank.
+      //
+      // A single common word ("the*") can match 40%+ of the 2.7M transcript segments — ORDER
+      // BY on bm25() (a computed expression, not an indexed column) forces SQLite to evaluate
+      // it for every single match before it can sort, ~2.5s for a query like that. The `cand`
+      // CTE below bounds that cost: it computes bm25() (which MUST be evaluated in the same
+      // scan as the MATCH constraint — a rowid JOIN from outside can't compute it correctly)
+      // but stops after CANDIDATE_CAP matches, before any ORDER BY forces a full scan. Ranking
+      // only that bounded candidate set is then cheap.
+      //
+      // CANDIDATE_CAP must stay well above the match count of any realistic search term or it
+      // silently truncates ranking (confirmed: 5000 was too low — cut off the true #2 result
+      // for a 6.6k-match query). Checked actual match counts for the most common single
+      // content words in this corpus (god* 122k, christ* 45k, yeshua* 37k, love* 34k) — 200k
+      // gives comfortable headroom above all of them while still bounding true worst case
+      // stopword-style queries ("the*"/"a*", each ~1.19M matches) down to ~450ms from ~2.5s.
+      const CANDIDATE_CAP = 200_000
       rows = getBereanDb().prepare(`
+        WITH cand AS (
+          SELECT rowid, bm25(youtube_transcripts_fts) AS rank
+          FROM youtube_transcripts_fts
+          WHERE youtube_transcripts_fts MATCH ?
+          LIMIT ${CANDIDATE_CAP}
+        )
         SELECT s.video_id AS videoId, s.text AS snippet, s.start_ms AS startMs,
                v.title AS title, v.channel_name AS channelName,
-               bm25(youtube_transcripts_fts) AS rank
-        FROM youtube_transcripts_fts
-        JOIN youtube_transcript_segments s ON s.id = youtube_transcripts_fts.rowid
+               cand.rank AS rank
+        FROM cand
+        JOIN youtube_transcript_segments s ON s.id = cand.rowid
         JOIN youtube_videos v ON v.video_id = s.video_id
-        WHERE youtube_transcripts_fts MATCH ?
-        ORDER BY rank
+        ORDER BY cand.rank
       `).all(match) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
     } catch {
       rows = [] // malformed FTS expression — fall through to LIKE fallback
