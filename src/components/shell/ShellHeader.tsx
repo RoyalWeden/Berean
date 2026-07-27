@@ -253,6 +253,30 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                spacing (this div is flex-1, justify-end) is enough. ── */}
           <div ref={slotRef} className="flex-1 flex items-center justify-end gap-2 min-w-0 overflow-hidden" />
 
+          {/* ── Download in progress — same top-bar slot as the button below, shown instead of
+               it while a download is running. Fires from the SAME 'downloading' updateStatus
+               regardless of whether the user just clicked "Download update" above or the
+               download started on its own (Settings → Updates → auto-download), so this one
+               bar covers both triggers without needing to know which one caused it. Percent
+               bar styling matches UpdatesSection.tsx's own downloading state (surface-4 track,
+               accent fill) — here as a thin strip along the bottom of the pill instead of a
+               separate block, to fit the compact top-bar footprint. ── */}
+          {updateStatus.status === 'downloading' && (
+            <div
+              title={`Downloading update… ${updateStatus.percent ?? 0}%`}
+              className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] flex-shrink-0 overflow-hidden"
+            >
+              <Download size={12} className="flex-shrink-0" />
+              <span>Downloading… {updateStatus.percent ?? 0}%</span>
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgb(var(--color-surface-4))]">
+                <div
+                  className="h-full bg-[rgb(var(--color-accent))] transition-all duration-300"
+                  style={{ width: `${updateStatus.percent ?? 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* ── Update available/ready — a persistent top-bar action, not just the small dot
                badge on the Settings gear (Ribbon.tsx), so a download/restart being available
                reads as an actual clickable next step wherever the user happens to be looking,

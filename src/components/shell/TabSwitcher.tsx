@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { SpaceId, Tab, BibleTabState, NoteTabState, LexiconTabState, YouTubeTabState, SearchTabState } from '@/types'
 import { motion } from 'framer-motion'
 
@@ -152,10 +153,44 @@ function TabPreview({ tab }: { tab: Tab }) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
+// Cards are a per-tab visual preview — fine for a handful of tabs, but
+// unreadable/unbounded once dozens are open (the old version just kept
+// wrapping onto more rows forever). `tabs` is already MRU-ordered (most
+// recent first), so the first MAX_CARDS stay as cards and everything past
+// that renders as a plain, compact list instead — most-recent-first still,
+// just without the preview real estate.
+const MAX_CARDS = 5
+
 export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelectTab, onClose }: TabSwitcherProps) {
+  // The overlay opens centered on screen, often directly under wherever the cursor
+  // already happens to be resting (no trackpad/mouse touched at all) — Chromium still
+  // fires mouseenter for whatever card appears under a stationary pointer, which was
+  // silently overriding the keyboard-driven selection the instant the switcher opened.
+  // Require one genuine mousemove after mount before any hover can drive selection.
+  const [mouseActive, setMouseActive] = useState(false)
+  useEffect(() => {
+    function onMove() { setMouseActive(true) }
+    window.addEventListener('mousemove', onMove, { once: true })
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+  function handleHover(i: number) {
+    if (mouseActive) onHoverIndex(i)
+  }
+
+  // Keyboard cycling (Ctrl+Tab held, repeatedly pressed) can land selectedIndex on a
+  // row in the scrollable "rest of the tabs" list below the cards, which the fixed-
+  // height list div doesn't auto-reveal on its own — scroll it into view whenever the
+  // selection moves there.
+  const selectedListItemRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    selectedListItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
+
   if (tabs.length === 0) return null
 
   const selected = tabs[selectedIndex]
+  const cardTabs = tabs.slice(0, MAX_CARDS)
+  const listTabs = tabs.slice(MAX_CARDS)
 
   return (
     // Outer overlay: pointer-events-auto so backdrop click closes the switcher.
@@ -180,9 +215,9 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       >
 
-        {/* Tab cards row */}
+        {/* Tab cards row — only the MAX_CARDS most recent */}
         <div className="flex flex-wrap justify-center gap-2.5">
-          {tabs.map((tab, i) => {
+          {cardTabs.map((tab, i) => {
             const cfg = SPACE_CONFIG[tab.spaceId]
             const isSelected = i === selectedIndex
             return (
@@ -190,7 +225,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                 key={`${tab.spaceId}-${tab.tabId}`}
                 type="button"
                 onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
-                onMouseEnter={() => onHoverIndex(i)}
+                onMouseEnter={() => handleHover(i)}
                 initial={{ opacity: 0, y: 6, scale: 1 }}
                 animate={{ opacity: 1, y: 0, scale: isSelected ? 1.04 : 1 }}
                 transition={{ delay: Math.min(i * 0.02, 0.2), duration: 0.15 }}
@@ -235,6 +270,43 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
             )
           })}
         </div>
+
+        {/* Remaining tabs (beyond the MAX_CARDS most recent) — plain rows, no
+            preview, still most-recent-first and part of the same keyboard
+            cycle/selection as the cards above (index continues from cardTabs). */}
+        {listTabs.length > 0 && (
+          <div className="w-full max-h-[180px] overflow-y-auto flex flex-col gap-0.5 border-t border-[rgb(var(--color-surface-4))] pt-2">
+            {listTabs.map((tab, j) => {
+              const i = MAX_CARDS + j
+              const cfg = SPACE_CONFIG[tab.spaceId]
+              const isSelected = i === selectedIndex
+              return (
+                <button
+                  key={`${tab.spaceId}-${tab.tabId}`}
+                  ref={isSelected ? selectedListItemRef : undefined}
+                  type="button"
+                  onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
+                  onMouseEnter={() => handleHover(i)}
+                  className={`flex items-center gap-2 px-2 py-1 rounded-shell text-left cursor-pointer transition-colors ${
+                    isSelected ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))]/50'
+                  }`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-md flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                    style={{ backgroundColor: cfg.color }}
+                  >
+                    {cfg.abbrev}
+                  </div>
+                  <p className={`text-[11px] leading-tight truncate flex-1 min-w-0 ${
+                    isSelected ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'
+                  }`}>
+                    {tab.title}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Selected tab status bar */}
         {selected && (

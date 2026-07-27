@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useId, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
@@ -368,6 +368,36 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => clearTimeout(slowTimer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId, chapter, textId])
+
+  // Verses present in the KJV for this same book+chapter but absent from the LXX's own
+  // verse_num sequence — e.g. Jeremiah 8 omits KJV verses 11-12; Brenton's LXX preserves
+  // KJV-aligned verse numbers WITH gaps rather than renumbering densely, so this is
+  // detectable straight from the LXX chapter's own returned verse list once we know which
+  // numbers KJV has for the same chapter. Only meaningful where LXX and KJV use the SAME
+  // chapter numbering — skipped entirely for Psalms/Joel/Malachi (always remapped) and
+  // Jeremiah 26+ (remapped there too — see translationChapterMap.ts), where a literal
+  // book+chapter match doesn't mean the same passage at all, and any resulting "gap"
+  // wouldn't be a real cross-text comparison.
+  const [missingLxxVerses, setMissingLxxVerses] = useState<Set<number>>(new Set())
+  useEffect(() => {
+    const eligible = textId === 'lxx' && !['PSA', 'JOL', 'MAL'].includes(bookId.toUpperCase())
+      && !(bookId.toUpperCase() === 'JER' && chapter >= 26)
+    if (!eligible || verses.length === 0) { setMissingLxxVerses(new Set()); return }
+    let cancelled = false
+    window.bible.queryChapter(bookId, chapter, 'kjva')
+      .then((kjvVerses) => {
+        if (cancelled) return
+        const lxxNums = new Set(verses.map((v) => v.verse_num))
+        const maxLxx = Math.max(...lxxNums)
+        const missing = new Set<number>()
+        for (const v of kjvVerses) {
+          if (v.verse_num < maxLxx && !lxxNums.has(v.verse_num)) missing.add(v.verse_num)
+        }
+        setMissingLxxVerses(missing)
+      })
+      .catch(() => { if (!cancelled) setMissingLxxVerses(new Set()) })
+    return () => { cancelled = true }
+  }, [bookId, chapter, textId, verses])
 
   // Keep a stable ref so the effect below can call the latest callback without
   // adding it to the dependency array (which would re-run on every render).
@@ -753,7 +783,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         <ChapterCrossRefBanner sources={chapterSources} bookId={bookId} chapter={chapter} />
       )}
 
-      {verses.map((verse) => {
+      {verses.map((verse, verseIdx) => {
+        // Any KJV verse numbers that fall in the gap between the previous rendered verse
+        // and this one — see the missingLxxVerses effect above for how/why these are
+        // detected. Rendered as a small muted marker ahead of this verse, matching the
+        // note-count/cross-ref pill's own subtle "informational, not alarming" styling
+        // (muted color, small text, opacity-75) rather than a distracting banner.
+        const prevNum = verseIdx > 0 ? verses[verseIdx - 1].verse_num : 0
+        const missingBefore = missingLxxVerses.size === 0 ? [] : [...missingLxxVerses]
+          .filter((n) => n > prevNum && n < verse.verse_num)
+          .sort((a, b) => a - b)
         const isHighlighted = flashVerse !== null && (
           flashVerse.end !== undefined
             ? verse.verse_num >= flashVerse.verse && verse.verse_num <= flashVerse.end
@@ -770,25 +809,47 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         const rowHighlightStrongsWords = isSearchNavTarget ? flashVerse?.strongsWords : undefined
         const rowHighlightStrongsExtraWords = isSearchNavTarget ? flashVerse?.strongsExtraWords : undefined
         return (
-          <VerseRow
-            key={verse.verse_num}
-            verse={verse}
-            showStrongs={showStrongs}
-            showVerseNumber={showVerseNumbers}
-            noteCount={noteCounts[verse.verse_num] ?? 0}
-            notePrimaryColor={noteColorsMap[verse.verse_num]}
-            hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
-            isHighlighted={isHighlighted}
-            highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}
-            hiddenAnnotations={hiddenAnnotations}
-            textId={textId}
-            findQuery={rowFindQuery}
-            findWordMode={rowFindWordMode}
-            highlightStrongsWords={rowHighlightStrongsWords}
-            highlightStrongsExtraWords={rowHighlightStrongsExtraWords}
-            onStrongsClick={onStrongsClick}
-            onWordClick={onWordClick}
-          />
+          <Fragment key={verse.verse_num}>
+            {missingBefore.length > 0 && (() => {
+              const contiguous = missingBefore.every((n, i) => i === 0 || n === missingBefore[i - 1] + 1)
+              const label = missingBefore.length === 1
+                ? `v.${missingBefore[0]}`
+                : contiguous
+                  ? `vv.${missingBefore[0]}-${missingBefore[missingBefore.length - 1]}`
+                  : `vv.${missingBefore.join(', ')}`
+              return (
+                <p
+                  className="px-3 py-0.5 text-[10px] text-[rgb(var(--color-text-muted))] opacity-60 select-none"
+                  title="Present in the KJV but not in this Septuagint text"
+                >
+                  — {label} not in LXX —
+                </p>
+              )
+            })()}
+            {verse.title && (
+              <div className="px-3 pt-3 pb-0.5 text-[11px] text-[rgb(var(--color-text-muted))] opacity-75">
+                {verse.title}
+              </div>
+            )}
+            <VerseRow
+              verse={verse}
+              showStrongs={showStrongs}
+              showVerseNumber={showVerseNumbers}
+              noteCount={noteCounts[verse.verse_num] ?? 0}
+              notePrimaryColor={noteColorsMap[verse.verse_num]}
+              hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
+              isHighlighted={isHighlighted}
+              highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}
+              hiddenAnnotations={hiddenAnnotations}
+              textId={textId}
+              findQuery={rowFindQuery}
+              findWordMode={rowFindWordMode}
+              highlightStrongsWords={rowHighlightStrongsWords}
+              highlightStrongsExtraWords={rowHighlightStrongsExtraWords}
+              onStrongsClick={onStrongsClick}
+              onWordClick={onWordClick}
+            />
+          </Fragment>
         )
       })}
 

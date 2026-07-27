@@ -284,6 +284,8 @@ export default function SettingsModal() {
   const setIdiomHighlightEnabled = useAppStore((s) => s.setIdiomHighlightEnabled)
   const idiomHoverPreviewEnabled = useAppStore((s) => s.idiomHoverPreviewEnabled)
   const setIdiomHoverPreviewEnabled = useAppStore((s) => s.setIdiomHoverPreviewEnabled)
+  const swipePanelGestureEnabled = useAppStore((s) => s.swipePanelGestureEnabled)
+  const setSwipePanelGestureEnabled = useAppStore((s) => s.setSwipePanelGestureEnabled)
   const viewerFontScale = useAppStore((s) => s.viewerFontScale)
   const setViewerFontScale = useAppStore((s) => s.setViewerFontScale)
   const viewerTheme = useAppStore((s) => s.viewerTheme)
@@ -1357,6 +1359,24 @@ export default function SettingsModal() {
                         className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${idiomHoverPreviewEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
                       >
                         <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomHoverPreviewEnabled ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Panel gestures ── */}
+                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Panel gestures</p>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Two-finger swipe to open/close side panel</p>
+                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Swipe left/right with two fingers on the trackpad, anywhere over the Scripture reading area, to open or close the right side panel</p>
+                      </div>
+                      <button
+                        onClick={() => setSwipePanelGestureEnabled(!swipePanelGestureEnabled)}
+                        className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${swipePanelGestureEnabled ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${swipePanelGestureEnabled ? 'translate-x-5' : ''}`} />
                       </button>
                     </div>
                   </div>

@@ -302,6 +302,10 @@ export interface AppState {
   setIdiomHighlightEnabled: (v: boolean) => void
   idiomHoverPreviewEnabled: boolean
   setIdiomHoverPreviewEnabled: (v: boolean) => void
+
+  // Two-finger trackpad swipe to open/close the Bible reading panel's right side panel
+  swipePanelGestureEnabled: boolean
+  setSwipePanelGestureEnabled: (v: boolean) => void
   idiomCache: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>
   setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => void
 
@@ -1078,6 +1082,7 @@ export const useAppStore = create<AppState>()(
       noteTypingLook: 'default',
       idiomHighlightEnabled: true,
       idiomHoverPreviewEnabled: true,
+      swipePanelGestureEnabled: true,
       idiomCache: [] as Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>,
       viewerWindowOpen: false,
       viewerPaused: false,
@@ -1848,6 +1853,7 @@ export const useAppStore = create<AppState>()(
       setNoteTypingLook: (s) => set({ noteTypingLook: s }),
       setIdiomHighlightEnabled: (v) => set({ idiomHighlightEnabled: v }),
       setIdiomHoverPreviewEnabled: (v) => set({ idiomHoverPreviewEnabled: v }),
+      setSwipePanelGestureEnabled: (v) => set({ swipePanelGestureEnabled: v }),
       setIdiomCache: (v: Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>) => set({ idiomCache: v }),
       setViewerWindowOpen: (v) => set(v ? { viewerWindowOpen: true } : { viewerWindowOpen: false, viewerPaused: false, viewerBlank: false }),
       setViewerBlank: (v) => set({ viewerBlank: v }),
@@ -2000,6 +2006,7 @@ export const useAppStore = create<AppState>()(
         pdfDownloadLocation: state.pdfDownloadLocation,
         idiomHighlightEnabled: state.idiomHighlightEnabled,
         idiomHoverPreviewEnabled: state.idiomHoverPreviewEnabled,
+        swipePanelGestureEnabled: state.swipePanelGestureEnabled,
         viewerFontScale: state.viewerFontScale,
         viewerTheme: state.viewerTheme,
         viewerLaserEnabled: state.viewerLaserEnabled,

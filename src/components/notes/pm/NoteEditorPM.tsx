@@ -80,6 +80,12 @@ export interface NoteEditorPMProps {
   // a quick-access preset next to the Edit/View toggle, separate from the
   // fuller font-family picker in Settings. 'default' needs no extra class.
   typingLook?: string
+  // Idiom notes already have dedicated structured fields (IdiomHeader) for everything a
+  // reference entry needs — the persistent formatting toolbar docked above THIS body
+  // editor (for headings/tables/callouts etc.) has no real use there and was adding to
+  // the note reading as cluttered. Selecting text still gets the on-selection bubble
+  // toolbar (SelectionToolbar) either way — this only hides the always-visible docked bar.
+  hideFormattingToolbar?: boolean
 }
 
 export default function NoteEditorPM({
@@ -104,6 +110,7 @@ export default function NoteEditorPM({
   onWikilinkHoverStart,
   onWikilinkHoverEnd,
   isSidePanel,
+  hideFormattingToolbar,
   findQuery = '',
   importSource,
   importedAt,
@@ -549,11 +556,11 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />}
+      {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
-        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
+        className={`berean-pm-editor flex-1 min-h-0 overflow-y-auto ${!isSidePanel && !hideFormattingToolbar && mode === 'edit' ? 'pm-has-floating-toolbar' : ''} ${isSidePanel ? 'pm-side-panel-note' : ''} ${typingLook !== 'default' ? `pm-look-${typingLook}` : ''} ${className}`}
       />
       {importSource && (
         <div className="flex-shrink-0 border-t border-[rgb(var(--color-surface-4))] select-none">

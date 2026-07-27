@@ -5,11 +5,11 @@ import ChapterView from './ChapterView'
 import ActionPillGroup from '@/components/shell/ActionPillGroup'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS } from '@/lib/bibleTexts'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
+import { mapChapterOnTranslationSwitch, isLxxTranslation } from '@/lib/translationChapterMap'
 import { normalizeBookName } from '@/lib/parseRef'
 import { zoomedFontSize } from '@/lib/zoom'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
-import { encodeScrollPosition, decodeScrollPosition } from '@/lib/verseScrollSync'
+import { encodeScrollPosition, decodeScrollPosition, type ScrollPosition } from '@/lib/verseScrollSync'
 import { useAppStore } from '@/store'
 import type { Verse, Book } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
@@ -70,9 +70,9 @@ interface Props {
   /** Called when removing a column would leave a single column — lets the host exit compare mode. */
   onCollapseToSingle?: (last: { bookId: string; chapter: number; textId: string }) => void
   /** Columns saved in tab state — restored on mount so chapter navigation survives a tab switch. */
-  initialColumns?: Array<{ textId: string; bookId: string; chapter: number }>
+  initialColumns?: Array<{ textId: string; bookId: string; chapter: number; scrollPos?: ScrollPosition }>
   /** Persist the current columns to tab state whenever they change. */
-  onColumnsChange?: (cols: Array<{ textId: string; bookId: string; chapter: number }>) => void
+  onColumnsChange?: (cols: Array<{ textId: string; bookId: string; chapter: number; scrollPos?: ScrollPosition }>) => void
   /** Scroll any column and every OTHER column sharing its exact bookId+chapter (a
    *  different translation of the same passage) follows by verse position. */
   syncScrollEnabled?: boolean
@@ -166,6 +166,20 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
       { id: 'col-1', textId: 'lxx',  bookId, chapter: mapChapterOnTranslationSwitch(bookId, chapter, sourceTextId, 'lxx'),  verses: [], loading: true },
     ]
   })
+  // Per-column saved scroll position (verse-anchored, like BiblePanel's own single-view
+  // scroll restore) — kept in a ref, not state, so scrolling doesn't re-render this
+  // component on every tick; only flushed out to tab state on a debounce (see the onScroll
+  // handler below). Seeded from initialColumns using the same col-${i} id scheme the
+  // columns-state initializer above uses, so restored columns start out already knowing
+  // where they left off.
+  const colScrollPosRef = useRef<Record<string, ScrollPosition | undefined>>(
+    Object.fromEntries((initialColumns ?? []).map((c, i) => [`col-${i}`, c.scrollPos]))
+  )
+  // Which column ids have already had their restored scroll position applied — a restore
+  // should only ever happen ONCE per mount (the first time that column's verses load), not
+  // every time the user later navigates that column to a different chapter.
+  const restoredScrollRef = useRef<Set<string>>(new Set())
+  const scrollSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({})
   const [focusedCol, setFocusedCol] = useState(0)
   const [infoOpenFor, setInfoOpenFor] = useState<string | null>(null)
   // Per-column flex-grow weights so the dividers between columns can be dragged to resize.
@@ -204,13 +218,19 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   const columnsRef = useRef(columns)
   columnsRef.current = columns
 
-  // Persist columns (text/book/chapter only) to tab state so chapter navigation, column
-  // adds/removes, and translation changes survive leaving and returning to the tab.
+  // Persist columns (text/book/chapter + last-known scroll position) to tab state so
+  // chapter navigation, column adds/removes, translation changes, AND scroll position all
+  // survive leaving and returning to the tab.
   const persistKey = columns.map(c => `${c.textId}:${c.bookId}:${c.chapter}`).join('|')
   const onColumnsChangeRef = useRef(onColumnsChange)
   onColumnsChangeRef.current = onColumnsChange
+  const persistColumns = useCallback(() => {
+    onColumnsChangeRef.current?.(columnsRef.current.map(c => ({
+      textId: c.textId, bookId: c.bookId, chapter: c.chapter, scrollPos: colScrollPosRef.current[c.id],
+    })))
+  }, [])
   useEffect(() => {
-    onColumnsChangeRef.current?.(columns.map(c => ({ textId: c.textId, bookId: c.bookId, chapter: c.chapter })))
+    persistColumns()
   }, [persistKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -342,32 +362,42 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
   }
 
   // ── Sync scroll across columns sharing the same passage ──────────────────────
-  // Only columns with the SAME bookId+chapter (different translations of the same
-  // passage — e.g. KJV vs LXX, or the two Hermas translations) sync with each
-  // other; with 3+ columns where only some match, those sync as their own group
-  // while the rest scroll independently, rather than an all-or-nothing toggle.
+  // Columns showing the same PASSAGE sync with each other — not necessarily the same
+  // literal chapter NUMBER. Most of the Bible has KJV and LXX chapters lining up 1:1, but
+  // Jeremiah, Psalms, Joel, and Malachi don't (see translationChapterMap.ts) — comparing
+  // KJV Jeremiah 26 against LXX Jeremiah 26 would show two unrelated chapters. Every
+  // column's chapter is normalized to its KJV-equivalent number before comparing, so e.g.
+  // KJV Jeremiah 26 and LXX Jeremiah 33 (the same actual passage) correctly group
+  // together even though their raw chapter numbers differ. With 3+ columns where only
+  // some match, those sync as their own group while the rest scroll independently.
+  function canonicalChapter(bookId: string, chapter: number, textId: string): number {
+    return isLxxTranslation(textId) ? mapChapterOnTranslationSwitch(bookId, chapter, textId, 'kjva') : chapter
+  }
   function syncGroupFor(colIdx: number): number[] {
     const col = columns[colIdx]
     if (!col) return []
+    const canon = canonicalChapter(col.bookId, col.chapter, col.textId)
     return columns
       .map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.bookId === col.bookId && c.chapter === col.chapter)
+      .filter(({ c }) => c.bookId === col.bookId && canonicalChapter(c.bookId, c.chapter, c.textId) === canon)
       .map(({ i }) => i)
   }
 
-  // Reports eligibility (2+ columns currently share a chapter) whenever columns
-  // change, so the host's toggle button can gray itself out live — e.g. navigating
-  // one column to a different chapter drops it out of sync without needing an
-  // explicit "disable" action from the user.
+  // Reports eligibility (2+ columns currently share a passage) whenever columns change,
+  // so the host's toggle button can gray itself out live — e.g. navigating one column to
+  // a different passage drops it out of sync without needing an explicit "disable" action
+  // from the user. Grouped by canonical (KJV-equivalent) chapter, same as syncGroupFor,
+  // so misaligned-numbering books still report eligible when they're actually the same
+  // passage in different translations.
   useEffect(() => {
     const groupSizes = new Map<string, number>()
     for (const c of columns) {
-      const key = `${c.bookId}:${c.chapter}`
+      const key = `${c.bookId}:${canonicalChapter(c.bookId, c.chapter, c.textId)}`
       groupSizes.set(key, (groupSizes.get(key) ?? 0) + 1)
     }
     const eligible = Math.max(0, ...groupSizes.values()) >= 2
     onSyncEligibleChange?.(eligible)
-  }, [columns, onSyncEligibleChange])
+  }, [columns, onSyncEligibleChange]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Which column is currently "driving" a sync-scroll write — a column id (not a
   // boolean) so that with 3+ columns, a genuinely new user-initiated scroll on a
@@ -400,10 +430,37 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     requestAnimationFrame(() => { if (scrollSyncSourceRef.current === sourceId) scrollSyncSourceRef.current = null })
   }
 
+  // When sync scroll is on, "next/prev chapter" (or a reference-bar jump) on one column
+  // now brings every OTHER column currently in its sync group (same bookId+chapter — a
+  // different translation of the same passage) along to the SAME new book/chapter, not
+  // just this one column. Previously navigation was purely per-column, so as soon as the
+  // driving column moved to a new chapter it silently fell out of the sync group
+  // (syncGroupFor requires an exact bookId+chapter match) and further scroll-syncing
+  // became a no-op — each translation would then need to be paged forward by hand.
   function navigateColumn(colId: string, newBookId: string, newChapter: number) {
-    setColumns(prev => prev.map(c =>
-      c.id === colId ? { ...c, bookId: newBookId, chapter: newChapter, verses: [], loading: true } : c
-    ))
+    setColumns(prev => {
+      const col = prev.find(c => c.id === colId)
+      if (!col) return prev
+      if (!syncScrollEnabled) {
+        return prev.map(c => c.id === colId ? { ...c, bookId: newBookId, chapter: newChapter, verses: [], loading: true } : c)
+      }
+      // Content-aware grouping (see syncGroupFor/canonicalChapter above) — a column in a
+      // different chapter-numbering tradition than the driving column (e.g. LXX Jeremiah
+      // alongside KJV Jeremiah) still belongs in the group if it's showing the SAME
+      // passage under its own numbering, not just an identical literal chapter number.
+      const drivingCanon = canonicalChapter(col.bookId, col.chapter, col.textId)
+      const group = prev.filter(c => c.bookId === col.bookId && canonicalChapter(c.bookId, c.chapter, c.textId) === drivingCanon)
+      const groupIds = new Set(group.map(c => c.id))
+      return prev.map(c => {
+        if (!groupIds.has(c.id)) return c
+        // The driving column gets the literal target the user navigated to; every OTHER
+        // column in the group gets that SAME passage remapped into ITS OWN translation's
+        // numbering (mapChapterOnTranslationSwitch — the same utility a one-off
+        // translation switch already uses), not the driving column's raw chapter number.
+        const mappedChapter = c.id === colId ? newChapter : mapChapterOnTranslationSwitch(newBookId, newChapter, col.textId, c.textId)
+        return { ...c, bookId: newBookId, chapter: mappedChapter, verses: [], loading: true }
+      })
+    })
   }
 
   function changeTranslation(colId: string, newTextId: string) {
@@ -551,6 +608,17 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               if (colBandRaf.current[colIdx]) cancelAnimationFrame(colBandRaf.current[colIdx])
               colBandRaf.current[colIdx] = requestAnimationFrame(() => computeColBand(colIdx))
               handleSyncScroll(colIdx, el)
+              // Save this column's scroll position (verse-anchored, survives a later chapter
+              // reload's different row heights) so it's restored on returning to this tab —
+              // debounced per column, matching the 150ms convention used elsewhere for scroll-
+              // position saves (BiblePanel.tsx, ScriptureSearchView.tsx).
+              const colId = col.id
+              if (scrollSaveTimersRef.current[colId]) clearTimeout(scrollSaveTimersRef.current[colId])
+              scrollSaveTimersRef.current[colId] = setTimeout(() => {
+                const pos = encodeScrollPosition(el)
+                if (pos) colScrollPosRef.current[colId] = pos
+                persistColumns()
+              }, 150)
             }}
             className="overflow-y-auto min-w-0 flex flex-col relative"
             style={{ flexGrow: colFlex[col.id] ?? 1, flexBasis: 0 }}
@@ -662,6 +730,19 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
               onStrongsClick={onStrongsClick}
               onWordClick={onWordClick}
               compact
+              onVersesLoaded={() => {
+                // Restore this column's saved scroll position — but only ONCE per mount,
+                // the first time its verses load; a later chapter navigation shouldn't try
+                // to reapply a position that belonged to a different chapter.
+                if (restoredScrollRef.current.has(col.id)) return
+                restoredScrollRef.current.add(col.id)
+                const pos = colScrollPosRef.current[col.id]
+                if (!pos) return
+                const el = colRefs.current[colIdx]
+                if (!el) return
+                const top = decodeScrollPosition(el, pos)
+                if (top !== null) el.scrollTop = top
+              }}
             />
           </div>
           {colIdx < columns.length - 1 && (

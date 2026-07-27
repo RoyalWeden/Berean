@@ -13,7 +13,7 @@ import { useAppStore } from '@/store'
 // looked for hard_break-separated lines within a single paragraph.
 
 function docFromLines(...lines: string[]) {
-  return schema.nodes.doc.create(null, lines.map((l) => schema.nodes.paragraph.create(null, schema.text(l))))
+  return schema.nodes.doc.create(null, lines.map((l) => schema.nodes.paragraph.create(null, l ? schema.text(l) : undefined)))
 }
 
 function makeView(doc: ReturnType<typeof docFromLines>) {
@@ -77,6 +77,24 @@ describe('multi-paragraph verse/lexicon block detection', () => {
     const doc = docFromLines('H7225 בְּרֵאשִׁית rêʼshîyth;', 'the first, in place, time, order or rank')
     const view = makeView(doc)
     expect(view.dom.innerHTML).toContain('pm-lexicon-block')
+    view.destroy()
+  })
+
+  it('blank paragraphs between the ref line and verse lines (e.g. a rich-clipboard paste with blank lines) still get detected and boxed', () => {
+    const doc = docFromLines(
+      'Zephaniah 2:1-3',
+      '',
+      '1 Gather yourselves together, yea, gather together, O nation not desired;',
+      '',
+      "2 Before the decree bring forth, before the day pass as the chaff, before the fierce anger of Yehovah come upon you, before the day of Yehovah's anger come upon you.",
+      '',
+      "3 Seek ye Yehovah, all ye meek of the earth, which have wrought his judgment; seek righteousness, seek meekness: it may be ye shall be hid in the day of Yehovah's anger.",
+    )
+    const view = makeView(doc)
+    const html = view.dom.innerHTML
+    expect(html).toContain('pm-verse-block-first')
+    expect(html).toContain('pm-verse-block-middle')
+    expect(html).toContain('pm-verse-block-last')
     view.destroy()
   })
 

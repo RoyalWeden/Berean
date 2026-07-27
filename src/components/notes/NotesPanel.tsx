@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -1049,8 +1049,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       <TabHeaderPortal floating={floating}>
         {editing ? (
           <>
-            {isSystemNote(activeNote) ? (
-              /* System notes (daily, verse, esword, biblegateway) — title is read-only */
+            {isSystemNote(activeNote) || activeNote.type === 'idiom' ? (
+              /* System notes (daily, verse, esword, biblegateway) — title is read-only.
+                 Idiom notes too: IdiomHeader below already owns an editable Term field
+                 that writes straight to this same `title`, so having a SECOND live
+                 title input right here (same value, different box) was confusing —
+                 two places to rename the same thing, visible at once. */
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 {activeNote.verseRef && parseVerseRef(activeNote.verseRef) ? (
                   <button
@@ -1179,13 +1183,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </button>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
-            <button
-              onClick={() => setIdiomModal({ term: '', meaning: '' })}
-              title="New idiom"
-              className="p-1 rounded-shell cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
-            >
-              <BookOpen size={15} />
-            </button>
             {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
             {!folderView && (
               <button
@@ -1231,12 +1228,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onClick={() => { setPlusMenu(null); createNote() }}
             >
               <FileText size={13} className="flex-shrink-0" /> New note
-            </button>
-            <button
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { setPlusMenu(null); setIdiomModal({ term: '', meaning: '' }) }}
-            >
-              <BookOpen size={13} className="flex-shrink-0" /> New idiom
             </button>
             <button
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
@@ -1341,6 +1332,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onVerseRefClick={handleVerseRefClick}
               onLexiconRefClick={handleLexiconRefClick}
               findQuery={findBarVisible ? localFindQuery : ''}
+              // Term/Aliases/Meaning/Explanation/Compare/References already live in
+              // IdiomHeader above — this body is genuinely optional scratch space, so it
+              // gets a real visible placeholder explaining that (rather than sitting
+              // blank with no explanation) and loses the persistent formatting toolbar,
+              // which was adding a wall of buttons over an area with no stated purpose.
+              placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : undefined}
+              hideFormattingToolbar={activeNote.type === 'idiom'}
               importSource={
                 activeNote.tags?.includes('biblegateway') ? 'biblegateway'
                 : activeNote.tags?.includes('esword') ? 'esword'
@@ -1755,7 +1753,35 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   )
 }
 
+// Which secondary fields exist for an idiom note, beyond Term + Meaning — added
+// individually via the "+ Add field" button rather than all revealed together behind one
+// disclosure, so the header only ever shows fields actually in use.
+const IDIOM_FIELD_DEFS = [
+  { key: 'aliases', label: 'Aliases' },
+  { key: 'explanation', label: 'Explanation' },
+  { key: 'compare', label: 'Compare to' },
+  { key: 'references', label: 'References' },
+] as const
+type IdiomFieldKey = typeof IDIOM_FIELD_DEFS[number]['key']
+
+function idiomFieldHasContent(note: Note, key: IdiomFieldKey): boolean {
+  const data = note.idiomData ?? {}
+  switch (key) {
+    case 'aliases': return (note.idiomAliases ?? []).length > 0
+    case 'explanation': return (data.explanation ?? '').trim().length > 0
+    case 'compare': return (data.compare ?? []).length > 0
+    case 'references': return (data.verses ?? []).length > 0
+  }
+}
+
 // ── IdiomHeader ───────────────────────────────────────────────────────────────
+// Idiom header — Term + Meaning only by default (a clean, borderless two-line look, no
+// input-box chrome). Aliases/Explanation/Compare/References are each added individually
+// via "+ Add field" — a field only ever appears once it either already has content or the
+// user explicitly adds it, instead of one toggle revealing all four together. Auto-
+// variants matching and example sentences are behavior-only settings that never appear on
+// the printed export — tucked into a small menu next to Term instead of sitting in the
+// main field flow.
 function IdiomHeader({ note, onUpdate }: {
   note: Note
   onUpdate: (updates: Partial<Note>) => Promise<void>
@@ -1770,10 +1796,46 @@ function IdiomHeader({ note, onUpdate }: {
   const compare = data.compare ?? []
   const verses = data.verses ?? []
   const [exInput, setExInput] = useState('')
-  const [detailsOpen, setDetailsOpen] = useState(
-    Boolean(examples.length || (data.explanation ?? '').trim() || compare.length || verses.length)
+  const [examplesOpen, setExamplesOpen] = useState(false)
+  const [behaviorMenuOpen, setBehaviorMenuOpen] = useState(false)
+  const [addFieldMenuOpen, setAddFieldMenuOpen] = useState(false)
+  // Seeded from whichever fields already have content, so existing idiom notes show
+  // everything they already have without the user needing to re-add it. Once a field is
+  // added (or already had content), it stays visible for the rest of the session even if
+  // the user clears it out mid-edit — it only disappears again via its own "remove field"
+  // action, not automatically just because it's momentarily empty.
+  const [addedFields, setAddedFields] = useState<Set<IdiomFieldKey>>(
+    () => new Set(IDIOM_FIELD_DEFS.map((f) => f.key).filter((k) => idiomFieldHasContent(note, k)))
   )
   const updateData = (patch: Partial<NonNullable<Note['idiomData']>>) => onUpdate({ idiomData: { ...data, ...patch } })
+
+  function addField(key: IdiomFieldKey) {
+    setAddedFields((prev) => new Set(prev).add(key))
+    setAddFieldMenuOpen(false)
+  }
+  function removeField(key: IdiomFieldKey) {
+    setAddedFields((prev) => { const next = new Set(prev); next.delete(key); return next })
+    if (key === 'aliases') onUpdate({ idiomAliases: [] })
+    else if (key === 'explanation') updateData({ explanation: undefined })
+    else if (key === 'compare') updateData({ compare: [] })
+    else if (key === 'references') updateData({ verses: [] })
+  }
+
+  // Same auto-detection idiomExportEntries() already mines at export time — surfaced
+  // live here too, so the user isn't manually retyping references the export will pick
+  // up on its own. Shown read-only underneath the manual Verses row; only the ones NOT
+  // already listed manually, so nothing appears twice.
+  const autoVerses = useMemo(() => {
+    const textForRefs = [...examples, data.explanation ?? '', note.content ?? ''].join('\n')
+    const fmt = (r: NoteVerseRef): string =>
+      r.isChapter || r.verse === 0
+        ? bookChapterVerseLabel(r.bookId, r.chapter)
+        : `${bookChapterVerseLabel(r.bookId, r.chapter, r.verse)}${r.endVerse ? `-${r.endVerse}` : ''}`
+    const found = extractRefsFromNote(textForRefs, note.idiomTerm || note.title || '').map(fmt)
+    const already = new Set(verses.map((v) => v.toLowerCase()))
+    return [...new Set(found)].filter((v) => !already.has(v.toLowerCase()))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examples, data.explanation, note.content, note.idiomTerm, note.title, verses])
 
   async function saveAlias(val: string) {
     const trimmed = val.trim()
@@ -1786,14 +1848,15 @@ function IdiomHeader({ note, onUpdate }: {
     await onUpdate({ idiomAliases: aliases.filter(a => a !== alias) })
   }
 
+  const availableFieldDefs = IDIOM_FIELD_DEFS.filter((f) => !addedFields.has(f.key))
+
   return (
-    <div className="flex flex-col gap-0 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] flex-shrink-0">
-      {/* Row 1: label | term | — | meaning | auto-variants toggle */}
-      <div className="flex items-center gap-3 px-4 py-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-400 flex-shrink-0">Idiom</span>
+    <div className="flex flex-col gap-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 px-4 pt-3 pb-2">
+      <div className="flex items-start gap-2">
+        {/* Term — the printed entry's own heading style (bold, uppercase, colored). */}
         <input
           key={note.id + '-term'}
-          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] font-medium text-sm"
+          className="flex-1 min-w-0 bg-transparent outline-none text-violet-400 placeholder:text-[rgb(var(--color-text-muted))] font-bold text-base uppercase tracking-wide"
           placeholder="Term…"
           defaultValue={note.idiomTerm ?? note.title}
           onBlur={async (e) => {
@@ -1802,127 +1865,201 @@ function IdiomHeader({ note, onUpdate }: {
             await onUpdate({ idiomTerm: term.toLowerCase(), title: term })
           }}
         />
-        <span className="text-[rgb(var(--color-text-muted))] flex-shrink-0 text-sm">—</span>
-        <input
-          key={note.id + '-meaning'}
-          className="flex-1 min-w-0 bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] text-sm"
-          placeholder="Meaning… (optional)"
-          defaultValue={note.idiomMeaning ?? ''}
-          onBlur={async (e) => {
-            const meaning = e.target.value.trim()
-            if (meaning === (note.idiomMeaning ?? '')) return
-            await onUpdate({ idiomMeaning: meaning || undefined })
-          }}
-        />
-        {/* Auto-variants toggle */}
-        <button
-          onClick={() => onUpdate({ idiomAutoVariants: !autoVariants })}
-          title={autoVariants ? 'Auto-matching plurals & caps — click to disable' : 'Click to auto-match plurals, capitals, possessives'}
-          className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${
-            autoVariants
-              ? 'bg-violet-500/20 border-violet-500/40 text-violet-300'
-              : 'bg-transparent border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-violet-500/40 hover:text-violet-400'
-          }`}
-        >
-          <span>{autoVariants ? '✓' : '+'}</span>
-          <span>plurals</span>
-        </button>
-      </div>
-      {/* Row 2: alternate terms (aliases) */}
-      <div className="flex items-center gap-1.5 px-4 pb-2 flex-wrap">
-        <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 mr-0.5">Same idiom:</span>
-        {aliases.map((alias) => (
-          <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
-            {alias}
-            <button
-              onClick={() => removeAlias(alias)}
-              className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
-              title="Remove"
-            >×</button>
-          </span>
-        ))}
-        <input
-          className="text-[11px] bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[120px] max-w-[180px]"
-          placeholder="+ add alternate term…"
-          value={aliasInput}
-          onChange={e => setAliasInput(e.target.value)}
-          onKeyDown={async (e) => {
-            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); await saveAlias(aliasInput) }
-            if (e.key === 'Backspace' && !aliasInput && aliases.length) await removeAlias(aliases[aliases.length - 1])
-          }}
-          onBlur={() => { if (aliasInput.trim()) saveAlias(aliasInput) }}
-        />
-        {aliases.length === 0 && (
-          <span className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-40 italic">e.g. "herod" for this same idiom</span>
-        )}
+        {/* Behavior-only settings (never printed) — plurals matching + example sentences,
+            tucked away here instead of sitting in the main field flow. */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setBehaviorMenuOpen((v) => !v)}
+            title="Highlighting behavior"
+            className={`p-1 rounded cursor-pointer transition-colors ${behaviorMenuOpen ? 'text-violet-400 bg-violet-500/10' : 'text-[rgb(var(--color-text-muted))] hover:text-violet-400'}`}
+          >
+            <SlidersHorizontal size={14} />
+          </button>
+          {behaviorMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setBehaviorMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-20 w-64 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg p-2.5 flex flex-col gap-2.5">
+                <button
+                  onClick={() => onUpdate({ idiomAutoVariants: !autoVariants })}
+                  className="flex items-center justify-between gap-2 text-left cursor-pointer group"
+                >
+                  <span className="text-xs text-[rgb(var(--color-text-secondary))] group-hover:text-[rgb(var(--color-text-primary))]">Also match plurals/possessives</span>
+                  <span className={`relative flex-shrink-0 w-8 h-4 rounded-full transition-colors ${autoVariants ? 'bg-violet-500' : 'bg-[rgb(var(--color-surface-4))]'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${autoVariants ? 'translate-x-4' : ''}`} />
+                  </span>
+                </button>
+                <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <button onClick={() => setExamplesOpen((v) => !v)} className="w-full flex items-center justify-between text-xs text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
+                    <span>Example sentences{examples.length > 0 ? ` (${examples.length})` : ''}</span>
+                    <span>{examplesOpen ? '▾' : '▸'}</span>
+                  </button>
+                  <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-70 mt-1">Not printed — just text to mine for scripture references.</p>
+                  {examplesOpen && (
+                    <div className="flex flex-col gap-1 mt-1.5">
+                      {examples.map((ex, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <input
+                            defaultValue={ex}
+                            className="flex-1 text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))]"
+                            onBlur={(e) => {
+                              const v = e.target.value.trim()
+                              const next = [...examples]
+                              if (!v) next.splice(i, 1); else next[i] = v
+                              updateData({ examples: next })
+                            }}
+                          />
+                          <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer text-xs">×</button>
+                        </div>
+                      ))}
+                      <input
+                        value={exInput}
+                        onChange={(e) => setExInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
+                        onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
+                        placeholder="+ add an example sentence…"
+                        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))]"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Reference-book structured fields */}
-      <div className="px-4 pb-2">
-        <button onClick={() => setDetailsOpen((v) => !v)} className="text-[10px] font-semibold uppercase tracking-wide text-[rgb(var(--color-text-muted))] hover:text-violet-400 cursor-pointer flex items-center gap-1">
-          <span>{detailsOpen ? '▾' : '▸'}</span> Reference details
-        </button>
-        {detailsOpen && (
-          <div className="flex flex-col gap-2.5 mt-2">
-            {/* Examples */}
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Example sentences</span>
-              {examples.map((ex, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-3 text-right">{i + 1}.</span>
-                  <input
-                    defaultValue={ex}
-                    className="flex-1 text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))]"
-                    onBlur={(e) => {
-                      const v = e.target.value.trim()
-                      const next = [...examples]
-                      if (!v) next.splice(i, 1); else next[i] = v
-                      updateData({ examples: next })
-                    }}
-                  />
-                  <button onClick={() => updateData({ examples: examples.filter((_, j) => j !== i) })} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer text-xs">×</button>
-                </div>
-              ))}
-              <input
-                value={exInput}
-                onChange={(e) => setExInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && exInput.trim()) { e.preventDefault(); updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
-                onBlur={() => { if (exInput.trim()) { updateData({ examples: [...examples, exInput.trim()] }); setExInput('') } }}
-                placeholder="+ add an example sentence…"
-                className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] ml-4"
-              />
-            </div>
-            {/* Explanation */}
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-[rgb(var(--color-text-muted))]">Explanation</span>
-              <textarea
-                key={note.id + '-expl'}
-                defaultValue={data.explanation ?? ''}
-                rows={2}
-                placeholder="What the expression means / where it comes from…"
-                className="text-xs bg-[rgb(var(--color-surface-4))/50] rounded px-2 py-1 outline-none text-[rgb(var(--color-text-primary))] resize-y"
-                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
-              />
-            </div>
-            {/* Compare to + Verses — simple comma chips */}
-            <IdiomChipRow label="Compare to (related idioms)" items={compare} onChange={(next) => updateData({ compare: next })} placeholder="+ related idiom…" />
-            <IdiomChipRow label="Verses" items={verses} onChange={(next) => updateData({ verses: next })} placeholder="+ e.g. Luke 13:32…" />
+      {/* Meaning — the export's definition paragraph. Only other field always visible. */}
+      <textarea
+        key={note.id + '-meaning'}
+        defaultValue={note.idiomMeaning ?? ''}
+        rows={1}
+        placeholder="Meaning…"
+        className="w-full text-sm text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-none leading-snug"
+        onBlur={async (e) => {
+          const meaning = e.target.value.trim()
+          if (meaning === (note.idiomMeaning ?? '')) return
+          await onUpdate({ idiomMeaning: meaning || undefined })
+        }}
+      />
+
+      {addedFields.has('aliases') && (
+        <IdiomFieldWrap label="Aliases" onRemove={() => removeField('aliases')}>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {aliases.map((alias) => (
+              <span key={alias} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+                {alias}
+                <button
+                  onClick={() => removeAlias(alias)}
+                  className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+                  title="Remove"
+                >×</button>
+              </span>
+            ))}
+            <input
+              className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[120px] max-w-[180px]"
+              placeholder="+ same idiom, different wording…"
+              value={aliasInput}
+              onChange={e => setAliasInput(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); await saveAlias(aliasInput) }
+                if (e.key === 'Backspace' && !aliasInput && aliases.length) await removeAlias(aliases[aliases.length - 1])
+              }}
+              onBlur={() => { if (aliasInput.trim()) saveAlias(aliasInput) }}
+            />
           </div>
-        )}
-      </div>
+        </IdiomFieldWrap>
+      )}
+
+      {addedFields.has('explanation') && (
+        <IdiomFieldWrap label="Explanation" onRemove={() => removeField('explanation')}>
+          <textarea
+            key={note.id + '-expl'}
+            defaultValue={data.explanation ?? ''}
+            rows={2}
+            placeholder="What it means, where it comes from…"
+            className="w-full text-xs text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] bg-transparent outline-none resize-y leading-relaxed"
+            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (data.explanation ?? '')) updateData({ explanation: v || undefined }) }}
+          />
+        </IdiomFieldWrap>
+      )}
+
+      {addedFields.has('compare') && (
+        <IdiomFieldWrap label="Compare to" onRemove={() => removeField('compare')}>
+          <IdiomChipRow items={compare} onChange={(next) => updateData({ compare: next })} placeholder="+ related idiom…" />
+        </IdiomFieldWrap>
+      )}
+
+      {addedFields.has('references') && (
+        <IdiomFieldWrap label="References" onRemove={() => removeField('references')}>
+          <IdiomChipRow items={verses} onChange={(next) => updateData({ verses: next })} placeholder="+ e.g. Luke 13:32…" />
+          {autoVerses.length > 0 && (
+            <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic mt-1">
+              Also found in your text (included automatically, no need to add): {autoVerses.join(', ')}
+            </p>
+          )}
+        </IdiomFieldWrap>
+      )}
+
+      {availableFieldDefs.length > 0 && (
+        <div className="relative self-start">
+          <button
+            onClick={() => setAddFieldMenuOpen((v) => !v)}
+            className="text-[11px] text-[rgb(var(--color-text-muted))] hover:text-violet-400 cursor-pointer flex items-center gap-1 py-0.5"
+          >
+            <span>+</span>
+            <span>Add field</span>
+          </button>
+          {addFieldMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setAddFieldMenuOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-20 w-40 rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg py-1">
+                {availableFieldDefs.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => addField(f.key)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-/** Small reusable add/remove chip list for the idiom structured fields. */
-function IdiomChipRow({ label, items, onChange, placeholder }: { label: string; items: string[]; onChange: (next: string[]) => void; placeholder: string }) {
+/** Label-above-content wrapper for an idiom secondary field, with a hover-revealed
+ *  "Remove" action — consistent minimal treatment (no boxes/borders) across all four
+ *  individually-added fields. */
+function IdiomFieldWrap({ label, onRemove, children }: { label: string; onRemove: () => void; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1 group/field">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-[rgb(var(--color-text-muted))]">{label}</span>
+        <button
+          onClick={onRemove}
+          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer opacity-0 group-hover/field:opacity-100 transition-opacity"
+        >
+          Remove
+        </button>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Small reusable add/remove chip list for the idiom structured fields — label now lives
+ *  in the enclosing IdiomFieldWrap, so this only renders the chips + add input. */
+function IdiomChipRow({ items, onChange, placeholder }: { items: string[]; onChange: (next: string[]) => void; placeholder: string }) {
   const [input, setInput] = useState('')
   const add = (v: string) => { const t = v.trim(); if (t && !items.includes(t)) onChange([...items, t]); setInput('') }
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 mr-0.5">{label}:</span>
       {items.map((it) => (
-        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] font-medium">
+        <span key={it} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-xs font-medium">
           {it}
           <button onClick={() => onChange(items.filter((x) => x !== it))} className="text-violet-400 hover:text-violet-200 leading-none cursor-pointer opacity-70 hover:opacity-100">×</button>
         </span>
@@ -1933,7 +2070,7 @@ function IdiomChipRow({ label, items, onChange, placeholder }: { label: string; 
         onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ',') && input.trim()) { e.preventDefault(); add(input) } }}
         onBlur={() => { if (input.trim()) add(input) }}
         placeholder={placeholder}
-        className="text-[11px] bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[110px]"
+        className="text-xs bg-transparent outline-none text-[rgb(var(--color-text-secondary))] placeholder:text-[rgb(var(--color-text-muted))] min-w-[110px]"
       />
     </div>
   )

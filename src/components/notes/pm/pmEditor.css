@@ -417,6 +417,24 @@
   box-sizing: border-box;
   line-height: 1.4;
 }
+/* The Bible-reading side panel's note editor is a much narrower embed than the
+   main Notes space or a full tab (rightPanelWidth defaults to 280px) — the base
+   16-28px padding above, and even the first narrowed pass at this rule, still
+   ate a disproportionate share of that width. Scoped to .pm-side-panel-note
+   only (set by NoteEditorPM.tsx when isSidePanel is true), so the main Notes
+   space and other berean-pm-editor embeds (YouTube tab/secondary panel) are
+   untouched. No floating toolbar in the side panel, so no top padding to
+   reserve either. Left/right now genuinely narrow and symmetric — the
+   heading-collapse arrow (headingCollapse.ts, normally at `left: -22px` off
+   the heading's own edge) is hidden in this scope instead of reserving 24px
+   of left padding just to keep it from clipping, which is a fair trade in a
+   column this narrow. */
+.berean-pm-editor.pm-side-panel-note .ProseMirror {
+  padding: 10px 12px 16px 12px;
+}
+.berean-pm-editor.pm-side-panel-note .pm-heading-collapse-arrow {
+  display: none;
+}
 /* The floating formatting toolbar (Toolbar.tsx) docks `absolute top-2` over
    this editor rather than taking up flow space, so without this the first
    1-2 lines of any note sat directly underneath it. Reserves just enough

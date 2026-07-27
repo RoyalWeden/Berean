@@ -1675,7 +1675,7 @@ export default function BibleRightPanel({
       {/* Notes tab — note open */}
       {visibleTab === 'notes' && sidebarNote && (
         <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px` }}>
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+          <div className="flex items-center gap-2 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <button
               onClick={closeSidebarNote}
               className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer rounded px-1 py-0.5 hover:bg-[rgb(var(--color-surface-4))] transition-colors"

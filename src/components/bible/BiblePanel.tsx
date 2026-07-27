@@ -18,6 +18,7 @@ import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
+import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
@@ -662,6 +663,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       translation: textId.toUpperCase(),
     })
   }, [tabState.bookId, tabState.chapter, tabState.endChapter, tabState.searchMode, currentBook, activeTab?.id, renameTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Compare mode's own title, kept in sync with the columns themselves — the effect above
+  // only reacts to tabState.bookId/chapter, which stay frozen at whatever they were the
+  // moment compare mode was entered (CompareView.tsx owns its own per-column book/chapter
+  // state independently in tabState.compareColumns). Without this, the tab title froze at
+  // "Compare — <original chapter>" forever, never reflecting later column navigation
+  // (next/prev chapter, translation switch, or the reference-bar picker in any column).
+  useEffect(() => {
+    if (!activeTab || !tabState.compareMode) return
+    const cols = tabState.compareColumns
+    const list = cols && cols.length > 0
+      ? cols.map((c) => {
+          const b = books.find((bk) => bk.id === c.bookId)
+          return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
+        })
+      : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
+    const uniq = [...new Set(list)]
+    const title = uniq.length > 0 ? `Compare — ${uniq.join(' / ')}` : 'Compare'
+    if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
+  }, [tabState.compareMode, tabState.compareColumns, books, currentBook, activeTab?.id, activeTab?.title, tabState.chapter, renameTab])
 
   // Record a verse-level history entry when a search navigates to a specific verse WITHIN
   // an already-open chapter — the effect above only re-runs on book/chapter changes, so a
@@ -1309,203 +1330,22 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
 
   // ── Two-finger trackpad swipe to collapse/expand the right side panel ────────
-  // Notification-Center-style: the panel visibly tracks the gesture in real time
-  // (not a binary toggle at a threshold), snapping fully open/closed only once the
-  // user actually releases — based on distance + velocity — and never resizing,
-  // only sliding (see panelSize below, untouched by any of this). A native
-  // (non-React) `wheel` listener with `{ passive: false, capture: true }` is
-  // required — same precedent as PDFViewer.tsx's own manual wheel listener — so
-  // `preventDefault()` actually takes effect and nothing nested can consume the
-  // event first; React's synthetic wheel handler is attached passively.
-  //
-  // History of what didn't work, briefly (full reasoning lives in the git
-  // history / conversation): listening only on the thin resize divider was too
-  // small a target; requiring an edge-zone start when closed made opening
-  // unreliable since a swipe's starting cursor position is incidental; and a
-  // SINGLE piece of live state (`swipeCloseFrac`) that got unconditionally reset
-  // by a silence-debounce meant every natural pause between repeated swipe
-  // strokes threw away all progress and re-judged each stroke alone against the
-  // full open/close threshold — so unless one continuous stroke alone crossed
-  // halfway (hard on a real trackpad), the panel just sprang back. Tuning the
-  // debounce timing alone couldn't fix that (too short → premature snaps mid-
-  // swipe; too long → the panel visibly freezes in place for up to the full
-  // timeout after a genuine release before committing).
-  //
-  // Current design: a REST position that survives pauses (restFracRef/restFrac,
-  // "where the panel is currently sitting"), separate from per-SEGMENT gesture
-  // state (swipeStateRef, "this particular stretch of continuous wheel ticks").
-  // A short silence timer only PAUSES (holds position, decides nothing); a
-  // longer one — or, when available, the REAL trackpad finger-lift signal from
-  // Electron's main process (window.app.onTrackpadSwipeEnd, see main.ts's
-  // 'web-contents-created'/'input-event' → 'gestureScrollEnd' hook) — COMMITS
-  // (makes the actual open/closed decision). Multiple separate strokes
-  // naturally accumulate in restFracRef instead of each restarting from
-  // scratch, which is what makes reaching "open" via several short natural
-  // swipes actually work.
-  const PAUSE_MS = 180        // silence → hold position, no decision
-  const COMMIT_FALLBACK_MS = 550   // further silence after a pause → commit (only used if the real gesture-end IPC signal doesn't arrive first)
-  const SWIPE_REFERENCE_PX = 100   // fixed distance for a "full" swipe — independent of panel width, tuned for real trackpad travel rather than requiring 50% of an arbitrary panel width
-
-  // 0-1: where the panel is currently RESTING (0 = fully open, 1 = fully closed).
-  // Persists across pauses — only ever cleared once a commit actually happens —
-  // so a second swipe stroke continues from here rather than from the last
-  // committed rightPanelOpen boolean. null = fully at rest, no gesture session
-  // active at all (use rightPanelOpen directly).
-  const [restFrac, setRestFrac] = useState<number | null>(null)
-  const restFracRef = useRef<number | null>(null)
-  // Per-SEGMENT only (a segment = one unbroken stretch of wheel ticks between
-  // pauses) — re-seeded from restFracRef every time a new segment starts, NOT
-  // from the committed rightPanelOpen boolean, so segments chain together.
-  const swipeStateRef = useRef<{ segmentStartFrac: number; accumDeltaX: number; lastTime: number; recentTicks: Array<{ dx: number; dt: number }> } | null>(null)
-  // Smoothed velocity, kept even through a pause (recomputed fresh each segment,
-  // but not wiped by pauseSwipe itself) so a commit firing well after the last
-  // wheel tick can still see how fast that last segment was moving.
-  const lastVelocityRef = useRef(0)
-  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Kept fresh every render so the stable wheel listener below (attached once per
-  // DOM node via the callback ref, never recreated) always reads current values
-  // instead of a stale closure from whichever render happened to be active when it
-  // was attached.
-  const swipeLiveRef = useRef({ rightPanelOpen, rightPanelWidth, activeTab })
-  swipeLiveRef.current = { rightPanelOpen, rightPanelWidth, activeTab }
-
-  function clearSwipeTimers() {
-    if (pauseTimerRef.current) { clearTimeout(pauseTimerRef.current); pauseTimerRef.current = null }
-    if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null }
-  }
-
-  // Silence (or, once wired, a lull the real IPC signal doesn't immediately
-  // resolve) → HOLD. Does not touch restFracRef/restFrac at all — the panel
-  // stays exactly where it visually is — and makes no open/closed decision.
-  // Only ends the current per-segment tracking (so the next wheel tick starts a
-  // fresh segment seeded from wherever restFracRef already sits) and lets the
-  // resting position ease normally instead of staying pinned to instant-jump
-  // mode. Schedules the fallback commit timer in case the real gesture-end
-  // signal never arrives.
-  function pauseSwipe() {
-    swipeStateRef.current = null
-    setIsResizingPanel(false)
-    if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
-    commitTimerRef.current = setTimeout(() => commitSwipeRef.current('timeout'), COMMIT_FALLBACK_MS)
-  }
-
-  // The actual decision point — position (restFracRef) + smoothed velocity →
-  // open or closed. Called from the fallback timer OR (once Part A lands) the
-  // real `app:trackpadSwipeEnd` IPC event — either way ends the whole gesture
-  // session: restFracRef resets to null (back to pure rightPanelOpen-driven
-  // display) and no further segment can silently resume it.
-  function commitSwipe(_reason: 'timeout' | 'gesture-end') {
-    clearSwipeTimers()
-    swipeStateRef.current = null
-    const rest = restFracRef.current
-    restFracRef.current = null
-    setRestFrac(null)
-    setIsResizingPanel(false)
-    if (rest === null) return // no session was actually active — nothing to decide
-    const { rightPanelOpen: wasOpen, activeTab: curTab } = swipeLiveRef.current
-    const fastFlick = Math.abs(lastVelocityRef.current) > 0.5
-    const shouldOpen = fastFlick ? lastVelocityRef.current > 0 : rest < 0.5
-    if (shouldOpen !== wasOpen) {
-      setRightPanelOpen(shouldOpen)
-      if (curTab) updateTabState('scripture', curTab.id, { rightPanelOpen: shouldOpen })
-    }
-    // rightPanelWidth is never read from or written to here — the panel's width
-    // is untouched by this whole gesture, start to finish.
-  }
-  const commitSwipeRef = useRef(commitSwipe)
-  commitSwipeRef.current = commitSwipe
-
-  // Real trackpad finger-down/finger-up, from Electron's main process (macOS
-  // NSEventPhase-driven — see main.ts) — the actual fix for "only decide once
-  // fingers truly lift." Begin defensively cancels a stale pending fallback
-  // commit (in case a new physical gesture starts right as an old one's
-  // fallback timer was about to fire); End commits immediately rather than
-  // waiting out COMMIT_FALLBACK_MS. Optional-chained — preload.ts changes need
-  // a full Electron restart (not just a Vite HMR reload) to take effect, so a
-  // renderer that reloaded without one would otherwise hard-crash the whole
-  // panel on a missing function; the swipe gesture just falls back to the
-  // COMMIT_FALLBACK_MS timeout alone in that case, same as before Part A.
-  useEffect(() => {
-    window.app.onTrackpadSwipeBegin?.(() => { if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null } })
-    window.app.onTrackpadSwipeEnd?.(() => { if (swipeStateRef.current || restFracRef.current !== null) commitSwipeRef.current('gesture-end') })
-  }, [])
-
-  // Stable (never recreated) wheel handler — only reads through refs, so it's safe
-  // to attach once per DOM node without needing to re-run on every render.
-  const onSwipeWheelRef = useRef((e: WheelEvent) => {
-    // Real two-finger horizontal swipe only: pinch-zoom sets ctrlKey true, and a
-    // vertical-dominant wheel event is ordinary scrolling, neither of which
-    // should be read as a panel-toggle gesture.
-    if (e.ctrlKey) return
-    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
-    const { rightPanelOpen: isOpen } = swipeLiveRef.current
-    e.preventDefault()
-    setIsResizingPanel(true)
-    const now = performance.now()
-    if (!swipeStateRef.current) {
-      // Seed from wherever the panel is CURRENTLY resting (mid-pause from an
-      // earlier stroke in this same session), falling back to the committed
-      // rightPanelOpen boolean only when there's no session in progress at all.
-      // This is what lets several short strokes accumulate instead of each one
-      // restarting from scratch.
-      const segmentStartFrac = restFracRef.current ?? (isOpen ? 0 : 1)
-      swipeStateRef.current = { segmentStartFrac, accumDeltaX: 0, lastTime: now, recentTicks: [] }
-    }
-    const s = swipeStateRef.current
-    const dt = Math.max(1, now - s.lastTime)
-    s.lastTime = now
-    s.accumDeltaX += e.deltaX
-    // Smoothed velocity over a short rolling window (not just the single most
-    // recent tick) — an unsmoothed last-tick-only read made the "fast flick"
-    // shortcut far more available to decisive closing swipes (which tend to
-    // end at high instantaneous velocity right as fingers lift) than to
-    // slower, more tentative opening swipes, which was the actual cause of
-    // "closing works, opening doesn't" (the distance math itself is symmetric).
-    s.recentTicks.push({ dx: e.deltaX, dt })
-    if (s.recentTicks.length > 4) s.recentTicks.shift()
-    const sumDx = s.recentTicks.reduce((a, t) => a + t.dx, 0)
-    const sumDt = s.recentTicks.reduce((a, t) => a + t.dt, 0)
-    lastVelocityRef.current = sumDx / Math.max(1, sumDt)
-    // macOS "natural" trackpad scrolling reports a LEFT two-finger swipe as
-    // positive deltaX — sliding content left, which for a right-edge panel
-    // reveals more of it (opening), matching Notification Center's own
-    // swipe-left-from-the-right-edge-to-open convention. Converted to a fraction
-    // of a FIXED reference distance (not the panel's own width — requiring 50%
-    // of e.g. a 280px panel, 140px of accumulated delta, was steep for real
-    // trackpad travel) — the panel still only ever slides between 0% (open)
-    // and 100% (closed) of its own unchanging size, this just controls how much
-    // physical swipe distance maps to the full 0-1 range.
-    const frac = Math.max(0, Math.min(1, s.segmentStartFrac - s.accumDeltaX / SWIPE_REFERENCE_PX))
-    restFracRef.current = frac
-    setRestFrac(frac)
-    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current)
-    // Also cancel any pending fallback commit — new activity means the previous
-    // pause wasn't actually a release, so don't let a stale commit fire out from
-    // under an in-progress resumed stroke.
-    if (commitTimerRef.current) { clearTimeout(commitTimerRef.current); commitTimerRef.current = null }
-    pauseTimerRef.current = setTimeout(pauseSwipeRef.current, PAUSE_MS)
+  // Rebuilt from scratch as a standalone hook (src/hooks/useSwipePanelGesture.ts) after
+  // the previous inline version turned out clunky — see that file for the full design
+  // writeup. `dragFrac` mirrors the old `restFrac` (0 = open, 1 = closed, null = not
+  // dragging); `isDragging` drives the same `isResizingPanel` transition-suppression flag
+  // the manual mouse-drag resize handle above also uses, so both features keep sharing it.
+  const swipeGestureEnabled = useAppStore((s) => s.swipePanelGestureEnabled)
+  const { panelAreaRef, dragFrac: restFrac, isDragging: swipeDragging } = useSwipePanelGesture({
+    enabled: swipeGestureEnabled,
+    isOpen: rightPanelOpen,
+    onCommit: useCallback((open: boolean) => {
+      setRightPanelOpen(open)
+      const curTab = useAppStore.getState().tabs.scripture.find((t) => t.id === useAppStore.getState().activeTabId.scripture)
+      if (curTab) updateTabState('scripture', curTab.id, { rightPanelOpen: open })
+    }, [updateTabState]),
   })
-  const pauseSwipeRef = useRef(pauseSwipe)
-  pauseSwipeRef.current = pauseSwipe
-
-  // A callback ref (not a plain useRef) — this panel area only exists while
-  // currentLayout === 'standard', so it can mount/unmount independent of the rest
-  // of BiblePanel; a useEffect keyed on mount-once would miss re-attaching after
-  // switching away from and back to this layout. A callback ref fires on every
-  // attach/detach regardless of cause, so it always tracks whichever node (if any)
-  // is currently mounted.
-  const panelAreaElRef = useRef<HTMLDivElement | null>(null)
-  const panelAreaRef = useCallback((el: HTMLDivElement | null) => {
-    const prev = panelAreaElRef.current
-    if (prev) prev.removeEventListener('wheel', onSwipeWheelRef.current, true)
-    panelAreaElRef.current = el
-    // capture: true — fires on the way DOWN to whatever's under the cursor,
-    // before any nested element (verse text, a horizontally-scrollable Strong's
-    // row, etc.) gets a chance to see the event at all, so nothing nested can
-    // ever end up consuming/altering it first.
-    if (el) el.addEventListener('wheel', onSwipeWheelRef.current, { passive: false, capture: true })
-  }, [])
+  useEffect(() => { setIsResizingPanel(swipeDragging) }, [swipeDragging])
 
   // Vertical resize specifically for the lexicon-crossref bottom row height
   const lcResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
@@ -2420,6 +2260,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // reuses (initial/exit at x:'100%' below).
                   animate={{ x: restFrac !== null ? `${restFrac * 100}%` : 0 }}
                   exit={{ x: '100%' }}
+                  // duration:0 during an active drag is deliberate — see useSwipePanelGesture.ts's
+                  // file-level comment for why any tween here causes a "stuck on reversal" feel.
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   // rounded-shell-lg on ALL corners (not just the right side, where the panel
                   // itself sits) — this wrapper's overflow-hidden clips to a perfectly SQUARE

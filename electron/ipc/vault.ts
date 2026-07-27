@@ -477,17 +477,29 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
           if (!idMatch) { skipped++; continue }
           const noteId = idMatch[1].trim()
 
-          const dbRow = db.prepare('SELECT updated_at FROM notes WHERE id = ?').get(noteId) as { updated_at: number } | undefined
+          const dbRow = db.prepare('SELECT content, updated_at FROM notes WHERE id = ?').get(noteId) as { content: string; updated_at: number } | undefined
           if (!dbRow) { skipped++; continue }
 
           const fileMtime = statSync(filePath).mtimeMs
           if (fileMtime > dbRow.updated_at + 1000) {
             const bodyMatch = content.match(/^---\n[\s\S]*?\n---\n\n?([\s\S]*)$/)
             let body = bodyMatch ? bodyMatch[1] : content
-            body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '').trimStart()
-            db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?')
-              .run(body.trimEnd(), Date.now(), noteId)
-            updated++
+            body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '').trimStart().trimEnd()
+            // A newer mtime doesn't mean a genuine external edit — Berean's OWN export
+            // (runExportAll, especially a forced "Export All" or the very first export)
+            // rewrites every note's .md file unconditionally, giving every file a fresh
+            // mtime with no content change at all. That previously stamped updated_at =
+            // now for essentially the whole vault on the next app launch, which is what
+            // made every note appear "edited today." Comparing the actual body text
+            // catches this regardless of mtime/watermark timing: only a REAL content
+            // difference counts as an edit worth importing.
+            if (body === dbRow.content.trimEnd()) {
+              skipped++
+            } else {
+              db.prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?')
+                .run(body, Date.now(), noteId)
+              updated++
+            }
           } else {
             skipped++
           }
