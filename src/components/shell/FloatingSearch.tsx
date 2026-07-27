@@ -152,6 +152,7 @@ export default function FloatingSearch() {
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const activateTab = useAppStore((s) => s.activateTab)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const createTab = useAppStore((s) => s.createTab)
   const addTab = useAppStore((s) => s.addTab)
@@ -550,6 +551,10 @@ export default function FloatingSearch() {
         noteBack: null,
       })
       renameTab('scripture', targetTab.id, title)
+      // Without this, jumping to a tab that wasn't already the active scripture tab left the
+      // state update applied to a tab the user wasn't looking at — the visible tab never
+      // scrolled anywhere.
+      activateTab(targetTab)
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
       const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`

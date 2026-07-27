@@ -75,6 +75,21 @@ describe('parseMultiBookQuery — Shepherd of Hermas (section-numbered)', () => 
     expect(parseMultiBookQuery('hermas 9')).toBeNull()
     expect(parseMultiBookQuery('hermas')).toBeNull()
   })
+
+  it('bare space accepted for the sub-chapter, same as a dot, in the generic "hermas <section> N N" form', () => {
+    expect(parseMultiBookQuery('hermas similitude 9 10')).toMatchObject({ bookId: 'HER_SIM', chapter: 38 })
+    expect(parseMultiBookQuery('hermas similitude 9 10')).toEqual(parseMultiBookQuery('hermas similitude 9.10'))
+    expect(parseMultiBookQuery('hermas mandate 5 2')).toMatchObject({ bookId: 'HER_MAN', chapter: 10 })
+  })
+
+  it('a plural-alias token ("hermas similitudes") + exactly two bare numbers reads as section + sub-chapter', () => {
+    expect(parseMultiBookQuery('hermas similitudes 9 10')).toMatchObject({ bookId: 'HER_SIM', chapter: 38 })
+    expect(parseMultiBookQuery('hermas similitudes 9 10')).toEqual(parseMultiBookQuery('hermas similitude 9.10'))
+  })
+
+  it('a plural-alias token + a single bare number still defers to flat-chapter parseRef (unchanged)', () => {
+    expect(parseMultiBookQuery('hermas similitudes 9')).toBeNull()
+  })
 })
 
 describe('parseMultiBookQuery — everything else stays untouched', () => {

@@ -2,6 +2,8 @@ import { useRef, useEffect } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import type { Note } from '@/types'
+import { useAppStore } from '@/store'
+import { zoomedFontSize } from '@/lib/zoom'
 
 export function toDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -99,8 +101,14 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
   }
 
   const monthLabel = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-  const dayCellText = compact ? 'text-[9px]' : 'text-[11px]'
-  const weekdayHeaderText = compact ? 'text-[8px] py-0' : 'text-[9px] py-0.5'
+  // Sidebar/rail layout (cell sizes, grid gaps, circle/dot dimensions) stays fixed regardless
+  // of app zoom — only the text itself scales, via the same zoomedFontSize() used for Bible
+  // text, so zooming in makes the calendar legible without resizing the sidebar around it.
+  const appZoom = useAppStore((s) => s.appZoom)
+  const monthLabelSize = zoomedFontSize(compact ? 10 : 12, appZoom)
+  const dayCellSize = zoomedFontSize(compact ? 9 : 11, appZoom)
+  const weekdayHeaderSize = zoomedFontSize(compact ? 8 : 9, appZoom)
+  const weekdayHeaderPad = compact ? 'py-0' : 'py-0.5'
   const gridGap = compact ? 'gap-px' : 'gap-0.5'
 
   return (
@@ -115,7 +123,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
         <button onClick={prevMonth} className="p-0.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer">
           <ChevronLeft size={compact ? 12 : 14} />
         </button>
-        <span className={`font-medium text-[rgb(var(--color-text-primary))] ${compact ? 'text-[10px]' : 'text-xs'}`}>{monthLabel}</span>
+        <span className="font-medium text-[rgb(var(--color-text-primary))]" style={{ fontSize: monthLabelSize }}>{monthLabel}</span>
         {!isCurrentMonth && (
           <button
             onClick={() => onDateChange(new Date())}
@@ -138,7 +146,7 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
       {/* Day headers */}
       <div className={`grid grid-cols-7 ${compact ? 'mb-0.5' : 'mb-1'}`}>
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-          <div key={d} className={`text-center ${weekdayHeaderText} text-[rgb(var(--color-text-muted))] font-medium`}>{d}</div>
+          <div key={d} className={`text-center ${weekdayHeaderPad} text-[rgb(var(--color-text-muted))] font-medium`} style={{ fontSize: weekdayHeaderSize }}>{d}</div>
         ))}
       </div>
       {/* Day cells — each cell is a column (number + note-dot slot below it, naturally a
@@ -169,10 +177,11 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
                   className="flex flex-col items-center justify-center gap-0 cursor-pointer group"
                 >
-                  <span className={`flex items-center justify-center ${circleSize} ${dayCellText} rounded-full leading-none transition-colors
+                  <span className={`flex items-center justify-center ${circleSize} rounded-full leading-none transition-colors
                     ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
                       : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40'
                       : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}
+                    style={{ fontSize: dayCellSize }}
                   >
                     {day}
                   </span>

@@ -434,10 +434,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // below can't see those, since it only observes the container's own content-box, not a
   // descendant's internal reflow driven purely by a font-size change.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      if (!useAppStore.getState().viewerPaused) computePresenterBand()
+    // Double-rAF: a font-size-driven reflow (zoom/bibleFontSize/etc.) isn't guaranteed to be
+    // reflected in getBoundingClientRect() within a single frame, so remeasuring one rAF after
+    // the change can read stale verse-top positions — worse the smaller each verse is on screen
+    // (i.e. at lower zoom, where more/shorter verses fit the viewport and the same stale-pixel
+    // error is a larger fraction of a verse's height). Waiting an extra frame lets layout settle
+    // before computePresenterBand() measures.
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (!useAppStore.getState().viewerPaused) computePresenterBand()
+      })
     })
-    return () => cancelAnimationFrame(raf)
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
   }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations, bibleFontSize, appZoom, wordReplacerEnabled, wordReplacerRules, idiomHighlightEnabled])
 
   // Recompute on any size change of the SCROLL CONTAINER'S OWN box — covers real window

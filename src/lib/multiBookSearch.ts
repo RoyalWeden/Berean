@@ -39,6 +39,13 @@ function isRclBook(bookId: string): boolean {
 // book-number ambiguity; its own remainder is plain chapter[:verse].
 const GENERIC_RCL_TOKENS = new Set(['rcl', 'roc', 'recognitions of clement', 'recog clement', 'rec clem'])
 
+// Bare/default Hermas tokens that don't themselves name a specific Vision/Mandate/Similitude
+// book — only these need the remainder to START with a section word ("vision 3", "similitude
+// 9.4"). A token that already names a SPECIFIC Hermas book (e.g. "hermas similitudes", "her
+// man") has no remaining section-word ambiguity; its remainder is plain
+// section[.sub][:verse] — see resolveHermasChapterVerseOnly. Mirrors GENERIC_RCL_TOKENS above.
+const GENERIC_HERMAS_TOKENS = new Set(['her', 'hermas', 'shepherd of hermas', 'shep hermas'])
+
 function hermasSectionBookId(word: string): HermasBookId | null {
   const w = word.toLowerCase()
   if (w.startsWith('vis')) return 'HER_VIS'
@@ -102,6 +109,19 @@ function resolveRclChapterVerseOnly(bookId: string, rest: string): ParsedRef | n
   return finishRcl(parseInt(bookId.slice(3), 10), chapter, verse)
 }
 
+/** Resolve a Vision/Mandate/Similitude section number (plus optional sub-chapter and verse)
+ *  to a flat-db (bookId, chapter, verse), shared by resolveHermasRemainder (generic "hermas ..."
+ *  token, section word required in the remainder) and resolveHermasChapterVerseOnly (already-
+ *  specific "hermas similitudes ..." token, remainder is bare numbers). */
+function finishHermas(bookId: HermasBookId, sectionNum: number, subIdx: number | undefined, verse: number | undefined): ParsedRef | null {
+  const section = getHermasSections(bookId).find((s) => s.sectionNum === sectionNum)
+  if (!section) return null
+  const chapter = subIdx !== undefined ? section.chapters[subIdx - 1] : section.chapters[0]
+  if (chapter === undefined) return null
+  if (verse !== undefined && (verse < 1 || verse > 200)) return null
+  return { bookId, chapter, verse }
+}
+
 /** Everything after the resolved "Hermas"/"Shepherd of Hermas" edition-name prefix.
  *  Only handles the TRADITIONAL section form ("Vision 3", "Similitude 9.4", "Mandate
  *  5 verse 2") — a remainder with no recognizable section word (including an empty
@@ -111,8 +131,11 @@ function resolveHermasRemainder(rest: string): ParsedRef | null {
   const lower = rest.toLowerCase().trim()
   if (!lower) return null
 
+  // Sub-chapter (group 3) traditionally needs a dot ("Similitude 9.4"), but a bare space
+  // ("Similitude 9 4" / "hermas similitudes 9 10") means the same thing — the Nth chapter
+  // within that Vision/Mandate/Similitude — so accept either separator there.
   const m = lower.match(
-    /^(vis(?:ions?)?|man(?:dates?)?|commands?|sim(?:ilitudes?)?|parables?)\.?\s*(\d{1,2})(?:\.(\d{1,2}))?(?:\s*[:.]\s*(\d{1,3})|\s+v(?:erse|\.)?\s*(\d{1,3}))?$/
+    /^(vis(?:ions?)?|man(?:dates?)?|commands?|sim(?:ilitudes?)?|parables?)\.?\s*(\d{1,2})(?:[.\s]\s*(\d{1,2}))?(?:\s*[:.]\s*(\d{1,3})|\s+v(?:erse|\.)?\s*(\d{1,3}))?$/
   )
   if (!m) return null
 
@@ -122,13 +145,25 @@ function resolveHermasRemainder(rest: string): ParsedRef | null {
   const subIdx = m[3] ? parseInt(m[3], 10) : undefined
   const verse = m[4] ? parseInt(m[4], 10) : m[5] ? parseInt(m[5], 10) : undefined
 
-  const section = getHermasSections(bookId).find((s) => s.sectionNum === sectionNum)
-  if (!section) return null
-  const chapter = subIdx !== undefined ? section.chapters[subIdx - 1] : section.chapters[0]
-  if (chapter === undefined) return null
-  if (verse !== undefined && (verse < 1 || verse > 200)) return null
+  return finishHermas(bookId, sectionNum, subIdx, verse)
+}
 
-  return { bookId, chapter, verse }
+/** Remainder for a bookToken that already names a SPECIFIC Hermas book via its plural alias
+ *  ("hermas similitudes", "hermas mandates", ...) — a BARE SINGLE number here is deliberately
+ *  left alone (returns null, deferring to parseRef's flat-db-chapter reading — "hermas visions
+ *  3" means flat chapter 3, same as any other book alias, not "Vision 3" traditional numbering).
+ *  A bare TWO-number form is unambiguous, though ("hermas similitudes 9 10" can't mean
+ *  "flat chapter 9, flat verse 10" — Similitude editions are always addressed/discussed by
+ *  section, never by a flat verse count) — so exactly that shape is read as
+ *  section + sub-chapter (Similitude 9, sub-chapter 10), matching the traditional edition's own
+ *  addressing convention. Punctuated forms (dot/colon/"verse") on this plural-alias token are
+ *  intentionally left alone too — only the plain "N N" case had an actual reported ambiguity. */
+function resolveHermasChapterVerseOnly(bookId: HermasBookId, rest: string): ParsedRef | null {
+  const lower = rest.toLowerCase().trim()
+  if (!lower) return finishHermas(bookId, 1, undefined, undefined)
+  const m = lower.match(/^(\d{1,2})\s+(\d{1,2})$/)
+  if (!m) return null
+  return finishHermas(bookId, parseInt(m[1], 10), parseInt(m[2], 10), undefined)
 }
 
 /**
@@ -158,7 +193,11 @@ export function parseMultiBookQuery(input: string): ParsedRef | null {
         ? resolveRclRemainder(rest)
         : resolveRclChapterVerseOnly(bookId, rest)
     }
-    if (isHermasBook(bookId)) return resolveHermasRemainder(rest)
+    if (isHermasBook(bookId)) {
+      return GENERIC_HERMAS_TOKENS.has(bookToken.toLowerCase())
+        ? resolveHermasRemainder(rest)
+        : resolveHermasChapterVerseOnly(bookId, rest)
+    }
     return null
   }
   return null
