@@ -2127,7 +2127,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               x={channelBtnRef.current.getBoundingClientRect().right}
               y={channelBtnRef.current.getBoundingClientRect().bottom + 4}
               onClick={(e) => e.stopPropagation()}
-              className="glass-panel rounded-shell-lg min-w-[160px] flex flex-col overflow-hidden"
+              className="glass-panel rounded-shell-lg w-40 flex flex-col overflow-hidden"
               style={{ maxHeight: '300px' }}
             >
               <div className="p-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -2182,7 +2182,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               x={sortBtnRef.current.getBoundingClientRect().right}
               y={sortBtnRef.current.getBoundingClientRect().bottom + 4}
               onClick={(e) => e.stopPropagation()}
-              className="glass-panel rounded-shell-lg min-w-[118px] py-1"
+              className="glass-panel rounded-shell-lg w-[118px] py-1"
             >
               {(Object.keys(SORT_LABEL) as SortOption[])
                 // 'Best match' only applies while searching — hide it otherwise.
