@@ -987,12 +987,20 @@ async function fetchTranscripts(
   workerCount = 3,
 ): Promise<{ fetched: number; skipped: number; errors: number }> {
   const db = getBereanDb()
+  // `type = 'video'` used to exclude Shorts and Lives entirely — tactiq's transcript tool has
+  // no such restriction (it just reads YouTube's own caption track for a video_id), so this was
+  // silently skipping every Short and every completed livestream. The only real constraint is a
+  // CURRENTLY live stream (is_live_now) — its captions aren't finalized yet, so it's excluded;
+  // a past/completed livestream (type='live', is_live_now=0) gets captions the same as a normal
+  // video once it ends and is fair game here. The >=60s floor stays for type='video' (skips
+  // near-empty micro-clips not worth transcribing) but never applied to Shorts, which are
+  // legitimately under 60s by definition — that floor would otherwise exclude all of them too.
   const candidates = db.prepare(`
     SELECT v.video_id, v.title FROM youtube_videos v
     LEFT JOIN youtube_transcripts t USING(video_id)
     WHERE t.video_id IS NULL
-      AND v.type = 'video'
-      AND (v.duration_seconds IS NULL OR v.duration_seconds >= 60)
+      AND v.is_live_now = 0
+      AND (v.type != 'video' OR v.duration_seconds IS NULL OR v.duration_seconds >= 60)
     ORDER BY v.published DESC
     LIMIT ?
   `).all(batchSize) as Array<{ video_id: string; title: string }>

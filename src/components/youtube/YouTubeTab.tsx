@@ -2184,7 +2184,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               y={sortBtnRef.current.getBoundingClientRect().bottom + 4}
               align="right"
               onClick={(e) => e.stopPropagation()}
-              className="glass-panel rounded-shell-lg w-max min-w-[110px] py-1"
+              className="glass-panel rounded-shell-lg w-[104px] py-1"
             >
               {(Object.keys(SORT_LABEL) as SortOption[])
                 // 'Best match' only applies while searching — hide it otherwise.
