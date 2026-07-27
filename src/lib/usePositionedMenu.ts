@@ -124,7 +124,8 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
   className?: string
   style?: React.CSSProperties
   onMouseDown?: (e: React.MouseEvent) => void
-}>(function MenuPositioner({ children, x, y, className = '', style, onMouseDown }, outerRef) {
+  onClick?: (e: React.MouseEvent) => void
+}>(function MenuPositioner({ children, x, y, className = '', style, onMouseDown, onClick }, outerRef) {
   const innerRef = useRef<HTMLDivElement>(null)
   // Merge refs
   const ref = (el: HTMLDivElement | null) => {
@@ -166,6 +167,7 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     ref,
     className,
     onMouseDown,
+    onClick,
     style: { position: 'fixed', left: x, top: y, zIndex: 9999, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
   }, children)
 })

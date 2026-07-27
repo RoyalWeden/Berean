@@ -1243,38 +1243,44 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
         `).all(...params) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
       } catch { rows = [] }
     }
-    // Collect up to `perVideoLimit` best segments per video, then trim to `videoLimit` distinct videos.
-    const byVideo = new Map<string, { bestRank: number; count: number }>()
-    const results: Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }> = []
+    // Collect up to `perVideoLimit` best segments per video, then trim to `videoLimit` distinct
+    // videos. Callers like the in-tab search box pass a large videoLimit (up to the size of the
+    // whole local video list) just to know WHICH videos match, for filtering — not to display
+    // all of them at once — so this loop must stay O(rows), not scan/rebuild `results` per row:
+    // it previously did a linear results.find()/results.filter() per repeat-video row, which is
+    // O(rows * results.length) and was the dominant cost of a broad in-tab search.
+    type ResultEntry = { videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }
+    const results: ResultEntry[] = []
+    const byVideo = new Map<string, { bestRank: number; count: number; segs: ResultEntry[] }>()
     for (const r of rows) {
+      const entry = { videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank }
       const ex = byVideo.get(r.videoId)
       if (!ex) {
         if (byVideo.size >= videoLimit) continue
-        byVideo.set(r.videoId, { bestRank: r.rank, count: 1 })
-        results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
+        byVideo.set(r.videoId, { bestRank: r.rank, count: 1, segs: [entry] })
+        results.push(entry)
       } else {
         ex.count++
-        // Update matchCount on the first entry for this video
-        const first = results.find(x => x.videoId === r.videoId)
-        if (first) first.matchCount = ex.count
-        // Add additional segment entries up to perVideoLimit
-        if (perVideoLimit > 1) {
-          const segsForVideo = results.filter(x => x.videoId === r.videoId)
-          if (segsForVideo.length < perVideoLimit) {
-            results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: ex.count, title: r.title, channelName: r.channelName, rank: r.rank })
-          }
+        ex.segs[0].matchCount = ex.count // same object reference as the entry already in `results`
+        if (perVideoLimit > 1 && ex.segs.length < perVideoLimit) {
+          ex.segs.push(entry)
+          results.push(entry)
         }
       }
     }
 
-    // Widen each snippet with a few neighbouring caption lines for readable context
-    // (tactiq segments are short ~5-10 word lines). Centered on the best-matching line.
+    // Widen each snippet with a few neighbouring caption lines for readable context (tactiq
+    // segments are short ~5-10 word lines), centered on the best-matching line. Only for the
+    // top-ranked results actually likely to be rendered — a large videoLimit search can produce
+    // thousands of matches used purely for filtering, and widening every one of them would mean
+    // thousands of extra queries for snippets nothing ever displays.
+    const WIDEN_CAP = 100
     const ctxStmt = getBereanDb().prepare(`
       SELECT text FROM youtube_transcript_segments
       WHERE video_id = ? AND start_ms BETWEEN ? AND ?
       ORDER BY start_ms
     `)
-    for (const r of results) {
+    for (const r of results.slice(0, WIDEN_CAP)) {
       try {
         const rows2 = ctxStmt.all(r.videoId, Math.max(0, r.startMs - 12000), r.startMs + 12000) as Array<{ text: string }>
         const joined = rows2.map((x) => x.text).join(' ').replace(/\s+/g, ' ').trim()
