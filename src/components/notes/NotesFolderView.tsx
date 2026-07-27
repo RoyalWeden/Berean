@@ -933,6 +933,15 @@ export default function NotesFolderView({
                 className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
                 <FolderPlus size={13} className="flex-shrink-0" /> New Folder
               </button>
+              {onCreateIdiom && (
+                <>
+                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
+                  <button onClick={onCreateIdiom} title="New idiom"
+                    className="flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-shell text-[11px] text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors">
+                    <BookOpen size={13} className="flex-shrink-0" /> New Idiom
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

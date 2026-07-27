@@ -41,9 +41,12 @@ export interface BibleTabState {
   showStrongs: boolean
   scrollPosition: number
   compareMode?: boolean
-  // Compare columns (text/book/chapter), persisted so chapter navigation survives
-  // leaving and returning to the tab (which unmounts the panel).
-  compareColumns?: Array<{ textId: string; bookId: string; chapter: number }>
+  // Compare columns (text/book/chapter + last scroll position), persisted so chapter
+  // navigation AND scroll position both survive leaving and returning to the tab (which
+  // unmounts the panel). scrollPos is verse-anchored (verseNum + fraction into that row),
+  // not a raw pixel scrollTop — matches CompareView.tsx's own sync-scroll encoding, so it
+  // still lands correctly even if row heights differ on reload.
+  compareColumns?: Array<{ textId: string; bookId: string; chapter: number; scrollPos?: { verseNum: number; frac: number } }>
   // Persisted so a KJV/LXX (or other same-chapter, different-translation) sync-scroll
   // session survives leaving and returning to the tab, same as compareColumns above.
   compareSyncScroll?: boolean
@@ -199,6 +202,7 @@ export interface Verse {
   text_tagged?: string   // space-separated tokens: "word{H7225}" or "*word{}" (italic) or "word{}" (no strongs)
   hasNote?: boolean
   hasHighlight?: boolean
+  title?: string   // faint section heading rendered above this verse (currently only t12p.db)
 }
 
 export interface StrongsWord {

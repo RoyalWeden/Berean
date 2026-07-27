@@ -122,6 +122,64 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.15] - 2026-07-26
+
+Notes — Idiom entries
+- Idiom notes redesigned: only Term and Meaning show by default now.
+  Aliases, Explanation, Compare to, and References are added one at a time
+  via a new "+ Add field" button instead of all appearing together.
+- Scripture references already auto-detected for PDF export now show live
+  while editing, so matches don't need to be retyped into References.
+- "Match plurals" and example sentences moved into a small settings menu,
+  out of the main field flow.
+- The New Idiom button moved next to New Note/New Folder, out of the top
+  bar.
+- Fixed a bug where pasting a verse passage with blank lines between the
+  reference and each verse (common with rich-text pastes) failed to format
+  into a verse block.
+
+Scripture reading
+- Fixed the two-finger trackpad swipe to open/close the side panel feeling
+  choppy and getting stuck when reversing direction mid-swipe — rebuilt for
+  smoother, lower-latency tracking, with a new Settings toggle to turn the
+  gesture off entirely.
+- The Bible reading side panel's note editor now uses narrower margins.
+- Septuagint (LXX) chapters now show a small note when a KJV verse is
+  absent from that passage.
+- Strong's lexicon "Definition" text now links bare cross-reference
+  numbers (e.g. "See 7495") the same way the Derivation section already
+  did.
+- Update-download progress now shows directly in the top bar, whether
+  started manually or via auto-download.
+- Fixed floating search (Cmd+K) not navigating to a specific verse for
+  reference-style queries.
+
+Compare mode
+- Scroll-sync now also syncs chapter navigation across columns, including
+  books like Jeremiah and Psalms where KJV and LXX use different chapter
+  numbering.
+- Scroll position is now saved and restored per column across tab
+  switches.
+- The tab title now updates as columns navigate, instead of staying frozen
+  at whatever it was when Compare mode was first turned on.
+
+Advanced Scripture Search
+- The book jump rail now scrolls instantly instead of a slow smooth-scroll.
+
+Ctrl+Tab switcher
+- Shows only the 5 most recent tabs as preview cards; anything beyond that
+  appears in a compact list below instead of growing unbounded.
+- No longer selects whatever tab happens to be under a stationary cursor
+  when the switcher first opens.
+
+Data
+- Corrected dozens of OCR errors across the Testaments of the Twelve
+  Patriarchs, and separated section titles from verse text.
+- Fixed daily notes showing every note as "edited today" after a vault
+  export.
+
+---
+
 ## [0.4.13] - 2026-07-25
 
 Idioms export

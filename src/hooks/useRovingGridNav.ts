@@ -39,5 +39,10 @@ export function useRovingGridNav({ itemCount, columns }: RovingGridNavOptions) {
     }
   }
 
-  return { getItemProps, focusedIndex, setFocusedIndex }
+  /** Focus the current roving-tabindex item (e.g. when handing off focus from an external search input). */
+  function focusCurrent() {
+    moveTo(focusedIndex)
+  }
+
+  return { getItemProps, focusedIndex, setFocusedIndex, focusCurrent }
 }

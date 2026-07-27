@@ -138,12 +138,26 @@ export function buildBlockDecorations(doc: PMNode, onResolved: () => void): Deco
 
       if (noteScriptureBlock) {
         // A) Multi-line verse block: ref line + following numbered verse lines.
+        // Blank paragraphs (a real Enter-Enter gap, or a blank <p> from a rich
+        // clipboard paste) can sit between the ref and the first verse, and
+        // between verses — skip over them when looking ahead for the next
+        // body line, but still fold them into the block's line range so the
+        // box decoration below spans the gap instead of stopping short.
         const strippedRefLine = stripLxxMarker(trimmed)
         const bareRefLine = strippedRefLine.ref
-        if (trimmed.includes(':') && parseRef(bareRefLine) && i + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[i + 1].text)) {
-          let end = i + 1
-          while (end + 1 < lines.length && VERSE_BODY_LINE_RE.test(lines[end + 1].text)) end++
-          const bodyParts = lines.slice(i + 1, end + 1).map((l) => l.text.replace(/^\s*\d{1,3}[ \t]+/, ''))
+        let firstBodyIdx = i + 1
+        while (firstBodyIdx < lines.length && !lines[firstBodyIdx].text.trim()) firstBodyIdx++
+        if (trimmed.includes(':') && parseRef(bareRefLine) && firstBodyIdx < lines.length && VERSE_BODY_LINE_RE.test(lines[firstBodyIdx].text)) {
+          let end = firstBodyIdx
+          while (true) {
+            let next = end + 1
+            while (next < lines.length && !lines[next].text.trim()) next++
+            if (next < lines.length && VERSE_BODY_LINE_RE.test(lines[next].text)) { end = next; continue }
+            break
+          }
+          const bodyParts = lines.slice(i + 1, end + 1)
+            .filter((l) => l.text.trim())
+            .map((l) => l.text.replace(/^\s*\d{1,3}[ \t]+/, ''))
           const accepted = verseTextAccepted(trimmed, bodyParts.join(' '), threshold, onResolved)
           if (accepted !== false) {
             blocks.push({ kind: 'verse', startLine: i, endLine: end, refFrom: line.from, refTo: line.to, refText: bareRefLine, lxx: strippedRefLine.lxx })

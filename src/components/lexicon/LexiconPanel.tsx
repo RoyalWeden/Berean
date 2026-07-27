@@ -174,14 +174,18 @@ function BdbNotesText({ text }: { text: string }) {
   )
 }
 
-function DerivationText({ text, lang, onNav, onContextMenu }: {
+function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
   text: string
   lang: 'H' | 'G'
   onNav: (num: string, newTab: boolean) => void
   onContextMenu?: (e: React.MouseEvent, num: string) => void
+  findQuery?: string
 }) {
   // Split on H/G-prefixed numbers OR bare numbers (1–5 digits) so that
   // derivations stored without the prefix (e.g. "from 2165") still link.
+  // Also used for the "Definition" field, which stores cross-refs the same
+  // way (e.g. Hebrew H5703's definition ends "See 7495." with no H) — bare
+  // numbers there are inferred from the entry's own lang the same way.
   const parts = text.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g)
   return (
     <span>
@@ -205,7 +209,7 @@ function DerivationText({ text, lang, onNav, onContextMenu }: {
             </button>
           )
         }
-        return <span key={i}>{part}</span>
+        return <span key={i}>{findQuery ? applyFindHighlight(part, findQuery) : part}</span>
       })}
     </span>
   )
@@ -490,7 +494,7 @@ function EntryView({
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5">Definition</p>
             <p className="text-sm text-[rgb(var(--color-text-secondary))] leading-relaxed">
-              {(() => { const t = wr(entry.definition); return findQuery ? applyFindHighlight(t, findQuery) : t })()}
+              <DerivationText text={wr(entry.definition)} lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'} onNav={onNav} onContextMenu={(e, num) => strongsCtx.open(e, num)} findQuery={findQuery} />
             </p>
           </div>
         )}

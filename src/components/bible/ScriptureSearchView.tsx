@@ -369,6 +369,28 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, textId, wordMode, testamentFilter, selectedBooks, sortMode])
 
+  // Flush the latest scroll position on unmount (switching tabs away from this one).
+  // onScroll below debounces its store write by 150ms — if the tab is switched within
+  // that window, the debounce timer never fires (it's just abandoned along with the
+  // unmounted component) and the scroll position from that last stretch of scrolling
+  // is silently lost. Reads through a ref kept fresh every render so the unmount
+  // handler (registered once, deps []) always sees the current filter/query state
+  // rather than whatever was current when the effect was first attached.
+  const latestScopeRef = useRef({ query, textId, wordMode, testamentFilter, selectedBooks, sortMode })
+  latestScopeRef.current = { query, textId, wordMode, testamentFilter, selectedBooks, sortMode }
+  useEffect(() => {
+    return () => {
+      if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+      if (resultsRef.current) {
+        const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
+        onStateChangeRef.current?.({
+          query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
+          scrollTop: resultsRef.current.scrollTop,
+        })
+      }
+    }
+  }, [])
+
   // Run the search on mount if there is an initial/restored query
   useEffect(() => {
     const q = persistedState?.query ?? initialQuery ?? ''
@@ -1109,7 +1131,15 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                       type="text"
                       value={scopeSearch}
                       onChange={(e) => setScopeSearch(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Escape') { setScopePaletteOpen(false); setScopeSearch('') } }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') { setScopePaletteOpen(false); setScopeSearch('') }
+                        // Arrow keys typed while focus is still in the search box do nothing on
+                        // their own — each roving-tabindex group's onKeyDown only fires once one
+                        // of its own items has DOM focus. ArrowDown hands focus off to the
+                        // testament pill row (the first roving group below the input); from
+                        // there the existing per-item handlers take over normal roving nav.
+                        else if (e.key === 'ArrowDown') { e.preventDefault(); testamentNav.focusCurrent() }
+                      }}
                       placeholder="Search editions, testaments, or books…"
                       className="flex-1 bg-transparent text-sm text-[rgb(var(--color-text-primary))] outline-none placeholder:text-[rgb(var(--color-text-muted))]"
                     />
@@ -1545,7 +1575,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                     key={key}
                     onClick={() => {
                       const idx = headerFlatIndex.get(key)
-                      if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'smooth' })
+                      // 'auto' (instant), not 'smooth' — native smooth-scroll's easing/duration
+                      // isn't tunable from app code, and the virtualizer re-issues it on every
+                      // reconciliation pass as still-unrendered rows' estimated heights settle
+                      // (see reconcileScroll below), which read as a slow, restarting scroll
+                      // rather than one quick jump.
+                      if (idx !== undefined) rowVirtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
                       railPanelRef.current?.close()
                     }}
                     className="flex items-start gap-2 w-[calc(100%-8px)] mx-1 rounded-shell px-3 py-1.5 text-[12.5px] text-left text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer"

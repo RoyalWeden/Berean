@@ -12,7 +12,7 @@
 // pm/blockDecorations.ts, and pm/nodeViews.ts.
 
 import { parseRef, getTranslationForBook, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
-import { applyWordReplacer } from '@/lib/wordReplacer'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { useAppStore } from '@/store'
 
 // ─── Bullet glyph styles ────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ function verseCacheKey(refText: string, candidate: string): string {
 }
 
 interface BibleQueryWindow {
-  bible?: { queryChapter?: (b: string, c: number, t?: string) => Promise<Array<{ verse_num: number; text: string }>> }
+  bible?: { queryChapter?: (b: string, c: number, t?: string) => Promise<Array<{ verse_num: number; text: string; text_tagged?: string }>> }
 }
 
 /**
@@ -245,25 +245,37 @@ async function fetchActualVerseText(refText: string): Promise<string | null> {
   const startCh = ref.chapter
   const endCh = ref.endChapter ?? ref.chapter
   const parts: string[] = []
+  const taggedParts: string[] = []
   for (let ch = startCh; ch <= endCh; ch++) {
     const verses = await w.bible.queryChapter(ref.bookId, ch, textId)
     if (!Array.isArray(verses)) continue
     for (const v of verses) {
-      if (endCh === startCh && ref.verse != null) {
-        const lo = ref.verse
-        const hi = ref.endVerse ?? ref.verse
-        if (v.verse_num >= lo && v.verse_num <= hi) parts.push(v.text)
-      } else {
-        parts.push(v.text)
-      }
+      const inRange = endCh === startCh && ref.verse != null
+        ? v.verse_num >= ref.verse && v.verse_num <= (ref.endVerse ?? ref.verse)
+        : true
+      if (!inRange) continue
+      parts.push(v.text)
+      taggedParts.push(v.text_tagged ?? '')
     }
   }
   if (!parts.length) return null
-  let actual = parts.join(' ')
   const st = useAppStore.getState()
-  if (st.wordReplacerEnabled && st.wordReplacerRules.length > 0) {
-    actual = applyWordReplacer(actual, st.wordReplacerRules)
-  }
+  // buildVerseDisplayText applies BOTH plain text-pattern rules and Strong's-number rules
+  // (e.g. LORD→Yehovah, keyed off the H3068/H3069/H3050 tags in text_tagged) — the same
+  // function VerseRow itself uses to render/copy verse text. A plain applyWordReplacer()
+  // call here (the previous approach) silently skipped all Strong's-number rules, since
+  // those need per-token tag data applyWordReplacer alone doesn't have — so pasting a
+  // verse using "Yehovah" (the default LORD-replacement rule) would never actually match
+  // the fetched "actual" text, which stayed "the LORD" forever, regardless of settings.
+  // Falls back cleanly to plain-text-only replacement for non-KJVA texts (LXX etc, which
+  // have no text_tagged) since buildVerseDisplayText only uses tagged tokens when
+  // textId === 'kjva' AND every verse actually returned tagged data.
+  const hasFullTagCoverage = taggedParts.every((t) => t.trim().length > 0)
+  const actual = buildVerseDisplayText(
+    parts.join(' '),
+    hasFullTagCoverage ? taggedParts.join(' ') : null,
+    textId, st.wordReplacerEnabled, st.wordReplacerRules,
+  )
   return actual
 }
 
@@ -283,7 +295,13 @@ export function verseTextAccepted(
   versePending.add(key)
   fetchActualVerseText(refText)
     .then((actual) => {
-      verseRatioCache.set(key, actual ? verseTextMatchRatio(actual, candidate) : 1)
+      // verseTextMatchRatio(candidate, actual) — candidate first, matching its own
+      // documented contract ("fraction of CANDIDATE words found in ACTUAL"). These were
+      // swapped here, which instead computed "fraction of the real verse's words found in
+      // the user's pasted text" against the wrong denominator (actual's word count, not
+      // the candidate's) — same rough ballpark for a verbatim paste, but not what the
+      // 0.9 threshold is documented/tuned against.
+      verseRatioCache.set(key, actual ? verseTextMatchRatio(candidate, actual) : 1)
       versePending.delete(key)
       onResolved()
     })

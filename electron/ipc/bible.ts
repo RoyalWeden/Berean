@@ -24,6 +24,16 @@ function hasTaggedCol(db: ReturnType<typeof getTextDb>, textId: string): boolean
   return has
 }
 
+// Faint section-heading text, currently only populated for t12p.db.
+const _titleColCache = new Map<string, boolean>()
+function hasTitleCol(db: ReturnType<typeof getTextDb>, textId: string): boolean {
+  if (_titleColCache.has(textId)) return _titleColCache.get(textId)!
+  const cols = (db as any).prepare('PRAGMA table_info(verses)').all() as Array<{ name: string }>
+  const has = cols.some((c) => c.name === 'title')
+  _titleColCache.set(textId, has)
+  return has
+}
+
 const _sortOrderColCache = new Map<string, boolean>()
 function hasSortOrderCol(db: ReturnType<typeof getTextDb>, textId: string): boolean {
   if (_sortOrderColCache.has(textId)) return _sortOrderColCache.get(textId)!
@@ -110,9 +120,11 @@ export function registerBibleHandlers(ipcMain: IpcMain): void {
     const db = getTextDb(textId)
     if (!db) return []
     const withTagged = hasTaggedCol(db, textId)
-    const sql = withTagged
-      ? 'SELECT book_id, chapter, verse_num, text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
-      : 'SELECT book_id, chapter, verse_num, text FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num'
+    const withTitle = hasTitleCol(db, textId)
+    const cols = ['book_id', 'chapter', 'verse_num', 'text']
+    if (withTagged) cols.push('text_tagged')
+    if (withTitle) cols.push('title')
+    const sql = `SELECT ${cols.join(', ')} FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num`
     return prep(db, sql).all(bookId, chapter)
   })
 

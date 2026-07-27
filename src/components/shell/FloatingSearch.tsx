@@ -536,10 +536,19 @@ export default function FloatingSearch() {
       : undefined
 
     if (targetTab) {
-      // TEMPORARY DIAGNOSTIC — remove once the scroll-to-verse bug is confirmed fixed.
-      console.warn('[BereanDebug] FloatingSearch.navigate updateTabState', { tabId: targetTab.id, bookId, chapter, targetVerse, translation })
       // Navigating to a verse exits the advanced-search view if the tab was in it.
-      updateTabState('scripture', targetTab.id, { bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation, searchMode: false })
+      // Field set mirrors BiblePanel.tsx's own onNavigate (the prop ScriptureSearchView's
+      // Enter/click uses, which scrolls to the verse correctly) exactly — this one used to
+      // omit the targetVerseQuery/WordMode/StrongsWords/StrongsExtraWords keys entirely
+      // rather than explicitly clearing them, which left a PREVIOUS search's stale
+      // highlight fields in place on the merged tab state instead of clearing them for
+      // this new jump.
+      updateTabState('scripture', targetTab.id, {
+        bookId, chapter, endChapter, scrollPosition: 0, targetVerse, endVerse, translation, searchMode: false,
+        targetVerseQuery: undefined, targetVerseWordMode: undefined,
+        targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
+        noteBack: null,
+      })
       renameTab('scripture', targetTab.id, title)
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
