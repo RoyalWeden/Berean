@@ -967,11 +967,25 @@ async function extractOneVideo(
       }
     }
 
-    // The transcript API answered with a non-2xx → this video has no captions
-    // (418 = tactiq's "no transcript" signal). Permanent: record so it isn't retried.
+    // 418 is tactiq's own "this video genuinely has no captions" signal — permanent, record it
+    // so it isn't retried. Any OTHER non-2xx (429 = rate-limited, 5xx = tactiq's own backend
+    // trouble, etc.) is NOT a statement about the video at all — it means the request itself
+    // failed, and treating it as permanent was the actual bug behind most of the missing
+    // transcripts: a big batch (many Lives/Shorts, several parallel workers) rate-limits
+    // heavily against tactiq, and every 429 was being written as a permanent "no transcript"
+    // row — one that fetchTranscripts' candidate query then excludes forever (LEFT JOIN
+    // ... WHERE t.video_id IS NULL), so a video that was simply rate-limited for one request
+    // could never be attempted again. Confirmed against real data: ~5400 of ~12000 stored
+    // transcript rows were exactly this — "no transcript (API 429)" — overwhelmingly on the
+    // newly-eligible Lives/Shorts batch. Anything but 418 now falls through as a transient
+    // timeout instead, so the next "Get transcripts" run retries it.
+    if (apiStatus.code === 418) {
+      console.log(`[transcript] ${video_id} ✗ API returned 418 — no transcript available`)
+      return { kind: 'none', reason: 'no transcript (API 418)' }
+    }
     if (apiStatus.code >= 400) {
-      console.log(`[transcript] ${video_id} ✗ API returned ${apiStatus.code} — no transcript available`)
-      return { kind: 'none', reason: `no transcript (API ${apiStatus.code})` }
+      console.log(`[transcript] ${video_id} ✗ API returned ${apiStatus.code} — transient, will retry on next run`)
+      return { kind: 'timeout', reason: `API ${apiStatus.code}` }
     }
 
     await new Promise((r) => setTimeout(r, 800))
@@ -1049,9 +1063,10 @@ async function fetchTranscripts(
     })
     console.log(`[transcript] Worker ${workerId} ready`)
     let warmedUp = false
-    // Tracks the status of the latest POST to the tactiq transcript API for the
-    // current video. A non-200 (e.g. 418 = video has no captions) is a permanent
-    // failure: the video should be recorded as "no transcript", never retried.
+    // Tracks the status of the latest POST to the tactiq transcript API for the current video.
+    // Only 418 (tactiq's own "no captions" signal) is permanent — see extractOneVideo's own
+    // comment for why every other non-2xx (429 rate-limit, 5xx, etc.) must NOT be treated the
+    // same way.
     const apiStatus = { code: 0 }
 
     // Capture the transcript API response status (only the POST, not the OPTIONS preflight).
@@ -1097,6 +1112,15 @@ async function fetchTranscripts(
         } else {
           // Transient timeout — do NOT record a row, so the next "Get Transcripts" retries it.
           errors++
+          // A 429 means THIS worker just got rate-limited by tactiq — immediately hitting it
+          // again on the very next candidate just compounds the problem across a big batch
+          // (this is exactly how ~45% of a 12k-video run ended up rate-limited). Back off a
+          // few seconds before this worker claims another item; the other workers aren't
+          // paused, so overall throughput only dips, it doesn't stall.
+          if (result.reason.includes('429')) {
+            console.log(`[transcript] W${workerId} rate-limited (429) — backing off 5s`)
+            await new Promise((r) => setTimeout(r, 5000))
+          }
         }
 
         sender.send('youtube:progress', { done: fetched + skipped + errors, total, phase: `W${workerId} done: ${video_id}` })
