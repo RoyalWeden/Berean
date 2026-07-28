@@ -60,6 +60,16 @@ export interface BibleTabState {
   rightPanelNoteFocused?: boolean        // was the side-panel note editor focused when the tab was left?
   rightPanelLexiconEntry?: string | null
   rightPanelVerseFilter?: string | null
+  // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
+  // openInSlotB/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
+  // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,
+  // not just its own type.
+  rightPanelSlotB?: 'notes' | 'lexicon' | 'crossrefs' | null
+  rightPanelNoteIdB?: string | null
+  rightPanelNoteCursorB?: number | null
+  rightPanelNoteFocusedB?: boolean
+  rightPanelLexiconEntryB?: string | null
+  rightPanelVerseFilterB?: string | null
   noteBack?: { noteId: string; title: string } | null
   scriptureBack?: { bookId: string; chapter: number; verse?: number; label: string; translation?: string } | null
   searchBack?: { query: string } | null

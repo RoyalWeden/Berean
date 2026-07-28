@@ -213,6 +213,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
 
+  // ── Second side-panel slot ("slot B") — a tab popped out of slot A via right-click/drag.
+  // Fully independent BibleRightPanel instance below, so it mirrors every one of slot A's
+  // "which X is open" fields above, not just its own panel type. null slotB = not shown.
+  const [rightPanelSlotB, setRightPanelSlotB] = useState<'notes' | 'lexicon' | 'crossrefs' | null>(() => tabState.rightPanelSlotB ?? null)
+  const [rightPanelNoteIdB, setRightPanelNoteIdB] = useState<string | null>(() => tabState.rightPanelNoteIdB ?? null)
+  const lastNoteCursorRefB = useRef<number | null>(tabState.rightPanelNoteCursorB ?? null)
+  const [rightPanelLexiconEntryB, setRightPanelLexiconEntryB] = useState<string | null>(() => tabState.rightPanelLexiconEntryB ?? null)
+  const [rightPanelVerseFilterB, setRightPanelVerseFilterB] = useState<string | null>(() => tabState.rightPanelVerseFilterB ?? null)
+  // Slot A's last-active type before it got popped out to slot B, so popping out slot A's
+  // CURRENTLY active tab has something sensible to fall back to instead of leaving slot A
+  // pointed at the tab that just left it.
+  const lastRightPanelTabRef = useRef<'notes' | 'lexicon' | 'crossrefs'>(rightPanelTab)
+
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
     // This prevents the redirect-to-first-book firing erroneously when both translation
@@ -946,7 +959,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.rightPanelTab) setRightPanelTab(tabState.rightPanelTab)
     if (tabState.rightPanelNoteId !== undefined) setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
     if (tabState.rightPanelLexiconEntry !== undefined) setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
-  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if ('rightPanelSlotB' in tabState) setRightPanelSlotB(tabState.rightPanelSlotB ?? null)
+    if (tabState.rightPanelNoteIdB !== undefined) setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
+    if (tabState.rightPanelLexiconEntryB !== undefined) setRightPanelLexiconEntryB(tabState.rightPanelLexiconEntryB ?? null)
+  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, tabState.rightPanelSlotB, tabState.rightPanelNoteIdB, tabState.rightPanelLexiconEntryB, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Find-bar: compute verse match list whenever query or chapter changes ──────
   // We watch the rendered chapter verses to know which ones match.
@@ -1130,8 +1146,71 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
 
   function handleRightPanelTabChange(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    lastRightPanelTabRef.current = rightPanelTab
     setRightPanelTab(tab)
     if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab })
+  }
+
+  function handleRightPanelTabChangeB(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    setRightPanelSlotB(tab)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: tab })
+  }
+
+  function handleRightPanelNoteChangeB(noteId: string | null) {
+    setRightPanelNoteIdB(noteId)
+    lastNoteCursorRefB.current = null
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelNoteIdB: noteId, rightPanelNoteCursorB: null })
+  }
+
+  function handleRightPanelNoteCursorChangeB(pos: number) {
+    lastNoteCursorRefB.current = pos
+  }
+
+  function handleRightPanelLexiconChangeB(entry: string | null) {
+    setRightPanelLexiconEntryB(entry)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelLexiconEntryB: entry })
+  }
+
+  function handleRightPanelVerseFilterChangeB(filter: string | null) {
+    setRightPanelVerseFilterB(filter)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelVerseFilterB: filter })
+  }
+
+  // Pop a tab out of slot A into the (new or existing) slot B. If the tab being popped is slot
+  // A's own currently-active tab, slot A needs a new active type to fall back to — whichever
+  // type was last active there, so slot A doesn't end up pointed at the tab that just left it.
+  function openInSlotB(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    if (tab === rightPanelTab) {
+      const fallback = lastRightPanelTabRef.current !== tab ? lastRightPanelTabRef.current : 'notes'
+      setRightPanelTab(fallback)
+      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: fallback })
+    }
+    setRightPanelSlotB(tab)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: tab })
+  }
+
+  function closeSlotB() {
+    setRightPanelSlotB(null)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: null })
+  }
+
+  // Merge a slot-B tab back into slot A — slot A takes on that tab's type, slot B closes.
+  function mergeToSlotA(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    lastRightPanelTabRef.current = rightPanelTab
+    setRightPanelTab(tab)
+    setRightPanelSlotB(null)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab, rightPanelSlotB: null })
+  }
+
+  // Closing slot A while slot B is open would otherwise leave slot A empty and slot B
+  // populated — an inconsistent state a fixed two-slot layout can't represent. Promote slot
+  // B into slot A's place instead, mirroring YouTube's closePanelA/closePanelB pattern.
+  function closeSlotA() {
+    if (rightPanelSlotB) {
+      mergeToSlotA(rightPanelSlotB)
+    } else {
+      toggleRightPanel()
+    }
   }
 
   function handleRightPanelNoteChange(noteId: string | null) {
@@ -2152,32 +2231,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </div>
     )
 
-    // Shared right panel (tabs UI)
-    const panelEl = (forcedTab?: 'notes' | 'lexicon' | 'crossrefs') => (
+    // Shared right panel (tabs UI). `slot` picks which of the two independent side-panel
+    // slots this instance renders — slot B only ever exists when rightPanelSlotB is set (see
+    // openInSlotB/closeSlotB/mergeToSlotA above). Only slot A's scroll feeds the companion
+    // viewer-window mirror below — with two slots there's no single meaningful scroll percent
+    // to show there, so slot B's is deliberately left unmirrored rather than picking one
+    // arbitrarily or fighting over the same field.
+    const panelEl = (slot: 'A' | 'B', forcedTab?: 'notes' | 'lexicon' | 'crossrefs') => (
       <ErrorBoundary label="Right panel error">
         <BibleRightPanel
+          slotId={slot}
           bookId={tabState.bookId}
           chapter={tabState.chapter}
-          activeTab={rightPanelTab}
-          onTabChange={handleRightPanelTabChange}
-          openNoteId={rightPanelNoteId}
-          onNoteChange={handleRightPanelNoteChange}
-          initialNoteCursor={tabState.rightPanelNoteCursor}
-          autoFocusNote={tabState.rightPanelNoteFocused === true}
-          onNoteCursorChange={handleRightPanelNoteCursorChange}
-          openLexiconEntry={rightPanelLexiconEntry}
-          onLexiconEntryChange={handleRightPanelLexiconChange}
-          verseFilter={rightPanelVerseFilter}
-          onVerseFilterChange={handleRightPanelVerseFilterChange}
+          activeTab={slot === 'A' ? rightPanelTab : (rightPanelSlotB ?? 'notes')}
+          onTabChange={slot === 'A' ? handleRightPanelTabChange : handleRightPanelTabChangeB}
+          openNoteId={slot === 'A' ? rightPanelNoteId : rightPanelNoteIdB}
+          onNoteChange={slot === 'A' ? handleRightPanelNoteChange : handleRightPanelNoteChangeB}
+          initialNoteCursor={slot === 'A' ? tabState.rightPanelNoteCursor : tabState.rightPanelNoteCursorB}
+          autoFocusNote={slot === 'A' && tabState.rightPanelNoteFocused === true}
+          onNoteCursorChange={slot === 'A' ? handleRightPanelNoteCursorChange : handleRightPanelNoteCursorChangeB}
+          openLexiconEntry={slot === 'A' ? rightPanelLexiconEntry : rightPanelLexiconEntryB}
+          onLexiconEntryChange={slot === 'A' ? handleRightPanelLexiconChange : handleRightPanelLexiconChangeB}
+          verseFilter={slot === 'A' ? rightPanelVerseFilter : rightPanelVerseFilterB}
+          onVerseFilterChange={slot === 'A' ? handleRightPanelVerseFilterChange : handleRightPanelVerseFilterChangeB}
           forcedTab={forcedTab}
-          onScrollPercent={(pct) => {
+          onPopOutToSlotB={slot === 'A' && !forcedTab && !rightPanelSlotB ? openInSlotB : undefined}
+          onMergeToSlotA={slot === 'B' ? mergeToSlotA : undefined}
+          onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
+          onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()
             if (!st.viewerWindowOpen || st.viewerPaused) return
             const base = computeViewerPayload()
             if (base.kind === 'bible') {
               window.app.pushViewerContent?.({ ...base, sidePanelScrollPercent: pct })
             }
-          }}
+          } : undefined}
         />
       </ErrorBoundary>
     )
@@ -2286,7 +2374,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
                   // OLD comment, same reasoning still applies) — this wrapper's overflow-hidden
                   // needs the extra 6px of room or that right margin gets silently clipped.
-                  style={{ width: panelSize + 14 + 6 }}
+                  style={{ width: (rightPanelSlotB ? panelSize * 2 : panelSize) + 14 + 6 }}
                 >
                   {hDivider}
                   {/* overflow-hidden lives on the INNER div, off the same element as the
@@ -2301,8 +2389,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       background like the other layout cases, so shadow-2xl's much heavier/
                       darker spread read as an unnatural dark bleed across the text underneath.
                       shadow-lg matches what every other panel case here already uses. */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 : panelSize }} className="flex-shrink-0 flex my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    {rightPanelSlotB && (
+                      <>
+                        {hDivider}
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -2320,7 +2414,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   key="left-panel"
                   initial={{ width: 0 }}
                   // See the 'standard' case's comment — same fix, margin now on the left.
-                  animate={{ width: panelSize + 14 + 6 }}
+                  animate={{ width: (rightPanelSlotB ? panelSize * 2 : panelSize) + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
@@ -2330,8 +2424,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 >
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 : panelSize }} className="flex-shrink-0 flex my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    {rightPanelSlotB && (
+                      <>
+                        {hDivider}
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                      </>
+                    )}
                   </div>
                   {hDivider}
                 </motion.div>
@@ -2349,8 +2449,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  {panelEl()}
+                <div className="flex-[3] flex overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
+                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+                  {rightPanelSlotB && (
+                    <>
+                      {hDivider}
+                      <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -2365,8 +2471,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  {panelEl()}
+                <div className="flex-[1.5] flex overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
+                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+                  {rightPanelSlotB && (
+                    <>
+                      {hDivider}
+                      <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -2396,7 +2508,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
                   <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('notes')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
               )}
@@ -2410,8 +2522,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl()}
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+              <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+              {rightPanelSlotB && (
+                <>
+                  {hDivider}
+                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
+                </>
+              )}
             </div>
           </div>
         )
@@ -2423,7 +2541,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
           </div>
         )
@@ -2433,7 +2551,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {vDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
@@ -2466,7 +2584,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             </div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
           </div>
         )
@@ -2479,10 +2597,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {hDivider}
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {panelEl('crossrefs')}
+                {panelEl('A', 'crossrefs')}
               </div>
             </div>
           </div>
@@ -2504,18 +2622,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('notes')}
+                {panelEl('A', 'notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('crossrefs')}
+                {panelEl('A', 'crossrefs')}
               </div>
             </div>
           </div>
@@ -2527,7 +2645,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
@@ -2539,13 +2657,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('lexicon')}
+              {panelEl('A', 'lexicon')}
             </div>
           </div>
         )
@@ -2565,11 +2683,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('notes')}
+                {panelEl('A', 'notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
             </div>
           </div>
