@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
 import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -1600,14 +1600,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     >
       {/* Reference bar */}
       <TabHeaderPortal floating={floating}>
-        {/* The "← my note" back-to-note pill (tabState.noteBack), and the
-            "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
-            tabState.searchBack) that used to render here, were removed —
+        {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
+            tabState.searchBack) that used to render here were removed —
             redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the
             per-tab home button, which now correctly track "where did I come
             from" for the Scripture tab too (including search results —
             see the pushTabNav call in onNavigate below), without needing a
-            second, panel-local affordance. */}
+            second, panel-local affordance.
+            "← back to note" (tabState.noteBack) is different: Cmd+[/pushTabNav's stack is
+            single-typed per tab (a Bible tab's own stack can only ever hold scripture-position
+            entries), so it structurally can't carry "this tab came from note X" the way it
+            carries ordinary chapter history. Restored as an explicit pill instead, matching
+            how LexiconPanel already solves the exact same problem for its own tab. */}
+        {tabState.noteBack && (
+          <button
+            onClick={() => {
+              if (!tabState.noteBack) return
+              requestOpenNote(tabState.noteBack.noteId)
+              ensureTab('note')
+              if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
+            }}
+            title={`Back to "${tabState.noteBack.title}"`}
+            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px]"
+          >
+            <ArrowLeft size={11} className="flex-shrink-0" />
+            <span className="truncate">{tabState.noteBack.title}</span>
+          </button>
+        )}
         {isCompareMode ? (
           <>
             <BookChapterPicker

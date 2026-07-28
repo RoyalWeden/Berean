@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen } from 'lucide-react'
+import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen, Search } from 'lucide-react'
 import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
 import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
@@ -1591,6 +1591,17 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           >
             <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Add note to verse
+          </button>
+          <button
+            onClick={() => {
+              const text = window.getSelection()?.toString() ?? ''
+              useAppStore.getState().openScriptureSearchTab(text)
+              setSelToolbar(null)
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
+          >
+            <Search size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+            Open in new Advanced Search tab
           </button>
         </div>,
         document.body

@@ -563,8 +563,12 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
 // without prop-drilling through several layers. Set by BibleRightPanel on mount.
 let _onVerseCtxMenu: ((bookId: string, chapter: number, verse: number, x: number, y: number) => void) | null = null
 
-/** Save the current scripture position then navigate — used by all side-panel nav triggers. */
-function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null) {
+/** Save the current scripture position then navigate — used by all side-panel nav triggers.
+ *  `noteBack` — passed only when navigating from a verse ref clicked inside a note that's open
+ *  in this panel — records which note to return to, mirroring NotesPanel.tsx's own
+ *  handleVerseRefClick. Without this, clicking a verse ref from a note shown here had no way
+ *  back to that note at all (a real reported bug — see BiblePanel.tsx's "back to note" pill). */
+function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null, noteBack?: { noteId: string; title: string } | null) {
   const s = useAppStore.getState()
   s.ensureTab('bible')
   const fresh = useAppStore.getState()
@@ -596,6 +600,7 @@ function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVer
     scrollPosition: 0,
     ...(newTranslation ? { translation: newTranslation } : {}),
     ...(scriptureBack ? { scriptureBack } : {}),
+    ...(noteBack !== undefined ? { noteBack } : {}),
   })
   s.setActiveSpace('scripture')
 }
@@ -1358,7 +1363,8 @@ export default function BibleRightPanel({
   // Handle verse ref clicks in the right-panel note editor — navigates the main
   // Bible panel to the referenced verse, switching translation as needed.
   function handleVerseRefClick(ref: ParsedRef) {
-    navToVerseFromPanel(ref.bookId, ref.chapter, ref.verse ?? 1, ref.endVerse)
+    navToVerseFromPanel(ref.bookId, ref.chapter, ref.verse ?? 1, ref.endVerse,
+      sidebarNote ? { noteId: sidebarNote.id, title: sidebarNote.title || 'Untitled' } : null)
     // Apply translation override after the back-saving nav so translation isn't clobbered
     const store = useAppStore.getState()
     const scriptureTabId = store.activeTabId['scripture']
