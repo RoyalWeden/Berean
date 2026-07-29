@@ -9,6 +9,8 @@ import { PanelLeftOpen } from 'lucide-react'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
 import LexiconPanel from '@/components/lexicon/LexiconPanel'
+import SearchTab from '@/components/search/SearchTab'
+import PDFViewer from '@/components/pdf/PDFViewer'
 import { useAppStore } from '@/store'
 
 // Lazy so the heavy YouTube webview code isn't pulled into the initial bundle
@@ -221,7 +223,9 @@ export default function FloatingShell() {
         {params.type === 'notes'   && <NotesPanel floating />}
         {params.type === 'lexicon' && <LexiconPanel floating />}
         {params.type === 'youtube' && <Suspense fallback={null}><YouTubeTab floating /></Suspense>}
-        {(params.type !== 'bible' && params.type !== 'notes' && params.type !== 'lexicon' && params.type !== 'youtube') && (
+        {params.type === 'search'  && <SearchTab floating />}
+        {params.type === 'pdf'     && <PDFViewer floating />}
+        {!['bible', 'notes', 'lexicon', 'youtube', 'search', 'pdf'].includes(params.type) && (
           <div className="flex items-center justify-center h-full text-[rgb(var(--color-text-muted))] text-sm">
             Float view for <strong className="ml-1">{params.type}</strong> coming soon.
           </div>

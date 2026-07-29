@@ -633,8 +633,15 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       {contextMenu && createPortal(
         <div
           ref={menuRef}
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
-          className="min-w-44 rounded-shell context-menu p-1 text-xs"
+          // WebkitAppRegion: 'no-drag' — this menu is portaled to document.body, so it can land,
+          // purely by screen coordinates, over the top header bar's app-drag-region (especially
+          // after the upward "flip" for a tab near the bottom of the list). Without this, a click
+          // on "Open in floating tab"/"Duplicate tab" there gets swallowed by Electron's drag
+          // hit-testing before the renderer ever sees it — every other portaled menu in this
+          // codebase (MenuPositioner, ShellHeader's nav dropdown, Sidebar's own popups) already
+          // carries this for the identical reason; this one was the one place missing it.
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="min-w-44 rounded-shell context-menu p-1 text-xs no-drag"
         >
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
