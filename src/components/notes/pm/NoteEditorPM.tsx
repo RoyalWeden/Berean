@@ -276,6 +276,31 @@ export default function NoteEditorPM({
           onCursorPositionRef.current?.(newState.selection.head)
         }
       },
+      handleDOMEvents: {
+        // OS-level text-replacement tools (macOS text substitution, Raycast snippet
+        // expansion, etc.) fire a synthetic "insertReplacementText" beforeinput event
+        // rather than discrete keystrokes — reported as occasionally consuming/replacing
+        // an extra trailing character too. ProseMirror's default handling infers the
+        // changed range from its DOM-mutation observer (readDOMChange), which can
+        // miscompute the range by one character when two of these synthetic mutations
+        // land in the same observer flush. getTargetRanges() is the DOM's own
+        // authoritative signal for exactly which range the OS intends to replace —
+        // applying that directly as one explicit transaction sidesteps the diffing
+        // ambiguity instead of inferring it after the fact.
+        beforeinput(view, event) {
+          const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
+          if (ie.inputType !== 'insertReplacementText') return false
+          const ranges = ie.getTargetRanges?.()
+          if (!ranges || ranges.length !== 1) return false
+          const [range] = ranges
+          const from = view.posAtDOM(range.startContainer, range.startOffset)
+          const to = view.posAtDOM(range.endContainer, range.endOffset)
+          if (from < 0 || to < 0 || from > to) return false
+          view.dispatch(view.state.tr.insertText(ie.data ?? '', from, to))
+          event.preventDefault()
+          return true
+        },
+      },
     })
     viewRef.current = view
     setViewReady(true)
