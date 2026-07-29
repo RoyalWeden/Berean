@@ -160,6 +160,8 @@ export interface YouTubeTabState {
   youtubeLayout?: YouTubeLayout
   panelA?: YouTubePanelState | null
   panelB?: YouTubePanelState | null
+  /** Scroll offset of the browse/grid video list (the home view, not the player). */
+  scrollTop?: number
 }
 
 export interface SearchTabState {

@@ -297,6 +297,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // persist-effect run that happens mid-switch, before the restore effect below catches up —
   // see NotesPanel.tsx's skipNextPersistRef comment for the full explanation.
   const skipNextYtPersistRef = useRef(false)
+  // Browse/grid list scroll position — persisted the same way as activeVideoId above (the
+  // ActivePanel wrapper keys this component by ytTab.id, so switching between two different
+  // YouTube tabs unmounts+remounts it entirely; without this, returning to a tab always
+  // snapped the grid back to the top).
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+  const lastGridScrollTopRef = useRef(0)
+  const [gridRestoreScrollTop, setGridRestoreScrollTop] = useState<number | null>(null)
+  const ytTabIdRef = useRef(ytTabId)
+  ytTabIdRef.current = ytTabId
   // playerSrc is locked in once per video open — never updated by poll — prevents auto-resume bug
   const [playerSrc, setPlayerSrc] = useState<string>('')
   const [videoMaximized, setVideoMaximized] = useState(false)
@@ -433,6 +442,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
     const state = tab?.state as YouTubeTabState | undefined
     setActiveVideoId(state?.videoId ?? null)
+    setGridRestoreScrollTop(state?.scrollTop ?? null)
     if (!state) return
     if (state.youtubeLayout) setYtLayout(state.youtubeLayout)
     setPanelA(state.panelA ?? null)
@@ -446,6 +456,29 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     if (skipNextYtPersistRef.current) { skipNextYtPersistRef.current = false; return }
     useAppStore.getState().updateTabState('youtube', ytTabId, { videoId: activeVideoId })
   }, [activeVideoId, ytTabId])
+
+  // Apply the restored grid scroll position once the video list has finished its initial load
+  // (the grid is empty/loading right after mount, so restoring immediately would be a no-op).
+  useEffect(() => {
+    if (gridRestoreScrollTop == null || loading) return
+    const t = setTimeout(() => {
+      if (gridScrollRef.current) gridScrollRef.current.scrollTop = gridRestoreScrollTop
+      setGridRestoreScrollTop(null)
+    }, 50)
+    return () => clearTimeout(t)
+  }, [gridRestoreScrollTop, loading])
+
+  // Flush the grid's latest scroll position when this instance unmounts (switching away to a
+  // different YouTube tab, or out of the space entirely). Reads through a ref kept fresh every
+  // render so this always saves against whichever tab was actually showing, regardless of
+  // whether ActivePanel's key={ytTab.id} truly remounts this component or not.
+  useEffect(() => {
+    return () => {
+      if (ytTabIdRef.current) {
+        useAppStore.getState().updateTabState('youtube', ytTabIdRef.current, { scrollTop: lastGridScrollTopRef.current })
+      }
+    }
+  }, [])
 
   // Global top bar's back button reached the browse/home position for this tab (see
   // youtubeHomeToken's registration in the store, mirroring notesHomeToken/lexiconHomeToken).
@@ -2436,7 +2469,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={gridScrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => { lastGridScrollTopRef.current = (e.currentTarget as HTMLDivElement).scrollTop }}
+      >
         {loading && videos.length === 0 && (
           <div className="px-6 py-8 flex flex-col items-center gap-3">
             <div className="w-8 h-8 rounded-full border-2 border-[rgb(var(--color-accent))] border-t-transparent animate-spin" />
