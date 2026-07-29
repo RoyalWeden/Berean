@@ -54,18 +54,45 @@ describe('goToTabHome', () => {
     expect(useAppStore.getState().notesHomeToken).toBe(0)
   })
 
-  it('a tab type with no home support (e.g. bible) is a total no-op — idx unchanged, no home token bumped', () => {
+  it('a tab type with no home support at all (e.g. search) is a total no-op — idx unchanged, no home token bumped', () => {
+    useAppStore.setState({
+      activeSpace: 'search',
+      tabs: { scripture: [], notes: [], lexicon: [], youtube: [], search: [{ id: 's1', spaceId: 'search', type: 'search', title: 'Search', state: {} } as Tab] },
+      activeTabId: { scripture: null, notes: null, lexicon: null, youtube: null, search: 's1' },
+      tabNavStacks: {
+        s1: { stack: [{ id: 'a', type: 'search', title: 'q1', query: 'q1' }, { id: 'c', type: 'search', title: 'q2', query: 'q2' }], idx: 1 },
+      },
+    })
+    useAppStore.getState().goToTabHome()
+    expect(useAppStore.getState().tabNavStacks.s1.idx).toBe(1)
+    expect(useAppStore.getState().notesHomeToken).toBe(0)
+  })
+
+  it('a bible tab jumps to idx 0 (its earliest tracked chapter) — no synthetic -1 "nothing open" state exists for it', () => {
     useAppStore.setState({
       activeSpace: 'scripture',
-      tabs: { scripture: [{ id: 'b1', spaceId: 'scripture', type: 'bible', title: 'Gen 1', state: { bookId: 'GEN', chapter: 1, verse: 1 } } as Tab], notes: [], lexicon: [], youtube: [], search: [] },
+      tabs: { scripture: [{ id: 'b1', spaceId: 'scripture', type: 'bible', title: 'Gen 2', state: { bookId: 'GEN', chapter: 2 } } as Tab], notes: [], lexicon: [], youtube: [], search: [] },
       activeTabId: { scripture: 'b1', notes: null, lexicon: null, youtube: null, search: null },
       tabNavStacks: {
         b1: { stack: [{ id: 'a', type: 'bible', title: 'Gen 1', bookId: 'GEN', chapter: 1 }, { id: 'c', type: 'bible', title: 'Gen 2', bookId: 'GEN', chapter: 2 }], idx: 1 },
       },
     })
     useAppStore.getState().goToTabHome()
-    expect(useAppStore.getState().tabNavStacks.b1.idx).toBe(1)
-    expect(useAppStore.getState().notesHomeToken).toBe(0)
+    expect(useAppStore.getState().tabNavStacks.b1.idx).toBe(0)
+    expect((useAppStore.getState().tabs.scripture[0].state as { bookId: string; chapter: number }).chapter).toBe(1)
+  })
+
+  it('a bible tab already at idx 0 is a no-op', () => {
+    useAppStore.setState({
+      activeSpace: 'scripture',
+      tabs: { scripture: [{ id: 'b1', spaceId: 'scripture', type: 'bible', title: 'Gen 1', state: { bookId: 'GEN', chapter: 1 } } as Tab], notes: [], lexicon: [], youtube: [], search: [] },
+      activeTabId: { scripture: 'b1', notes: null, lexicon: null, youtube: null, search: null },
+      tabNavStacks: {
+        b1: { stack: [{ id: 'a', type: 'bible', title: 'Gen 1', bookId: 'GEN', chapter: 1 }], idx: 0 },
+      },
+    })
+    useAppStore.getState().goToTabHome()
+    expect(useAppStore.getState().tabNavStacks.b1.idx).toBe(0)
   })
 
   it('jumps directly to idx -1 in one step, WITHOUT setting pendingNoteId for any intermediate entry (the race that caused "random note" instead of home)', () => {

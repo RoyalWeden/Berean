@@ -1259,6 +1259,10 @@ interface Props {
   onLexiconEntryChange?: (entry: string | null) => void
   verseFilter?: string | null
   onVerseFilterChange?: (filter: string | null) => void
+  /** "Expand all notes" toggle state for this slot's notes list, persisted by the parent so it
+   *  survives switching tabs/slots and app restarts instead of resetting to collapsed. */
+  expandAllNotes?: boolean
+  onExpandAllNotesChange?: (next: boolean) => void
   /** When set, hides the tab strip and forces this tab's content to be shown */
   forcedTab?: PanelTab
   /** Called with 0–1 scroll percentage whenever any inner scroll container scrolls */
@@ -1283,6 +1287,7 @@ export default function BibleRightPanel({
   initialNoteCursor, autoFocusNote, onNoteCursorChange,
   openLexiconEntry: initialLexiconEntry, onLexiconEntryChange,
   verseFilter: initialVerseFilter, onVerseFilterChange,
+  expandAllNotes, onExpandAllNotesChange,
   forcedTab,
   onScrollPercent,
   slotId = 'A',
@@ -1308,7 +1313,10 @@ export default function BibleRightPanel({
   const [sort, setSort] = useState<NoteSort>('verse')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
-  const [expandAll, setExpandAll] = useState(false)
+  // Persisted by the parent (BiblePanel.tsx) via tabState.rightPanelExpandAll[B] so it survives
+  // switching tabs/slots and app restarts instead of resetting to collapsed every time.
+  const expandAll = expandAllNotes ?? false
+  const setExpandAll = onExpandAllNotesChange ?? (() => {})
   // Whole-chapter notes (verseRef like "GEN.1", no verse segment) are collapsed by
   // default so they don't crowd out the verse-specific notes below, which is what
   // this panel's chapter scope is really for — see the section below `filtered`.
@@ -1902,7 +1910,7 @@ export default function BibleRightPanel({
               )}
             </div>
             <button
-              onClick={() => setExpandAll(v => !v)}
+              onClick={() => setExpandAll(!expandAll)}
               title={expandAll ? 'Collapse notes' : 'Expand all notes'}
               className={`flex-shrink-0 p-1 rounded-shell cursor-pointer transition-colors ${
                 expandAll

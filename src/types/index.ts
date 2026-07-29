@@ -60,6 +60,11 @@ export interface BibleTabState {
   rightPanelNoteFocused?: boolean        // was the side-panel note editor focused when the tab was left?
   rightPanelLexiconEntry?: string | null
   rightPanelVerseFilter?: string | null
+  // "Expand all" toggle for the side panel's notes list (whole-snippet vs. truncated preview) —
+  // persisted so it survives switching tabs/slots and app restarts instead of resetting to
+  // collapsed every time.
+  rightPanelExpandAll?: boolean
+  rightPanelExpandAllB?: boolean
   // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
   // openInSlotB/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
   // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,

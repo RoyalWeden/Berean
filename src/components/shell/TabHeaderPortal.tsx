@@ -56,10 +56,14 @@ function HomeButton() {
 
   const tabStack = activeTabId ? tabNavStacks[activeTabId] : null
   const stackType = tabStack?.stack[0]?.type
-  const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
-  if (!supportsHome || !tabStack || tabStack.idx < 0) return null
+  const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube' || stackType === 'bible'
+  if (!supportsHome || !tabStack) return null
+  // Bible tabs have no synthetic -1 "nothing open" state (see goToTabHome's own comment) —
+  // their "home" is idx 0, the earliest tracked chapter, so the disabled-when-already-there
+  // check differs from the other three types' idx < 0 check.
+  if (stackType === 'bible' ? tabStack.idx <= 0 : tabStack.idx < 0) return null
 
-  const label = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : 'YouTube browse'
+  const label = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : stackType === 'youtube' ? 'YouTube browse' : 'Scripture browse'
 
   // Plain native title, not Radix Tooltip: this component is portaled from
   // each panel's own component tree (NotesPanel/LexiconPanel), not from

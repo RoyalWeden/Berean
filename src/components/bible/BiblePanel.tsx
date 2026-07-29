@@ -212,6 +212,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
+  const [rightPanelExpandAll, setRightPanelExpandAll] = useState(() => tabState.rightPanelExpandAll ?? false)
 
   // ── Second side-panel slot ("slot B") — a tab popped out of slot A via right-click/drag.
   // Fully independent BibleRightPanel instance below, so it mirrors every one of slot A's
@@ -221,6 +222,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const lastNoteCursorRefB = useRef<number | null>(tabState.rightPanelNoteCursorB ?? null)
   const [rightPanelLexiconEntryB, setRightPanelLexiconEntryB] = useState<string | null>(() => tabState.rightPanelLexiconEntryB ?? null)
   const [rightPanelVerseFilterB, setRightPanelVerseFilterB] = useState<string | null>(() => tabState.rightPanelVerseFilterB ?? null)
+  const [rightPanelExpandAllB, setRightPanelExpandAllB] = useState(() => tabState.rightPanelExpandAllB ?? false)
   // Slot A's last-active type before it got popped out to slot B, so popping out slot A's
   // CURRENTLY active tab has something sensible to fall back to instead of leaving slot A
   // pointed at the tab that just left it.
@@ -962,7 +964,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if ('rightPanelSlotB' in tabState) setRightPanelSlotB(tabState.rightPanelSlotB ?? null)
     if (tabState.rightPanelNoteIdB !== undefined) setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
     if (tabState.rightPanelLexiconEntryB !== undefined) setRightPanelLexiconEntryB(tabState.rightPanelLexiconEntryB ?? null)
-  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, tabState.rightPanelSlotB, tabState.rightPanelNoteIdB, tabState.rightPanelLexiconEntryB, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (tabState.rightPanelExpandAll !== undefined) setRightPanelExpandAll(tabState.rightPanelExpandAll)
+    if (tabState.rightPanelExpandAllB !== undefined) setRightPanelExpandAllB(tabState.rightPanelExpandAllB)
+  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, tabState.rightPanelSlotB, tabState.rightPanelNoteIdB, tabState.rightPanelLexiconEntryB, tabState.rightPanelExpandAll, tabState.rightPanelExpandAllB, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Find-bar: compute verse match list whenever query or chapter changes ──────
   // We watch the rendered chapter verses to know which ones match.
@@ -1174,6 +1178,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   function handleRightPanelVerseFilterChangeB(filter: string | null) {
     setRightPanelVerseFilterB(filter)
     if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelVerseFilterB: filter })
+  }
+
+  function handleRightPanelExpandAllChange(next: boolean) {
+    setRightPanelExpandAll(next)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelExpandAll: next })
+  }
+
+  function handleRightPanelExpandAllChangeB(next: boolean) {
+    setRightPanelExpandAllB(next)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelExpandAllB: next })
   }
 
   // Pop a tab out of slot A into the (new or existing) slot B. If the tab being popped is slot
@@ -2273,6 +2287,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           onLexiconEntryChange={slot === 'A' ? handleRightPanelLexiconChange : handleRightPanelLexiconChangeB}
           verseFilter={slot === 'A' ? rightPanelVerseFilter : rightPanelVerseFilterB}
           onVerseFilterChange={slot === 'A' ? handleRightPanelVerseFilterChange : handleRightPanelVerseFilterChangeB}
+          expandAllNotes={slot === 'A' ? rightPanelExpandAll : rightPanelExpandAllB}
+          onExpandAllNotesChange={slot === 'A' ? handleRightPanelExpandAllChange : handleRightPanelExpandAllChangeB}
           forcedTab={forcedTab}
           onPopOutToSlotB={slot === 'A' && !forcedTab && !rightPanelSlotB ? openInSlotB : undefined}
           onMergeToSlotA={slot === 'B' ? mergeToSlotA : undefined}

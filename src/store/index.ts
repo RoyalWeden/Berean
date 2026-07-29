@@ -1010,6 +1010,24 @@ export const useAppStore = create<AppState>()(
         const tabStack = s.tabNavStacks[activeTabId]
         if (!tabStack || tabStack.idx < 0) return
         const stackType = tabStack.stack[0]?.type
+        // Bible tabs have no equivalent "nothing open" list/search view to jump to (per
+        // navTabBack's own comment — Bible/Search/PDF stop at idx 0, they don't get a
+        // synthetic -1 state) — so "home" here means the earliest tracked chapter in this
+        // tab's OWN history (idx 0), reached in one click instead of repeated Cmd+[.
+        if (stackType === 'bible') {
+          if (tabStack.idx === 0) return
+          const entry = tabStack.stack[0]
+          set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: 0 } } })
+          if (entry.bookId) {
+            get().updateTabState(s.activeSpace, activeTabId, {
+              bookId: entry.bookId, chapter: entry.chapter ?? 1,
+              ...(entry.translation ? { translation: entry.translation } : {}),
+              scrollPosition: 0, targetVerse: undefined, searchMode: false,
+            })
+          }
+          setTimeout(() => set({ isNavJumping: false }), 50)
+          return
+        }
         if (stackType !== 'note' && stackType !== 'lexicon' && stackType !== 'youtube') return
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: -1 } } })
         if (stackType === 'note') get().bumpNotesHomeToken()
