@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseMarkdown } from '../parser'
 import { serializeToMarkdown } from '../serializer'
+import { bereanSchema as schema } from '../schema'
 
 function roundtrips(md: string) {
   const doc = parseMarkdown(md)
@@ -11,6 +12,37 @@ describe('markdown round-trip (parseMarkdown -> serializeToMarkdown)', () => {
   it('plain paragraphs', () => {
     const md = 'Hello world.\n\nSecond paragraph.'
     expect(roundtrips(md)).toBe(md)
+  })
+
+  it('preserves a trailing blank line at the very end of the doc (regression: a trailing Enter was silently dropped on the next tab-switch/reopen, since the doc-end has no following sibling to trigger the existing interior extra-blank-line recovery)', () => {
+    const withTrailingBlank = schema.node('doc', null, [
+      schema.node('paragraph', null, [schema.text('Hello world.')]),
+      schema.node('paragraph', null, []),
+    ])
+    const md = serializeToMarkdown(withTrailingBlank)
+    const reparsed = parseMarkdown(md)
+    expect(reparsed.childCount).toBe(2)
+    expect(reparsed.child(0).textContent).toBe('Hello world.')
+    expect(reparsed.child(1).textContent).toBe('')
+
+    // Multiple trailing blanks all survive, not just the first.
+    const withTwoTrailingBlanks = schema.node('doc', null, [
+      schema.node('paragraph', null, [schema.text('Hello world.')]),
+      schema.node('paragraph', null, []),
+      schema.node('paragraph', null, []),
+    ])
+    const reparsed2 = parseMarkdown(serializeToMarkdown(withTwoTrailingBlanks))
+    expect(reparsed2.childCount).toBe(3)
+
+    // An entirely blank note (no real content before the trailing empty paragraph) must stay
+    // a genuinely empty string on save — not turn into a permanent lone marker character.
+    const entirelyBlank = schema.node('doc', null, [schema.node('paragraph', null, [])])
+    expect(serializeToMarkdown(entirelyBlank)).toBe('')
+
+    // No false-positive extra blank when the doc doesn't actually end in one.
+    expect(serializeToMarkdown(schema.node('doc', null, [
+      schema.node('paragraph', null, [schema.text('Hello world.')]),
+    ]))).toBe('Hello world.')
   })
 
   it('preserves extra blank lines exactly (regression: multiple consecutive Enters used to silently collapse to a single blank line on every reopen)', () => {

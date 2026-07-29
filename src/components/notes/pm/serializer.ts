@@ -1,6 +1,7 @@
 import { MarkdownSerializer, defaultMarkdownSerializer, type MarkdownSerializerState } from 'prosemirror-markdown'
 import type { Node as PMNode } from 'prosemirror-model'
 import { bereanSchema as schema } from './schema'
+import { EXTRA_BLANK_MARKER } from './parser'
 
 // ─── list_item / task checkboxes ───────────────────────────────────────────
 // `checked: null` -> plain list item (default renderContent). `checked: true
@@ -141,6 +142,25 @@ export const bereanMarkdownSerializer = new MarkdownSerializer(
   },
 )
 
+// A trailing empty paragraph (the user's last action was Enter, leaving a blank line at the
+// very end of the note) is otherwise lost on the next save/restore round trip: the custom
+// `paragraph` handler above recovers 2+ CONSECUTIVE empty paragraphs anywhere in the doc by
+// chaining extra flushes, but that chain only produces visible output when a later sibling's
+// own write() forces the flush — the doc's very LAST node has no such sibling, so its own
+// "extra" blank-line unit is silently dropped regardless of how many trailing empty paragraphs
+// preceded it. Sidestepped here by swapping just that final trailing empty paragraph for one
+// containing the marker sentinel directly (verified: this round-trips correctly through
+// parser.ts's existing marker-paragraph detection, which doesn't care whether the marker
+// arrived via expandExtraBlankLines' synthesis or as literal source content).
+function withTrailingBlankMarker(doc: PMNode): PMNode {
+  // childCount > 1 guard: an entirely blank note (just one empty paragraph, nothing before it)
+  // must stay a genuinely empty string on save, not turn into a lone marker character forever.
+  const last = doc.lastChild
+  if (doc.childCount <= 1 || !last || last.type.name !== 'paragraph' || last.content.size !== 0) return doc
+  const markerPara = schema.nodes.paragraph.create(null, schema.text(EXTRA_BLANK_MARKER))
+  return doc.copy(doc.content.cut(0, doc.content.size - last.nodeSize).append(schema.nodes.doc.create(null, markerPara).content))
+}
+
 export function serializeToMarkdown(doc: PMNode): string {
-  return bereanMarkdownSerializer.serialize(doc, { tightLists: true })
+  return bereanMarkdownSerializer.serialize(withTrailingBlankMarker(doc), { tightLists: true })
 }
