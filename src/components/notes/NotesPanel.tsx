@@ -75,7 +75,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Scroll container for the list-view NotesList — read by its virtualizer so
   // only visible rows are mounted regardless of total note count.
   const notesListScrollRef = useRef<HTMLDivElement>(null)
-  const [continuousDailyDate, setContinuousDailyDate] = useState(() => new Date())
+  // Lazy initializer reads the previously-viewed day for THIS tab, since ActivePanel fully
+  // remounts NotesPanel on every tab switch — without this, returning to a tab in
+  // continuous-daily-scroll mode always snapped back to today, discarding wherever the user
+  // had scrolled to.
+  const [continuousDailyDate, setContinuousDailyDate] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
+    return saved ? new Date(saved) : new Date()
+  })
+  // Persist the in-view day whenever it changes (continuous-daily-scroll mode).
+  useEffect(() => {
+    if (!notesTabId) return
+    updateTabState('notes', notesTabId, { continuousDailyDate: continuousDailyDate.getTime() })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continuousDailyDate, notesTabId])
   // Idioms → single PDF export: opens the print preview directly (options live in the modal).
   const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
   // A note queued for print/PDF export from the right-click menu (without opening it).

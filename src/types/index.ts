@@ -98,6 +98,8 @@ export interface NoteTabState {
   cursorPos?: number
   /** Scroll offset of the notes list/browsing view (distinct from `scrollTop`, which is the open-note editor's own scroll). */
   listScrollTop?: number
+  /** Epoch ms of the day currently in view in continuous-daily-scroll mode. */
+  continuousDailyDate?: number
 }
 
 export interface LexiconTabState {
