@@ -2301,6 +2301,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           expandAllNotes={slot === 'A' ? rightPanelExpandAll : rightPanelExpandAllB}
           onExpandAllNotesChange={slot === 'A' ? handleRightPanelExpandAllChange : handleRightPanelExpandAllChangeB}
           forcedTab={forcedTab}
+          otherSlotTab={!forcedTab ? (slot === 'A' ? rightPanelSlotB : rightPanelTab) : undefined}
           onMoveTab={!forcedTab ? moveTab : undefined}
           canPopOut={slot === 'A' && !forcedTab && !rightPanelSlotB}
           onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
@@ -2344,14 +2345,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
         </div>
       </div>
-    )
-    // Static, non-interactive divider between the two dual-slot side panels (A/B) — hDivider
-    // is bg-transparent at rest (only visible on hover, correct for ITS job as the resize
-    // handle between scripture and the panel) and its onMouseDown resize wiring doesn't apply
-    // to a fixed 50/50 A/B split anyway, so reusing it here gave no visible separation between
-    // the two panels at rest. This is always-visible and does nothing on click/drag.
-    const slotDivider = (
-      <div className="w-px flex-shrink-0 bg-[rgb(var(--color-surface-4))]" />
     )
     // Purely rightPanelWidth — the two-finger swipe (see the wheel listener above)
     // never touches this. The panel's WIDTH stays constant through an entire swipe
@@ -2426,30 +2419,34 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-shell-lg"
                   // +14 for hDivider (widened from 4px to 14px for the two-finger-swipe hit
                   // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
-                  // OLD comment, same reasoning still applies) — this wrapper's overflow-hidden
-                  // needs the extra 6px of room or that right margin gets silently clipped.
-                  style={{ width: (rightPanelSlotB ? panelSize * 2 : panelSize) + 14 + 6 }}
+                  // OLD comment, same reasoning still applies), +6 more (gap-1.5) when slot B is
+                  // open — each slot is now its own separately-chromed box (see below) with a
+                  // real gap between them, rather than one shared box with an internal divider
+                  // line, so the real visual gap needs to be counted into this wrapper's width
+                  // too or it gets silently clipped.
+                  style={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
                 >
                   {hDivider}
-                  {/* overflow-hidden lives on the INNER div, off the same element as the
-                      border/shadow — combining overflow:hidden + rounded corners + box-shadow
-                      on ONE element is a WebKit/Chromium compositing gotcha where the shadow
-                      renders clipped to the element's square bounding box instead of its own
-                      rounded corners (independent of — and in addition to — the outer wrapper
-                      rounding fix above; this was the actual remaining "bottom-left corner
-                      still square" bug). Outer div now only carries rounding/border/shadow.
-                      shadow-lg (not shadow-2xl) — this panel floats via `position: absolute`
-                      directly over live scripture text rather than beside a neutral page
-                      background like the other layout cases, so shadow-2xl's much heavier/
-                      darker spread read as an unnatural dark bleed across the text underneath.
-                      shadow-lg matches what every other panel case here already uses. */}
-                  <div style={{ width: rightPanelSlotB ? panelSize * 2 : panelSize }} className="flex-shrink-0 flex my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                  {/* Each slot is its own separately-chromed box (border/shadow/rounded), with a
+                      real gap-1.5 between them when both are open — a shared box with only a
+                      1px internal divider line read as "not visually separate at all" against
+                      the shared background. overflow-hidden still lives on an INNER div per box,
+                      off the same element as the border/shadow — combining overflow:hidden +
+                      rounded corners + box-shadow on ONE element is a WebKit/Chromium compositing
+                      gotcha where the shadow renders clipped to the element's square bounding box
+                      instead of its own rounded corners. shadow-lg (not shadow-2xl) — this panel
+                      floats via `position: absolute` directly over live scripture text rather
+                      than beside a neutral page background like the other layout cases, so
+                      shadow-2xl's much heavier/darker spread read as an unnatural dark bleed
+                      across the text underneath. */}
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 mr-1.5">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                     {rightPanelSlotB && (
-                      <>
-                        {slotDivider}
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
-                      </>
+                      </div>
                     )}
                   </div>
                 </motion.div>
@@ -2467,8 +2464,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <motion.div
                   key="left-panel"
                   initial={{ width: 0 }}
-                  // See the 'standard' case's comment — same fix, margin now on the left.
-                  animate={{ width: (rightPanelSlotB ? panelSize * 2 : panelSize) + 14 + 6 }}
+                  // See the 'standard' case's comment — same fix, margin now on the left,
+                  // +6 more (gap-1.5) when slot B is open — see the 'standard' case's comment
+                  // on why each slot is now its own separately-chromed box.
+                  animate={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
@@ -2476,15 +2475,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // corners' shadow spread square-clipped by this wrapper.
                   className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
                 >
-                  {/* overflow-hidden on the inner div — see the 'standard' case's comment
-                      (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: rightPanelSlotB ? panelSize * 2 : panelSize }} className="flex-shrink-0 flex my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                  {/* Each slot is its own separately-chromed box with a real gap-1.5 between
+                      them — see the 'standard' case's comment. overflow-hidden on the inner div
+                      of each box (same-element overflow+radius+shadow compositing bug). */}
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 ml-1.5">
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                     {rightPanelSlotB && (
-                      <>
-                        {slotDivider}
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
-                      </>
+                      </div>
                     )}
                   </div>
                   {hDivider}
@@ -2503,13 +2504,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+                <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                   {rightPanelSlotB && (
-                    <>
-                      {slotDivider}
-                      <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
-                    </>
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
                   )}
                 </div>
               </>
@@ -2525,13 +2523,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+                <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                   {rightPanelSlotB && (
-                    <>
-                      {slotDivider}
-                      <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
-                    </>
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
                   )}
                 </div>
               </>
@@ -2576,13 +2571,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
+              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
               {rightPanelSlotB && (
-                <>
-                  {slotDivider}
-                  <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
-                </>
+                <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
               )}
             </div>
           </div>

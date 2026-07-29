@@ -1283,6 +1283,13 @@ interface Props {
   canPopOut?: boolean
   /** Present only on slot B — closes the whole second panel (its own header's ✕ button). */
   onCloseSlotB?: () => void
+  /** The OTHER slot's currently-active tab type (undefined when only this slot is open, or
+   *  when `forcedTab` applies — a forced single-purpose panel has no tab strip at all). Used
+   *  to filter that type out of THIS slot's own tab-strip buttons, so a tab that's been popped
+   *  out into the other slot stops being offered here too — previously both slots' strips
+   *  always showed all three types regardless of which slot actually owned which, so "popping
+   *  out" a tab never actually removed it from the source panel's own strip. */
+  otherSlotTab?: PanelTab | null
 }
 
 export default function BibleRightPanel({
@@ -1298,6 +1305,7 @@ export default function BibleRightPanel({
   onMoveTab,
   canPopOut,
   onCloseSlotB,
+  otherSlotTab,
 }: Props) {
   // Captured once when the side-panel note editor first mounts, so cursor restoration
   // uses the value saved before this tab was switched away (not a live-updating prop).
@@ -1727,7 +1735,7 @@ export default function BibleRightPanel({
               onMoveTab?.(tab, slotId)
             }}
           >
-            {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).map((tab) => {
+            {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => tab !== otherSlotTab).map((tab) => {
               const Icon = PANEL_TAB_ICON[tab]
               const active = visibleTab === tab
               return (
