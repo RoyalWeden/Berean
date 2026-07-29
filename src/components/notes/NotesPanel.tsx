@@ -506,6 +506,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const lastScrollTopRef = useRef(0)
   // Track latest cursor position so it can be persisted on tab switch
   const lastCursorPosRef = useRef(0)
+  // Track latest notes-list/browsing view scroll position (distinct from the open-note editor's
+  // own scroll above) so it can be persisted on tab switch and restored on remount.
+  const lastListScrollTopRef = useRef(0)
 
   // Keep tab title in sync with the open note — re-runs whenever the note id
   // OR title changes so that renaming a note immediately updates the tab label.
@@ -631,6 +634,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [restoredCursorPos, setRestoredCursorPos] = useState(0)
   const [autoFocusEditor, setAutoFocusEditor] = useState(false)
 
+  // Restore the notes-list/browsing view's own scroll position whenever it (re)mounts — it's
+  // conditionally unmounted while a note is open (`editing` true), so a plain DOM ref alone
+  // doesn't survive the round trip; re-apply from tab state once the list is back on screen.
+  useEffect(() => {
+    if (activeNote !== null || !notesTabId) return
+    const tab = tabs.find((t) => t.id === notesTabId)
+    const saved = (tab?.state as NoteTabState | undefined)?.listScrollTop ?? 0
+    const raf = requestAnimationFrame(() => {
+      if (notesListScrollRef.current) notesListScrollRef.current.scrollTop = saved
+    })
+    return () => cancelAnimationFrame(raf)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNote, notesTabId])
+
   // Save scroll + cursor when notesTabId changes (switching between notes tabs within the space).
   useEffect(() => {
     const id = notesTabId
@@ -639,6 +656,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
   }, [notesTabId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -659,6 +677,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -672,6 +691,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
     window.addEventListener('berean:saveScrollBeforeTabChange', onSave)
@@ -1480,7 +1500,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onDayOpen={openDailyNote}
               />
             ) : (
-            <div ref={notesListScrollRef} className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
+            <div
+              ref={notesListScrollRef}
+              className="flex-1 overflow-y-auto"
+              style={{ transform: 'translateZ(0)', contain: 'paint' }}
+              onScroll={(e) => { lastListScrollTopRef.current = (e.currentTarget as HTMLDivElement).scrollTop }}
+            >
               {folderView ? (
                 <NotesFolderView
                   notes={visibleNotes}

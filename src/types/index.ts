@@ -96,11 +96,15 @@ export interface NoteTabState {
   verseRef?: string
   scrollTop?: number
   cursorPos?: number
+  /** Scroll offset of the notes list/browsing view (distinct from `scrollTop`, which is the open-note editor's own scroll). */
+  listScrollTop?: number
 }
 
 export interface LexiconTabState {
   strongsNum: string | null
   scrollTop?: number
+  /** Scroll offset of the SearchView results list (distinct from `scrollTop`, which is the entry-detail view's own scroll). */
+  searchScrollTop?: number
   lexHistory?: Array<
     | { kind: 'entry'; strongsNum: string }
     | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }
