@@ -27,6 +27,7 @@ const SEARCH_TRANSLATIONS = [
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' },
   { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' },
+  { id: '2baruch',       label: '2 Baruch',          category: 'pseudo' },
 ]
 
 // Detect if query starts with a translation hint like "lxx: ..." or "enoch ..."
@@ -47,6 +48,7 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
     [['1 clement:', '1clement:', '1clem '], '1clement'],
     [['apoc abraham:', 'apoc abraham ', 'apoc. abraham:', 'apocalypse of abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
     [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
+    [['2 baruch:', '2 baruch ', '2baruch:', '2baruch ', 'apocalypse of baruch:', 'apocalypse of baruch '], '2baruch'],
   ]
   for (const [patterns, id] of prefixes) {
     for (const pat of patterns) {

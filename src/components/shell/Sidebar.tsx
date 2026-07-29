@@ -332,7 +332,7 @@ export default function Sidebar() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openBookMenu(x: number, y: number) {
-    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham', 't_jacob']
+    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham', 't_jacob', '2baruch']
     const results = await Promise.allSettled(
       TEXT_IDS.map(id => window.bible.getBooks(id).then(bs => ({ id, books: bs })))
     )

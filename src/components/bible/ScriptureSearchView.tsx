@@ -77,6 +77,7 @@ const ALL_TEXTS = [
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' as const },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
   { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' as const },
+  { id: '2baruch',       label: '2 Baruch',          category: 'pseudo' as const },
 ]
 
 // Module-level cache: this view remounts every time the search tab is (re)opened (BiblePanel

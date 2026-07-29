@@ -137,6 +137,8 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: '1CL', name: '1 Clement', patterns: ['1cl', '1clem', '1clement', '1 clement', 'first clement', '1st clement', 'clement i'] },
   // Testament of Jacob (distinct from the patriarch Jacob's own life, told in Genesis)
   { id: 'TJAC', name: 'Testament of Jacob', patterns: ['tjac', 't jacob', 't. jacob', 'testament jacob', 'testament of jacob', 'test of jacob'] },
+  // 2 Baruch (Syriac Apocalypse of Baruch — distinct from the deuterocanonical 1 Baruch)
+  { id: '2BA', name: '2 Baruch', patterns: ['2ba', '2bar', '2baruch', '2 baruch', 'second baruch', 'apocalypse of baruch', 'syriac baruch', 'syriac apocalypse of baruch'] },
 ]
 
 const PATTERN_LOOKUP = new Map<string, string>()
@@ -254,7 +256,7 @@ export function resolveBookToken(raw: string): string | null {
       if (candidate.length < 5) continue
       const lenDiff = Math.abs(candidate.length - noSpace.length)
       if (lenDiff > 1) continue
-      const maxDist = candidate.length <= 6 ? 1 : 2
+      const maxDist = candidate.length <= 7 ? 1 : 2
       const dist = editDistance(noSpace, candidate)
       if (dist <= maxDist && (!best || dist < best.dist)) best = { id, dist }
     }
@@ -355,6 +357,7 @@ const BOOK_TRANSLATION: Record<string, string> = {
   TJOB:    't_job',
   '1CL':   '1clement',
   TJAC:    't_jacob',
+  '2BA':   '2baruch',
 }
 
 // The Shepherd of Hermas ships in two translations sharing the same HER_* book ids:
@@ -436,7 +439,7 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   AIS: 11, EPB: 21,
   TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
-  GAD: 14, TJOB: 12, '1CL': 66, TJAC: 8,
+  GAD: 14, TJOB: 12, '1CL': 66, TJAC: 8, '2BA': 85,
   RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
   RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 36, RCL10: 72,
 }

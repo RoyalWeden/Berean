@@ -111,6 +111,7 @@ const DEFAULT_TRANSLATIONS = [
   { id: '1clement',      label: '1 Clement — J.B. Lightfoot' },
   { id: 'apoc_abraham',  label: 'Apocalypse of Abraham — G.H. Box (1918)' },
   { id: 't_jacob',       label: 'Testament of Jacob — W.F. Stinespring' },
+  { id: '2baruch',       label: '2 Baruch — R.H. Charles-based' },
 ]
 
 // Theme preset data — bg/accent/text are "r g b" strings matching global.css vars

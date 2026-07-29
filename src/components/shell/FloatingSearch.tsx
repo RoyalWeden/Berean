@@ -88,6 +88,7 @@ const TRANSLATION_PREFIXES: Array<[string[], string]> = [
   [['1 clement:', '1clement:', '1clem '], '1clement'],
   [['apoc abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
   [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
+  [['2 baruch:', '2baruch:', 'apocalypse of baruch '], '2baruch'],
 ]
 
 /** All extra-book text IDs searched automatically in parallel for keyword queries */
@@ -106,6 +107,7 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   '1clement':    '1 Clement',
   apoc_abraham:  'Apoc. Abraham',
   t_jacob:       'T. Jacob',
+  '2baruch':     '2 Baruch',
 }
 
 function detectTranslationPrefix(q: string): { textId: string; cleanQuery: string } | null {
