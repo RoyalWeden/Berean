@@ -411,8 +411,13 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     )
   }
 
+  // Gutter width reserves room, inside the container's own left padding, for the verse-number
+  // span to hang to the left of the text column (classic "hanging verse number in the margin"
+  // layout) rather than taking inline horizontal space from the text row itself.
+  const gutterWidth = Math.round(baseFontSize * 1.5)
+
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto px-10 pb-6 pt-12 relative" onMouseUp={handleMouseUp}>
+    <div ref={containerRef} className="h-full overflow-y-auto px-6 pb-6 pt-12 relative" onMouseUp={handleMouseUp}>
       {/* Chapter header */}
       <div
         className="text-center select-none mb-8"
@@ -431,8 +436,13 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
           hardcoded 1.9/mb-0.5 here (vs. main's 1.75/12px) diverged enough
           to misplace the outline band by several verses, worst in
           short-verse books like Song of Solomon where the per-verse error
-          compounds fastest. */}
-      <div style={{ fontSize: baseFontSize, lineHeight: 'var(--line-height-comfortable)', color: textColor }}>
+          compounds fastest. Only the HORIZONTAL layout below (verse number
+          moved into a hanging gutter) changed from that main-window model —
+          vertical spacing is untouched, so presenterBand.ts's DOM-measured
+          geometry stays correct. */}
+      <div
+        style={{ fontSize: baseFontSize, lineHeight: 'var(--line-height-comfortable)', color: textColor, marginLeft: `${gutterWidth + 8}px` }}
+      >
         {verses.map((v) => {
           const isActive = verse === v.verse_num
           return (
@@ -440,21 +450,22 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
               key={v.verse_num}
               data-verse={v.verse_num}
               ref={isActive ? (activeRef as React.RefObject<HTMLDivElement>) : undefined}
-              className="flex gap-3 mb-3"
-              style={isActive ? { background: accentBg, borderRadius: '6px', marginLeft: '-8px', paddingLeft: '8px', paddingRight: '4px' } : undefined}
+              className="relative mb-3"
+              style={isActive ? { background: accentBg, borderRadius: '6px', paddingLeft: '8px', paddingRight: '4px', marginLeft: '-8px' } : undefined}
             >
               <span
-                className="select-none flex-shrink-0 tabular-nums text-right"
+                className="select-none absolute tabular-nums text-right"
                 style={{
                   fontSize: Math.round(baseFontSize * 0.55),
                   color: muteColor,
-                  width: `${Math.round(baseFontSize * 1.5)}px`,
-                  paddingTop: '0.3em',
+                  width: `${gutterWidth}px`,
+                  right: 'calc(100% + 8px)',
+                  top: '0.3em',
                 }}
               >
                 {v.verse_num}
               </span>
-              <span className="flex-1" data-verse-text style={{ userSelect: 'text' }}>
+              <span data-verse-text style={{ userSelect: 'text' }}>
                 {renderVerseText(
                   v.text,
                   displayTokens(v),
