@@ -52,6 +52,9 @@
     "prosemirror-view": "^1.42.0",
     "zustand": "^4.5.2"
   },
+  "overrides": {
+    "@radix-ui/react-slot": "^1.2.5"
+  },
   "devDependencies": {
     "@codemirror/commands": "^6.3.3",
     "@codemirror/lang-markdown": "^6.2.4",
