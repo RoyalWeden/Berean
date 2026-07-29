@@ -1155,21 +1155,50 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       return <span>{applyFindHighlight(verseForDisplay.text, findQuery, findWordMode)}</span>
     }
 
-    // Word-level rendering (with space highlighting fix)
+    // Word-level rendering (with space highlighting fix). Char-offset highlights
+    // (charHighlights — the format every highlight created through the current UI uses)
+    // need char positions computed from the ORIGINAL verse.text, same as the showStrongs
+    // branch above — this branch was previously checking ONLY the legacy startWord/endWord
+    // fields, which are always null for a current-format highlight, so highlights never
+    // rendered here at all (the default reading state for every text except KJVA/LXX,
+    // which hit a different, already-correct branch earlier in this function).
+    let chPos = 0
+    const wordPositions = verse.text.split(' ').map(w => {
+      const start = chPos
+      chPos += w.length + 1
+      return start
+    })
     return (
       <span>
         {words.map((word, i) => {
           const wHL = highlights.find(h => h.startWord !== null && h.startWord <= i && i <= (h.endWord ?? i))
+          const wordCharStart = wordPositions[i] ?? 0
+          const wordSegs = charHighlights.length > 0
+            ? splitWordByHighlights(word, wordCharStart, charHighlights, WORD_HIGHLIGHT_BG)
+            : null
           const wordContent = activeIdioms.length
             ? wrapIdiomTerms(word, activeIdioms, handleIdiomEnter, handleIdiomLeave, handleIdiomClick, handleIdiomContextMenu)
             : word
           return (
             <Fragment key={i}>
-              <span
-                data-word={i}
-                style={wHL ? { backgroundColor: WORD_HIGHLIGHT_BG[wHL.color], borderRadius: '2px', padding: '1px 0' } : undefined}
-              >{wordContent}</span>
+              {wordSegs ? (
+                <span data-word={i}>
+                  {wordSegs.map((seg, si) => (
+                    <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+                  ))}
+                </span>
+              ) : (
+                <span
+                  data-word={i}
+                  style={wHL ? { backgroundColor: WORD_HIGHLIGHT_BG[wHL.color], borderRadius: '2px', padding: '1px 0' } : undefined}
+                >{wordContent}</span>
+              )}
               {i < words.length - 1 && (() => {
+                const spaceCharPos = wordCharStart + word.length
+                const spaceCharHL = charHighlights.length > 0
+                  ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
+                  : undefined
+                if (spaceCharHL) return <span style={{ backgroundColor: WORD_HIGHLIGHT_BG[spaceCharHL.color] }}> </span>
                 const spaceHL = highlights.find(h => h.startWord !== null && h.startWord! <= i && i < (h.endWord ?? -1))
                 return spaceHL
                   ? <span style={{ backgroundColor: WORD_HIGHLIGHT_BG[spaceHL.color] }}> </span>
