@@ -61,6 +61,40 @@ export function updateMRU(
   return [{ spaceId, tabId }, ...list.filter(item => !(item.spaceId === spaceId && item.tabId === tabId))].slice(0, 100)
 }
 
+/** Universal new-tab placement rule, shared by createTab and addTab so every "new tab" entry
+ *  point in the app places tabs consistently instead of it depending on which of those two
+ *  functions the call site happened to use (previously: createTab always inserted after the
+ *  active tab, addTab always appended at the end, regardless of the calling gesture's actual
+ *  intent — e.g. the SAME double-click-empty-space/Cmd+T entry point produced different
+ *  placement for a verse result vs. a lexicon result, purely because of which function each
+ *  branch called). 'after-active': Cmd+T, any "+" button, "open in new tab" from within content.
+ *  'end': double-click empty tab-bar space only. Computes the new sessionDisplayOrders array —
+ *  callers still separately append the tab itself to tabs[spaceId] and set it active. */
+export function computeInsertOrder(
+  state: { tabs: Record<SpaceId, Tab[]>; sessionDisplayOrders: Record<string, string[]>; currentSessionId: string; activeTabId: Record<SpaceId, string | null>; activeSpace: SpaceId },
+  newId: string,
+  position: 'after-active' | 'end' = 'after-active',
+): string[] {
+  const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+  const allTabsBefore = allSpaces.flatMap((sp) => state.tabs[sp] ?? [])
+  const stored = state.sessionDisplayOrders[state.currentSessionId] ?? []
+  const liveOrder = [
+    ...stored.filter((tid) => allTabsBefore.some((t) => t.id === tid)),
+    ...allTabsBefore.filter((t) => !stored.includes(t.id)).map((t) => t.id),
+  ]
+  let insertAt: number
+  if (position === 'end') {
+    insertAt = liveOrder.length
+  } else {
+    const activeTabIdOverall = state.activeTabId[state.activeSpace]
+    const activeIdx = activeTabIdOverall ? liveOrder.indexOf(activeTabIdOverall) : -1
+    insertAt = activeIdx === -1 ? liveOrder.length : activeIdx + 1
+  }
+  const newOrder = [...liveOrder]
+  newOrder.splice(insertAt, 0, newId)
+  return newOrder
+}
+
 export interface ArchivedGroup {
   id: string
   label: string          // e.g. "Gen 1" or "Archive — Jun 5 2025 3:42 PM"
@@ -99,6 +133,12 @@ export interface AppState {
   // UI modals
   searchOpen: boolean
   searchMode: 'current' | 'new'
+  // Universal new-tab placement rule (see computeInsertOrder) for whatever tab the floating
+  // search's 'new' mode ends up creating (navigate()/goToLexicon() in FloatingSearch.tsx read
+  // this) — 'after-active' for Cmd+T/the search "+" button, 'end' only when opened via
+  // double-clicking empty tab-bar space. Both currently funnel through this same openSearch
+  // call, so this is how they're told apart on the other end.
+  searchNewTabPosition: 'after-active' | 'end'
   // 'verses' = the floating search only shows scripture/verse results (no notes/
   // lexicon/YouTube sections) — used by the Scripture tab's "Search scripture"
   // button so it reads as a lightweight version of Advanced Search rather than
@@ -426,8 +466,10 @@ export interface AppState {
 
   // Actions
   setActiveSpace: (space: SpaceId) => void
-  addTab: (tab: Tab) => void
-  createTab: (type: TabType) => void
+  /** `position` defaults to 'after-active' (Cmd+T/"+"/"open in new tab" from content) —
+   *  pass 'end' only for the double-click-empty-tab-bar-space case. */
+  addTab: (tab: Tab, position?: 'after-active' | 'end') => void
+  createTab: (type: TabType, position?: 'after-active' | 'end') => void
   ensureTab: (type: TabType) => void
   closeTab: (spaceId: SpaceId, tabId: string) => void
   closeActiveTab: () => void
@@ -438,7 +480,7 @@ export interface AppState {
   updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
-  openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses') => void
+  openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses', newTabPosition?: 'after-active' | 'end') => void
   closeSearch: () => void
 
   // Recent search queries (persisted, max 10)
@@ -617,6 +659,7 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       searchOpen: false,
       searchMode: 'current' as const,
+      searchNewTabPosition: 'after-active' as const,
       searchScope: 'all' as const,
       settingsOpen: false,
       pendingNoteId: null,
@@ -1238,7 +1281,7 @@ export const useAppStore = create<AppState>()(
 
       setActiveSpace: (space) => set({ activeSpace: space }),
 
-      createTab: (type) => {
+      createTab: (type, position = 'after-active') => {
         const spaceId = TYPE_TO_SPACE[type]
         const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         let tab: Tab
@@ -1256,23 +1299,11 @@ export const useAppStore = create<AppState>()(
         }
         const state = get()
 
-        // Insert the new tab right after the currently-active tab in the
-        // unified sidebar display order, not just appended to its own space's
-        // array — without this, a new notes tab lands after the LAST notes
-        // tab (wherever that sits in the flattened space-grouped order)
+        // Insert the new tab into the unified sidebar display order (see computeInsertOrder) —
+        // not just appended to its own space's array — without this, a new notes tab lands
+        // after the LAST notes tab (wherever that sits in the flattened space-grouped order)
         // instead of next to whatever tab the user was actually looking at.
-        const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
-        const allTabsBefore = allSpaces.flatMap((sp) => state.tabs[sp] ?? [])
-        const stored = state.sessionDisplayOrders[state.currentSessionId] ?? []
-        const liveOrder = [
-          ...stored.filter((tid) => allTabsBefore.some((t) => t.id === tid)),
-          ...allTabsBefore.filter((t) => !stored.includes(t.id)).map((t) => t.id),
-        ]
-        const activeTabIdOverall = state.activeTabId[state.activeSpace]
-        const activeIdx = activeTabIdOverall ? liveOrder.indexOf(activeTabIdOverall) : -1
-        const insertAt = activeIdx === -1 ? liveOrder.length : activeIdx + 1
-        const newOrder = [...liveOrder]
-        newOrder.splice(insertAt, 0, id)
+        const newOrder = computeInsertOrder(state, id, position)
 
         set({
           tabs: { ...state.tabs, [spaceId]: [...state.tabs[spaceId], tab] },
@@ -1334,7 +1365,7 @@ export const useAppStore = create<AppState>()(
         })
       },
 
-      addTab: (tab) => {
+      addTab: (tab, position = 'after-active') => {
         const state = get()
         const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
         if (existing) {
@@ -1344,17 +1375,21 @@ export const useAppStore = create<AppState>()(
             tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
           })
         } else {
-          // Always append at the end of the target space's tab list (same as
-          // createTab) — inserting right after whatever tab happened to be
-          // last-active in that space put new tabs in an unpredictable middle
-          // position, especially when the space wasn't the one currently in view.
+          // Placement in the unified sidebar display order follows the same universal rule as
+          // createTab (see computeInsertOrder) — 'after-active' by default (every "open in new
+          // tab" call site that constructs its own tab object, e.g. a specific verse/note/video,
+          // wants this), 'end' only for the double-click-empty-tab-bar-space case. The raw
+          // per-space array itself is still always appended — only sessionDisplayOrders governs
+          // VISUAL position (same split createTab already relies on).
           const currentTabs = state.tabs[tab.spaceId]
           const newTabs = [...currentTabs, tab]
+          const newOrder = computeInsertOrder(state, tab.id, position)
           set({
             tabs: { ...state.tabs, [tab.spaceId]: newTabs },
             activeTabId: { ...state.activeTabId, [tab.spaceId]: tab.id },
             activeSpace: tab.spaceId,
             tabMRUList: updateMRU(state.tabMRUList, tab.spaceId, tab.id),
+            sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
           })
         }
       },
@@ -1593,9 +1628,9 @@ export const useAppStore = create<AppState>()(
         }))
       },
 
-      openSearch: (mode = 'current', scope = 'all') => {
+      openSearch: (mode = 'current', scope = 'all', newTabPosition = 'after-active') => {
         window.dispatchEvent(new Event('berean:closeMenus'))
-        set({ searchOpen: true, searchMode: mode, searchScope: scope, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
+        set({ searchOpen: true, searchMode: mode, searchScope: scope, searchNewTabPosition: newTabPosition, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
       },
       closeSearch: () => set({ searchOpen: false }),
       requestOpenNote: (noteId) => {

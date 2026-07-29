@@ -591,7 +591,11 @@ export default function Sidebar() {
               onDoubleClick={(e) => {
                 const t = e.target as HTMLElement
                 if (t.closest('[data-tab-idx]')) return
-                openSearch('new')
+                // Universal placement rule: double-click empty tab-bar space is the ONE case
+                // that appends at the very end, unlike every other "new tab" entry point
+                // (Cmd+T, the "+" buttons, "open in new tab" from content), which insert
+                // directly after the active tab — see computeInsertOrder in store/index.ts.
+                openSearch('new', 'all', 'end')
               }}
               // Click-drag-to-move on empty space — same target guard as the double-click
               // handler above (skip actual tab items; both affordances share this area).

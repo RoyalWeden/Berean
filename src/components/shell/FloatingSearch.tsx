@@ -141,6 +141,7 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
 export default function FloatingSearch() {
   const searchOpen = useAppStore((s) => s.searchOpen)
   const searchMode = useAppStore((s) => s.searchMode)
+  const searchNewTabPosition = useAppStore((s) => s.searchNewTabPosition)
   // 'verses' — set by the Scripture tab's "Search scripture" button — shows
   // only the verse-results section below, reading as a lightweight version of
   // Advanced Search rather than the app-wide mixed search.
@@ -564,7 +565,7 @@ export default function FloatingSearch() {
         type: 'bible',
         title,
         state: { bookId, chapter, endChapter, translation, showStrongs: false, scrollPosition: 0, targetVerse, endVerse },
-      })
+      }, searchNewTabPosition)
     }
     setActiveSpace('scripture')
     closeSearch()
@@ -572,7 +573,7 @@ export default function FloatingSearch() {
 
   function goToLexicon(strongsNum: string) {
     if (searchMode === 'new') {
-      createTab('lexicon')
+      createTab('lexicon', searchNewTabPosition)
     } else {
       ensureTab('lexicon')
     }
