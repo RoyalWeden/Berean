@@ -38,9 +38,13 @@ export function stripBracketNotation(text: string): string {
 export function normalizeStrongsNums(text: string, lang: 'H' | 'G'): string {
   // Add prefix to bare numbers; also strip leading zeros from already-prefixed ones
   // (Greek DB stores H07941; Hebrew DB stores H7941 — normalize to the shorter form)
+  // The lookahead alone (excluding a number FOLLOWED by ":"/".") only guards the chapter half
+  // of a "32:38" verse reference — "38" (preceded by ":") was still getting converted to a
+  // clickable "H38", rendering "(Deuteronomy 32:38)" as "(Deuteronomy 32:H38)". Added a matching
+  // lookbehind excluding a number immediately preceded by ":" too.
   return text
     .replace(/\b([HG])0+(\d)/g, '$1$2')
-    .replace(/(?<![HGa-zA-Z/])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
+    .replace(/(?<![HGa-zA-Z/:])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
 }
 
 /** Build the plain-text string that the copy button places on the clipboard.
@@ -186,7 +190,12 @@ function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
   // Also used for the "Definition" field, which stores cross-refs the same
   // way (e.g. Hebrew H5703's definition ends "See 7495." with no H) — bare
   // numbers there are inferred from the entry's own lang the same way.
-  const parts = text.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g)
+  // The bare-number branch excludes one immediately preceded/followed by ":"/"." (with the
+  // trailing case also allowing a "." as a sentence-ending period) — without this, a plain
+  // chapter:verse reference like "(Deuteronomy 32:38)" got BOTH halves linkified as bare
+  // Strong's cross-refs, rendering as "(Deuteronomy H32:H38)". Mirrors normalizeStrongsNums'
+  // identical guard (used for the copy-text path) above.
+  const parts = text.split(/(\b[HG]\d{1,5}\b|(?<![:.\d])\b\d{1,5}\b(?!\s*[:.]))/g)
   return (
     <span>
       {parts.map((part, i) => {
