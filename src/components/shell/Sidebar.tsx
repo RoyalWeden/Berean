@@ -137,6 +137,11 @@ export default function Sidebar() {
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
 
   const tabListRef = useRef<HTMLDivElement>(null)
+  // Manual click-drag-to-move tracking for empty tab-list space — see the mousedown handler
+  // below and app:moveWindowBy's own comment in electron/main.ts for why this doesn't use a
+  // real `-webkit-app-region: drag` CSS region (would break double-click-to-search on the
+  // same area, per the four prior failed attempts documented just below).
+  const windowDragRef = useRef<{ lastScreenX: number; lastScreenY: number; moved: boolean } | null>(null)
 
   // ── Scripture button right-click → book list ──
   const [bookMenu, setBookMenu] = useState<{ x: number; y: number; books: Array<{ book: Book; textId: string }>; filter: string } | null>(null)
@@ -170,8 +175,14 @@ export default function Sidebar() {
   // Electron's OS-level drag hit-testing over an app-drag-region element intercepts the
   // mousedown/click gesture at the browser-process level before it's guaranteed to reach the
   // renderer, regardless of listener type or capture phase. The container itself was switched
-  // from app-drag-region to no-drag below, trading away "drag the window from empty tab-list
-  // space" for a plain, reliable onDoubleClick handler on the element.
+  // from app-drag-region to no-drag below to make that reliable.
+  //
+  // Window-drag on the same empty space was later added back WITHOUT reverting to
+  // app-drag-region — instead, the onMouseDown handler below tracks screen-space mouse deltas
+  // manually and moves the window via app:moveWindowBy (IPC to BrowserWindow.setPosition), only
+  // once real movement crosses a small threshold. Since the region is never marked as a CSS drag
+  // region, dblclick keeps firing reliably exactly as above, and drag-to-move now also works on
+  // the same pixels — the two gestures no longer have to fight over the same screen area.
 
   // ── Daily-note calendar — pinned permanently at the bottom of the
   // sidebar (not gated to the Notes space, not a toggle) so jumping to a
@@ -581,6 +592,38 @@ export default function Sidebar() {
                 const t = e.target as HTMLElement
                 if (t.closest('[data-tab-idx]')) return
                 openSearch('new')
+              }}
+              // Click-drag-to-move on empty space — same target guard as the double-click
+              // handler above (skip actual tab items; both affordances share this area).
+              // Tracks screen-space deltas via a window-level mousemove/mouseup pair (not React
+              // handlers on this element) so movement is still tracked even if the cursor
+              // leaves this element mid-drag. A small movement threshold before the first
+              // moveWindowBy call keeps a plain click/double-click from ever nudging the
+              // window — only a genuine sustained drag engages it.
+              onMouseDown={(e) => {
+                const t = e.target as HTMLElement
+                if (t.closest('[data-tab-idx]')) return
+                if (e.button !== 0) return
+                windowDragRef.current = { lastScreenX: e.screenX, lastScreenY: e.screenY, moved: false }
+                const DRAG_THRESHOLD = 4
+                function onMove(ev: MouseEvent) {
+                  const drag = windowDragRef.current
+                  if (!drag) return
+                  const dx = ev.screenX - drag.lastScreenX
+                  const dy = ev.screenY - drag.lastScreenY
+                  if (!drag.moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return
+                  drag.moved = true
+                  drag.lastScreenX = ev.screenX
+                  drag.lastScreenY = ev.screenY
+                  window.app.moveWindowBy(dx, dy)
+                }
+                function onUp() {
+                  windowDragRef.current = null
+                  window.removeEventListener('mousemove', onMove)
+                  window.removeEventListener('mouseup', onUp)
+                }
+                window.addEventListener('mousemove', onMove)
+                window.addEventListener('mouseup', onUp)
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
