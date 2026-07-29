@@ -1216,6 +1216,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab, rightPanelSlotB: null })
   }
 
+  // Single entry point for BOTH the tab-strip context menu and drag-and-drop, called with the
+  // explicit TARGET slot rather than requiring the caller to know which underlying function
+  // handles which direction — passed identically to both slot A and slot B's BibleRightPanel
+  // instances (see panelEl below), so `onDrop`'s "whichever instance's strip received the drop"
+  // dispatch is always calling something real, never a prop that was conditionally undefined
+  // on that particular instance (the actual bug behind drag-and-drop silently doing nothing).
+  function moveTab(tab: 'notes' | 'lexicon' | 'crossrefs', toSlot: 'A' | 'B') {
+    if (toSlot === 'B') openInSlotB(tab)
+    else mergeToSlotA(tab)
+  }
+
   // Closing slot A while slot B is open would otherwise leave slot A empty and slot B
   // populated — an inconsistent state a fixed two-slot layout can't represent. Promote slot
   // B into slot A's place instead, mirroring YouTube's closePanelA/closePanelB pattern.
@@ -2290,8 +2301,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           expandAllNotes={slot === 'A' ? rightPanelExpandAll : rightPanelExpandAllB}
           onExpandAllNotesChange={slot === 'A' ? handleRightPanelExpandAllChange : handleRightPanelExpandAllChangeB}
           forcedTab={forcedTab}
-          onPopOutToSlotB={slot === 'A' && !forcedTab && !rightPanelSlotB ? openInSlotB : undefined}
-          onMergeToSlotA={slot === 'B' ? mergeToSlotA : undefined}
+          onMoveTab={!forcedTab ? moveTab : undefined}
+          canPopOut={slot === 'A' && !forcedTab && !rightPanelSlotB}
           onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
           onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()
@@ -2333,6 +2344,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <span className="w-0.5 h-0.5 rounded-full bg-[rgb(var(--color-text-muted))]" />
         </div>
       </div>
+    )
+    // Static, non-interactive divider between the two dual-slot side panels (A/B) — hDivider
+    // is bg-transparent at rest (only visible on hover, correct for ITS job as the resize
+    // handle between scripture and the panel) and its onMouseDown resize wiring doesn't apply
+    // to a fixed 50/50 A/B split anyway, so reusing it here gave no visible separation between
+    // the two panels at rest. This is always-visible and does nothing on click/drag.
+    const slotDivider = (
+      <div className="w-px flex-shrink-0 bg-[rgb(var(--color-surface-4))]" />
     )
     // Purely rightPanelWidth — the two-finger swipe (see the wheel listener above)
     // never touches this. The panel's WIDTH stays constant through an entire swipe
@@ -2428,7 +2447,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                     <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
                     {rightPanelSlotB && (
                       <>
-                        {hDivider}
+                        {slotDivider}
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </>
                     )}
@@ -2463,7 +2482,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                     <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
                     {rightPanelSlotB && (
                       <>
-                        {hDivider}
+                        {slotDivider}
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </>
                     )}
@@ -2488,7 +2507,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
                   {rightPanelSlotB && (
                     <>
-                      {hDivider}
+                      {slotDivider}
                       <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
                     </>
                   )}
@@ -2510,7 +2529,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
                   {rightPanelSlotB && (
                     <>
-                      {hDivider}
+                      {slotDivider}
                       <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
                     </>
                   )}
@@ -2561,7 +2580,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <div className="flex-1 flex flex-col overflow-hidden">{panelEl('A')}</div>
               {rightPanelSlotB && (
                 <>
-                  {hDivider}
+                  {slotDivider}
                   <div className="flex-1 flex flex-col overflow-hidden">{panelEl('B')}</div>
                 </>
               )}

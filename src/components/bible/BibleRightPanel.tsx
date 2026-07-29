@@ -1271,12 +1271,16 @@ interface Props {
    *  tab-strip's sliding-pill layoutId (see the tab strip below) and identifies this instance
    *  in the pop-out/merge/drag-and-drop context menu. */
   slotId?: 'A' | 'B'
-  /** Present only on slot A, and only when slot B isn't already open — set, this enables
-   *  "Pop out into new panel" on each tab, moving that tab into a newly-opened slot B. */
-  onPopOutToSlotB?: (tab: PanelTab) => void
-  /** Present only on slot B — set, this enables "Merge back into left panel" on each tab,
-   *  moving that tab into slot A and closing slot B. */
-  onMergeToSlotA?: (tab: PanelTab) => void
+  /** Moves `tab` into slot `toSlot`, always passed on BOTH slot instances (unconditionally) so
+   *  drag-and-drop's onDrop handler can call it on whichever instance actually received the
+   *  drop — the target slot is explicit (`toSlot`) rather than inferred from "which instance's
+   *  own props happen to be set," which was the actual bug behind drag-and-drop doing nothing:
+   *  dropping onto slot B previously tried to call a `onPopOutToSlotB` prop that was only ever
+   *  passed to the slot A instance, silently no-oping via optional chaining. */
+  onMoveTab?: (tab: PanelTab, toSlot: 'A' | 'B') => void
+  /** True only on slot A when slot B isn't already open — gates whether "Pop out into new
+   *  panel" appears in the tab context menu (there's nowhere to pop out TO otherwise). */
+  canPopOut?: boolean
   /** Present only on slot B — closes the whole second panel (its own header's ✕ button). */
   onCloseSlotB?: () => void
 }
@@ -1291,8 +1295,8 @@ export default function BibleRightPanel({
   forcedTab,
   onScrollPercent,
   slotId = 'A',
-  onPopOutToSlotB,
-  onMergeToSlotA,
+  onMoveTab,
+  canPopOut,
   onCloseSlotB,
 }: Props) {
   // Captured once when the side-panel note editor first mounts, so cursor restoration
@@ -1704,7 +1708,11 @@ export default function BibleRightPanel({
         <div className="flex items-center gap-1 px-1.5 pt-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
           <div
             className={`flex items-center gap-0.5 flex-1 min-w-0 rounded-t-shell transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
-            onDragOver={(e) => { if (e.dataTransfer.types.includes(PANEL_TAB_DRAG_MIME)) { e.preventDefault(); setDragOverStrip(true) } }}
+            // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
+            // for custom MIME strings across Chromium/Electron versions, and this drop zone only
+            // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
+            // getData instead (the standard HTML5 DnD pattern), not by pre-filtering dragover.
+            onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
             onDragLeave={() => setDragOverStrip(false)}
             onDrop={(e) => {
               setDragOverStrip(false)
@@ -1712,8 +1720,11 @@ export default function BibleRightPanel({
               if (!raw) return
               const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: PanelTab; slotId: 'A' | 'B' }
               if (fromSlot === slotId) return // dropped back onto its own strip — no-op
-              if (slotId === 'B') onPopOutToSlotB?.(tab)
-              else onMergeToSlotA?.(tab)
+              // `slotId` here is THIS instance's own slot — i.e. exactly the drop TARGET,
+              // whichever slot's strip the drag actually landed on. Passing it straight through
+              // as `toSlot` is what fixes the earlier bug (calling a differently-slotted prop
+              // that was never passed to this instance).
+              onMoveTab?.(tab, slotId)
             }}
           >
             {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).map((tab) => {
@@ -1738,7 +1749,7 @@ export default function BibleRightPanel({
                   {active && (
                     <motion.div
                       layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-t-shell bg-[rgb(var(--color-accent))/10]"
+                      className="absolute inset-0 rounded-t-shell bg-[rgb(var(--color-accent))/10] pointer-events-none"
                       transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                     />
                   )}
@@ -1767,19 +1778,19 @@ export default function BibleRightPanel({
           style={{ position: 'fixed', left: tabCtxMenu.x, top: tabCtxMenu.y, zIndex: 9999 }}
           className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
         >
-          {slotId === 'A' && onPopOutToSlotB && (
+          {slotId === 'A' && canPopOut && onMoveTab && (
             <button
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { closeTabCtxMenu(); onPopOutToSlotB(tabCtxMenu.tab) }}
+              onClick={() => { closeTabCtxMenu(); onMoveTab(tabCtxMenu.tab, 'B') }}
             >
               <Columns2 size={12} />
               Pop out into new panel
             </button>
           )}
-          {slotId === 'B' && onMergeToSlotA && (
+          {slotId === 'B' && onMoveTab && (
             <button
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-              onClick={() => { closeTabCtxMenu(); onMergeToSlotA(tabCtxMenu.tab) }}
+              onClick={() => { closeTabCtxMenu(); onMoveTab(tabCtxMenu.tab, 'A') }}
             >
               <PanelRightOpen size={12} />
               Merge back into left panel
