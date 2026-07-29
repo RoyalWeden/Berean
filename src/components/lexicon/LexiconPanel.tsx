@@ -10,7 +10,7 @@ import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMen
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
-import type { LexiconEntry } from '@/types'
+import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -710,6 +710,8 @@ function SearchView({
   onSearchStateChange,
   initialQuery = '',
   initialLang = 'all' as 'H' | 'G' | 'all',
+  initialScrollTop = 0,
+  onScrollChange,
   findQuery,
   onFindOpen,
   floating = false,
@@ -720,6 +722,8 @@ function SearchView({
   onSearchStateChange?: (state: { query: string; lang: 'H' | 'G' | 'all' }) => void
   initialQuery?: string
   initialLang?: 'H' | 'G' | 'all'
+  initialScrollTop?: number
+  onScrollChange?: (top: number) => void
   findQuery?: string
   onFindOpen?: () => void
   floating?: boolean
@@ -736,6 +740,8 @@ function SearchView({
   const inputRef = useRef<HTMLInputElement>(null)
   const searchCtx = useStrongsContextMenu()
   const [ctxEntry, setCtxEntry] = useState<LexiconEntry | null>(null)
+  const resultsScrollRef = useRef<HTMLDivElement>(null)
+  const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // If we were restored from history with a pre-existing query, run it immediately
   useEffect(() => {
@@ -757,6 +763,16 @@ function SearchView({
   }, []) // mount only — intentional
 
   useEffect(() => { setSelectedIdx(0) }, [results])
+
+  // Restore the results-list scroll position once the initial (restored) results have loaded.
+  useEffect(() => {
+    if (!initialScrollTop || loading) return
+    const t = setTimeout(() => {
+      if (resultsScrollRef.current) resultsScrollRef.current.scrollTop = initialScrollTop
+    }, 80)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   // Report state changes up so the parent can save them into history
   useEffect(() => {
@@ -840,7 +856,15 @@ function SearchView({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={resultsScrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => {
+          const top = (e.currentTarget as HTMLDivElement).scrollTop
+          if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+          scrollSaveTimerRef.current = setTimeout(() => onScrollChange?.(top), 150)
+        }}
+      >
         {loading && <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">Searching…</div>}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
           <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No results for "{query}"</div>
@@ -915,8 +939,20 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
 
   // Tracks the current SearchView's query/lang so we can push it into history
   const searchStateRef = useRef<{ query: string; lang: 'H' | 'G' | 'all' }>({ query: '', lang: 'all' })
-  // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView
-  const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(null)
+  // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView.
+  // Lazy initializer reads this tab's persisted query/lang directly — ActivePanel fully remounts
+  // LexiconPanel on every tab switch, so this is a genuinely fresh mount each time, matching the
+  // pattern used for NotesPanel's continuousDailyDate.
+  const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const state = tab?.state as LexiconTabState | undefined
+    return state?.searchQuery ? { query: state.searchQuery, lang: state.searchLang ?? 'all' } : null
+  })
+  // Restored results-list scroll offset, passed to SearchView as initialScrollTop.
+  const [searchInitialScrollTop] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    return ((tab?.state as LexiconTabState | undefined)?.searchScrollTop) ?? 0
+  })
   // Bumped whenever a query is pushed in from the floating search bar, so SearchView
   // remounts and re-runs the search even when it was already the visible view.
   const [searchRemountToken, setSearchRemountToken] = useState(0)
@@ -1274,9 +1310,14 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
             if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum: entry.strongsNum, title: entry.strongsNum })
           }}
           onOpenNewTab={(entry) => navToEntry(entry.strongsNum, true)}
-          onSearchStateChange={(s) => { searchStateRef.current = s }}
+          onSearchStateChange={(s) => {
+            searchStateRef.current = s
+            if (lexiconTabId) updateTabState('lexicon', lexiconTabId, { searchQuery: s.query, searchLang: s.lang })
+          }}
           initialQuery={savedSearch?.query ?? ''}
           initialLang={savedSearch?.lang ?? 'all'}
+          initialScrollTop={searchInitialScrollTop}
+          onScrollChange={(top) => { if (lexiconTabId) updateTabState('lexicon', lexiconTabId, { searchScrollTop: top }) }}
           findQuery={activeFindQuery}
           floating={floating}
           wordReplacerRules={activeWordReplacerRules}

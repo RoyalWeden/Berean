@@ -107,6 +107,9 @@ export interface LexiconTabState {
   scrollTop?: number
   /** Scroll offset of the SearchView results list (distinct from `scrollTop`, which is the entry-detail view's own scroll). */
   searchScrollTop?: number
+  /** Live search-box query/language, restored when returning to the search (non-entry) view. */
+  searchQuery?: string
+  searchLang?: 'H' | 'G' | 'all'
   lexHistory?: Array<
     | { kind: 'entry'; strongsNum: string }
     | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }
