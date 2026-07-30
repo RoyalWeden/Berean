@@ -2490,14 +2490,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       shadow-2xl's much heavier/darker spread read as an unnatural dark bleed
                       across the text underneath. */}
                   <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 mr-1.5">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
-                    </div>
+                    {/* Slot B (popped out) renders BEFORE slot A — the popped-out panel always
+                        sits on the left of the original, per explicit direction. */}
                     {rightPanelSlotB && (
                       <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </div>
                     )}
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -2529,14 +2531,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                       them — see the 'standard' case's comment. overflow-hidden on the inner div
                       of each box (same-element overflow+radius+shadow compositing bug). */}
                   <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 ml-1.5">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
-                    </div>
+                    {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
                     {rightPanelSlotB && (
                       <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
                         <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
                       </div>
                     )}
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                   </div>
                   {hDivider}
                 </motion.div>
@@ -2555,10 +2558,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <>
                 {hDivider}
                 <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                   {rightPanelSlotB && (
                     <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
                   )}
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -2574,10 +2577,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <>
                 {hDivider}
                 <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
-                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                   {rightPanelSlotB && (
                     <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
                   )}
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -2622,10 +2625,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
-              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
               {rightPanelSlotB && (
                 <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
               )}
+              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
             </div>
           </div>
         )

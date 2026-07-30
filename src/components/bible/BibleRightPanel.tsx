@@ -1712,65 +1712,87 @@ export default function BibleRightPanel({
     >
       {/* Tab strip — hidden when a tab is forced externally. Real tab shapes (top-rounded
           only, active tab flush against the content below it) rather than a plain segmented
-          control, with a per-slot-namespaced sliding pill (layoutId must not be shared across
-          the two slots — see below) and a drag/right-click "pop out"/"merge back" affordance.
-          Slot B additionally gets a small label + close button, since closing IT means
-          removing the whole second panel, not any one tab within it. */}
+          control, with a drag/right-click "pop out"/"merge back" affordance.
+          Slot B is LOCKED to the single tab it was popped out for — a fixed label, not a
+          switcher — per explicit direction ("the new panel...should get just the notes tab or
+          whatever tab was popped out"). Only slot A keeps the switchable multi-button strip
+          (filtered to whatever's not already claimed by slot B). Both get a close button once
+          a second panel exists. */}
       {!forcedTab && (
         <div className="flex items-center gap-1 px-1.5 pt-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-          <div
-            className={`flex items-center gap-0.5 flex-1 min-w-0 rounded-t-shell transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
-            // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
-            // for custom MIME strings across Chromium/Electron versions, and this drop zone only
-            // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
-            // getData instead (the standard HTML5 DnD pattern), not by pre-filtering dragover.
-            onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
-            onDragLeave={() => setDragOverStrip(false)}
-            onDrop={(e) => {
-              setDragOverStrip(false)
-              const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
-              if (!raw) return
-              const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: PanelTab; slotId: 'A' | 'B' }
-              if (fromSlot === slotId) return // dropped back onto its own strip — no-op
-              // `slotId` here is THIS instance's own slot — i.e. exactly the drop TARGET,
-              // whichever slot's strip the drag actually landed on. Passing it straight through
-              // as `toSlot` is what fixes the earlier bug (calling a differently-slotted prop
-              // that was never passed to this instance).
-              onMoveTab?.(tab, slotId)
-            }}
-          >
-            {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => tab !== otherSlotTab).map((tab) => {
-              const Icon = PANEL_TAB_ICON[tab]
-              const active = visibleTab === tab
-              return (
-                <button
-                  key={tab}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId }))}
-                  onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
-                  onClick={() => { onTabChange(tab); void closeSidebarNote() }}
-                  className={`
-                    relative flex-1 flex items-center justify-center gap-1 text-[10px] py-1.5 font-medium
-                    transition-colors cursor-pointer rounded-t-shell border-t border-x
-                    ${active
-                      ? 'text-[rgb(var(--color-accent))] border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] border-transparent'
-                    }
-                  `}
-                >
-                  {active && (
-                    <motion.div
-                      layoutId={`right-panel-tab-pill-${slotId}`}
-                      className="absolute inset-0 rounded-t-shell bg-[rgb(var(--color-accent))/10] pointer-events-none"
-                      transition={{ type: 'spring', stiffness: 800, damping: 45 }}
-                    />
-                  )}
-                  <Icon size={11} className="relative z-10 flex-shrink-0" />
-                  <span className="relative z-10">{PANEL_TAB_LABEL[tab]}</span>
-                </button>
-              )
-            })}
-          </div>
+          {slotId === 'B' ? (
+            <div
+              onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab: visibleTab, x: e.clientX, y: e.clientY }) }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
+              onDragLeave={() => setDragOverStrip(false)}
+              onDrop={(e) => {
+                setDragOverStrip(false)
+                const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
+                if (!raw) return
+                const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: PanelTab; slotId: 'A' | 'B' }
+                if (fromSlot === slotId) return
+                onMoveTab?.(tab, slotId)
+              }}
+              className={`flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-t-shell text-[10px] font-medium text-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] border-t border-x border-[rgb(var(--color-surface-4))] transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
+            >
+              {(() => { const Icon = PANEL_TAB_ICON[visibleTab]; return <Icon size={11} className="flex-shrink-0" /> })()}
+              <span className="truncate">{PANEL_TAB_LABEL[visibleTab]}</span>
+            </div>
+          ) : (
+            <div
+              className={`flex items-center gap-0.5 flex-1 min-w-0 rounded-t-shell transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
+              // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
+              // for custom MIME strings across Chromium/Electron versions, and this drop zone only
+              // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
+              // getData instead (the standard HTML5 DnD pattern), not by pre-filtering dragover.
+              onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
+              onDragLeave={() => setDragOverStrip(false)}
+              onDrop={(e) => {
+                setDragOverStrip(false)
+                const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
+                if (!raw) return
+                const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: PanelTab; slotId: 'A' | 'B' }
+                if (fromSlot === slotId) return // dropped back onto its own strip — no-op
+                // `slotId` here is THIS instance's own slot — i.e. exactly the drop TARGET,
+                // whichever slot's strip the drag actually landed on. Passing it straight through
+                // as `toSlot` is what fixes the earlier bug (calling a differently-slotted prop
+                // that was never passed to this instance).
+                onMoveTab?.(tab, slotId)
+              }}
+            >
+              {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => tab !== otherSlotTab).map((tab) => {
+                const Icon = PANEL_TAB_ICON[tab]
+                const active = visibleTab === tab
+                return (
+                  <button
+                    key={tab}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId }))}
+                    onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
+                    onClick={() => { onTabChange(tab); void closeSidebarNote() }}
+                    className={`
+                      relative flex-1 flex items-center justify-center gap-1 text-[10px] py-1.5 font-medium
+                      transition-colors cursor-pointer rounded-t-shell border-t border-x
+                      ${active
+                        ? 'text-[rgb(var(--color-accent))] border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]'
+                        : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] border-transparent'
+                      }
+                    `}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId={`right-panel-tab-pill-${slotId}`}
+                        className="absolute inset-0 rounded-t-shell bg-[rgb(var(--color-accent))/10] pointer-events-none"
+                        transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                      />
+                    )}
+                    <Icon size={11} className="relative z-10 flex-shrink-0" />
+                    <span className="relative z-10">{PANEL_TAB_LABEL[tab]}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {/* Close button shown on EITHER slot once a second panel exists (otherSlotTab set) —
               a single open panel relies on the shell's own toggle-side-panel affordance instead,
               matching "unless there is only one". Closing slot A promotes slot B into its place
@@ -1810,7 +1832,7 @@ export default function BibleRightPanel({
               onClick={() => { closeTabCtxMenu(); onMoveTab(tabCtxMenu.tab, 'A') }}
             >
               <PanelRightOpen size={12} />
-              Merge back into left panel
+              Merge back into main panel
             </button>
           )}
         </div>,
