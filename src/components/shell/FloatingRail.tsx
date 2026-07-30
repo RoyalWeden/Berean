@@ -17,7 +17,7 @@ import Ribbon from './Ribbon'
 // it's a better trade than reserving real layout space just to avoid ever
 // touching content.
 //
-// Positioned from Sidebar's own collapsed/expanded width (0 or 224, the same
+// Positioned from Sidebar's own collapsed/expanded width (0 or 240, the same
 // two endpoints Sidebar.tsx's internal spring animates between) plus a small
 // GAP so it floats just clear of Sidebar's edge rather than touching it
 // directly. Vertically, it targets the center of the area BELOW ShellHeader
@@ -50,7 +50,7 @@ import Ribbon from './Ribbon'
 // idle background used to provide (ShellHeader's full-width top bar remains
 // the primary drag surface) rather than risk that class of bug recurring.
 
-const SIDEBAR_WIDTH = 224
+const SIDEBAR_WIDTH = 240
 const GAP = 5
 const HEADER_HEIGHT = 44
 const COLLAPSED_WIDTH = 16

@@ -393,7 +393,7 @@ export default function Sidebar() {
   // than shrinking down to a second icon rail beside the ribbon. Animated
   // via the outer motion.div's width (clipping the fixed-width aside inside
   // it) so toggling reads as a slide — width-only, though, read as an abrupt
-  // cut rather than a fade (the fixed-224px content just gets clipped away by
+  // cut rather than a fade (the fixed-240px content just gets clipped away by
   // the shrinking overflow-hidden box, with nothing actually fading). Opacity
   // is now animated too, on its OWN faster transition that finishes well
   // before the width spring does, so the content is already invisible by the
@@ -401,7 +401,7 @@ export default function Sidebar() {
   // and collapsing genuinely reads as a fade instead of a disappear.
   return (
     <motion.div
-      animate={{ width: sidebarCollapsed ? 0 : 224, opacity: sidebarCollapsed ? 0 : 1 }}
+      animate={{ width: sidebarCollapsed ? 0 : 240, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
       transition={{
         width: { type: 'spring', stiffness: 500, damping: 45 },
