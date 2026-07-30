@@ -697,14 +697,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (!activeTab || !tabState.compareMode) return
     const cols = tabState.compareColumns
-    const list = cols && cols.length > 0
+    const refs = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
           return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
         })
       : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
-    const uniq = [...new Set(list)]
-    const title = uniq.length > 0 ? `Compare — ${uniq.join(' / ')}` : 'Compare'
+    // No "Compare — " prefix — the tab's own icon already signals it's a compare tab.
+    // Same book+chapter across every column (just different translations, e.g. KJV vs LXX
+    // side by side): show the reference once, followed by each column's translation. Different
+    // book/chapter per column: show each column's own reference instead, no translation labels.
+    let title: string
+    const uniqRefs = [...new Set(refs)]
+    if (uniqRefs.length === 1 && cols && cols.length > 0) {
+      title = `${uniqRefs[0]} ${cols.map((c) => c.textId.toUpperCase()).join(' / ')}`
+    } else {
+      title = uniqRefs.length > 0 ? uniqRefs.join(' / ') : 'Compare'
+    }
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
   }, [tabState.compareMode, tabState.compareColumns, books, currentBook, activeTab?.id, activeTab?.title, tabState.chapter, renameTab])
 
