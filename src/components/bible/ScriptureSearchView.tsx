@@ -322,6 +322,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scopeSearchRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  // Plain-value scroll tracker updated on every scroll tick, read by the unmount-flush effect
+  // below INSTEAD of resultsRef.current.scrollTop — React nulls a DOM element ref for an
+  // unmounting subtree during the commit phase, before that subtree's passive-effect cleanups
+  // run, so reading resultsRef.current directly in an unmount cleanup was silently a no-op.
+  const lastScrollTopRef = useRef(0)
   // Debounces the scroll-position store write below, matching BiblePanel.tsx's own scroll
   // handler (150ms) — onScroll fires on every native scroll tick, and each write there replaces
   // the store's whole `tabs` object (one Record spanning all 5 spaces), which every component
@@ -358,6 +363,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   useEffect(() => {
     if (persistedState?.scrollTop && resultsRef.current) {
       resultsRef.current.scrollTop = persistedState.scrollTop
+      // Keep lastScrollTopRef in sync — if the user navigates away again without ever
+      // triggering a real onScroll event (e.g. restored straight to a scrolled position, then
+      // immediately clicks a result), the unmount-flush above needs this to already reflect
+      // the restored position rather than falling back to its 0 initial value.
+      lastScrollTopRef.current = persistedState.scrollTop
     }
   }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -374,25 +384,24 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, textId, wordMode, testamentFilter, selectedBooks, sortMode])
 
-  // Flush the latest scroll position on unmount (switching tabs away from this one).
-  // onScroll below debounces its store write by 150ms — if the tab is switched within
-  // that window, the debounce timer never fires (it's just abandoned along with the
-  // unmounted component) and the scroll position from that last stretch of scrolling
-  // is silently lost. Reads through a ref kept fresh every render so the unmount
-  // handler (registered once, deps []) always sees the current filter/query state
-  // rather than whatever was current when the effect was first attached.
+  // Flush the latest scroll position on unmount (switching tabs away from this one,
+  // e.g. navigating to a search result — see BiblePanel.tsx's onNavigate). onScroll below
+  // debounces its store write by 150ms — if the tab is switched within that window, the
+  // debounce timer never fires (it's just abandoned along with the unmounted component) and
+  // the scroll position from that last stretch of scrolling is silently lost. Reads through a
+  // ref kept fresh every render so the unmount handler (registered once, deps []) always sees
+  // the current filter/query state rather than whatever was current when the effect was first
+  // attached.
   const latestScopeRef = useRef({ query, textId, wordMode, testamentFilter, selectedBooks, sortMode })
   latestScopeRef.current = { query, textId, wordMode, testamentFilter, selectedBooks, sortMode }
   useEffect(() => {
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
-      if (resultsRef.current) {
-        const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
-        onStateChangeRef.current?.({
-          query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
-          scrollTop: resultsRef.current.scrollTop,
-        })
-      }
+      const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
+      onStateChangeRef.current?.({
+        query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
+        scrollTop: lastScrollTopRef.current,
+      })
     }
   }, [])
 
@@ -1320,6 +1329,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         className="flex-1 overflow-y-auto min-w-0"
         onScroll={(e) => {
           const scrollTop = (e.currentTarget as HTMLDivElement).scrollTop
+          lastScrollTopRef.current = scrollTop
           if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
           scrollSaveTimerRef.current = setTimeout(() => {
             onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop })
