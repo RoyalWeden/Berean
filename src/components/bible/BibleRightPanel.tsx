@@ -1283,6 +1283,9 @@ interface Props {
   canPopOut?: boolean
   /** Present only on slot B — closes the whole second panel (its own header's ✕ button). */
   onCloseSlotB?: () => void
+  /** Present only on slot A, and only meaningful once slot B is open — closes slot A,
+   *  promoting slot B into its place (see BiblePanel.tsx's closeSlotA). */
+  onCloseSlotA?: () => void
   /** The OTHER slot's currently-active tab type (undefined when only this slot is open, or
    *  when `forcedTab` applies — a forced single-purpose panel has no tab strip at all). Used
    *  to filter that type out of THIS slot's own tab-strip buttons, so a tab that's been popped
@@ -1305,6 +1308,7 @@ export default function BibleRightPanel({
   onMoveTab,
   canPopOut,
   onCloseSlotB,
+  onCloseSlotA,
   otherSlotTab,
 }: Props) {
   // Captured once when the side-panel note editor first mounts, so cursor restoration
@@ -1767,9 +1771,14 @@ export default function BibleRightPanel({
               )
             })}
           </div>
-          {slotId === 'B' && (
+          {/* Close button shown on EITHER slot once a second panel exists (otherSlotTab set) —
+              a single open panel relies on the shell's own toggle-side-panel affordance instead,
+              matching "unless there is only one". Closing slot A promotes slot B into its place
+              (see BiblePanel.tsx's closeSlotA); closing slot B just drops it, and its tab type
+              becomes available again in slot A's strip (otherSlotTab naturally clears). */}
+          {otherSlotTab && (
             <button
-              onClick={onCloseSlotB}
+              onClick={slotId === 'B' ? onCloseSlotB : onCloseSlotA}
               title="Close panel"
               className="flex-shrink-0 p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             >

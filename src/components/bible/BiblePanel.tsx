@@ -1193,9 +1193,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Pop a tab out of slot A into the (new or existing) slot B. If the tab being popped is slot
   // A's own currently-active tab, slot A needs a new active type to fall back to — whichever
   // type was last active there, so slot A doesn't end up pointed at the tab that just left it.
+  // If slot A has NEVER been switched away from that type (lastRightPanelTabRef still equals
+  // it too — its own useRef initializer just captures whatever rightPanelTab happened to be on
+  // mount), fall back to any OTHER of the three fixed types instead of the tab that's leaving —
+  // previously this fell back to the literal string 'notes', which meant popping "notes" itself
+  // out (the single most common case, since it's the default tab) left BOTH slots pointed at
+  // 'notes' simultaneously: slot A never actually vacated the type, so it wasn't genuinely
+  // "popped out" into its own panel at all.
   function openInSlotB(tab: 'notes' | 'lexicon' | 'crossrefs') {
     if (tab === rightPanelTab) {
-      const fallback = lastRightPanelTabRef.current !== tab ? lastRightPanelTabRef.current : 'notes'
+      const fallback = lastRightPanelTabRef.current !== tab
+        ? lastRightPanelTabRef.current
+        : (tab === 'notes' ? 'lexicon' : 'notes')
       setRightPanelTab(fallback)
       if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: fallback })
     }
@@ -2305,6 +2314,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           onMoveTab={!forcedTab ? moveTab : undefined}
           canPopOut={slot === 'A' && !forcedTab && !rightPanelSlotB}
           onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
+          onCloseSlotA={slot === 'A' ? closeSlotA : undefined}
           onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()
             if (!st.viewerWindowOpen || st.viewerPaused) return
