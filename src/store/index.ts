@@ -129,6 +129,9 @@ export interface AppState {
   // Panel layout
   panelLayout: MosaicNode<MosaicKey> | null
   sidebarCollapsed: boolean
+  /** User-resizable sidebar width in px — clamped to [SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH]
+   *  (see Sidebar.tsx's drag handle). Persisted like sidebarCollapsed. */
+  sidebarWidth: number
 
   // UI modals
   searchOpen: boolean
@@ -480,6 +483,7 @@ export interface AppState {
   updateTabState: (spaceId: SpaceId, tabId: string, newState: Partial<TabState>) => void
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
+  setSidebarWidth: (width: number) => void
   openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses', newTabPosition?: 'after-active' | 'end') => void
   closeSearch: () => void
 
@@ -657,6 +661,7 @@ export const useAppStore = create<AppState>()(
       tabLastAccessed: {} as Record<string, number>,
       panelLayout: DEFAULT_PANEL_LAYOUT,
       sidebarCollapsed: false,
+      sidebarWidth: 240,
       searchOpen: false,
       searchMode: 'current' as const,
       searchNewTabPosition: 'after-active' as const,
@@ -1618,6 +1623,9 @@ export const useAppStore = create<AppState>()(
       updatePanelLayout: (layout) => set({ panelLayout: layout }),
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      // Bounds (224-250px) mirrored in Sidebar.tsx's own drag-resize handler — kept here too
+      // since this setter is also reachable directly (not just via the drag handle).
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(224, Math.min(250, width)) }),
 
       recentSearchQueries: [] as string[],
       addRecentSearchQuery: (q) => {
@@ -2011,6 +2019,7 @@ export const useAppStore = create<AppState>()(
         activeTabId: state.activeTabId,
         panelLayout: state.panelLayout,
         sidebarCollapsed: state.sidebarCollapsed,
+        sidebarWidth: state.sidebarWidth,
         theme: state.theme,
         bibleFontSize: state.bibleFontSize,
         appZoom: state.appZoom,

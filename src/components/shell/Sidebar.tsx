@@ -73,6 +73,40 @@ export default function Sidebar() {
   const tabs         = useAppStore(useShallow((s) => s.tabs))
   const activeTabId  = useAppStore((s) => s.activeTabId)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  // Bounds mirrored from the store's own setSidebarWidth clamp (kept here too since the drag
+  // handler reads/writes the live value directly on every move, not through the setter's own
+  // clamp on every tick — clamping locally avoids a store round-trip per rAF frame).
+  function handleSidebarResizeMouseDown(e: React.MouseEvent) {
+    sidebarResizeRef.current = { startX: e.clientX, startWidth: sidebarWidth }
+    setIsResizingSidebar(true)
+    e.preventDefault()
+    let rafId: number | null = null
+    let latestX = e.clientX
+    function onMove(e: MouseEvent) {
+      if (!sidebarResizeRef.current) return
+      latestX = e.clientX
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (!sidebarResizeRef.current) return
+        const delta = latestX - sidebarResizeRef.current.startX
+        setSidebarWidth(Math.max(224, Math.min(250, sidebarResizeRef.current.startWidth + delta)))
+      })
+    }
+    function onUp() {
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+      sidebarResizeRef.current = null
+      setIsResizingSidebar(false)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
   const createTab    = useAppStore((s) => s.createTab)
   const activateTab  = useAppStore((s) => s.activateTab)
   const closeTab     = useAppStore((s) => s.closeTab)
@@ -393,7 +427,7 @@ export default function Sidebar() {
   // than shrinking down to a second icon rail beside the ribbon. Animated
   // via the outer motion.div's width (clipping the fixed-width aside inside
   // it) so toggling reads as a slide — width-only, though, read as an abrupt
-  // cut rather than a fade (the fixed-240px content just gets clipped away by
+  // cut rather than a fade (the user-resizable-width content just gets clipped away by
   // the shrinking overflow-hidden box, with nothing actually fading). Opacity
   // is now animated too, on its OWN faster transition that finishes well
   // before the width spring does, so the content is already invisible by the
@@ -401,13 +435,16 @@ export default function Sidebar() {
   // and collapsing genuinely reads as a fade instead of a disappear.
   return (
     <motion.div
-      animate={{ width: sidebarCollapsed ? 0 : 240, opacity: sidebarCollapsed ? 0 : 1 }}
+      animate={{ width: sidebarCollapsed ? 0 : sidebarWidth, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
       transition={{
-        width: { type: 'spring', stiffness: 500, damping: 45 },
+        // No spring while actively dragging the resize handle — a spring lagging behind the
+        // live mouse position during a drag reads as sluggish/rubbery; only collapse/expand
+        // (not a manual resize) benefits from the spring feel.
+        width: isResizingSidebar ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 45 },
         opacity: { duration: 0.12, ease: 'easeOut', delay: sidebarCollapsed ? 0 : 0.05 },
       }}
-      className="h-full flex-shrink-0 overflow-hidden"
+      className="h-full flex-shrink-0 overflow-hidden relative"
     >
     {/* disableHoverableContent — same fix as Ribbon.tsx: none of these
         tooltips have interactive content, so Radix's hoverable-content grace
@@ -416,8 +453,9 @@ export default function Sidebar() {
         book-picker) that open close to a tooltip-having trigger. */}
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <aside
+        style={{ width: sidebarWidth }}
         className={`
-          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full w-56
+          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}
@@ -979,6 +1017,19 @@ export default function Sidebar() {
         document.body
       )}
     </Tooltip.Provider>
+    {/* Resize handle — thin strip on the sidebar's right edge, only visible on hover (matching
+        the side-panel's own hDivider convention in BiblePanel.tsx). Sits on the motion.div
+        itself (not the inner aside) so it stays pinned to the right edge regardless of the
+        collapse/expand width animation. */}
+    {!sidebarCollapsed && (
+      <div
+        onMouseDown={handleSidebarResizeMouseDown}
+        title="Drag to resize"
+        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 no-drag"
+      >
+        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-[rgb(var(--color-accent))/40] transition-colors" />
+      </div>
+    )}
     </motion.div>
   )
 }

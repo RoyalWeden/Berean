@@ -17,10 +17,10 @@ import Ribbon from './Ribbon'
 // it's a better trade than reserving real layout space just to avoid ever
 // touching content.
 //
-// Positioned from Sidebar's own collapsed/expanded width (0 or 240, the same
-// two endpoints Sidebar.tsx's internal spring animates between) plus a small
-// GAP so it floats just clear of Sidebar's edge rather than touching it
-// directly. Vertically, it targets the center of the area BELOW ShellHeader
+// Positioned from Sidebar's own collapsed/expanded width (0, or the live
+// user-resizable sidebarWidth store value Sidebar.tsx's drag handle controls)
+// plus a small GAP so it floats just clear of Sidebar's edge rather than
+// touching it directly. Vertically, it targets the center of the area BELOW ShellHeader
 // (not raw window center) — matching where FloatingHoverPanel.tsx's own
 // triggers land (NoteSidePanel.tsx / ScriptureSearchView.tsx anchor within
 // their panel's content area, which also excludes the header), so this
@@ -50,8 +50,7 @@ import Ribbon from './Ribbon'
 // idle background used to provide (ShellHeader's full-width top bar remains
 // the primary drag surface) rather than risk that class of bug recurring.
 
-const SIDEBAR_WIDTH = 240
-const GAP = 5
+const GAP = 2
 const HEADER_HEIGHT = 44
 const COLLAPSED_WIDTH = 16
 const COLLAPSED_HEIGHT = 44
@@ -62,6 +61,7 @@ const CLOSE_DELAY_MS = 220
 
 export default function FloatingRail() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
   const appZoom = useAppStore((s) => s.appZoom)
   const [hovered, setHovered] = useState(false)
   const [ribbonHeight, setRibbonHeight] = useState(COLLAPSED_HEIGHT)
@@ -89,7 +89,7 @@ export default function FloatingRail() {
     closeTimerRef.current = setTimeout(() => setHovered(false), CLOSE_DELAY_MS)
   }
 
-  const left = (sidebarCollapsed ? 0 : SIDEBAR_WIDTH) + GAP
+  const left = (sidebarCollapsed ? 0 : sidebarWidth) + GAP
   const headerHeight = HEADER_HEIGHT * appZoom
 
   return createPortal(
