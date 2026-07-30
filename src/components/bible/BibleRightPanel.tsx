@@ -1768,6 +1768,17 @@ export default function BibleRightPanel({
                     key={tab}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId }))}
+                    // Dragging a tab OUT of the strip entirely (dropped somewhere with no
+                    // registered drop target — e.g. onto the scripture reading area) previously
+                    // did nothing, since HTML5 DnD only has a drop target to catch when slot B
+                    // ALREADY exists. dragend fires regardless of whether the drop was accepted
+                    // anywhere; dropEffect stays 'none' specifically when nothing caught it, which
+                    // is exactly "dragged this tab away" — treat that the same as the right-click
+                    // "Pop out into new panel" action (only meaningful when there's no slot B yet
+                    // to pop into, matching canPopOut's own gate on that menu item).
+                    onDragEnd={(e) => {
+                      if (canPopOut && e.dataTransfer.dropEffect === 'none') onMoveTab?.(tab, 'B')
+                    }}
                     onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
                     onClick={() => { onTabChange(tab); void closeSidebarNote() }}
                     className={`
