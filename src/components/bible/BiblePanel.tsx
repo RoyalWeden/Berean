@@ -984,7 +984,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.rightPanelTab) setRightPanelTab(tabState.rightPanelTab)
     if (tabState.rightPanelNoteId !== undefined) setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
     if (tabState.rightPanelLexiconEntry !== undefined) setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
-    if ('rightPanelSlotB' in tabState) setRightPanelSlotB(tabState.rightPanelSlotB ?? null)
+    // Self-heals persisted state saved from before openInSlotB's fallback fix (a tab's saved
+    // state can still have rightPanelTab === rightPanelSlotB from that earlier bug — both slots
+    // pointed at the same type, which then also broke tab-strip filtering, since otherSlotTab
+    // being identical to a slot's OWN active tab filtered that slot down to showing nothing
+    // selected). A code fix alone doesn't repair state that was already corrupted before it
+    // shipped — this repairs it the next time the tab is opened, not just prevents new cases.
+    if ('rightPanelSlotB' in tabState) {
+      const restoredSlotB = tabState.rightPanelSlotB ?? null
+      const restoredTabA = tabState.rightPanelTab ?? rightPanelTab
+      if (restoredSlotB && restoredSlotB === restoredTabA) {
+        const fixedTabA = restoredTabA === 'notes' ? 'lexicon' : 'notes'
+        setRightPanelTab(fixedTabA)
+        setRightPanelSlotB(restoredSlotB)
+        if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: fixedTabA, rightPanelSlotB: restoredSlotB })
+      } else {
+        setRightPanelSlotB(restoredSlotB)
+      }
+    }
     if (tabState.rightPanelNoteIdB !== undefined) setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
     if (tabState.rightPanelLexiconEntryB !== undefined) setRightPanelLexiconEntryB(tabState.rightPanelLexiconEntryB ?? null)
     if (tabState.rightPanelExpandAll !== undefined) setRightPanelExpandAll(tabState.rightPanelExpandAll)
