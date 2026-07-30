@@ -774,10 +774,18 @@ function SearchView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
-  // Report state changes up so the parent can save them into history
+  // Report state changes up so the parent can save them into history. Read through a ref
+  // kept fresh every render, NOT depended on directly — the parent (LexiconPanel) passes an
+  // inline arrow function here that gets a new identity on every one of ITS renders; including
+  // it directly in this effect's deps re-fired the effect on every parent render regardless of
+  // whether query/lang actually changed, and since the effect's own call updates store state
+  // the parent reads, that re-triggered a parent render too — an infinite loop (confirmed via
+  // a live "Maximum update depth exceeded" crash tracing directly to this effect).
+  const onSearchStateChangeRef = useRef(onSearchStateChange)
+  useEffect(() => { onSearchStateChangeRef.current = onSearchStateChange })
   useEffect(() => {
-    onSearchStateChange?.({ query, lang })
-  }, [query, lang, onSearchStateChange])
+    onSearchStateChangeRef.current?.({ query, lang })
+  }, [query, lang])
 
   function handleInput(val: string) {
     setQuery(val)
