@@ -8,7 +8,6 @@ import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import ErrorBoundary from './ErrorBoundary'
 import { BookOpen } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 // YouTubeTab is large (~2.6k lines w/ webview wiring) and only needed once a
 // YouTube tab exists — code-split so it stays out of the initial bundle.
@@ -65,30 +64,24 @@ export default function ActivePanel() {
       {/* Non-YouTube panels (also covers YouTube empty state when no tab exists yet) */}
       {(!isYouTubeActive || !ytTab) && (
         <div className="absolute inset-0">
-          {/* mode="wait": without this, the outgoing and incoming tab components
-              are both mounted simultaneously during the crossfade — and since
-              each portals its header into the shared top bar's slot (see
-              TabHeaderPortal), that briefly renders BOTH tabs' header buttons
-              on top of each other. Waiting for the exit to finish first (the
-              fade is only 70ms, imperceptible) keeps exactly one portaled at
-              a time. */}
-          <AnimatePresence initial={false} mode="wait">
-            <motion.div
-              key={tab?.id ?? 'empty'}
-              className="absolute inset-0"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.07, ease: 'easeOut' }}
-            >
-              {!tab && <EmptyState />}
-              {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
-              {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}
-              {tab?.type === 'lexicon' && <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>}
-              {tab?.type === 'search'  && <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>}
-              {tab?.type === 'pdf'     && <ErrorBoundary label="PDF viewer error"><PDFViewer /></ErrorBoundary>}
-            </motion.div>
-          </AnimatePresence>
+          {/* Plain keyed remount, no animation — an AnimatePresence crossfade used to sit
+              here (mode="wait", 70ms opacity fade), but the two-phase exit-then-enter left a
+              real gap where the outgoing panel had dissolved toward the backdrop before the
+              incoming one materialized, reading as a visible "flash to something else" on
+              every tab switch (reported: "it flashes... it should just be on the note").
+              React's own key-based remount below swaps old for new in a single commit, so
+              there's no intermediate frame to flash through, and — since old and new are never
+              both mounted at once (no overlapping enter/exit) — no risk of the double-portaled-
+              header collision the AnimatePresence's mode="wait" was originally added to avoid
+              (see TabHeaderPortal). */}
+          <div key={tab?.id ?? 'empty'} className="absolute inset-0">
+            {!tab && <EmptyState />}
+            {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
+            {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}
+            {tab?.type === 'lexicon' && <ErrorBoundary label="Lexicon panel error"><LexiconPanel /></ErrorBoundary>}
+            {tab?.type === 'search'  && <ErrorBoundary label="Search error"><SearchTab /></ErrorBoundary>}
+            {tab?.type === 'pdf'     && <ErrorBoundary label="PDF viewer error"><PDFViewer /></ErrorBoundary>}
+          </div>
         </div>
       )}
     </div>

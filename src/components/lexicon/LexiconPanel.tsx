@@ -671,12 +671,17 @@ function EntryView({
             )
           })()}
         </div>
-        <button
-          onClick={() => setExpanded(false)}
-          className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
-        >
-          Show less
-        </button>
+        {/* Hidden once every occurrence is already visible (≤10 total, or the "Show all N"
+            toggle above has been used) — redundant with that toggle at that point, since
+            there's nothing left this button would be collapsing away from. */}
+        {!(occurrences.length <= 10 || showAllOccurrences) && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
+          >
+            Show less
+          </button>
+        )}
         </>)}
       </div>
 

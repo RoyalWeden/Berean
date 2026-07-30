@@ -30,6 +30,19 @@ import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
 
+// Module-level cache of getBooks() results per textId, shared across every BiblePanel
+// instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
+// without this `books` reset to [] on each switch and only repopulated one render-pass later via
+// the effect below (an async IPC round trip) — visible as a real flash/flicker in the book/
+// chapter picker (a missing `currentBook` degrades several conditional badges, and
+// `chapterCount`'s arbitrary 50-chapter fallback briefly feeds the wrong total into
+// ContinuousChapterScroll for any book that isn't ~50 chapters, shifting the scroll layout once
+// corrected). Lazy-initializing `books` from this cache makes a switch back to an
+// already-visited translation correct on the very first render, matching the same
+// fixed-this-session pattern used for NotesPanel's continuousDailyDate / LexiconPanel's
+// savedSearch.
+const booksCache = new Map<string, Book[]>()
+
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
   // meant a tab-state write in ANY space (scroll position, panel resize, YouTube layout, etc.)
@@ -172,7 +185,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }) as BibleTabState
 
   const textId = (tabState.translation ?? 'KJVA').toLowerCase()
-  const [books, setBooks] = useState<Book[]>([])
+  const [books, setBooks] = useState<Book[]>(() => booksCache.get(textId) ?? [])
   // Book ids present in the KJVA<->LXX counterpart edition, used to decide whether the
   // quick KJV/LXX switch button applies to the CURRENT book (not just OT books — many
   // Apocrypha books like Sirach exist in both editions too).
@@ -234,6 +247,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // and bookId are updated together (e.g. navigating to "HER 1:1" from a note).
     window.bible.getBooks(textId).then((rawBooks) => {
       const newBooks = rawBooks.map((b) => ({ ...b, name: normalizeBookName(b.name) }))
+      booksCache.set(textId, newBooks)
       setBooks(newBooks)
       const latestTab = activeTabRef.current
       const latestState = tabStateRef.current
