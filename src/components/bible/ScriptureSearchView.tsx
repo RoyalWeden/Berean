@@ -10,7 +10,7 @@ import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordRepl
 import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
-import { normalizeBookQuery } from '@/lib/verseUtils'
+import { normalizeBookQuery, getWordWindow } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -1535,7 +1535,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 // too (parseMultiStrongsQuery's `.words`) — that needs highlighting
                                 // alongside the Strong's-indexed word(s), not just the latter alone.
                                 const parsed = parseMultiStrongsQuery(query)
-                                return highlightStrongs(rawText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parsed?.words ?? [])
+                                const rawIndices = strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? []
+                                const extraWords = parsed?.words ?? []
+                                // Strong's results had NO snippet/windowing at all — unlike "all words"
+                                // below, line-clamp-1 clipped from character 0 regardless of where the
+                                // tagged word actually landed, so a match late in a long verse (e.g.
+                                // 3 Maccabees 6:36, 1 Peter 2:20) was clipped away entirely with the
+                                // highlight never visible. getWordWindow (already used elsewhere for this
+                                // same purpose) trims to a word window around the match and remaps its
+                                // indices — reused here instead of inventing a second windowing scheme.
+                                // extraWords aren't remapped (splitStrongsHighlight matches them by text,
+                                // not index) — they still highlight correctly as long as they land inside
+                                // the window the Strong's match determined.
+                                if (!showContext) {
+                                  const win = getWordWindow(rawText, rawIndices)
+                                  if (win) return highlightStrongs(win.windowText, win.windowMatchIndices, extraWords)
+                                }
+                                return highlightStrongs(rawText, rawIndices, extraWords)
                               }
                               // Only "all words" mode needs the dynamic-start snippet — "any word" only
                               // needs one match visible (line-clamp already lands on it often enough),
