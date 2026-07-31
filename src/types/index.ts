@@ -66,9 +66,14 @@ export interface BibleTabState {
   rightPanelExpandAll?: boolean
   rightPanelExpandAllB?: boolean
   // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
-  // openInSlotB/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
+  // moveTab/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
   // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,
   // not just its own type.
+  // rightPanelSlotBTabs is the SET of tab types currently assigned to slot B (a slot can hold
+  // more than one, switchable via its own strip) — empty/undefined = slot B not shown.
+  // rightPanelSlotB is slot B's currently-ACTIVE tab within that set (must be a member of
+  // rightPanelSlotBTabs, or null when the set is empty).
+  rightPanelSlotBTabs?: Array<'notes' | 'lexicon' | 'crossrefs'>
   rightPanelSlotB?: 'notes' | 'lexicon' | 'crossrefs' | null
   rightPanelNoteIdB?: string | null
   rightPanelNoteCursorB?: number | null

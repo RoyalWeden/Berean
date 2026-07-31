@@ -22,6 +22,10 @@ import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
+
+// Mirrors BibleRightPanel.tsx's own (locally-scoped, unexported) PanelTab type.
+type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
+const ALL_PANEL_TABS: PanelTab[] = ['notes', 'lexicon', 'crossrefs']
 import type { ViewerVisibleRegion } from '@/types/electron'
 
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
@@ -230,6 +234,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // ── Second side-panel slot ("slot B") — a tab popped out of slot A via right-click/drag.
   // Fully independent BibleRightPanel instance below, so it mirrors every one of slot A's
   // "which X is open" fields above, not just its own panel type. null slotB = not shown.
+  //
+  // rightPanelSlotBTabs is the SET of tab types currently assigned to slot B (empty = slot B
+  // doesn't exist) — slot B can hold more than one tab, switchable via its own strip, exactly
+  // like slot A (per explicit direction: dragging an additional tab into an already-popped-out
+  // panel should give it two tabs, and dragging the last remaining tab in should collapse back
+  // to a single panel). rightPanelSlotB is slot B's currently-ACTIVE tab within that set (must
+  // be a member of rightPanelSlotBTabs, or null when the set is empty) — kept as a separate
+  // field from the set itself since "which of B's own tabs is showing" and "which tabs does B
+  // own" are independent facts. Migrates the OLD single-tab persisted format (before this
+  // change, rightPanelSlotB was the only field and always held exactly one type) by treating
+  // it as a one-element set.
+  const [rightPanelSlotBTabs, setRightPanelSlotBTabs] = useState<PanelTab[]>(() =>
+    tabState.rightPanelSlotBTabs ?? (tabState.rightPanelSlotB ? [tabState.rightPanelSlotB] : [])
+  )
   const [rightPanelSlotB, setRightPanelSlotB] = useState<'notes' | 'lexicon' | 'crossrefs' | null>(() => tabState.rightPanelSlotB ?? null)
   const [rightPanelNoteIdB, setRightPanelNoteIdB] = useState<string | null>(() => tabState.rightPanelNoteIdB ?? null)
   const lastNoteCursorRefB = useRef<number | null>(tabState.rightPanelNoteCursorB ?? null)
@@ -984,22 +1002,34 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.rightPanelTab) setRightPanelTab(tabState.rightPanelTab)
     if (tabState.rightPanelNoteId !== undefined) setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
     if (tabState.rightPanelLexiconEntry !== undefined) setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
-    // Self-heals persisted state saved from before openInSlotB's fallback fix (a tab's saved
-    // state can still have rightPanelTab === rightPanelSlotB from that earlier bug — both slots
-    // pointed at the same type, which then also broke tab-strip filtering, since otherSlotTab
-    // being identical to a slot's OWN active tab filtered that slot down to showing nothing
-    // selected). A code fix alone doesn't repair state that was already corrupted before it
-    // shipped — this repairs it the next time the tab is opened, not just prevents new cases.
-    if ('rightPanelSlotB' in tabState) {
-      const restoredSlotB = tabState.rightPanelSlotB ?? null
-      const restoredTabA = tabState.rightPanelTab ?? rightPanelTab
-      if (restoredSlotB && restoredSlotB === restoredTabA) {
-        const fixedTabA = restoredTabA === 'notes' ? 'lexicon' : 'notes'
-        setRightPanelTab(fixedTabA)
-        setRightPanelSlotB(restoredSlotB)
-        if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: fixedTabA, rightPanelSlotB: restoredSlotB })
-      } else {
-        setRightPanelSlotB(restoredSlotB)
+    // Self-heals persisted state saved from before this feature's various fixes — a tab's saved
+    // state can still have slot A's active tab ALSO present in slot B's set (from the
+    // single-tab-per-slot model's fallback bug, or the earlier locked-single-tab model), or
+    // slot B owning every single tab type (leaving slot A with nothing, an invalid state this
+    // multi-tab-per-slot model must never produce going forward but could still be restoring
+    // from before that was true). A code fix alone doesn't repair state that was already
+    // corrupted before it shipped — this repairs it the next time the tab is opened, not just
+    // prevents new cases. Also migrates the OLD single-tab persisted format (rightPanelSlotB
+    // was the only field, always exactly one type) into the new rightPanelSlotBTabs set.
+    if ('rightPanelSlotBTabs' in tabState || 'rightPanelSlotB' in tabState) {
+      let restoredSlotBTabs = tabState.rightPanelSlotBTabs ?? (tabState.rightPanelSlotB ? [tabState.rightPanelSlotB] : [])
+      let restoredTabA = tabState.rightPanelTab ?? rightPanelTab
+      if (restoredSlotBTabs.length >= ALL_PANEL_TABS.length) {
+        restoredSlotBTabs = []
+      } else if (restoredSlotBTabs.includes(restoredTabA)) {
+        const remaining = ALL_PANEL_TABS.filter((t) => !restoredSlotBTabs.includes(t))
+        restoredTabA = remaining[0] ?? 'notes'
+      }
+      const restoredSlotB = restoredSlotBTabs.length === 0
+        ? null
+        : (tabState.rightPanelSlotB && restoredSlotBTabs.includes(tabState.rightPanelSlotB) ? tabState.rightPanelSlotB : restoredSlotBTabs[0])
+      setRightPanelTab(restoredTabA)
+      setRightPanelSlotBTabs(restoredSlotBTabs)
+      setRightPanelSlotB(restoredSlotB)
+      if (activeTab) {
+        updateTabState('scripture', activeTab.id, {
+          rightPanelTab: restoredTabA, rightPanelSlotBTabs: restoredSlotBTabs, rightPanelSlotB: restoredSlotB,
+        })
       }
     }
     if (tabState.rightPanelNoteIdB !== undefined) setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
@@ -1230,39 +1260,60 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelExpandAllB: next })
   }
 
-  // Pop a tab out of slot A into the (new or existing) slot B. If the tab being popped is slot
-  // A's own currently-active tab, slot A needs a new active type to fall back to — whichever
-  // type was last active there, so slot A doesn't end up pointed at the tab that just left it.
-  // If slot A has NEVER been switched away from that type (lastRightPanelTabRef still equals
-  // it too — its own useRef initializer just captures whatever rightPanelTab happened to be on
-  // mount), fall back to any OTHER of the three fixed types instead of the tab that's leaving —
-  // previously this fell back to the literal string 'notes', which meant popping "notes" itself
-  // out (the single most common case, since it's the default tab) left BOTH slots pointed at
-  // 'notes' simultaneously: slot A never actually vacated the type, so it wasn't genuinely
-  // "popped out" into its own panel at all.
-  function openInSlotB(tab: 'notes' | 'lexicon' | 'crossrefs') {
-    if (tab === rightPanelTab) {
-      const fallback = lastRightPanelTabRef.current !== tab
-        ? lastRightPanelTabRef.current
-        : (tab === 'notes' ? 'lexicon' : 'notes')
-      setRightPanelTab(fallback)
-      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: fallback })
+  // Move a tab INTO slot B — whether B doesn't exist yet (a fresh pop-out) or already holds
+  // one or two other tabs (dragging an ADDITIONAL tab in, per explicit direction: "if i drag
+  // an additional tab to the popped out sidepanel, then that popped out sidepanel should have
+  // now two tabs"). Both are the same operation: add to the set.
+  function moveToSlotB(tab: PanelTab) {
+    if (rightPanelSlotBTabs.includes(tab)) return
+    const newSlotBTabs = [...rightPanelSlotBTabs, tab]
+    if (newSlotBTabs.length >= ALL_PANEL_TABS.length) {
+      // Every tab now lives in slot B — nothing left for slot A to show on its own. Per
+      // explicit direction ("if i drag the last tab into the popped out sidepanel, then the
+      // sidepanel should just go back to default"): collapse back to a single panel, with
+      // slot A taking over this tab and slot B closing — slot A's available set naturally
+      // reverts to all three once rightPanelSlotBTabs is empty again.
+      setRightPanelSlotBTabs([])
+      setRightPanelSlotB(null)
+      setRightPanelTab(tab)
+      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: [], rightPanelSlotB: null, rightPanelTab: tab })
+      return
     }
+    setRightPanelSlotBTabs(newSlotBTabs)
     setRightPanelSlotB(tab)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: tab })
+    let newTabA = rightPanelTab
+    if (rightPanelTab === tab) {
+      // Slot A's own active tab just left — fall back to whatever remains in ITS set. If slot
+      // A had never been switched away from that type before (lastRightPanelTabRef still
+      // equals it too), fall back to any other of the types still left to A rather than the
+      // literal string 'notes' — otherwise popping "notes" itself out (the default tab) could
+      // fall back to a type that's ALSO just been claimed by slot B, defeating the fallback.
+      const remaining = ALL_PANEL_TABS.filter((t) => !newSlotBTabs.includes(t))
+      newTabA = (lastRightPanelTabRef.current !== tab && remaining.includes(lastRightPanelTabRef.current))
+        ? lastRightPanelTabRef.current
+        : remaining[0]
+      setRightPanelTab(newTabA)
+    }
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: newSlotBTabs, rightPanelSlotB: tab, rightPanelTab: newTabA })
+  }
+
+  // Move a tab OUT of slot B, back into slot A. If that was slot B's last remaining tab, slot
+  // B closes entirely; otherwise slot B keeps its other tab(s) and just needs a new active one
+  // if the one that left was the one showing.
+  function moveToSlotA(tab: PanelTab) {
+    lastRightPanelTabRef.current = rightPanelTab
+    const newSlotBTabs = rightPanelSlotBTabs.filter((t) => t !== tab)
+    setRightPanelTab(tab)
+    setRightPanelSlotBTabs(newSlotBTabs)
+    const newSlotB = newSlotBTabs.length === 0 ? null : (rightPanelSlotB === tab ? newSlotBTabs[0] : rightPanelSlotB)
+    setRightPanelSlotB(newSlotB)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab, rightPanelSlotBTabs: newSlotBTabs, rightPanelSlotB: newSlotB })
   }
 
   function closeSlotB() {
+    setRightPanelSlotBTabs([])
     setRightPanelSlotB(null)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: null })
-  }
-
-  // Merge a slot-B tab back into slot A — slot A takes on that tab's type, slot B closes.
-  function mergeToSlotA(tab: 'notes' | 'lexicon' | 'crossrefs') {
-    lastRightPanelTabRef.current = rightPanelTab
-    setRightPanelTab(tab)
-    setRightPanelSlotB(null)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab, rightPanelSlotB: null })
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: [], rightPanelSlotB: null })
   }
 
   // Single entry point for BOTH the tab-strip context menu and drag-and-drop, called with the
@@ -1271,17 +1322,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // instances (see panelEl below), so `onDrop`'s "whichever instance's strip received the drop"
   // dispatch is always calling something real, never a prop that was conditionally undefined
   // on that particular instance (the actual bug behind drag-and-drop silently doing nothing).
-  function moveTab(tab: 'notes' | 'lexicon' | 'crossrefs', toSlot: 'A' | 'B') {
-    if (toSlot === 'B') openInSlotB(tab)
-    else mergeToSlotA(tab)
+  function moveTab(tab: PanelTab, toSlot: 'A' | 'B') {
+    if (toSlot === 'B') moveToSlotB(tab)
+    else moveToSlotA(tab)
   }
 
   // Closing slot A while slot B is open would otherwise leave slot A empty and slot B
   // populated — an inconsistent state a fixed two-slot layout can't represent. Promote slot
-  // B into slot A's place instead, mirroring YouTube's closePanelA/closePanelB pattern.
+  // B's currently-active tab into slot A's place instead (mirroring YouTube's closePanelA/
+  // closePanelB pattern) — if slot B held more than one tab, the others simply become
+  // available again in the single surviving panel, same as closing slot B directly would do.
   function closeSlotA() {
     if (rightPanelSlotB) {
-      mergeToSlotA(rightPanelSlotB)
+      moveToSlotA(rightPanelSlotB)
     } else {
       toggleRightPanel()
     }
@@ -2357,9 +2410,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }
 
     // Shared right panel (tabs UI). `slot` picks which of the two independent side-panel
-    // slots this instance renders — slot B only ever exists when rightPanelSlotB is set (see
-    // openInSlotB/closeSlotB/mergeToSlotA above). Only slot A's scroll feeds the companion
-    // viewer-window mirror below — with two slots there's no single meaningful scroll percent
+    // slots this instance renders — slot B only ever exists when rightPanelSlotBTabs is
+    // non-empty (see moveToSlotB/moveToSlotA/closeSlotB above). Only slot A's scroll feeds the
+    // companion viewer-window mirror below — with two slots there's no single meaningful scroll percent
     // to show there, so slot B's is deliberately left unmirrored rather than picking one
     // arbitrarily or fighting over the same field.
     const panelEl = (slot: 'A' | 'B', forcedTab?: 'notes' | 'lexicon' | 'crossrefs') => (
@@ -2382,9 +2435,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           expandAllNotes={slot === 'A' ? rightPanelExpandAll : rightPanelExpandAllB}
           onExpandAllNotesChange={slot === 'A' ? handleRightPanelExpandAllChange : handleRightPanelExpandAllChangeB}
           forcedTab={forcedTab}
-          otherSlotTab={!forcedTab ? (slot === 'A' ? rightPanelSlotB : rightPanelTab) : undefined}
+          otherSlotTabs={!forcedTab ? (slot === 'A' ? rightPanelSlotBTabs : ALL_PANEL_TABS.filter((t) => !rightPanelSlotBTabs.includes(t))) : undefined}
           onMoveTab={!forcedTab ? moveTab : undefined}
-          canPopOut={slot === 'A' && !forcedTab && !rightPanelSlotB}
+          // Popping a tab out of slot A is only offered when doing so wouldn't leave slot A
+          // with nothing left to show — slot B has no equivalent restriction on its own side
+          // (merging its last tab back always closes slot B, a valid end state).
+          canPopOut={slot === 'A' && !forcedTab && (ALL_PANEL_TABS.length - rightPanelSlotBTabs.length) > 1}
           onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
           onCloseSlotA={slot === 'A' ? closeSlotA : undefined}
           onScrollPercent={slot === 'A' ? (pct) => {
