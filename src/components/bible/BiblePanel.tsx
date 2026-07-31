@@ -2324,6 +2324,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </div>
     )
 
+    // Must match BibleRightPanel.tsx's own (locally-scoped) PANEL_TAB_DRAG_MIME constant.
+    const POP_OUT_DRAG_MIME = 'application/x-berean-panel-tab'
+    // Catch-all drop target covering the whole panel area (both slots + the scripture pane) —
+    // dropping a dragged side-panel tab onto slot B's own strip/label already works via its
+    // own onDrop, but that only exists once slot B is already open; dropping "outside" (the
+    // scripture pane, or anywhere else in this area) previously relied on onDragEnd's
+    // dropEffect==='none' check, which only fires once Chromium's native drag-cancel "snap
+    // back" animation finishes — a real, noticeable delay (confirmed: reported "slight delay
+    // when i drag out the side panel tab"). This fires on `drop`, immediately at mouseup, no
+    // animation involved — BibleRightPanel.tsx's own onDrop handlers call stopPropagation so a
+    // drop THEY already handled never also reaches this one.
+    function handlePanelAreaDragOver(e: React.DragEvent) {
+      if (e.dataTransfer.types.includes(POP_OUT_DRAG_MIME)) e.preventDefault()
+    }
+    function handlePanelAreaDrop(e: React.DragEvent) {
+      const raw = e.dataTransfer.getData(POP_OUT_DRAG_MIME)
+      if (!raw) return
+      const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: 'notes' | 'lexicon' | 'crossrefs'; slotId: 'A' | 'B' }
+      if (fromSlot === 'A' && !rightPanelSlotB) moveTab(tab, 'B')
+      else if (fromSlot === 'B') moveTab(tab, 'A')
+    }
+
     // Shared right panel (tabs UI). `slot` picks which of the two independent side-panel
     // slots this instance renders — slot B only ever exists when rightPanelSlotB is set (see
     // openInSlotB/closeSlotB/mergeToSlotA above). Only slot A's scroll feeds the companion
@@ -2438,7 +2460,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // own comment). Only wired up for this 'standard' layout — the one case
           // whose container is a simple position:absolute area a listener can cover
           // without disturbing the flex-based layouts every other case relies on.
-          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0">
+          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="absolute inset-0 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             <AnimatePresence initial={false}>
               {(rightPanelOpen || restFrac !== null) && (
@@ -2510,7 +2532,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Panel left ───────────────────────────────────────────────────────────
       case 'panel-left':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <AnimatePresence initial={false}>
               {rightPanelOpen && (
                 <motion.div
@@ -2552,7 +2574,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Notes wide (60/40) ───────────────────────────────────────────────────
       case 'notes-wide':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-[2] overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {rightPanelOpen && (
               <>
@@ -2571,7 +2593,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Scripture wide (65/35) ───────────────────────────────────────────────
       case 'scripture-wide':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-[3] overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {rightPanelOpen && (
               <>
@@ -2621,7 +2643,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Panel bottom (full width) ────────────────────────────────────────────
       case 'panel-bottom':
         return (
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">

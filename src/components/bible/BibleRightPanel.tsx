@@ -1734,6 +1734,7 @@ export default function BibleRightPanel({
               onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
               onDragLeave={() => setDragOverStrip(false)}
               onDrop={(e) => {
+                e.stopPropagation() // don't also let BiblePanel.tsx's catch-all pop-out/merge-back handler see this
                 setDragOverStrip(false)
                 const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
                 if (!raw) return
@@ -1756,6 +1757,7 @@ export default function BibleRightPanel({
               onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
               onDragLeave={() => setDragOverStrip(false)}
               onDrop={(e) => {
+                e.stopPropagation() // don't also let BiblePanel.tsx's catch-all pop-out/merge-back handler see this
                 setDragOverStrip(false)
                 const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
                 if (!raw) return
