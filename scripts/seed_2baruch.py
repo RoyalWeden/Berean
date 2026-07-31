@@ -24,6 +24,15 @@ not guessed):
   - A literal "<FONT Color="fuchsia">finish</FONT>" marker follows the last
     real verse (85:2) before a copyright footer — content is truncated
     there so the footer never bleeds into 85:2's text.
+  - Inline topic subheadings (e.g. "<CENTER><I>4:2-7. The heavenly
+    Jerusalem</I></CENTER>", sometimes as a <TD ColSpan="2"> cell inside
+    the chapter 13 fragment table) are interleaved directly in the body
+    text between verses, with no verse anchor of their own — the same
+    text that already appears (correctly stripped) in the INDEX table up
+    top, repeated a second time inline right before the section it
+    introduces. With no anchor to bound them, they silently glued onto
+    the end of whichever verse precedes them (~32 verses affected,
+    chapters 4-77) until SECTION_HEADING_RE below started stripping them.
 """
 import html as html_module
 import os
@@ -99,6 +108,22 @@ def strip_fragment_table_second_columns(text: str) -> str:
 
 
 raw = strip_fragment_table_second_columns(raw)
+
+# Inline topic subheadings — see the module docstring's "Inline topic subheadings" entry.
+# No verse anchor of their own, so they must be stripped BEFORE chapter/verse splitting or
+# they silently glue onto the end of the preceding verse. Matches the plain-body
+# <CENTER><I>...</I></CENTER> form, the <TD ColSpan="2"><CENTER><I>...</I></CENTER></TD> form
+# found inside the chapter 13 fragment table, AND a <B>...</B> variant (chapter 52's
+# "53-54. THE MESSIAH APOCALYPSE" heading uses bold instead of italic).
+SECTION_HEADING_RE = re.compile(
+    r'(?:<TD[^>]*>\s*)?'
+    r'<CENTER>\s*(?:<BR>\s*)*'
+    r'<[IB]>.*?</[IB]>\s*'
+    r'</CENTER>'
+    r'(?:\s*</TD>)?',
+    re.S | re.I,
+)
+raw = SECTION_HEADING_RE.sub(' ', raw)
 
 # Discard the INDEX table and everything before the real Chapter 1 heading.
 first_ch = re.search(r'<A ID="C?1"><FONT Color="red">Chapter 1</FONT></A>', raw)
