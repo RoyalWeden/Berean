@@ -12,6 +12,11 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
+import {
+  getChapterNotesShared, searchNotesShared, getNotesShared,
+  getLexiconEntryShared, getLexiconRelatedShared, getLexiconOccurrencesShared,
+  getTSKeForChapterShared, getCrossRefsForChapterShared,
+} from '@/lib/panelDataCache'
 import { NOTE_DOT_COLOR } from './VerseRow'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
@@ -156,7 +161,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   useEffect(() => {
     if (!initialEntry) return
     if (initialEntry === activeEntryNumRef.current) return // already showing this entry
-    window.lexicon.getEntry(initialEntry)
+    getLexiconEntryShared(initialEntry)
       .then((entry) => { if (entry) { setHistory([]); setActiveEntry(entry) } })
       .catch(() => {})
   }, [initialEntry])
@@ -180,7 +185,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   useEffect(() => {
     if (!activeEntry) { setRelated([]); return }
     try {
-      window.lexicon.getRelated(activeEntry.strongsNum).then(setRelated).catch(() => setRelated([]))
+      getLexiconRelatedShared(activeEntry.strongsNum).then(setRelated).catch(() => setRelated([]))
     } catch {
       setRelated([])
     }
@@ -204,7 +209,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     setOccurrences([])
     setShowAllOccurrences(false)
     setOccurrencesLoading(true)
-    window.lexicon.getOccurrences(activeEntry.strongsNum)
+    getLexiconOccurrencesShared(activeEntry.strongsNum)
       .then((rows: any[]) => {
         const normalized = rows.map(normalizeOccurrenceRow)
         setOccurrences(normalized)
@@ -248,7 +253,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
       setActiveSpace('lexicon')
       return
     }
-    window.lexicon.getEntry(strongsNum)
+    getLexiconEntryShared(strongsNum)
       .then((entry) => {
         if (!entry) return
         if (activeEntry) setHistory((h) => [...h, activeEntry])
@@ -704,7 +709,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
   useEffect(() => {
     if (typeof window.crossrefs?.getTSKeForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    window.crossrefs.getTSKeForChapter(bookId, chapter)
+    getTSKeForChapterShared(bookId, chapter)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
@@ -852,7 +857,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
   useEffect(() => {
     if (typeof window.crossrefs?.getForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    window.crossrefs.getForChapter(bookId, chapter)
+    getCrossRefsForChapterShared(bookId, chapter)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
@@ -977,7 +982,7 @@ function UserNotesChapterView({
       }
     }
 
-    window.notes.getChapterNotes(bookId, chapter)
+    getChapterNotesShared(bookId, chapter, noteChangeToken)
       .then(async (verseNotes) => {
         const byVerse = new Map<number, UserNoteRef[]>()
         const indirect: Array<{ note: Note; verses: number[] }> = []
@@ -992,7 +997,7 @@ function UserNotesChapterView({
         // 2) Notes whose content mentions a verse in this chapter
         const chapterLabel = `${bookName(bookId)} ${chapter}:`
         try {
-          const candidates = await window.notes.searchNotes(chapterLabel, 80)
+          const candidates = await searchNotesShared(chapterLabel, 80, noteChangeToken)
           const verseNoteIds = new Set(verseNotes.map(n => n.id))
           for (const note of candidates) {
             if (verseNoteIds.has(note.id)) continue
@@ -1428,7 +1433,7 @@ export default function BibleRightPanel({
     if (scope === 'chapter') {
       // Fetch verse notes for this chapter, then also search for general/daily/topic
       // notes that mention the chapter so they appear at the top as indirect connections.
-      window.notes.getChapterNotes(bookId, chapter).then(async (verseNotes) => {
+      getChapterNotesShared(bookId, chapter, noteChangeToken).then(async (verseNotes) => {
         setNotes(verseNotes)
         const verseNoteIds = new Set(verseNotes.map(n => n.id))
         const label = bookName(bookId)
@@ -1441,7 +1446,7 @@ export default function BibleRightPanel({
           // Book name alone is far more selective, so a real mention survives a much
           // larger candidate set, which is then precisely tested for an actual
           // "<Book> <chapter>" mention (not just "<Book>" appearing anywhere).
-          const candidates = await window.notes.searchNotes(label, 300)
+          const candidates = await searchNotesShared(label, 300, noteChangeToken)
           const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
           const mentionRe = new RegExp(`\\b${escaped}\\b\\D{0,10}${chapter}(?!\\d)`, 'i')
           setChapterMentionNotes(
@@ -1456,7 +1461,7 @@ export default function BibleRightPanel({
       }).catch(() => { setNotes([]); setChapterMentionNotes([]) })
     } else {
       setChapterMentionNotes([])
-      window.notes.getNotes(500, 0).then(setNotes).catch(() => {})
+      getNotesShared(500, 0, noteChangeToken).then(setNotes).catch(() => {})
     }
   }, [visibleTab, noteChangeToken, scope, bookId, chapter])
 
@@ -1490,7 +1495,7 @@ export default function BibleRightPanel({
     if (parts.length < 3) { setReferencingNotes([]); return }
     const [bId, ch, vs] = parts
     const humanRef = `${bookName(bId)} ${ch}:${vs}`
-    window.notes.searchNotes(humanRef, 60)
+    searchNotesShared(humanRef, 60, noteChangeToken)
       .then((candidates) => {
         const result: Note[] = []
         for (const note of candidates) {

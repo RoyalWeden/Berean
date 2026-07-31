@@ -1350,21 +1350,31 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // latter behind after the former is consumed would highlight a stale term the next time
   // targetVerse is set from somewhere that doesn't also pass a highlight (e.g. a plain
   // cross-ref/note verse link).
-  function clearTargetVerse() {
-    if (!activeTab) return
-    updateTabState('scripture', activeTab.id, {
+  // The three handlers below are the props BiblePanel hands to `memo(ChapterView)`.
+  // They are wrapped in useCallback and keyed on the active tab's ID (never the tab
+  // OBJECT, whose identity is replaced by every updateTabState call) so their identity
+  // survives an ordinary BiblePanel re-render. As plain function declarations they were
+  // recreated on every render, which made ChapterView's memo() comparison fail every
+  // single time — so toggling the side panel re-rendered the entire chapter subtree
+  // before React could paint anything, including the toggle button's own highlight.
+  // With stable identities the memo actually bails out and the toggle commits cheaply.
+  const memoTabId = activeTab?.id
+
+  const clearTargetVerse = useCallback(() => {
+    if (!memoTabId) return
+    updateTabState('scripture', memoTabId, {
       targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
       targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
     })
-  }
+  }, [memoTabId, updateTabState])
 
-  function handleStrongsClick(strongsNum: string) {
+  const handleStrongsClick = useCallback((strongsNum: string) => {
     // No side panel in floating windows — skip opening it
     if (!floating) {
       setRightPanelLexiconEntry(strongsNum)
       setRightPanelTab('lexicon')
       setRightPanelOpen(true)
-      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelLexiconEntry: strongsNum, rightPanelTab: 'lexicon', rightPanelOpen: true })
+      if (memoTabId) updateTabState('scripture', memoTabId, { rightPanelLexiconEntry: strongsNum, rightPanelTab: 'lexicon', rightPanelOpen: true })
     }
     // Track in history with chain parent = most recent history entry
     const recentId = useAppStore.getState().history[0]?.id
@@ -1374,7 +1384,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
-  }
+  }, [floating, memoTabId, updateTabState])
 
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current
   // view + picked = 2 columns) when not already comparing; otherwise appends a column.
@@ -1389,13 +1399,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }
   }
 
-  function handleWordClick(word: string) {
+  const handleWordClick = useCallback((word: string) => {
     if (floating) return  // no side panel in float windows
     setRightPanelTab('lexicon')
     setRightPanelOpen(true)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: 'lexicon', rightPanelOpen: true })
+    if (memoTabId) updateTabState('scripture', memoTabId, { rightPanelTab: 'lexicon', rightPanelOpen: true })
     requestLexiconSearch(word)
-  }
+  }, [floating, memoTabId, updateTabState, requestLexiconSearch])
 
   // Layout helpers
   // In floating windows, always use 'reading' (full-width, no side panel).
