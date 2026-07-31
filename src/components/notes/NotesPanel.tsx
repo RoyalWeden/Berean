@@ -23,6 +23,7 @@ import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes } from '@/lib/notesCache'
+import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
@@ -94,7 +95,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
   // A note queued for print/PDF export from the right-click menu (without opening it).
   const [printNote, setPrintNote] = useState<Note | null>(null)
-  const [activeNote, setActiveNote] = useState<Note | null>(null)
+  // Lazy initializer seeds from a warm noteCache entry (if this note was seen before this
+  // session) so the editor renders immediately on tab-switch remount instead of starting at
+  // null and showing the list view until the async restore fetch below resolves — see
+  // src/lib/noteCache.ts for why.
+  const [activeNote, setActiveNote] = useState<Note | null>(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const tabState = tab?.state as NoteTabState | undefined
+    if (tabState?.isNew || !tabState?.noteId) return null
+    return getCachedNote(tabState.noteId)
+  })
+  // Keep noteCache warm for every note this panel ever shows, regardless of which of the
+  // many setActiveNote() call sites produced it.
+  useEffect(() => {
+    if (activeNote) setCachedNote(activeNote)
+  }, [activeNote])
   // True while we're still trying to restore the previously-open note for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Notes" fallback before the real title has loaded — that
