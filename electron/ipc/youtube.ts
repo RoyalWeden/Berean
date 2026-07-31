@@ -1062,6 +1062,11 @@ async function fetchTranscripts(
         partition: `transcript-worker-${workerId}`,
       },
     })
+    // tactiq.io's transcript tool embeds/plays the actual YouTube video to extract captions —
+    // `show: false` only hides the window, it doesn't silence it, so a batch fetch (especially
+    // with multiple workers) was audibly playing several videos' audio at once in the
+    // background. Muted at the WebContents level, independent of window visibility.
+    win.webContents.setAudioMuted(true)
     console.log(`[transcript] Worker ${workerId} ready`)
     let warmedUp = false
     // Tracks the status of the latest POST to the tactiq transcript API for the current video.
