@@ -74,6 +74,7 @@ export const CHANNELS = [
   '@chrisavila7944',
   '@kyannarepent',
   '@rickyfransley',
+  '@NickJohnson768',
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 

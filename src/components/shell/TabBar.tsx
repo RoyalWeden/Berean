@@ -564,6 +564,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               <div
                 data-tab-idx={idx}
                 draggable
+                title={displayTitle}
                 onClick={() => onTabClick(tab)}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e)  => handleTabDragOver(e, idx)}

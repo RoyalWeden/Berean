@@ -1722,6 +1722,14 @@ export default function BibleRightPanel({
         <div className="flex items-center gap-1 px-1.5 pt-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
           {slotId === 'B' ? (
             <div
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab: visibleTab, slotId }))}
+              // Dragging this label out with nothing catching the drop merges it back into
+              // the main panel — same "dragged away with no valid target" gesture as slot A's
+              // own strip buttons use for the reverse (pop out) direction.
+              onDragEnd={(e) => {
+                if (e.dataTransfer.dropEffect === 'none') onMoveTab?.(visibleTab, 'A')
+              }}
               onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab: visibleTab, x: e.clientX, y: e.clientY }) }}
               onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
               onDragLeave={() => setDragOverStrip(false)}
@@ -1733,7 +1741,7 @@ export default function BibleRightPanel({
                 if (fromSlot === slotId) return
                 onMoveTab?.(tab, slotId)
               }}
-              className={`flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-t-shell text-[10px] font-medium text-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] border-t border-x border-[rgb(var(--color-surface-4))] transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
+              className={`flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1.5 rounded-t-shell text-[10px] font-medium text-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] border-t border-x border-[rgb(var(--color-surface-4))] transition-colors cursor-grab ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
             >
               {(() => { const Icon = PANEL_TAB_ICON[visibleTab]; return <Icon size={11} className="flex-shrink-0" /> })()}
               <span className="truncate">{PANEL_TAB_LABEL[visibleTab]}</span>
