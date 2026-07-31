@@ -5,6 +5,7 @@ import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, Git
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -549,6 +550,16 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           // bar breadcrumb (which shows the bare tab.title directly, unprefixed).
           const isSearchTab = tab.type === 'search' || (bibleState?.searchMode ?? false)
           const displayTitle = isSearchTab && tab.title.startsWith('"') ? `Search: ${tab.title}` : tab.title
+          // Full-name hover tooltip for multi-book editions (Recognitions of Clement's 10
+          // books, Hermas's Visions/Mandates/Similitudes, etc.) — bookChapterVerseLabel
+          // already produces the disambiguated "Recognitions, Book 3, 5" / "Hermas,
+          // Visions 5" form (see its own comment in parseRef.ts), which the plain tab
+          // title doesn't always carry (Hermas tabs use a compact "Hermas Vis. 3.1"
+          // abbreviation to save space in the tab bar itself). Falls back to the plain
+          // title for search/compare tabs and anything without a resolvable bookId.
+          const hoverTitle = bibleState?.bookId && !isSearchTab && !isCompare
+            ? bookChapterVerseLabel(bibleState.bookId, bibleState.chapter)
+            : displayTitle
 
           const showInsertBefore    = dragOverIdx === idx && dragInsertBefore  && draggingIdx !== idx
           const showInsertAfter     = dragOverIdx === idx && !dragInsertBefore && draggingIdx !== idx
@@ -564,7 +575,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               <div
                 data-tab-idx={idx}
                 draggable
-                title={displayTitle}
+                title={hoverTitle}
                 onClick={() => onTabClick(tab)}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e)  => handleTabDragOver(e, idx)}
