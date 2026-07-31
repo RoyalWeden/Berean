@@ -306,6 +306,32 @@ export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: n
   return verse != null ? `${name}${sep}${chapter}:${verse}` : `${name}${sep}${chapter}`
 }
 
+// Full editorial names for multi-book editions whose bookName() uses a short prefix before
+// the comma (e.g. "Recognitions, Book 3", "Hermas, Visions") — used only by
+// bookChapterHoverLabel below, which wants the full work name spelled out with the "Book N"/
+// section qualifier moved to the very end instead.
+const FULL_WORK_NAME: Record<string, string> = {
+  Recognitions: 'Recognitions of Clement',
+  Hermas: 'Shepherd of Hermas',
+}
+
+/** Tab-bar hover-tooltip label: like bookChapterVerseLabel, but for a multi-book edition
+ *  spells out the FULL work name and moves the "Book N"/section qualifier to the end —
+ *  "Recognitions of Clement 5, Book 3" rather than bookChapterVerseLabel's own
+ *  "Recognitions, Book 3, 5" (that ordering exists there specifically to avoid "Book 10 41:8"
+ *  reading as one number when a verse follows; the hover tooltip has no such ambiguity to
+ *  avoid, so the fuller/more natural word order reads better there). Falls back to a plain
+ *  "<name> <chapter>" for every other book, unchanged from bookChapterVerseLabel. */
+export function bookChapterHoverLabel(bookId: string, chapter: number): string {
+  const name = bookName(bookId)
+  const commaIdx = name.indexOf(', ')
+  if (commaIdx === -1) return `${name} ${chapter}`
+  const prefix = name.slice(0, commaIdx)
+  const qualifier = name.slice(commaIdx + 2)
+  const full = FULL_WORK_NAME[prefix] ?? prefix
+  return `${full} ${chapter}, ${qualifier}`
+}
+
 /** Formats a raw internal verse ref ("PRO.30.26", dot-separated: bookId.chapter[.verse])
  *  into the human display form used everywhere else ("Proverbs 30:26"). A few UI spots
  *  (note editor backlink/wikilink popups) were printing the raw dotted ref straight

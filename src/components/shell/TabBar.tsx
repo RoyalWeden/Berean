@@ -5,7 +5,7 @@ import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, Git
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
-import { bookChapterVerseLabel } from '@/lib/parseRef'
+import { bookChapterHoverLabel } from '@/lib/parseRef'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -551,14 +551,14 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           const isSearchTab = tab.type === 'search' || (bibleState?.searchMode ?? false)
           const displayTitle = isSearchTab && tab.title.startsWith('"') ? `Search: ${tab.title}` : tab.title
           // Full-name hover tooltip for multi-book editions (Recognitions of Clement's 10
-          // books, Hermas's Visions/Mandates/Similitudes, etc.) — bookChapterVerseLabel
-          // already produces the disambiguated "Recognitions, Book 3, 5" / "Hermas,
-          // Visions 5" form (see its own comment in parseRef.ts), which the plain tab
-          // title doesn't always carry (Hermas tabs use a compact "Hermas Vis. 3.1"
-          // abbreviation to save space in the tab bar itself). Falls back to the plain
-          // title for search/compare tabs and anything without a resolvable bookId.
+          // books, Hermas's Visions/Mandates/Similitudes, etc.) — bookChapterHoverLabel
+          // spells out the full work name with the "Book N"/section qualifier moved to the
+          // end ("Recognitions of Clement 5, Book 3"), which the plain tab title doesn't
+          // always carry (Hermas tabs use a compact "Hermas Vis. 3.1" abbreviation to save
+          // space in the tab bar itself). Falls back to the plain title for search/compare
+          // tabs and anything without a resolvable bookId.
           const hoverTitle = bibleState?.bookId && !isSearchTab && !isCompare
-            ? bookChapterVerseLabel(bibleState.bookId, bibleState.chapter)
+            ? bookChapterHoverLabel(bibleState.bookId, bibleState.chapter)
             : displayTitle
 
           const showInsertBefore    = dragOverIdx === idx && dragInsertBefore  && draggingIdx !== idx
