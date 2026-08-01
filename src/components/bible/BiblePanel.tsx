@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
 import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -22,6 +22,10 @@ import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
+
+// Mirrors BibleRightPanel.tsx's own (locally-scoped, unexported) PanelTab type.
+type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
+const ALL_PANEL_TABS: PanelTab[] = ['notes', 'lexicon', 'crossrefs']
 import type { ViewerVisibleRegion } from '@/types/electron'
 
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
@@ -29,6 +33,19 @@ import { bookName, normalizeBookName } from '@/lib/parseRef'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
+
+// Module-level cache of getBooks() results per textId, shared across every BiblePanel
+// instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
+// without this `books` reset to [] on each switch and only repopulated one render-pass later via
+// the effect below (an async IPC round trip) — visible as a real flash/flicker in the book/
+// chapter picker (a missing `currentBook` degrades several conditional badges, and
+// `chapterCount`'s arbitrary 50-chapter fallback briefly feeds the wrong total into
+// ContinuousChapterScroll for any book that isn't ~50 chapters, shifting the scroll layout once
+// corrected). Lazy-initializing `books` from this cache makes a switch back to an
+// already-visited translation correct on the very first render, matching the same
+// fixed-this-session pattern used for NotesPanel's continuousDailyDate / LexiconPanel's
+// savedSearch.
+const booksCache = new Map<string, Book[]>()
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
@@ -172,7 +189,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }) as BibleTabState
 
   const textId = (tabState.translation ?? 'KJVA').toLowerCase()
-  const [books, setBooks] = useState<Book[]>([])
+  const [books, setBooks] = useState<Book[]>(() => booksCache.get(textId) ?? [])
   // Book ids present in the KJVA<->LXX counterpart edition, used to decide whether the
   // quick KJV/LXX switch button applies to the CURRENT book (not just OT books — many
   // Apocrypha books like Sirach exist in both editions too).
@@ -212,6 +229,35 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
   const [rightPanelLexiconEntry, setRightPanelLexiconEntry] = useState<string | null>(() => tabState.rightPanelLexiconEntry ?? null)
   const [rightPanelVerseFilter, setRightPanelVerseFilter] = useState<string | null>(() => tabState.rightPanelVerseFilter ?? null)
+  const [rightPanelExpandAll, setRightPanelExpandAll] = useState(() => tabState.rightPanelExpandAll ?? false)
+
+  // ── Second side-panel slot ("slot B") — a tab popped out of slot A via right-click/drag.
+  // Fully independent BibleRightPanel instance below, so it mirrors every one of slot A's
+  // "which X is open" fields above, not just its own panel type. null slotB = not shown.
+  //
+  // rightPanelSlotBTabs is the SET of tab types currently assigned to slot B (empty = slot B
+  // doesn't exist) — slot B can hold more than one tab, switchable via its own strip, exactly
+  // like slot A (per explicit direction: dragging an additional tab into an already-popped-out
+  // panel should give it two tabs, and dragging the last remaining tab in should collapse back
+  // to a single panel). rightPanelSlotB is slot B's currently-ACTIVE tab within that set (must
+  // be a member of rightPanelSlotBTabs, or null when the set is empty) — kept as a separate
+  // field from the set itself since "which of B's own tabs is showing" and "which tabs does B
+  // own" are independent facts. Migrates the OLD single-tab persisted format (before this
+  // change, rightPanelSlotB was the only field and always held exactly one type) by treating
+  // it as a one-element set.
+  const [rightPanelSlotBTabs, setRightPanelSlotBTabs] = useState<PanelTab[]>(() =>
+    tabState.rightPanelSlotBTabs ?? (tabState.rightPanelSlotB ? [tabState.rightPanelSlotB] : [])
+  )
+  const [rightPanelSlotB, setRightPanelSlotB] = useState<'notes' | 'lexicon' | 'crossrefs' | null>(() => tabState.rightPanelSlotB ?? null)
+  const [rightPanelNoteIdB, setRightPanelNoteIdB] = useState<string | null>(() => tabState.rightPanelNoteIdB ?? null)
+  const lastNoteCursorRefB = useRef<number | null>(tabState.rightPanelNoteCursorB ?? null)
+  const [rightPanelLexiconEntryB, setRightPanelLexiconEntryB] = useState<string | null>(() => tabState.rightPanelLexiconEntryB ?? null)
+  const [rightPanelVerseFilterB, setRightPanelVerseFilterB] = useState<string | null>(() => tabState.rightPanelVerseFilterB ?? null)
+  const [rightPanelExpandAllB, setRightPanelExpandAllB] = useState(() => tabState.rightPanelExpandAllB ?? false)
+  // Slot A's last-active type before it got popped out to slot B, so popping out slot A's
+  // CURRENTLY active tab has something sensible to fall back to instead of leaving slot A
+  // pointed at the tab that just left it.
+  const lastRightPanelTabRef = useRef<'notes' | 'lexicon' | 'crossrefs'>(rightPanelTab)
 
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
@@ -219,6 +265,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // and bookId are updated together (e.g. navigating to "HER 1:1" from a note).
     window.bible.getBooks(textId).then((rawBooks) => {
       const newBooks = rawBooks.map((b) => ({ ...b, name: normalizeBookName(b.name) }))
+      booksCache.set(textId, newBooks)
       setBooks(newBooks)
       const latestTab = activeTabRef.current
       const latestState = tabStateRef.current
@@ -434,10 +481,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // below can't see those, since it only observes the container's own content-box, not a
   // descendant's internal reflow driven purely by a font-size change.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      if (!useAppStore.getState().viewerPaused) computePresenterBand()
+    // Double-rAF: a font-size-driven reflow (zoom/bibleFontSize/etc.) isn't guaranteed to be
+    // reflected in getBoundingClientRect() within a single frame, so remeasuring one rAF after
+    // the change can read stale verse-top positions — worse the smaller each verse is on screen
+    // (i.e. at lower zoom, where more/shorter verses fit the viewport and the same stale-pixel
+    // error is a larger fraction of a verse's height). Waiting an extra frame lets layout settle
+    // before computePresenterBand() measures.
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (!useAppStore.getState().viewerPaused) computePresenterBand()
+      })
     })
-    return () => cancelAnimationFrame(raf)
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
   }, [computePresenterBand, viewerPaused, tabState.showStrongs, tabState.hiddenAnnotations, bibleFontSize, appZoom, wordReplacerEnabled, wordReplacerRules, idiomHighlightEnabled])
 
   // Recompute on any size change of the SCROLL CONTAINER'S OWN box — covers real window
@@ -673,14 +729,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (!activeTab || !tabState.compareMode) return
     const cols = tabState.compareColumns
-    const list = cols && cols.length > 0
+    const refs = cols && cols.length > 0
       ? cols.map((c) => {
           const b = books.find((bk) => bk.id === c.bookId)
           return `${b?.name ?? bookName(c.bookId)} ${c.chapter}`
         })
       : currentBook ? [`${currentBook.name} ${tabState.chapter}`] : []
-    const uniq = [...new Set(list)]
-    const title = uniq.length > 0 ? `Compare — ${uniq.join(' / ')}` : 'Compare'
+    // No "Compare — " prefix — the tab's own icon already signals it's a compare tab.
+    // Same book+chapter across every column (just different translations, e.g. KJV vs LXX
+    // side by side): show the reference once, followed by each column's translation. Different
+    // book/chapter per column: show each column's own reference instead, no translation labels.
+    let title: string
+    const uniqRefs = [...new Set(refs)]
+    if (uniqRefs.length === 1 && cols && cols.length > 0) {
+      title = `${uniqRefs[0]} ${cols.map((c) => c.textId.toUpperCase()).join(' / ')}`
+    } else {
+      title = uniqRefs.length > 0 ? uniqRefs.join(' / ') : 'Compare'
+    }
     if (activeTab.title !== title) renameTab('scripture', activeTab.id, title)
   }, [tabState.compareMode, tabState.compareColumns, books, currentBook, activeTab?.id, activeTab?.title, tabState.chapter, renameTab])
 
@@ -937,7 +1002,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabState.rightPanelTab) setRightPanelTab(tabState.rightPanelTab)
     if (tabState.rightPanelNoteId !== undefined) setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
     if (tabState.rightPanelLexiconEntry !== undefined) setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
-  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Self-heals persisted state saved from before this feature's various fixes — a tab's saved
+    // state can still have slot A's active tab ALSO present in slot B's set (from the
+    // single-tab-per-slot model's fallback bug, or the earlier locked-single-tab model), or
+    // slot B owning every single tab type (leaving slot A with nothing, an invalid state this
+    // multi-tab-per-slot model must never produce going forward but could still be restoring
+    // from before that was true). A code fix alone doesn't repair state that was already
+    // corrupted before it shipped — this repairs it the next time the tab is opened, not just
+    // prevents new cases. Also migrates the OLD single-tab persisted format (rightPanelSlotB
+    // was the only field, always exactly one type) into the new rightPanelSlotBTabs set.
+    if ('rightPanelSlotBTabs' in tabState || 'rightPanelSlotB' in tabState) {
+      let restoredSlotBTabs = tabState.rightPanelSlotBTabs ?? (tabState.rightPanelSlotB ? [tabState.rightPanelSlotB] : [])
+      let restoredTabA = tabState.rightPanelTab ?? rightPanelTab
+      if (restoredSlotBTabs.length >= ALL_PANEL_TABS.length) {
+        restoredSlotBTabs = []
+      } else if (restoredSlotBTabs.includes(restoredTabA)) {
+        const remaining = ALL_PANEL_TABS.filter((t) => !restoredSlotBTabs.includes(t))
+        restoredTabA = remaining[0] ?? 'notes'
+      }
+      const restoredSlotB = restoredSlotBTabs.length === 0
+        ? null
+        : (tabState.rightPanelSlotB && restoredSlotBTabs.includes(tabState.rightPanelSlotB) ? tabState.rightPanelSlotB : restoredSlotBTabs[0])
+      setRightPanelTab(restoredTabA)
+      setRightPanelSlotBTabs(restoredSlotBTabs)
+      setRightPanelSlotB(restoredSlotB)
+      if (activeTab) {
+        updateTabState('scripture', activeTab.id, {
+          rightPanelTab: restoredTabA, rightPanelSlotBTabs: restoredSlotBTabs, rightPanelSlotB: restoredSlotB,
+        })
+      }
+    }
+    if (tabState.rightPanelNoteIdB !== undefined) setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
+    if (tabState.rightPanelLexiconEntryB !== undefined) setRightPanelLexiconEntryB(tabState.rightPanelLexiconEntryB ?? null)
+    if (tabState.rightPanelExpandAll !== undefined) setRightPanelExpandAll(tabState.rightPanelExpandAll)
+    if (tabState.rightPanelExpandAllB !== undefined) setRightPanelExpandAllB(tabState.rightPanelExpandAllB)
+  }, [tabState.rightPanelOpen, tabState.rightPanelTab, tabState.rightPanelNoteId, tabState.rightPanelLexiconEntry, tabState.rightPanelSlotB, tabState.rightPanelNoteIdB, tabState.rightPanelLexiconEntryB, tabState.rightPanelExpandAll, tabState.rightPanelExpandAllB, activeTab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Find-bar: compute verse match list whenever query or chapter changes ──────
   // We watch the rendered chapter verses to know which ones match.
@@ -1121,8 +1220,124 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   }
 
   function handleRightPanelTabChange(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    lastRightPanelTabRef.current = rightPanelTab
     setRightPanelTab(tab)
     if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab })
+  }
+
+  function handleRightPanelTabChangeB(tab: 'notes' | 'lexicon' | 'crossrefs') {
+    setRightPanelSlotB(tab)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotB: tab })
+  }
+
+  function handleRightPanelNoteChangeB(noteId: string | null) {
+    setRightPanelNoteIdB(noteId)
+    lastNoteCursorRefB.current = null
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelNoteIdB: noteId, rightPanelNoteCursorB: null })
+  }
+
+  function handleRightPanelNoteCursorChangeB(pos: number) {
+    lastNoteCursorRefB.current = pos
+  }
+
+  function handleRightPanelLexiconChangeB(entry: string | null) {
+    setRightPanelLexiconEntryB(entry)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelLexiconEntryB: entry })
+  }
+
+  function handleRightPanelVerseFilterChangeB(filter: string | null) {
+    setRightPanelVerseFilterB(filter)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelVerseFilterB: filter })
+  }
+
+  function handleRightPanelExpandAllChange(next: boolean) {
+    setRightPanelExpandAll(next)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelExpandAll: next })
+  }
+
+  function handleRightPanelExpandAllChangeB(next: boolean) {
+    setRightPanelExpandAllB(next)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelExpandAllB: next })
+  }
+
+  // Move a tab INTO slot B — whether B doesn't exist yet (a fresh pop-out) or already holds
+  // one or two other tabs (dragging an ADDITIONAL tab in, per explicit direction: "if i drag
+  // an additional tab to the popped out sidepanel, then that popped out sidepanel should have
+  // now two tabs"). Both are the same operation: add to the set.
+  function moveToSlotB(tab: PanelTab) {
+    if (rightPanelSlotBTabs.includes(tab)) return
+    const newSlotBTabs = [...rightPanelSlotBTabs, tab]
+    if (newSlotBTabs.length >= ALL_PANEL_TABS.length) {
+      // Every tab now lives in slot B — nothing left for slot A to show on its own. Per
+      // explicit direction ("if i drag the last tab into the popped out sidepanel, then the
+      // sidepanel should just go back to default"): collapse back to a single panel, with
+      // slot A taking over this tab and slot B closing — slot A's available set naturally
+      // reverts to all three once rightPanelSlotBTabs is empty again.
+      setRightPanelSlotBTabs([])
+      setRightPanelSlotB(null)
+      setRightPanelTab(tab)
+      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: [], rightPanelSlotB: null, rightPanelTab: tab })
+      return
+    }
+    setRightPanelSlotBTabs(newSlotBTabs)
+    setRightPanelSlotB(tab)
+    let newTabA = rightPanelTab
+    if (rightPanelTab === tab) {
+      // Slot A's own active tab just left — fall back to whatever remains in ITS set. If slot
+      // A had never been switched away from that type before (lastRightPanelTabRef still
+      // equals it too), fall back to any other of the types still left to A rather than the
+      // literal string 'notes' — otherwise popping "notes" itself out (the default tab) could
+      // fall back to a type that's ALSO just been claimed by slot B, defeating the fallback.
+      const remaining = ALL_PANEL_TABS.filter((t) => !newSlotBTabs.includes(t))
+      newTabA = (lastRightPanelTabRef.current !== tab && remaining.includes(lastRightPanelTabRef.current))
+        ? lastRightPanelTabRef.current
+        : remaining[0]
+      setRightPanelTab(newTabA)
+    }
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: newSlotBTabs, rightPanelSlotB: tab, rightPanelTab: newTabA })
+  }
+
+  // Move a tab OUT of slot B, back into slot A. If that was slot B's last remaining tab, slot
+  // B closes entirely; otherwise slot B keeps its other tab(s) and just needs a new active one
+  // if the one that left was the one showing.
+  function moveToSlotA(tab: PanelTab) {
+    lastRightPanelTabRef.current = rightPanelTab
+    const newSlotBTabs = rightPanelSlotBTabs.filter((t) => t !== tab)
+    setRightPanelTab(tab)
+    setRightPanelSlotBTabs(newSlotBTabs)
+    const newSlotB = newSlotBTabs.length === 0 ? null : (rightPanelSlotB === tab ? newSlotBTabs[0] : rightPanelSlotB)
+    setRightPanelSlotB(newSlotB)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: tab, rightPanelSlotBTabs: newSlotBTabs, rightPanelSlotB: newSlotB })
+  }
+
+  function closeSlotB() {
+    setRightPanelSlotBTabs([])
+    setRightPanelSlotB(null)
+    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelSlotBTabs: [], rightPanelSlotB: null })
+  }
+
+  // Single entry point for BOTH the tab-strip context menu and drag-and-drop, called with the
+  // explicit TARGET slot rather than requiring the caller to know which underlying function
+  // handles which direction — passed identically to both slot A and slot B's BibleRightPanel
+  // instances (see panelEl below), so `onDrop`'s "whichever instance's strip received the drop"
+  // dispatch is always calling something real, never a prop that was conditionally undefined
+  // on that particular instance (the actual bug behind drag-and-drop silently doing nothing).
+  function moveTab(tab: PanelTab, toSlot: 'A' | 'B') {
+    if (toSlot === 'B') moveToSlotB(tab)
+    else moveToSlotA(tab)
+  }
+
+  // Closing slot A while slot B is open would otherwise leave slot A empty and slot B
+  // populated — an inconsistent state a fixed two-slot layout can't represent. Promote slot
+  // B's currently-active tab into slot A's place instead (mirroring YouTube's closePanelA/
+  // closePanelB pattern) — if slot B held more than one tab, the others simply become
+  // available again in the single surviving panel, same as closing slot B directly would do.
+  function closeSlotA() {
+    if (rightPanelSlotB) {
+      moveToSlotA(rightPanelSlotB)
+    } else {
+      toggleRightPanel()
+    }
   }
 
   function handleRightPanelNoteChange(noteId: string | null) {
@@ -1188,21 +1403,31 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // latter behind after the former is consumed would highlight a stale term the next time
   // targetVerse is set from somewhere that doesn't also pass a highlight (e.g. a plain
   // cross-ref/note verse link).
-  function clearTargetVerse() {
-    if (!activeTab) return
-    updateTabState('scripture', activeTab.id, {
+  // The three handlers below are the props BiblePanel hands to `memo(ChapterView)`.
+  // They are wrapped in useCallback and keyed on the active tab's ID (never the tab
+  // OBJECT, whose identity is replaced by every updateTabState call) so their identity
+  // survives an ordinary BiblePanel re-render. As plain function declarations they were
+  // recreated on every render, which made ChapterView's memo() comparison fail every
+  // single time — so toggling the side panel re-rendered the entire chapter subtree
+  // before React could paint anything, including the toggle button's own highlight.
+  // With stable identities the memo actually bails out and the toggle commits cheaply.
+  const memoTabId = activeTab?.id
+
+  const clearTargetVerse = useCallback(() => {
+    if (!memoTabId) return
+    updateTabState('scripture', memoTabId, {
       targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
       targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
     })
-  }
+  }, [memoTabId, updateTabState])
 
-  function handleStrongsClick(strongsNum: string) {
+  const handleStrongsClick = useCallback((strongsNum: string) => {
     // No side panel in floating windows — skip opening it
     if (!floating) {
       setRightPanelLexiconEntry(strongsNum)
       setRightPanelTab('lexicon')
       setRightPanelOpen(true)
-      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelLexiconEntry: strongsNum, rightPanelTab: 'lexicon', rightPanelOpen: true })
+      if (memoTabId) updateTabState('scripture', memoTabId, { rightPanelLexiconEntry: strongsNum, rightPanelTab: 'lexicon', rightPanelOpen: true })
     }
     // Track in history with chain parent = most recent history entry
     const recentId = useAppStore.getState().history[0]?.id
@@ -1212,7 +1437,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
-  }
+  }, [floating, memoTabId, updateTabState])
 
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current
   // view + picked = 2 columns) when not already comparing; otherwise appends a column.
@@ -1227,13 +1452,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }
   }
 
-  function handleWordClick(word: string) {
+  const handleWordClick = useCallback((word: string) => {
     if (floating) return  // no side panel in float windows
     setRightPanelTab('lexicon')
     setRightPanelOpen(true)
-    if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelTab: 'lexicon', rightPanelOpen: true })
+    if (memoTabId) updateTabState('scripture', memoTabId, { rightPanelTab: 'lexicon', rightPanelOpen: true })
     requestLexiconSearch(word)
-  }
+  }, [floating, memoTabId, updateTabState, requestLexiconSearch])
 
   // Layout helpers
   // In floating windows, always use 'reading' (full-width, no side panel).
@@ -1512,14 +1737,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     >
       {/* Reference bar */}
       <TabHeaderPortal floating={floating}>
-        {/* The "← my note" back-to-note pill (tabState.noteBack), and the
-            "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
-            tabState.searchBack) that used to render here, were removed —
+        {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
+            tabState.searchBack) that used to render here were removed —
             redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the
             per-tab home button, which now correctly track "where did I come
             from" for the Scripture tab too (including search results —
             see the pushTabNav call in onNavigate below), without needing a
-            second, panel-local affordance. */}
+            second, panel-local affordance.
+            "← back to note" (tabState.noteBack) is different: Cmd+[/pushTabNav's stack is
+            single-typed per tab (a Bible tab's own stack can only ever hold scripture-position
+            entries), so it structurally can't carry "this tab came from note X" the way it
+            carries ordinary chapter history. Restored as an explicit pill instead, matching
+            how LexiconPanel already solves the exact same problem for its own tab. */}
+        {tabState.noteBack && (
+          <button
+            onClick={() => {
+              if (!tabState.noteBack) return
+              requestOpenNote(tabState.noteBack.noteId)
+              ensureTab('note')
+              if (activeTab) updateTabState('scripture', activeTab.id, { noteBack: null })
+            }}
+            title={`Back to "${tabState.noteBack.title}"`}
+            className="flex items-center gap-1 text-xs text-[rgb(var(--color-accent))] hover:underline cursor-pointer flex-shrink-0 max-w-[120px]"
+          >
+            <ArrowLeft size={11} className="flex-shrink-0" />
+            <span className="truncate">{tabState.noteBack.title}</span>
+          </button>
+        )}
         {isCompareMode ? (
           <>
             <BookChapterPicker
@@ -2143,32 +2387,70 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       </div>
     )
 
-    // Shared right panel (tabs UI)
-    const panelEl = (forcedTab?: 'notes' | 'lexicon' | 'crossrefs') => (
+    // Must match BibleRightPanel.tsx's own (locally-scoped) PANEL_TAB_DRAG_MIME constant.
+    const POP_OUT_DRAG_MIME = 'application/x-berean-panel-tab'
+    // Catch-all drop target covering the whole panel area (both slots + the scripture pane) —
+    // dropping a dragged side-panel tab onto slot B's own strip/label already works via its
+    // own onDrop, but that only exists once slot B is already open; dropping "outside" (the
+    // scripture pane, or anywhere else in this area) previously relied on onDragEnd's
+    // dropEffect==='none' check, which only fires once Chromium's native drag-cancel "snap
+    // back" animation finishes — a real, noticeable delay (confirmed: reported "slight delay
+    // when i drag out the side panel tab"). This fires on `drop`, immediately at mouseup, no
+    // animation involved — BibleRightPanel.tsx's own onDrop handlers call stopPropagation so a
+    // drop THEY already handled never also reaches this one.
+    function handlePanelAreaDragOver(e: React.DragEvent) {
+      if (e.dataTransfer.types.includes(POP_OUT_DRAG_MIME)) e.preventDefault()
+    }
+    function handlePanelAreaDrop(e: React.DragEvent) {
+      const raw = e.dataTransfer.getData(POP_OUT_DRAG_MIME)
+      if (!raw) return
+      const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: 'notes' | 'lexicon' | 'crossrefs'; slotId: 'A' | 'B' }
+      if (fromSlot === 'A' && !rightPanelSlotB) moveTab(tab, 'B')
+      else if (fromSlot === 'B') moveTab(tab, 'A')
+    }
+
+    // Shared right panel (tabs UI). `slot` picks which of the two independent side-panel
+    // slots this instance renders — slot B only ever exists when rightPanelSlotBTabs is
+    // non-empty (see moveToSlotB/moveToSlotA/closeSlotB above). Only slot A's scroll feeds the
+    // companion viewer-window mirror below — with two slots there's no single meaningful scroll percent
+    // to show there, so slot B's is deliberately left unmirrored rather than picking one
+    // arbitrarily or fighting over the same field.
+    const panelEl = (slot: 'A' | 'B', forcedTab?: 'notes' | 'lexicon' | 'crossrefs') => (
       <ErrorBoundary label="Right panel error">
         <BibleRightPanel
+          slotId={slot}
           bookId={tabState.bookId}
           chapter={tabState.chapter}
-          activeTab={rightPanelTab}
-          onTabChange={handleRightPanelTabChange}
-          openNoteId={rightPanelNoteId}
-          onNoteChange={handleRightPanelNoteChange}
-          initialNoteCursor={tabState.rightPanelNoteCursor}
-          autoFocusNote={tabState.rightPanelNoteFocused === true}
-          onNoteCursorChange={handleRightPanelNoteCursorChange}
-          openLexiconEntry={rightPanelLexiconEntry}
-          onLexiconEntryChange={handleRightPanelLexiconChange}
-          verseFilter={rightPanelVerseFilter}
-          onVerseFilterChange={handleRightPanelVerseFilterChange}
+          activeTab={slot === 'A' ? rightPanelTab : (rightPanelSlotB ?? 'notes')}
+          onTabChange={slot === 'A' ? handleRightPanelTabChange : handleRightPanelTabChangeB}
+          openNoteId={slot === 'A' ? rightPanelNoteId : rightPanelNoteIdB}
+          onNoteChange={slot === 'A' ? handleRightPanelNoteChange : handleRightPanelNoteChangeB}
+          initialNoteCursor={slot === 'A' ? tabState.rightPanelNoteCursor : tabState.rightPanelNoteCursorB}
+          autoFocusNote={slot === 'A' && tabState.rightPanelNoteFocused === true}
+          onNoteCursorChange={slot === 'A' ? handleRightPanelNoteCursorChange : handleRightPanelNoteCursorChangeB}
+          openLexiconEntry={slot === 'A' ? rightPanelLexiconEntry : rightPanelLexiconEntryB}
+          onLexiconEntryChange={slot === 'A' ? handleRightPanelLexiconChange : handleRightPanelLexiconChangeB}
+          verseFilter={slot === 'A' ? rightPanelVerseFilter : rightPanelVerseFilterB}
+          onVerseFilterChange={slot === 'A' ? handleRightPanelVerseFilterChange : handleRightPanelVerseFilterChangeB}
+          expandAllNotes={slot === 'A' ? rightPanelExpandAll : rightPanelExpandAllB}
+          onExpandAllNotesChange={slot === 'A' ? handleRightPanelExpandAllChange : handleRightPanelExpandAllChangeB}
           forcedTab={forcedTab}
-          onScrollPercent={(pct) => {
+          otherSlotTabs={!forcedTab ? (slot === 'A' ? rightPanelSlotBTabs : ALL_PANEL_TABS.filter((t) => !rightPanelSlotBTabs.includes(t))) : undefined}
+          onMoveTab={!forcedTab ? moveTab : undefined}
+          // Popping a tab out of slot A is only offered when doing so wouldn't leave slot A
+          // with nothing left to show — slot B has no equivalent restriction on its own side
+          // (merging its last tab back always closes slot B, a valid end state).
+          canPopOut={slot === 'A' && !forcedTab && (ALL_PANEL_TABS.length - rightPanelSlotBTabs.length) > 1}
+          onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
+          onCloseSlotA={slot === 'A' ? closeSlotA : undefined}
+          onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()
             if (!st.viewerWindowOpen || st.viewerPaused) return
             const base = computeViewerPayload()
             if (base.kind === 'bible') {
               window.app.pushViewerContent?.({ ...base, sidePanelScrollPercent: pct })
             }
-          }}
+          } : undefined}
         />
       </ErrorBoundary>
     )
@@ -2244,7 +2526,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // own comment). Only wired up for this 'standard' layout — the one case
           // whose container is a simple position:absolute area a listener can cover
           // without disturbing the flex-based layouts every other case relies on.
-          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0">
+          <div ref={panelAreaRef} className="flex-1 relative overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="absolute inset-0 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             <AnimatePresence initial={false}>
               {(rightPanelOpen || restFrac !== null) && (
@@ -2275,25 +2557,37 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   className="absolute top-0 right-0 h-full flex overflow-hidden z-20 rounded-shell-lg"
                   // +14 for hDivider (widened from 4px to 14px for the two-finger-swipe hit
                   // area — see hDivider's own comment), +6 for the panel's own mr-1.5 (see the 'standard' case's
-                  // OLD comment, same reasoning still applies) — this wrapper's overflow-hidden
-                  // needs the extra 6px of room or that right margin gets silently clipped.
-                  style={{ width: panelSize + 14 + 6 }}
+                  // OLD comment, same reasoning still applies), +6 more (gap-1.5) when slot B is
+                  // open — each slot is now its own separately-chromed box (see below) with a
+                  // real gap between them, rather than one shared box with an internal divider
+                  // line, so the real visual gap needs to be counted into this wrapper's width
+                  // too or it gets silently clipped.
+                  style={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
                 >
                   {hDivider}
-                  {/* overflow-hidden lives on the INNER div, off the same element as the
-                      border/shadow — combining overflow:hidden + rounded corners + box-shadow
-                      on ONE element is a WebKit/Chromium compositing gotcha where the shadow
-                      renders clipped to the element's square bounding box instead of its own
-                      rounded corners (independent of — and in addition to — the outer wrapper
-                      rounding fix above; this was the actual remaining "bottom-left corner
-                      still square" bug). Outer div now only carries rounding/border/shadow.
-                      shadow-lg (not shadow-2xl) — this panel floats via `position: absolute`
-                      directly over live scripture text rather than beside a neutral page
-                      background like the other layout cases, so shadow-2xl's much heavier/
-                      darker spread read as an unnatural dark bleed across the text underneath.
-                      shadow-lg matches what every other panel case here already uses. */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  {/* Each slot is its own separately-chromed box (border/shadow/rounded), with a
+                      real gap-1.5 between them when both are open — a shared box with only a
+                      1px internal divider line read as "not visually separate at all" against
+                      the shared background. overflow-hidden still lives on an INNER div per box,
+                      off the same element as the border/shadow — combining overflow:hidden +
+                      rounded corners + box-shadow on ONE element is a WebKit/Chromium compositing
+                      gotcha where the shadow renders clipped to the element's square bounding box
+                      instead of its own rounded corners. shadow-lg (not shadow-2xl) — this panel
+                      floats via `position: absolute` directly over live scripture text rather
+                      than beside a neutral page background like the other layout cases, so
+                      shadow-2xl's much heavier/darker spread read as an unnatural dark bleed
+                      across the text underneath. */}
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 mr-1.5">
+                    {/* Slot B (popped out) renders BEFORE slot A — the popped-out panel always
+                        sits on the left of the original, per explicit direction. */}
+                    {rightPanelSlotB && (
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                      </div>
+                    )}
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -2304,14 +2598,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Panel left ───────────────────────────────────────────────────────────
       case 'panel-left':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <AnimatePresence initial={false}>
               {rightPanelOpen && (
                 <motion.div
                   key="left-panel"
                   initial={{ width: 0 }}
-                  // See the 'standard' case's comment — same fix, margin now on the left.
-                  animate={{ width: panelSize + 14 + 6 }}
+                  // See the 'standard' case's comment — same fix, margin now on the left,
+                  // +6 more (gap-1.5) when slot B is open — see the 'standard' case's comment
+                  // on why each slot is now its own separately-chromed box.
+                  animate={{ width: (rightPanelSlotB ? panelSize * 2 + 6 : panelSize) + 14 + 6 }}
                   exit={{ width: 0 }}
                   transition={{ duration: isResizingPanel ? 0 : 0.18, ease: 'easeOut' }}
                   // rounded-shell-lg (all corners) — see the 'standard' case's shadow-clipping
@@ -2319,10 +2615,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // corners' shadow spread square-clipped by this wrapper.
                   className="flex-shrink-0 flex overflow-hidden rounded-shell-lg"
                 >
-                  {/* overflow-hidden on the inner div — see the 'standard' case's comment
-                      (same-element overflow+radius+shadow compositing bug). */}
-                  <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl()}</div>
+                  {/* Each slot is its own separately-chromed box with a real gap-1.5 between
+                      them — see the 'standard' case's comment. overflow-hidden on the inner div
+                      of each box (same-element overflow+radius+shadow compositing bug). */}
+                  <div style={{ width: rightPanelSlotB ? panelSize * 2 + 6 : panelSize }} className="flex-shrink-0 flex gap-1.5 my-1.5 ml-1.5">
+                    {/* Slot B (popped out) renders BEFORE slot A — always on the left. */}
+                    {rightPanelSlotB && (
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                        <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('B')}</div>
+                      </div>
+                    )}
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+                      <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A')}</div>
+                    </div>
                   </div>
                   {hDivider}
                 </motion.div>
@@ -2335,13 +2640,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Notes wide (60/40) ───────────────────────────────────────────────────
       case 'notes-wide':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-[2] overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[3] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  {panelEl()}
+                <div className="flex-[3] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                  {rightPanelSlotB && (
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                  )}
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -2351,13 +2659,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Scripture wide (65/35) ───────────────────────────────────────────────
       case 'scripture-wide':
         return (
-          <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 flex overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-[3] overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {rightPanelOpen && (
               <>
                 {hDivider}
-                <div className="flex-[1.5] flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg min-w-0">
-                  {panelEl()}
+                <div className="flex-[1.5] flex gap-1.5 my-1.5 mr-1.5 min-w-0">
+                  {rightPanelSlotB && (
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+                  )}
+                  <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
                 </div>
               </>
             )}
@@ -2387,7 +2698,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   {/* overflow-hidden on the inner div — see the 'standard' case's comment
                       (same-element overflow+radius+shadow compositing bug). */}
                   <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('notes')}</div>
+                    <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg">{panelEl('A', 'notes')}</div>
                   </div>
                 </motion.div>
               )}
@@ -2398,11 +2709,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // ── Panel bottom (full width) ────────────────────────────────────────────
       case 'panel-bottom':
         return (
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl()}
+            <div style={{ height: panelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
+              {rightPanelSlotB && (
+                <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
+              )}
+              <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('A')}</div>
             </div>
           </div>
         )
@@ -2414,7 +2728,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
           </div>
         )
@@ -2424,7 +2738,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {vDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
@@ -2457,7 +2771,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             </div>
             {vDivider}
             <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
           </div>
         )
@@ -2470,10 +2784,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {hDivider}
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-b border-[rgb(var(--color-surface-4))]">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {panelEl('crossrefs')}
+                {panelEl('A', 'crossrefs')}
               </div>
             </div>
           </div>
@@ -2495,18 +2809,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
               {hDivider}
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
             </div>
             {lcVDivider}
             {/* Bottom row — height independent from right column width */}
             <div style={{ height: Math.max(120, Math.min(520, bottomPanelHeight)) }} className="flex-shrink-0 flex overflow-hidden">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('notes')}
+                {panelEl('A', 'notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('crossrefs')}
+                {panelEl('A', 'crossrefs')}
               </div>
             </div>
           </div>
@@ -2518,7 +2832,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
@@ -2530,13 +2844,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         return (
           <div className="flex-1 flex overflow-hidden min-h-0">
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('notes')}
+              {panelEl('A', 'notes')}
             </div>
             {hDivider}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {hDivider}
             <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-              {panelEl('lexicon')}
+              {panelEl('A', 'lexicon')}
             </div>
           </div>
         )
@@ -2556,11 +2870,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             {sbVDivider}
             <div style={{ height: sbHeight }} className="flex-shrink-0 flex overflow-hidden">
               <div className="flex-1 overflow-hidden flex flex-col min-h-0 mb-1.5 ml-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('notes')}
+                {panelEl('A', 'notes')}
               </div>
               <div className="w-px bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
               <div style={{ width: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden my-1.5 mr-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
-                {panelEl('lexicon')}
+                {panelEl('A', 'lexicon')}
               </div>
             </div>
           </div>

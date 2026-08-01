@@ -53,50 +53,46 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
       if (!lexDb) { return [] }
 
-      const tables = (lexDb as any).prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='occurrences'").get()
-      if (!tables) { return [] }
-
-      // Greek occurrences carry a text_id column (added by build_lxx_occurrences.py).
-      // Hebrew occurrences always come from KJVA only.
       const isGreek = num.startsWith('G')
-      const hasTextId = isGreek && (() => {
-        const info = (lexDb as any).prepare('PRAGMA table_info(occurrences)').all() as Array<{ name: string }>
-        return info.some((col) => col.name === 'text_id')
-      })()
 
-      type RawRow = { text_id: string; book_num: number; chapter: number; verse: number }
-
-      // Fetch up to 500 per source so both KJVA and LXX are represented even for
-      // frequently-occurring G-numbers. H-numbers are KJVA-only.
-      let rawRows: RawRow[]
-      if (hasTextId) {
-        const kjvaOccs = (lexDb as any).prepare(
-          "SELECT 'kjva' as text_id, book_num, chapter, verse FROM occurrences WHERE strongs_id = ? AND text_id='kjva' ORDER BY book_num, chapter, verse LIMIT 500"
-        ).all(num) as RawRow[]
-        const lxxOccs = (lexDb as any).prepare(
-          "SELECT 'lxx' as text_id, book_num, chapter, verse FROM occurrences WHERE strongs_id = ? AND text_id='lxx' ORDER BY book_num, chapter, verse LIMIT 500"
-        ).all(num) as RawRow[]
-        rawRows = [...kjvaOccs, ...lxxOccs]
-      } else {
-        rawRows = (lexDb as any).prepare(
-          'SELECT book_num, chapter, verse FROM occurrences WHERE strongs_id = ? ORDER BY book_num, chapter, verse LIMIT 1000'
-        ).all(num).map((r: { book_num: number; chapter: number; verse: number }) => ({ ...r, text_id: 'kjva' }))
+      // Derive occurrences directly from each text's own verses.text_tagged, rather than from
+      // the separate pre-built `occurrences` table in strongs_hebrew.db/strongs_greek.db —
+      // confirmed that table has drifted stale relative to the actual tagged text (e.g. H5643:
+      // occurrences table has 28 rows, kjva.db's text_tagged actually contains {H5643} in 36
+      // verses; G26 in kjva.db alone: 100 vs 104). Scanning text_tagged directly makes each
+      // text's own tagged data the single source of truth and self-heals any future drift,
+      // instead of needing occurrences regenerated in lockstep with every text re-seed.
+      //
+      // A tag position can hold multiple pipe-separated numbers (e.g. "{H1697|H1696}"), so a
+      // plain `%{H5643}%` LIKE would miss H5643 when it's not alone in the braces — match all
+      // four positions a number can appear in within the braces.
+      function likeVariants(n: string): string[] {
+        return [`%{${n}}%`, `%{${n}|%`, `%|${n}}%`, `%|${n}|%`]
       }
 
-      if (!rawRows.length) return []
+      type RawRow = { text_id: string; book_id: string; chapter: number; verse: number }
 
-      // ── Build book maps and verse stmts for each source ───────────────────
+      function scanTaggedOccurrences(db: ReturnType<typeof getTextDb>, textId: string, limit: number): RawRow[] {
+        if (!db) return []
+        const [p1, p2, p3, p4] = likeVariants(num)
+        const rows = (db as any).prepare(
+          `SELECT book_id, chapter, verse_num as verse FROM verses
+           WHERE text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?
+           ORDER BY book_id, chapter, verse_num LIMIT ?`
+        ).all(p1, p2, p3, p4, limit) as Array<{ book_id: string; chapter: number; verse: number }>
+        return rows.map((r) => ({ ...r, text_id: textId }))
+      }
+
       const kjva = getTextDb('kjva')
       const lxxDb = getTextDb('lxx')
 
-      function buildBookMap(db: ReturnType<typeof getTextDb>): Map<number, string> {
-        if (!db) return new Map()
-        const rows = (db as any).prepare('SELECT rowid as book_num, id FROM books ORDER BY rowid').all() as Array<{ id: string; book_num: number }>
-        return new Map(rows.map((b) => [b.book_num, b.id]))
-      }
+      // Fetch up to 500 per source so both KJVA and LXX are represented even for
+      // frequently-occurring G-numbers. H-numbers are KJVA-only.
+      const rawRows: RawRow[] = isGreek
+        ? [...scanTaggedOccurrences(kjva, 'kjva', 500), ...scanTaggedOccurrences(lxxDb, 'lxx', 500)]
+        : scanTaggedOccurrences(kjva, 'kjva', 1000)
 
-      const kjvaBookMap = buildBookMap(kjva)
-      const lxxBookMap  = buildBookMap(lxxDb)
+      if (!rawRows.length) return []
 
       const kjvaVerseStmt = kjva
         ? (kjva as any).prepare('SELECT text, text_tagged FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ? LIMIT 1')
@@ -245,14 +241,12 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
 
       const results = rawRows.map((r) => {
         const fromLxx = r.text_id === 'lxx'
-        const bookMap   = fromLxx ? lxxBookMap  : kjvaBookMap
         const verseStmt = fromLxx ? lxxVerseStmt : kjvaVerseStmt
-        const bookId  = bookMap.get(r.book_num) ?? `book${r.book_num}`
         const verseRow = verseStmt
-          ? verseStmt.get(bookId, r.chapter, r.verse) as { text: string; text_tagged: string | null } | undefined
+          ? verseStmt.get(r.book_id, r.chapter, r.verse) as { text: string; text_tagged: string | null } | undefined
           : undefined
         return {
-          book_id: bookId,
+          book_id: r.book_id,
           chapter: r.chapter,
           verse_num: r.verse,
           text: verseRow?.text ?? '',

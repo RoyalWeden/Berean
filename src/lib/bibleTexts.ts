@@ -111,6 +111,11 @@ export const ANNOTATION_KEYS: Record<string, { canHide: boolean; description?: s
     description: 'Trans. W.F. Stinespring, in Charlesworth (ed.), Old Testament Pseudepigrapha Vol. 1 ("Testaments of the Three Patriarchs"). 8 chapters. Chapter 5, verses 10–15 are the translator\'s own bracketed summary of a lacuna in the Arabic manuscript, supplied from the Bohairic.',
     keys: [],
   },
+  '2baruch': {
+    canHide: false,
+    description: 'R.H. Charles-based translation (Wesley Center for Applied Theology). 85 chapters, the Syriac Apocalypse of Baruch — distinct from the deuterocanonical 1 Baruch.',
+    keys: [],
+  },
 }
 
 export const TRANSLATIONS = [
@@ -131,6 +136,7 @@ export const TRANSLATIONS = [
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',    description: 'Apocalypse of Abraham, trans. G.H. Box (1918)' },
   { id: 'didache_hoole', label: 'Didache',          description: 'The Teaching of the Twelve Apostles, trans. Charles H. Hoole (1894)' },
   { id: 't_jacob',       label: 'T. Jacob',         description: 'Testament of Jacob, trans. W.F. Stinespring' },
+  { id: '2baruch',       label: '2 Baruch',         description: '2 Baruch (Syriac Apocalypse), R.H. Charles-based' },
 ]
 
 // ── Editions ──────────────────────────────────────────────────────────────────
@@ -158,6 +164,7 @@ export const EDITIONS: Edition[] = [
   { id: 'apoc_abraham',  label: 'Apocalypse of Abraham',              translations: [{ id: 'apoc_abraham', label: 'G.H. Box (1918)' }] },
   { id: 'didache_hoole', label: 'Didache',                            translations: [{ id: 'didache_hoole', label: 'Charles H. Hoole (1894)' }] },
   { id: 't_jacob',       label: 'Testament of Jacob',                 translations: [{ id: 't_jacob', label: 'W.F. Stinespring' }] },
+  { id: '2baruch',       label: '2 Baruch',                           translations: [{ id: '2baruch', label: 'R.H. Charles-based' }] },
 ]
 
 /** The edition that contains a given translation textId. */

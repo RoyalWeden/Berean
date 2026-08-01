@@ -184,6 +184,7 @@ interface AppAPI {
   isDev?: () => Promise<boolean>
   youTubeSignOut?: () => Promise<{ success: boolean }>
   newWindow: () => Promise<void>
+  moveWindowBy: (dx: number, dy: number) => void
   openFloatingTab: (type: string, state: unknown) => Promise<void>
   printNote: (html: string) => Promise<{ success: boolean }>
   exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => Promise<{ success: boolean; canceled?: boolean }>

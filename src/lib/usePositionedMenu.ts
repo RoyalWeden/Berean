@@ -124,7 +124,16 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
   className?: string
   style?: React.CSSProperties
   onMouseDown?: (e: React.MouseEvent) => void
-}>(function MenuPositioner({ children, x, y, className = '', style, onMouseDown }, outerRef) {
+  onClick?: (e: React.MouseEvent) => void
+  /** 'left' (default): x is the menu's left edge, flipping to open leftward only if it would
+   *  overflow the viewport — the right cursor-menu behavior. 'right': x is the edge the menu's
+   *  RIGHT side should always hug (e.g. a toolbar button's own right edge) regardless of
+   *  viewport space, matching a trigger-anchored dropdown ("open below, right-aligned to the
+   *  button") rather than a cursor-anchored context menu. Needed because content-sized menus
+   *  (width not known ahead of render) can't have their target x precomputed by the caller —
+   *  this measures the actual rendered width first, same as the flip logic below already does. */
+  align?: 'left' | 'right'
+}>(function MenuPositioner({ children, x, y, className = '', style, onMouseDown, onClick, align = 'left' }, outerRef) {
   const innerRef = useRef<HTMLDivElement>(null)
   // Merge refs
   const ref = (el: HTMLDivElement | null) => {
@@ -142,10 +151,17 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     const vw = window.innerWidth
     const vh = window.innerHeight
 
-    // Prefer to open right+below cursor; flip if it would overflow.
-    let ax = x
+    let ax: number
     let ay = y
-    if (ax + width + pad > vw) ax = Math.max(pad, x - width)
+    if (align === 'right') {
+      // x is the desired right edge — anchor there unconditionally using the real measured
+      // width, rather than only flipping when the LEFT-anchored default would overflow.
+      ax = x - width
+    } else {
+      // Prefer to open right+below cursor; flip if it would overflow.
+      ax = x
+      if (ax + width + pad > vw) ax = Math.max(pad, x - width)
+    }
     if (ay + height + pad > vh) ay = Math.max(pad, y - height)
     // Hard clamp
     ax = Math.max(pad, Math.min(ax, vw - width - pad))
@@ -166,6 +182,7 @@ export const MenuPositioner = forwardRef<HTMLDivElement, {
     ref,
     className,
     onMouseDown,
+    onClick,
     style: { position: 'fixed', left: x, top: y, zIndex: 9999, WebkitAppRegion: 'no-drag', ...style } as React.CSSProperties,
   }, children)
 })

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon, FileText, PanelRightOpen, Columns2 } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
@@ -12,6 +12,11 @@ import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
+import {
+  getChapterNotesShared, searchNotesShared, getNotesShared,
+  getLexiconEntryShared, getLexiconRelatedShared, getLexiconOccurrencesShared,
+  getTSKeForChapterShared, getCrossRefsForChapterShared,
+} from '@/lib/panelDataCache'
 import { NOTE_DOT_COLOR } from './VerseRow'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, LexiconEntry, BibleTabState } from '@/types'
@@ -20,6 +25,9 @@ import type { TSKeGroup, ChapterTSKeEntry, ChapterCrossRefEntry } from '@/types/
 type PanelTab = 'notes' | 'lexicon' | 'crossrefs'
 type NoteScope = 'all' | 'chapter'
 type NoteSort = 'modified' | 'created' | 'verse'
+
+const PANEL_TAB_LABEL: Record<PanelTab, string> = { notes: 'Notes', lexicon: 'Lexicon', crossrefs: 'Cross Refs' }
+const PANEL_TAB_ICON: Record<PanelTab, typeof StickyNote> = { notes: FileText, lexicon: BookOpen, crossrefs: GitFork }
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -153,7 +161,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   useEffect(() => {
     if (!initialEntry) return
     if (initialEntry === activeEntryNumRef.current) return // already showing this entry
-    window.lexicon.getEntry(initialEntry)
+    getLexiconEntryShared(initialEntry)
       .then((entry) => { if (entry) { setHistory([]); setActiveEntry(entry) } })
       .catch(() => {})
   }, [initialEntry])
@@ -177,7 +185,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   useEffect(() => {
     if (!activeEntry) { setRelated([]); return }
     try {
-      window.lexicon.getRelated(activeEntry.strongsNum).then(setRelated).catch(() => setRelated([]))
+      getLexiconRelatedShared(activeEntry.strongsNum).then(setRelated).catch(() => setRelated([]))
     } catch {
       setRelated([])
     }
@@ -201,7 +209,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     setOccurrences([])
     setShowAllOccurrences(false)
     setOccurrencesLoading(true)
-    window.lexicon.getOccurrences(activeEntry.strongsNum)
+    getLexiconOccurrencesShared(activeEntry.strongsNum)
       .then((rows: any[]) => {
         const normalized = rows.map(normalizeOccurrenceRow)
         setOccurrences(normalized)
@@ -245,7 +253,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
       setActiveSpace('lexicon')
       return
     }
-    window.lexicon.getEntry(strongsNum)
+    getLexiconEntryShared(strongsNum)
       .then((entry) => {
         if (!entry) return
         if (activeEntry) setHistory((h) => [...h, activeEntry])
@@ -560,8 +568,12 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
 // without prop-drilling through several layers. Set by BibleRightPanel on mount.
 let _onVerseCtxMenu: ((bookId: string, chapter: number, verse: number, x: number, y: number) => void) | null = null
 
-/** Save the current scripture position then navigate — used by all side-panel nav triggers. */
-function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null) {
+/** Save the current scripture position then navigate — used by all side-panel nav triggers.
+ *  `noteBack` — passed only when navigating from a verse ref clicked inside a note that's open
+ *  in this panel — records which note to return to, mirroring NotesPanel.tsx's own
+ *  handleVerseRefClick. Without this, clicking a verse ref from a note shown here had no way
+ *  back to that note at all (a real reported bug — see BiblePanel.tsx's "back to note" pill). */
+function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null, noteBack?: { noteId: string; title: string } | null) {
   const s = useAppStore.getState()
   s.ensureTab('bible')
   const fresh = useAppStore.getState()
@@ -593,6 +605,7 @@ function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVer
     scrollPosition: 0,
     ...(newTranslation ? { translation: newTranslation } : {}),
     ...(scriptureBack ? { scriptureBack } : {}),
+    ...(noteBack !== undefined ? { noteBack } : {}),
   })
   s.setActiveSpace('scripture')
 }
@@ -696,7 +709,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
   useEffect(() => {
     if (typeof window.crossrefs?.getTSKeForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    window.crossrefs.getTSKeForChapter(bookId, chapter)
+    getTSKeForChapterShared(bookId, chapter)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
@@ -844,7 +857,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
   useEffect(() => {
     if (typeof window.crossrefs?.getForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    window.crossrefs.getForChapter(bookId, chapter)
+    getCrossRefsForChapterShared(bookId, chapter)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
@@ -969,7 +982,7 @@ function UserNotesChapterView({
       }
     }
 
-    window.notes.getChapterNotes(bookId, chapter)
+    getChapterNotesShared(bookId, chapter, noteChangeToken)
       .then(async (verseNotes) => {
         const byVerse = new Map<number, UserNoteRef[]>()
         const indirect: Array<{ note: Note; verses: number[] }> = []
@@ -984,7 +997,7 @@ function UserNotesChapterView({
         // 2) Notes whose content mentions a verse in this chapter
         const chapterLabel = `${bookName(bookId)} ${chapter}:`
         try {
-          const candidates = await window.notes.searchNotes(chapterLabel, 80)
+          const candidates = await searchNotesShared(chapterLabel, 80, noteChangeToken)
           const verseNoteIds = new Set(verseNotes.map(n => n.id))
           for (const note of candidates) {
             if (verseNoteIds.has(note.id)) continue
@@ -1251,10 +1264,40 @@ interface Props {
   onLexiconEntryChange?: (entry: string | null) => void
   verseFilter?: string | null
   onVerseFilterChange?: (filter: string | null) => void
+  /** "Expand all notes" toggle state for this slot's notes list, persisted by the parent so it
+   *  survives switching tabs/slots and app restarts instead of resetting to collapsed. */
+  expandAllNotes?: boolean
+  onExpandAllNotesChange?: (next: boolean) => void
   /** When set, hides the tab strip and forces this tab's content to be shown */
   forcedTab?: PanelTab
   /** Called with 0–1 scroll percentage whenever any inner scroll container scrolls */
   onScrollPercent?: (pct: number) => void
+  /** Which of the two independent side-panel slots this instance renders — namespaces the
+   *  tab-strip's sliding-pill layoutId (see the tab strip below) and identifies this instance
+   *  in the pop-out/merge/drag-and-drop context menu. */
+  slotId?: 'A' | 'B'
+  /** Moves `tab` into slot `toSlot`, always passed on BOTH slot instances (unconditionally) so
+   *  drag-and-drop's onDrop handler can call it on whichever instance actually received the
+   *  drop — the target slot is explicit (`toSlot`) rather than inferred from "which instance's
+   *  own props happen to be set," which was the actual bug behind drag-and-drop doing nothing:
+   *  dropping onto slot B previously tried to call a `onPopOutToSlotB` prop that was only ever
+   *  passed to the slot A instance, silently no-oping via optional chaining. */
+  onMoveTab?: (tab: PanelTab, toSlot: 'A' | 'B') => void
+  /** True only on slot A when slot B isn't already open — gates whether "Pop out into new
+   *  panel" appears in the tab context menu (there's nowhere to pop out TO otherwise). */
+  canPopOut?: boolean
+  /** Present only on slot B — closes the whole second panel (its own header's ✕ button). */
+  onCloseSlotB?: () => void
+  /** Present only on slot A, and only meaningful once slot B is open — closes slot A,
+   *  promoting slot B into its place (see BiblePanel.tsx's closeSlotA). */
+  onCloseSlotA?: () => void
+  /** The OTHER slot's currently-assigned tab TYPES (empty when only this slot is open, or
+   *  when `forcedTab` applies — a forced single-purpose panel has no tab strip at all). Used
+   *  to filter those types out of THIS slot's own tab-strip buttons, so a tab that's been
+   *  moved into the other slot stops being offered here too. A slot can hold more than one
+   *  type (dragging an additional tab into an already-popped-out panel adds a second button
+   *  there), hence an array rather than a single value. */
+  otherSlotTabs?: PanelTab[]
 }
 
 export default function BibleRightPanel({
@@ -1263,19 +1306,38 @@ export default function BibleRightPanel({
   initialNoteCursor, autoFocusNote, onNoteCursorChange,
   openLexiconEntry: initialLexiconEntry, onLexiconEntryChange,
   verseFilter: initialVerseFilter, onVerseFilterChange,
+  expandAllNotes, onExpandAllNotesChange,
   forcedTab,
   onScrollPercent,
+  slotId = 'A',
+  onMoveTab,
+  canPopOut,
+  onCloseSlotB,
+  onCloseSlotA,
+  otherSlotTabs = [],
 }: Props) {
   // Captured once when the side-panel note editor first mounts, so cursor restoration
   // uses the value saved before this tab was switched away (not a live-updating prop).
   const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
   const visibleTab = forcedTab ?? activeTab
+  // Which panel types have been shown at least once in THIS slot — once true, that tab's
+  // subtree stays mounted (display:none'd, never unmounted) instead of unmounting on
+  // switch-away, so its own local state (Lexicon's query/results/history/scroll position,
+  // cross-ref's collapsed groups, the notes list's own scroll) survives switching to a
+  // different tab and back. A tab never opened in this slot never pays its mount cost.
+  const [mountedTabs, setMountedTabs] = useState<Set<PanelTab>>(() => new Set([visibleTab]))
+  useEffect(() => {
+    setMountedTabs((prev) => (prev.has(visibleTab) ? prev : new Set(prev).add(visibleTab)))
+  }, [visibleTab])
   const sideZoom = useAppStore((s) => s.appZoom)
   const [scope, setScope] = useState<NoteScope>('chapter')
   const [sort, setSort] = useState<NoteSort>('verse')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const sortMenuRef = useRef<HTMLDivElement>(null)
-  const [expandAll, setExpandAll] = useState(false)
+  // Persisted by the parent (BiblePanel.tsx) via tabState.rightPanelExpandAll[B] so it survives
+  // switching tabs/slots and app restarts instead of resetting to collapsed every time.
+  const expandAll = expandAllNotes ?? false
+  const setExpandAll = onExpandAllNotesChange ?? (() => {})
   // Whole-chapter notes (verseRef like "GEN.1", no verse segment) are collapsed by
   // default so they don't crowd out the verse-specific notes below, which is what
   // this panel's chapter scope is really for — see the section below `filtered`.
@@ -1311,6 +1373,16 @@ export default function BibleRightPanel({
   const { menu: sideCtxMenu, menuRef: sideCtxMenuRef, openMenu: openSideCtxMenu, closeMenu: closeSideCtxMenu } =
     usePositionedMenu<SideCtxData>()
 
+  // ── Tab-strip right-click "pop out" / "merge back" menu — separate instance from
+  // sideCtxMenu above (unrelated data shape: which tab, not which note/verse). ──
+  const { menu: tabCtxMenu, menuRef: tabCtxMenuRef, openMenu: openTabCtxMenu, closeMenu: closeTabCtxMenu } =
+    usePositionedMenu<{ tab: PanelTab }>()
+  // MIME type carrying {tab, slotId} across a tab-strip drag between two independent
+  // BibleRightPanel instances — dataTransfer itself is the only thing shared between sibling
+  // component instances during a native HTML5 drag, no lifted ref/state needed.
+  const PANEL_TAB_DRAG_MIME = 'application/x-berean-panel-tab'
+  const [dragOverStrip, setDragOverStrip] = useState(false)
+
   // Register the module-level verse context menu callback so inner cross-ref components can call it
   useEffect(() => {
     _onVerseCtxMenu = (bId, ch, vs, x, y) => openSideCtxMenu({ type: 'verse', bookId: bId, chapter: ch, verse: vs, x, y })
@@ -1320,7 +1392,8 @@ export default function BibleRightPanel({
   // Handle verse ref clicks in the right-panel note editor — navigates the main
   // Bible panel to the referenced verse, switching translation as needed.
   function handleVerseRefClick(ref: ParsedRef) {
-    navToVerseFromPanel(ref.bookId, ref.chapter, ref.verse ?? 1, ref.endVerse)
+    navToVerseFromPanel(ref.bookId, ref.chapter, ref.verse ?? 1, ref.endVerse,
+      sidebarNote ? { noteId: sidebarNote.id, title: sidebarNote.title || 'Untitled' } : null)
     // Apply translation override after the back-saving nav so translation isn't clobbered
     const store = useAppStore.getState()
     const scriptureTabId = store.activeTabId['scripture']
@@ -1360,7 +1433,7 @@ export default function BibleRightPanel({
     if (scope === 'chapter') {
       // Fetch verse notes for this chapter, then also search for general/daily/topic
       // notes that mention the chapter so they appear at the top as indirect connections.
-      window.notes.getChapterNotes(bookId, chapter).then(async (verseNotes) => {
+      getChapterNotesShared(bookId, chapter, noteChangeToken).then(async (verseNotes) => {
         setNotes(verseNotes)
         const verseNoteIds = new Set(verseNotes.map(n => n.id))
         const label = bookName(bookId)
@@ -1373,7 +1446,7 @@ export default function BibleRightPanel({
           // Book name alone is far more selective, so a real mention survives a much
           // larger candidate set, which is then precisely tested for an actual
           // "<Book> <chapter>" mention (not just "<Book>" appearing anywhere).
-          const candidates = await window.notes.searchNotes(label, 300)
+          const candidates = await searchNotesShared(label, 300, noteChangeToken)
           const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
           const mentionRe = new RegExp(`\\b${escaped}\\b\\D{0,10}${chapter}(?!\\d)`, 'i')
           setChapterMentionNotes(
@@ -1388,7 +1461,7 @@ export default function BibleRightPanel({
       }).catch(() => { setNotes([]); setChapterMentionNotes([]) })
     } else {
       setChapterMentionNotes([])
-      window.notes.getNotes(500, 0).then(setNotes).catch(() => {})
+      getNotesShared(500, 0, noteChangeToken).then(setNotes).catch(() => {})
     }
   }, [visibleTab, noteChangeToken, scope, bookId, chapter])
 
@@ -1422,7 +1495,7 @@ export default function BibleRightPanel({
     if (parts.length < 3) { setReferencingNotes([]); return }
     const [bId, ch, vs] = parts
     const humanRef = `${bookName(bId)} ${ch}:${vs}`
-    window.notes.searchNotes(humanRef, 60)
+    searchNotesShared(humanRef, 60, noteChangeToken)
       .then((candidates) => {
         const result: Note[] = []
         for (const note of candidates) {
@@ -1642,39 +1715,136 @@ export default function BibleRightPanel({
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
       }}
     >
-      {/* Tab strip — hidden when a tab is forced externally. Sliding background pill
-          (not just an underline) matches the same layoutId pattern used for the
-          sidebar's active-space pill and TabBar's active-tab pill. */}
+      {/* Tab strip — hidden when a tab is forced externally. Real tab shapes (top-rounded
+          only, active tab flush against the content below it) rather than a plain segmented
+          control, with a drag/right-click "pop out"/"merge back" affordance.
+          BOTH slots use the same switchable multi-button strip (each filtered to whatever
+          isn't already claimed by the OTHER slot) — a popped-out panel can hold more than one
+          tab (dragging an additional tab into it adds a second button; dragging its last
+          remaining tab out collapses the whole split back to a single panel), so it needs the
+          same switcher slot A has, not a fixed single-tab label. Both get a close button once
+          a second panel exists. */}
       {!forcedTab && (
-        <div className="flex items-center gap-0.5 px-1.5 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
-          {([['notes', 'Notes'], ['lexicon', 'Lexicon'], ['crossrefs', 'Cross Refs']] as [PanelTab, string][]).map(([tab, label]) => (
+        <div className="flex items-center gap-1 px-1.5 pt-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
+          <div
+            className={`flex items-center gap-0.5 flex-1 min-w-0 rounded-t-shell transition-colors ${dragOverStrip ? 'ring-2 ring-[rgb(var(--color-accent))/50]' : ''}`}
+            // Unconditional preventDefault — dataTransfer.types during dragover is unreliable
+            // for custom MIME strings across Chromium/Electron versions, and this drop zone only
+            // ever expects a panel-tab drag anyway; validate on the actual `drop` event via
+            // getData instead (the standard HTML5 DnD pattern), not by pre-filtering dragover.
+            onDragOver={(e) => { e.preventDefault(); setDragOverStrip(true) }}
+            onDragLeave={() => setDragOverStrip(false)}
+            onDrop={(e) => {
+              e.stopPropagation() // don't also let BiblePanel.tsx's catch-all pop-out/merge-back handler see this
+              setDragOverStrip(false)
+              const raw = e.dataTransfer.getData(PANEL_TAB_DRAG_MIME)
+              if (!raw) return
+              const { tab, slotId: fromSlot } = JSON.parse(raw) as { tab: PanelTab; slotId: 'A' | 'B' }
+              if (fromSlot === slotId) return // dropped back onto its own strip — no-op
+              // `slotId` here is THIS instance's own slot — i.e. exactly the drop TARGET,
+              // whichever slot's strip the drag actually landed on. Passing it straight through
+              // as `toSlot` is what fixes the earlier bug (calling a differently-slotted prop
+              // that was never passed to this instance).
+              onMoveTab?.(tab, slotId)
+            }}
+          >
+            {(['notes', 'lexicon', 'crossrefs'] as PanelTab[]).filter((tab) => !otherSlotTabs.includes(tab)).map((tab) => {
+              const Icon = PANEL_TAB_ICON[tab]
+              const active = visibleTab === tab
+              return (
+                <button
+                  key={tab}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData(PANEL_TAB_DRAG_MIME, JSON.stringify({ tab, slotId }))}
+                  // Dragging a tab OUT of the strip entirely (dropped somewhere with no
+                  // registered drop target — e.g. onto the scripture reading area) previously
+                  // did nothing, since HTML5 DnD only has a drop target to catch when the other
+                  // slot already exists. dragend fires regardless of whether the drop was
+                  // accepted anywhere; dropEffect stays 'none' specifically when nothing caught
+                  // it, which is exactly "dragged this tab away" — treat that the same as the
+                  // right-click pop-out/merge-back action. Slot A's gate (canPopOut) only allows
+                  // this when popping the tab out wouldn't leave slot A with nothing left to
+                  // show; slot B has no equivalent restriction — merging its last tab back
+                  // always closes slot B, which is a valid end state.
+                  onDragEnd={(e) => {
+                    if (e.dataTransfer.dropEffect !== 'none') return
+                    if (slotId === 'A' && canPopOut) onMoveTab?.(tab, 'B')
+                    else if (slotId === 'B') onMoveTab?.(tab, 'A')
+                  }}
+                  onContextMenu={(e) => { e.preventDefault(); openTabCtxMenu({ tab, x: e.clientX, y: e.clientY }) }}
+                  onClick={() => { onTabChange(tab); void closeSidebarNote() }}
+                  className={`
+                    relative flex-1 flex items-center justify-center gap-1 text-[10px] py-1.5 font-medium
+                    transition-colors cursor-pointer rounded-t-shell border-t border-x
+                    ${active
+                      ? 'text-[rgb(var(--color-accent))] border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))] border-transparent'
+                    }
+                  `}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId={`right-panel-tab-pill-${slotId}`}
+                      className="absolute inset-0 rounded-t-shell bg-[rgb(var(--color-accent))/10] pointer-events-none"
+                      transition={{ type: 'spring', stiffness: 800, damping: 45 }}
+                    />
+                  )}
+                  <Icon size={11} className="relative z-10 flex-shrink-0" />
+                  <span className="relative z-10">{PANEL_TAB_LABEL[tab]}</span>
+                </button>
+              )
+            })}
+          </div>
+          {/* Close button shown on EITHER slot once a second panel exists (otherSlotTabs
+              non-empty) — a single open panel relies on the shell's own toggle-side-panel
+              affordance instead, matching "unless there is only one". Closing slot A promotes
+              slot B into its place (see BiblePanel.tsx's closeSlotA); closing slot B just drops
+              it, and its tab types become available again in slot A's strip (otherSlotTabs
+              naturally clears). */}
+          {otherSlotTabs.length > 0 && (
             <button
-              key={tab}
-              onClick={() => { onTabChange(tab); void closeSidebarNote() }}
-              className={`
-                relative flex-1 text-[10px] py-1.5 rounded-shell font-medium transition-colors cursor-pointer
-                ${visibleTab === tab
-                  ? 'text-[rgb(var(--color-accent))]'
-                  : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-                }
-              `}
+              onClick={slotId === 'B' ? onCloseSlotB : onCloseSlotA}
+              title="Close panel"
+              className="flex-shrink-0 p-1 rounded-shell text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
             >
-              {visibleTab === tab && (
-                <motion.div
-                  layoutId="right-panel-tab-pill"
-                  className="absolute inset-0 rounded-shell bg-[rgb(var(--color-accent))/15]"
-                  transition={{ type: 'spring', stiffness: 800, damping: 45 }}
-                />
-              )}
-              <span className="relative z-10">{label}</span>
+              <X size={12} />
             </button>
-          ))}
+          )}
         </div>
       )}
 
+      {/* Tab strip context menu — pop out (slot A → new slot B) / merge back (slot B → slot A) */}
+      {tabCtxMenu && createPortal(
+        <div
+          ref={tabCtxMenuRef}
+          style={{ position: 'fixed', left: tabCtxMenu.x, top: tabCtxMenu.y, zIndex: 9999 }}
+          className="min-w-44 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl p-1 text-xs"
+        >
+          {slotId === 'A' && canPopOut && onMoveTab && (
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { closeTabCtxMenu(); onMoveTab(tabCtxMenu.tab, 'B') }}
+            >
+              <Columns2 size={12} />
+              Pop out into new panel
+            </button>
+          )}
+          {slotId === 'B' && onMoveTab && (
+            <button
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              onClick={() => { closeTabCtxMenu(); onMoveTab(tabCtxMenu.tab, 'A') }}
+            >
+              <PanelRightOpen size={12} />
+              Merge back into main panel
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+
       {/* Notes tab — note open */}
-      {visibleTab === 'notes' && sidebarNote && (
-        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px` }}>
+      {mountedTabs.has('notes') && sidebarNote && (
+        <div className="flex flex-col h-full min-h-0" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           <div className="flex items-center gap-2 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
             <button
               onClick={closeSidebarNote}
@@ -1720,8 +1890,8 @@ export default function BibleRightPanel({
       )}
 
       {/* Notes tab — list */}
-      {visibleTab === 'notes' && !sidebarNote && (
-        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px` }}>
+      {mountedTabs.has('notes') && !sidebarNote && (
+        <div className="flex flex-col min-h-0 flex-1" style={{ fontSize: `${14 * sideZoom}px`, display: visibleTab === 'notes' ? undefined : 'none' }}>
           {/* Two-row header: search (full width) on top, controls below. The previous
               single-row merge packed search + scope + sort + expand-all + new-note into
               one line, which went cramped/near-overflow well before the panel's resize
@@ -1793,7 +1963,7 @@ export default function BibleRightPanel({
               )}
             </div>
             <button
-              onClick={() => setExpandAll(v => !v)}
+              onClick={() => setExpandAll(!expandAll)}
               title={expandAll ? 'Collapse notes' : 'Expand all notes'}
               className={`flex-shrink-0 p-1 rounded-shell cursor-pointer transition-colors ${
                 expandAll
@@ -1965,8 +2135,8 @@ export default function BibleRightPanel({
       )}
 
       {/* Lexicon tab */}
-      {visibleTab === 'lexicon' && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom }}>
+      {mountedTabs.has('lexicon') && (
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'lexicon' ? undefined : 'none' }}>
           <SidebarLexicon
             initialEntry={initialLexiconEntry}
             onEntryChange={onLexiconEntryChange}
@@ -1975,8 +2145,8 @@ export default function BibleRightPanel({
       )}
 
       {/* Cross References tab */}
-      {visibleTab === 'crossrefs' && (
-        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom }}>
+      {mountedTabs.has('crossrefs') && (
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ zoom: sideZoom, display: visibleTab === 'crossrefs' ? undefined : 'none' }}>
           <CrossRefsTab
             bookId={bookId}
             chapter={chapter}

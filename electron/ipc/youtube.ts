@@ -74,6 +74,7 @@ export const CHANNELS = [
   '@chrisavila7944',
   '@kyannarepent',
   '@rickyfransley',
+  '@NickJohnson768',
 ]
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -967,11 +968,25 @@ async function extractOneVideo(
       }
     }
 
-    // The transcript API answered with a non-2xx → this video has no captions
-    // (418 = tactiq's "no transcript" signal). Permanent: record so it isn't retried.
+    // 418 is tactiq's own "this video genuinely has no captions" signal — permanent, record it
+    // so it isn't retried. Any OTHER non-2xx (429 = rate-limited, 5xx = tactiq's own backend
+    // trouble, etc.) is NOT a statement about the video at all — it means the request itself
+    // failed, and treating it as permanent was the actual bug behind most of the missing
+    // transcripts: a big batch (many Lives/Shorts, several parallel workers) rate-limits
+    // heavily against tactiq, and every 429 was being written as a permanent "no transcript"
+    // row — one that fetchTranscripts' candidate query then excludes forever (LEFT JOIN
+    // ... WHERE t.video_id IS NULL), so a video that was simply rate-limited for one request
+    // could never be attempted again. Confirmed against real data: ~5400 of ~12000 stored
+    // transcript rows were exactly this — "no transcript (API 429)" — overwhelmingly on the
+    // newly-eligible Lives/Shorts batch. Anything but 418 now falls through as a transient
+    // timeout instead, so the next "Get transcripts" run retries it.
+    if (apiStatus.code === 418) {
+      console.log(`[transcript] ${video_id} ✗ API returned 418 — no transcript available`)
+      return { kind: 'none', reason: 'no transcript (API 418)' }
+    }
     if (apiStatus.code >= 400) {
-      console.log(`[transcript] ${video_id} ✗ API returned ${apiStatus.code} — no transcript available`)
-      return { kind: 'none', reason: `no transcript (API ${apiStatus.code})` }
+      console.log(`[transcript] ${video_id} ✗ API returned ${apiStatus.code} — transient, will retry on next run`)
+      return { kind: 'timeout', reason: `API ${apiStatus.code}` }
     }
 
     await new Promise((r) => setTimeout(r, 800))
@@ -987,12 +1002,20 @@ async function fetchTranscripts(
   workerCount = 3,
 ): Promise<{ fetched: number; skipped: number; errors: number }> {
   const db = getBereanDb()
+  // `type = 'video'` used to exclude Shorts and Lives entirely — tactiq's transcript tool has
+  // no such restriction (it just reads YouTube's own caption track for a video_id), so this was
+  // silently skipping every Short and every completed livestream. The only real constraint is a
+  // CURRENTLY live stream (is_live_now) — its captions aren't finalized yet, so it's excluded;
+  // a past/completed livestream (type='live', is_live_now=0) gets captions the same as a normal
+  // video once it ends and is fair game here. The >=60s floor stays for type='video' (skips
+  // near-empty micro-clips not worth transcribing) but never applied to Shorts, which are
+  // legitimately under 60s by definition — that floor would otherwise exclude all of them too.
   const candidates = db.prepare(`
     SELECT v.video_id, v.title FROM youtube_videos v
     LEFT JOIN youtube_transcripts t USING(video_id)
     WHERE t.video_id IS NULL
-      AND v.type = 'video'
-      AND (v.duration_seconds IS NULL OR v.duration_seconds >= 60)
+      AND v.is_live_now = 0
+      AND (v.type != 'video' OR v.duration_seconds IS NULL OR v.duration_seconds >= 60)
     ORDER BY v.published DESC
     LIMIT ?
   `).all(batchSize) as Array<{ video_id: string; title: string }>
@@ -1039,11 +1062,17 @@ async function fetchTranscripts(
         partition: `transcript-worker-${workerId}`,
       },
     })
+    // tactiq.io's transcript tool embeds/plays the actual YouTube video to extract captions —
+    // `show: false` only hides the window, it doesn't silence it, so a batch fetch (especially
+    // with multiple workers) was audibly playing several videos' audio at once in the
+    // background. Muted at the WebContents level, independent of window visibility.
+    win.webContents.setAudioMuted(true)
     console.log(`[transcript] Worker ${workerId} ready`)
     let warmedUp = false
-    // Tracks the status of the latest POST to the tactiq transcript API for the
-    // current video. A non-200 (e.g. 418 = video has no captions) is a permanent
-    // failure: the video should be recorded as "no transcript", never retried.
+    // Tracks the status of the latest POST to the tactiq transcript API for the current video.
+    // Only 418 (tactiq's own "no captions" signal) is permanent — see extractOneVideo's own
+    // comment for why every other non-2xx (429 rate-limit, 5xx, etc.) must NOT be treated the
+    // same way.
     const apiStatus = { code: 0 }
 
     // Capture the transcript API response status (only the POST, not the OPTIONS preflight).
@@ -1089,6 +1118,15 @@ async function fetchTranscripts(
         } else {
           // Transient timeout — do NOT record a row, so the next "Get Transcripts" retries it.
           errors++
+          // A 429 means THIS worker just got rate-limited by tactiq — immediately hitting it
+          // again on the very next candidate just compounds the problem across a big batch
+          // (this is exactly how ~45% of a 12k-video run ended up rate-limited). Back off a
+          // few seconds before this worker claims another item; the other workers aren't
+          // paused, so overall throughput only dips, it doesn't stall.
+          if (result.reason.includes('429')) {
+            console.log(`[transcript] W${workerId} rate-limited (429) — backing off 5s`)
+            await new Promise((r) => setTimeout(r, 5000))
+          }
         }
 
         sender.send('youtube:progress', { done: fetched + skipped + errors, total, phase: `W${workerId} done: ${video_id}` })
@@ -1191,15 +1229,36 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
     try {
       // bm25() ranks each matching segment (more negative = stronger match). We order by it
       // so the FIRST row per video is its best-matching line — used as the snippet + rank.
+      //
+      // A single common word ("the*") can match 40%+ of the 2.7M transcript segments — ORDER
+      // BY on bm25() (a computed expression, not an indexed column) forces SQLite to evaluate
+      // it for every single match before it can sort, ~2.5s for a query like that. The `cand`
+      // CTE below bounds that cost: it computes bm25() (which MUST be evaluated in the same
+      // scan as the MATCH constraint — a rowid JOIN from outside can't compute it correctly)
+      // but stops after CANDIDATE_CAP matches, before any ORDER BY forces a full scan. Ranking
+      // only that bounded candidate set is then cheap.
+      //
+      // CANDIDATE_CAP must stay well above the match count of any realistic search term or it
+      // silently truncates ranking (confirmed: 5000 was too low — cut off the true #2 result
+      // for a 6.6k-match query). Checked actual match counts for the most common single
+      // content words in this corpus (god* 122k, christ* 45k, yeshua* 37k, love* 34k) — 200k
+      // gives comfortable headroom above all of them while still bounding true worst case
+      // stopword-style queries ("the*"/"a*", each ~1.19M matches) down to ~450ms from ~2.5s.
+      const CANDIDATE_CAP = 200_000
       rows = getBereanDb().prepare(`
+        WITH cand AS (
+          SELECT rowid, bm25(youtube_transcripts_fts) AS rank
+          FROM youtube_transcripts_fts
+          WHERE youtube_transcripts_fts MATCH ?
+          LIMIT ${CANDIDATE_CAP}
+        )
         SELECT s.video_id AS videoId, s.text AS snippet, s.start_ms AS startMs,
                v.title AS title, v.channel_name AS channelName,
-               bm25(youtube_transcripts_fts) AS rank
-        FROM youtube_transcripts_fts
-        JOIN youtube_transcript_segments s ON s.id = youtube_transcripts_fts.rowid
+               cand.rank AS rank
+        FROM cand
+        JOIN youtube_transcript_segments s ON s.id = cand.rowid
         JOIN youtube_videos v ON v.video_id = s.video_id
-        WHERE youtube_transcripts_fts MATCH ?
-        ORDER BY rank
+        ORDER BY cand.rank
       `).all(match) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
     } catch {
       rows = [] // malformed FTS expression — fall through to LIKE fallback
@@ -1222,38 +1281,44 @@ export function registerYouTubeHandlers(ipc: typeof ipcMain): void {
         `).all(...params) as Array<{ videoId: string; snippet: string; startMs: number; title: string; channelName: string; rank: number }>
       } catch { rows = [] }
     }
-    // Collect up to `perVideoLimit` best segments per video, then trim to `videoLimit` distinct videos.
-    const byVideo = new Map<string, { bestRank: number; count: number }>()
-    const results: Array<{ videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }> = []
+    // Collect up to `perVideoLimit` best segments per video, then trim to `videoLimit` distinct
+    // videos. Callers like the in-tab search box pass a large videoLimit (up to the size of the
+    // whole local video list) just to know WHICH videos match, for filtering — not to display
+    // all of them at once — so this loop must stay O(rows), not scan/rebuild `results` per row:
+    // it previously did a linear results.find()/results.filter() per repeat-video row, which is
+    // O(rows * results.length) and was the dominant cost of a broad in-tab search.
+    type ResultEntry = { videoId: string; snippet: string; startMs: number; matchCount: number; title: string; channelName: string; rank: number }
+    const results: ResultEntry[] = []
+    const byVideo = new Map<string, { bestRank: number; count: number; segs: ResultEntry[] }>()
     for (const r of rows) {
+      const entry = { videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank }
       const ex = byVideo.get(r.videoId)
       if (!ex) {
         if (byVideo.size >= videoLimit) continue
-        byVideo.set(r.videoId, { bestRank: r.rank, count: 1 })
-        results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: 1, title: r.title, channelName: r.channelName, rank: r.rank })
+        byVideo.set(r.videoId, { bestRank: r.rank, count: 1, segs: [entry] })
+        results.push(entry)
       } else {
         ex.count++
-        // Update matchCount on the first entry for this video
-        const first = results.find(x => x.videoId === r.videoId)
-        if (first) first.matchCount = ex.count
-        // Add additional segment entries up to perVideoLimit
-        if (perVideoLimit > 1) {
-          const segsForVideo = results.filter(x => x.videoId === r.videoId)
-          if (segsForVideo.length < perVideoLimit) {
-            results.push({ videoId: r.videoId, snippet: r.snippet, startMs: r.startMs, matchCount: ex.count, title: r.title, channelName: r.channelName, rank: r.rank })
-          }
+        ex.segs[0].matchCount = ex.count // same object reference as the entry already in `results`
+        if (perVideoLimit > 1 && ex.segs.length < perVideoLimit) {
+          ex.segs.push(entry)
+          results.push(entry)
         }
       }
     }
 
-    // Widen each snippet with a few neighbouring caption lines for readable context
-    // (tactiq segments are short ~5-10 word lines). Centered on the best-matching line.
+    // Widen each snippet with a few neighbouring caption lines for readable context (tactiq
+    // segments are short ~5-10 word lines), centered on the best-matching line. Only for the
+    // top-ranked results actually likely to be rendered — a large videoLimit search can produce
+    // thousands of matches used purely for filtering, and widening every one of them would mean
+    // thousands of extra queries for snippets nothing ever displays.
+    const WIDEN_CAP = 100
     const ctxStmt = getBereanDb().prepare(`
       SELECT text FROM youtube_transcript_segments
       WHERE video_id = ? AND start_ms BETWEEN ? AND ?
       ORDER BY start_ms
     `)
-    for (const r of results) {
+    for (const r of results.slice(0, WIDEN_CAP)) {
       try {
         const rows2 = ctxStmt.all(r.videoId, Math.max(0, r.startMs - 12000), r.startMs + 12000) as Array<{ text: string }>
         const joined = rows2.map((x) => x.text).join(' ').replace(/\s+/g, ' ').trim()

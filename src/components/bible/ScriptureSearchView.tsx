@@ -10,7 +10,7 @@ import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordRepl
 import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
-import { normalizeBookQuery } from '@/lib/verseUtils'
+import { normalizeBookQuery, getWordWindow } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -77,6 +77,7 @@ const ALL_TEXTS = [
   { id: '1clement',      label: '1 Clement',         category: 'pseudo' as const },
   { id: 'apoc_abraham',  label: 'Apoc. Abraham',     category: 'pseudo' as const },
   { id: 't_jacob',       label: 'T. Jacob',          category: 'pseudo' as const },
+  { id: '2baruch',       label: '2 Baruch',          category: 'pseudo' as const },
 ]
 
 // Module-level cache: this view remounts every time the search tab is (re)opened (BiblePanel
@@ -228,6 +229,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const s = persistedState?.bookFilter
     return s && s !== 'all' ? s.split(',').filter(Boolean) : []
   })
+  // Which book ids the CURRENT query actually matches, independent of selectedBooks — drives
+  // hiding non-matching books from the Scope modal's checklist. null = no active query (show
+  // every book, same as today). Computed in runSearch below.
+  const [matchedBookIds, setMatchedBookIds] = useState<Set<string> | null>(null)
   const [scopePaletteOpen, setScopePaletteOpen] = useState(false)
   const [scopeSearch, setScopeSearch] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>(persistedState?.sortMode ?? 'relevance')
@@ -317,6 +322,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scopeSearchRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
+  // Plain-value scroll tracker updated on every scroll tick, read by the unmount-flush effect
+  // below INSTEAD of resultsRef.current.scrollTop — React nulls a DOM element ref for an
+  // unmounting subtree during the commit phase, before that subtree's passive-effect cleanups
+  // run, so reading resultsRef.current directly in an unmount cleanup was silently a no-op.
+  const lastScrollTopRef = useRef(0)
   // Debounces the scroll-position store write below, matching BiblePanel.tsx's own scroll
   // handler (150ms) — onScroll fires on every native scroll tick, and each write there replaces
   // the store's whole `tabs` object (one Record spanning all 5 spaces), which every component
@@ -353,6 +363,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   useEffect(() => {
     if (persistedState?.scrollTop && resultsRef.current) {
       resultsRef.current.scrollTop = persistedState.scrollTop
+      // Keep lastScrollTopRef in sync — if the user navigates away again without ever
+      // triggering a real onScroll event (e.g. restored straight to a scrolled position, then
+      // immediately clicks a result), the unmount-flush above needs this to already reflect
+      // the restored position rather than falling back to its 0 initial value.
+      lastScrollTopRef.current = persistedState.scrollTop
     }
   }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -369,25 +384,24 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, textId, wordMode, testamentFilter, selectedBooks, sortMode])
 
-  // Flush the latest scroll position on unmount (switching tabs away from this one).
-  // onScroll below debounces its store write by 150ms — if the tab is switched within
-  // that window, the debounce timer never fires (it's just abandoned along with the
-  // unmounted component) and the scroll position from that last stretch of scrolling
-  // is silently lost. Reads through a ref kept fresh every render so the unmount
-  // handler (registered once, deps []) always sees the current filter/query state
-  // rather than whatever was current when the effect was first attached.
+  // Flush the latest scroll position on unmount (switching tabs away from this one,
+  // e.g. navigating to a search result — see BiblePanel.tsx's onNavigate). onScroll below
+  // debounces its store write by 150ms — if the tab is switched within that window, the
+  // debounce timer never fires (it's just abandoned along with the unmounted component) and
+  // the scroll position from that last stretch of scrolling is silently lost. Reads through a
+  // ref kept fresh every render so the unmount handler (registered once, deps []) always sees
+  // the current filter/query state rather than whatever was current when the effect was first
+  // attached.
   const latestScopeRef = useRef({ query, textId, wordMode, testamentFilter, selectedBooks, sortMode })
   latestScopeRef.current = { query, textId, wordMode, testamentFilter, selectedBooks, sortMode }
   useEffect(() => {
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
-      if (resultsRef.current) {
-        const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
-        onStateChangeRef.current?.({
-          query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
-          scrollTop: resultsRef.current.scrollTop,
-        })
-      }
+      const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
+      onStateChangeRef.current?.({
+        query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
+        scrollTop: lastScrollTopRef.current,
+      })
     }
   }, [])
 
@@ -444,9 +458,47 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return out
   })()
 
+  // Shared by runSearch's main (possibly book-scoped) query and its book-filter-agnostic
+  // second query below — same variant/text-target double loop, same dedup, same phrase-mode
+  // post-filter, just parameterized on which bookIds restriction (if any) to apply.
+  const runRawSearch = useCallback(async (
+    trimmed: string, tid: string, effectiveWordMode: WordMode, variants: string[], scopedBookIds: string[] | undefined,
+  ): Promise<RawResult[]> => {
+    const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
+    const seen = new Set<string>()
+    let raw: RawResult[] = []
+    for (const textId of textTargets) {
+      for (const variant of variants) {
+        let res: RawResult[]
+        try {
+          res = (await window.bible.searchText(variant, textId, effectiveWordMode, scopedBookIds)) as unknown as RawResult[]
+        } catch { continue }
+        for (const r of res) {
+          const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          raw.push({ ...r, _textId: textId })
+        }
+      }
+    }
+    // ── Phrase mode: JS post-filter guarantees only exact-phrase matches ──────
+    // FTS5 phrase search is correct in most cases, but this catches edge cases
+    // and makes the filtering strict regardless of FTS5 tokenizer quirks. Checked
+    // against every VARIANT phrase (not just the user's literal typed text) — a
+    // result found via the substituted-wording variant (e.g. "jesus christ") will
+    // never literally contain the user's own typed phrase ("yeshua messiah"), so
+    // checking only the original phrase here would silently discard exactly the
+    // bidirectional matches the variant search above exists to surface.
+    if (effectiveWordMode === 'phrase') {
+      const phrases = variants.map((v) => v.toLowerCase())
+      raw = raw.filter((r) => { const t = r.text.toLowerCase(); return phrases.some((p) => t.includes(p)) })
+    }
+    return raw
+  }, [])
+
   const runSearch = useCallback(async (q: string, tid: string, wMode?: WordMode) => {
     const trimmed = q.trim()
-    if (trimmed.length < 2) { setResults([]); return }
+    if (trimmed.length < 2) { setResults([]); setMatchedBookIds(null); return }
     setLoading(true)
     const effectiveWordMode = wMode ?? wordMode
     // Bidirectional word-replacer search: the DB still stores the ORIGINAL word
@@ -464,52 +516,52 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const variants = wordReplacerEnabled
       ? getWordReplacerSearchVariants(trimmed, wordReplacerRules)
       : [trimmed]
+    // testamentScopedBookIds (no `selectedBooks`) is the scope the Scripture-filter checklist
+    // itself should reflect: "what books does this query actually match", independent of which
+    // ones happen to be checked right now. `scopedBookIds` is what actually restricts the VISIBLE
+    // results (selectedBooks takes priority there) — see comment below for why that split
+    // matters for the relevance cap.
+    const testamentScopedBookIds: string[] | undefined =
+      (testamentFilter !== 'all' && testamentFilter !== 'Pseudepigrapha')
+        ? availableBooks.filter((b) => b.testament === testamentFilter).map((b) => b.id)
+        : undefined
     // Push the already-known client-side scope down into the backend query so the
     // relevance cap (electron/ipc/bible.ts) is applied AFTER book/testament filtering,
     // not before — otherwise a book-filtered search can silently miss real matches that
     // rank outside the unscoped cap's top N by BM25 relevance. 'Pseudepigrapha' is a
     // text-level distinction (not a book_id), so it's left unscoped here.
-    const scopedBookIds: string[] | undefined = selectedBooks.length > 0
-      ? selectedBooks
-      : (testamentFilter !== 'all' && testamentFilter !== 'Pseudepigrapha')
-        ? availableBooks.filter((b) => b.testament === testamentFilter).map((b) => b.id)
-        : undefined
+    const scopedBookIds: string[] | undefined = selectedBooks.length > 0 ? selectedBooks : testamentScopedBookIds
     try {
-      const textTargets = tid === 'all' ? ALL_TEXTS.map((t) => t.id) : [tid]
-      const seen = new Set<string>()
-      let raw: RawResult[] = []
-      for (const textId of textTargets) {
-        for (const variant of variants) {
-          let res: RawResult[]
-          try {
-            res = (await window.bible.searchText(variant, textId, effectiveWordMode, scopedBookIds)) as unknown as RawResult[]
-          } catch { continue }
-          for (const r of res) {
-            const key = `${textId}|${r.book_id}|${r.chapter}|${r.verse_num}`
-            if (seen.has(key)) continue
-            seen.add(key)
-            raw.push({ ...r, _textId: textId })
-          }
-        }
-      }
-
-      // ── Phrase mode: JS post-filter guarantees only exact-phrase matches ──────
-      // FTS5 phrase search is correct in most cases, but this catches edge cases
-      // and makes the filtering strict regardless of FTS5 tokenizer quirks. Checked
-      // against every VARIANT phrase (not just the user's literal typed text) — a
-      // result found via the substituted-wording variant (e.g. "jesus christ") will
-      // never literally contain the user's own typed phrase ("yeshua messiah"), so
-      // checking only the original phrase here would silently discard exactly the
-      // bidirectional matches the variant search above exists to surface.
-      if (effectiveWordMode === 'phrase') {
-        const phrases = variants.map((v) => v.toLowerCase())
-        raw = raw.filter((r) => { const t = r.text.toLowerCase(); return phrases.some((p) => t.includes(p)) })
-      }
-
+      const raw = await runRawSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
       setResults(raw)
-    } catch { setResults([]) }
+      // The Scripture-filter checklist needs to know which books this query would match with
+      // NO book filter applied. When nothing's checked, `raw` above already IS that (it was
+      // only ever testament-scoped) — free. Only when a book filter is active does `raw` get
+      // artificially narrowed beyond that, so only then is a second, book-filter-agnostic query
+      // actually needed to reconstruct the full matched-book set.
+      if (selectedBooks.length === 0) {
+        setMatchedBookIds(new Set(raw.map((r) => r.book_id)))
+      } else {
+        const unscoped = await runRawSearch(trimmed, tid, effectiveWordMode, variants, testamentScopedBookIds)
+        setMatchedBookIds(new Set(unscoped.map((r) => r.book_id)))
+      }
+    } catch { setResults([]); setMatchedBookIds(null) }
     finally { setLoading(false) }
-  }, [wordMode, wordReplacerEnabled, wordReplacerRules, selectedBooks, testamentFilter, availableBooks])
+  }, [wordMode, wordReplacerEnabled, wordReplacerRules, selectedBooks, testamentFilter, availableBooks, runRawSearch])
+
+  // Auto-uncheck any book that just dropped out of matchedBookIds (its search term no longer
+  // matches it) — otherwise a stale, now-invisible checkbox could keep silently filtering
+  // results the user has no way to see or uncheck anymore. Also re-runs on `selectedBooks`
+  // itself (a group's "Select all" adds every book in that edition, including ones currently
+  // hidden by matchedBookIds — this catches that right away rather than leaving them checked
+  // until the next query change happens to recompute matchedBookIds).
+  useEffect(() => {
+    if (matchedBookIds === null) return
+    setSelectedBooks((prev) => {
+      const next = prev.filter((id) => matchedBookIds.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [matchedBookIds, selectedBooks])
 
   const runCrossRefSearch = useCallback(async (q: string) => {
     const parsed = parseRef(q.trim())
@@ -1038,9 +1090,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
         const scopeOptions: TestamentFilter[] = ['all', 'OT', 'NT', 'Apocrypha', 'Pseudepigrapha']
         const canonBooksInTestament = canonBooksAll.filter((b) => testamentFilter === 'all' || testamentFilter === 'Pseudepigrapha' || b.testament === testamentFilter)
-        const filteredCanonBooks = sq
-          ? canonBooksInTestament.filter((b) => b.name.toLowerCase().includes(sq) || b.id.toLowerCase().includes(sq))
-          : canonBooksInTestament
+        // Hide books the current query has zero matches in (matchedBookIds), same idea as the
+        // existing `sq` (scope-modal search box) filter just above it, applied as one more
+        // predicate in the same chain — null means no active query, so nothing's hidden.
+        const filteredCanonBooks = canonBooksInTestament
+          .filter((b) => sq ? (b.name.toLowerCase().includes(sq) || b.id.toLowerCase().includes(sq)) : true)
+          .filter((b) => matchedBookIds === null || matchedBookIds.has(b.id))
 
         // Filtered per-section item lists, computed once so both the "does this section
         // have anything to show" check and the actual render use the exact same list.
@@ -1070,8 +1125,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         // cross-group edge-of-grid handoff between different groups' sub-grids (deferred
         // v2 simplification); native Tab moves between groups in v1.
         const filteredSubBooksFor = (tid: string) => {
-          const books = subBooksFor(tid)
-          return sq ? books.filter((b) => b.name.toLowerCase().includes(sq)) : books
+          return subBooksFor(tid)
+            .filter((b) => sq ? b.name.toLowerCase().includes(sq) : true)
+            .filter((b) => matchedBookIds === null || matchedBookIds.has(b.id))
         }
         const t12pNav = useRovingGridNav({ itemCount: filteredSubBooksFor('t12p').length, columns: 3 })
         const hermasNav = useRovingGridNav({ itemCount: filteredSubBooksFor('hermas').length, columns: 3 })
@@ -1224,7 +1280,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                             return scopeItem(t.id, textId === t.id, () => selectTranslation(t.id), fullEditionLabel(t.id, t.label))
                           }
                           const subBooks = subBooksFor(t.id)
-                          const filteredSubBooks = sq ? subBooks.filter((b) => b.name.toLowerCase().includes(sq)) : subBooks
+                          const filteredSubBooks = filteredSubBooksFor(t.id)
                           if (filteredSubBooks.length === 0) return null
                           const group = { id: t.id, label: fullEditionLabel(t.id, t.label), books: subBooks.map((b) => b.id) }
                           const wholeGroupSelected = isGroupActive(selectedBooks, group)
@@ -1273,6 +1329,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         className="flex-1 overflow-y-auto min-w-0"
         onScroll={(e) => {
           const scrollTop = (e.currentTarget as HTMLDivElement).scrollTop
+          lastScrollTopRef.current = scrollTop
           if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
           scrollSaveTimerRef.current = setTimeout(() => {
             onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop })
@@ -1478,7 +1535,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 // too (parseMultiStrongsQuery's `.words`) — that needs highlighting
                                 // alongside the Strong's-indexed word(s), not just the latter alone.
                                 const parsed = parseMultiStrongsQuery(query)
-                                return highlightStrongs(rawText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parsed?.words ?? [])
+                                const rawIndices = strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? []
+                                const extraWords = parsed?.words ?? []
+                                // Strong's results had NO snippet/windowing at all — unlike "all words"
+                                // below, line-clamp-1 clipped from character 0 regardless of where the
+                                // tagged word actually landed, so a match late in a long verse (e.g.
+                                // 3 Maccabees 6:36, 1 Peter 2:20) was clipped away entirely with the
+                                // highlight never visible. getWordWindow (already used elsewhere for this
+                                // same purpose) trims to a word window around the match and remaps its
+                                // indices — reused here instead of inventing a second windowing scheme.
+                                // extraWords aren't remapped (splitStrongsHighlight matches them by text,
+                                // not index) — they still highlight correctly as long as they land inside
+                                // the window the Strong's match determined.
+                                if (!showContext) {
+                                  const win = getWordWindow(rawText, rawIndices)
+                                  if (win) return highlightStrongs(win.windowText, win.windowMatchIndices, extraWords)
+                                }
+                                return highlightStrongs(rawText, rawIndices, extraWords)
                               }
                               // Only "all words" mode needs the dynamic-start snippet — "any word" only
                               // needs one match visible (line-clamp already lands on it often enough),

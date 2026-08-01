@@ -23,6 +23,7 @@ import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes } from '@/lib/notesCache'
+import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
@@ -75,12 +76,40 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Scroll container for the list-view NotesList — read by its virtualizer so
   // only visible rows are mounted regardless of total note count.
   const notesListScrollRef = useRef<HTMLDivElement>(null)
-  const [continuousDailyDate, setContinuousDailyDate] = useState(() => new Date())
+  // Lazy initializer reads the previously-viewed day for THIS tab, since ActivePanel fully
+  // remounts NotesPanel on every tab switch — without this, returning to a tab in
+  // continuous-daily-scroll mode always snapped back to today, discarding wherever the user
+  // had scrolled to.
+  const [continuousDailyDate, setContinuousDailyDate] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
+    return saved ? new Date(saved) : new Date()
+  })
+  // Persist the in-view day whenever it changes (continuous-daily-scroll mode).
+  useEffect(() => {
+    if (!notesTabId) return
+    updateTabState('notes', notesTabId, { continuousDailyDate: continuousDailyDate.getTime() })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continuousDailyDate, notesTabId])
   // Idioms → single PDF export: opens the print preview directly (options live in the modal).
   const [idiomsModalOpen, setIdiomsModalOpen] = useState(false)
   // A note queued for print/PDF export from the right-click menu (without opening it).
   const [printNote, setPrintNote] = useState<Note | null>(null)
-  const [activeNote, setActiveNote] = useState<Note | null>(null)
+  // Lazy initializer seeds from a warm noteCache entry (if this note was seen before this
+  // session) so the editor renders immediately on tab-switch remount instead of starting at
+  // null and showing the list view until the async restore fetch below resolves — see
+  // src/lib/noteCache.ts for why.
+  const [activeNote, setActiveNote] = useState<Note | null>(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const tabState = tab?.state as NoteTabState | undefined
+    if (tabState?.isNew || !tabState?.noteId) return null
+    return getCachedNote(tabState.noteId)
+  })
+  // Keep noteCache warm for every note this panel ever shows, regardless of which of the
+  // many setActiveNote() call sites produced it.
+  useEffect(() => {
+    if (activeNote) setCachedNote(activeNote)
+  }, [activeNote])
   // True while we're still trying to restore the previously-open note for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Notes" fallback before the real title has loaded — that
@@ -506,6 +535,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const lastScrollTopRef = useRef(0)
   // Track latest cursor position so it can be persisted on tab switch
   const lastCursorPosRef = useRef(0)
+  // Track latest notes-list/browsing view scroll position (distinct from the open-note editor's
+  // own scroll above) so it can be persisted on tab switch and restored on remount.
+  const lastListScrollTopRef = useRef(0)
 
   // Keep tab title in sync with the open note — re-runs whenever the note id
   // OR title changes so that renaming a note immediately updates the tab label.
@@ -631,6 +663,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [restoredCursorPos, setRestoredCursorPos] = useState(0)
   const [autoFocusEditor, setAutoFocusEditor] = useState(false)
 
+  // Restore the notes-list/browsing view's own scroll position whenever it (re)mounts — it's
+  // conditionally unmounted while a note is open (`editing` true), so a plain DOM ref alone
+  // doesn't survive the round trip; re-apply from tab state once the list is back on screen.
+  useEffect(() => {
+    if (activeNote !== null || !notesTabId) return
+    const tab = tabs.find((t) => t.id === notesTabId)
+    const saved = (tab?.state as NoteTabState | undefined)?.listScrollTop ?? 0
+    const raf = requestAnimationFrame(() => {
+      if (notesListScrollRef.current) notesListScrollRef.current.scrollTop = saved
+    })
+    return () => cancelAnimationFrame(raf)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNote, notesTabId])
+
   // Save scroll + cursor when notesTabId changes (switching between notes tabs within the space).
   useEffect(() => {
     const id = notesTabId
@@ -639,6 +685,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
   }, [notesTabId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -659,6 +706,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -672,6 +720,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       useAppStore.getState().updateTabState('notes', id, {
         scrollTop: lastScrollTopRef.current,
         cursorPos: lastCursorPosRef.current,
+        listScrollTop: lastListScrollTopRef.current,
       })
     }
     window.addEventListener('berean:saveScrollBeforeTabChange', onSave)
@@ -1480,7 +1529,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 onDayOpen={openDailyNote}
               />
             ) : (
-            <div ref={notesListScrollRef} className="flex-1 overflow-y-auto" style={{ transform: 'translateZ(0)', contain: 'paint' }}>
+            <div
+              ref={notesListScrollRef}
+              className="flex-1 overflow-y-auto"
+              style={{ transform: 'translateZ(0)', contain: 'paint' }}
+              onScroll={(e) => { lastListScrollTopRef.current = (e.currentTarget as HTMLDivElement).scrollTop }}
+            >
               {folderView ? (
                 <NotesFolderView
                   notes={visibleNotes}

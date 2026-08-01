@@ -73,6 +73,40 @@ export default function Sidebar() {
   const tabs         = useAppStore(useShallow((s) => s.tabs))
   const activeTabId  = useAppStore((s) => s.activeTabId)
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false)
+  const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  // Bounds mirrored from the store's own setSidebarWidth clamp (kept here too since the drag
+  // handler reads/writes the live value directly on every move, not through the setter's own
+  // clamp on every tick — clamping locally avoids a store round-trip per rAF frame).
+  function handleSidebarResizeMouseDown(e: React.MouseEvent) {
+    sidebarResizeRef.current = { startX: e.clientX, startWidth: sidebarWidth }
+    setIsResizingSidebar(true)
+    e.preventDefault()
+    let rafId: number | null = null
+    let latestX = e.clientX
+    function onMove(e: MouseEvent) {
+      if (!sidebarResizeRef.current) return
+      latestX = e.clientX
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        if (!sidebarResizeRef.current) return
+        const delta = latestX - sidebarResizeRef.current.startX
+        setSidebarWidth(Math.max(224, Math.min(250, sidebarResizeRef.current.startWidth + delta)))
+      })
+    }
+    function onUp() {
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+      sidebarResizeRef.current = null
+      setIsResizingSidebar(false)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
   const createTab    = useAppStore((s) => s.createTab)
   const activateTab  = useAppStore((s) => s.activateTab)
   const closeTab     = useAppStore((s) => s.closeTab)
@@ -137,6 +171,11 @@ export default function Sidebar() {
   const tabBarMenuRef = useRef<HTMLDivElement>(null)
 
   const tabListRef = useRef<HTMLDivElement>(null)
+  // Manual click-drag-to-move tracking for empty tab-list space — see the mousedown handler
+  // below and app:moveWindowBy's own comment in electron/main.ts for why this doesn't use a
+  // real `-webkit-app-region: drag` CSS region (would break double-click-to-search on the
+  // same area, per the four prior failed attempts documented just below).
+  const windowDragRef = useRef<{ lastScreenX: number; lastScreenY: number; moved: boolean } | null>(null)
 
   // ── Scripture button right-click → book list ──
   const [bookMenu, setBookMenu] = useState<{ x: number; y: number; books: Array<{ book: Book; textId: string }>; filter: string } | null>(null)
@@ -170,8 +209,14 @@ export default function Sidebar() {
   // Electron's OS-level drag hit-testing over an app-drag-region element intercepts the
   // mousedown/click gesture at the browser-process level before it's guaranteed to reach the
   // renderer, regardless of listener type or capture phase. The container itself was switched
-  // from app-drag-region to no-drag below, trading away "drag the window from empty tab-list
-  // space" for a plain, reliable onDoubleClick handler on the element.
+  // from app-drag-region to no-drag below to make that reliable.
+  //
+  // Window-drag on the same empty space was later added back WITHOUT reverting to
+  // app-drag-region — instead, the onMouseDown handler below tracks screen-space mouse deltas
+  // manually and moves the window via app:moveWindowBy (IPC to BrowserWindow.setPosition), only
+  // once real movement crosses a small threshold. Since the region is never marked as a CSS drag
+  // region, dblclick keeps firing reliably exactly as above, and drag-to-move now also works on
+  // the same pixels — the two gestures no longer have to fight over the same screen area.
 
   // ── Daily-note calendar — pinned permanently at the bottom of the
   // sidebar (not gated to the Notes space, not a toggle) so jumping to a
@@ -321,7 +366,7 @@ export default function Sidebar() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openBookMenu(x: number, y: number) {
-    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham', 't_jacob']
+    const TEXT_IDS = ['kjva', 'lxx', 'enoch', 'jubilees', 'hermas', 't12p', 'asc_isaiah', 'recog_clement', 'apoc_elijah', 't_job', '1clement', 'apoc_abraham', 't_jacob', '2baruch']
     const results = await Promise.allSettled(
       TEXT_IDS.map(id => window.bible.getBooks(id).then(bs => ({ id, books: bs })))
     )
@@ -382,7 +427,7 @@ export default function Sidebar() {
   // than shrinking down to a second icon rail beside the ribbon. Animated
   // via the outer motion.div's width (clipping the fixed-width aside inside
   // it) so toggling reads as a slide — width-only, though, read as an abrupt
-  // cut rather than a fade (the fixed-224px content just gets clipped away by
+  // cut rather than a fade (the user-resizable-width content just gets clipped away by
   // the shrinking overflow-hidden box, with nothing actually fading). Opacity
   // is now animated too, on its OWN faster transition that finishes well
   // before the width spring does, so the content is already invisible by the
@@ -390,13 +435,16 @@ export default function Sidebar() {
   // and collapsing genuinely reads as a fade instead of a disappear.
   return (
     <motion.div
-      animate={{ width: sidebarCollapsed ? 0 : 224, opacity: sidebarCollapsed ? 0 : 1 }}
+      animate={{ width: sidebarCollapsed ? 0 : sidebarWidth, opacity: sidebarCollapsed ? 0 : 1 }}
       initial={false}
       transition={{
-        width: { type: 'spring', stiffness: 500, damping: 45 },
+        // No spring while actively dragging the resize handle — a spring lagging behind the
+        // live mouse position during a drag reads as sluggish/rubbery; only collapse/expand
+        // (not a manual resize) benefits from the spring feel.
+        width: isResizingSidebar ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 45 },
         opacity: { duration: 0.12, ease: 'easeOut', delay: sidebarCollapsed ? 0 : 0.05 },
       }}
-      className="h-full flex-shrink-0 overflow-hidden"
+      className="h-full flex-shrink-0 overflow-hidden relative"
     >
     {/* disableHoverableContent — same fix as Ribbon.tsx: none of these
         tooltips have interactive content, so Radix's hoverable-content grace
@@ -405,8 +453,9 @@ export default function Sidebar() {
         book-picker) that open close to a tooltip-having trigger. */}
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <aside
+        style={{ width: sidebarWidth }}
         className={`
-          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full w-56
+          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}
@@ -580,7 +629,43 @@ export default function Sidebar() {
               onDoubleClick={(e) => {
                 const t = e.target as HTMLElement
                 if (t.closest('[data-tab-idx]')) return
-                openSearch('new')
+                // Universal placement rule: double-click empty tab-bar space is the ONE case
+                // that appends at the very end, unlike every other "new tab" entry point
+                // (Cmd+T, the "+" buttons, "open in new tab" from content), which insert
+                // directly after the active tab — see computeInsertOrder in store/index.ts.
+                openSearch('new', 'all', 'end')
+              }}
+              // Click-drag-to-move on empty space — same target guard as the double-click
+              // handler above (skip actual tab items; both affordances share this area).
+              // Tracks screen-space deltas via a window-level mousemove/mouseup pair (not React
+              // handlers on this element) so movement is still tracked even if the cursor
+              // leaves this element mid-drag. A small movement threshold before the first
+              // moveWindowBy call keeps a plain click/double-click from ever nudging the
+              // window — only a genuine sustained drag engages it.
+              onMouseDown={(e) => {
+                const t = e.target as HTMLElement
+                if (t.closest('[data-tab-idx]')) return
+                if (e.button !== 0) return
+                windowDragRef.current = { lastScreenX: e.screenX, lastScreenY: e.screenY, moved: false }
+                const DRAG_THRESHOLD = 4
+                function onMove(ev: MouseEvent) {
+                  const drag = windowDragRef.current
+                  if (!drag) return
+                  const dx = ev.screenX - drag.lastScreenX
+                  const dy = ev.screenY - drag.lastScreenY
+                  if (!drag.moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return
+                  drag.moved = true
+                  drag.lastScreenX = ev.screenX
+                  drag.lastScreenY = ev.screenY
+                  window.app.moveWindowBy(dx, dy)
+                }
+                function onUp() {
+                  windowDragRef.current = null
+                  window.removeEventListener('mousemove', onMove)
+                  window.removeEventListener('mouseup', onUp)
+                }
+                window.addEventListener('mousemove', onMove)
+                window.addEventListener('mouseup', onUp)
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -932,6 +1017,19 @@ export default function Sidebar() {
         document.body
       )}
     </Tooltip.Provider>
+    {/* Resize handle — thin strip on the sidebar's right edge, only visible on hover (matching
+        the side-panel's own hDivider convention in BiblePanel.tsx). Sits on the motion.div
+        itself (not the inner aside) so it stays pinned to the right edge regardless of the
+        collapse/expand width animation. */}
+    {!sidebarCollapsed && (
+      <div
+        onMouseDown={handleSidebarResizeMouseDown}
+        title="Drag to resize"
+        className="group absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 no-drag"
+      >
+        <div className="w-px h-full mx-auto bg-transparent group-hover:bg-[rgb(var(--color-accent))/40] transition-colors" />
+      </div>
+    )}
     </motion.div>
   )
 }

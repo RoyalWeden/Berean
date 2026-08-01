@@ -83,7 +83,14 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
     const refLine = nonEmpty[0].trim()
     if (refLine.includes(':') && parseRef(refLine)) {
       const body = nonEmpty.slice(1)
-      if (body.every(l => VERSE_BODY_LINE_RE.test(l))) {
+      // VERSE_BODY_LINE_RE alone ("digit(s) + whitespace + text") can't tell a verse-number
+      // body line ("6 And Seth lived...") apart from a numbered-book reference's OWN ref+body
+      // line ("2 Peter 3:5 this talks about..." / "1 John 2:4-5 ...") — both match it. Exclude
+      // anything that ALSO looks like a full "Book c:v body" line itself (SINGLE_VERSE_LINE_RE),
+      // or a BARE reference with no body attached ("1 John 2:4-5" alone, the ref line of a new
+      // multi-line block — parseRef succeeds on it directly even without trailing body text) —
+      // both are a new block starting, not a continuation of this one.
+      if (body.every(l => VERSE_BODY_LINE_RE.test(l) && !SINGLE_VERSE_LINE_RE.test(l) && !parseRef(l.trim()))) {
         return { kind: 'multi', ref: refLine, refLength: refLine.length, lineCount: nonEmpty.length }
       }
     }
@@ -301,12 +308,16 @@ export function verseTextAccepted(
       // the user's pasted text" against the wrong denominator (actual's word count, not
       // the candidate's) — same rough ballpark for a verbatim paste, but not what the
       // 0.9 threshold is documented/tuned against.
-      verseRatioCache.set(key, actual ? verseTextMatchRatio(candidate, actual) : 1)
+      // A missing/unresolvable verse (bad book/translation, DB miss) is NOT evidence the
+      // candidate text is real verse content — fail closed (ratio 0, reject) instead of the
+      // previous ratio-1 auto-accept, which silently treated arbitrary trailing text as
+      // verified verse text whenever the lookup itself failed for any reason.
+      verseRatioCache.set(key, actual ? verseTextMatchRatio(candidate, actual) : 0)
       versePending.delete(key)
       onResolved()
     })
     .catch(() => {
-      verseRatioCache.set(key, 1)
+      verseRatioCache.set(key, 0)
       versePending.delete(key)
       onResolved()
     })

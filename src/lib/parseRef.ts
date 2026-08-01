@@ -137,6 +137,8 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: '1CL', name: '1 Clement', patterns: ['1cl', '1clem', '1clement', '1 clement', 'first clement', '1st clement', 'clement i'] },
   // Testament of Jacob (distinct from the patriarch Jacob's own life, told in Genesis)
   { id: 'TJAC', name: 'Testament of Jacob', patterns: ['tjac', 't jacob', 't. jacob', 'testament jacob', 'testament of jacob', 'test of jacob'] },
+  // 2 Baruch (Syriac Apocalypse of Baruch — distinct from the deuterocanonical 1 Baruch)
+  { id: '2BA', name: '2 Baruch', patterns: ['2ba', '2bar', '2baruch', '2 baruch', 'second baruch', 'apocalypse of baruch', 'syriac baruch', 'syriac apocalypse of baruch'] },
 ]
 
 const PATTERN_LOOKUP = new Map<string, string>()
@@ -254,7 +256,7 @@ export function resolveBookToken(raw: string): string | null {
       if (candidate.length < 5) continue
       const lenDiff = Math.abs(candidate.length - noSpace.length)
       if (lenDiff > 1) continue
-      const maxDist = candidate.length <= 6 ? 1 : 2
+      const maxDist = candidate.length <= 7 ? 1 : 2
       const dist = editDistance(noSpace, candidate)
       if (dist <= maxDist && (!best || dist < best.dist)) best = { id, dist }
     }
@@ -302,6 +304,32 @@ export function bookChapterVerseLabel(bookId: string, chapter: number, verse?: n
   const name = bookName(bookId)
   const sep = /Book \d+$/.test(name) ? ', ' : ' '
   return verse != null ? `${name}${sep}${chapter}:${verse}` : `${name}${sep}${chapter}`
+}
+
+// Full editorial names for multi-book editions whose bookName() uses a short prefix before
+// the comma (e.g. "Recognitions, Book 3", "Hermas, Visions") — used only by
+// bookChapterHoverLabel below, which wants the full work name spelled out with the "Book N"/
+// section qualifier moved to the very end instead.
+const FULL_WORK_NAME: Record<string, string> = {
+  Recognitions: 'Recognitions of Clement',
+  Hermas: 'Shepherd of Hermas',
+}
+
+/** Tab-bar hover-tooltip label: like bookChapterVerseLabel, but for a multi-book edition
+ *  spells out the FULL work name and moves the "Book N"/section qualifier to the end —
+ *  "Recognitions of Clement 5, Book 3" rather than bookChapterVerseLabel's own
+ *  "Recognitions, Book 3, 5" (that ordering exists there specifically to avoid "Book 10 41:8"
+ *  reading as one number when a verse follows; the hover tooltip has no such ambiguity to
+ *  avoid, so the fuller/more natural word order reads better there). Falls back to a plain
+ *  "<name> <chapter>" for every other book, unchanged from bookChapterVerseLabel. */
+export function bookChapterHoverLabel(bookId: string, chapter: number): string {
+  const name = bookName(bookId)
+  const commaIdx = name.indexOf(', ')
+  if (commaIdx === -1) return `${name} ${chapter}`
+  const prefix = name.slice(0, commaIdx)
+  const qualifier = name.slice(commaIdx + 2)
+  const full = FULL_WORK_NAME[prefix] ?? prefix
+  return `${full} ${chapter}, ${qualifier}`
 }
 
 /** Formats a raw internal verse ref ("PRO.30.26", dot-separated: bookId.chapter[.verse])
@@ -355,6 +383,7 @@ const BOOK_TRANSLATION: Record<string, string> = {
   TJOB:    't_job',
   '1CL':   '1clement',
   TJAC:    't_jacob',
+  '2BA':   '2baruch',
 }
 
 // The Shepherd of Hermas ships in two translations sharing the same HER_* book ids:
@@ -436,7 +465,7 @@ const MAX_CHAPTERS: Partial<Record<string, number>> = {
   AIS: 11, EPB: 21,
   TREU: 7, TSIM: 9, TLEV: 19, TJUD: 26, TISS: 7, TZEB: 10,
   TDAN: 7, TNAP: 9, TGAD: 8, TASH: 8, TJOS: 20, TBEN: 12,
-  GAD: 14, TJOB: 12, '1CL': 66, TJAC: 8,
+  GAD: 14, TJOB: 12, '1CL': 66, TJAC: 8, '2BA': 85,
   RCL1: 74, RCL2: 72, RCL3: 65, RCL4: 37, RCL5: 36,
   RCL6: 15, RCL7: 38, RCL8: 62, RCL9: 36, RCL10: 72,
 }
@@ -570,43 +599,70 @@ export function parseRef(input: string): ParsedRef | null {
   // copy-verse output now puts a comma before the chapter:verse for those too ("Hermas,
   // Similitudes, 35:1"), so the book-token group needs to tolerate an embedded comma or the
   // whole match fails past the book name instead of just treating it as part of the name.
+  function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined): ParsedRef | null {
+    if (isNaN(chapter) || chapter < 1) return null
+
+    let bookId = resolveBookToken(bookRawIn)
+    if (!bookId) return null
+
+    if (bookNum !== undefined) {
+      // "Book N" subdivision: only valid for editions whose books are addressed as a
+      // shared name-prefix + number (currently just Recognitions of Clement, RCL1-10).
+      // Combine the resolved base id's prefix with the subdivision number and re-check
+      // it's a real book — e.g. resolveBookToken("recognitions") → "RCL1", combined
+      // with Book 10 → "RCL10". Editions without this convention (T12P, Hermas) have no
+      // "<prefix><N>" id to combine into, so the lookup fails and the ref is rejected.
+      const combined = bookId.replace(/\d+$/, '') + bookNum
+      if (!ID_TO_NAME.has(combined)) return null
+      bookId = combined
+    }
+
+    // Reject chapters beyond the book's known maximum.
+    const maxCh = MAX_CHAPTERS[bookId]
+    if (maxCh !== undefined && chapter > maxCh) return null
+
+    // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
+    if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
+
+    return { bookId, chapter, verse, endVerse, endChapter }
+  }
+
   const m = norm.match(
     /^((?:\d\s*)?\w[\w\s,]*?)(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
   )
-  if (!m) return null
-
-  const bookRaw = m[1].trim().toLowerCase().replace(/\s+/g, ' ')
-  const bookNum   = m[2] ? parseInt(m[2]) : undefined
-  const chapter   = parseInt(m[3])
-  const verse     = m[4] ? parseInt(m[4]) : undefined
-  const endVerse  = m[5] ? parseInt(m[5]) : undefined
-  const endChapter = m[6] ? parseInt(m[6]) : undefined
-
-  if (isNaN(chapter) || chapter < 1) return null
-
-  let bookId = resolveBookToken(bookRaw)
-  if (!bookId) return null
-
-  if (bookNum !== undefined) {
-    // "Book N" subdivision: only valid for editions whose books are addressed as a
-    // shared name-prefix + number (currently just Recognitions of Clement, RCL1-10).
-    // Combine the resolved base id's prefix with the subdivision number and re-check
-    // it's a real book — e.g. resolveBookToken("recognitions") → "RCL1", combined
-    // with Book 10 → "RCL10". Editions without this convention (T12P, Hermas) have no
-    // "<prefix><N>" id to combine into, so the lookup fails and the ref is rejected.
-    const combined = bookId.replace(/\d+$/, '') + bookNum
-    if (!ID_TO_NAME.has(combined)) return null
-    bookId = combined
+  if (m) {
+    const result = finish(
+      m[1].trim().toLowerCase().replace(/\s+/g, ' '),
+      m[2] ? parseInt(m[2]) : undefined,
+      parseInt(m[3]),
+      m[4] ? parseInt(m[4]) : undefined,
+      m[5] ? parseInt(m[5]) : undefined,
+      m[6] ? parseInt(m[6]) : undefined
+    )
+    if (result) return result
   }
 
-  // Reject chapters beyond the book's known maximum.
-  const maxCh = MAX_CHAPTERS[bookId]
-  if (maxCh !== undefined && chapter > maxCh) return null
+  // Fallback: "book chapter verse" with a bare space instead of ":"/"." (e.g. "james 1 15",
+  // "1 sam 2 3"). Tried whenever the punctuated form above either didn't match or matched but
+  // resolved to an invalid book (the book token there is lazy and can swallow a leading digit
+  // meant to be the chapter, e.g. "gen 1 1" primary-matches bookRaw="gen 1" chapter=1, which
+  // fails book resolution and falls through to here instead of returning that wrong result).
+  // Trying this only as a fallback keeps existing forms unambiguous — e.g. the dash chapter
+  // range "Hosea 13-14" always matches the primary regex successfully, so it never reaches here.
+  const mBare = norm.match(/^((?:\d\s*)?\w[\w\s,]*?)\s+(\d+)\s+(\d+)$/i)
+  if (mBare) {
+    const result = finish(
+      mBare[1].trim().toLowerCase().replace(/\s+/g, ' '),
+      undefined,
+      parseInt(mBare[2]),
+      parseInt(mBare[3]),
+      undefined,
+      undefined
+    )
+    if (result) return result
+  }
 
-  // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
-  if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
-
-  return { bookId, chapter, verse, endVerse, endChapter }
+  return null
 }
 
 export function isStrongsRef(input: string): boolean {

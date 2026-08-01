@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
@@ -296,6 +297,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // persist-effect run that happens mid-switch, before the restore effect below catches up —
   // see NotesPanel.tsx's skipNextPersistRef comment for the full explanation.
   const skipNextYtPersistRef = useRef(false)
+  // Browse/grid list scroll position — persisted the same way as activeVideoId above (the
+  // ActivePanel wrapper keys this component by ytTab.id, so switching between two different
+  // YouTube tabs unmounts+remounts it entirely; without this, returning to a tab always
+  // snapped the grid back to the top).
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+  const lastGridScrollTopRef = useRef(0)
+  const [gridRestoreScrollTop, setGridRestoreScrollTop] = useState<number | null>(null)
+  const ytTabIdRef = useRef(ytTabId)
+  ytTabIdRef.current = ytTabId
   // playerSrc is locked in once per video open — never updated by poll — prevents auto-resume bug
   const [playerSrc, setPlayerSrc] = useState<string>('')
   const [videoMaximized, setVideoMaximized] = useState(false)
@@ -315,6 +325,16 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   const [transcriptOnly, setTranscriptOnly] = useState(false)
   const [showTranscriptMenu, setShowTranscriptMenu] = useState(false)
   const transcriptMenuRef = useRef<HTMLDivElement>(null)
+  // Trigger-button refs for the three toolbar dropdowns below (Channel/Sort/Transcript tools).
+  // The toolbar itself is portaled into ShellHeader's fixed-height, overflow-hidden slot (see
+  // TabHeaderPortal) — a plain `position: absolute` menu nested in that portaled content gets
+  // clipped by the slot the moment it extends past the 44px header row. These refs let each
+  // menu instead be portaled straight to document.body (position: fixed, matching the pattern
+  // ShellHeader.tsx's own nav-history dropdown already uses) so it renders above everything,
+  // unclipped, positioned from the trigger's live on-screen rect.
+  const channelBtnRef = useRef<HTMLButtonElement>(null)
+  const sortBtnRef = useRef<HTMLButtonElement>(null)
+  const transcriptBtnRef = useRef<HTMLButtonElement>(null)
   // Active video's transcript + live playback time for the synced transcript panel
   const [activeTranscript, setActiveTranscript] = useState<TranscriptSegment[]>([])
   const [currentTimeMs, setCurrentTimeMs] = useState(0)
@@ -422,6 +442,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     const tab = useAppStore.getState().tabs['youtube'].find((t) => t.id === ytTabId)
     const state = tab?.state as YouTubeTabState | undefined
     setActiveVideoId(state?.videoId ?? null)
+    setGridRestoreScrollTop(state?.scrollTop ?? null)
     if (!state) return
     if (state.youtubeLayout) setYtLayout(state.youtubeLayout)
     setPanelA(state.panelA ?? null)
@@ -435,6 +456,29 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     if (skipNextYtPersistRef.current) { skipNextYtPersistRef.current = false; return }
     useAppStore.getState().updateTabState('youtube', ytTabId, { videoId: activeVideoId })
   }, [activeVideoId, ytTabId])
+
+  // Apply the restored grid scroll position once the video list has finished its initial load
+  // (the grid is empty/loading right after mount, so restoring immediately would be a no-op).
+  useEffect(() => {
+    if (gridRestoreScrollTop == null || loading) return
+    const t = setTimeout(() => {
+      if (gridScrollRef.current) gridScrollRef.current.scrollTop = gridRestoreScrollTop
+      setGridRestoreScrollTop(null)
+    }, 50)
+    return () => clearTimeout(t)
+  }, [gridRestoreScrollTop, loading])
+
+  // Flush the grid's latest scroll position when this instance unmounts (switching away to a
+  // different YouTube tab, or out of the space entirely). Reads through a ref kept fresh every
+  // render so this always saves against whichever tab was actually showing, regardless of
+  // whether ActivePanel's key={ytTab.id} truly remounts this component or not.
+  useEffect(() => {
+    return () => {
+      if (ytTabIdRef.current) {
+        useAppStore.getState().updateTabState('youtube', ytTabIdRef.current, { scrollTop: lastGridScrollTopRef.current })
+      }
+    }
+  }, [])
 
   // Global top bar's back button reached the browse/home position for this tab (see
   // youtubeHomeToken's registration in the store, mirroring notesHomeToken/lexiconHomeToken).
@@ -2040,8 +2084,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]" onClick={closeMenus}>
       {/* Toolbar — portaled into the shared top bar instead of drawing its own
            second header row (was previously a full bar with its own drag-region,
-           stacked directly under the app-level top bar). */}
-      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-wrap">
+           stacked directly under the app-level top bar). The portal target
+           (ShellHeader's slot) is a fixed 44px-tall, overflow-hidden row, so this
+           can't wrap to a second line without getting clipped — scroll horizontally
+           instead when everything doesn't fit, same as any single-row toolbar. */}
+      <TabHeaderPortal floating={floating} active={activeSpace === 'youtube'} className="flex-nowrap overflow-x-auto">
         <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
         <input
           type="text"
@@ -2099,17 +2146,22 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         </button>
 
         {/* Channel filter */}
-        <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
+            ref={channelBtnRef}
             onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
             className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[120px]"
           >
             <span className="truncate">{channelFilter === 'all' ? 'All channels' : channelFilter.replace('@', '')}</span>
             <ChevronDown size={10} className="flex-shrink-0" />
           </button>
-          {showChannelMenu && (
-            <div
-              className="glass-panel absolute right-0 top-full mt-1 z-20 rounded-shell-lg min-w-[190px] flex flex-col overflow-hidden"
+          {showChannelMenu && channelBtnRef.current && createPortal(
+            <MenuPositioner
+              x={channelBtnRef.current.getBoundingClientRect().right}
+              y={channelBtnRef.current.getBoundingClientRect().bottom + 4}
+              align="right"
+              onClick={(e) => e.stopPropagation()}
+              className="glass-panel rounded-shell-lg w-max min-w-[140px] max-w-[280px] flex flex-col overflow-hidden"
               style={{ maxHeight: '300px' }}
             >
               <div className="p-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
@@ -2143,22 +2195,30 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     </button>
                   ))}
               </div>
-            </div>
+            </MenuPositioner>,
+            document.body
           )}
         </div>
 
         {/* Duration filter moved to More Filters panel */}
 
         {/* Sort */}
-        <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <button
+            ref={sortBtnRef}
             onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
             className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
           >
             {SORT_LABEL[sort]} <ChevronDown size={10} />
           </button>
-          {showSortMenu && (
-            <div className="glass-panel absolute right-0 top-full mt-1 z-20 rounded-shell-lg min-w-[140px] py-1">
+          {showSortMenu && sortBtnRef.current && createPortal(
+            <MenuPositioner
+              x={sortBtnRef.current.getBoundingClientRect().right}
+              y={sortBtnRef.current.getBoundingClientRect().bottom + 4}
+              align="right"
+              onClick={(e) => e.stopPropagation()}
+              className="glass-panel rounded-shell-lg w-[104px] py-1"
+            >
               {(Object.keys(SORT_LABEL) as SortOption[])
                 // 'Best match' only applies while searching — hide it otherwise.
                 .filter((opt) => opt !== 'relevance' || search.trim().length > 0)
@@ -2170,7 +2230,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   {SORT_LABEL[opt]}
                 </button>
               ))}
-            </div>
+            </MenuPositioner>,
+            document.body
           )}
         </div>
 
@@ -2228,8 +2289,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         )}
 
         {/* Transcript tools — collapsed into a single popover */}
-        <div className="relative flex-shrink-0" ref={transcriptMenuRef}>
+        <div className="flex-shrink-0" ref={transcriptMenuRef}>
             <button
+              ref={transcriptBtnRef}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
               title="Transcript tools (dev only)"
               className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer transition-colors ${
@@ -2245,10 +2307,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               <ChevronDown size={10} className={`transition-transform ${showTranscriptMenu ? 'rotate-180' : ''}`} />
             </button>
 
-            {showTranscriptMenu && (
-              <div
+            {showTranscriptMenu && transcriptBtnRef.current && createPortal(
+              <MenuPositioner
+                x={transcriptBtnRef.current.getBoundingClientRect().right}
+                y={transcriptBtnRef.current.getBoundingClientRect().bottom + 4}
+                align="right"
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-1 z-50 w-64 rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl p-3 space-y-3"
+                className="w-56 rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl p-3 space-y-3"
               >
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">Fetch transcripts</p>
 
@@ -2314,7 +2379,8 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     <span className="tabular-nums">✓{transcriptResult.fetched} · skip {transcriptResult.skipped} · err {transcriptResult.errors}</span>
                   )}
                 </div>
-              </div>
+              </MenuPositioner>,
+              document.body
             )}
           </div>
       </TabHeaderPortal>
@@ -2403,7 +2469,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={gridScrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => { lastGridScrollTopRef.current = (e.currentTarget as HTMLDivElement).scrollTop }}
+      >
         {loading && videos.length === 0 && (
           <div className="px-6 py-8 flex flex-col items-center gap-3">
             <div className="w-8 h-8 rounded-full border-2 border-[rgb(var(--color-accent))] border-t-transparent animate-spin" />

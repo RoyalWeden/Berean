@@ -15,6 +15,22 @@ export function setMainBibleScrollPercent(p: number, chapterKey = '') {
   lastScrollChapterKey = chapterKey
 }
 
+// Last verse the main panel actually centered on for a given chapter. A one-shot targetVerse
+// jump (search navigation, cross-ref jump, etc.) gets consumed and cleared back to undefined by
+// ChapterView right after it scrolls — if that clearing tab-state update reaches the store
+// around the same tick as the jump's own update, computeViewerPayload() below could read
+// bs.verse ?? bs.targetVerse as undefined for the chapter the presenter is meant to center on,
+// landing it at the top instead. Retaining the last real verse per chapter (mirroring the
+// lastBibleScrollPercent/lastScrollChapterKey pattern above) means an undefined verse for the
+// SAME chapter falls back to the one that was actually just navigated to.
+let lastBibleVerse: number | undefined
+let lastVerseChapterKey = ''
+export function setLastBibleVerse(v: number | undefined, chapterKey = '') {
+  if (v === undefined) return
+  lastBibleVerse = v
+  lastVerseChapterKey = chapterKey
+}
+
 /** Compute what the viewer should show based on current app state. */
 export function computeViewerPayload(): ViewerPayload {
   const s = useAppStore.getState()
@@ -61,7 +77,13 @@ export function computeViewerPayload(): ViewerPayload {
     // one-shot scroll-to-verse jumps) only ever sets targetVerse, not verse. Without
     // this fallback, the viewer would have no verse to center on for a search-nav even
     // once BiblePanel.tsx stops forcing scrollPercent to 0 for that case (see there).
-    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse ?? bs.targetVerse, textId, sidePanel, scrollPercent }
+    // Further fall back to lastBibleVerse for this same chapter if BOTH verse and targetVerse
+    // are undefined — covers the moment right after ChapterView consumes and clears a one-shot
+    // targetVerse jump (see lastBibleVerse's own comment above).
+    const verse = bs.verse ?? bs.targetVerse ?? (lastVerseChapterKey === chapterKey ? lastBibleVerse : undefined)
+    if (bs.verse !== undefined) setLastBibleVerse(bs.verse, chapterKey)
+    else if (bs.targetVerse !== undefined) setLastBibleVerse(bs.targetVerse, chapterKey)
+    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse, textId, sidePanel, scrollPercent }
   }
 
   if (tab.type === 'note') {

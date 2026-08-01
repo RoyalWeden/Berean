@@ -147,19 +147,36 @@ export function buildBlockDecorations(doc: PMNode, onResolved: () => void): Deco
         const bareRefLine = strippedRefLine.ref
         let firstBodyIdx = i + 1
         while (firstBodyIdx < lines.length && !lines[firstBodyIdx].text.trim()) firstBodyIdx++
-        if (trimmed.includes(':') && parseRef(bareRefLine) && firstBodyIdx < lines.length && VERSE_BODY_LINE_RE.test(lines[firstBodyIdx].text)) {
+        // VERSE_BODY_LINE_RE alone ("digit(s) + whitespace + text") can't tell a verse-number
+        // body line ("6 And Seth lived...") apart from a numbered-book reference's OWN ref+body
+        // line ("2 Peter 3:5 this talks about..." / "1 John 2:4-5 ...") — both match it. A blank
+        // line correctly separating two stacked blocks got ignored whenever the SECOND block
+        // happened to start with a numbered book, merging them into one. Exclude anything that
+        // ALSO looks like a full "Book c:v body" line itself (SINGLE_VERSE_LINE_RE) — that's a
+        // new block starting, not a continuation of this one. Also exclude a BARE reference line
+        // with no body attached ("1 John 2:4-5" on its own line, the ref line of a new MULTI-line
+        // block) — VERSE_BODY_LINE_RE's "digit + whitespace + text" shape matches that too (the
+        // leading "1" reads as a verse number), and it doesn't carry trailing body text for
+        // SINGLE_VERSE_LINE_RE to reject on its own.
+        const isBodyContinuation = (t: string) => VERSE_BODY_LINE_RE.test(t) && !SINGLE_VERSE_LINE_RE.test(t) && !parseRef(t.trim())
+        if (trimmed.includes(':') && parseRef(bareRefLine) && firstBodyIdx < lines.length && isBodyContinuation(lines[firstBodyIdx].text)) {
           let end = firstBodyIdx
           while (true) {
             let next = end + 1
             while (next < lines.length && !lines[next].text.trim()) next++
-            if (next < lines.length && VERSE_BODY_LINE_RE.test(lines[next].text)) { end = next; continue }
+            if (next < lines.length && isBodyContinuation(lines[next].text)) { end = next; continue }
             break
           }
           const bodyParts = lines.slice(i + 1, end + 1)
             .filter((l) => l.text.trim())
             .map((l) => l.text.replace(/^\s*\d{1,3}[ \t]+/, ''))
+          // === true, not "!== false" — verseTextAccepted returns null while verification is
+          // still pending, and null !== false, so a still-unresolved candidate rendered as
+          // accepted IMMEDIATELY (every keystroke invalidates the cache key, so this was
+          // effectively always true while actively typing). Fail closed on pending too: don't
+          // show the block until verification actually resolves one way or the other.
           const accepted = verseTextAccepted(trimmed, bodyParts.join(' '), threshold, onResolved)
-          if (accepted !== false) {
+          if (accepted === true) {
             blocks.push({ kind: 'verse', startLine: i, endLine: end, refFrom: line.from, refTo: line.to, refText: bareRefLine, lxx: strippedRefLine.lxx })
           }
           i = end + 1
@@ -173,7 +190,7 @@ export function buildBlockDecorations(doc: PMNode, onResolved: () => void): Deco
           const strippedRef = stripLxxMarker(refLabel)
           if (parseRef(strippedRef.ref)) {
             const accepted = verseTextAccepted(refLabel, body, threshold, onResolved)
-            if (accepted !== false) {
+            if (accepted === true) {
               const refFrom = line.from + m[1].length
               const refTo = refFrom + m[2].length
               blocks.push({ kind: 'verse', startLine: i, endLine: i, refFrom, refTo, refText: strippedRef.ref, lxx: strippedRef.lxx })

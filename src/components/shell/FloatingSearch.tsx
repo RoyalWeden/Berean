@@ -88,6 +88,7 @@ const TRANSLATION_PREFIXES: Array<[string[], string]> = [
   [['1 clement:', '1clement:', '1clem '], '1clement'],
   [['apoc abraham:', 'apocalypse of abraham '], 'apoc_abraham'],
   [['testament of jacob:', 'test jacob:', 'tjac '], 't_jacob'],
+  [['2 baruch:', '2baruch:', 'apocalypse of baruch '], '2baruch'],
 ]
 
 /** All extra-book text IDs searched automatically in parallel for keyword queries */
@@ -106,6 +107,7 @@ const EXTRA_TEXT_IDS: Record<string, string> = {
   '1clement':    '1 Clement',
   apoc_abraham:  'Apoc. Abraham',
   t_jacob:       'T. Jacob',
+  '2baruch':     '2 Baruch',
 }
 
 function detectTranslationPrefix(q: string): { textId: string; cleanQuery: string } | null {
@@ -141,6 +143,7 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
 export default function FloatingSearch() {
   const searchOpen = useAppStore((s) => s.searchOpen)
   const searchMode = useAppStore((s) => s.searchMode)
+  const searchNewTabPosition = useAppStore((s) => s.searchNewTabPosition)
   // 'verses' — set by the Scripture tab's "Search scripture" button — shows
   // only the verse-results section below, reading as a lightweight version of
   // Advanced Search rather than the app-wide mixed search.
@@ -152,6 +155,7 @@ export default function FloatingSearch() {
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const activateTab = useAppStore((s) => s.activateTab)
   const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
   const createTab = useAppStore((s) => s.createTab)
   const addTab = useAppStore((s) => s.addTab)
@@ -550,6 +554,10 @@ export default function FloatingSearch() {
         noteBack: null,
       })
       renameTab('scripture', targetTab.id, title)
+      // Without this, jumping to a tab that wasn't already the active scripture tab left the
+      // state update applied to a tab the user wasn't looking at — the visible tab never
+      // scrolled anywhere.
+      activateTab(targetTab)
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
       const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -559,7 +567,7 @@ export default function FloatingSearch() {
         type: 'bible',
         title,
         state: { bookId, chapter, endChapter, translation, showStrongs: false, scrollPosition: 0, targetVerse, endVerse },
-      })
+      }, searchNewTabPosition)
     }
     setActiveSpace('scripture')
     closeSearch()
@@ -567,7 +575,7 @@ export default function FloatingSearch() {
 
   function goToLexicon(strongsNum: string) {
     if (searchMode === 'new') {
-      createTab('lexicon')
+      createTab('lexicon', searchNewTabPosition)
     } else {
       ensureTab('lexicon')
     }

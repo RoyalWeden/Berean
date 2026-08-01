@@ -108,4 +108,54 @@ describe('multi-paragraph verse/lexicon block detection', () => {
     expect(view.dom.innerHTML).not.toContain('pm-verse-block')
     view.destroy()
   })
+
+  it('two stacked multi-line blocks separated by a blank line stay SEPARATE even when the second starts with a numbered-book reference — regression for the merge bug where "1 John 2:4-5 ..."/"2 Peter 3:5 ..." (matching VERSE_BODY_LINE_RE just like a real verse-number body line) got swallowed into the first block instead of starting a new one', () => {
+    const doc = docFromLines(
+      'Genesis 5:6-7',
+      '6 And Seth lived an hundred and five years, and begat Enos:',
+      '7 And Seth lived after he begat Enos eight hundred and seven years, and begat sons and daughters:',
+      '',
+      '1 John 2:4-5',
+      '4 He that saith, I know him, and keepeth not his commandments, is a liar,',
+      '5 But whoso keepeth his word, in him verily is the love of God perfected:',
+    )
+    const view = makeView(doc)
+    const html = view.dom.innerHTML
+    // Both blocks present as independent first/last pairs, not one block spanning both refs.
+    const firstCount = (html.match(/pm-verse-block-first/g) ?? []).length
+    const lastCount = (html.match(/pm-verse-block-last/g) ?? []).length
+    expect(firstCount).toBe(2)
+    expect(lastCount).toBe(2)
+    view.destroy()
+  })
+})
+
+describe('verse block false-positive verification (window.bible mocked)', () => {
+  let originalBible: unknown
+
+  beforeEach(() => {
+    useAppStore.getState().setNoteScriptureBlock?.(true)
+    originalBible = (window as unknown as { bible?: unknown }).bible
+  })
+  afterEach(() => {
+    useAppStore.getState().setNoteScriptureBlock?.(false)
+    ;(window as unknown as { bible?: unknown }).bible = originalBible
+  })
+
+  it('a numbered-book reference followed by the user\'s OWN commentary (not real verse text) is NOT boxed as a verse block, once verification resolves', async () => {
+    ;(window as unknown as { bible: { queryChapter: (...a: unknown[]) => Promise<unknown> } }).bible = {
+      queryChapter: vi.fn().mockResolvedValue([
+        { verse_num: 5, text: 'Knowing this first, that there shall come in the last days scoffers, walking after their own lusts,' },
+      ]),
+    }
+    const doc = docFromLines('2 Peter 3:5 this talks about a warning')
+    const view = makeView(doc)
+    // Pending verification suppresses the block on the first synchronous pass.
+    expect(view.dom.innerHTML).not.toContain('pm-verse-block')
+    // Let the mocked async fetch + re-decoration resolve.
+    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(view.dom.innerHTML).not.toContain('pm-verse-block')
+    view.destroy()
+  })
 })

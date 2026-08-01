@@ -108,7 +108,10 @@ export const bereanMarkdownParser = new MarkdownParser(schema, md, tokens)
 // extra blank line. Skips fenced code blocks entirely — blank lines inside
 // a code fence are literal content, never a paragraph separator.
 const CODE_FENCE_RE = /(^```[\s\S]*?^```[ \t]*$|^~~~[\s\S]*?^~~~[ \t]*$)/gm
-const EXTRA_BLANK_MARKER = '​'
+// Exported so serializer.ts can emit this same sentinel directly for a TRAILING empty
+// paragraph (the one case expandExtraBlankLines' newline-run counting can't recover — see
+// serializer.ts's serializeToMarkdown for why).
+export const EXTRA_BLANK_MARKER = '​'
 
 function expandExtraBlankLines(source: string): string {
   const parts = source.split(CODE_FENCE_RE)

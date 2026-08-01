@@ -26,6 +26,7 @@ const TEXT_FILES: Record<string, string> = {
   apoc_abraham:  'apoc_abraham.db',
   didache_hoole: 'didache_hoole.db',
   t_jacob:       't_jacob.db',
+  '2baruch':     '2baruch.db',
 }
 
 function dataPath(filename: string): string {

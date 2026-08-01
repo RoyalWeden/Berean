@@ -10,7 +10,7 @@ import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMen
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
-import type { LexiconEntry } from '@/types'
+import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
@@ -38,9 +38,13 @@ export function stripBracketNotation(text: string): string {
 export function normalizeStrongsNums(text: string, lang: 'H' | 'G'): string {
   // Add prefix to bare numbers; also strip leading zeros from already-prefixed ones
   // (Greek DB stores H07941; Hebrew DB stores H7941 — normalize to the shorter form)
+  // The lookahead alone (excluding a number FOLLOWED by ":"/".") only guards the chapter half
+  // of a "32:38" verse reference — "38" (preceded by ":") was still getting converted to a
+  // clickable "H38", rendering "(Deuteronomy 32:38)" as "(Deuteronomy 32:H38)". Added a matching
+  // lookbehind excluding a number immediately preceded by ":" too.
   return text
     .replace(/\b([HG])0+(\d)/g, '$1$2')
-    .replace(/(?<![HGa-zA-Z/])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
+    .replace(/(?<![HGa-zA-Z/:])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
 }
 
 /** Build the plain-text string that the copy button places on the clipboard.
@@ -186,7 +190,12 @@ function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
   // Also used for the "Definition" field, which stores cross-refs the same
   // way (e.g. Hebrew H5703's definition ends "See 7495." with no H) — bare
   // numbers there are inferred from the entry's own lang the same way.
-  const parts = text.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g)
+  // The bare-number branch excludes one immediately preceded/followed by ":"/"." (with the
+  // trailing case also allowing a "." as a sentence-ending period) — without this, a plain
+  // chapter:verse reference like "(Deuteronomy 32:38)" got BOTH halves linkified as bare
+  // Strong's cross-refs, rendering as "(Deuteronomy H32:H38)". Mirrors normalizeStrongsNums'
+  // identical guard (used for the copy-text path) above.
+  const parts = text.split(/(\b[HG]\d{1,5}\b|(?<![:.\d])\b\d{1,5}\b(?!\s*[:.]))/g)
   return (
     <span>
       {parts.map((part, i) => {
@@ -662,12 +671,17 @@ function EntryView({
             )
           })()}
         </div>
-        <button
-          onClick={() => setExpanded(false)}
-          className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
-        >
-          Show less
-        </button>
+        {/* Hidden once every occurrence is already visible (≤10 total, or the "Show all N"
+            toggle above has been used) — redundant with that toggle at that point, since
+            there's nothing left this button would be collapsing away from. */}
+        {!(occurrences.length <= 10 || showAllOccurrences) && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="w-full text-center text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer py-1"
+          >
+            Show less
+          </button>
+        )}
         </>)}
       </div>
 
@@ -701,6 +715,8 @@ function SearchView({
   onSearchStateChange,
   initialQuery = '',
   initialLang = 'all' as 'H' | 'G' | 'all',
+  initialScrollTop = 0,
+  onScrollChange,
   findQuery,
   onFindOpen,
   floating = false,
@@ -711,6 +727,8 @@ function SearchView({
   onSearchStateChange?: (state: { query: string; lang: 'H' | 'G' | 'all' }) => void
   initialQuery?: string
   initialLang?: 'H' | 'G' | 'all'
+  initialScrollTop?: number
+  onScrollChange?: (top: number) => void
   findQuery?: string
   onFindOpen?: () => void
   floating?: boolean
@@ -727,6 +745,8 @@ function SearchView({
   const inputRef = useRef<HTMLInputElement>(null)
   const searchCtx = useStrongsContextMenu()
   const [ctxEntry, setCtxEntry] = useState<LexiconEntry | null>(null)
+  const resultsScrollRef = useRef<HTMLDivElement>(null)
+  const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // If we were restored from history with a pre-existing query, run it immediately
   useEffect(() => {
@@ -749,10 +769,28 @@ function SearchView({
 
   useEffect(() => { setSelectedIdx(0) }, [results])
 
-  // Report state changes up so the parent can save them into history
+  // Restore the results-list scroll position once the initial (restored) results have loaded.
   useEffect(() => {
-    onSearchStateChange?.({ query, lang })
-  }, [query, lang, onSearchStateChange])
+    if (!initialScrollTop || loading) return
+    const t = setTimeout(() => {
+      if (resultsScrollRef.current) resultsScrollRef.current.scrollTop = initialScrollTop
+    }, 80)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
+
+  // Report state changes up so the parent can save them into history. Read through a ref
+  // kept fresh every render, NOT depended on directly — the parent (LexiconPanel) passes an
+  // inline arrow function here that gets a new identity on every one of ITS renders; including
+  // it directly in this effect's deps re-fired the effect on every parent render regardless of
+  // whether query/lang actually changed, and since the effect's own call updates store state
+  // the parent reads, that re-triggered a parent render too — an infinite loop (confirmed via
+  // a live "Maximum update depth exceeded" crash tracing directly to this effect).
+  const onSearchStateChangeRef = useRef(onSearchStateChange)
+  useEffect(() => { onSearchStateChangeRef.current = onSearchStateChange })
+  useEffect(() => {
+    onSearchStateChangeRef.current?.({ query, lang })
+  }, [query, lang])
 
   function handleInput(val: string) {
     setQuery(val)
@@ -831,7 +869,15 @@ function SearchView({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={resultsScrollRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => {
+          const top = (e.currentTarget as HTMLDivElement).scrollTop
+          if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+          scrollSaveTimerRef.current = setTimeout(() => onScrollChange?.(top), 150)
+        }}
+      >
         {loading && <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">Searching…</div>}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
           <div className="px-4 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No results for "{query}"</div>
@@ -906,8 +952,20 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
 
   // Tracks the current SearchView's query/lang so we can push it into history
   const searchStateRef = useRef<{ query: string; lang: 'H' | 'G' | 'all' }>({ query: '', lang: 'all' })
-  // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView
-  const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(null)
+  // Restored search state passed as initialQuery/initialLang to a freshly-mounted SearchView.
+  // Lazy initializer reads this tab's persisted query/lang directly — ActivePanel fully remounts
+  // LexiconPanel on every tab switch, so this is a genuinely fresh mount each time, matching the
+  // pattern used for NotesPanel's continuousDailyDate.
+  const [savedSearch, setSavedSearch] = useState<{ query: string; lang: 'H' | 'G' | 'all' } | null>(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    const state = tab?.state as LexiconTabState | undefined
+    return state?.searchQuery ? { query: state.searchQuery, lang: state.searchLang ?? 'all' } : null
+  })
+  // Restored results-list scroll offset, passed to SearchView as initialScrollTop.
+  const [searchInitialScrollTop] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    return ((tab?.state as LexiconTabState | undefined)?.searchScrollTop) ?? 0
+  })
   // Bumped whenever a query is pushed in from the floating search bar, so SearchView
   // remounts and re-runs the search even when it was already the visible view.
   const [searchRemountToken, setSearchRemountToken] = useState(0)
@@ -1265,9 +1323,14 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
             if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum: entry.strongsNum, title: entry.strongsNum })
           }}
           onOpenNewTab={(entry) => navToEntry(entry.strongsNum, true)}
-          onSearchStateChange={(s) => { searchStateRef.current = s }}
+          onSearchStateChange={(s) => {
+            searchStateRef.current = s
+            if (lexiconTabId) updateTabState('lexicon', lexiconTabId, { searchQuery: s.query, searchLang: s.lang })
+          }}
           initialQuery={savedSearch?.query ?? ''}
           initialLang={savedSearch?.lang ?? 'all'}
+          initialScrollTop={searchInitialScrollTop}
+          onScrollChange={(top) => { if (lexiconTabId) updateTabState('lexicon', lexiconTabId, { searchScrollTop: top }) }}
           findQuery={activeFindQuery}
           floating={floating}
           wordReplacerRules={activeWordReplacerRules}

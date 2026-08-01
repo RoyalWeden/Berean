@@ -755,6 +755,21 @@ app.whenReady().then(async () => {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
   ipcMain.handle('app:newWindow', () => { createWindow() })
+  // Manual, JS-driven window move — used by Sidebar.tsx's empty tab-list space, which needs to
+  // support BOTH window-drag AND double-click-to-search on the exact same screen area. A real
+  // `-webkit-app-region: drag` CSS region can't do this: Electron intercepts the mousedown at
+  // the OS/browser-process level before any renderer listener runs once an element is a drag
+  // region, so a double-click there never reliably reaches the renderer either (four prior CSS-
+  // only attempts documented in Sidebar.tsx all failed for exactly this reason). Keeping the
+  // area `no-drag` and instead tracking mousedown+mousemove in the renderer, calling this once
+  // real movement is detected, sidesteps that limitation entirely — dblclick still fires
+  // natively and reliably since the region was never marked as a drag region in the first place.
+  ipcMain.on('app:moveWindowBy', (event, dx: number, dy: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return
+    const [x, y] = win.getPosition()
+    win.setPosition(x + dx, y + dy)
+  })
   ipcMain.handle('app:openFloatingTab', (_e, type: string, state: Record<string, unknown>) => {
     createFloatingWindow(type, state ?? {})
   })

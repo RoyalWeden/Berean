@@ -5,6 +5,7 @@ import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, Git
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { bookChapterHoverLabel } from '@/lib/parseRef'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -549,6 +550,16 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           // bar breadcrumb (which shows the bare tab.title directly, unprefixed).
           const isSearchTab = tab.type === 'search' || (bibleState?.searchMode ?? false)
           const displayTitle = isSearchTab && tab.title.startsWith('"') ? `Search: ${tab.title}` : tab.title
+          // Full-name hover tooltip for multi-book editions (Recognitions of Clement's 10
+          // books, Hermas's Visions/Mandates/Similitudes, etc.) — bookChapterHoverLabel
+          // spells out the full work name with the "Book N"/section qualifier moved to the
+          // end ("Recognitions of Clement 5, Book 3"), which the plain tab title doesn't
+          // always carry (Hermas tabs use a compact "Hermas Vis. 3.1" abbreviation to save
+          // space in the tab bar itself). Falls back to the plain title for search/compare
+          // tabs and anything without a resolvable bookId.
+          const hoverTitle = bibleState?.bookId && !isSearchTab && !isCompare
+            ? bookChapterHoverLabel(bibleState.bookId, bibleState.chapter)
+            : displayTitle
 
           const showInsertBefore    = dragOverIdx === idx && dragInsertBefore  && draggingIdx !== idx
           const showInsertAfter     = dragOverIdx === idx && !dragInsertBefore && draggingIdx !== idx
@@ -564,6 +575,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               <div
                 data-tab-idx={idx}
                 draggable
+                title={hoverTitle}
                 onClick={() => onTabClick(tab)}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e)  => handleTabDragOver(e, idx)}
@@ -633,8 +645,15 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
       {contextMenu && createPortal(
         <div
           ref={menuRef}
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
-          className="min-w-44 rounded-shell context-menu p-1 text-xs"
+          // WebkitAppRegion: 'no-drag' — this menu is portaled to document.body, so it can land,
+          // purely by screen coordinates, over the top header bar's app-drag-region (especially
+          // after the upward "flip" for a tab near the bottom of the list). Without this, a click
+          // on "Open in floating tab"/"Duplicate tab" there gets swallowed by Electron's drag
+          // hit-testing before the renderer ever sees it — every other portaled menu in this
+          // codebase (MenuPositioner, ShellHeader's nav dropdown, Sidebar's own popups) already
+          // carries this for the identical reason; this one was the one place missing it.
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="min-w-44 rounded-shell context-menu p-1 text-xs no-drag"
         >
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"

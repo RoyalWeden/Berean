@@ -74,7 +74,7 @@ NOISE = {
     'the','a','an','and','or','of','in','to','for','with','by',
     'be','is','are','was','not','no','all','also','any','but','as',
     'at','on','up','so','if','it','its','one','him','his','her',
-    'they','them','their','this','that','which','who','what','how',
+    'they','them','their','this','that','these','those','which','who','what','how',
     'when','where','may','can','will','would','could','should',
     'have','has','had','do','does','did','shall','been','being',
     'from','into','upon','over','out','off','about','through','than',
@@ -120,6 +120,20 @@ def kw_from_def(short_def: str) -> set[str]:
     words = re.findall(r"[a-zA-Z']{2,}", text)
     return {w.lower() for w in words} - NOISE
 
+
+def kw_from_def_raw(short_def: str) -> set[str]:
+    """Same extraction as kw_from_def but WITHOUT stripping NOISE — needed for
+    function-word matching in Pass 2, since NOISE deliberately removes exactly the
+    words (the/and/but/of/etc.) that identify a function word's own G-number.
+    """
+    if not short_def:
+        return set()
+    text = re.sub(r'\([^)]*\)', ' ', short_def)
+    text = re.sub(r'[+X\-]', ' ', text)
+    text = re.sub(r'\d+', ' ', text)
+    words = re.findall(r"[a-zA-Z']{2,}", text)
+    return {w.lower() for w in words}
+
 # ── Rahlfs text_tagged parser ─────────────────────────────────────────────────
 
 def parse_rahlfs(tagged: str) -> list[tuple[str, str]]:
@@ -133,10 +147,12 @@ def parse_rahlfs(tagged: str) -> list[tuple[str, str]]:
 # ── Alignment core ────────────────────────────────────────────────────────────
 
 def align(greek_tokens: list[tuple[str, str]], english_text: str,
-          def_dict: dict[str, set[str]]) -> str:
+          def_dict: dict[str, set[str]], raw_def_dict: dict[str, set[str]]) -> str:
     """
-    Assign a G-number to each English word using gloss matching + positional
-    fallback. Returns text_tagged in KJVA format: "word{G1234} word{} ..."
+    Assign a G-number to each English word using gloss matching (Pass 1, content
+    words) followed by window-constrained gloss matching for whatever's left
+    (Pass 2, overwhelmingly function words). Returns text_tagged in KJVA format:
+    "word{G1234} word{} ..."
     """
     raw = english_text.split()
     if not raw or not greek_tokens:
@@ -151,6 +167,7 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
         parsed.append((tok, m.group(1).lower() if m else ''))
 
     assignments: dict[int, str] = {}
+    assign_j: dict[int, int] = {}
     greek_used: set[int] = set()
 
     # ── Pass 1: content word → G-number matching ──────────────────────────────
@@ -187,36 +204,83 @@ def align(greek_tokens: list[tuple[str, str]], english_text: str,
     for _, i, j, gs in cand:
         if i not in assignments and j not in greek_used:
             assignments[i] = gs
+            assign_j[i] = j
             greek_used.add(j)
 
-    # ── Pass 2: remaining tokens aligned by position + gloss ─────────────────
-    remaining = [(j, gs) for j, (_, gs) in enumerate(greek_tokens)
-                 if j not in greek_used and gs]
+    # ── Pass 2: window-constrained matching for whatever Pass 1 left unresolved ──
+    # Rather than guessing a leftover token's position across the WHOLE verse
+    # (the old approach — unreliable since Greek/English word order and word
+    # count don't line up 1:1, especially around postpositive particles like
+    # δέ/γάρ and inserted English copulas), constrain each match to the local
+    # window strictly BETWEEN two Pass-1-anchored content words (or the verse
+    # boundary, for the first/last window). Anchors are already known-correct,
+    # so a leftover token can only steal a neighbor's number from within its own
+    # bounded window, never from clear across the verse.
+    anchors = sorted(assign_j.items())  # [(i, j), ...] in English order
+    bounds = [(-1, -1)] + anchors + [(n_e, n_g)]
 
-    cand2: list[tuple[float, int, int, str]] = []
-    for i, (orig, clean) in enumerate(parsed):
-        if i in assignments or not clean:
+    for k in range(len(bounds) - 1):
+        i_lo, j_lo = bounds[k]
+        i_hi, j_hi = bounds[k + 1]
+        e_slice = list(range(i_lo + 1, i_hi))
+        g_slice = [j for j in range(j_lo + 1, j_hi) if j not in greek_used and greek_tokens[j][1]]
+        if not e_slice or not g_slice:
             continue
-        vs = variants(clean)
-        vs_stems = {stem(v) for v in vs}
-        for j, gs in remaining:
-            kw = def_dict.get(gs, set())
-            score = 0.0
-            if vs & kw:
-                score = 2.0
-            elif vs_stems & {stem(k) for k in kw}:
-                score = 1.0
-            exp_j = (i / n_e) * n_g
-            pos   = 1.0 * max(0.0, 1.0 - abs(j - exp_j) / max(n_g, 1))
-            cand2.append((score + pos, i, j, gs))
 
-    cand2.sort(reverse=True)
-    used2: set[int] = set()
-    for _, i, j, gs in cand2:
-        if i not in assignments and j not in used2:
-            assignments[i] = gs
-            used2.add(j)
+        local_cand: list[tuple[float, int, int, str]] = []
+        for i in e_slice:
+            if i in assignments:
+                continue
+            orig, clean = parsed[i]
+            if not clean:
+                continue
+            vs = variants(clean)
+            vs_stems = {stem(v) for v in vs}
+            for j in g_slice:
+                gs = greek_tokens[j][1]
+                kw_raw = raw_def_dict.get(gs, set())   # includes function-word glosses (the/and/but/…)
+                kw     = def_dict.get(gs, set())       # noise-filtered — still useful for content words
+                score = 0.0
+                if vs & kw_raw:
+                    score = 3.0
+                elif vs & kw:
+                    score = 2.5
+                elif vs_stems & {stem(k) for k in kw_raw}:
+                    score = 1.5
+                if score == 0.0:
+                    continue
+                # Small order-preserving tiebreaker WITHIN the window only — never used to
+                # pull in a candidate that didn't already match a gloss above.
+                span_e = max(1, i_hi - i_lo)
+                span_g = max(1, j_hi - j_lo)
+                rel_i = (i - i_lo) / span_e
+                rel_j = (j - j_lo) / span_g
+                pos = 0.4 * max(0.0, 1.0 - abs(rel_i - rel_j))
+                local_cand.append((score + pos, i, j, gs))
 
+        local_cand.sort(reverse=True)
+        for _, i, j, gs in local_cand:
+            if i not in assignments and j not in greek_used:
+                assignments[i] = gs
+                greek_used.add(j)
+
+        # Ordered leftover fallback: a handful of windows have a real Greek counterpart
+        # whose short_def just doesn't share vocabulary with Brenton's chosen English word
+        # (e.g. ἐπιφέρω/G2018 glossed "bring, take, add" translated "moved") — no gloss
+        # match is possible for those, but leaving them empty would be a regression versus
+        # the old (whole-verse-positional) tagging, which got these particular cases right.
+        # Safe here specifically because the window is already bounded by two verified
+        # anchors, not the whole verse — pair whatever's left, in order, only within that
+        # narrow span.
+        e_left = [i for i in e_slice if i not in assignments and parsed[i][1]]
+        g_left = [j for j in g_slice if j not in greek_used]
+        for i, j in zip(e_left, g_left):
+            assignments[i] = greek_tokens[j][1]
+            greek_used.add(j)
+
+    # Anything still unresolved (no Greek counterpart in its window, or an inserted
+    # English word like a copula with nothing to match) is left untagged rather than
+    # stealing a neighbor's number.
     return ' '.join(f"{orig}{{{assignments.get(i, '')}}}"
                     for i, (orig, _) in enumerate(parsed))
 
@@ -234,12 +298,17 @@ def main() -> None:
     except sqlite3.OperationalError:
         print("text_tagged column already exists (overwriting)")
 
-    # G-number → keyword set
+    # G-number → keyword set (noise-filtered, for content-word Pass 1 + fallback in Pass 2)
+    # and a second, unfiltered version (raw_def_dict) needed for Pass 2's function-word
+    # matching — NOISE deliberately strips the/and/but/of/etc., which are exactly the
+    # words that identify a function word's own G-number.
     print("Building definition dictionary …")
     def_dict: dict[str, set[str]] = {}
+    raw_def_dict: dict[str, set[str]] = {}
     for gnum, short_def in strongs_db.execute(
             "SELECT strongs_id, short_def FROM entries").fetchall():
         def_dict[gnum] = kw_from_def(short_def or '')
+        raw_def_dict[gnum] = kw_from_def_raw(short_def or '')
     print(f"  {len(def_dict)} G-numbers")
 
     # Rahlfs tagged verse lookup
@@ -266,7 +335,7 @@ def main() -> None:
             skipped += 1
             continue
         gt = parse_rahlfs(tagged)
-        updates.append((align(gt, eng, def_dict), vid))
+        updates.append((align(gt, eng, def_dict, raw_def_dict), vid))
         matched += 1
         if matched % 3000 == 0:
             print(f"  {matched} / {len(rows)} …")

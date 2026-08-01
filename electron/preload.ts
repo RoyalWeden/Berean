@@ -122,6 +122,7 @@ contextBridge.exposeInMainWorld('app', {
   isDev: () => ipcRenderer.invoke('app:isDev'),
   youTubeSignOut: () => ipcRenderer.invoke('app:youTubeSignOut'),
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
+  moveWindowBy: (dx: number, dy: number) => ipcRenderer.send('app:moveWindowBy', dx, dy),
   openFloatingTab: (type: string, state: unknown) => ipcRenderer.invoke('app:openFloatingTab', type, state),
   openViewerWindow: () => ipcRenderer.invoke('app:openViewerWindow'),
   closeViewerWindow: () => ipcRenderer.invoke('app:closeViewerWindow'),

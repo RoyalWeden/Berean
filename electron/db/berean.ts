@@ -49,22 +49,30 @@ export function mergeYouTubeSeed(db: DB): void {
       ).get() as { name: string } | undefined
 
       if (hasTranscripts) {
-        // Insert segments FIRST, gated on the live table so we only seed videos the user
-        // doesn't already have a transcript row for. We omit the explicit segment `id` so
-        // SQLite assigns fresh rowids and the FTS5 AFTER-INSERT trigger indexes each row.
-        db.prepare(`
-          INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text)
-          SELECT s.video_id, s.start_ms, s.dur_ms, s.text
-          FROM seed.youtube_transcript_segments s
-          WHERE s.video_id NOT IN (SELECT video_id FROM youtube_transcripts)
-        `).run()
-
-        // Then the metadata rows (INSERT OR IGNORE dedupes by video_id).
+        // Metadata rows FIRST — youtube_transcript_segments.video_id REFERENCES
+        // youtube_transcripts(video_id) and foreign_keys=ON (see getBereanDb below), so
+        // inserting segments before their parent row exists violates the FK constraint and
+        // aborts the whole transaction. (Previously segments were inserted first here, which
+        // silently rolled back this entire merge — and re-attempted and re-failed on every
+        // single app launch, since youtubeSeedVersion below is only ever reached on success.)
         db.prepare(`
           INSERT OR IGNORE INTO youtube_transcripts
             (video_id, lang, source, fetched_at, segment_count, duration_ms, error)
           SELECT video_id, lang, source, fetched_at, segment_count, duration_ms, error
           FROM seed.youtube_transcripts
+        `).run()
+
+        // Then segments, gated on youtube_transcript_segments itself (not youtube_transcripts —
+        // that table was just populated with EVERY seed video_id above, so gating on it here
+        // would skip every row). Checking segments directly still correctly skips videos the
+        // user already had transcript content for from an earlier seed merge. We omit the
+        // explicit segment `id` so SQLite assigns fresh rowids and the FTS5 AFTER-INSERT
+        // trigger indexes each row.
+        db.prepare(`
+          INSERT INTO youtube_transcript_segments (video_id, start_ms, dur_ms, text)
+          SELECT s.video_id, s.start_ms, s.dur_ms, s.text
+          FROM seed.youtube_transcript_segments s
+          WHERE s.video_id NOT IN (SELECT DISTINCT video_id FROM youtube_transcript_segments)
         `).run()
       }
     })()
@@ -72,6 +80,7 @@ export function mergeYouTubeSeed(db: DB): void {
     db.exec('DETACH seed')
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('youtubeSeedVersion', ?)").run(String(SEED_VERSION))
   } catch (err) {
+    console.error('[mergeYouTubeSeed] failed, rolled back:', err)
     try { db.exec('DETACH seed') } catch { /* ignore */ }
   }
 }

@@ -60,6 +60,26 @@ export interface BibleTabState {
   rightPanelNoteFocused?: boolean        // was the side-panel note editor focused when the tab was left?
   rightPanelLexiconEntry?: string | null
   rightPanelVerseFilter?: string | null
+  // "Expand all" toggle for the side panel's notes list (whole-snippet vs. truncated preview) —
+  // persisted so it survives switching tabs/slots and app restarts instead of resetting to
+  // collapsed every time.
+  rightPanelExpandAll?: boolean
+  rightPanelExpandAllB?: boolean
+  // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
+  // moveTab/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
+  // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,
+  // not just its own type.
+  // rightPanelSlotBTabs is the SET of tab types currently assigned to slot B (a slot can hold
+  // more than one, switchable via its own strip) — empty/undefined = slot B not shown.
+  // rightPanelSlotB is slot B's currently-ACTIVE tab within that set (must be a member of
+  // rightPanelSlotBTabs, or null when the set is empty).
+  rightPanelSlotBTabs?: Array<'notes' | 'lexicon' | 'crossrefs'>
+  rightPanelSlotB?: 'notes' | 'lexicon' | 'crossrefs' | null
+  rightPanelNoteIdB?: string | null
+  rightPanelNoteCursorB?: number | null
+  rightPanelNoteFocusedB?: boolean
+  rightPanelLexiconEntryB?: string | null
+  rightPanelVerseFilterB?: string | null
   noteBack?: { noteId: string; title: string } | null
   scriptureBack?: { bookId: string; chapter: number; verse?: number; label: string; translation?: string } | null
   searchBack?: { query: string } | null
@@ -81,11 +101,20 @@ export interface NoteTabState {
   verseRef?: string
   scrollTop?: number
   cursorPos?: number
+  /** Scroll offset of the notes list/browsing view (distinct from `scrollTop`, which is the open-note editor's own scroll). */
+  listScrollTop?: number
+  /** Epoch ms of the day currently in view in continuous-daily-scroll mode. */
+  continuousDailyDate?: number
 }
 
 export interface LexiconTabState {
   strongsNum: string | null
   scrollTop?: number
+  /** Scroll offset of the SearchView results list (distinct from `scrollTop`, which is the entry-detail view's own scroll). */
+  searchScrollTop?: number
+  /** Live search-box query/language, restored when returning to the search (non-entry) view. */
+  searchQuery?: string
+  searchLang?: 'H' | 'G' | 'all'
   lexHistory?: Array<
     | { kind: 'entry'; strongsNum: string }
     | { kind: 'search'; query: string; lang: 'H' | 'G' | 'all' }
@@ -136,6 +165,8 @@ export interface YouTubeTabState {
   youtubeLayout?: YouTubeLayout
   panelA?: YouTubePanelState | null
   panelB?: YouTubePanelState | null
+  /** Scroll offset of the browse/grid video list (the home view, not the player). */
+  scrollTop?: number
 }
 
 export interface SearchTabState {

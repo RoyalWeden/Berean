@@ -122,6 +122,99 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.16] - 2026-07-31
+
+Scripture reading side panel
+- The side panel can now hold a set of tabs (Notes, Lexicon, Cross-refs)
+  rather than just one — pop a tab out into a second panel and it keeps
+  whichever tabs you leave it holding onto, and the popped-out panel now
+  sits to the left of the main one instead of the right.
+- Dragging a tab out of the panel to pop it out now responds instantly
+  instead of after a brief delay.
+- Each panel now shows a real visual gap from the other, and a panel's tab
+  strip no longer offers a tab that's already open in the other panel.
+- Notes/Lexicon/Cross-ref data is now shared between both panels instead of
+  being fetched twice when they're showing the same chapter.
+
+Sidebar
+- The sidebar can now be resized by dragging its edge (224–250px), and the
+  gap between the sidebar and the icon rail next to it is smaller.
+- Tab hover tooltips for multi-book editions (Recognitions of Clement,
+  Shepherd of Hermas, and similar works) now show the full work name with
+  the book/section name at the end, e.g. "Recognitions of Clement 5, Book
+  3", instead of a truncated or misordered label.
+- Dragging from empty space below the tab list now moves the window.
+
+Notes
+- Fixed a note losing a trailing blank line at the end after switching away
+  from its tab and back.
+- Fixed reopening a notes tab briefly flashing the notes list before
+  showing the note itself.
+- Reduced false positives and incorrect merging when auto-detecting
+  scripture blocks while typing or pasting.
+- Mitigated a case where OS-level text replacement (e.g. Raycast snippets)
+  could occasionally double-replace text.
+- Notes list scroll position and continuous-daily-scroll position are now
+  preserved across tab switches.
+
+Highlighting
+- Fixed highlights not rendering in KJV and every book other than KJVA/LXX
+  when Strong's numbers are hidden and no search is active — highlights
+  created since the switch to character-offset storage never rendered in
+  that default reading view for those texts.
+
+Advanced Scripture Search
+- Fixed Strong's-number search results not truncating around the actual
+  match.
+- Fixed scroll position being lost when navigating back to search results
+  from a result.
+- Books with no matches are now hidden from the Scope checklist.
+
+Lexicon
+- Fixed a crash ("Maximum update depth exceeded") triggered from the
+  Lexicon search view.
+- Search query, language, and results scroll position are now preserved
+  across tab switches, and the tab-switch flash is gone.
+- Removed a redundant "Show less" button.
+
+Compare mode
+- Tab title now shows the reference and translations being compared (e.g.
+  "Exodus 3 KJVA / LXX") instead of a generic "Compare — " label.
+
+YouTube
+- Fixed transcript search taking multiple seconds on some queries.
+- Fixed transcript fetches for Shorts and completed livestreams being
+  skipped entirely.
+- Fixed rate-limited (429) transcript fetches being permanently marked as
+  failed instead of retried.
+- Fixed transcript-fetch background windows briefly producing audible
+  playback.
+- Toolbar dropdown menus (Channel, Sort, Transcript tools) no longer get
+  clipped by the header and are sized to their content.
+- Browse-grid scroll position is now preserved across tab switches.
+
+Presenter window
+- Reduced side margins and moved verse numbers into their own gutter
+  instead of sitting inline before each verse.
+
+Data
+- Added 2 Baruch as a new pseudepigrapha book, and fixed inline topic
+  subheadings that had leaked into the verse text.
+- Corrected a stray manuscript-folio marker ("265b") that had leaked into
+  Gad the Seer 10:39.
+- Re-seeded the Testaments of the Twelve Patriarchs from an independent OCR
+  source.
+- Rewrote the Septuagint (Brenton) Greek Strong's-number alignment pass,
+  and fixed several verses (including Isaiah 27:13) where two adjacent
+  Strong's numbers had been swapped between English words.
+
+General
+- New tabs now follow consistent placement rules across all spaces.
+- Fixed floating search / PDF tabs occasionally opening blank, and clicks
+  on floating or duplicate tabs being swallowed.
+
+---
+
 ## [0.4.15] - 2026-07-26
 
 Notes — Idiom entries

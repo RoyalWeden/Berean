@@ -71,6 +71,21 @@ describe('parseRef', () => {
     const r = parseRef('Gen 1:1')
     expect(r?.forcedTranslation).toBeUndefined()
   })
+
+  it('parses "book chapter verse" with a bare space instead of ":"/"." ', () => {
+    expect(parseRef('james 1 15')).toMatchObject({ bookId: 'JAS', chapter: 1, verse: 15 })
+    expect(parseRef('gen 1 1')).toMatchObject({ bookId: 'GEN', chapter: 1, verse: 1 })
+    expect(parseRef('1 sam 2 3')).toMatchObject({ bookId: '1SA', chapter: 2, verse: 3 })
+    expect(parseRef('song of solomon 1 1')).toMatchObject({ bookId: 'SNG', chapter: 1, verse: 1 })
+  })
+
+  it('bare-space chapter+verse never shadows the punctuated dash chapter-range form', () => {
+    expect(parseRef('Hosea 13-14')).toMatchObject({ bookId: 'HOS', chapter: 13, endChapter: 14 })
+  })
+
+  it('rejects a bare-space "verse" form with an invalid book token', () => {
+    expect(parseRef('nosuchbook 1 15')).toBeNull()
+  })
 })
 
 // ─── getTranslationForBook ────────────────────────────────────────────────────
