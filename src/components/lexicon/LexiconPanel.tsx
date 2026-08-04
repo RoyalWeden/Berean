@@ -779,6 +779,18 @@ function SearchView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
+  // Flush the latest scroll position on unmount — onScroll below debounces its save by 150ms,
+  // so a tab switch inside that window would otherwise abandon the timer and lose the last bit
+  // of scroll. Mirrors the same fix in ScriptureSearchView.tsx / SearchTab.tsx.
+  const onScrollChangeRef = useRef(onScrollChange)
+  useEffect(() => { onScrollChangeRef.current = onScrollChange })
+  useEffect(() => {
+    return () => {
+      if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+      if (resultsScrollRef.current) onScrollChangeRef.current?.(resultsScrollRef.current.scrollTop)
+    }
+  }, [])
+
   // Report state changes up so the parent can save them into history. Read through a ref
   // kept fresh every render, NOT depended on directly — the parent (LexiconPanel) passes an
   // inline arrow function here that gets a new identity on every one of ITS renders; including
@@ -1181,6 +1193,20 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lexiconTabId])
+
+  // Flush the entry-view's latest scroll position on unmount (tab switch away from this
+  // lexicon tab) — the onScroll handler debounces its save by 150ms, so scrolling that happens
+  // in the last stretch before a switch would otherwise be lost with the abandoned timer.
+  // Mirrors the same fix in ScriptureSearchView.tsx / SearchTab.tsx.
+  useEffect(() => {
+    return () => {
+      if (lexScrollSaveTimer.current) clearTimeout(lexScrollSaveTimer.current)
+      if (lexiconTabId && entryScrollRef.current) {
+        updateTabState('lexicon', lexiconTabId, { scrollTop: entryScrollRef.current.scrollTop })
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Persist open entry + history to tab state (used when duplicating the tab). Skips exactly
   // one run right after a tab switch — see skipNextLexPersistRef's comment.

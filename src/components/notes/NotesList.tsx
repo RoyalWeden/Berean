@@ -31,6 +31,10 @@ function stripMarkdownFormatting(md: string): string {
     .replace(/_([^_]+)_/g, '$1')                        // italic (underscore)
     .replace(/~~([^~]+)~~/g, '$1')                      // strikethrough
     .replace(/\|/g, ' ')                                // table pipes
+    // Highlight/underline marks (<mark class="hlcyan">…</mark>, <u>…</u>) are stored as literal
+    // inline HTML in the markdown source (no plain-markdown syntax for them) — left un-stripped
+    // by the rules above, the raw tags showed up as visible noise in list previews/snippets.
+    .replace(/<\/?(mark|u)\b[^>]*>/gi, '')
 }
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
@@ -183,7 +187,7 @@ export default function NotesList({
           const note = notes[virtualRow.index]
           const rawSnippet = note.type === 'idiom' && note.idiomMeaning
             ? note.idiomMeaning
-            : note.content.replace(/[#*`>\-_~\[\]]/g, '').trim()
+            : stripMarkdownFormatting(note.content).trim()
           const snippet = expandAll
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')

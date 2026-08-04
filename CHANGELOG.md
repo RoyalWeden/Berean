@@ -122,6 +122,27 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.17] - 2026-08-04
+
+Notes
+- Fixed notes tabs (including the general Notes list) flashing briefly when
+  switching to them — most noticeably right after restarting the app, or
+  when switching directly between two already-open note tabs.
+- Fixed a reopened note losing its scroll position and cursor placement.
+- Fixed literal highlight/underline markup occasionally showing up as raw
+  text in the notes list preview instead of rendering as formatting.
+
+Advanced Scripture Search
+- Fixed a tab opened from a search result occasionally reverting its title
+  back to the search query instead of staying on the scripture reference.
+
+Bible reading
+- Reduced a brief flash when switching back to an already-viewed chapter.
+
+Lexicon / Search / PDF
+- Scroll position is now reliably preserved when switching tabs quickly, in
+  the Lexicon panel, the Search tab, and the PDF viewer.
+
 ## [0.4.16] - 2026-07-31
 
 Scripture reading side panel

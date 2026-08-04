@@ -22,7 +22,7 @@ import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
-import { getAllNotes } from '@/lib/notesCache'
+import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey } from './CalendarWidget'
 
@@ -72,7 +72,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const setIdiomCache = useAppStore((s) => s.setIdiomCache)
   const continuousDailyScroll = useAppStore((s) => s.continuousDailyScroll)
 
-  const [notes, setNotes] = useState<Note[]>([])
+  // Lazy-seed from notesCache's token-independent warm start (this session's last fetch, or —
+  // via localStorage — a previous session's) so the notes list renders with real data on the
+  // very first frame instead of empty. The effect below still does the real, token-matched
+  // fetch and corrects this shortly after if anything actually changed — see
+  // notesCache.ts's getWarmStartNotes for why a token-exact cache read doesn't work here.
+  const [notes, setNotes] = useState<Note[]>(() => getWarmStartNotes() ?? [])
   // Scroll container for the list-view NotesList — read by its virtualizer so
   // only visible rows are mounted regardless of total note count.
   const notesListScrollRef = useRef<HTMLDivElement>(null)
@@ -85,6 +90,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
     return saved ? new Date(saved) : new Date()
   })
+  // Resync when notesTabId changes WITHOUT a remount (ActivePanel no longer remounts
+  // NotesPanel for same-type tab switches — see its own comment) — the lazy initializer above
+  // only runs once per true mount, so without this, switching to a different tab while in
+  // continuous-daily-scroll mode would keep showing whichever day the FIRST tab was on.
+  const prevContinuousDailyTabIdRef = useRef(notesTabId)
+  useEffect(() => {
+    if (notesTabId === prevContinuousDailyTabIdRef.current) return
+    prevContinuousDailyTabIdRef.current = notesTabId
+    const tab = tabs.find((t) => t.id === notesTabId)
+    const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
+    setContinuousDailyDate(saved ? new Date(saved) : new Date())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesTabId])
   // Persist the in-view day whenever it changes (continuous-daily-scroll mode).
   useEffect(() => {
     if (!notesTabId) return
@@ -531,6 +549,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // actually working — the rest of the header bar stays draggable.
   const [titleFocused, setTitleFocused] = useState(false)
   useEffect(() => { setTitleFocused(false) }, [activeNote?.id])
+  // Close note-scoped modals/local UI on a tab switch (ActivePanel no longer remounts
+  // NotesPanel for same-type tab switches, so these no longer close "for free" via unmount) —
+  // without this, a modal left open for the previous tab's note (print preview, version
+  // history, the idiom-conversion prompt, local find-in-note) would stay open floating over
+  // whatever note you just switched to, showing/acting on the WRONG note.
+  useEffect(() => {
+    setPrintPreviewOpen(false)
+    setVersionHistoryOpen(false)
+    setPrintNote(null)
+    setConvertIdiomModal(null)
+    setLocalFindOpen(false)
+    setLocalFindQuery('')
+    setEditorMode('edit')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesTabId])
   // Track latest scroll position via scroll events (more reliable than reading DOM on unmount)
   const lastScrollTopRef = useRef(0)
   // Track latest cursor position so it can be persisted on tab switch
@@ -642,6 +675,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     const savedScrollTop = tabState?.scrollTop ?? 0
     const savedCursorPos = tabState?.cursorPos ?? 0
     if (!savedNoteId) { setActiveNote(null); setNoteRestorePending(false); deferClear(); return }
+    // Synchronous fast path: if this note is already warm (noteCache, or notesCache's
+    // token-independent warm start), apply everything in THIS render pass — no IPC round trip,
+    // no intermediate "restoringSpecificNote" blank frame. The separate noteChangeToken effect
+    // above already reconciles external edits in the background, so skipping a redundant
+    // re-fetch here doesn't risk staleness. Falls through to the real async fetch only on a
+    // genuine cache miss (a note never seen this session, and not in the last session's warm
+    // start either).
+    const cached = getCachedNote(savedNoteId)
+    if (cached) {
+      setActiveNote(cached)
+      setRestoredScrollTop(savedScrollTop)
+      setRestoredCursorPos(savedCursorPos)
+      setAutoFocusEditor(true)
+      setNoteRestorePending(false)
+      deferClear()
+      return
+    }
     window.notes.getNote(savedNoteId)
       .then((note) => {
         if (note) {
@@ -659,8 +709,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesTabId])
 
-  const [restoredScrollTop, setRestoredScrollTop] = useState(0)
-  const [restoredCursorPos, setRestoredCursorPos] = useState(0)
+  // Seeded synchronously from the tab's own persisted state (not from the async
+  // window.notes.getNote() restore below) — that data is already available locally at mount
+  // time, no fetch needed. Without this, NoteEditorPM's `initialScrollTop`/`initialCursorPos`
+  // props were always 0 at the moment it actually mounts (its mount effect only reads them
+  // once, deps []), so every reopened note tab silently reset to the top and lost the cursor
+  // position, reading as a visible jump/flash on every tab switch even for a note whose
+  // content was already warm from noteCache.
+  const [restoredScrollTop, setRestoredScrollTop] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    return (tab?.state as NoteTabState | undefined)?.scrollTop ?? 0
+  })
+  const [restoredCursorPos, setRestoredCursorPos] = useState(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    return (tab?.state as NoteTabState | undefined)?.cursorPos ?? 0
+  })
   const [autoFocusEditor, setAutoFocusEditor] = useState(false)
 
   // Restore the notes-list/browsing view's own scroll position whenever it (re)mounts — it's
@@ -1052,6 +1115,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   const editing = activeNote !== null
+  // True only when a specific note is expected to load (this tab has a saved noteId) but hasn't
+  // resolved yet — i.e. a genuine cache-cold restore (see noteCache.ts: it's an in-memory Map,
+  // empty on every app launch, so the very first time a given note tab is visited each session
+  // there's no way around this async gap). Distinguishing it from "browsing, no note open" lets
+  // the render below show a blank placeholder here instead of the full notes list — showing the
+  // list was reading as "raw html flashing" (its search-result snippets embed literal
+  // highlight/underline markup like `<mark class="hlcyan">`, unstripped) for a brief moment
+  // before the real note took over.
+  const restoringSpecificNote = !editing && noteRestorePending
 
   const visibleNotes = useMemo(() => {
     // Text search — real FTS5 (via noteSearchResults, see the debounced effect above)
@@ -1219,6 +1291,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               </button>
             )}
           </>
+        ) : restoringSpecificNote ? (
+          <span className="text-sm font-medium text-[rgb(var(--color-text-muted))] flex-1 opacity-60">Notes</span>
         ) : (
           <>
             <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
@@ -1342,7 +1416,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           })
         }}
       >
-        {editing ? (
+        {restoringSpecificNote ? (
+          <div className="flex-1" />
+        ) : editing ? (
           // `relative` here (not a flex-row split with NoteSidePanel as a sibling
           // taking its own docked width) — NoteSidePanel is now a floating
           // trigger pill + portaled card, positioned against THIS wrapper, same

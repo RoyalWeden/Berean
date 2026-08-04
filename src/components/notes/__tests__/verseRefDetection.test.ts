@@ -128,6 +128,12 @@ describe('findVerseRefMatches — multiple refs per line', () => {
     expect(m[0].lxx).toBe(true)
     expect(m[1].lxx).toBe(false)
   })
+
+  it('lowercase "lxx" suffix is detected case-insensitively', () => {
+    const m = findVerseRefMatches('Proverbs 10:10 lxx')
+    expect(m.length).toBe(1)
+    expect(m[0].lxx).toBe(true)
+  })
 })
 
 // ── 2. All books — single ref recognised ──────────────────────────────────────

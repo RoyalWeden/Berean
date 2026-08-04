@@ -11,6 +11,7 @@ import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from
 import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { zoomedFontSize } from '@/lib/zoom'
+import { chapterCacheKey, getCachedVerses, setCachedVerses } from '@/lib/chapterCache'
 import type { Verse, HighlightColor } from '@/types'
 import { HIGHLIGHT_COLORS } from './VerseRow'
 
@@ -267,18 +268,23 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
 
-  const [verses, setVerses] = useState<Verse[]>([])
+  // Warm-start from chapterCache when this chapter/textId was already fetched by a previous
+  // ChapterView mount (e.g. switching back to a tab) — avoids showing the loading skeleton for
+  // a chapter we've already loaded once (see chapterCache.ts).
+  const [verses, setVerses] = useState<Verse[]>(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) ?? [])
   // Which (bookId, chapter, textId) the current `verses` array actually belongs to — lets the
   // scroll-to-verse effect tell "real new-chapter data" apart from "old chapter's verses still
   // in state while a switch is in flight" without needing to clear `verses` to signal that (see
   // the fetch effect below for why clearing it was the cause of the KJV/LXX switch flash).
-  const [versesKey, setVersesKey] = useState<string | null>(null)
+  const [versesKey, setVersesKey] = useState<string | null>(() =>
+    getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) ? chapterCacheKey(bookId, chapter, textId ?? 'kjva') : null
+  )
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) === null)
   // Shown only once a chapter/translation switch has been in flight longer than a beat —
   // most loads are near-instant (local SQLite), so this stays hidden for those; it's just a
   // signal for the rare slower ones (cold cache, a big chapter, translation switch under load)
@@ -340,8 +346,9 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         if (fetchGenRef.current !== gen) return // superseded by a newer switch — ignore stale data
         const commit = () => {
           setVerses(data)
-          setVersesKey(`${bookId}:${chapter}:${textId}`)
+          setVersesKey(chapterCacheKey(bookId, chapter, textId ?? 'kjva'))
           setLoading(false)
+          setCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva'), data)
         }
         // Crossfade specifically for a translation switch (KJV/LXX) — the old chapter's verses
         // are still on screen (see the no-clear comment above), so without this the swap to the

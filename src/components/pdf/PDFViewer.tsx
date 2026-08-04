@@ -214,6 +214,20 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
     return () => sc.removeEventListener('scroll', onScroll)
   }, [doc, tabId, updateTabState])
 
+  // Flush the latest scroll position on unmount (tab switch away from this PDF) — the onScroll
+  // handler above debounces its persist by 250ms, so a switch inside that window would otherwise
+  // abandon the timer and lose the last bit of scrolling. Mirrors the same fix used for
+  // ScriptureSearchView/SearchTab/LexiconPanel scroll persistence.
+  const currentPageRef = useRef(currentPage)
+  useEffect(() => { currentPageRef.current = currentPage })
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (tabId) updateTabState('scripture', tabId, { page: currentPageRef.current, scrollTop: lastScrollTopRef.current })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Restore exact scroll position once pages have laid out
   useEffect(() => {
     if (!doc) return

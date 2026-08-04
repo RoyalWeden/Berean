@@ -140,6 +140,16 @@ export default function NoteEditorPM({
   // that rebuilds EditorState with the new note's content.
   const noteIdRef = useRef(noteId)
   noteIdRef.current = noteId
+  // Read by the note-switch effect below when it detects a genuinely different note opened
+  // (not just an external content update to the same note) — kept current every render so the
+  // effect always sees the latest restore target, since it can't depend on these directly
+  // without re-running on every keystroke-driven position update.
+  const initialScrollTopRef = useRef(initialScrollTop)
+  initialScrollTopRef.current = initialScrollTop
+  const initialCursorPosRef = useRef(initialCursorPos)
+  initialCursorPosRef.current = initialCursorPos
+  const autoFocusRef = useRef(autoFocus)
+  autoFocusRef.current = autoFocus
 
   const [wikilinkTrigger, setWikilinkTrigger] = useState<WikilinkTrigger | null>(null)
   const [strongsTrigger, setStrongsTrigger] = useState<StrongsTrigger | null>(null)
@@ -362,34 +372,49 @@ export default function NoteEditorPM({
   // keystrokes, wiping their most recent edits and resetting the cursor.
   // Comparing against the live doc means a same-content update is always
   // correctly recognized as a no-op regardless of the ref's timing.
+  // Tracks the noteId this effect last actually applied — separate from `noteIdRef` (that one
+  // is overwritten to the LATEST prop value on every render, before this effect even runs, so
+  // it can't be compared against itself to detect "did noteId change since last time").
+  const prevSwapNoteIdRef = useRef(noteId)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
+    const isDifferentNote = noteId !== prevSwapNoteIdRef.current
+    prevSwapNoteIdRef.current = noteId
     const current = serializeToMarkdown(view.state.doc)
     if (current === content) {
       lastContentPropRef.current = content
       return
     }
     lastContentPropRef.current = content
-    // Defensive: preserve the cursor's rough position across this reset
-    // instead of leaving it at EditorState.create's document-start default.
-    // A mismatch here is SUPPOSED to mean "a different note was opened",
-    // where landing at the top is fine — but if it's ever triggered by
-    // anything else (e.g. some not-yet-found round-trip edge case), a full
-    // jump to position 0 while the user is mid-sentence is a much worse
-    // failure mode than a same-note reparse that merely lands the cursor a
-    // few characters off from where it was. Clamped to the new doc's size,
-    // same guard as the initialCursorPos restore above.
+    // Defensive: preserve the cursor's rough position across this reset instead of leaving it
+    // at EditorState.create's document-start default — but only for a same-note external
+    // content update (e.g. the noteChangeToken refetch effect in NotesPanel). A genuinely
+    // different note has its OWN saved scroll/cursor position to restore instead (applied
+    // below) — this component now stays mounted across note switches (ActivePanel no longer
+    // remounts NotesPanel for same-type tab switches), so unlike before, this effect is the
+    // only place that restore can happen; the mount effect further down only ever runs once.
     const oldPos = view.state.selection.from
     const newDoc = parseMarkdown(content)
     const newState = EditorState.create({
       schema,
       doc: newDoc,
-      selection: TextSelection.near(newDoc.resolve(Math.min(oldPos, newDoc.content.size))),
+      selection: isDifferentNote && typeof initialCursorPosRef.current === 'number'
+        ? TextSelection.near(newDoc.resolve(Math.min(initialCursorPosRef.current, newDoc.content.size)))
+        : TextSelection.near(newDoc.resolve(Math.min(oldPos, newDoc.content.size))),
       plugins: view.state.plugins,
     })
     view.updateState(newState)
-  }, [content])
+    if (isDifferentNote) {
+      if (autoFocusRef.current) view.focus()
+      if (typeof initialScrollTopRef.current === 'number') {
+        const top = initialScrollTopRef.current
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (view.dom.parentElement) view.dom.parentElement.scrollTop = top
+        }))
+      }
+    }
+  }, [content, noteId])
 
   useEffect(() => {
     viewRef.current?.setProps({ editable: () => mode === 'edit' })

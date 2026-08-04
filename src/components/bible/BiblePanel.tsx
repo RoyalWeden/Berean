@@ -1676,6 +1676,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           }}
           onNavigate={(bookId, chapter, verse, tid, highlight) => {
             if (!activeTab) return
+            // Cancel any pending debounced query-title rename (see onStateChange above) —
+            // otherwise it can still fire ~150ms after this handler runs and silently
+            // overwrite the reference title we're about to set back to the search query.
+            if (searchTabRenameTimerRef.current) {
+              clearTimeout(searchTabRenameTimerRef.current)
+              searchTabRenameTimerRef.current = null
+            }
             const newTranslation = tid.toUpperCase()
             const savedQuery = tabState.scriptureSearchQuery ?? ''
             const book = books.find((b) => b.id === bookId)

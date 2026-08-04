@@ -74,7 +74,7 @@ export default function ActivePanel() {
               both mounted at once (no overlapping enter/exit) — no risk of the double-portaled-
               header collision the AnimatePresence's mode="wait" was originally added to avoid
               (see TabHeaderPortal). */}
-          <div key={tab?.id ?? 'empty'} className="absolute inset-0">
+          <div key={tab ? (tab.type === 'note' ? 'panel:note' : tab.id) : 'empty'} className="absolute inset-0">
             {!tab && <EmptyState />}
             {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
             {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}

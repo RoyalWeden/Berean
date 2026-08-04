@@ -140,6 +140,18 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     requestAnimationFrame(() => { el.scrollTop = tabState.scrollTop ?? 0 })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Flush the latest scroll position on unmount (switching tabs away from this one) — the
+  // onScroll handler below debounces its store write by 150ms, so if the tab is switched within
+  // that window the debounce timer never fires and the last stretch of scrolling is silently
+  // lost. Mirrors the same fix in ScriptureSearchView.tsx.
+  useEffect(() => {
+    return () => {
+      if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+      const el = resultsScrollRef.current
+      if (el && searchTab) updateTabState('search', searchTab.id, { scrollTop: el.scrollTop })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load books for the current single-text mode (used for grouping/filtering)
   useEffect(() => {
     if (textId === 'all') return
