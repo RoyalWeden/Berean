@@ -12,6 +12,7 @@ import { contentSnippets } from './NotesList'
 import { applyFindHighlight } from '@/lib/highlight'
 import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
+import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
@@ -536,6 +537,14 @@ export default function NotesFolderView({
         ) : (
           <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
         )}
+        {/* Status indicator — same colored icon used in the list/board views, for a consistent
+            at-a-glance status signal across every way of browsing notes. */}
+        {!isRenaming && (() => {
+          const status = noteStatusMeta(note.status)
+          if (!status) return null
+          const Icon = status.icon
+          return <Icon size={11} className="flex-shrink-0" style={{ color: status.color }} />
+        })()}
         {/* Hover action buttons — rename and move (not in select mode, not on system-folder notes) */}
         {!selectMode && !isRenaming && renameable && onRenameNote && (
           <button

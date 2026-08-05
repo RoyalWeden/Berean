@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3 } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -345,8 +345,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
   const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
   const [expandAll, setExpandAll] = useState(false)
-  const [folderView, setFolderView] = useState(false)
-  const [boardView, setBoardView] = useState(false)
+  // Exactly one of list/folder/board is active at any time — a single tri-state selector
+  // (rather than two independent booleans) so switching to one view always leaves the others
+  // off, and the toggle control is available no matter which view you're currently on.
+  const [viewMode, setViewMode] = useState<'list' | 'folder' | 'board'>('list')
+  const folderView = viewMode === 'folder'
+  const boardView = viewMode === 'board'
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -366,22 +370,30 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.notes.getFolders().then(setFolders).catch(() => {})
   }, [])
 
-  // Load folders + persisted folder-view preference on mount
+  // Load folders + persisted view-mode preference on mount. Falls back to the legacy
+  // 'notesFolderView' boolean setting (pre-dating the board view / unified selector) so
+  // existing users who had folder view on keep opening into it after the update.
   useEffect(() => {
     loadFolders()
-    window.settings?.get('notesFolderView').then((v) => { if (v === true) { setFolderView(true); setNoteFilter('all') } }).catch(() => {})
+    window.settings?.get('notesViewMode').then((v) => {
+      if (v === 'folder' || v === 'board' || v === 'list') {
+        setViewMode(v)
+        if (v === 'folder') setNoteFilter('all')
+        return
+      }
+      window.settings?.get('notesFolderView').then((legacy) => {
+        if (legacy === true) { setViewMode('folder'); setNoteFilter('all') }
+      }).catch(() => {})
+    }).catch(() => {})
   }, [loadFolders])
 
-  const toggleFolderView = useCallback(() => {
-    setFolderView((v) => {
-      const next = !v
-      window.settings?.set('notesFolderView', next).catch(() => {})
-      // Entering folder view: a stale non-'all' filter left over from list view
-      // (its chip UI is hidden here) would silently keep narrowing folder-view
-      // search results with no visible indication a filter is active.
-      if (next) setNoteFilter('all')
-      return next
-    })
+  const changeViewMode = useCallback((next: 'list' | 'folder' | 'board') => {
+    setViewMode(next)
+    window.settings?.set('notesViewMode', next).catch(() => {})
+    // Entering folder view: a stale non-'all' filter left over from list view (its chip UI
+    // is hidden here) would silently keep narrowing folder-view search results with no
+    // visible indication a filter is active.
+    if (next === 'folder') setNoteFilter('all')
   }, [])
 
   /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
@@ -1323,24 +1335,28 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         ) : (
           <>
             <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
-            {/* Folder view toggle */}
-            <button
-              onClick={toggleFolderView}
-              title={folderView ? 'List view' : 'Folder view'}
-              className={`p-1 rounded-shell cursor-pointer transition-colors ${folderView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              <FolderTree size={15} />
-            </button>
-            {/* Board (Kanban) view toggle — by status column, independent of folder view */}
-            {!folderView && (
-              <button
-                onClick={() => setBoardView((v) => !v)}
-                title={boardView ? 'List view' : 'Board view (by status)'}
-                className={`p-1 rounded-shell cursor-pointer transition-colors ${boardView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-              >
-                <Columns3 size={15} />
-              </button>
-            )}
+            {/* View mode: list / folder / board — exactly one active, switchable from any of
+                the three at any time. */}
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
+              {([
+                ['list',   List,       'List view'],
+                ['folder', FolderTree, 'Folder view'],
+                ['board',  Columns3,   'Board view (by status)'],
+              ] as const).map(([mode, Icon, label]) => (
+                <button
+                  key={mode}
+                  onClick={() => changeViewMode(mode)}
+                  title={label}
+                  className={`p-1 rounded cursor-pointer transition-colors ${
+                    viewMode === mode
+                      ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
             {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
@@ -1393,7 +1409,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
               onClick={() => {
                 setPlusMenu(null)
-                if (!folderView) { setFolderView(true); window.settings?.set('notesFolderView', true).catch(() => {}) }
+                if (!folderView) changeViewMode('folder')
                 handleCreateFolder(null)
               }}
             >

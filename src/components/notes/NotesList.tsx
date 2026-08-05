@@ -1,42 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileText, Trash2, CheckSquare, Square } from 'lucide-react'
-import { bookName } from '@/lib/parseRef'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import type { Note, NoteStatus } from '@/types'
-import { noteStatusMeta } from '@/lib/noteStatus'
-
-// Strip markdown syntax down to plain readable text — search snippets are a short
-// truncated excerpt, not a rendered note, so leftover `**`/`#`/`[text](url)` markup
-// read as raw formatting noise rather than the words the user actually searched for.
-function stripMarkdownFormatting(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, ' ')                 // fenced code blocks
-    .replace(/`([^`]+)`/g, '$1')                      // inline code
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')          // images -> alt text
-    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')     // [[target|alias]] -> alias
-    .replace(/\[\[([^\]]+)\]\]/g, '$1')                // [[wikilink]] -> target
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')           // [text](url) -> text
-    .replace(/^#{1,6}\s+/gm, '')                       // headings
-    .replace(/^>\s?/gm, '')                            // blockquotes
-    .replace(/^\s*[-*+]\s+(\[[ xX]\]\s*)?/gm, '')      // bullet/task list markers
-    .replace(/^\s*\d+\.\s+/gm, '')                     // numbered list markers
-    .replace(/^\s*[-*_]{3,}\s*$/gm, ' ')                // horizontal rules
-    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')              // bold+italic
-    .replace(/\*\*([^*]+)\*\*/g, '$1')                  // bold
-    .replace(/__([^_]+)__/g, '$1')                      // bold (underscore)
-    .replace(/\*([^*]+)\*/g, '$1')                      // italic
-    .replace(/_([^_]+)_/g, '$1')                        // italic (underscore)
-    .replace(/~~([^~]+)~~/g, '$1')                      // strikethrough
-    .replace(/\|/g, ' ')                                // table pipes
-    // Highlight/underline marks (<mark class="hlcyan">…</mark>, <u>…</u>) are stored as literal
-    // inline HTML in the markdown source (no plain-markdown syntax for them) — left un-stripped
-    // by the rules above, the raw tags showed up as visible noise in list previews/snippets.
-    .replace(/<\/?(mark|u)\b[^>]*>/gi, '')
-}
+import { stripMarkdownFormatting } from '@/lib/notePreviewText'
+import { NoteBadgeRow } from './NoteBadgeRow'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -102,35 +73,6 @@ function timeAgo(ts: number): string {
   return `${Math.floor(mo / 12)}y ago`
 }
 
-function formatVerseRef(ref: string): string {
-  if (!ref.includes('.')) {
-    // Old BibleGateway imports stored the raw passage string (e.g. "Matthew 24:32").
-    // Return it as-is — it's already human-readable.
-    return ref
-  }
-  const [bookId, chapter, verse] = ref.split('.')
-  const name = bookId ? bookName(bookId) : ref
-  return verse ? `${name} ${chapter}:${verse}` : `${name} ${chapter}`
-}
-
-function noteTypeBadge(note: Note) {
-  if (note.type === 'daily' || note.type === 'journal' ||
-      (note.type === 'general' && !!(note.title?.startsWith('Daily — ') || note.title?.startsWith('Journal — '))))
-    return { label: 'Daily', cls: 'bg-amber-500/15 text-amber-400' }
-  if (note.type === 'youtube') return { label: 'Video', cls: 'bg-red-500/15 text-red-400' }
-  if (note.type === 'idiom') return { label: 'Idiom', cls: 'bg-violet-500/15 text-violet-400' }
-  if (note.verseRef || note.type === 'verse') return null // shown via verseRef chip
-  return null
-}
-
-function noteSourceBadge(note: Note): { label: string; cls: string } | null {
-  if (note.tags?.includes('biblegateway'))
-    return { label: 'BG', cls: 'bg-sky-500/15 text-sky-400' }
-  if (note.tags?.includes('esword'))
-    return { label: 'eSw', cls: 'bg-violet-500/15 text-violet-400' }
-  return null
-}
-
 export default function NotesList({
   notes, scrollParentRef, onSelect, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
@@ -194,8 +136,6 @@ export default function NotesList({
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
           const isSelected = selected.includes(note.id)
-          const badge = noteTypeBadge(note)
-          const sourceBadge = noteSourceBadge(note)
           const isRenaming = renamingNoteId === note.id
           const snippets = searchQuery ? contentSnippets(note.content, searchQuery) : []
 
@@ -301,34 +241,7 @@ export default function NotesList({
                         : (snippet || 'Empty note')}
                     </span>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {badge && (
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                      )}
-                      {sourceBadge && (
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${sourceBadge.cls}`}>
-                          {sourceBadge.label}
-                        </span>
-                      )}
-                      {(() => {
-                        const status = noteStatusMeta(note.status)
-                        if (!status) return null
-                        const Icon = status.icon
-                        return (
-                          <span
-                            className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none"
-                            style={{ backgroundColor: `${status.color}26`, color: status.color }}
-                          >
-                            <Icon size={9} /> {status.label}
-                          </span>
-                        )
-                      })()}
-                      {note.verseRef && (
-                        <span className="text-[10px] font-medium text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded-full leading-none">
-                          {formatVerseRef(note.verseRef)}
-                        </span>
-                      )}
+                      <NoteBadgeRow note={note} />
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">
                         {formatDate(note.createdAt)}
                         {note.updatedAt !== note.createdAt && (

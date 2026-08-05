@@ -65,11 +65,19 @@ export default function NoteContextMenu({
   const ref = useRef<HTMLDivElement>(null)
   const [showSessions, setShowSessions] = useState(false)
   const [showFolders, setShowFolders] = useState(false)
-  const [showStatus, setShowStatus] = useState(false)
+  // "Set status" opens as its own flyout popup anchored to the trigger row, rather than
+  // expanding inline inside this menu — expanding inline grew this menu's measured height,
+  // and MenuPositioner re-clamps position on every render, so the whole menu visibly jumped
+  // to a different spot on screen the moment the status list appeared.
+  const statusBtnRef = useRef<HTMLButtonElement>(null)
+  const statusFlyoutRef = useRef<HTMLDivElement>(null)
+  const [statusFlyout, setStatusFlyout] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      const target = e.target as Node
+      if (statusFlyoutRef.current && statusFlyoutRef.current.contains(target)) return
+      if (ref.current && !ref.current.contains(target)) onClose()
     }
     function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('mousedown', handleClick, true)
@@ -86,6 +94,7 @@ export default function NoteContextMenu({
   const showMove  = !!folders && !!onMoveToFolder && !!canMove
 
   return createPortal(
+    <>
     <MenuPositioner ref={ref} x={x} y={y}
       className="native-buttons min-w-[190px] rounded-shell context-menu py-1 overflow-hidden"
     >
@@ -154,38 +163,24 @@ export default function NoteContextMenu({
         </>
       )}
 
-      {/* Set status */}
+      {/* Set status — flyout, see statusFlyout state above for why it's not inline */}
       {onSetStatus && (
         <>
           <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
-          <button className={`${MENU_ITEM} justify-between`} onClick={() => setShowStatus(v => !v)}>
+          <button
+            ref={statusBtnRef}
+            className={`${MENU_ITEM} justify-between ${statusFlyout ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : ''}`}
+            onClick={() => {
+              if (statusFlyout) { setStatusFlyout(null); return }
+              const r = statusBtnRef.current?.getBoundingClientRect()
+              if (r) setStatusFlyout({ x: r.right + 2, y: r.top })
+            }}
+          >
             <span className="flex items-center gap-2.5">
               <CircleDashed size={13} className="flex-shrink-0" /> Set status
             </span>
-            <ChevronRight size={11} className={`transition-transform ${showStatus ? 'rotate-90' : ''}`} />
+            <ChevronRight size={11} />
           </button>
-          {showStatus && (
-            <div className="border-t border-[rgb(var(--color-surface-4))] mt-1 pt-1">
-              <button
-                className={`${MENU_ITEM} pl-8`}
-                onClick={() => { onSetStatus(note, null); onClose() }}
-              >
-                <CircleDashed size={12} className="flex-shrink-0 opacity-60" /> No status
-              </button>
-              {NOTE_STATUSES.map((s) => {
-                const Icon = s.icon
-                return (
-                  <button
-                    key={s.id}
-                    className={`${MENU_ITEM} pl-8`}
-                    onClick={() => { onSetStatus(note, s.id); onClose() }}
-                  >
-                    <Icon size={12} className="flex-shrink-0" style={{ color: s.color }} /> {s.label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
         </>
       )}
 
@@ -235,7 +230,33 @@ export default function NoteContextMenu({
           </button>
         </>
       )}
-    </MenuPositioner>,
+    </MenuPositioner>
+
+    {statusFlyout && onSetStatus && (
+      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y}
+        className="native-buttons min-w-[160px] rounded-shell context-menu py-1 overflow-hidden"
+      >
+        <button
+          className={MENU_ITEM}
+          onClick={() => { onSetStatus(note, null); setStatusFlyout(null); onClose() }}
+        >
+          <CircleDashed size={12} className="flex-shrink-0 opacity-60" /> No status
+        </button>
+        {NOTE_STATUSES.map((s) => {
+          const Icon = s.icon
+          return (
+            <button
+              key={s.id}
+              className={MENU_ITEM}
+              onClick={() => { onSetStatus(note, s.id); setStatusFlyout(null); onClose() }}
+            >
+              <Icon size={12} className="flex-shrink-0" style={{ color: s.color }} /> {s.label}
+            </button>
+          )
+        })}
+      </MenuPositioner>
+    )}
+    </>,
     document.body
   )
 }
