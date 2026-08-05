@@ -1633,11 +1633,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }, 150)
     const max = container.scrollHeight - container.clientHeight
     const scrollPercent = max > 0 ? scrollTop / max : 0
-    setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     const st = useAppStore.getState()
     if (Date.now() < findScrollSuppressRef.current) {
+      // A verse-jump (find bar or targetVerse navigation) just scrolled this container
+      // programmatically — this scroll event is that jump's own side effect, not a real user
+      // scroll. Don't record it as the "last known" percent either: caching it here would
+      // leave the presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned
+      // value for this chapter that a later, unrelated push could pick up and wrongly reuse.
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
-    } else if (st.viewerWindowOpen && !st.viewerPaused) {
+    } else {
+      setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    }
+    if (Date.now() >= findScrollSuppressRef.current && st.viewerWindowOpen && !st.viewerPaused) {
       findCenterVerseRef.current = null
       if (viewerScrollRAFRef.current) cancelAnimationFrame(viewerScrollRAFRef.current)
       viewerScrollRAFRef.current = requestAnimationFrame(() => {

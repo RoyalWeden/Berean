@@ -72,8 +72,16 @@ export function computeViewerPayload(): ViewerPayload {
     }
     // Only carry the scroll percent if it was recorded for THIS chapter; otherwise omit it so
     // the presenter doesn't apply a stale percent (e.g. a previous tab's near-bottom position).
+    // A pending targetVerse (a one-shot jump that hasn't been consumed/cleared by ChapterView
+    // yet) always wins over any cached percent, even one tagged with the same chapter — e.g. a
+    // same-chapter search-nav jump, where the cached percent is simply wherever the user was
+    // scrolled to *before* the jump. Without this, the very first payload pushed for that jump
+    // would carry the pre-jump percent and the presenter would never center on the new verse at
+    // all (ViewerBiblePage.tsx only centers on `verse` when scrollPercent is undefined).
     const chapterKey = `${bs.bookId}:${bs.chapter}`
-    const scrollPercent = lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined
+    const scrollPercent = bs.targetVerse !== undefined
+      ? undefined
+      : (lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined)
     // Fall back to targetVerse when verse isn't set — search-navigation (and other
     // one-shot scroll-to-verse jumps) only ever sets targetVerse, not verse. Without
     // this fallback, the viewer would have no verse to center on for a search-nav even
