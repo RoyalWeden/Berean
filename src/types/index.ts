@@ -243,6 +243,12 @@ export interface StrongsWord {
   position: number
 }
 
+// Lifecycle-tracking status a note can optionally carry — independent of `color` (purely
+// decorative today) and `type`/`folderId` (organizational, not lifecycle). Most notes are
+// expected to have no status at all (undefined), not a default one — see defaultNoteStatus
+// setting for the opt-in default-on-create behavior.
+export type NoteStatus = 'started' | 'in-progress' | 'complete' | 'make-video' | 'archive'
+
 export interface Note {
   id: string
   type?: string
@@ -254,6 +260,7 @@ export interface Note {
   importedAt?: number
   tags: string[]
   color?: string
+  status?: NoteStatus
   folderId?: string | null
   textId?: string   // translation a verse note is attached to ('kjva' | 'lxx' | …)
   idiomTerm?: string

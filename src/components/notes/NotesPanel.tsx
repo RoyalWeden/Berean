@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3 } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -14,11 +14,14 @@ import PrintPreviewModal from './PrintPreviewModal'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import NoteLookDropdown from './NoteLookDropdown'
+import NoteStatusDropdown from './NoteStatusDropdown'
+import NotesBoardView from './NotesBoardView'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
-import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
+import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
+import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
@@ -27,6 +30,7 @@ import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey } from './CalendarWidget'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
+type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
 
 function todayKey(): string { return toDateKey(new Date()) }
@@ -336,6 +340,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   // ── Filter / sort / select state ─────────────────────────────────────────
   const [noteFilter, setNoteFilter] = useState<NoteFilter>('all')
+  // Independent of noteFilter (type-based) — combinable (AND) with it. 'no-status' is a
+  // distinct option from 'all' so notes with no status can be isolated too.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [noteSort, setNoteSort] = useState<NoteSort>('modified')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -343,6 +350,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
   const [expandAll, setExpandAll] = useState(false)
   const [folderView, setFolderView] = useState(false)
+  const [boardView, setBoardView] = useState(false)
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -1045,6 +1053,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }, 500)
   }
 
+  // Set/clear a note's status from the list/folder-view context menu (parity with the
+  // NoteStatusDropdown in the editor header, reachable without opening the note first).
+  async function handleSetStatus(note: Note, status: import('@/types').NoteStatus | null) {
+    setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, status: status ?? undefined } : n)))
+    if (activeNote?.id === note.id) setActiveNote({ ...activeNote, status: status ?? undefined })
+    await window.notes.updateNote(note.id, { status }).catch(() => {})
+  }
+
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -1142,12 +1158,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     else if (noteFilter === 'biblegateway') filtered = filtered.filter(n => n.tags?.includes('biblegateway'))
     else if (noteFilter === 'esword') filtered = filtered.filter(n => n.tags?.includes('esword'))
     else if (noteFilter === 'idiom') filtered = filtered.filter(n => n.type === 'idiom')
+    // Status filter — independent of/combinable with the type filter above.
+    if (statusFilter === 'no-status') filtered = filtered.filter(n => !n.status)
+    else if (statusFilter !== 'all') filtered = filtered.filter(n => n.status === statusFilter)
     // Sort
     if (noteSort === 'modified') filtered.sort((a, b) => b.updatedAt - a.updatedAt)
     else if (noteSort === 'created') filtered.sort((a, b) => b.createdAt - a.createdAt)
     else if (noteSort === 'name') filtered.sort((a, b) => (a.title || 'Untitled').localeCompare(b.title || 'Untitled'))
     return filtered
-  }, [notes, noteSearch, noteSearchResults, noteFilter, noteSort])
+  }, [notes, noteSearch, noteSearchResults, noteFilter, statusFilter, noteSort])
 
   return (
     <div
@@ -1222,6 +1241,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 className="no-drag flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
               />
             )}
+            {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
+                have none; also settable from the right-click context menu in the list. */}
+            <NoteStatusDropdown
+              value={activeNote.status ?? null}
+              onChange={async (status) => {
+                const updates = { status }
+                const patched = { ...activeNote, status: status ?? undefined }
+                setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
+                await window.notes.updateNote(activeNote.id, updates).catch(() => {})
+              }}
+              compact
+            />
             {/* Quick "look" preset for the note editor while typing — separate,
                 curated shortcut next to the mode toggle; the fuller font-family
                 picker stays in Settings → Display. */}
@@ -1304,6 +1335,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             >
               <FolderTree size={15} />
             </button>
+            {/* Board (Kanban) view toggle — by status column, independent of folder view */}
+            {!folderView && (
+              <button
+                onClick={() => setBoardView((v) => !v)}
+                title={boardView ? 'List view' : 'Board view (by status)'}
+                className={`p-1 rounded-shell cursor-pointer transition-colors ${boardView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+              >
+                <Columns3 size={15} />
+              </button>
+            )}
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
             {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
@@ -1565,6 +1606,48 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </div>
             )}
 
+            {/* Status filter chips — independent axis from the type chips above, combinable */}
+            {!folderView && (
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                  ${statusFilter === 'all'
+                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+              >
+                All statuses
+              </button>
+              {NOTE_STATUSES.map((s) => {
+                const Icon = s.icon
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setStatusFilter(s.id)}
+                    className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                      ${statusFilter === s.id
+                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                      }`}
+                  >
+                    <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setStatusFilter('no-status')}
+                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                  ${statusFilter === 'no-status'
+                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+              >
+                No status
+              </button>
+            </div>
+            )}
+
             {/* Multi-select action bar */}
             {selectMode && (
               <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 bg-[rgb(var(--color-surface-4))/50]">
@@ -1640,6 +1723,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onOpenInFloatingTab={openNoteInFloatingTab}
                   onOpenInSession={openNoteInSession}
                   onExportPdf={(note) => setPrintNote(note)}
+                  onSetStatus={handleSetStatus}
                   sessions={sessions}
                   selectMode={selectMode}
                   selectedNoteIds={selectedIds}
@@ -1647,6 +1731,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onToggleSelectNote={toggleSelectNote}
                   onToggleSelectFolder={toggleSelectFolder}
                   searchQuery={noteSearch || undefined}
+                />
+              ) : boardView ? (
+                <NotesBoardView
+                  notes={visibleNotes}
+                  onSelect={navigateToNote}
+                  onSetStatus={handleSetStatus}
                 />
               ) : (
                 <NotesList
@@ -1666,6 +1756,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onOpenInFloatingTab={openNoteInFloatingTab}
                   onOpenInSession={openNoteInSession}
                   onExportPdf={(note) => setPrintNote(note)}
+                  onSetStatus={handleSetStatus}
                   sessions={sessions}
                 />
               )}

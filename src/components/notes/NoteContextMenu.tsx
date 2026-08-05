@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
-  Monitor, FolderInput, FolderMinus, BookOpen, Printer,
+  Monitor, FolderInput, FolderMinus, BookOpen, Printer, CircleDashed,
 } from 'lucide-react'
-import type { Note, NoteFolder } from '@/types'
+import type { Note, NoteFolder, NoteStatus } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
+import { NOTE_STATUSES } from '@/lib/noteStatus'
 
 export interface SessionInfo { id: string; name: string; icon?: string }
 
@@ -51,16 +52,20 @@ interface Props {
   onConvertToIdiom?: (note: Note) => void
   /** Open the print/PDF-export preview for this note without opening the note first. */
   onExportPdf?: (note: Note) => void
+  /** Set/clear the note's lifecycle status without opening it — mirrors the same picker in
+   *  the note editor header (NoteStatusDropdown), just reachable from the list too. */
+  onSetStatus?: (note: Note, status: NoteStatus | null) => void
 }
 
 export default function NoteContextMenu({
   note, x, y, onClose, onSelect,
   onOpenNewTab, onOpenInFloatingTab, onRename, onDelete, onOpenInSession, sessions,
-  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom, onExportPdf,
+  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom, onExportPdf, onSetStatus,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [showSessions, setShowSessions] = useState(false)
   const [showFolders, setShowFolders] = useState(false)
+  const [showStatus, setShowStatus] = useState(false)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -144,6 +149,41 @@ export default function NoteContextMenu({
               {folders!.length === 0 && (
                 <div className="px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">No folders yet</div>
               )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Set status */}
+      {onSetStatus && (
+        <>
+          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+          <button className={`${MENU_ITEM} justify-between`} onClick={() => setShowStatus(v => !v)}>
+            <span className="flex items-center gap-2.5">
+              <CircleDashed size={13} className="flex-shrink-0" /> Set status
+            </span>
+            <ChevronRight size={11} className={`transition-transform ${showStatus ? 'rotate-90' : ''}`} />
+          </button>
+          {showStatus && (
+            <div className="border-t border-[rgb(var(--color-surface-4))] mt-1 pt-1">
+              <button
+                className={`${MENU_ITEM} pl-8`}
+                onClick={() => { onSetStatus(note, null); onClose() }}
+              >
+                <CircleDashed size={12} className="flex-shrink-0 opacity-60" /> No status
+              </button>
+              {NOTE_STATUSES.map((s) => {
+                const Icon = s.icon
+                return (
+                  <button
+                    key={s.id}
+                    className={`${MENU_ITEM} pl-8`}
+                    onClick={() => { onSetStatus(note, s.id); onClose() }}
+                  >
+                    <Icon size={12} className="flex-shrink-0" style={{ color: s.color }} /> {s.label}
+                  </button>
+                )
+              })}
             </div>
           )}
         </>

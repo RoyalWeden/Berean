@@ -6,7 +6,7 @@ import {
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
 } from 'lucide-react'
-import type { Note, NoteFolder, PdfDoc } from '@/types'
+import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
 import { contentSnippets } from './NotesList'
 import { applyFindHighlight } from '@/lib/highlight'
@@ -64,6 +64,7 @@ interface Props {
   onOpenInFloatingTab?: (note: Note) => void
   onOpenInSession?: (note: Note, sessionId: string) => void
   onExportPdf?: (note: Note) => void
+  onSetStatus?: (note: Note, status: NoteStatus | null) => void
   sessions?: SessionInfo[]
   // Select mode
   selectMode?: boolean
@@ -82,7 +83,7 @@ export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
-  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, sessions,
+  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
   searchQuery,
@@ -991,6 +992,7 @@ export default function NotesFolderView({
           currentFolderId={noteMenu.note.folderId ?? null}
           onMoveToFolder={(note, fid) => onSetNoteFolder(note.id, fid)}
           onExportPdf={onExportPdf}
+          onSetStatus={onSetStatus}
         />
       )}
 

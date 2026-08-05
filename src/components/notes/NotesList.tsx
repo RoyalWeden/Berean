@@ -6,7 +6,8 @@ import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
-import type { Note } from '@/types'
+import type { Note, NoteStatus } from '@/types'
+import { noteStatusMeta } from '@/lib/noteStatus'
 
 // Strip markdown syntax down to plain readable text — search snippets are a short
 // truncated excerpt, not a rendered note, so leftover `**`/`#`/`[text](url)` markup
@@ -80,6 +81,7 @@ interface NotesListProps {
   onOpenInTab?: (note: Note) => void
   onConvertToIdiom?: (note: Note) => void
   onExportPdf?: (note: Note) => void
+  onSetStatus?: (note: Note, status: NoteStatus | null) => void
 }
 
 function formatDate(ts: number): string {
@@ -133,7 +135,7 @@ export default function NotesList({
   notes, scrollParentRef, onSelect, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
-  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf,
+  onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf, onSetStatus,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null)
@@ -309,6 +311,19 @@ export default function NotesList({
                           {sourceBadge.label}
                         </span>
                       )}
+                      {(() => {
+                        const status = noteStatusMeta(note.status)
+                        if (!status) return null
+                        const Icon = status.icon
+                        return (
+                          <span
+                            className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none"
+                            style={{ backgroundColor: `${status.color}26`, color: status.color }}
+                          >
+                            <Icon size={9} /> {status.label}
+                          </span>
+                        )
+                      })()}
                       {note.verseRef && (
                         <span className="text-[10px] font-medium text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded-full leading-none">
                           {formatVerseRef(note.verseRef)}
@@ -376,6 +391,7 @@ export default function NotesList({
           sessions={sessions}
           onConvertToIdiom={onConvertToIdiom}
           onExportPdf={onExportPdf}
+          onSetStatus={onSetStatus}
         />
       )}
     </>

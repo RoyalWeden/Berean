@@ -9,7 +9,11 @@ interface BibleAPI {
 
 interface NotesAPI {
   createNote: (data: Partial<Note>) => Promise<{ success: boolean; note?: Note; error?: string }>
-  updateNote: (id: string, data: Partial<Note>) => Promise<{ success: boolean; error?: string }>
+  // status is widened to accept `null` here (on top of Partial<Note>'s `NoteStatus | undefined`)
+  // — the IPC handler distinguishes "don't touch this field" (undefined, the normal Partial<T>
+  // meaning) from "clear it back to no status" (null) by checking `data.status !== undefined`,
+  // so callers need a way to explicitly send null rather than just omitting the field.
+  updateNote: (id: string, data: Partial<Omit<Note, 'status'>> & { status?: Note['status'] | null }) => Promise<{ success: boolean; error?: string }>
   deleteNote: (id: string) => Promise<{ success: boolean; error?: string }>
   deleteAllNotes: () => Promise<{ success: boolean }>
   deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>

@@ -136,7 +136,7 @@ function parseVaultColor(raw: string | null | undefined): string {
 
 type NoteRow = {
   id: string; type: string; title: string | null; content: string;
-  verse_ref: string | null; color: string; created_at: number; updated_at: number;
+  verse_ref: string | null; color: string; status?: string | null; created_at: number; updated_at: number;
   tags: string; folder_id?: string | null
 }
 
@@ -154,6 +154,11 @@ function noteToMarkdown(note: NoteRow, overrideColor?: string, highlightedVerseT
   const colorLine = (effectiveColor && effectiveColor !== 'blue')
     ? `color: ${toOctarineEmoji(effectiveColor)}`
     : null
+
+  // One-way export only (status is a purely in-app organizational field — editing this line
+  // in Obsidian/Octarine does not flow back into Berean; see vault:watch/vault:reconcile,
+  // which only ever read berean_id + body content from external edits).
+  const statusLine = note.status ? `status: ${note.status}` : null
 
   // Verse-specific properties derived from verse_ref / title
   let verseProps: (string | null)[] = []
@@ -195,6 +200,7 @@ function noteToMarkdown(note: NoteRow, overrideColor?: string, highlightedVerseT
     `updated: ${updatedIso}`,
     `tags: [${tags.join(', ')}]`,
     colorLine,
+    statusLine,
     ...verseProps,
     dateLine,
     ...linksLines,
