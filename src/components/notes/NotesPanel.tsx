@@ -1339,9 +1339,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 the three at any time. */}
             <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
               {([
-                ['list',   List,       'List view',                'rounded-l-[11px]'],
-                ['folder', FolderTree, 'Folder view',               ''],
-                ['board',  Columns3,   'Board view (by status)',    'rounded-r-[11px]'],
+                ['list',   List,       'List view',                'rounded-l-[11px] rounded-r-[6px]'],
+                ['folder', FolderTree, 'Folder view',               'rounded-[6px]'],
+                ['board',  Columns3,   'Board view (by status)',    'rounded-l-[6px] rounded-r-[11px]'],
               ] as const).map(([mode, Icon, label, edgeRounding]) => (
                 <button
                   key={mode}

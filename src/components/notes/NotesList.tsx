@@ -166,10 +166,14 @@ export default function NotesList({
                   window.app.openFloatingTab('notes', { noteId: note.id }).catch?.(() => {})
                 }
               }}
-              className={`relative group flex items-stretch rounded-shell border transition-colors overflow-hidden
+              // Flat by default — no border, no idle fill — with just a soft tint on hover/select
+              // and the Linear-style accent bar below for the "this one's active" signal. The
+              // previous bordered-card-per-row treatment (bg + border on every single row) read
+              // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
+              className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
                 ${isSelected
-                  ? 'bg-[rgb(var(--color-accent))/10] border-[rgb(var(--color-accent))/25]'
-                  : 'bg-[rgb(var(--color-surface-2))] border-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-surface-4))]'
+                  ? 'bg-[rgb(var(--color-accent))/8]'
+                  : 'hover:bg-[rgb(var(--color-surface-3))]'
                 }`}
               onContextMenu={(e) => {
                 e.preventDefault()

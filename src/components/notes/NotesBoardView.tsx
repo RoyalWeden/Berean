@@ -39,7 +39,7 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
             className={`flex flex-col flex-shrink-0 w-56 rounded-shell-lg border transition-colors
               ${dragOverCol === col.id
                 ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/5]'
-                : 'border-[rgb(var(--color-surface-4))/60] bg-[rgb(var(--color-surface-2))]'
+                : 'border-[rgb(var(--color-surface-4))/40] bg-[rgb(var(--color-surface-2))]'
               }`}
             onDragOver={(e) => { if (dragNote) { e.preventDefault(); setDragOverCol(col.id) } }}
             onDragLeave={() => setDragOverCol((c) => (c === col.id ? null : c))}
@@ -50,7 +50,7 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
               setDragNote(null)
             }}
           >
-            <div className="flex items-center gap-1.5 px-3 py-2.5 flex-shrink-0 border-b border-[rgb(var(--color-surface-4))/60]">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 flex-shrink-0 border-b border-[rgb(var(--color-surface-4))/40]">
               <Icon size={13} style={{ color: col.color }} />
               <span className="text-xs font-medium text-[rgb(var(--color-text-secondary))] flex-1">{col.label}</span>
               <span className="text-[10px] text-[rgb(var(--color-text-muted))] tabular-nums">{colNotes.length}</span>
@@ -68,7 +68,10 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
                     onDragStart={(e) => { setDragNote(note); e.dataTransfer.effectAllowed = 'move' }}
                     onDragEnd={() => { setDragNote(null); setDragOverCol(null) }}
                     onClick={() => onSelect(note)}
-                    className="rounded-shell border border-[rgb(var(--color-surface-4))/60] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-surface-4))] transition-colors"
+                    // No border — a subtle elevation (one step up from the column's own
+                    // background) reads as "a card sitting on this column" without needing a
+                    // hard outline around every single one, which felt heavy/boxy in practice.
+                    className="rounded-shell bg-[rgb(var(--color-surface-3))] px-2.5 py-2 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors"
                   >
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
                       {note.title || 'Untitled'}
