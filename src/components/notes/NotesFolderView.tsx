@@ -507,9 +507,14 @@ export default function NotesFolderView({
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
         style={{ paddingLeft: 12 + depth * 16 }}
-        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
-          isDraggingThis ? 'opacity-40' :
-          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))]'
+        // Same idle bg-surface-2 + border-surface-4/60 the list/board note rows use, so a
+        // note "feels" like the same object regardless of which view it's browsed in — this
+        // row used to be fully transparent until hovered/selected, which read as a visibly
+        // different (flatter) color treatment next to the list/board cards.
+        className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell border cursor-pointer transition-colors ${
+          isDraggingThis ? 'opacity-40 bg-[rgb(var(--color-surface-2))] border-[rgb(var(--color-surface-4))/60]' :
+          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/10] border-[rgb(var(--color-accent))/25]' :
+          'bg-[rgb(var(--color-surface-2))] border-[rgb(var(--color-surface-4))/60] hover:bg-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-surface-4))]'
         }`}
       >
         {selectMode && (

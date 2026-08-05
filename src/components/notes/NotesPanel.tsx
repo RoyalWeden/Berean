@@ -1339,19 +1339,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 the three at any time. */}
             <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
               {([
-                ['list',   List,       'List view'],
-                ['folder', FolderTree, 'Folder view'],
-                ['board',  Columns3,   'Board view (by status)'],
-              ] as const).map(([mode, Icon, label]) => (
+                ['list',   List,       'List view',                'rounded-l-[11px]'],
+                ['folder', FolderTree, 'Folder view',               ''],
+                ['board',  Columns3,   'Board view (by status)',    'rounded-r-[11px]'],
+              ] as const).map(([mode, Icon, label, edgeRounding]) => (
                 <button
                   key={mode}
                   onClick={() => changeViewMode(mode)}
                   title={label}
-                  className={`p-1 rounded cursor-pointer transition-colors ${
-                    viewMode === mode
+                  className={`p-1 cursor-pointer transition-colors ${edgeRounding}
+                    ${viewMode === mode
                       ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
                       : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
-                  }`}
+                    }`}
                 >
                   <Icon size={14} />
                 </button>
@@ -1359,16 +1359,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             </div>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
-            {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
-            {!folderView && (
-              <button
-                onClick={() => setExpandAll(v => !v)}
-                title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-                className={`p-1 rounded-shell cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-              >
-                <AlignJustify size={15} />
-              </button>
-            )}
             {/* Select mode toggle */}
             <button
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
@@ -1588,6 +1578,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <option value="created">Created</option>
                 <option value="name">A-Z</option>
               </select>
+              {/* Expand all toggle — only meaningful in list view (folder view has no
+                  snippets, board view cards are already fixed-height). */}
+              {viewMode === 'list' && (
+                <>
+                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
+                  <button
+                    onClick={() => setExpandAll(v => !v)}
+                    title={expandAll ? 'Collapse notes' : 'Expand all notes'}
+                    className={`p-1 rounded-shell cursor-pointer transition-colors flex-shrink-0 ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                  >
+                    <AlignJustify size={13} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Filter chips bar (list view only) */}
