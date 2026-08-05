@@ -134,7 +134,7 @@ function parseVaultColor(raw: string | null | undefined): string {
 
 // ─── Note serialization ────────────────────────────────────────────────────────
 
-type NoteRow = {
+export type NoteRow = {
   id: string; type: string; title: string | null; content: string;
   verse_ref: string | null; color: string; status?: string | null; created_at: number; updated_at: number;
   tags: string; folder_id?: string | null
@@ -142,7 +142,7 @@ type NoteRow = {
 
 // overrideColor: verse highlight color (takes precedence over note.color for Octarine dot)
 // highlightedVerseText: pre-formatted verse text with ==emoji== spans (embedded for Octarine display)
-function noteToMarkdown(note: NoteRow, overrideColor?: string, highlightedVerseText?: string): string {
+export function noteToMarkdown(note: NoteRow, overrideColor?: string, highlightedVerseText?: string): string {
   const tags = JSON.parse(note.tags || '[]') as string[]
   const createdIso = new Date(note.created_at).toISOString()
   const updatedIso = new Date(note.updated_at).toISOString()
@@ -338,6 +338,21 @@ function resolveNotePath(note: NoteRow, vaultPath: string, folderPathMap: Map<st
   }
 }
 
+// Extract note body text from a full vault .md file's contents: strips the YAML
+// frontmatter block, strips the generated highlight-preview block (re-derived from
+// highlights on every export, never part of user content), and trims surrounding
+// whitespace. Shared by vault:watch's 'change' handler, vault:reconcile, and
+// runImportAll so all three treat "what counts as the note body" identically —
+// previously each had a subtly different trim() call (one skipped trimEnd()
+// entirely), which meant a live-edit-detected save and a startup reconcile of the
+// exact same file could disagree on the stored body's trailing whitespace.
+export function extractNoteBody(content: string): string {
+  const bodyMatch = content.match(/^---\n[\s\S]*?\n---\n\n?([\s\S]*)$/)
+  let body = bodyMatch ? bodyMatch[1] : content
+  body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '')
+  return body.trim()
+}
+
 let watcher: ReturnType<typeof chokidar.watch> | null = null
 
 // Suppresses the watcher's 'change' handler from treating Berean's own writes
@@ -452,9 +467,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
           const match = content.match(/^berean_id:\s*(.+)$/m)
           if (!match) return
           const noteId = match[1].trim()
-          const bodyMatch = content.match(/^---\n[\s\S]*?\n---\n\n?([\s\S]*)$/)
-          let body = bodyMatch ? bodyMatch[1] : content
-          body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '').trimStart()
+          const body = extractNoteBody(content)
           getBereanDb().prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(body, Date.now(), noteId)
           win?.webContents.send('vault:changed', noteId)
         } catch { /* ignore parse errors */ }
@@ -488,9 +501,7 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 
           const fileMtime = statSync(filePath).mtimeMs
           if (fileMtime > dbRow.updated_at + 1000) {
-            const bodyMatch = content.match(/^---\n[\s\S]*?\n---\n\n?([\s\S]*)$/)
-            let body = bodyMatch ? bodyMatch[1] : content
-            body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '').trimStart().trimEnd()
+            const body = extractNoteBody(content)
             // A newer mtime doesn't mean a genuine external edit — Berean's OWN export
             // (runExportAll, especially a forced "Export All" or the very first export)
             // rewrites every note's .md file unconditionally, giving every file a fresh
@@ -789,10 +800,7 @@ export function runImportAll(): ImportAllResult {
         const noteId = get(/^berean_id:\s*(.+)$/m)
         if (!noteId) continue
 
-        const bodyMatch = content.match(/^---\n[\s\S]*?\n---\n\n?([\s\S]*)$/)
-        let body = (bodyMatch ? bodyMatch[1] : content).trimEnd()
-        // Strip the generated highlight preview block so it's not stored as note content.
-        body = body.replace(/<!-- berean:highlight-preview -->[\s\S]*?<!-- \/berean:highlight-preview -->\n?\n?/, '').trimStart()
+        const body = extractNoteBody(content)
 
         const rawType   = get(/^type:\s*(.+)$/m) ?? ''
         const noteType  = rawType === 'verse-note' ? 'verse'
@@ -808,9 +816,19 @@ export function runImportAll(): ImportAllResult {
         const tags      = JSON.stringify(tagsRaw.split(',').map((t) => t.trim()).filter(Boolean))
         const createdAt = Date.parse(get(/^created:\s*(.+)$/m) ?? '') || Date.now()
         const updatedAt = Date.parse(get(/^updated:\s*(.+)$/m) ?? '') || Date.now()
-        db.prepare(`INSERT OR REPLACE INTO notes
+        // Upsert rather than INSERT OR REPLACE: the latter deletes+reinserts the row,
+        // which silently nulls out every column the vault file doesn't carry (status,
+        // idiom_term/meaning/aliases/auto_variants/data, text_id, ...) on every re-import
+        // of an already-known note. status in particular is intentionally one-way
+        // export-only (see noteToMarkdown) and must never be clobbered from a file re-read.
+        db.prepare(`INSERT INTO notes
           (id, type, title, content, verse_ref, color, created_at, updated_at, tags, folder_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            type = excluded.type, title = excluded.title, content = excluded.content,
+            verse_ref = excluded.verse_ref, color = excluded.color,
+            created_at = excluded.created_at, updated_at = excluded.updated_at,
+            tags = excluded.tags, folder_id = excluded.folder_id`)
           .run(noteId, noteType, title, body, verseRef, color, createdAt, updatedAt, tags, folderId)
         notes++
       } catch { /* skip malformed file */ }

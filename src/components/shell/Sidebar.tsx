@@ -13,6 +13,7 @@ import { normalizeBookName } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
+import { dailyNoteTitle } from '@/lib/dailyNoteUtils'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -238,7 +239,7 @@ export default function Sidebar() {
   // tab before the daily note appeared. Resolving first means the tab is created already pointing
   // at the right note, so NotesPanel's restore effect loads it directly with no intermediate state.
   async function resolveDailyNoteId(date: Date): Promise<string | null> {
-    const title = `Daily — ${toDateKey(date)}`
+    const title = dailyNoteTitle(date)
     let noteId: string | null = null
     try {
       const candidates = await window.notes.searchNotes(title, 5)
@@ -270,7 +271,7 @@ export default function Sidebar() {
       id: `note-${noteId}-${Date.now()}`,
       spaceId: 'notes',
       type: 'note',
-      title: `Daily — ${toDateKey(date)}`,
+      title: dailyNoteTitle(date),
       state: { noteId, isNew: false },
       ...(notesTabId ? { originTabId: notesTabId, originSpaceId: 'notes' as const } : {}),
     })

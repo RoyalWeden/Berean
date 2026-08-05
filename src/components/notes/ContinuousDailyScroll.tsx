@@ -2,19 +2,8 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PenLine, Plus } from 'lucide-react'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { Note } from '@/types'
+import { toDateKey, dailyNoteTitle, addDays } from '@/lib/dailyNoteUtils'
 
-// Shared helpers (mirrored from NotesPanel to avoid circular imports)
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-function dailyNoteTitle(date: Date): string {
-  return `Daily — ${toDateKey(date)}`
-}
-function addDays(date: Date, n: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
-}
 function formatDateHeader(date: Date): string {
   return date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 }

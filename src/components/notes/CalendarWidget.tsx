@@ -4,10 +4,9 @@ import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
+import { toDateKey } from '@/lib/dailyNoteUtils'
 
-export function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
+export { toDateKey }
 
 /** Resolve the existing daily/journal note for a given date, if any — same title-parsing
  *  logic CalendarGrid uses to populate its note-dot indicators, exposed so callers (e.g. a

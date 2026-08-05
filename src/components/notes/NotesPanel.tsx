@@ -27,17 +27,13 @@ import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
-import { toDateKey } from './CalendarWidget'
+import { toDateKey, dailyNoteTitle } from '@/lib/dailyNoteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
 
 function todayKey(): string { return toDateKey(new Date()) }
-
-function dailyNoteTitle(date: Date): string {
-  return `Daily — ${toDateKey(date)}`
-}
 
 
 function formatVerseRef(ref: string): string {
