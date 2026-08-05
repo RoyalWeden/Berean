@@ -88,7 +88,22 @@ export function createBlockDecorationsPlugin() {
     },
     view(view) {
       liveView = view
-      return { destroy: () => { liveView = null } }
+      // buildBlockDecorations reads noteScriptureBlock/noteScriptureBlockThreshold as a plain
+      // useAppStore.getState() snapshot each time it runs — but it only RUNS when ProseMirror
+      // actually redraws (i.e. on a dispatched transaction). If the setting flips with no
+      // transaction in between — the persist-middleware store rehydrating shortly after the
+      // editor already mounted with its default (false) value being the common real-world
+      // case, or the user toggling the setting in Settings while a note is open — the verse
+      // block stays exactly as stale as it was at the last real transaction, reading as
+      // "doesn't format until I click/type something." Subscribing here and forcing the same
+      // refresh transaction the async verse-text-verification path already uses closes that
+      // gap for every future settings-gated decoration, not just this one.
+      const unsubscribe = useAppStore.subscribe((state, prevState) => {
+        if (state.noteScriptureBlock === prevState.noteScriptureBlock
+          && state.noteScriptureBlockThreshold === prevState.noteScriptureBlockThreshold) return
+        if (liveView) liveView.dispatch(liveView.state.tr.setMeta(refreshMeta, true))
+      })
+      return { destroy: () => { liveView = null; unsubscribe() } }
     },
     props: {
       decorations(state) {
