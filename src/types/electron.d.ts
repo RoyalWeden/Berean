@@ -131,6 +131,7 @@ interface VaultAPI {
   syncNote: (noteId: string) => Promise<{ success: boolean; reason?: string }>
   readVaultNote: (title: string) => Promise<string | null>
   watchVault: () => Promise<{ success: boolean; reason?: string }>
+  unwatchVault: () => Promise<{ success: boolean }>
   reconcile: () => Promise<{ success: boolean; updated: number; skipped: number; reason?: string }>
   exportAll: () => Promise<{ success: boolean; notes?: number; highlights?: number; history?: number; pdfs?: number; reason?: string }>
   setAutoExport: (intervalMinutes: number) => Promise<{ success: boolean }>

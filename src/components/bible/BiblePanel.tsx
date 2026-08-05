@@ -17,7 +17,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
-import { computeViewerPayload, setMainBibleScrollPercent } from '@/hooks/useViewerSync'
+import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
@@ -147,6 +147,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchTabRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Set right before leaving search mode via onNavigate below. ScriptureSearchView's own
+  // unmount-cleanup effect flushes one last onStateChange call (to save scroll position) as
+  // it unmounts, which would otherwise re-arm searchTabRenameTimerRef with the stale search
+  // query and stomp the chapter title onNavigate just set. This flag tells that one flush to
+  // skip the rename (the scroll-position part of the flush still runs normally).
+  const justNavigatedAwayFromSearchRef = useRef(false)
   const viewerScrollRAFRef = useRef<number | null>(null)
   // Stores a scroll position to apply after ChapterView finishes loading its verses async.
   // The double-RAF approach is insufficient because IPC data arrives much later than 2 frames.
@@ -1419,6 +1425,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
       targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
     })
+    // A verse-jump just finished scrolling. If the target verse was already on-screen in the
+    // main window, scrollIntoView was a no-op and no native `scroll` event fired to refresh
+    // the viewer's cached scroll percent — invalidate it so the presenter/viewer window (if
+    // open) falls back to centering on the jumped-to verse instead of reusing a stale percent.
+    if (tabStateRef.current.bookId) {
+      clearMainBibleScrollPercent(`${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    }
   }, [memoTabId, updateTabState])
 
   const handleStrongsClick = useCallback((strongsNum: string) => {
@@ -1668,10 +1681,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               // typing at normal speed, just without hammering a render on every key.
               const tabId = activeTab.id
               if (searchTabRenameTimerRef.current) clearTimeout(searchTabRenameTimerRef.current)
-              searchTabRenameTimerRef.current = setTimeout(() => {
-                const trimmedQuery = (s.query ?? '').trim()
-                useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
-              }, 150)
+              // If this call is the unmount-flush firing right after onNavigate already set
+              // the correct chapter title, don't re-arm the rename — see the ref's comment.
+              if (justNavigatedAwayFromSearchRef.current) {
+                justNavigatedAwayFromSearchRef.current = false
+              } else {
+                searchTabRenameTimerRef.current = setTimeout(() => {
+                  const trimmedQuery = (s.query ?? '').trim()
+                  useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
+                }, 150)
+              }
             }
           }}
           onNavigate={(bookId, chapter, verse, tid, highlight) => {
@@ -1683,6 +1702,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               clearTimeout(searchTabRenameTimerRef.current)
               searchTabRenameTimerRef.current = null
             }
+            // ScriptureSearchView is about to unmount (searchMode flips to false below) and
+            // will flush one last onStateChange call — tell it to skip re-arming the rename.
+            justNavigatedAwayFromSearchRef.current = true
             const newTranslation = tid.toUpperCase()
             const savedQuery = tabState.scriptureSearchQuery ?? ''
             const book = books.find((b) => b.id === bookId)
