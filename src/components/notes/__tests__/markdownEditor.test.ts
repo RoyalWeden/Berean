@@ -1113,7 +1113,7 @@ describe('WYSIWYG mode exports', () => {
   it('wysiwygField has spec with create/update', () => {
     // CodeMirror StateField has a .spec property
     expect(wysiwygField).toHaveProperty('spec')
-    expect(typeof (wysiwygField as Record<string, unknown>).spec).toBe('object')
+    expect(typeof (wysiwygField as unknown as Record<string, unknown>).spec).toBe('object')
   })
 })
 

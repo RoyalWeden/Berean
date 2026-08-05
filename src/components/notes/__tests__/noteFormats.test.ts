@@ -3,6 +3,8 @@
  * Covers 200+ combinations of inline/block/alignment formats.
  */
 
+import { describe, test, expect } from 'vitest'
+
 // ─── Pattern helpers (mirrors detectFormats logic) ───────────────────────────
 
 function detectLineFormats(lineText: string, surroundBefore = '', surroundAfter = ''): Set<string> {
