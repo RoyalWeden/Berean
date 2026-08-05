@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   findVerseRefMatches, verseTextMatchRatio, renderPreviewContent, detectVerseBlock,
-} from '../NoteEditor'
+} from '@/lib/notePreviewRender'
 import { ALL_BOOKS, parseRef } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 
@@ -452,7 +452,7 @@ describe('findVerseRefMatches — embedded-comma book name (Hermas)', () => {
 
 describe('buildPrintHTML verse styling', () => {
   it('print CSS includes pm-verse-ref and pm-verse-block rules', async () => {
-    const { buildPrintHTML } = await import('../NoteEditor')
+    const { buildPrintHTML } = await import('@/lib/notePreviewRender')
     const html = buildPrintHTML('Test', 'See Gen 1:1')
     expect(html).toContain('.pm-verse-block')
     expect(html).toContain('.pm-verse-ref')

@@ -26,7 +26,6 @@
     "data:publish": "node scripts/publish-data.js"
   },
   "dependencies": {
-    "@codemirror/language": "^6.12.3",
     "@lezer/highlight": "^1.2.3",
     "@radix-ui/react-popover": "^1.1.15",
     "@tanstack/react-virtual": "^3.14.2",
@@ -56,11 +55,6 @@
     "@radix-ui/react-slot": "^1.2.5"
   },
   "devDependencies": {
-    "@codemirror/commands": "^6.3.3",
-    "@codemirror/lang-markdown": "^6.2.4",
-    "@codemirror/state": "^6.4.1",
-    "@codemirror/theme-one-dark": "^6.1.2",
-    "@codemirror/view": "^6.26.3",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^3.1.1",

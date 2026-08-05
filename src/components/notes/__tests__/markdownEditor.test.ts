@@ -9,7 +9,7 @@
  *  5. Edge cases and combinations
  */
 import { describe, it, expect } from 'vitest'
-import { renderPreviewContent } from '../NoteEditor'
+import { renderPreviewContent } from '@/lib/notePreviewRender'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1093,28 +1093,6 @@ describe('programmatic breadth — heading + list + blockquote matrix', () => {
       })
     }
   }
-})
-
-// ── 19. WYSIWYG mode — exported field presence ───────────────────────────────
-
-import { wysiwygField, wysiwygEffect } from '../NoteEditor'
-
-describe('WYSIWYG mode exports', () => {
-  it('wysiwygField is exported and has define shape', () => {
-    expect(wysiwygField).toBeDefined()
-    expect(typeof wysiwygField).toBe('object')
-  })
-
-  it('wysiwygEffect is exported and has define shape', () => {
-    expect(wysiwygEffect).toBeDefined()
-    expect(typeof wysiwygEffect).toBe('object')
-  })
-
-  it('wysiwygField has spec with create/update', () => {
-    // CodeMirror StateField has a .spec property
-    expect(wysiwygField).toHaveProperty('spec')
-    expect(typeof (wysiwygField as unknown as Record<string, unknown>).spec).toBe('object')
-  })
 })
 
 // ── 20. Extra edge cases for complete coverage ────────────────────────────────

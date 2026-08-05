@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { useAppStore } from '@/store'
-import { renderPreviewContent, buildPrintHTML, PRINT_THEMES } from '../NoteEditor'
+import { renderPreviewContent, buildPrintHTML, PRINT_THEMES } from '@/lib/notePreviewRender'
 
 function html(md: string) { return renderPreviewContent(md) }
 

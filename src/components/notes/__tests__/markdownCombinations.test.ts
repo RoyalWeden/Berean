@@ -7,7 +7,7 @@
  * block context (headings, lists, blockquotes, tables, code blocks).
  */
 import { describe, it, expect } from 'vitest'
-import { renderPreviewContent, detectVerseBlock, scanThroughHtml, countStarsBeside, innermostStarPos } from '../NoteEditor'
+import { renderPreviewContent, detectVerseBlock } from '@/lib/notePreviewRender'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,41 +25,6 @@ const HL_COLORS = [
   'yellow','orange','amber','red','rose','pink',
   'violet','purple','indigo','blue','sky','cyan','teal','green','lime',
 ]
-
-// ── 1. scanThroughHtml export sanity ─────────────────────────────────────────
-
-describe('scanThroughHtml export', () => {
-  it('is exported as a function', () => {
-    expect(typeof scanThroughHtml).toBe('function')
-  })
-
-  it('finds a backward marker through an HTML tag', () => {
-    // doc: "**<u>if</u>**" — selection "if" is at index 5..7.
-    // Scanning backward from 5 for "**" must skip <u> and land at index 0.
-    const doc = { sliceString: (f: number, t: number) => '**<u>if</u>**'.slice(f, t), length: 13 }
-    const pos = scanThroughHtml(doc, 5, '**', -1)
-    expect(pos).toBe(0)
-  })
-
-  it('finds a forward marker through an HTML tag', () => {
-    const doc = { sliceString: (f: number, t: number) => '**<u>if</u>**'.slice(f, t), length: 13 }
-    // selection "if" ends at index 7; scanning forward for "**" skips </u>, lands at 11
-    const pos = scanThroughHtml(doc, 7, '**', 1)
-    expect(pos).toBe(11)
-  })
-
-  it('returns -1 when marker is absent', () => {
-    const doc = { sliceString: (f: number, t: number) => 'plain text'.slice(f, t), length: 10 }
-    expect(scanThroughHtml(doc, 5, '**', -1)).toBe(-1)
-    expect(scanThroughHtml(doc, 5, '**', 1)).toBe(-1)
-  })
-
-  it('finds single-asterisk italic marker through <u>', () => {
-    const doc = { sliceString: (f: number, t: number) => '*<u>if</u>*'.slice(f, t), length: 11 }
-    expect(scanThroughHtml(doc, 4, '*', -1)).toBe(0)
-    expect(scanThroughHtml(doc, 6, '*', 1)).toBe(10)
-  })
-})
 
 // ── 2. Bold + italic — all orderings ─────────────────────────────────────────
 
@@ -664,145 +629,6 @@ describe('boundary and stress tests', () => {
   })
 })
 
-// ─── helper: make a fake CM doc for star helpers ──────────────────────────────
-function fakeDoc(s: string) {
-  return { sliceString: (f: number, t: number) => s.slice(f, t), length: s.length }
-}
-
-// ── Stars-beside: count adjacent '*' including through HTML ──────────────────
-
-describe('countStarsBeside — direct adjacency', () => {
-  it('0 stars: plain text before', () => expect(countStarsBeside(fakeDoc('word'), 4, -1)).toBe(0))
-  it('1 star before: *word, from=1', () => expect(countStarsBeside(fakeDoc('*word'), 1, -1)).toBe(1))
-  it('2 stars before: **word, from=2', () => expect(countStarsBeside(fakeDoc('**word'), 2, -1)).toBe(2))
-  it('3 stars before: ***word, from=3', () => expect(countStarsBeside(fakeDoc('***word'), 3, -1)).toBe(3))
-  it('4 stars before: ****word, from=4', () => expect(countStarsBeside(fakeDoc('****word'), 4, -1)).toBe(4))
-  it('1 star after: word*, from=4', () => expect(countStarsBeside(fakeDoc('word*'), 4, 1)).toBe(1))
-  it('2 stars after: word**, from=4', () => expect(countStarsBeside(fakeDoc('word**'), 4, 1)).toBe(2))
-  it('3 stars after: word***, from=4', () => expect(countStarsBeside(fakeDoc('word***'), 4, 1)).toBe(3))
-  it('stops at non-star: **a word, count from start of "a" pos=2', () => expect(countStarsBeside(fakeDoc('**a word'), 2, -1)).toBe(2))
-  it('stops at non-star: word**! count forward from pos=4', () => expect(countStarsBeside(fakeDoc('word**!'), 4, 1)).toBe(2))
-})
-
-describe('countStarsBeside — through HTML', () => {
-  it('**<u>word</u>** — stars before (from=5)', () => {
-    // "**<u>word</u>**" = pos 0-1:**  2-4:<u>  5-8:word  9-12:</u>  13-14:**
-    const d = fakeDoc('**<u>word</u>**')
-    expect(countStarsBeside(d, 5, -1)).toBe(2)
-  })
-  it('**<u>word</u>** — stars after (from=9)', () => {
-    const d = fakeDoc('**<u>word</u>**')
-    expect(countStarsBeside(d, 9, 1)).toBe(2)
-  })
-  it('***<u>word</u>*** — stars before (from=6, word start)', () => {
-    // "***<u>word</u>***": ***=0-2, <u>=3-5, word=6-9, </u>=10-13, ***=14-16
-    const d = fakeDoc('***<u>word</u>***')
-    expect(countStarsBeside(d, 6, -1)).toBe(3)
-  })
-  it('***<u>word</u>*** — stars after (from=10, word end exclusive)', () => {
-    const d = fakeDoc('***<u>word</u>***')
-    expect(countStarsBeside(d, 10, 1)).toBe(3)
-  })
-  it('**<u>*word*</u>** — stars before direct (from=6)', () => {
-    // "**<u>*word*</u>**" pos: 0-1:** 2-4:<u> 5:* 6-9:word 10:* 11-13:</u> 14-15:**
-    const d = fakeDoc('**<u>*word*</u>**')
-    expect(countStarsBeside(d, 6, -1)).toBe(3)
-  })
-  it('**<u>*word*</u>** — stars after direct (from=10)', () => {
-    const d = fakeDoc('**<u>*word*</u>**')
-    expect(countStarsBeside(d, 10, 1)).toBe(3)
-  })
-  it('no stars when non-star between selection and tag', () => {
-    const d = fakeDoc('x<u>word</u>x')
-    expect(countStarsBeside(d, 4, -1)).toBe(0)
-    expect(countStarsBeside(d, 7, 1)).toBe(0)
-  })
-  it('through multiple HTML tags: **<em><u>word</u></em>**', () => {
-    const s = '**<em><u>word</u></em>**'
-    const d = fakeDoc(s)
-    const wordStart = s.indexOf('word')
-    expect(countStarsBeside(d, wordStart, -1)).toBe(2)
-    expect(countStarsBeside(d, wordStart + 4, 1)).toBe(2)
-  })
-})
-
-// ── Stars-beside: parity determines italic presence ──────────────────────────
-
-describe('countStarsBeside — italic parity logic', () => {
-  const italicPresent = (s: string, pos: number) => {
-    const d = fakeDoc(s)
-    const sel = { from: pos, to: s.length - pos }
-    const sb = countStarsBeside(d, pos, -1)
-    const sa = countStarsBeside(d, s.length - pos, 1)
-    return sb >= 1 && sa >= 1 && sb % 2 === 1 && sa % 2 === 1
-  }
-
-  it('*word* italic=true', () => {
-    const s = '*word*'; expect(italicPresent(s, 1)).toBe(true)
-  })
-  it('**word** italic=false (even stars)', () => {
-    const s = '**word**'; expect(italicPresent(s, 2)).toBe(false)
-  })
-  it('***word*** italic=true (3 stars, odd)', () => {
-    const s = '***word***'; expect(italicPresent(s, 3)).toBe(true)
-  })
-  it('****word**** italic=false (4 stars, even)', () => {
-    const s = '****word****'; expect(italicPresent(s, 4)).toBe(false)
-  })
-  it('no stars → italic=false', () => {
-    const s = 'word'; expect(italicPresent(s, 0)).toBe(false)
-  })
-
-  // HTML-wrapped variants
-  it('**<u>word</u>** italic=false (2 total, even)', () => {
-    const s = '**<u>word</u>**'
-    const pos = s.indexOf('word')
-    const d = fakeDoc(s)
-    const sb = countStarsBeside(d, pos, -1)
-    const sa = countStarsBeside(d, pos + 4, 1)
-    expect(sb % 2 === 1 && sa % 2 === 1).toBe(false)
-  })
-  it('**<u>*word*</u>** italic=true (3 total, odd)', () => {
-    const s = '**<u>*word*</u>**'
-    const pos = s.indexOf('word')
-    const d = fakeDoc(s)
-    const sb = countStarsBeside(d, pos, -1)
-    const sa = countStarsBeside(d, pos + 4, 1)
-    expect(sb % 2 === 1 && sa % 2 === 1).toBe(true)
-  })
-})
-
-// ── innermostStarPos ──────────────────────────────────────────────────────────
-
-describe('innermostStarPos', () => {
-  it('*word → pos 0 backward from 1', () => expect(innermostStarPos(fakeDoc('*word'), 1, -1)).toBe(0))
-  it('**word → pos 1 backward from 2', () => expect(innermostStarPos(fakeDoc('**word'), 2, -1)).toBe(1))
-  it('***word → pos 2 backward from 3', () => expect(innermostStarPos(fakeDoc('***word'), 3, -1)).toBe(2))
-  it('word* → pos 4 forward from 4', () => expect(innermostStarPos(fakeDoc('word*'), 4, 1)).toBe(4))
-  it('word** → pos 4 forward from 4', () => expect(innermostStarPos(fakeDoc('word**'), 4, 1)).toBe(4))
-  it('word*** → pos 4 forward from 4', () => expect(innermostStarPos(fakeDoc('word***'), 4, 1)).toBe(4))
-  it('returns -1 when no star', () => expect(innermostStarPos(fakeDoc('word'), 4, -1)).toBe(-1))
-  it('stops at non-star immediately', () => expect(innermostStarPos(fakeDoc('xword'), 1, -1)).toBe(-1))
-
-  // Through HTML
-  it('**<u>word → pos 1 backward from wordStart', () => {
-    const s = '**<u>word'; const pos = s.indexOf('word')
-    expect(innermostStarPos(fakeDoc(s), pos, -1)).toBe(1)
-  })
-  it('**<u>*word → pos 5 backward from wordStart', () => {
-    const s = '**<u>*word'; const pos = s.indexOf('word')
-    expect(innermostStarPos(fakeDoc(s), pos, -1)).toBe(5)
-  })
-  it('word</u>** → pos at first * forward from wordEnd', () => {
-    const s = 'word</u>**'; const pos = 4
-    expect(innermostStarPos(fakeDoc(s), pos, 1)).toBe(8)
-  })
-  it('word*</u>** → innermost * is right after word', () => {
-    const s = 'word*</u>**'; const pos = 4
-    expect(innermostStarPos(fakeDoc(s), pos, 1)).toBe(4)
-  })
-})
-
 // ── renderPreviewContent: bold + italic in all orderings ─────────────────────
 // These test the OUTPUT visible to the user after applying format combinations.
 
@@ -929,54 +755,6 @@ describe('bold + italic in blockquotes', () => {
   it('> **<u>bold underline</u>**', () => { const h = html('> **<u>bu</u>**'); expect(h).toContain('<u>') })
 })
 
-describe('scanThroughHtml — star markers', () => {
-  it('finds * backward through <u>', () => {
-    const s = '*<u>word</u>*'; const d = fakeDoc(s)
-    const pos = s.indexOf('word')
-    expect(scanThroughHtml(d, pos, '*', -1)).toBe(0)
-  })
-  it('finds * forward through </u>', () => {
-    const s = '*<u>word</u>*'; const d = fakeDoc(s)
-    const pos = s.indexOf('word') + 4
-    expect(scanThroughHtml(d, pos, '*', 1)).toBe(s.length - 1)
-  })
-  it('finds ** backward through <u>', () => {
-    const s = '**<u>word</u>**'; const d = fakeDoc(s)
-    const pos = s.indexOf('word')
-    expect(scanThroughHtml(d, pos, '**', -1)).toBe(0)
-  })
-  it('finds ** forward through </u>', () => {
-    const s = '**<u>word</u>**'; const d = fakeDoc(s)
-    const pos = s.indexOf('word') + 4
-    expect(scanThroughHtml(d, pos, '**', 1)).toBe(s.lastIndexOf('**'))
-  })
-  it('does NOT find ** in pure * context (fast-path mismatch)', () => {
-    const s = '*word*'; const d = fakeDoc(s)
-    expect(scanThroughHtml(d, 1, '**', -1)).toBe(-1)
-    expect(scanThroughHtml(d, 5, '**', 1)).toBe(-1)
-  })
-  it('finds ** in *** context (bold within italic)', () => {
-    const s = '***word***'; const d = fakeDoc(s)
-    // From 'word' start (pos 3): ** scan backward finds pos 1
-    expect(scanThroughHtml(d, 3, '**', -1)).toBe(1)
-  })
-  it('backward through multiple tags', () => {
-    const s = '**<em><u>word</u></em>**'; const d = fakeDoc(s)
-    const pos = s.indexOf('word')
-    expect(scanThroughHtml(d, pos, '**', -1)).toBe(0)
-  })
-  it('returns -1 when no marker at all', () => {
-    const s = 'plaintext'; const d = fakeDoc(s)
-    expect(scanThroughHtml(d, 4, '*', -1)).toBe(-1)
-    expect(scanThroughHtml(d, 4, '*', 1)).toBe(-1)
-  })
-  it('returns -1 when HTML but no marker', () => {
-    const s = '<u>word</u>'; const d = fakeDoc(s)
-    const pos = s.indexOf('word')
-    expect(scanThroughHtml(d, pos, '*', -1)).toBe(-1)
-  })
-})
-
 describe('renderPreviewContent — all 5 heading levels', () => {
   it('h1: # heading', () => { const h = html('# heading'); expect(has(h,'h1')).toBe(true); expect(h).toContain('heading') })
   it('h2: ## heading', () => { const h = html('## heading'); expect(has(h,'h2')).toBe(true) })
@@ -1018,35 +796,3 @@ describe('renderPreviewContent — edge cases', () => {
   })
 })
 
-describe('countStarsBeside — edge cases', () => {
-  it('at start of string (pos=0 backward)', () => expect(countStarsBeside(fakeDoc('word'), 0, -1)).toBe(0))
-  it('at end of string (pos=length forward)', () => expect(countStarsBeside(fakeDoc('word'), 4, 1)).toBe(0))
-  it('only stars: pos=3 backward in ***', () => expect(countStarsBeside(fakeDoc('***'), 3, -1)).toBe(3))
-  it('stars then space stops: **  word, pos=2', () => expect(countStarsBeside(fakeDoc('**  word'), 2, -1)).toBe(2))
-  it('stars then letter stops: **a word, pos=2', () => expect(countStarsBeside(fakeDoc('**a word'), 2, -1)).toBe(2))
-  it('empty doc', () => expect(countStarsBeside(fakeDoc(''), 0, -1)).toBe(0))
-  it('through consecutive HTML tags: **<b><i>word', () => {
-    const s = '**<b><i>word'; const pos = s.indexOf('word')
-    expect(countStarsBeside(fakeDoc(s), pos, -1)).toBe(2)
-  })
-  it('stops at space: "**  word" — spaces between ** and word return 0', () => {
-    const s = '**  word'; const pos = s.indexOf('word')
-    expect(countStarsBeside(fakeDoc(s), pos, -1)).toBe(0)
-  })
-})
-
-describe('innermostStarPos — edge cases', () => {
-  it('empty doc returns -1', () => expect(innermostStarPos(fakeDoc(''), 0, -1)).toBe(-1))
-  it('no star at all returns -1', () => expect(innermostStarPos(fakeDoc('word'), 4, -1)).toBe(-1))
-  it('star at very start pos=0', () => expect(innermostStarPos(fakeDoc('*'), 1, -1)).toBe(0))
-  it('star at very end pos=length', () => expect(innermostStarPos(fakeDoc('word*'), 4, 1)).toBe(4))
-  it('multiple HTML then star: **<a><b>word → innermost before word', () => {
-    const s = '**<a><b>word'; const pos = s.indexOf('word')
-    expect(innermostStarPos(fakeDoc(s), pos, -1)).toBe(s.indexOf('<a>') - 1)  // pos 1
-  })
-  it('stops when gap (space between star and word)', () => {
-    // "** word": ** at 0-1, space at 2, word at 3 — space breaks adjacency
-    const s = '** word'; const pos = s.indexOf('word')
-    expect(innermostStarPos(fakeDoc(s), pos, -1)).toBe(-1)
-  })
-})

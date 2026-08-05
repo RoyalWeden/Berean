@@ -8,7 +8,7 @@
  *                         fetched verse text before scoring must restore a high match ratio.
  */
 import { describe, it, expect } from 'vitest'
-import { stripLxxMarker, verseTextMatchRatio } from '../NoteEditor'
+import { stripLxxMarker, verseTextMatchRatio } from '@/lib/notePreviewRender'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { WordReplacerRule } from '@/store'
 

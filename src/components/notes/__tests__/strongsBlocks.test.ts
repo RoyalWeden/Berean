@@ -3,7 +3,7 @@
  * and integration with renderPreviewContent / buildPrintHTML.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import type { PrintExportOptions } from '../NoteEditor'
+import type { PrintExportOptions } from '@/lib/notePreviewRender'
 
 let STRONGS_REF_RE: RegExp
 let wrapStrongsRefsForPreview: (s: string) => string
@@ -12,7 +12,7 @@ let buildPrintHTML: (title: string, content: string, opts?: PrintExportOptions) 
 let buildLexiconCopyText: (e: { strongsNum: string; lemma?: string; transliteration?: string; pronunciation?: string; definition?: string; gloss?: string; derivation?: string; extendedDef?: string }) => string
 
 beforeAll(async () => {
-  const notesMod = await import('../NoteEditor')
+  const notesMod = await import('@/lib/notePreviewRender')
   STRONGS_REF_RE = notesMod.STRONGS_REF_RE
   wrapStrongsRefsForPreview = notesMod.wrapStrongsRefsForPreview
   renderPreviewContent = notesMod.renderPreviewContent

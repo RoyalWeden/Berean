@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { extractRefsFromNote, refMatchesVerse } from '../noteRefs'
-import { verseTextMatchRatio } from '../../components/notes/NoteEditor'
+import { verseTextMatchRatio } from '../notePreviewRender'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 function ref(bookId: string, chapter: number, verse: number, endVerse?: number) {

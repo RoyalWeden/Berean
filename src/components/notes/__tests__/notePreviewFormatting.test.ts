@@ -7,7 +7,7 @@
  * Strong's chips, verse blocks, and lexicon blocks — so formatting regressions are caught.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { renderPreviewContent } from '../NoteEditor'
+import { renderPreviewContent } from '@/lib/notePreviewRender'
 import { useAppStore } from '@/store'
 
 const R = (s: string) => renderPreviewContent(s)
