@@ -1432,6 +1432,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (tabStateRef.current.bookId) {
       clearMainBibleScrollPercent(`${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     }
+    // The scrollIntoView call just above (in ChapterView) intentionally pins the target verse
+    // to the TOP of the main window — correct there, but the resulting native `scroll` event
+    // fires handleBibleScroll asynchronously afterward, which would otherwise push that same
+    // top-pinned proportion to the viewer/presenter and override its own centered
+    // (`block: 'center'`) placement of the verse. Briefly suppress that proportional push —
+    // same mechanism the find bar already uses via presenterScrollToVerse — so the presenter
+    // keeps the target verse centered in context instead of pinned to its edge.
+    findScrollSuppressRef.current = Date.now() + 700
   }, [memoTabId, updateTabState])
 
   const handleStrongsClick = useCallback((strongsNum: string) => {
