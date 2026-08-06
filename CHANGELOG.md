@@ -122,6 +122,23 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.19] - 2026-08-05
+
+Notes
+- Added an optional status for notes — Started, In Progress, Complete, Make
+  Video, or Archive. Set it from a dropdown in the note editor header or the
+  right-click menu, filter the notes list by status, and browse
+  status-tracked notes in a new Kanban board view (switchable from the same
+  place as list/folder view).
+- Fixed verse references and Strong's number formatting sometimes not
+  appearing in a note until clicking into it.
+- Fixed the right-click "Set status" menu shifting position when opened —
+  it now opens as its own small popup instead.
+- Refreshed the look of the notes list, folder view, and board view for a
+  more consistent, less boxy feel across all three.
+- Fixed a bug where fully re-importing the Octarine/Obsidian vault could
+  silently clear a note's status (and a few other fields) back to unset.
+
 ## [0.4.17] - 2026-08-04
 
 Notes
