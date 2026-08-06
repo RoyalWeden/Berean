@@ -122,6 +122,15 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+Notes
+- Fixed note status changes (dropdown, right-click menu, board drag) not
+  showing up in the sidebar, board, and other windows until something else
+  happened to refresh the notes list.
+- Fixed a race where jumping to a note via search (Cmd+K) could briefly load
+  the wrong note into an already-open notes tab.
+
 ## [0.4.19] - 2026-08-05
 
 Notes
