@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, RotateCcw, History, Eye, GitCompare, Save } from 'lucide-react'
 import { diffWords } from 'diff'
-import { renderPreviewContent } from './NoteEditor'
+import { renderPreviewContent } from '@/lib/notePreviewRender'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { NoteVersion } from '@/types'
 

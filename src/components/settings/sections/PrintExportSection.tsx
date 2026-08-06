@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Printer, ChevronDown, FolderOpen, X, Eye } from 'lucide-react'
-import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/components/notes/NoteEditor'
+import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/lib/notePreviewRender'
 import { ScaledPagePreview, CustomMarginInputs } from '@/components/notes/PrintPreviewModal'
 import Switch from '@/components/shell/Switch'
 import { useAppStore } from '@/store'

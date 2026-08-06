@@ -3,9 +3,9 @@ import type { ChangeEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { buildPrintHTML, PRINT_THEMES, presetToSides } from './NoteEditor'
+import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/lib/notePreviewRender'
 import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomExportEntry, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity, type IdiomsLayout } from '@/lib/idiomsExport'
-import type { PrintThemeId } from './NoteEditor'
+import type { PrintThemeId } from '@/lib/notePreviewRender'
 import type { Note } from '@/types'
 
 interface Props {

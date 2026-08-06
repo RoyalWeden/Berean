@@ -10,7 +10,7 @@ let buildPrintHTML: (title: string, content: string, opts?: { rawHtml?: boolean 
 let renderPreviewContent: (content: string) => string
 
 beforeAll(async () => {
-  const mod = await import('../NoteEditor')
+  const mod = await import('@/lib/notePreviewRender')
   buildPrintHTML = mod.buildPrintHTML
   renderPreviewContent = mod.renderPreviewContent
 })

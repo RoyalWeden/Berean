@@ -22,6 +22,7 @@ import ImportSection from './sections/ImportSection'
 import AboutSection from './sections/AboutSection'
 import DangerSection from './sections/DangerSection'
 import ExperimentalSection from './sections/ExperimentalSection'
+import { NOTE_STATUSES } from '@/lib/noteStatus'
 
 function MarkdownRefButton({ onClose }: { onClose: () => void }) {
   const open = useAppStore((s) => s.openMarkdownReference)
@@ -314,6 +315,7 @@ export default function SettingsModal() {
 
   const [vaultSync, setVaultSync] = useState(false)
   const [vaultPath, setVaultPath] = useState('')
+  const [defaultNoteStatus, setDefaultNoteStatus] = useState('none')
   const [exportingAll, setExportingAll] = useState(false)
   const [exportResult, setExportResult] = useState<{ notes?: number; highlights?: number; history?: number; pdfs?: number } | null>(null)
   const [importingAll, setImportingAll] = useState(false)
@@ -329,8 +331,14 @@ export default function SettingsModal() {
     window.settings.getAll().then((all) => {
       if (all.vaultSync != null) setVaultSync(Boolean(all.vaultSync))
       if (all.vaultPath) setVaultPath(all.vaultPath as string)
+      if (all.defaultNoteStatus) setDefaultNoteStatus(all.defaultNoteStatus as string)
     }).catch(() => {})
   }, [settingsOpen])
+
+  async function saveDefaultNoteStatus(value: string) {
+    setDefaultNoteStatus(value)
+    await window.settings.set('defaultNoteStatus', value)
+  }
 
   useEffect(() => {
     if (section === 'youtube') {
@@ -1037,6 +1045,24 @@ export default function SettingsModal() {
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${noteScriptureBlock ? 'translate-x-5' : ''}`} />
                     </button>
+                  </div>
+
+                  {/* Default status for new notes */}
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default status for new notes</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                      Most notes aren't expected to need a status — leave this as "No status" unless you want every new note pre-tagged.
+                    </p>
+                    <select
+                      value={defaultNoteStatus}
+                      onChange={(e) => saveDefaultNoteStatus(e.target.value)}
+                      className="w-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] text-sm px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] outline-none cursor-pointer focus:border-[rgb(var(--color-accent))] transition-colors"
+                    >
+                      <option value="none">No status</option>
+                      {NOTE_STATUSES.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Strong's block suggestion — was previously tucked inside the collapsed

@@ -6,12 +6,13 @@ import {
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
 } from 'lucide-react'
-import type { Note, NoteFolder, PdfDoc } from '@/types'
+import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
 import { contentSnippets } from './NotesList'
 import { applyFindHighlight } from '@/lib/highlight'
 import { useAppStore } from '@/store'
 import { bookName, bookOrder } from '@/lib/parseRef'
+import { noteStatusMeta } from '@/lib/noteStatus'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 
 // ── System (virtual) folders ─────────────────────────────────────────────────
@@ -64,6 +65,7 @@ interface Props {
   onOpenInFloatingTab?: (note: Note) => void
   onOpenInSession?: (note: Note, sessionId: string) => void
   onExportPdf?: (note: Note) => void
+  onSetStatus?: (note: Note, status: NoteStatus | null) => void
   sessions?: SessionInfo[]
   // Select mode
   selectMode?: boolean
@@ -82,7 +84,7 @@ export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
-  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, sessions,
+  onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
   searchQuery,
@@ -505,9 +507,13 @@ export default function NotesFolderView({
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
         style={{ paddingLeft: 12 + depth * 16 }}
+        // Flat, no border — matches NotesList's row treatment (a bordered box around every
+        // single row read as heavy/boxy and out of step with the rest of the app). Just a
+        // soft hover tint and a slightly stronger accent tint for the active note.
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
-          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))]'
+          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/8]' :
+          'hover:bg-[rgb(var(--color-surface-3))]'
         }`}
       >
         {selectMode && (
@@ -535,6 +541,14 @@ export default function NotesFolderView({
         ) : (
           <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
         )}
+        {/* Status indicator — same colored icon used in the list/board views, for a consistent
+            at-a-glance status signal across every way of browsing notes. */}
+        {!isRenaming && (() => {
+          const status = noteStatusMeta(note.status)
+          if (!status) return null
+          const Icon = status.icon
+          return <Icon size={11} className="flex-shrink-0" style={{ color: status.color }} />
+        })()}
         {/* Hover action buttons — rename and move (not in select mode, not on system-folder notes) */}
         {!selectMode && !isRenaming && renameable && onRenameNote && (
           <button
@@ -991,6 +1005,7 @@ export default function NotesFolderView({
           currentFolderId={noteMenu.note.folderId ?? null}
           onMoveToFolder={(note, fid) => onSetNoteFolder(note.id, fid)}
           onExportPdf={onExportPdf}
+          onSetStatus={onSetStatus}
         />
       )}
 

@@ -301,9 +301,9 @@ export interface AppState {
   printIncludeTitle: boolean
   printIncludeLinkedNotes: boolean
   printColorMode: 'color' | 'grayscale'
-  printTheme: import('@/components/notes/NoteEditor').PrintThemeId
+  printTheme: import('@/lib/notePreviewRender').PrintThemeId
   pdfDownloadLocation: string  // '' = prompt each time
-  setPrintTheme: (v: import('@/components/notes/NoteEditor').PrintThemeId) => void
+  setPrintTheme: (v: import('@/lib/notePreviewRender').PrintThemeId) => void
   setPrintMarginPreset: (v: 'none' | 'narrow' | 'normal' | 'wide' | 'custom') => void
   setPrintCustomMargins: (v: { top: number; right: number; bottom: number; left: number }) => void
   setPrintPaperSize: (v: 'letter' | 'a4' | 'legal') => void

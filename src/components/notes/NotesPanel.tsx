@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal } from 'lucide-react'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -14,26 +14,26 @@ import PrintPreviewModal from './PrintPreviewModal'
 import { extractRefsFromNote, type NoteVerseRef } from '@/lib/noteRefs'
 import NoteSidePanel from './NoteSidePanel'
 import NoteLookDropdown from './NoteLookDropdown'
+import NoteStatusDropdown from './NoteStatusDropdown'
+import NotesBoardView from './NotesBoardView'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
-import type { Note, NoteTabState, Tab, NoteFolder } from '@/types'
+import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
+import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
-import { toDateKey } from './CalendarWidget'
+import { toDateKey, dailyNoteTitle } from '@/lib/dailyNoteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
+type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
 
 function todayKey(): string { return toDateKey(new Date()) }
-
-function dailyNoteTitle(date: Date): string {
-  return `Daily — ${toDateKey(date)}`
-}
 
 
 function formatVerseRef(ref: string): string {
@@ -336,13 +336,21 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
 
   // ── Filter / sort / select state ─────────────────────────────────────────
   const [noteFilter, setNoteFilter] = useState<NoteFilter>('all')
+  // Independent of noteFilter (type-based) — combinable (AND) with it. 'no-status' is a
+  // distinct option from 'all' so notes with no status can be isolated too.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [noteSort, setNoteSort] = useState<NoteSort>('modified')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([])
   const [moveMenu, setMoveMenu] = useState<{ x: number; y: number } | null>(null)
   const [expandAll, setExpandAll] = useState(false)
-  const [folderView, setFolderView] = useState(false)
+  // Exactly one of list/folder/board is active at any time — a single tri-state selector
+  // (rather than two independent booleans) so switching to one view always leaves the others
+  // off, and the toggle control is available no matter which view you're currently on.
+  const [viewMode, setViewMode] = useState<'list' | 'folder' | 'board'>('list')
+  const folderView = viewMode === 'folder'
+  const boardView = viewMode === 'board'
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -362,22 +370,30 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.notes.getFolders().then(setFolders).catch(() => {})
   }, [])
 
-  // Load folders + persisted folder-view preference on mount
+  // Load folders + persisted view-mode preference on mount. Falls back to the legacy
+  // 'notesFolderView' boolean setting (pre-dating the board view / unified selector) so
+  // existing users who had folder view on keep opening into it after the update.
   useEffect(() => {
     loadFolders()
-    window.settings?.get('notesFolderView').then((v) => { if (v === true) { setFolderView(true); setNoteFilter('all') } }).catch(() => {})
+    window.settings?.get('notesViewMode').then((v) => {
+      if (v === 'folder' || v === 'board' || v === 'list') {
+        setViewMode(v)
+        if (v === 'folder') setNoteFilter('all')
+        return
+      }
+      window.settings?.get('notesFolderView').then((legacy) => {
+        if (legacy === true) { setViewMode('folder'); setNoteFilter('all') }
+      }).catch(() => {})
+    }).catch(() => {})
   }, [loadFolders])
 
-  const toggleFolderView = useCallback(() => {
-    setFolderView((v) => {
-      const next = !v
-      window.settings?.set('notesFolderView', next).catch(() => {})
-      // Entering folder view: a stale non-'all' filter left over from list view
-      // (its chip UI is hidden here) would silently keep narrowing folder-view
-      // search results with no visible indication a filter is active.
-      if (next) setNoteFilter('all')
-      return next
-    })
+  const changeViewMode = useCallback((next: 'list' | 'folder' | 'board') => {
+    setViewMode(next)
+    window.settings?.set('notesViewMode', next).catch(() => {})
+    // Entering folder view: a stale non-'all' filter left over from list view (its chip UI
+    // is hidden here) would silently keep narrowing folder-view search results with no
+    // visible indication a filter is active.
+    if (next === 'folder') setNoteFilter('all')
   }, [])
 
   /** Map idiom notes to export entries, auto-detecting the scripture references each cites. */
@@ -1045,6 +1061,14 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }, 500)
   }
 
+  // Set/clear a note's status from the list/folder-view context menu (parity with the
+  // NoteStatusDropdown in the editor header, reachable without opening the note first).
+  async function handleSetStatus(note: Note, status: import('@/types').NoteStatus | null) {
+    setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, status: status ?? undefined } : n)))
+    if (activeNote?.id === note.id) setActiveNote({ ...activeNote, status: status ?? undefined })
+    await window.notes.updateNote(note.id, { status }).catch(() => {})
+  }
+
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -1142,12 +1166,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     else if (noteFilter === 'biblegateway') filtered = filtered.filter(n => n.tags?.includes('biblegateway'))
     else if (noteFilter === 'esword') filtered = filtered.filter(n => n.tags?.includes('esword'))
     else if (noteFilter === 'idiom') filtered = filtered.filter(n => n.type === 'idiom')
+    // Status filter — independent of/combinable with the type filter above.
+    if (statusFilter === 'no-status') filtered = filtered.filter(n => !n.status)
+    else if (statusFilter !== 'all') filtered = filtered.filter(n => n.status === statusFilter)
     // Sort
     if (noteSort === 'modified') filtered.sort((a, b) => b.updatedAt - a.updatedAt)
     else if (noteSort === 'created') filtered.sort((a, b) => b.createdAt - a.createdAt)
     else if (noteSort === 'name') filtered.sort((a, b) => (a.title || 'Untitled').localeCompare(b.title || 'Untitled'))
     return filtered
-  }, [notes, noteSearch, noteSearchResults, noteFilter, noteSort])
+  }, [notes, noteSearch, noteSearchResults, noteFilter, statusFilter, noteSort])
 
   return (
     <div
@@ -1222,6 +1249,18 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 className="no-drag flex-1 text-sm font-medium bg-transparent outline-none text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))]"
               />
             )}
+            {/* Lifecycle status (Started/In Progress/Complete/Make Video/Archive) — most notes
+                have none; also settable from the right-click context menu in the list. */}
+            <NoteStatusDropdown
+              value={activeNote.status ?? null}
+              onChange={async (status) => {
+                const updates = { status }
+                const patched = { ...activeNote, status: status ?? undefined }
+                setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
+                await window.notes.updateNote(activeNote.id, updates).catch(() => {})
+              }}
+              compact
+            />
             {/* Quick "look" preset for the note editor while typing — separate,
                 curated shortcut next to the mode toggle; the fuller font-family
                 picker stays in Settings → Display. */}
@@ -1296,26 +1335,30 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
         ) : (
           <>
             <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] flex-1">Notes</span>
-            {/* Folder view toggle */}
-            <button
-              onClick={toggleFolderView}
-              title={folderView ? 'List view' : 'Folder view'}
-              className={`p-1 rounded-shell cursor-pointer transition-colors ${folderView ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-            >
-              <FolderTree size={15} />
-            </button>
+            {/* View mode: list / folder / board — exactly one active, switchable from any of
+                the three at any time. */}
+            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-shell p-0.5">
+              {([
+                ['list',   List,       'List view',                'rounded-l-[11px] rounded-r-[6px]'],
+                ['folder', FolderTree, 'Folder view',               'rounded-[6px]'],
+                ['board',  Columns3,   'Board view (by status)',    'rounded-l-[6px] rounded-r-[11px]'],
+              ] as const).map(([mode, Icon, label, edgeRounding]) => (
+                <button
+                  key={mode}
+                  onClick={() => changeViewMode(mode)}
+                  title={label}
+                  className={`p-1 cursor-pointer transition-colors ${edgeRounding}
+                    ${viewMode === mode
+                      ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                    }`}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
             {/* Idioms → single PDF export (reachable from list and folder view) */}
             {renderIdiomsExport()}
-            {/* Expand all toggle — only meaningful in list view (folder view has no snippets) */}
-            {!folderView && (
-              <button
-                onClick={() => setExpandAll(v => !v)}
-                title={expandAll ? 'Collapse notes' : 'Expand all notes'}
-                className={`p-1 rounded-shell cursor-pointer transition-colors ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
-              >
-                <AlignJustify size={15} />
-              </button>
-            )}
             {/* Select mode toggle */}
             <button
               onClick={() => { if (selectMode) { exitSelectMode() } else { setSelectMode(true) } }}
@@ -1356,7 +1399,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
               onClick={() => {
                 setPlusMenu(null)
-                if (!folderView) { setFolderView(true); window.settings?.set('notesFolderView', true).catch(() => {}) }
+                if (!folderView) changeViewMode('folder')
                 handleCreateFolder(null)
               }}
             >
@@ -1535,6 +1578,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <option value="created">Created</option>
                 <option value="name">A-Z</option>
               </select>
+              {/* Expand all toggle — only meaningful in list view (folder view has no
+                  snippets, board view cards are already fixed-height). */}
+              {viewMode === 'list' && (
+                <>
+                  <div className="w-px h-3 bg-[rgb(var(--color-surface-4))] flex-shrink-0" />
+                  <button
+                    onClick={() => setExpandAll(v => !v)}
+                    title={expandAll ? 'Collapse notes' : 'Expand all notes'}
+                    className={`p-1 rounded-shell cursor-pointer transition-colors flex-shrink-0 ${expandAll ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))]'}`}
+                  >
+                    <AlignJustify size={13} />
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Filter chips bar (list view only) */}
@@ -1562,6 +1619,48 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   {label}
                 </button>
               ))}
+            </div>
+            )}
+
+            {/* Status filter chips — independent axis from the type chips above, combinable */}
+            {!folderView && (
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 overflow-x-auto">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                  ${statusFilter === 'all'
+                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+              >
+                All statuses
+              </button>
+              {NOTE_STATUSES.map((s) => {
+                const Icon = s.icon
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setStatusFilter(s.id)}
+                    className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                      ${statusFilter === s.id
+                        ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                        : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                      }`}
+                  >
+                    <Icon size={10} style={{ color: statusFilter === s.id ? undefined : s.color }} /> {s.label}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setStatusFilter('no-status')}
+                className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors
+                  ${statusFilter === 'no-status'
+                    ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))]'
+                    : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-secondary))]'
+                  }`}
+              >
+                No status
+              </button>
             </div>
             )}
 
@@ -1640,6 +1739,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onOpenInFloatingTab={openNoteInFloatingTab}
                   onOpenInSession={openNoteInSession}
                   onExportPdf={(note) => setPrintNote(note)}
+                  onSetStatus={handleSetStatus}
                   sessions={sessions}
                   selectMode={selectMode}
                   selectedNoteIds={selectedIds}
@@ -1647,6 +1747,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onToggleSelectNote={toggleSelectNote}
                   onToggleSelectFolder={toggleSelectFolder}
                   searchQuery={noteSearch || undefined}
+                />
+              ) : boardView ? (
+                <NotesBoardView
+                  notes={visibleNotes}
+                  onSelect={navigateToNote}
+                  onSetStatus={handleSetStatus}
                 />
               ) : (
                 <NotesList
@@ -1666,6 +1772,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onOpenInFloatingTab={openNoteInFloatingTab}
                   onOpenInSession={openNoteInSession}
                   onExportPdf={(note) => setPrintNote(note)}
+                  onSetStatus={handleSetStatus}
                   sessions={sessions}
                 />
               )}

@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Trash2, ExternalLink, PanelRightOpen, Pencil, Layers, ChevronRight,
-  Monitor, FolderInput, FolderMinus, BookOpen, Printer,
+  Monitor, FolderInput, FolderMinus, BookOpen, Printer, CircleDashed,
 } from 'lucide-react'
-import type { Note, NoteFolder } from '@/types'
+import type { Note, NoteFolder, NoteStatus } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
+import { NOTE_STATUSES } from '@/lib/noteStatus'
 
 export interface SessionInfo { id: string; name: string; icon?: string }
 
@@ -51,20 +52,32 @@ interface Props {
   onConvertToIdiom?: (note: Note) => void
   /** Open the print/PDF-export preview for this note without opening the note first. */
   onExportPdf?: (note: Note) => void
+  /** Set/clear the note's lifecycle status without opening it — mirrors the same picker in
+   *  the note editor header (NoteStatusDropdown), just reachable from the list too. */
+  onSetStatus?: (note: Note, status: NoteStatus | null) => void
 }
 
 export default function NoteContextMenu({
   note, x, y, onClose, onSelect,
   onOpenNewTab, onOpenInFloatingTab, onRename, onDelete, onOpenInSession, sessions,
-  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom, onExportPdf,
+  folders, canMove, currentFolderId, onMoveToFolder, onConvertToIdiom, onExportPdf, onSetStatus,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [showSessions, setShowSessions] = useState(false)
   const [showFolders, setShowFolders] = useState(false)
+  // "Set status" opens as its own flyout popup anchored to the trigger row, rather than
+  // expanding inline inside this menu — expanding inline grew this menu's measured height,
+  // and MenuPositioner re-clamps position on every render, so the whole menu visibly jumped
+  // to a different spot on screen the moment the status list appeared.
+  const statusBtnRef = useRef<HTMLButtonElement>(null)
+  const statusFlyoutRef = useRef<HTMLDivElement>(null)
+  const [statusFlyout, setStatusFlyout] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      const target = e.target as Node
+      if (statusFlyoutRef.current && statusFlyoutRef.current.contains(target)) return
+      if (ref.current && !ref.current.contains(target)) onClose()
     }
     function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('mousedown', handleClick, true)
@@ -81,6 +94,7 @@ export default function NoteContextMenu({
   const showMove  = !!folders && !!onMoveToFolder && !!canMove
 
   return createPortal(
+    <>
     <MenuPositioner ref={ref} x={x} y={y}
       className="native-buttons min-w-[190px] rounded-shell context-menu py-1 overflow-hidden"
     >
@@ -149,6 +163,27 @@ export default function NoteContextMenu({
         </>
       )}
 
+      {/* Set status — flyout, see statusFlyout state above for why it's not inline */}
+      {onSetStatus && (
+        <>
+          <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
+          <button
+            ref={statusBtnRef}
+            className={`${MENU_ITEM} justify-between ${statusFlyout ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]' : ''}`}
+            onClick={() => {
+              if (statusFlyout) { setStatusFlyout(null); return }
+              const r = statusBtnRef.current?.getBoundingClientRect()
+              if (r) setStatusFlyout({ x: r.right + 2, y: r.top })
+            }}
+          >
+            <span className="flex items-center gap-2.5">
+              <CircleDashed size={13} className="flex-shrink-0" /> Set status
+            </span>
+            <ChevronRight size={11} />
+          </button>
+        </>
+      )}
+
       {/* Open in session */}
       {sessions && sessions.length > 0 && onOpenInSession && (
         <>
@@ -195,7 +230,33 @@ export default function NoteContextMenu({
           </button>
         </>
       )}
-    </MenuPositioner>,
+    </MenuPositioner>
+
+    {statusFlyout && onSetStatus && (
+      <MenuPositioner ref={statusFlyoutRef} x={statusFlyout.x} y={statusFlyout.y}
+        className="native-buttons min-w-[160px] rounded-shell context-menu py-1 overflow-hidden"
+      >
+        <button
+          className={MENU_ITEM}
+          onClick={() => { onSetStatus(note, null); setStatusFlyout(null); onClose() }}
+        >
+          <CircleDashed size={12} className="flex-shrink-0 opacity-60" /> No status
+        </button>
+        {NOTE_STATUSES.map((s) => {
+          const Icon = s.icon
+          return (
+            <button
+              key={s.id}
+              className={MENU_ITEM}
+              onClick={() => { onSetStatus(note, s.id); setStatusFlyout(null); onClose() }}
+            >
+              <Icon size={12} className="flex-shrink-0" style={{ color: s.color }} /> {s.label}
+            </button>
+          )
+        })}
+      </MenuPositioner>
+    )}
+    </>,
     document.body
   )
 }

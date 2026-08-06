@@ -563,6 +563,15 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`INSERT INTO notes_fts(notes_fts) VALUES('rebuild')`)
       console.log('[berean-db] v19: notes_fts FTS5 + triggers + backfill')
     }
+  },
+  {
+    // Lifecycle-tracking status for notes: 'started' | 'in-progress' | 'complete' |
+    // 'make-video' | 'archive' | NULL (no status — most notes aren't expected to use this).
+    version: 20,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN status TEXT`) } catch {}
+      console.log('[berean-db] v20: status column on notes')
+    }
   }
 ]
 

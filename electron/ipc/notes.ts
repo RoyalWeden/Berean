@@ -80,6 +80,7 @@ interface NoteRow {
   content: string | null
   verse_ref: string | null
   color: string
+  status: string | null
   created_at: number
   updated_at: number
   tags: string
@@ -110,6 +111,7 @@ function rowToNote(row: NoteRow) {
     content:      row.content ?? '',
     verseRef:     row.verse_ref,
     color:        row.color,
+    status:       row.status ?? undefined,
     createdAt:    row.created_at,
     updatedAt:    row.updated_at,
     tags:         JSON.parse(row.tags) as string[],
@@ -162,14 +164,23 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:create', (event, data: {
-    type?: string; title?: string; content?: string; verseRef?: string; color?: string; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
+    type?: string; title?: string; content?: string; verseRef?: string; color?: string; status?: string | null; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
+    // Apply the user's configured default only when the caller didn't explicitly pass a
+    // status (including explicitly passing null/'' to mean "no status") — centralized here
+    // rather than at each of the ~7 note-creation call sites in the renderer.
+    let status = data.status ?? null
+    if (data.status === undefined) {
+      const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('defaultNoteStatus') as { value: string } | undefined
+      const defaultStatus = row ? (JSON.parse(row.value) as string) : 'none'
+      status = defaultStatus && defaultStatus !== 'none' ? defaultStatus : null
+    }
     db.prepare(`
-      INSERT INTO notes (id, type, title, content, verse_ref, color, created_at, updated_at, tags, text_id, folder_id, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, type, title, content, verse_ref, color, status, created_at, updated_at, tags, text_id, folder_id, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.type ?? 'general',
@@ -177,6 +188,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       data.content ?? '',
       data.verseRef ?? null,
       data.color ?? 'blue',
+      status,
       now, now,
       JSON.stringify(data.tags ?? []),
       data.textId ?? 'kjva',
@@ -192,7 +204,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:update', (event, id: string, data: {
-    title?: string; content?: string; color?: string; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
+    title?: string; content?: string; color?: string; status?: string | null; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
   }) => {
     const db = getBereanDb()
     const existing = db.prepare('SELECT id FROM notes WHERE id = ?').get(id)
@@ -204,6 +216,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title) }
     if (data.content !== undefined) { fields.push('content = ?'); values.push(data.content) }
     if (data.color !== undefined) { fields.push('color = ?'); values.push(data.color) }
+    if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status || null) }
     if (data.tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(data.tags)) }
     if (data.idiomTerm !== undefined) { fields.push('idiom_term = ?'); values.push(data.idiomTerm || null) }
     if (data.idiomMeaning !== undefined) { fields.push('idiom_meaning = ?'); values.push(data.idiomMeaning || null) }

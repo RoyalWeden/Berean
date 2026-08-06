@@ -5,8 +5,7 @@
  * correctly, and that table/markdown helpers behave as expected.
  */
 import { describe, it, expect } from 'vitest'
-import { renderPreviewContent } from '../NoteEditor'
-import { wysiwygField, wysiwygEffect } from '../NoteEditor'
+import { renderPreviewContent } from '@/lib/notePreviewRender'
 
 // ── re-export the internal helpers we need to test ────────────────────────────
 // (We test renderPreviewContent as the closest proxy for "what the user sees"
@@ -197,30 +196,6 @@ describe('table markdown round-trip', () => {
     const md = '| Day | Year |\n| --- | --- |\n| 1 | 4000 |'
     const h = html(md)
     expect(h).toContain('4000')
-  })
-})
-
-// ── 3. wysiwygField / wysiwygEffect exports ───────────────────────────────────
-
-describe('WYSIWYG exports integrity', () => {
-  it('wysiwygField is a valid StateField object', () => {
-    expect(wysiwygField).toBeDefined()
-    expect(typeof wysiwygField).toBe('object')
-    expect(wysiwygField).not.toBeNull()
-  })
-
-  it('wysiwygEffect is a valid StateEffectType', () => {
-    expect(wysiwygEffect).toBeDefined()
-    expect(typeof wysiwygEffect).toBe('object')
-    expect(wysiwygEffect).not.toBeNull()
-  })
-
-  it('wysiwygField.spec exists (StateField shape)', () => {
-    // CodeMirror StateField has a .spec with create/update functions
-    const spec = (wysiwygField as unknown as Record<string, unknown>).spec
-    expect(spec).toBeTruthy()
-    expect(typeof (spec as Record<string, unknown>).create).toBe('function')
-    expect(typeof (spec as Record<string, unknown>).update).toBe('function')
   })
 })
 

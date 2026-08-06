@@ -3,21 +3,27 @@
  * and integration with renderPreviewContent / buildPrintHTML.
  */
 import { describe, it, expect, beforeAll } from 'vitest'
+import type { PrintExportOptions } from '@/lib/notePreviewRender'
 
 let STRONGS_REF_RE: RegExp
 let wrapStrongsRefsForPreview: (s: string) => string
 let renderPreviewContent: (s: string) => string
-let buildPrintHTML: (title: string, content: string) => string
-let buildLexiconCopyText: (e: { strongsNum: string; lemma?: string; transliteration?: string; definition?: string; gloss?: string; extendedDef?: string }) => string
+let buildPrintHTML: (title: string, content: string, opts?: PrintExportOptions) => string
+let buildLexiconCopyText: (e: { strongsNum: string; lemma?: string; transliteration?: string; pronunciation?: string; definition?: string; gloss?: string; derivation?: string; extendedDef?: string }) => string
 
 beforeAll(async () => {
-  const notesMod = await import('../NoteEditor')
+  const notesMod = await import('@/lib/notePreviewRender')
   STRONGS_REF_RE = notesMod.STRONGS_REF_RE
   wrapStrongsRefsForPreview = notesMod.wrapStrongsRefsForPreview
   renderPreviewContent = notesMod.renderPreviewContent
   buildPrintHTML = notesMod.buildPrintHTML
   const lexMod = await import('../../lexicon/LexiconPanel')
-  buildLexiconCopyText = lexMod.buildLexiconCopyText
+  // buildLexiconCopyText's real param type (Pick<LexiconEntry, ...>) requires these
+  // fields as non-optional strings, but the implementation treats them as optional
+  // (`entry.lemma?.trim()` etc.) and this suite deliberately calls it with partial
+  // objects to exercise that fallback behavior — cast to the test's looser local
+  // signature rather than loosening the production type.
+  buildLexiconCopyText = lexMod.buildLexiconCopyText as unknown as typeof buildLexiconCopyText
 })
 
 // ── helpers ──────────────────────────────────────────────────────────────────
