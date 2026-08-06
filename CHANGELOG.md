@@ -122,6 +122,28 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.18] - 2026-08-05
+
+Advanced Scripture Search
+- Fixed a tab opened from a search result still reverting its title back to
+  the search query after a brief delay, in a case the previous fix didn't
+  fully cover.
+- Fixed the results list occasionally freezing for a moment while typing a
+  query with a large result set (e.g. a common Strong's number).
+
+Presenter / Viewer window
+- Fixed the presenter window pinning a jumped-to verse to the very top of
+  the screen instead of centering it with surrounding context, when jumping
+  via Advanced Scripture Search or the floating search.
+
+Notes
+- Selection/highlight toolbar no longer appears right under the cursor after
+  selecting text, reducing accidental clicks on it.
+
+Vault sync
+- Fixed the vault-sync file watcher continuing to run in the background
+  after turning vault sync off in Settings.
+
 ## [0.4.17] - 2026-08-04
 
 Notes

@@ -732,6 +732,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     // spans most of the visible text (bounding rect is huge), and the useLayoutEffect pass below
     // re-clamps against the toolbar's actual measured size once it's rendered.
     const pad = 8
+    // Extra breathing room between the cursor and the toolbar's nearest edge — without this,
+    // the toolbar's top-left corner could land essentially right where the mouse just
+    // released, making an accidental click on it (instead of dismissing the selection) easy.
+    const cursorGap = 16
     const vw = window.innerWidth
     const vh = window.innerHeight
     // The toolbar itself has 3 rows of highlight-color dots plus 4 action rows below (copy
@@ -740,11 +744,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     // bottom of the viewport; the useLayoutEffect re-clamp below then had to yank the toolbar
     // far from the cursor to keep it on screen, which read as "the corner isn't at my cursor."
     const MENU_H_INIT = 210
-    let menuX = e.clientX
-    if (menuX + MENU_W + pad > vw) menuX = e.clientX - MENU_W
+    let menuX = e.clientX + cursorGap
+    if (menuX + MENU_W + pad > vw) menuX = e.clientX - MENU_W - cursorGap
     menuX = Math.max(pad, Math.min(menuX, vw - MENU_W - pad))
-    let menuY = e.clientY - MENU_H_INIT - pad
-    if (menuY < pad) menuY = e.clientY + pad
+    let menuY = e.clientY - MENU_H_INIT - cursorGap
+    if (menuY < pad) menuY = e.clientY + cursorGap
     menuY = Math.max(pad, Math.min(menuY, vh - MENU_H_INIT - pad))
 
     setSelToolbar({ x: menuX, y: menuY, startChar, endChar })

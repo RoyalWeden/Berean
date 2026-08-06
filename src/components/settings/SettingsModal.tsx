@@ -388,6 +388,10 @@ export default function SettingsModal() {
     if (enabled) {
       window.vault.watchVault().catch(() => {})
       useAppStore.getState().bumpVaultSyncToken()
+    } else {
+      // Otherwise the polling chokidar watcher started by watchVault() above keeps running
+      // in the main process for the rest of the app's life, even with sync switched off.
+      window.vault.unwatchVault().catch(() => {})
     }
   }
 

@@ -256,6 +256,7 @@ contextBridge.exposeInMainWorld('vault', {
   syncNote: (noteId: string) => ipcRenderer.invoke('vault:syncNote', noteId),
   readVaultNote: (title: string) => ipcRenderer.invoke('vault:readNote', title),
   watchVault: () => ipcRenderer.invoke('vault:watch'),
+  unwatchVault: () => ipcRenderer.invoke('vault:unwatch'),
   reconcile: () => ipcRenderer.invoke('vault:reconcile'),
   exportAll: () => ipcRenderer.invoke('vault:exportAll', localStorage.getItem('berean-app-state') ?? undefined),
   setAutoExport: (intervalMinutes: number) => ipcRenderer.invoke('vault:setAutoExport', intervalMinutes),

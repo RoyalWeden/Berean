@@ -15,6 +15,17 @@ export function setMainBibleScrollPercent(p: number, chapterKey = '') {
   lastScrollChapterKey = chapterKey
 }
 
+/** Invalidate the cached scroll percent for a chapter right after a verse-jump (search
+ *  navigation, cross-ref jump, etc.) completes. scrollIntoView is a no-op when the target
+ *  verse is already on-screen, so no native `scroll` event fires to refresh the cached
+ *  percent via setMainBibleScrollPercent — without this, computeViewerPayload() would keep
+ *  reusing the stale pre-jump percent (same chapterKey) and the presenter/viewer window
+ *  would never scroll to the newly jumped-to verse. Forcing chapterKey to a value that can't
+ *  match makes computeViewerPayload() fall back to verse-centering via `verse` instead. */
+export function clearMainBibleScrollPercent(chapterKey: string) {
+  if (lastScrollChapterKey === chapterKey) lastScrollChapterKey = ''
+}
+
 // Last verse the main panel actually centered on for a given chapter. A one-shot targetVerse
 // jump (search navigation, cross-ref jump, etc.) gets consumed and cleared back to undefined by
 // ChapterView right after it scrolls — if that clearing tab-state update reaches the store
@@ -38,14 +49,9 @@ export function computeViewerPayload(): ViewerPayload {
   if (s.viewerBlank) return { kind: 'idle' }
   const activeSpace = s.activeSpace
   const activeId = s.activeTabId[activeSpace]
-  console.log('[ViewerSync] computeViewerPayload — space:', activeSpace, 'activeId:', activeId, 'tabs in space:', s.tabs[activeSpace]?.length)
   if (!activeId) return { kind: 'idle' }
   const tab = s.tabs[activeSpace]?.find(t => t.id === activeId)
-  if (!tab) {
-    console.log('[ViewerSync] no tab found for activeId', activeId)
-    return { kind: 'idle' }
-  }
-  console.log('[ViewerSync] active tab type:', tab.type, 'state:', JSON.stringify(tab.state))
+  if (!tab) return { kind: 'idle' }
 
   if (tab.type === 'bible') {
     const bs = tab.state as BibleTabState
@@ -64,15 +70,18 @@ export function computeViewerPayload(): ViewerPayload {
         sidePanel = { type: 'crossrefs', bookId: bs.bookId, chapter: bs.chapter, source: s.crossRefSource, activeVerse }
       }
     }
-    console.log('[ViewerSync] bible payload', {
-      textId, rightPanelOpen: bs.rightPanelOpen, rightPanelTab: bs.rightPanelTab,
-      rightPanelNoteId: bs.rightPanelNoteId, rightPanelLexiconEntry: bs.rightPanelLexiconEntry,
-      sidePanel: sidePanel?.type ?? null,
-    })
     // Only carry the scroll percent if it was recorded for THIS chapter; otherwise omit it so
     // the presenter doesn't apply a stale percent (e.g. a previous tab's near-bottom position).
+    // A pending targetVerse (a one-shot jump that hasn't been consumed/cleared by ChapterView
+    // yet) always wins over any cached percent, even one tagged with the same chapter — e.g. a
+    // same-chapter search-nav jump, where the cached percent is simply wherever the user was
+    // scrolled to *before* the jump. Without this, the very first payload pushed for that jump
+    // would carry the pre-jump percent and the presenter would never center on the new verse at
+    // all (ViewerBiblePage.tsx only centers on `verse` when scrollPercent is undefined).
     const chapterKey = `${bs.bookId}:${bs.chapter}`
-    const scrollPercent = lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined
+    const scrollPercent = bs.targetVerse !== undefined
+      ? undefined
+      : (lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined)
     // Fall back to targetVerse when verse isn't set — search-navigation (and other
     // one-shot scroll-to-verse jumps) only ever sets targetVerse, not verse. Without
     // this fallback, the viewer would have no verse to center on for a search-nav even
@@ -138,7 +147,6 @@ function activeScriptureTabState(s: ReturnType<typeof useAppStore.getState>): Bi
 
 export function pushCurrentToViewer() {
   const s = useAppStore.getState()
-  console.log('[ViewerSync] pushCurrentToViewer — viewerWindowOpen:', s.viewerWindowOpen, 'paused:', s.viewerPaused)
   if (!s.viewerWindowOpen || s.viewerPaused) return
   const activeBible = activeScriptureTabState(s)
   // Advanced search open → don't switch the presenter until the user exits.
@@ -147,7 +155,6 @@ export function pushCurrentToViewer() {
   // compare payload (we can't build it from store state here).
   if (activeBible?.compareMode) { window.dispatchEvent(new CustomEvent('berean:requestComparePush')); return }
   const payload = computeViewerPayload()
-  console.log('[ViewerSync] pushing payload:', JSON.stringify(payload))
   window.app.pushViewerContent?.(payload)
 }
 
@@ -176,9 +183,7 @@ export function useViewerSync() {
 
   // Listen for viewer-ready signal (fired by viewer React app after registering onContent)
   useEffect(() => {
-    console.log('[ViewerSync] registering onViewerReady listener')
     window.app.onViewerReady?.(() => {
-      console.log('[ViewerSync] onViewerReady fired — pushing settings + content')
       pushViewerSettingsToViewer()
       pushCurrentToViewer()
     })

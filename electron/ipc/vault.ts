@@ -460,6 +460,18 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
     }
   })
 
+  // Stops the vault-sync watcher. Without this, turning vault sync off in Settings left the
+  // polling chokidar watcher (1.5s interval, depth 10) running for the rest of the app's
+  // life — a real source of session-long CPU/battery drag, since the only prior close-point
+  // was re-invoking vault:watch itself.
+  ipcMain.handle('vault:unwatch', () => {
+    if (watcher) {
+      watcher.close()
+      watcher = null
+    }
+    return { success: true }
+  })
+
   // Startup reconciliation: scan all .md files in the vault and sync any newer than DB
   ipcMain.handle('vault:reconcile', () => {
     try {

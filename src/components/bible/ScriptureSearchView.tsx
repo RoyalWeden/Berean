@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -680,7 +680,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   // Build grouped results with filters applied
   type GroupedResult = { bookId: string; bookName: string; testament: string; textId: string; textLabel: string; results: RawResult[] }
-  const filteredGroups: GroupedResult[] = (() => {
+  // Memoized: this groups/filters/sorts `results` (which can run into the thousands — see the
+  // comment on `visibleResults` below) and was previously plain code re-run on every render,
+  // including the render each keystroke's `setQuery` call triggers — well before the debounced
+  // search itself even fires a new query. That made typing feel like it briefly locked up on
+  // every character. Only actually recompute when an input that affects the grouping changes.
+  const filteredGroups: GroupedResult[] = useMemo(() => (() => {
     const groupMap = new Map<string, GroupedResult>()
     for (const r of results) {
       const rid = r._textId ?? textId
@@ -741,7 +746,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       groups.forEach((g) => g.results.reverse())
     }
     return groups
-  })()
+  })(), [results, selectedBooks, allBooks, testamentFilter, sortMode, sortDirection])
 
   const totalCount = filteredGroups.reduce((n, g) => n + g.results.length, 0)
 
@@ -757,23 +762,29 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   type FlatRow =
     | { type: 'header'; key: string; group: GroupedResult }
     | { type: 'result'; key: string; group: GroupedResult; result: RawResult; indexInGroup: number; visibleIdx: number }
-  const flatRows: FlatRow[] = []
-  const headerFlatIndex = new Map<string, number>()
-  let visibleIdx = 0
-  for (const g of filteredGroups) {
-    const key = `${g.textId}::${g.bookId}`
-    headerFlatIndex.set(key, flatRows.length)
-    flatRows.push({ type: 'header', key, group: g })
-    if (!collapsedGroups.has(key)) {
-      g.results.forEach((r, i) => {
-        flatRows.push({ type: 'result', key, group: g, result: r, indexInGroup: i, visibleIdx })
-        visibleIdx++
-      })
+  // Memoized alongside filteredGroups above, for the same reason — this rebuilds the entire
+  // flattened row array (plus an object-spread per result row) and was otherwise re-running on
+  // every render, including every keystroke.
+  const { flatRows, headerFlatIndex, visibleResults } = useMemo(() => {
+    const rows: FlatRow[] = []
+    const headerIdx = new Map<string, number>()
+    let visibleIdx = 0
+    for (const g of filteredGroups) {
+      const key = `${g.textId}::${g.bookId}`
+      headerIdx.set(key, rows.length)
+      rows.push({ type: 'header', key, group: g })
+      if (!collapsedGroups.has(key)) {
+        g.results.forEach((r, i) => {
+          rows.push({ type: 'result', key, group: g, result: r, indexInGroup: i, visibleIdx })
+          visibleIdx++
+        })
+      }
     }
-  }
-  const visibleResults: Array<RawResult & { _groupKey: string }> =
-    flatRows.filter((row): row is Extract<FlatRow, { type: 'result' }> => row.type === 'result')
-      .map((row) => ({ ...row.result, _groupKey: row.key }))
+    const visible: Array<RawResult & { _groupKey: string }> =
+      rows.filter((row): row is Extract<FlatRow, { type: 'result' }> => row.type === 'result')
+        .map((row) => ({ ...row.result, _groupKey: row.key }))
+    return { flatRows: rows, headerFlatIndex: headerIdx, visibleResults: visible }
+  }, [filteredGroups, collapsedGroups])
 
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
