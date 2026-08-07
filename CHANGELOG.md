@@ -150,6 +150,14 @@ Notes
   once a fixed 80ms timer fired. Now applied via the same double-rAF
   technique the notes editor's own scroll restore uses, landing before the
   first paint instead of after it.
+- Fixed the Lexicon tab no longer saving scroll position (regression from
+  the fix above): the scroll-restore rAF fires an arbitrary moment after
+  the entry loads, not truly "next frame" — if the user started scrolling
+  before it landed (very easy to do, and near-guaranteed under dev-only
+  React StrictMode, which runs the restore twice on every fresh mount), it
+  silently reset scrollTop back to the old saved value moments before the
+  debounced save could persist the real one. The restore now backs off the
+  instant the user scrolls, instead of unconditionally overwriting it.
 
 Performance
 - Berean now backs off some of its own background polling (YouTube tab's
