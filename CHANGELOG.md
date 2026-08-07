@@ -130,6 +130,13 @@ Notes
   happened to refresh the notes list.
 - Fixed a race where jumping to a note via search (Cmd+K) could briefly load
   the wrong note into an already-open notes tab.
+- Fixed verse blocks (a reference line + its verse text, e.g. pasting in
+  "2 Peter 3:1-2" with the verse text under it) not boxing/formatting when a
+  note was first opened — it silently required an unrelated click/keystroke
+  to force it to appear. Two competing decoration passes were racing to
+  register the callback that verifies the pasted text against the Bible DB
+  and repaints once verification finishes; only the first one to run — which
+  didn't actually repaint anything — ever got called.
 
 ## [0.4.19] - 2026-08-05
 
