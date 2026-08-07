@@ -6,6 +6,7 @@ import os from 'os'
 import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
+import { setupPowerAwareness, getResourceMode } from './powerAwareness'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
@@ -971,6 +972,9 @@ app.whenReady().then(async () => {
   // Live macOS accent color, for the "System" theme preset — converts Electron's hex
   // ("rrggbb[aa]") into the "r g b" decimal-triple string the rest of the palette uses.
   ipcMain.handle('app:getAccentColor', () => hexToRgbTriple(safeGetAccentColor()))
+  // 'normal' | 'throttled' — see powerAwareness.ts. app:resourceModeChanged (registered
+  // above, alongside setupPowerAwareness()) pushes subsequent changes.
+  ipcMain.handle('app:getResourceMode', () => getResourceMode())
   ipcMain.handle('app:checkForUpdates', async () => {
     if (isMasBuild) {
       sendUpdateStatus('mas')   // renderer shows "updates via App Store"
@@ -1110,6 +1114,11 @@ app.whenReady().then(async () => {
       if (!win.isDestroyed()) win.webContents.send('app:accentColorChanged', rgb)
     })
   })
+
+  // Broadcasts app:resourceModeChanged to all windows on battery/thermal-pressure changes —
+  // see powerAwareness.ts for what "throttled" actually gates (vault watcher polling cadence,
+  // YouTube tab's re-injection/transcript-sync polling).
+  setupPowerAwareness()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

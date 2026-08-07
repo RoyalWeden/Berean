@@ -175,6 +175,14 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:accentColorChanged')
     ipcRenderer.on('app:accentColorChanged', (_, rgb) => cb(rgb as string | null))
   },
+  // 'normal' | 'throttled' — on battery power or under macOS thermal pressure. Consumers
+  // (e.g. YouTubeTab's polling intervals) use this to back off non-essential background
+  // work during a long session or when the system is under sustained load.
+  getResourceMode: () => ipcRenderer.invoke('app:getResourceMode') as Promise<'normal' | 'throttled'>,
+  onResourceModeChanged: (cb: (mode: 'normal' | 'throttled') => void) => {
+    ipcRenderer.removeAllListeners('app:resourceModeChanged')
+    ipcRenderer.on('app:resourceModeChanged', (_, mode) => cb(mode as 'normal' | 'throttled'))
+  },
   onUpdateStatus: (cb: (status: unknown) => void) => {
     ipcRenderer.removeAllListeners('app:updateStatus')
     ipcRenderer.on('app:updateStatus', (_, status) => cb(status))

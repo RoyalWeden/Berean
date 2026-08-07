@@ -433,6 +433,12 @@ export interface AppState {
   systemAccentColor: string | null
   setSystemAccentColor: (v: string | null) => void
 
+  // 'throttled' when on battery power or under macOS thermal pressure — runtime only, not
+  // persisted; populated via IPC (electron/powerAwareness.ts). Background-polling consumers
+  // (YouTubeTab's re-injection/transcript-sync intervals) stretch their cadence when set.
+  resourceMode: 'normal' | 'throttled'
+  setResourceMode: (v: 'normal' | 'throttled') => void
+
   // Per-section font families
   scriptureFontFamily: string
   notesFontFamily: string
@@ -734,6 +740,9 @@ export const useAppStore = create<AppState>()(
       setThemePreset: (preset) => set({ themePreset: preset }),
       systemAccentColor: null,
       setSystemAccentColor: (v) => set({ systemAccentColor: v }),
+
+      resourceMode: 'normal',
+      setResourceMode: (v) => set({ resourceMode: v }),
       scriptureFontFamily: 'system',
       notesFontFamily: 'system',
       uiFontFamily: 'system',

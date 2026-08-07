@@ -205,6 +205,8 @@ interface AppAPI {
   onNativeThemeChanged: (cb: (isDark: boolean) => void) => void
   getAccentColor: () => Promise<string | null>
   onAccentColorChanged: (cb: (rgb: string | null) => void) => void
+  getResourceMode: () => Promise<'normal' | 'throttled'>
+  onResourceModeChanged: (cb: (mode: 'normal' | 'throttled') => void) => void
   onUpdateStatus: (cb: (status: UpdateStatus) => void) => void
   openViewerWindow: () => Promise<boolean>
   closeViewerWindow: () => Promise<boolean>

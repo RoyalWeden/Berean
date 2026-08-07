@@ -429,6 +429,14 @@ export default function App() {
     window.app?.onAccentColorChanged?.((rgb) => setSystemAccentColor(rgb))
   }, [setSystemAccentColor])
 
+  // Resource mode ('throttled' on battery / under thermal pressure) — same fetch-once-then-
+  // subscribe pattern as the accent color above. See store/index.ts and powerAwareness.ts.
+  const setResourceMode = useAppStore((s) => s.setResourceMode)
+  useEffect(() => {
+    window.app?.getResourceMode?.().then((mode) => setResourceMode(mode)).catch(() => {})
+    window.app?.onResourceModeChanged?.((mode) => setResourceMode(mode))
+  }, [setResourceMode])
+
   // Sync theme class on <html>; 'system' follows the OS preference
   useEffect(() => {
     const html = document.documentElement

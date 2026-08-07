@@ -138,6 +138,12 @@ Notes
   and repaints once verification finishes; only the first one to run — which
   didn't actually repaint anything — ever got called.
 
+Performance
+- Berean now backs off some of its own background polling (YouTube tab's
+  style re-injection and transcript-sync intervals, vault file-watcher
+  cadence) while the system is on battery power or under macOS thermal
+  pressure, instead of always running at full speed.
+
 ## [0.4.19] - 2026-08-05
 
 Notes
