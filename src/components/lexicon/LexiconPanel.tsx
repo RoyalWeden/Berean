@@ -1181,9 +1181,16 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       .then((entry) => {
         if (entry) {
           setActiveEntry(entry)
-          setTimeout(() => {
+          // A fixed setTimeout(80) here raced the actual render: the entry committed and
+          // painted at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll
+          // once the timer fired — reading as "shows for a second without scroll then it
+          // jumps." Matches NoteEditorPM.tsx's own scroll-restore double-rAF: the first
+          // rAF runs before the browser has painted this render's DOM changes, the second
+          // (nested) rAF then fires after that paint's layout is actually settled, so the
+          // scrollTop assignment lands before the user ever sees the unscrolled frame.
+          requestAnimationFrame(() => requestAnimationFrame(() => {
             if (entryScrollRef.current) entryScrollRef.current.scrollTop = savedScroll
-          }, 80)
+          }))
         }
       })
       .catch(() => {})
@@ -1291,9 +1298,17 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   }, [])
 
   // Global top bar's back button reached the list/search position for this tab.
-  const lexiconHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token, not a "have I run before" boolean — see NotesPanel.tsx's
+  // identical fix (lastSeenNotesHomeTokenRef) for why a boolean-ref "skip the first call"
+  // guard is unsafe under React 18 StrictMode's dev-only double-invoke of a genuine mount's
+  // effects: the boolean survives the replay unchanged, so the second invocation sees it
+  // already consumed and fires anyway, spuriously clearing the just-restored entry on every
+  // fresh mount of this panel even though lexiconHomeToken never actually changed.
+  const lastSeenLexiconHomeTokenRef = useRef(lexiconHomeToken)
   useEffect(() => {
-    if (!lexiconHomeMounted.current) { lexiconHomeMounted.current = true; return }
+    if (lexiconHomeToken === lastSeenLexiconHomeTokenRef.current) return
+    lastSeenLexiconHomeTokenRef.current = lexiconHomeToken
     setActiveEntry(null)
     setSavedSearch(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps

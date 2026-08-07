@@ -137,6 +137,19 @@ Notes
   register the callback that verifies the pasted text against the Bible DB
   and repaints once verification finishes; only the first one to run — which
   didn't actually repaint anything — ever got called.
+- Fixed switching into a note tab (from another tab or another space)
+  sometimes showing the notes home list instead of the note. In dev mode,
+  React's StrictMode double-invokes a fresh panel's effects; a "skip the
+  very first call" guard on the global back/home button's listener survived
+  that unchanged, so its second invocation fired for real and cleared the
+  just-restored note. Same fix applied to the equivalent Lexicon and
+  YouTube "home" listeners, and to the Bible panel's presenter-push
+  listener, since all four shared the identical pattern.
+- Fixed the Lexicon tab's saved scroll position appearing a beat late —
+  entry content painted first, then visibly jumped to the saved scroll spot
+  once a fixed 80ms timer fired. Now applied via the same double-rAF
+  technique the notes editor's own scroll restore uses, landing before the
+  first paint instead of after it.
 
 Performance
 - Berean now backs off some of its own background polling (YouTube tab's

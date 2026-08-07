@@ -488,9 +488,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // Global top bar's back button reached the browse/home position for this tab (see
   // youtubeHomeToken's registration in the store, mirroring notesHomeToken/lexiconHomeToken).
-  const youtubeHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token, not a "have I run before" boolean — see NotesPanel.tsx's
+  // identical fix (lastSeenNotesHomeTokenRef) for why a boolean-ref "skip the first call"
+  // guard is unsafe under React 18 StrictMode's dev-only double-invoke of a genuine mount's
+  // effects.
+  const lastSeenYoutubeHomeTokenRef = useRef(youtubeHomeToken)
   useEffect(() => {
-    if (!youtubeHomeMounted.current) { youtubeHomeMounted.current = true; return }
+    if (youtubeHomeToken === lastSeenYoutubeHomeTokenRef.current) return
+    lastSeenYoutubeHomeTokenRef.current = youtubeHomeToken
     handleBack()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [youtubeHomeToken])

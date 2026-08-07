@@ -927,9 +927,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   // Global top bar's back button reached the list/home position for this tab.
-  const notesHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token value, not a "have I run before" boolean — React 18
+  // StrictMode (dev only) double-invokes every effect on a genuine mount: run the effect,
+  // simulate a cleanup (none here), run it again. A boolean ref survives that unchanged
+  // (refs aren't reset between the two invocations, since it's the same fiber), so the OLD
+  // "if (!mountedRef.current) { mountedRef.current = true; return }" guard only protected the
+  // FIRST of the two StrictMode passes — the second pass saw the guard already consumed and
+  // called goBack() regardless, wiping activeNote back to the list on every genuine remount
+  // of NotesPanel even though notesHomeToken never actually changed. Since ActivePanel.tsx
+  // remounts NotesPanel fresh every time you switch into the Notes space from a different
+  // tab (its key swaps 'panel:note' in), this fired on essentially every such switch in dev,
+  // reading as "switching to a tab with a note open goes to the home page instead." Comparing
+  // against the last-seen VALUE instead is idempotent across StrictMode's replay: the second
+  // pass sees the same token it just recorded and is correctly a no-op.
+  const lastSeenNotesHomeTokenRef = useRef(notesHomeToken)
   useEffect(() => {
-    if (!notesHomeMounted.current) { notesHomeMounted.current = true; return }
+    if (notesHomeToken === lastSeenNotesHomeTokenRef.current) return
+    lastSeenNotesHomeTokenRef.current = notesHomeToken
     goBack()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesHomeToken])
