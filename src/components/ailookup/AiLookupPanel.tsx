@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles } from 'lucide-react'
+import { useEffect, useRef, useState, Fragment } from 'react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, StickyNote, BookMarked } from 'lucide-react'
 import { useAppStore } from '@/store'
 import Switch from '@/components/shell/Switch'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
@@ -25,6 +25,13 @@ const SOURCE_CLASS: Record<AiLookupResult['source'], string> = {
   'cross-ref': 'bg-[rgb(var(--highlight-purple)/0.20)] text-[rgb(var(--highlight-purple))]',
 }
 
+// Near-opaque (~92%, a genuinely subtle ~8% see-through), via an explicit color-mix()
+// instead of a Tailwind arbitrary-value opacity modifier (`bg-[...]/NN`) — that approach
+// rendered far more transparent than intended, so this sidesteps any ambiguity about
+// whether/how Tailwind compiles opacity onto a fully custom `rgb(var(--x))` value.
+const PANEL_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-1)) 92%, transparent)' }
+const HEADER_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-2)) 92%, transparent)' }
+
 function defaultPos() {
   if (typeof window === 'undefined') return { x: 0, y: 0 }
   return {
@@ -37,6 +44,24 @@ function clampPos(pos: { x: number; y: number }) {
   const maxX = Math.max(MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN)
   const maxY = Math.max(MARGIN, window.innerHeight - PANEL_HEIGHT - MARGIN)
   return { x: Math.min(Math.max(pos.x, MARGIN), maxX), y: Math.min(Math.max(pos.y, MARGIN), maxY) }
+}
+
+/** Wraps any of `keywords` found (case-insensitive, whole-ish word) inside `text` in a
+ *  <mark>-style highlight, so a result visibly shows WHY it matched. */
+function HighlightedText({ text, keywords }: { text: string; keywords: string[] }) {
+  const words = [...new Set(keywords.flatMap((k) => k.split(/\s+/)).filter((w) => w.length >= 3))]
+  if (words.length === 0) return <>{text}</>
+  const pattern = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  const parts = text.split(pattern)
+  return (
+    <>
+      {parts.map((part, i) =>
+        pattern.test(part) && words.some((w) => w.toLowerCase() === part.toLowerCase())
+          ? <mark key={i} className="bg-[rgb(var(--highlight-yellow)/0.4)] text-inherit rounded-[2px]">{part}</mark>
+          : <Fragment key={i}>{part}</Fragment>
+      )}
+    </>
+  )
 }
 
 export default function AiLookupPanel() {
@@ -54,6 +79,7 @@ export default function AiLookupPanel() {
   const addTab = useAppStore((s) => s.addTab)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
 
   const [pos, setPos] = useState(() => storedPos ?? defaultPos())
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -65,6 +91,9 @@ export default function AiLookupPanel() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  // How many primary results are shown per message index, keyed by message index —
+  // starts at that message's own visibleCount, bumped by "Show more".
+  const [expanded, setExpanded] = useState<Record<number, number>>({})
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -74,7 +103,7 @@ export default function AiLookupPanel() {
   useEffect(() => {
     if (activeChatId) {
       window.aiLookup.getChat(activeChatId).then((chat) => {
-        if (chat) setMessages(chat.messages)
+        if (chat) { setMessages(chat.messages); setExpanded({}) }
       }).catch(() => {})
     }
   }, [activeChatId])
@@ -115,6 +144,11 @@ export default function AiLookupPanel() {
     setActiveSpace('scripture')
   }
 
+  function openNoteMatch(noteId: string) {
+    requestOpenNote(noteId)
+    setActiveSpace('notes')
+  }
+
   async function persist(nextMessages: AiLookupChatMessage[]) {
     const title = nextMessages.find((m) => m.role === 'user')?.content.slice(0, 60) || 'AI Lookup'
     const saved = await window.aiLookup.saveChat({ id: activeChatId ?? undefined, title, messages: nextMessages })
@@ -139,6 +173,9 @@ export default function AiLookupPanel() {
             ? "No matching verses found — try rephrasing."
             : '',
         results: res.results,
+        visibleCount: res.visibleCount,
+        keywords: res.keywords,
+        noteMatches: res.noteMatches,
         summary: res.summary,
         createdAt: new Date().toISOString(),
       }
@@ -155,6 +192,7 @@ export default function AiLookupPanel() {
   function newChat() {
     setActiveChatId(null)
     setMessages([])
+    setExpanded({})
     setHistoryOpen(false)
   }
 
@@ -167,18 +205,17 @@ export default function AiLookupPanel() {
 
   return (
     <div
-      // Deliberately near-opaque (96% — a bare 4% see-through), not a real translucent
-      // "glass" panel: enough that content behind it isn't fully hidden while dragging it
-      // around, without hurting text legibility the way a heavier blur/transparency would.
-      className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]/96 backdrop-blur-[1px] shadow-2xl overflow-hidden"
-      style={{ left: pos.x, top: pos.y, width: PANEL_WIDTH, height: PANEL_HEIGHT }}
+      // Deliberately near-opaque, not a real translucent "glass" panel — see PANEL_BG comment.
+      className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden"
+      style={{ left: pos.x, top: pos.y, width: PANEL_WIDTH, height: PANEL_HEIGHT, ...PANEL_BG }}
     >
       {/* Header — drag handle */}
       <div
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
-        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]/96 cursor-grab active:cursor-grabbing select-none"
+        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] cursor-grab active:cursor-grabbing select-none"
+        style={HEADER_BG}
       >
         <Sparkles size={14} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
         <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))] flex-1 truncate">AI Scripture Lookup</span>
@@ -217,38 +254,105 @@ export default function AiLookupPanel() {
                 Ask where a passage is — e.g. "where does Abraham leave his family because of idolatry?"
               </p>
             )}
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                {m.role === 'user' ? (
-                  <div className="max-w-[85%] rounded-shell bg-[rgb(var(--color-accent))/14] text-[rgb(var(--color-text-primary))] text-xs px-3 py-2">{m.content}</div>
-                ) : (
+            {messages.map((m, mi) => {
+              if (m.role === 'user') {
+                return (
+                  <div key={mi} className="flex justify-end">
+                    <div className="max-w-[85%] rounded-shell bg-[rgb(var(--color-accent))/14] text-[rgb(var(--color-text-primary))] text-xs px-3 py-2">{m.content}</div>
+                  </div>
+                )
+              }
+              const keywords = m.keywords ?? []
+              const primary = (m.results ?? []).filter((r) => r.source !== 'cross-ref')
+              const crossRefsByParent = new Map<string, AiLookupResult[]>()
+              for (const r of m.results ?? []) {
+                if (r.source !== 'cross-ref' || !r.crossRefOf) continue
+                const key = `${r.crossRefOf.bookId}|${r.crossRefOf.chapter}|${r.crossRefOf.verse}`
+                if (!crossRefsByParent.has(key)) crossRefsByParent.set(key, [])
+                crossRefsByParent.get(key)!.push(r)
+              }
+              const shown = expanded[mi] ?? m.visibleCount ?? primary.length
+              const visiblePrimary = primary.slice(0, shown)
+              const hasMore = shown < primary.length
+
+              return (
+                <div key={mi} className="flex justify-start">
                   <div className="max-w-full w-full space-y-2">
                     {m.content && <p className="text-xs text-[rgb(var(--color-text-muted))]">{m.content}</p>}
                     {m.summary && <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>}
-                    {(m.results ?? []).map((r, ri) => (
-                      <button
-                        key={ri}
-                        onClick={() => navigateToResult(r)}
-                        onContextMenu={(e) => verseCopy.open(e, {
-                          bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
-                          text: r.text, lxx: r.textId === 'lxx',
-                        })}
-                        className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">
-                            {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
-                          </span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${SOURCE_CLASS[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
+
+                    {(m.noteMatches ?? []).length > 0 && (
+                      <div className="rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] p-2 space-y-1">
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wide">
+                          <StickyNote size={10} /> From your notes
                         </div>
-                        <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">{r.text}</p>
-                        {r.commentary && <p className="text-[11px] text-[rgb(var(--color-accent))] mt-1 leading-snug">{r.commentary}</p>}
+                        {m.noteMatches!.map((nm) => (
+                          <button
+                            key={nm.noteId}
+                            onClick={() => openNoteMatch(nm.noteId)}
+                            className="w-full text-left text-[11px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                          >
+                            <span className="font-medium">{nm.title}</span> — {nm.snippet}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {visiblePrimary.map((r, ri) => {
+                      const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
+                      return (
+                        <div key={ri}>
+                          <button
+                            onClick={() => navigateToResult(r)}
+                            onContextMenu={(e) => verseCopy.open(e, {
+                              bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
+                              text: r.text, lxx: r.textId === 'lxx',
+                            })}
+                            className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">
+                                {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
+                              </span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${SOURCE_CLASS[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
+                              {r.noted && <BookMarked size={11} className="text-[rgb(var(--color-accent))]" />}
+                            </div>
+                            <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
+                              <HighlightedText text={r.text} keywords={keywords} />
+                            </p>
+                            {r.commentary && <p className="text-[11px] text-[rgb(var(--color-accent))] mt-1 leading-snug">{r.commentary}</p>}
+                          </button>
+                          {nested.length > 0 && (
+                            <div className="ml-3 mt-1 space-y-1 border-l-2 border-[rgb(var(--color-surface-4))] pl-2">
+                              {nested.map((cr, ci) => (
+                                <button
+                                  key={ci}
+                                  onClick={() => navigateToResult(cr)}
+                                  onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
+                                  className="w-full text-left rounded-shell hover:bg-[rgb(var(--color-surface-2))] px-1.5 py-1 transition-colors cursor-pointer"
+                                >
+                                  <span className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
+                                  <span className="text-[10px] text-[rgb(var(--color-text-muted))]"> — {cr.text}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {hasMore && (
+                      <button
+                        onClick={() => setExpanded((prev) => ({ ...prev, [mi]: primary.length }))}
+                        className="w-full flex items-center justify-center gap-1 text-[11px] text-[rgb(var(--color-accent))] hover:underline py-1 cursor-pointer"
+                      >
+                        <ChevronDown size={12} /> Show {primary.length - shown} more
                       </button>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                </div>
+              )
+            })}
             {loading && (
               <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
                 <Loader2 size={13} className="animate-spin" /> Searching…

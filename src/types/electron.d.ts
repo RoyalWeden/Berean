@@ -408,10 +408,27 @@ export interface AiLookupResult {
   text: string
   source: AiLookupResultSource
   commentary?: string
+  /** True if a verse note already exists at this exact reference. */
+  noted?: boolean
+  /** Only set on `source: 'cross-ref'` results — which primary result they were expanded
+   *  from, so the UI can nest them under it instead of listing them as flat entries. */
+  crossRefOf?: { bookId: string; chapter: number; verse: number }
+}
+
+export interface AiLookupNoteMatch {
+  noteId: string
+  title: string
+  snippet: string
 }
 
 export interface AiLookupResponse {
   results: AiLookupResult[]
+  /** How many of `results` (counting only primary, non-cross-ref ones) to show before a
+   *  "Show more" button reveals the rest. */
+  visibleCount: number
+  /** Extracted search keywords, for highlighting matched terms in verse text. */
+  keywords: string[]
+  noteMatches: AiLookupNoteMatch[]
   summary?: string
   error?: string
 }
@@ -427,6 +444,9 @@ export interface AiLookupChatMessage {
   role: 'user' | 'assistant'
   content: string
   results?: AiLookupResult[]
+  visibleCount?: number
+  keywords?: string[]
+  noteMatches?: AiLookupNoteMatch[]
   summary?: string
   createdAt: string
 }

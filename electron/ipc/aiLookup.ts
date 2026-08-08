@@ -18,10 +18,35 @@ export interface AiLookupResult {
   text: string
   source: ResultSource
   commentary?: string
+  /** True if a verse note already exists at this exact reference — surfaced as a small
+   *  "you have a note here" indicator, and counted as a strong relevance signal. */
+  noted?: boolean
+  /** Only set on `source: 'cross-ref'` results — which primary result they were expanded
+   *  from, so the UI can nest them under it instead of listing them as flat, equal-weight
+   *  entries. */
+  crossRefOf?: { bookId: string; chapter: number; verse: number }
+}
+
+export interface AiLookupNoteMatch {
+  noteId: string
+  title: string
+  snippet: string
 }
 
 export interface AiLookupResponse {
+  /** Primary (non-cross-ref) results, ranked, followed by their nested cross-ref results. */
   results: AiLookupResult[]
+  /** How many of `results` (counting only primary ones) the UI should show before a
+   *  "Show more" button reveals the rest — computed server-side so the UI doesn't have to
+   *  guess a good default. */
+  visibleCount: number
+  /** Extracted search keywords, returned so the UI can highlight matched terms in verse text
+   *  without re-deriving them. */
+  keywords: string[]
+  /** General (non-verse) notes whose content matched the same keywords — surfaced separately
+   *  since a loose text match in a general note is too weak a signal to attach to a specific
+   *  verse (see aiLookup.ts's notes-signal comment). */
+  noteMatches: AiLookupNoteMatch[]
   summary?: string
   error?: string
 }
@@ -31,11 +56,19 @@ interface AiExtraction {
   guesses: Array<{ book: string; chapter: number; verse: number; endVerse?: number }>
 }
 
-const MAX_RESULTS = 25
+// Soft ceiling while gathering candidates — purely to bound worst-case work, not a "shown"
+// count (that's `visibleCount`/DEFAULT_VISIBLE below). Kept comfortably above what ranking
+// actually needs so a real relevant hit is never dropped before scoring gets to see it.
+const CANDIDATE_POOL_CAP = 60
+const DEFAULT_VISIBLE = 7
+const MAX_PRIMARY_RESULTS = 20
+const MAX_CROSS_REFS = 12
+
 // Canonical Bible texts — the only ones the AI's own book/chapter/verse guesses (English
-// book names, standard Bible versification) can meaningfully resolve against. Pseudepigrapha
-// (Jubilees, Enoch, etc.) each have their own book/chapter shape, so guesses are skipped
-// there — only the FTS5 keyword search (step 1) applies to those.
+// book names, standard Bible versification) can meaningfully resolve against, and the only
+// ones cross_references.db/tske_refs.db/notes.verse_ref are keyed against. Pseudepigrapha
+// (Jubilees, Enoch, etc.) each have their own book/chapter shape, so guesses and cross-ref
+// expansion are skipped there — only the FTS5 keyword search (step 1) applies to those.
 const CANONICAL_TEXT_IDS = new Set(['kjva', 'kjv', 'lxx'])
 const DEFAULT_TEXT_ID = 'kjva'
 
@@ -100,6 +133,10 @@ function bookNameFor(bookId: string, textId: string): string {
   return getBookMaps(textId).toName.get(bookId) ?? bookId
 }
 
+function cleanWords(q: string): string[] {
+  return q.trim().split(/\s+/).filter(Boolean).map(w => w.replace(/[^a-zA-Z0-9']/g, '')).filter(w => w.length >= 1)
+}
+
 function extractionPrompt(question: string): string {
   return `You are a Bible search-term extractor for a KJV/LXX/pseudepigrapha study app. A user asked a question about where to find a passage in Scripture. Your ONLY job is to produce search input for a database — do not answer the question yourself, do not add commentary.
 
@@ -112,8 +149,16 @@ Respond with ONLY a JSON object of this exact shape:
 }
 
 Rules:
-- "keywords": 3-6 short search phrases or proper names (people, places, concepts) likely to appear in the actual verse text. Prefer specific words over generic ones.
-- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English Bible book names only (not Jubilees/Enoch/etc — those aren't searchable by reference this way). "endVerse" is optional, only include it for a real multi-verse range you recall. Omit "guesses" (empty array) if unsure — do not fabricate.
+- "keywords" are matched literally against unmodified KJV text — use the wording the KJV
+  actually uses (e.g. "Jesus" not "Yeshua", "Holy Ghost" not "Holy Spirit"), even if that
+  differs from how the question was phrased. 3-6 short search phrases or proper names (people,
+  places, concepts) likely to appear verbatim in the verse text. Prefer specific multi-word
+  phrases or names over single generic words (avoid bare words like "God", "love", "earth" —
+  they match thousands of unrelated verses).
+- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English Bible
+  book names only (not Jubilees/Enoch/etc — those aren't searchable by reference this way).
+  "endVerse" is optional, only include it for a real multi-verse range you recall. Omit
+  "guesses" (empty array) if unsure — do not fabricate.
 - No explanation, no markdown, JSON only.`
 }
 
@@ -121,40 +166,158 @@ function commentaryPrompt(question: string, verses: AiLookupResult[]): string {
   const list = verses.slice(0, 12).map((v) => `${v.bookId} ${v.chapter}:${v.verse}${v.endVerse ? '-' + v.endVerse : ''} — ${v.text}`).join('\n')
   return `A user asked: "${question}"
 
-Here are verses already found and verified against the actual Bible text (do not add, remove, or renumber any of them):
+Here are candidate verses already found and verified against the actual Bible text (do not add,
+remove text from, or renumber any of them):
 ${list}
 
-For each verse above, write ONE brief sentence (max ~20 words) explaining how it relates to the question. Keep it terse — this is a reference tool, not a sermon. Then write a 1-2 sentence overall summary.
+Two jobs:
+1. For each verse that's genuinely relevant to the question, write ONE brief sentence (max ~20
+   words) explaining how it relates. Keep it terse — this is a reference tool, not a sermon.
+2. Flag any verse above that is NOT actually relevant to the question (e.g. it only shares a
+   generic word, not the actual topic) so it can be dropped from the results.
+Then write a 1-2 sentence overall summary.
 
 Respond with ONLY a JSON object of this exact shape:
 {
   "perVerse": {"GEN 12:1": "..."},
+  "irrelevant": ["GEN 12:1", "..."],
   "summary": "..."
 }
-Keys in "perVerse" must be exactly "BOOKID CHAPTER:VERSE" (the start verse only, matching the list above). JSON only, no markdown.`
+Keys/entries must be exactly "BOOKID CHAPTER:VERSE" (the start verse only, matching the list
+above). "irrelevant" lists ONLY the ones that don't belong — omit it or leave empty if all are
+relevant. JSON only, no markdown.`
 }
 
 function dedupeKey(r: Pick<AiLookupResult, 'textId' | 'bookId' | 'chapter' | 'verse'>): string {
   return `${r.textId}|${r.bookId}|${r.chapter}|${r.verse}`
 }
 
+/** Merges runs of contiguous verse numbers (same textId/bookId/chapter, same source) into a
+ *  single ranged result — the model-independent path to showing verse ranges, since keyword
+ *  search naturally returns individual verse rows even when three in a row all matched. */
+function mergeAdjacent(items: AiLookupResult[]): AiLookupResult[] {
+  const byGroup = new Map<string, AiLookupResult[]>()
+  for (const item of items) {
+    const key = `${item.textId}|${item.bookId}|${item.chapter}|${item.source}`
+    if (!byGroup.has(key)) byGroup.set(key, [])
+    byGroup.get(key)!.push(item)
+  }
+  const merged: AiLookupResult[] = []
+  for (const group of byGroup.values()) {
+    group.sort((a, b) => a.verse - b.verse)
+    let run: AiLookupResult[] = []
+    const flush = () => {
+      if (run.length === 0) return
+      if (run.length === 1) { merged.push(run[0]); run = []; return }
+      merged.push({
+        ...run[0],
+        endVerse: run[run.length - 1].verse,
+        text: run.map((r) => r.text).join(' '),
+      })
+      run = []
+    }
+    for (const item of group) {
+      if (run.length === 0 || item.verse === run[run.length - 1].verse + 1) {
+        run.push(item)
+      } else {
+        flush()
+        run.push(item)
+      }
+    }
+    flush()
+  }
+  return merged
+}
+
+/** Base relevance score: how many extracted keywords literally appear in the verse text. */
+function keywordOverlapScore(text: string, keywords: string[]): number {
+  const lower = text.toLowerCase()
+  let score = 0
+  for (const kw of keywords) {
+    const words = cleanWords(kw)
+    if (words.length > 0 && words.every((w) => lower.includes(w.toLowerCase()))) score++
+  }
+  return score
+}
+
+interface NotesSignal {
+  notedKeys: Set<string> // dedupeKey() of candidates with an exact verse-note
+  boostedKeys: Set<string> // dedupeKey() of candidates whose reference matched a notes_fts hit
+  noteMatches: AiLookupNoteMatch[] // general (non-verse) notes matching the keywords
+}
+
+/** Cheap, false-positive-averse notes signal: (1) an EXACT verse-note at a candidate's own
+ *  reference is a strong, structured boost; (2) a verse-note surfaced via keyword text-match
+ *  is a weaker boost, but still only ever affects a reference already in the candidate pool —
+ *  it never introduces a new verse purely from a loose text match; (3) matching GENERAL notes
+ *  (no verse_ref) are returned separately, never attached to a specific verse. */
+function computeNotesSignal(candidates: AiLookupResult[], keywords: string[]): NotesSignal {
+  const result: NotesSignal = { notedKeys: new Set(), boostedKeys: new Set(), noteMatches: [] }
+  let db
+  try { db = getBereanDb() } catch { return result }
+
+  const canonical = candidates.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
+  if (canonical.length > 0) {
+    const refs = canonical.map((c) => `${c.bookId}.${c.chapter}.${c.verse}`)
+    const uniqRefs = [...new Set(refs)]
+    try {
+      const placeholders = uniqRefs.map(() => '?').join(',')
+      const rows = db.prepare(`SELECT DISTINCT verse_ref FROM notes WHERE verse_ref IN (${placeholders})`).all(...uniqRefs) as Array<{ verse_ref: string }>
+      const notedRefs = new Set(rows.map((r) => r.verse_ref))
+      for (const c of canonical) {
+        if (notedRefs.has(`${c.bookId}.${c.chapter}.${c.verse}`)) result.notedKeys.add(dedupeKey(c))
+      }
+    } catch { /* notes table unavailable — signal just stays empty */ }
+  }
+
+  const terms = [...new Set(keywords.flatMap((k) => cleanWords(k)))].filter((w) => w.length >= 3)
+  if (terms.length === 0) return result
+  try {
+    const ftsQ = terms.map((w) => `"${w.replace(/"/g, '')}"*`).join(' OR ')
+    const rows = db.prepare(
+      `SELECT n.id, n.title, n.content, n.verse_ref
+       FROM notes_fts f JOIN notes n ON n.rowid = f.rowid
+       WHERE notes_fts MATCH ? LIMIT 25`
+    ).all(ftsQ) as Array<{ id: string; title: string | null; content: string | null; verse_ref: string | null }>
+
+    const candidateByRef = new Map(candidates.filter((c) => CANONICAL_TEXT_IDS.has(c.textId)).map((c) => [`${c.bookId}.${c.chapter}.${c.verse}`, c]))
+    const seenNoteIds = new Set<string>()
+    for (const row of rows) {
+      if (row.verse_ref) {
+        const match = candidateByRef.get(row.verse_ref)
+        if (match) result.boostedKeys.add(dedupeKey(match))
+        continue // verse notes never become a general-note match, even if unmatched
+      }
+      if (seenNoteIds.has(row.id) || result.noteMatches.length >= 3) continue
+      seenNoteIds.add(row.id)
+      const snippet = (row.content ?? '').replace(/[#*_`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140)
+      result.noteMatches.push({ noteId: row.id, title: row.title || 'Untitled', snippet })
+    }
+  } catch { /* notes_fts unavailable — signal just stays partial */ }
+
+  return result
+}
+
 async function runLookup(question: string, opts: { commentary: boolean; model?: string; textId?: string }): Promise<AiLookupResponse> {
   const model = opts.model || DEFAULT_OLLAMA_MODEL
 
   const { available } = await checkOllamaAvailable()
-  if (!available) return { results: [], error: 'ollama-unavailable' }
+  if (!available) return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-unavailable' }
 
   let extraction: AiExtraction
   try {
     extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question), model)
   } catch {
-    return { results: [], error: 'ollama-request-failed' }
+    return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-request-failed' }
   }
+  const keywords = (extraction.keywords ?? []).slice(0, 6)
+  const guesses = (extraction.guesses ?? []).slice(0, 5)
 
   const seen = new Set<string>()
-  const results: AiLookupResult[] = []
+  const guessCandidates: AiLookupResult[] = []
+  const keywordCandidates: AiLookupResult[] = []
 
-  function add(textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
+  function add(bucket: AiLookupResult[], textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
     const r: AiLookupResult = {
       textId, bookId: row.book_id, bookName: bookNameFor(row.book_id, textId),
       chapter: row.chapter, verse: row.verse_num, endVerse: row.verse_end, text: row.text, source,
@@ -162,13 +325,11 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     const key = dedupeKey(r)
     if (seen.has(key)) return
     seen.add(key)
-    results.push(r)
+    bucket.push(r)
   }
 
   // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
-  // that text FIRST — its results come first in the list — then falls back to also searching
-  // the default (kjva) as secondary results, so a focused question still surfaces related
-  // canonical cross-references afterward instead of only ever searching kjva.
+  // that text FIRST, then falls back to also searching the default (kjva).
   const explicitFocus = opts.textId && opts.textId !== DEFAULT_TEXT_ID ? opts.textId : null
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const textPasses = focusTextId && focusTextId !== DEFAULT_TEXT_ID
@@ -176,27 +337,14 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     : [DEFAULT_TEXT_ID]
 
   for (const textId of textPasses) {
-    if (results.length >= MAX_RESULTS) break
     const db = getTextDb(textId)
     if (!db) continue
 
-    // 1. Keyword search via FTS5 — the primary, most trustworthy path, works for any text.
-    for (const kw of (extraction.keywords ?? []).slice(0, 6)) {
-      if (results.length >= MAX_RESULTS) break
-      const rows = searchVerses(kw, textId, 'phrase')
-      const finalRows = rows.length > 0 ? rows : searchVerses(kw, textId, 'all')
-      for (const row of finalRows.slice(0, 8)) {
-        if (results.length >= MAX_RESULTS) break
-        add(textId, { book_id: row.book_id, chapter: row.chapter, verse_num: row.verse_num, text: row.text }, 'keyword')
-      }
-    }
-
-    // 2. AI direct guesses — only meaningful for canonical Bible texts (see CANONICAL_TEXT_IDS);
-    // verified against the real DB and dropped if they don't resolve. Ranges (endVerse) are
-    // fetched verse-by-verse and joined into a single result.
+    // 1. AI direct guesses go FIRST — a small, fixed budget that can never be starved out by
+    // the much larger keyword pool gathered afterward. Only meaningful for canonical texts.
     if (CANONICAL_TEXT_IDS.has(textId)) {
-      for (const g of (extraction.guesses ?? []).slice(0, 5)) {
-        if (results.length >= MAX_RESULTS) break
+      for (const g of guesses) {
+        if (guessCandidates.length >= 8) break
         const bookId = resolveBookId(g.book, textId)
         if (!bookId) continue
         const endVerse = g.endVerse && g.endVerse > g.verse ? Math.min(g.endVerse, g.verse + 20) : undefined
@@ -207,59 +355,126 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
             if (verse) parts.push(verse.text)
           }
           if (parts.length === 0) continue
-          add(textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
+          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
         } else {
           const verse = queryVerse(bookId, g.chapter, g.verse, textId)
           if (!verse) continue
-          add(textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, text: verse.text }, 'ai-guess')
+          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, text: verse.text }, 'ai-guess')
         }
       }
     }
-  }
 
-  // 3. Cross-reference expansion — TSK / classic cross-references are keyed to standard Bible
-  // book ids, so only expand from canonical-text seeds (pseudepigrapha seeds are skipped; the
-  // lookups would just come back empty for them anyway, but this avoids the wasted queries).
-  const seedRefs = results.filter((r) => CANONICAL_TEXT_IDS.has(r.textId)).slice()
-  for (const seed of seedRefs) {
-    if (results.length >= MAX_RESULTS) break
-    const classic = getCrossRefsForVerse(seed.bookId, seed.chapter, seed.verse)
-    for (const ref of classic.refs.slice(0, 4)) {
-      if (results.length >= MAX_RESULTS) break
-      if (!ref.text) continue
-      add(seed.textId, { book_id: ref.bookId, chapter: ref.chapter, verse_num: ref.verse, text: ref.text }, 'cross-ref')
-    }
-    const tske = getTskeForVerse(seed.bookId, seed.chapter, seed.verse)
-    for (const group of tske.groups.slice(0, 2)) {
-      for (const ref of group.refs.slice(0, 2)) {
-        if (results.length >= MAX_RESULTS) break
-        if (!ref.text) continue
-        add(seed.textId, { book_id: ref.bookId, chapter: ref.chapter, verse_num: ref.verse, text: ref.text }, 'cross-ref')
+    // 2. Keyword search via FTS5. Phrase mode first for every keyword; the loose 'all'-mode
+    // (independent prefix-wildcard AND) fallback only kicks in if EVERY keyword's phrase
+    // search came back empty — a single keyword falling back while others still have real
+    // phrase hits is what used to flood the pool with generic-word noise.
+    const phraseResults = keywords.map((kw) => ({ kw, rows: searchVerses(kw, textId, 'phrase') }))
+    const anyPhraseHits = phraseResults.some((r) => r.rows.length > 0)
+    for (const { kw, rows } of phraseResults) {
+      if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
+      const finalRows = rows.length > 0 || !anyPhraseHits ? (rows.length > 0 ? rows : searchVerses(kw, textId, 'all')) : []
+      for (const row of finalRows.slice(0, 6)) {
+        if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
+        add(keywordCandidates, textId, { book_id: row.book_id, chapter: row.chapter, verse_num: row.verse_num, text: row.text }, 'keyword')
       }
     }
   }
 
-  if (results.length === 0) return { results: [] }
+  // 3. Merge adjacent verses (same textId/book/chapter, contiguous verse numbers, same
+  // source) into displayed ranges — model-independent, so this fires whether or not the
+  // AI's own guesses happened to include a range.
+  const mergedGuesses = mergeAdjacent(guessCandidates)
+  const mergedKeywords = mergeAdjacent(keywordCandidates)
+  let candidates = [...mergedGuesses, ...mergedKeywords]
 
-  // 4. Optional commentary — a second pass over the now-verified, final result set.
-  // The model explains; it never gets to introduce a new reference at this stage.
+  if (candidates.length === 0) return { results: [], visibleCount: 0, keywords, noteMatches: [], error: undefined }
+
+  // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
+  const notesSignal = computeNotesSignal(candidates, keywords)
+  for (const c of candidates) {
+    const key = dedupeKey(c)
+    if (notesSignal.notedKeys.has(key)) c.noted = true
+  }
+
+  // 5. Rank by keyword overlap + notes boosts; stable-sort keeps original (guesses-first,
+  // then FTS rank order) ordering for ties.
+  const scored = candidates.map((c, i) => ({
+    c, i,
+    score: keywordOverlapScore(c.text, keywords) + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0) + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
+  }))
+  scored.sort((a, b) => b.score - a.score || a.i - b.i)
+  candidates = scored.map((s) => s.c).slice(0, MAX_PRIMARY_RESULTS)
+
+  // 6. Cross-reference expansion — only from the already-ranked top results (not the whole
+  // raw candidate pool), and only for canonical-text results, since cross_references.db /
+  // tske_refs.db are keyed to standard Bible book ids. Nested under their source verse via
+  // `crossRefOf` rather than mixed into the ranked primary list.
+  const crossRefs: AiLookupResult[] = []
+  for (const seedResult of candidates.filter((r) => CANONICAL_TEXT_IDS.has(r.textId)).slice(0, DEFAULT_VISIBLE)) {
+    if (crossRefs.length >= MAX_CROSS_REFS) break
+    const classic = getCrossRefsForVerse(seedResult.bookId, seedResult.chapter, seedResult.verse)
+    for (const ref of classic.refs.slice(0, 2)) {
+      if (crossRefs.length >= MAX_CROSS_REFS) break
+      if (!ref.text) continue
+      const key = `${seedResult.textId}|${ref.bookId}|${ref.chapter}|${ref.verse}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      crossRefs.push({
+        textId: seedResult.textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, seedResult.textId),
+        chapter: ref.chapter, verse: ref.verse, text: ref.text, source: 'cross-ref',
+        crossRefOf: { bookId: seedResult.bookId, chapter: seedResult.chapter, verse: seedResult.verse },
+      })
+    }
+    const tske = getTskeForVerse(seedResult.bookId, seedResult.chapter, seedResult.verse)
+    for (const group of tske.groups.slice(0, 1)) {
+      for (const ref of group.refs.slice(0, 1)) {
+        if (crossRefs.length >= MAX_CROSS_REFS) break
+        if (!ref.text) continue
+        const key = `${seedResult.textId}|${ref.bookId}|${ref.chapter}|${ref.verse}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        crossRefs.push({
+          textId: seedResult.textId, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, seedResult.textId),
+          chapter: ref.chapter, verse: ref.verse, text: ref.text, source: 'cross-ref',
+          crossRefOf: { bookId: seedResult.bookId, chapter: seedResult.chapter, verse: seedResult.verse },
+        })
+      }
+    }
+  }
+
+  const visibleCount = Math.min(DEFAULT_VISIBLE, candidates.length)
+  const results = [...candidates, ...crossRefs]
+
+  // 7. Optional commentary — a second pass over the ranked, already-verified candidates.
+  // The model explains and may flag entries to drop; it never introduces a new reference.
   if (opts.commentary) {
     try {
-      const raw = await runOllamaJson<{ perVerse?: Record<string, string>; summary?: string }>(
-        commentaryPrompt(question, results), model
+      const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
+        commentaryPrompt(question, candidates), model
       )
-      for (const r of results) {
+      const irrelevant = new Set(raw.irrelevant ?? [])
+      for (const r of candidates) {
         const key = `${r.bookId} ${r.chapter}:${r.verse}`
         if (raw.perVerse?.[key]) r.commentary = raw.perVerse[key]
       }
-      return { results, summary: raw.summary }
+      // Only prune if it wouldn't wipe out every primary result — a model that (incorrectly)
+      // flags everything as irrelevant shouldn't leave the user with an empty response.
+      const pruned = candidates.filter((r) => !irrelevant.has(`${r.bookId} ${r.chapter}:${r.verse}`))
+      const finalPrimary = pruned.length > 0 ? pruned : candidates
+      const keptKeys = new Set(finalPrimary.map(dedupeKey))
+      const finalCrossRefs = crossRefs.filter((cr) => cr.crossRefOf && keptKeys.has(`${cr.textId}|${cr.crossRefOf.bookId}|${cr.crossRefOf.chapter}|${cr.crossRefOf.verse}`))
+      return {
+        results: [...finalPrimary, ...finalCrossRefs],
+        visibleCount: Math.min(DEFAULT_VISIBLE, finalPrimary.length),
+        keywords, noteMatches: notesSignal.noteMatches, summary: raw.summary,
+      }
     } catch {
-      // Commentary is best-effort — a failed second call shouldn't drop the verified verses.
-      return { results }
+      // Commentary is best-effort — a failed second call shouldn't drop the verified results.
+      return { results, visibleCount, keywords, noteMatches: notesSignal.noteMatches }
     }
   }
 
-  return { results }
+  return { results, visibleCount, keywords, noteMatches: notesSignal.noteMatches }
 }
 
 interface StoredChat {
@@ -274,6 +489,9 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   results?: AiLookupResult[]
+  visibleCount?: number
+  keywords?: string[]
+  noteMatches?: AiLookupNoteMatch[]
   summary?: string
   createdAt: string
 }

@@ -682,15 +682,30 @@ app.whenReady().then(async () => {
   session.fromPartition('persist:youtube')
   log.info('youtube session created')
 
-  // ── Geolocation permission (default session = main app window only) ──────────
+  // ── Geolocation + clipboard permissions (default session = main app window only) ──
   // Daily notes begin at sunrise, not midnight (src/lib/dailyNoteUtils.ts) — the
   // renderer requests the device's location once per launch to compute it. No
   // handler existed before this, so explicitly allow only 'geolocation' and deny
   // everything else, rather than assume Electron's implicit default for other
   // permission types. The YouTube <webview> uses its own 'persist:youtube' session
   // (above) and never requests geolocation, so it's untouched by this handler.
+  //
+  // Also allow clipboard permissions here — 'geolocation'-only denied everything
+  // else by default, which silently broke every "Copy verse"/"Copy reference"
+  // button app-wide (VerseCopyMenu.tsx, VerseRow.tsx, etc — all call
+  // navigator.clipboard.writeText(), which Chromium gates behind a permission
+  // request in Electron 32). Both the modern 'clipboard-sanitized-write' name and
+  // the older 'clipboard-write' are allowed since which one Chromium actually
+  // requests can vary by call site; 'clipboard-read' is allowed too for any future
+  // paste-from-clipboard feature. ('clipboard-write' isn't a value Electron's own
+  // permission-string union recognizes in this version — 'clipboard-sanitized-write' is the
+  // one Chromium actually requests for navigator.clipboard.writeText().)
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === 'geolocation')
+    callback(
+      permission === 'geolocation' ||
+      permission === 'clipboard-sanitized-write' ||
+      permission === 'clipboard-read'
+    )
   })
 
   // ── Content-Security-Policy (default session = main app window only) ─────────
