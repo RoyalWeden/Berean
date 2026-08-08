@@ -461,7 +461,13 @@ export interface AiLookupChat {
 
 interface AiLookupAPI {
   checkAvailable: () => Promise<{ available: boolean; models: string[] }>
-  query: (question: string, opts: { commentary: boolean; model?: string; textId?: string }) => Promise<AiLookupResponse>
+  query: (question: string, opts: {
+    commentary: boolean; model?: string; textId?: string
+    /** Enabled, non-Strong's word-replacer rules — so keyword search also tries the DB's
+     *  original wording (e.g. "Jesus") when the model used the app's preferred wording
+     *  (e.g. "Yeshua"), or vice versa. Pass only `{ queries, replacement }` pairs. */
+    wordReplacerRules?: Array<{ queries: string[]; replacement: string }>
+  }) => Promise<AiLookupResponse>
   listChats: () => Promise<AiLookupChatSummary[]>
   getChat: (id: string) => Promise<AiLookupChat | null>
   saveChat: (chat: { id?: string; title: string; messages: AiLookupChatMessage[] }) => Promise<{ id: string }>

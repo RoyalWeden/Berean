@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, StickyNote, BookMarked } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, StickyNote, BookMarked, Link2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import Switch from '@/components/shell/Switch'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
+import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { AiLookupChatMessage, AiLookupResult } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
@@ -80,6 +81,13 @@ export default function AiLookupPanel() {
   const updateTabState = useAppStore((s) => s.updateTabState)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
+  // Enabled, non-Strong's rules only — Strong's-number rules apply to KJVA tagged-word
+  // rendering elsewhere, not plain verse text or FTS search, and don't fit this shape.
+  const activeWordReplacerRules = wordReplacerEnabled
+    ? wordReplacerRules.filter((r) => r.enabled && !r.strongsNum)
+    : []
 
   const [pos, setPos] = useState(() => storedPos ?? defaultPos())
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -94,6 +102,9 @@ export default function AiLookupPanel() {
   // How many primary results are shown per message index, keyed by message index —
   // starts at that message's own visibleCount, bumped by "Show more".
   const [expanded, setExpanded] = useState<Record<number, number>>({})
+  // Cross-references are collapsed by default (each answer was reported as "way too long"
+  // with them always open) — tracked per "messageIndex-resultIndex" key, toggled open on click.
+  const [crossRefsOpen, setCrossRefsOpen] = useState<Record<string, boolean>>({})
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -103,7 +114,7 @@ export default function AiLookupPanel() {
   useEffect(() => {
     if (activeChatId) {
       window.aiLookup.getChat(activeChatId).then((chat) => {
-        if (chat) { setMessages(chat.messages); setExpanded({}) }
+        if (chat) { setMessages(chat.messages); setExpanded({}); setCrossRefsOpen({}) }
       }).catch(() => {})
     }
   }, [activeChatId])
@@ -164,7 +175,12 @@ export default function AiLookupPanel() {
     setMessages(withUser)
     setLoading(true)
     try {
-      const res = await window.aiLookup.query(question, { commentary: commentaryOn })
+      const res = await window.aiLookup.query(question, {
+        commentary: commentaryOn,
+        wordReplacerRules: activeWordReplacerRules.length > 0
+          ? activeWordReplacerRules.map((r) => ({ queries: r.queries, replacement: r.replacement }))
+          : undefined,
+      })
       const assistantMsg: AiLookupChatMessage = {
         role: 'assistant',
         content: res.error === 'ollama-unavailable'
@@ -193,6 +209,7 @@ export default function AiLookupPanel() {
     setActiveChatId(null)
     setMessages([])
     setExpanded({})
+    setCrossRefsOpen({})
     setHistoryOpen(false)
   }
 
@@ -263,6 +280,12 @@ export default function AiLookupPanel() {
                 )
               }
               const keywords = m.keywords ?? []
+              // Word-replacer-transformed for highlighting so <mark> spans still land inside
+              // the also-transformed display text below (e.g. a "Jesus" keyword highlights
+              // correctly even when the verse text itself now displays as "Yeshua").
+              const displayKeywords = activeWordReplacerRules.length > 0
+                ? keywords.map((k) => applyWordReplacer(k, activeWordReplacerRules))
+                : keywords
               const primary = (m.results ?? []).filter((r) => r.source !== 'cross-ref')
               const crossRefsByParent = new Map<string, AiLookupResult[]>()
               for (const r of m.results ?? []) {
@@ -300,6 +323,8 @@ export default function AiLookupPanel() {
 
                     {visiblePrimary.map((r, ri) => {
                       const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
+                      const crKey = `${mi}-${ri}`
+                      const crOpen = crossRefsOpen[crKey] ?? false
                       return (
                         <div key={ri}>
                           <button
@@ -318,24 +343,38 @@ export default function AiLookupPanel() {
                               {r.noted && <BookMarked size={11} className="text-[rgb(var(--color-accent))]" />}
                             </div>
                             <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
-                              <HighlightedText text={r.text} keywords={keywords} />
+                              <HighlightedText
+                                text={activeWordReplacerRules.length > 0 ? applyWordReplacer(r.text, activeWordReplacerRules) : r.text}
+                                keywords={displayKeywords}
+                              />
                             </p>
                             {r.commentary && <p className="text-[11px] text-[rgb(var(--color-accent))] mt-1 leading-snug">{r.commentary}</p>}
                           </button>
                           {nested.length > 0 && (
-                            <div className="ml-3 mt-1 space-y-1 border-l-2 border-[rgb(var(--color-surface-4))] pl-2">
-                              {nested.map((cr, ci) => (
-                                <button
-                                  key={ci}
-                                  onClick={() => navigateToResult(cr)}
-                                  onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
-                                  className="w-full text-left rounded-shell hover:bg-[rgb(var(--color-surface-2))] px-1.5 py-1 transition-colors cursor-pointer"
-                                >
-                                  <span className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
-                                  <span className="text-[10px] text-[rgb(var(--color-text-muted))]"> — {cr.text}</span>
-                                </button>
-                              ))}
-                            </div>
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setCrossRefsOpen((prev) => ({ ...prev, [crKey]: !crOpen })) }}
+                                className="mt-0.5 flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                              >
+                                {crOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                <Link2 size={10} /> {nested.length} related
+                              </button>
+                              {crOpen && (
+                                <div className="ml-3 mt-1 space-y-1 border-l-2 border-[rgb(var(--color-surface-4))] pl-2">
+                                  {nested.map((cr, ci) => (
+                                    <button
+                                      key={ci}
+                                      onClick={() => navigateToResult(cr)}
+                                      onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
+                                      className="w-full text-left rounded-shell hover:bg-[rgb(var(--color-surface-2))] px-1.5 py-1 transition-colors cursor-pointer"
+                                    >
+                                      <span className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
+                                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]"> — {activeWordReplacerRules.length > 0 ? applyWordReplacer(cr.text, activeWordReplacerRules) : cr.text}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )

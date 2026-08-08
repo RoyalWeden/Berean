@@ -6,6 +6,18 @@ import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse } from './crossrefs'
 import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL } from '../ollama'
 
+// Minimal shape of src/store's WordReplacerRule this file actually needs — deliberately not
+// importing the renderer's src/lib/wordReplacer.ts here even though its logic is identical
+// (see getWordReplacerVariants below): the main process build doesn't otherwise pull in
+// anything from src/, and this keeps it that way rather than risk that cross-boundary import
+// resolving differently under electron-vite's main-process bundle than it does in the
+// renderer's. The renderer sends rules already filtered to enabled/non-Strong's ones — see
+// AiLookupPanel.tsx's call site — so no further filtering happens here.
+export interface WordReplacerRuleLite {
+  queries: string[]
+  replacement: string
+}
+
 export type ResultSource = 'keyword' | 'ai-guess' | 'cross-ref'
 
 export interface AiLookupResult {
@@ -53,22 +65,32 @@ export interface AiLookupResponse {
 
 interface AiExtraction {
   keywords: string[]
-  guesses: Array<{ book: string; chapter: number; verse: number; endVerse?: number }>
+  // `verse` comes back missing/null from the model surprisingly often — a whole-chapter
+  // reference ("John 17", "Revelation 12") or a range where it only bothered to give
+  // `endVerse` ("chapter 5, endVerse 48" meaning "the whole chapter, up to 48") are both
+  // real, observed shapes, not just theoretical — see the runLookup guess-processing loop
+  // for how a missing `verse` is normalized instead of crashing the DB query.
+  guesses: Array<{ book: string; chapter: number; verse?: number | null; endVerse?: number | null }>
 }
 
-// Soft ceiling while gathering candidates — purely to bound worst-case work, not a "shown"
-// count (that's `visibleCount`/DEFAULT_VISIBLE below). Kept comfortably above what ranking
-// actually needs so a real relevant hit is never dropped before scoring gets to see it.
+// Soft ceiling while gathering keyword candidates — purely to bound worst-case work, not a
+// "shown" count. Guesses lead the final result (see runLookup step 5); keyword search only
+// ever backfills a handful of gaps, so this pool is just the pre-ranking scratch space.
 const CANDIDATE_POOL_CAP = 60
-const DEFAULT_VISIBLE = 7
-const MAX_PRIMARY_RESULTS = 20
+// Guesses always lead; keyword search only backfills when there are too few guesses to stand
+// on their own, and even then contributes at most KEYWORD_BACKFILL_CAP — a wrong/absent guess
+// shouldn't turn into a wall of generic keyword hits either. TOTAL_PRIMARY_CAP is the ceiling
+// on the combined primary list (guesses + backfill) shown by default.
+const KEYWORD_BACKFILL_CAP = 3
+const TOTAL_PRIMARY_CAP = 6
 const MAX_CROSS_REFS = 12
 
-// Canonical Bible texts — the only ones the AI's own book/chapter/verse guesses (English
-// book names, standard Bible versification) can meaningfully resolve against, and the only
-// ones cross_references.db/tske_refs.db/notes.verse_ref are keyed against. Pseudepigrapha
-// (Jubilees, Enoch, etc.) each have their own book/chapter shape, so guesses and cross-ref
-// expansion are skipped there — only the FTS5 keyword search (step 1) applies to those.
+// Canonical Bible texts — the only ones cross_references.db/tske_refs.db/notes.verse_ref are
+// keyed against, so cross-ref expansion and the notes signal stay restricted to these. AI
+// guesses, by contrast, are also allowed against the CURRENT QUESTION's focus text (see
+// detectFocusTextId below) even when it's pseudepigrapha — Jubilees/Enoch/etc each have a
+// single `books` row with ordinary chapter:verse numbering, so a guess resolves against them
+// exactly the same way a canonical guess resolves against kjva's 66 books.
 const CANONICAL_TEXT_IDS = new Set(['kjva', 'kjv', 'lxx'])
 const DEFAULT_TEXT_ID = 'kjva'
 
@@ -133,11 +155,88 @@ function bookNameFor(bookId: string, textId: string): string {
   return getBookMaps(textId).toName.get(bookId) ?? bookId
 }
 
+/** For a single-book work (Jubilees, 1 Enoch, etc. — anything with exactly one row in its own
+ *  `books` table), returns that book's display name — used to tell the model which work's name
+ *  to use for a focus-text guess (e.g. "Jubilees"), without hardcoding a second name list. */
+function singleBookWorkName(textId: string): string | null {
+  const names = [...getBookMaps(textId).toName.values()]
+  return names.length === 1 ? names[0] : null
+}
+
 function cleanWords(q: string): string[] {
   return q.trim().split(/\s+/).filter(Boolean).map(w => w.replace(/[^a-zA-Z0-9']/g, '')).filter(w => w.length >= 1)
 }
 
-function extractionPrompt(question: string): string {
+// Single bare words the model still reaches for occasionally despite being told to prefer
+// specific multi-word phrases — a phrase search on a lone word this common doesn't just
+// return "too many" hits (that's handled by the candidate cap), it specifically returns the
+// WRONG ones: FTS5's bm25 ranking favors short documents for high term-density matches, so a
+// bare "Jesus" query ranks tiny verses like "Jesus wept" (John 11:35) at the very top —
+// observed empirically surfacing as the exact same handful of irrelevant filler verses across
+// many unrelated questions. Multi-word keywords containing these words (e.g. "Jesus wept",
+// "Jesus Christ") are unaffected — only a keyword that reduces to a single word from this list
+// is dropped before search.
+const OVERLY_GENERIC_SINGLE_WORDS = new Set([
+  'god', 'jesus', 'yeshua', 'christ', 'lord', 'spirit', 'ghost', 'heaven', 'earth', 'love',
+  'day', 'days', 'said', 'come', 'man', 'men', 'son', 'sons', 'father', 'king', 'people',
+  'israel', 'said', 'went', 'saith', 'thing', 'things', 'great', 'good',
+])
+
+/** Drops keywords that are a single, overly-generic word — see OVERLY_GENERIC_SINGLE_WORDS. */
+function filterGenericKeywords(keywords: string[]): string[] {
+  return keywords.filter((kw) => {
+    const words = cleanWords(kw)
+    return !(words.length === 1 && OVERLY_GENERIC_SINGLE_WORDS.has(words[0].toLowerCase()))
+  })
+}
+
+/** Expands a keyword into every word-replacer variant worth also searching for — same logic
+ *  as src/lib/wordReplacer.ts's getWordReplacerSearchVariants (ported, not imported; see the
+ *  WordReplacerRuleLite comment above for why), applied here so keyword search finds a verse
+ *  regardless of which side of a replacement pair (e.g. "Jesus"/"Yeshua") the model happened
+ *  to use — the extraction prompt already tells it to prefer literal KJV wording, but this
+ *  makes that instruction non-load-bearing instead of a silent miss when the model doesn't
+ *  comply. Each returned string is a complete, independent query to search and union, not a
+ *  single "OR"-joined string (FTS5 in this app treats every word as a required token, so a
+ *  literal " OR " would just become another required word — see the ported comment's origin).
+ */
+function getWordReplacerVariants(keyword: string, rules: WordReplacerRuleLite[]): string[] {
+  const trimmed = keyword.trim()
+  if (!trimmed || rules.length === 0) return [trimmed]
+  const lq = trimmed.toLowerCase()
+  const variants = new Set<string>([trimmed])
+  const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  for (const rule of rules) {
+    const lReplacement = rule.replacement.toLowerCase()
+    for (const orig of rule.queries) {
+      const lOrig = orig.toLowerCase()
+      if (lq.includes(lReplacement)) {
+        variants.add(trimmed.replace(new RegExp(escapeRe(rule.replacement), 'ig'), orig))
+      }
+      if (lq.includes(lOrig)) {
+        variants.add(trimmed.replace(new RegExp(escapeRe(orig), 'ig'), rule.replacement))
+      }
+    }
+  }
+  return [...variants]
+}
+
+function extractionPrompt(question: string, focusWorkName: string | null): string {
+  const guessRule = focusWorkName
+    ? `- "guesses": 0-5 direct chapter:verse references you recall as relevant. The user is
+  specifically asking about **${focusWorkName}** — if you recall a specific passage in
+  ${focusWorkName} itself, guess it using "book": "${focusWorkName}" (it has ordinary
+  chapter:verse numbering like any Bible book). You may also include KJV/Bible guesses (using
+  full English book names) if a related canonical passage comes to mind. "endVerse" is
+  optional, only for a real multi-verse range you recall. Omit "guesses" (empty array) if
+  unsure — do not fabricate a reference you don't actually recall.`
+    : `- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English
+  Bible book names only (not Jubilees/Enoch/etc — ask about a specific work by name if that's
+  what the user wants, this question didn't name one). "endVerse" is optional, only include it
+  for a real multi-verse range you recall. Omit "guesses" (empty array) if unsure — do not
+  fabricate.`
+
   return `You are a Bible search-term extractor for a KJV/LXX/pseudepigrapha study app. A user asked a question about where to find a passage in Scripture. Your ONLY job is to produce search input for a database — do not answer the question yourself, do not add commentary.
 
 User question: "${question}"
@@ -149,16 +248,13 @@ Respond with ONLY a JSON object of this exact shape:
 }
 
 Rules:
-- "keywords" are matched literally against unmodified KJV text — use the wording the KJV
+- "keywords" are matched literally against unmodified text — use the wording the source text
   actually uses (e.g. "Jesus" not "Yeshua", "Holy Ghost" not "Holy Spirit"), even if that
   differs from how the question was phrased. 3-6 short search phrases or proper names (people,
   places, concepts) likely to appear verbatim in the verse text. Prefer specific multi-word
   phrases or names over single generic words (avoid bare words like "God", "love", "earth" —
   they match thousands of unrelated verses).
-- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English Bible
-  book names only (not Jubilees/Enoch/etc — those aren't searchable by reference this way).
-  "endVerse" is optional, only include it for a real multi-verse range you recall. Omit
-  "guesses" (empty array) if unsure — do not fabricate.
+${guessRule}
 - No explanation, no markdown, JSON only.`
 }
 
@@ -298,19 +394,27 @@ function computeNotesSignal(candidates: AiLookupResult[], keywords: string[]): N
   return result
 }
 
-async function runLookup(question: string, opts: { commentary: boolean; model?: string; textId?: string }): Promise<AiLookupResponse> {
+async function runLookup(question: string, opts: { commentary: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }): Promise<AiLookupResponse> {
   const model = opts.model || DEFAULT_OLLAMA_MODEL
+  const wordReplacerRules = opts.wordReplacerRules ?? []
+
+  // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
+  // that text FIRST, then falls back to also searching the default (kjva). Computed before the
+  // extraction call since the prompt itself needs to know (to invite a focus-text guess).
+  const explicitFocus = opts.textId && opts.textId !== DEFAULT_TEXT_ID ? opts.textId : null
+  const focusTextId = explicitFocus ?? detectFocusTextId(question)
+  const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
   const { available } = await checkOllamaAvailable()
   if (!available) return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-unavailable' }
 
   let extraction: AiExtraction
   try {
-    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question), model)
+    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName), model)
   } catch {
     return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-request-failed' }
   }
-  const keywords = (extraction.keywords ?? []).slice(0, 6)
+  const keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6))
   const guesses = (extraction.guesses ?? []).slice(0, 5)
 
   const seen = new Set<string>()
@@ -328,10 +432,6 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     bucket.push(r)
   }
 
-  // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
-  // that text FIRST, then falls back to also searching the default (kjva).
-  const explicitFocus = opts.textId && opts.textId !== DEFAULT_TEXT_ID ? opts.textId : null
-  const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const textPasses = focusTextId && focusTextId !== DEFAULT_TEXT_ID
     ? [focusTextId, DEFAULT_TEXT_ID]
     : [DEFAULT_TEXT_ID]
@@ -341,38 +441,63 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     if (!db) continue
 
     // 1. AI direct guesses go FIRST — a small, fixed budget that can never be starved out by
-    // the much larger keyword pool gathered afterward. Only meaningful for canonical texts.
-    if (CANONICAL_TEXT_IDS.has(textId)) {
+    // the much larger keyword pool gathered afterward. Allowed for canonical texts AND the
+    // current question's focus text (Jubilees/Enoch/etc each have a single-book `books` table
+    // with ordinary chapter:verse numbering, so a guess resolves the same way a canonical
+    // guess does) — resolveBookId naturally only resolves a guess against the text whose own
+    // book map actually contains that name, so a "Genesis" guess never matches jubilees.db and
+    // a "Jubilees" guess never matches kjva.db even though both texts are checked here.
+    if (CANONICAL_TEXT_IDS.has(textId) || textId === focusTextId) {
       for (const g of guesses) {
         if (guessCandidates.length >= 8) break
         const bookId = resolveBookId(g.book, textId)
         if (!bookId) continue
-        const endVerse = g.endVerse && g.endVerse > g.verse ? Math.min(g.endVerse, g.verse + 20) : undefined
+        // `verse` comes back missing surprisingly often (a whole-chapter reference like "John
+        // 17", or a range given as just chapter+endVerse) — default it to 1 rather than letting
+        // `undefined` reach the DB query (better-sqlite3 throws on an undefined bind parameter,
+        // which would otherwise crash every guess in the same response, not just this one).
+        const startVerse = g.verse ?? 1
+        let endVerse = g.endVerse && g.endVerse > startVerse ? g.endVerse : undefined
+        // Whole-chapter guess with no endVerse either — look up the chapter's real last verse
+        // instead of guessing an arbitrary span, capped so one guess can't dump an entire long
+        // chapter into the response.
+        if (!endVerse && g.verse == null) {
+          const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
+          if (maxRow?.m && maxRow.m > startVerse) endVerse = maxRow.m
+        }
+        if (endVerse) endVerse = Math.min(endVerse, startVerse + 20)
         if (endVerse) {
           const parts: string[] = []
-          for (let v = g.verse; v <= endVerse; v++) {
+          for (let v = startVerse; v <= endVerse; v++) {
             const verse = queryVerse(bookId, g.chapter, v, textId)
             if (verse) parts.push(verse.text)
           }
           if (parts.length === 0) continue
-          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
+          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
         } else {
-          const verse = queryVerse(bookId, g.chapter, g.verse, textId)
+          const verse = queryVerse(bookId, g.chapter, startVerse, textId)
           if (!verse) continue
-          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: g.verse, text: verse.text }, 'ai-guess')
+          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, text: verse.text }, 'ai-guess')
         }
       }
     }
 
-    // 2. Keyword search via FTS5. Phrase mode first for every keyword; the loose 'all'-mode
-    // (independent prefix-wildcard AND) fallback only kicks in if EVERY keyword's phrase
-    // search came back empty — a single keyword falling back while others still have real
-    // phrase hits is what used to flood the pool with generic-word noise.
-    const phraseResults = keywords.map((kw) => ({ kw, rows: searchVerses(kw, textId, 'phrase') }))
+    // 2. Keyword search via FTS5. Phrase mode first for every keyword (and every word-replacer
+    // variant of it, e.g. "Yeshua" also tries "Jesus" — see getWordReplacerVariants); the loose
+    // 'all'-mode (independent prefix-wildcard AND) fallback only kicks in if EVERY keyword's
+    // phrase search came back empty — a single keyword falling back while others still have
+    // real phrase hits is what used to flood the pool with generic-word noise.
+    const phraseResults = keywords.map((kw) => {
+      const variants = getWordReplacerVariants(kw, wordReplacerRules)
+      const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
+      return { kw, variants, rows }
+    })
     const anyPhraseHits = phraseResults.some((r) => r.rows.length > 0)
-    for (const { kw, rows } of phraseResults) {
+    for (const { variants, rows } of phraseResults) {
       if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
-      const finalRows = rows.length > 0 || !anyPhraseHits ? (rows.length > 0 ? rows : searchVerses(kw, textId, 'all')) : []
+      const finalRows = rows.length > 0 || !anyPhraseHits
+        ? (rows.length > 0 ? rows : variants.flatMap((v) => searchVerses(v, textId, 'all')))
+        : []
       for (const row of finalRows.slice(0, 6)) {
         if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
         add(keywordCandidates, textId, { book_id: row.book_id, chapter: row.chapter, verse_num: row.verse_num, text: row.text }, 'keyword')
@@ -385,40 +510,44 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   // AI's own guesses happened to include a range.
   const mergedGuesses = mergeAdjacent(guessCandidates)
   const mergedKeywords = mergeAdjacent(keywordCandidates)
-  let candidates = [...mergedGuesses, ...mergedKeywords]
+  const allCandidates = [...mergedGuesses, ...mergedKeywords]
 
-  if (candidates.length === 0) return { results: [], visibleCount: 0, keywords, noteMatches: [], error: undefined }
+  if (allCandidates.length === 0) return { results: [], visibleCount: 0, keywords, noteMatches: [], error: undefined }
 
   // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
-  const notesSignal = computeNotesSignal(candidates, keywords)
-  for (const c of candidates) {
+  const notesSignal = computeNotesSignal(allCandidates, keywords)
+  for (const c of allCandidates) {
     const key = dedupeKey(c)
     if (notesSignal.notedKeys.has(key)) c.noted = true
   }
 
-  // 5. Rank by keyword overlap + notes boosts; stable-sort keeps original (guesses-first,
-  // then FTS rank order) ordering for ties. A small +1 nudge for ai-guess results isn't about
-  // privileging the source category in general — it specifically covers questions phrased
-  // around an idea the KJV text never states in those exact words (e.g. "idolatry" doesn't
-  // appear at Gen 12:1, even though that's the right passage), where a guess can otherwise be
-  // legitimately verified yet still lose the ranking to generic keyword noise on raw overlap
-  // count alone.
-  const scored = candidates.map((c, i) => ({
-    c, i,
-    score: keywordOverlapScore(c.text, keywords)
-      + (c.source === 'ai-guess' ? 1 : 0)
-      + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0)
-      + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
-  }))
-  scored.sort((a, b) => b.score - a.score || a.i - b.i)
-  candidates = scored.map((s) => s.c).slice(0, MAX_PRIMARY_RESULTS)
+  // 5. Guesses LEAD the primary result set — a verified guess is a targeted, direct answer and
+  // shouldn't have to out-score generic keyword volume to be seen (that scoring-based approach
+  // is what buried the right answer under noise before). Keyword search only backfills when
+  // there are too few guesses to stand on their own, capped low even then — this is also most
+  // of the "way too long" output fix: a wrong/absent guess no longer means a wall of loosely-
+  // related keyword hits, just a small, ranked handful.
+  let candidates = mergedGuesses.slice(0, TOTAL_PRIMARY_CAP)
+  if (candidates.length < TOTAL_PRIMARY_CAP) {
+    const keywordScored = mergedKeywords
+      .map((c, i) => ({
+        c, i,
+        score: keywordOverlapScore(c.text, keywords)
+          + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0)
+          + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
+      }))
+      .sort((a, b) => b.score - a.score || a.i - b.i)
+      .map((s) => s.c)
+    const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
+    candidates = [...candidates, ...keywordScored.slice(0, room)]
+  }
 
-  // 6. Cross-reference expansion — only from the already-ranked top results (not the whole
-  // raw candidate pool), and only for canonical-text results, since cross_references.db /
+  // 6. Cross-reference expansion — only from the final primary set (not the whole raw
+  // candidate pool), and only for canonical-text results, since cross_references.db /
   // tske_refs.db are keyed to standard Bible book ids. Nested under their source verse via
-  // `crossRefOf` rather than mixed into the ranked primary list.
+  // `crossRefOf` rather than mixed into the primary list, and collapsed by default in the UI.
   const crossRefs: AiLookupResult[] = []
-  for (const seedResult of candidates.filter((r) => CANONICAL_TEXT_IDS.has(r.textId)).slice(0, DEFAULT_VISIBLE)) {
+  for (const seedResult of candidates.filter((r) => CANONICAL_TEXT_IDS.has(r.textId))) {
     if (crossRefs.length >= MAX_CROSS_REFS) break
     const classic = getCrossRefsForVerse(seedResult.bookId, seedResult.chapter, seedResult.verse)
     for (const ref of classic.refs.slice(0, 2)) {
@@ -450,7 +579,10 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     }
   }
 
-  const visibleCount = Math.min(DEFAULT_VISIBLE, candidates.length)
+  // candidates is already capped at TOTAL_PRIMARY_CAP, so it's short enough to show in full by
+  // default — visibleCount just mirrors its length (the UI's "Show more" stays as a resilience
+  // path, not something this now-small a list should normally need).
+  const visibleCount = candidates.length
   const results = [...candidates, ...crossRefs]
 
   // 7. Optional commentary — a second pass over the ranked, already-verified candidates.
@@ -473,7 +605,7 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
       const finalCrossRefs = crossRefs.filter((cr) => cr.crossRefOf && keptKeys.has(`${cr.textId}|${cr.crossRefOf.bookId}|${cr.crossRefOf.chapter}|${cr.crossRefOf.verse}`))
       return {
         results: [...finalPrimary, ...finalCrossRefs],
-        visibleCount: Math.min(DEFAULT_VISIBLE, finalPrimary.length),
+        visibleCount: finalPrimary.length,
         keywords, noteMatches: notesSignal.noteMatches, summary: raw.summary,
       }
     } catch {
@@ -507,7 +639,7 @@ interface ChatMessage {
 export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('ailookup:checkAvailable', () => checkOllamaAvailable())
 
-  ipcMain.handle('ailookup:query', (_e, question: string, opts: { commentary: boolean; model?: string; textId?: string }) =>
+  ipcMain.handle('ailookup:query', (_e, question: string, opts: { commentary: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }) =>
     runLookup(question, opts))
 
   ipcMain.handle('ailookup:listChats', () => {
