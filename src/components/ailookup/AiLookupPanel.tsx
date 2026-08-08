@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles } from 'lucide-react'
 import { useAppStore } from '@/store'
 import Switch from '@/components/shell/Switch'
+import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import type { AiLookupChatMessage, AiLookupResult } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
@@ -57,6 +58,8 @@ export default function AiLookupPanel() {
   const [pos, setPos] = useState(() => storedPos ?? defaultPos())
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
 
+  const verseCopy = useVerseCopyMenu()
+
   const [availability, setAvailability] = useState<{ checked: boolean; available: boolean }>({ checked: false, available: false })
   const [messages, setMessages] = useState<AiLookupChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -99,14 +102,14 @@ export default function AiLookupPanel() {
     const state = useAppStore.getState()
     const activeId = state.activeTabId.scripture
     const activeScripture = activeId ? state.tabs.scripture.find((t) => t.id === activeId) : null
-    const title = `${r.bookId} ${r.chapter}:${r.verse}`
+    const title = `${r.bookName} ${r.chapter}:${r.verse}${r.endVerse ? '-' + r.endVerse : ''}`
     if (activeScripture) {
-      updateTabState('scripture', activeScripture.id, { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0, translation: r.textId.toUpperCase(), endVerse: undefined })
+      updateTabState('scripture', activeScripture.id, { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, endVerse: r.endVerse, scrollPosition: 0, translation: r.textId.toUpperCase() })
     } else {
       addTab({
         id: `bible-${Date.now()}`,
         spaceId: 'scripture', type: 'bible', title,
-        state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation: r.textId.toUpperCase(), showStrongs: false, scrollPosition: 0 },
+        state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, endVerse: r.endVerse, translation: r.textId.toUpperCase(), showStrongs: false, scrollPosition: 0 },
       })
     }
     setActiveSpace('scripture')
@@ -164,7 +167,10 @@ export default function AiLookupPanel() {
 
   return (
     <div
-      className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-2xl overflow-hidden"
+      // Deliberately near-opaque (96% — a bare 4% see-through), not a real translucent
+      // "glass" panel: enough that content behind it isn't fully hidden while dragging it
+      // around, without hurting text legibility the way a heavier blur/transparency would.
+      className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]/96 backdrop-blur-[1px] shadow-2xl overflow-hidden"
       style={{ left: pos.x, top: pos.y, width: PANEL_WIDTH, height: PANEL_HEIGHT }}
     >
       {/* Header — drag handle */}
@@ -172,7 +178,7 @@ export default function AiLookupPanel() {
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
-        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] cursor-grab active:cursor-grabbing select-none"
+        className="no-drag flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))]/96 cursor-grab active:cursor-grabbing select-none"
       >
         <Sparkles size={14} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
         <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))] flex-1 truncate">AI Scripture Lookup</span>
@@ -187,8 +193,9 @@ export default function AiLookupPanel() {
         </button>
       </div>
 
-      {/* Commentary toggle */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]">
+      {/* Commentary toggle — no bg of its own, so the outer panel's own near-opaque
+          background (see above) shows through uniformly instead of a solid patch. */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
         <span className="text-[11px] text-[rgb(var(--color-text-muted))]">Commentary</span>
         <Switch checked={commentaryOn} onCheckedChange={() => setCommentaryOn(!commentaryOn)} />
       </div>
@@ -222,10 +229,16 @@ export default function AiLookupPanel() {
                       <button
                         key={ri}
                         onClick={() => navigateToResult(r)}
+                        onContextMenu={(e) => verseCopy.open(e, {
+                          bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
+                          text: r.text, lxx: r.textId === 'lxx',
+                        })}
                         className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">{r.bookId} {r.chapter}:{r.verse}</span>
+                          <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">
+                            {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
+                          </span>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${SOURCE_CLASS[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
                         </div>
                         <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">{r.text}</p>
@@ -262,6 +275,7 @@ export default function AiLookupPanel() {
           </div>
         </>
       )}
+      <VerseCopyMenu target={verseCopy.target} onClose={verseCopy.close} />
     </div>
   )
 }

@@ -10,6 +10,9 @@ export interface VerseCopyTarget {
   bookId: string
   chapter: number
   verse: number
+  /** End of a verse range, when greater than `verse` — e.g. from AI Lookup's multi-verse
+   *  results. Copy actions render "verse-endVerse"; open actions still just jump to `verse`. */
+  endVerse?: number
   text: string
   lxx?: boolean
   x: number
@@ -70,14 +73,14 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
     const dedicatedTarget = getTranslationForBook(target!.bookId)
     if (tabId) {
       store.updateTabState('scripture', tabId, {
-        bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, scrollPosition: 0,
+        bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, endVerse: target!.endVerse, scrollPosition: 0,
         ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
       })
     } else {
       store.createTab('bible')
       const newTabId = useAppStore.getState().activeTabId['scripture']!
       store.updateTabState('scripture', newTabId, {
-        bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, scrollPosition: 0,
+        bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, endVerse: target!.endVerse, scrollPosition: 0,
         ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
       })
     }
@@ -90,14 +93,17 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
     const newTabId = useAppStore.getState().activeTabId['scripture']!
     const dedicatedTarget = getTranslationForBook(target!.bookId)
     store.updateTabState('scripture', newTabId, {
-      bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, scrollPosition: 0,
+      bookId: target!.bookId, chapter: target!.chapter, targetVerse: target!.verse, endVerse: target!.endVerse, scrollPosition: 0,
       ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
     })
     store.setActiveSpace('scripture')
   }
 
   function openInFloatingTab() {
-    window.app.openFloatingTab('bible', { bookId: target!.bookId, chapter: String(target!.chapter), targetVerse: String(target!.verse) })
+    window.app.openFloatingTab('bible', {
+      bookId: target!.bookId, chapter: String(target!.chapter), targetVerse: String(target!.verse),
+      ...(target!.endVerse ? { endVerse: String(target!.endVerse) } : {}),
+    })
     useAppStore.getState().bumpFloatingTabToken()
   }
 
@@ -111,10 +117,10 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
       <button className={ITEM} onClick={() => { openVerse(); onClose() }}>
         <BookOpen size={13} className="flex-shrink-0" /> Open verse
       </button>
-      <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx); onClose() }}>
-        <Copy size={13} className="flex-shrink-0" /> Copy verse
+      <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}>
+        <Copy size={13} className="flex-shrink-0" /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
       </button>
-      <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx); onClose() }}>
+      <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }}>
         <Hash size={13} className="flex-shrink-0" /> Copy reference
       </button>
       <button className={ITEM} onClick={() => { openInNewTab(); onClose() }}>
@@ -131,7 +137,7 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
 /** Hook that manages the menu target + an onContextMenu handler factory. */
 export function useVerseCopyMenu() {
   const [target, setTarget] = useState<VerseCopyTarget | null>(null)
-  const open = useCallback((e: React.MouseEvent, v: { bookId: string; chapter: number; verse: number; text: string; lxx?: boolean }) => {
+  const open = useCallback((e: React.MouseEvent, v: { bookId: string; chapter: number; verse: number; endVerse?: number; text: string; lxx?: boolean }) => {
     e.preventDefault()
     e.stopPropagation()
     dispatchCloseContextMenus()

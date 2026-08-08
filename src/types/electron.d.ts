@@ -401,8 +401,10 @@ export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref'
 export interface AiLookupResult {
   textId: string
   bookId: string
+  bookName: string
   chapter: number
   verse: number
+  endVerse?: number
   text: string
   source: AiLookupResultSource
   commentary?: string

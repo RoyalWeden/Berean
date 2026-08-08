@@ -27,19 +27,23 @@ function bookRefLabel(bookId: string, chapter: number, verse: number): string {
   return `${bookName(bookId)} ${chapter}:${verse}`
 }
 
-/** Human-readable verse reference, e.g. "Genesis 1:1" or
- *  "Recognitions of Clement, Book 5, 3:5". Optional LXX suffix. */
-export function formatVerseRef(bookId: string, chapter: number, verse: number, lxx = false): string {
-  return `${bookRefLabel(bookId, chapter, verse)}${lxx ? ' LXX' : ''}`
+/** Human-readable verse reference, e.g. "Genesis 1:1", "Genesis 1:1-3", or
+ *  "Recognitions of Clement, Book 5, 3:5". Optional LXX suffix. `endVerse`, when greater
+ *  than `verse`, renders a "verse-endVerse" range instead of a single verse number. */
+export function formatVerseRef(bookId: string, chapter: number, verse: number, lxx = false, endVerse?: number): string {
+  const label = bookRefLabel(bookId, chapter, verse)
+  const withRange = endVerse && endVerse > verse ? `${label}-${endVerse}` : label
+  return `${withRange}${lxx ? ' LXX' : ''}`
 }
 
-/** Copy "Reference text" to the clipboard (the same format the Bible reader uses). */
-export function copyVerse(bookId: string, chapter: number, verse: number, text: string, lxx = false): void {
+/** Copy "Reference text" to the clipboard (the same format the Bible reader uses).
+ *  `text` should already be the full range's text (joined) when copying a range. */
+export function copyVerse(bookId: string, chapter: number, verse: number, text: string, lxx = false, endVerse?: number): void {
   const clean = text.replace(/\{[HG]\d+\}/g, '').replace(/\s+/g, ' ').trim()
-  navigator.clipboard.writeText(`${formatVerseRef(bookId, chapter, verse, lxx)} ${clean}`).catch(() => {})
+  navigator.clipboard.writeText(`${formatVerseRef(bookId, chapter, verse, lxx, endVerse)} ${clean}`).catch(() => {})
 }
 
 /** Copy just the reference (no verse text). */
-export function copyVerseRef(bookId: string, chapter: number, verse: number, lxx = false): void {
-  navigator.clipboard.writeText(formatVerseRef(bookId, chapter, verse, lxx)).catch(() => {})
+export function copyVerseRef(bookId: string, chapter: number, verse: number, lxx = false, endVerse?: number): void {
+  navigator.clipboard.writeText(formatVerseRef(bookId, chapter, verse, lxx, endVerse)).catch(() => {})
 }
