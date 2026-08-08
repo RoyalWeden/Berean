@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, StickyNote, BookMarked, Link2 } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import Switch from '@/components/shell/Switch'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
@@ -80,7 +80,6 @@ export default function AiLookupPanel() {
   const addTab = useAppStore((s) => s.addTab)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
-  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   // Enabled, non-Strong's rules only — Strong's-number rules apply to KJVA tagged-word
@@ -155,11 +154,6 @@ export default function AiLookupPanel() {
     setActiveSpace('scripture')
   }
 
-  function openNoteMatch(noteId: string) {
-    requestOpenNote(noteId)
-    setActiveSpace('notes')
-  }
-
   async function persist(nextMessages: AiLookupChatMessage[]) {
     const title = nextMessages.find((m) => m.role === 'user')?.content.slice(0, 60) || 'AI Lookup'
     const saved = await window.aiLookup.saveChat({ id: activeChatId ?? undefined, title, messages: nextMessages })
@@ -191,7 +185,6 @@ export default function AiLookupPanel() {
         results: res.results,
         visibleCount: res.visibleCount,
         keywords: res.keywords,
-        noteMatches: res.noteMatches,
         summary: res.summary,
         createdAt: new Date().toISOString(),
       }
@@ -303,23 +296,6 @@ export default function AiLookupPanel() {
                   <div className="max-w-full w-full space-y-2">
                     {m.content && <p className="text-xs text-[rgb(var(--color-text-muted))]">{m.content}</p>}
                     {m.summary && <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>}
-
-                    {(m.noteMatches ?? []).length > 0 && (
-                      <div className="rounded-shell border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] p-2 space-y-1">
-                        <div className="flex items-center gap-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wide">
-                          <StickyNote size={10} /> From your notes
-                        </div>
-                        {m.noteMatches!.map((nm) => (
-                          <button
-                            key={nm.noteId}
-                            onClick={() => openNoteMatch(nm.noteId)}
-                            className="w-full text-left text-[11px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
-                          >
-                            <span className="font-medium">{nm.title}</span> — {nm.snippet}
-                          </button>
-                        ))}
-                      </div>
-                    )}
 
                     {visiblePrimary.map((r, ri) => {
                       const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []

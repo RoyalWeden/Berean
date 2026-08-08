@@ -415,12 +415,6 @@ export interface AiLookupResult {
   crossRefOf?: { bookId: string; chapter: number; verse: number }
 }
 
-export interface AiLookupNoteMatch {
-  noteId: string
-  title: string
-  snippet: string
-}
-
 export interface AiLookupResponse {
   results: AiLookupResult[]
   /** How many of `results` (counting only primary, non-cross-ref ones) to show before a
@@ -428,7 +422,6 @@ export interface AiLookupResponse {
   visibleCount: number
   /** Extracted search keywords, for highlighting matched terms in verse text. */
   keywords: string[]
-  noteMatches: AiLookupNoteMatch[]
   summary?: string
   error?: string
 }
@@ -446,7 +439,6 @@ export interface AiLookupChatMessage {
   results?: AiLookupResult[]
   visibleCount?: number
   keywords?: string[]
-  noteMatches?: AiLookupNoteMatch[]
   summary?: string
   createdAt: string
 }

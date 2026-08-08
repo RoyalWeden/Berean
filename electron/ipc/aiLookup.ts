@@ -39,12 +39,6 @@ export interface AiLookupResult {
   crossRefOf?: { bookId: string; chapter: number; verse: number }
 }
 
-export interface AiLookupNoteMatch {
-  noteId: string
-  title: string
-  snippet: string
-}
-
 export interface AiLookupResponse {
   /** Primary (non-cross-ref) results, ranked, followed by their nested cross-ref results. */
   results: AiLookupResult[]
@@ -55,10 +49,6 @@ export interface AiLookupResponse {
   /** Extracted search keywords, returned so the UI can highlight matched terms in verse text
    *  without re-deriving them. */
   keywords: string[]
-  /** General (non-verse) notes whose content matched the same keywords — surfaced separately
-   *  since a loose text match in a general note is too weak a signal to attach to a specific
-   *  verse (see aiLookup.ts's notes-signal comment). */
-  noteMatches: AiLookupNoteMatch[]
   summary?: string
   error?: string
 }
@@ -136,6 +126,12 @@ function getBookMaps(textId: string): { toId: Map<string, string>; toName: Map<s
       for (const r of rows) {
         maps.toId.set(r.name.toUpperCase(), r.id)
         maps.toId.set(r.short_name.toUpperCase(), r.id)
+        // Also index the arabic-numeral form ("1 Samuel") alongside the DB's raw roman-numeral
+        // name ("I Samuel") — a guess's "book" field routinely uses modern numbering (it's what
+        // the model actually knows the book as), which otherwise silently fails to resolve here
+        // even though it's a perfectly valid, common way to name the book.
+        const normalized = normalizeBookName(r.name).toUpperCase()
+        if (normalized !== r.name.toUpperCase()) maps.toId.set(normalized, r.id)
         maps.toName.set(r.id, r.name)
       }
     }
@@ -151,8 +147,17 @@ function resolveBookId(raw: string, textId: string): string | null {
   return toId.get(upper) ?? null
 }
 
+// Ported from src/lib/parseRef.ts's normalizeBookName (not imported — same cross-process
+// reasoning as WordReplacerRuleLite above). The text DBs store book names with roman-numeral
+// prefixes ("I Samuel", "II Kings"); the rest of the app already normalizes these to arabic
+// numerals for display ("1 Samuel", "2 Kings") — this keeps AI Lookup's results consistent
+// with that convention instead of showing the raw DB form.
+function normalizeBookName(name: string): string {
+  return name.replace(/^III /, '3 ').replace(/^II /, '2 ').replace(/^I /, '1 ')
+}
+
 function bookNameFor(bookId: string, textId: string): string {
-  return getBookMaps(textId).toName.get(bookId) ?? bookId
+  return normalizeBookName(getBookMaps(textId).toName.get(bookId) ?? bookId)
 }
 
 /** For a single-book work (Jubilees, 1 Enoch, etc. — anything with exactly one row in its own
@@ -237,6 +242,23 @@ function extractionPrompt(question: string, focusWorkName: string | null): strin
   for a real multi-verse range you recall. Omit "guesses" (empty array) if unsure — do not
   fabricate.`
 
+  // Pseudepigrapha texts in this app are early-20th-century English translations (Jubilees and
+  // 1 Enoch are both R.H. Charles, 1913/1917) — archaic, formal wording. A question phrased in
+  // modern English ("idolatry") will not literally appear in that translation's actual text
+  // (it says "idols"/"graven images"/"molten images" instead) — confirmed directly against
+  // jubilees.db: the modern word never matches, but the period phrase "the house of the idols"
+  // matches the correct verse exactly. Without this note the model's keywords stay modern and
+  // silently fail to match anything in the real text.
+  const styleNote = focusWorkName
+    ? `\n- ${focusWorkName} is an early-20th-century English translation with archaic, formal
+  wording — it will NOT use modern phrasing like "idolatry"; it says things like "idols",
+  "graven images", "molten images", "worship". Phrase each keyword the way THIS OLD TRANSLATION
+  would actually say it, not a modern paraphrase of the question. Keep each keyword a short
+  literal phrase (2-5 words) that could appear verbatim in the text — not a mashed-together
+  multi-concept phrase (e.g. "the house of the idols" is useful, "idol worship family house"
+  is not, even though both describe the same idea).`
+    : ''
+
   return `You are a Bible search-term extractor for a KJV/LXX/pseudepigrapha study app. A user asked a question about where to find a passage in Scripture. Your ONLY job is to produce search input for a database — do not answer the question yourself, do not add commentary.
 
 User question: "${question}"
@@ -253,7 +275,7 @@ Rules:
   differs from how the question was phrased. 3-6 short search phrases or proper names (people,
   places, concepts) likely to appear verbatim in the verse text. Prefer specific multi-word
   phrases or names over single generic words (avoid bare words like "God", "love", "earth" —
-  they match thousands of unrelated verses).
+  they match thousands of unrelated verses).${styleNote}
 ${guessRule}
 - No explanation, no markdown, JSON only.`
 }
@@ -338,59 +360,27 @@ function keywordOverlapScore(text: string, keywords: string[]): number {
 
 interface NotesSignal {
   notedKeys: Set<string> // dedupeKey() of candidates with an exact verse-note
-  boostedKeys: Set<string> // dedupeKey() of candidates whose reference matched a notes_fts hit
-  noteMatches: AiLookupNoteMatch[] // general (non-verse) notes matching the keywords
 }
 
-/** Cheap, false-positive-averse notes signal: (1) an EXACT verse-note at a candidate's own
- *  reference is a strong, structured boost; (2) a verse-note surfaced via keyword text-match
- *  is a weaker boost, but still only ever affects a reference already in the candidate pool —
- *  it never introduces a new verse purely from a loose text match; (3) matching GENERAL notes
- *  (no verse_ref) are returned separately, never attached to a specific verse. */
-function computeNotesSignal(candidates: AiLookupResult[], keywords: string[]): NotesSignal {
-  const result: NotesSignal = { notedKeys: new Set(), boostedKeys: new Set(), noteMatches: [] }
-  let db
-  try { db = getBereanDb() } catch { return result }
-
+/** Exact-verse-note signal only: if a candidate has a verse note at its own precise reference,
+ *  that's a strong, structured "you've already flagged this as relevant" boost. (The former
+ *  general-note-surfacing half of this — matching loose note text via notes_fts and showing a
+ *  "From your notes" section — was removed as unhelpful per feedback; this exact-match boost is
+ *  a different, still-useful signal and is unaffected.) */
+function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
+  const result: NotesSignal = { notedKeys: new Set() }
   const canonical = candidates.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
-  if (canonical.length > 0) {
-    const refs = canonical.map((c) => `${c.bookId}.${c.chapter}.${c.verse}`)
-    const uniqRefs = [...new Set(refs)]
-    try {
-      const placeholders = uniqRefs.map(() => '?').join(',')
-      const rows = db.prepare(`SELECT DISTINCT verse_ref FROM notes WHERE verse_ref IN (${placeholders})`).all(...uniqRefs) as Array<{ verse_ref: string }>
-      const notedRefs = new Set(rows.map((r) => r.verse_ref))
-      for (const c of canonical) {
-        if (notedRefs.has(`${c.bookId}.${c.chapter}.${c.verse}`)) result.notedKeys.add(dedupeKey(c))
-      }
-    } catch { /* notes table unavailable — signal just stays empty */ }
-  }
-
-  const terms = [...new Set(keywords.flatMap((k) => cleanWords(k)))].filter((w) => w.length >= 3)
-  if (terms.length === 0) return result
+  if (canonical.length === 0) return result
   try {
-    const ftsQ = terms.map((w) => `"${w.replace(/"/g, '')}"*`).join(' OR ')
-    const rows = db.prepare(
-      `SELECT n.id, n.title, n.content, n.verse_ref
-       FROM notes_fts f JOIN notes n ON n.rowid = f.rowid
-       WHERE notes_fts MATCH ? LIMIT 25`
-    ).all(ftsQ) as Array<{ id: string; title: string | null; content: string | null; verse_ref: string | null }>
-
-    const candidateByRef = new Map(candidates.filter((c) => CANONICAL_TEXT_IDS.has(c.textId)).map((c) => [`${c.bookId}.${c.chapter}.${c.verse}`, c]))
-    const seenNoteIds = new Set<string>()
-    for (const row of rows) {
-      if (row.verse_ref) {
-        const match = candidateByRef.get(row.verse_ref)
-        if (match) result.boostedKeys.add(dedupeKey(match))
-        continue // verse notes never become a general-note match, even if unmatched
-      }
-      if (seenNoteIds.has(row.id) || result.noteMatches.length >= 3) continue
-      seenNoteIds.add(row.id)
-      const snippet = (row.content ?? '').replace(/[#*_`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140)
-      result.noteMatches.push({ noteId: row.id, title: row.title || 'Untitled', snippet })
+    const db = getBereanDb()
+    const uniqRefs = [...new Set(canonical.map((c) => `${c.bookId}.${c.chapter}.${c.verse}`))]
+    const placeholders = uniqRefs.map(() => '?').join(',')
+    const rows = db.prepare(`SELECT DISTINCT verse_ref FROM notes WHERE verse_ref IN (${placeholders})`).all(...uniqRefs) as Array<{ verse_ref: string }>
+    const notedRefs = new Set(rows.map((r) => r.verse_ref))
+    for (const c of canonical) {
+      if (notedRefs.has(`${c.bookId}.${c.chapter}.${c.verse}`)) result.notedKeys.add(dedupeKey(c))
     }
-  } catch { /* notes_fts unavailable — signal just stays partial */ }
-
+  } catch { /* notes table unavailable — signal just stays empty */ }
   return result
 }
 
@@ -406,13 +396,13 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
   const { available } = await checkOllamaAvailable()
-  if (!available) return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-unavailable' }
+  if (!available) return { results: [], visibleCount: 0, keywords: [], error: 'ollama-unavailable' }
 
   let extraction: AiExtraction
   try {
     extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName), model)
   } catch {
-    return { results: [], visibleCount: 0, keywords: [], noteMatches: [], error: 'ollama-request-failed' }
+    return { results: [], visibleCount: 0, keywords: [], error: 'ollama-request-failed' }
   }
   const keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6))
   const guesses = (extraction.guesses ?? []).slice(0, 5)
@@ -459,11 +449,15 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
         const startVerse = g.verse ?? 1
         let endVerse = g.endVerse && g.endVerse > startVerse ? g.endVerse : undefined
         // Whole-chapter guess with no endVerse either — look up the chapter's real last verse
-        // instead of guessing an arbitrary span, capped so one guess can't dump an entire long
-        // chapter into the response.
+        // instead of guessing an arbitrary span. Capped tighter (10, not 20) than a real
+        // explicit range below: this fallback case is a total unknown-length guess, and a wide
+        // concatenated block of unrelated verses scores artificially well in keyword-overlap
+        // ranking purely from its size (observed: a 21-verse fallback span beat a correct,
+        // precise single-verse hit on a WRONG guess) — 10 keeps that risk much smaller while
+        // still showing a genuinely useful chunk of the chapter's opening.
         if (!endVerse && g.verse == null) {
           const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
-          if (maxRow?.m && maxRow.m > startVerse) endVerse = maxRow.m
+          if (maxRow?.m && maxRow.m > startVerse) endVerse = Math.min(maxRow.m, startVerse + 10)
         }
         if (endVerse) endVerse = Math.min(endVerse, startVerse + 20)
         if (endVerse) {
@@ -512,34 +506,49 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   const mergedKeywords = mergeAdjacent(keywordCandidates)
   const allCandidates = [...mergedGuesses, ...mergedKeywords]
 
-  if (allCandidates.length === 0) return { results: [], visibleCount: 0, keywords, noteMatches: [], error: undefined }
+  if (allCandidates.length === 0) return { results: [], visibleCount: 0, keywords, error: undefined }
 
   // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
-  const notesSignal = computeNotesSignal(allCandidates, keywords)
+  const notesSignal = computeNotesSignal(allCandidates)
   for (const c of allCandidates) {
     const key = dedupeKey(c)
     if (notesSignal.notedKeys.has(key)) c.noted = true
   }
 
-  // 5. Guesses LEAD the primary result set — a verified guess is a targeted, direct answer and
-  // shouldn't have to out-score generic keyword volume to be seen (that scoring-based approach
-  // is what buried the right answer under noise before). Keyword search only backfills when
-  // there are too few guesses to stand on their own, capped low even then — this is also most
-  // of the "way too long" output fix: a wrong/absent guess no longer means a wall of loosely-
-  // related keyword hits, just a small, ranked handful.
-  let candidates = mergedGuesses.slice(0, TOTAL_PRIMARY_CAP)
-  if (candidates.length < TOTAL_PRIMARY_CAP) {
-    const keywordScored = mergedKeywords
+  // 5. CANONICAL guesses LEAD the primary result set unconditionally — validated ~90%+ accurate
+  // (Round 3's 37-question batch). A pseudepigrapha (focus-text) guess does NOT get the same
+  // free pass: repeated testing on the Jubilees case showed only ~30-50% accuracy there, so
+  // instead it's merged into the same keyword-overlap-scored pool as that same text's own
+  // keyword hits — it still gets a fair shot (especially now that the archaic-translation hint
+  // above gives keyword search a real chance of finding the right verse too), but a wrong guess
+  // can no longer automatically bury a correct keyword-found one beneath it. Tried adding a
+  // small "is a guess" score nudge here too; reverted after testing showed it let a WRONG,
+  // wide whole-chapter guess (a 21-verse concatenated block — much likelier to contain some
+  // keyword by sheer size than a single verse) beat a precise, correct single-verse keyword
+  // hit. Plain keyword-overlap scoring alone produced the better result in both test runs.
+  const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
+    items
       .map((c, i) => ({
         c, i,
         score: keywordOverlapScore(c.text, keywords)
-          + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0)
-          + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
+          + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0),
       }))
       .sort((a, b) => b.score - a.score || a.i - b.i)
       .map((s) => s.c)
+
+  const canonicalGuesses = mergedGuesses.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
+  const focusGuesses = mergedGuesses.filter((c) => !CANONICAL_TEXT_IDS.has(c.textId))
+
+  let candidates = canonicalGuesses.slice(0, TOTAL_PRIMARY_CAP)
+  if (candidates.length < TOTAL_PRIMARY_CAP && focusTextId) {
+    const focusPool = scoreAndSort([...focusGuesses, ...mergedKeywords.filter((c) => c.textId === focusTextId)])
+    const focusRoom = TOTAL_PRIMARY_CAP - candidates.length
+    candidates = [...candidates, ...focusPool.slice(0, focusRoom)]
+  }
+  if (candidates.length < TOTAL_PRIMARY_CAP) {
+    const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
     const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
-    candidates = [...candidates, ...keywordScored.slice(0, room)]
+    candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
   }
 
   // 6. Cross-reference expansion — only from the final primary set (not the whole raw
@@ -606,15 +615,15 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
       return {
         results: [...finalPrimary, ...finalCrossRefs],
         visibleCount: finalPrimary.length,
-        keywords, noteMatches: notesSignal.noteMatches, summary: raw.summary,
+        keywords, summary: raw.summary,
       }
     } catch {
       // Commentary is best-effort — a failed second call shouldn't drop the verified results.
-      return { results, visibleCount, keywords, noteMatches: notesSignal.noteMatches }
+      return { results, visibleCount, keywords }
     }
   }
 
-  return { results, visibleCount, keywords, noteMatches: notesSignal.noteMatches }
+  return { results, visibleCount, keywords }
 }
 
 interface StoredChat {
@@ -631,7 +640,6 @@ interface ChatMessage {
   results?: AiLookupResult[]
   visibleCount?: number
   keywords?: string[]
-  noteMatches?: AiLookupNoteMatch[]
   summary?: string
   createdAt: string
 }
