@@ -247,6 +247,17 @@ export interface AppState {
   setAutoPiP: (v: boolean) => void
   youtubeIsPlaying: boolean
   setYoutubeIsPlaying: (v: boolean) => void
+
+  // AI Scripture Lookup — floating chat panel UI state. Chat content itself
+  // (messages/results) lives in berean.db via window.aiLookup, not here.
+  aiLookupPanelOpen: boolean
+  setAiLookupPanelOpen: (v: boolean) => void
+  aiLookupCommentaryOn: boolean
+  setAiLookupCommentaryOn: (v: boolean) => void
+  aiLookupPanelPos: { x: number; y: number } | null
+  setAiLookupPanelPos: (pos: { x: number; y: number }) => void
+  aiLookupActiveChatId: string | null
+  setAiLookupActiveChatId: (id: string | null) => void
   youtubeNoteBack: { noteId: string; title: string } | null
   setYoutubeNoteBack: (note: { noteId: string; title: string } | null) => void
   lexiconNoteBack: { noteId: string; title: string } | null
@@ -1134,6 +1145,10 @@ export const useAppStore = create<AppState>()(
       pendingYouTubeVideo: null,
       autoPiP: true,
       youtubeIsPlaying: false,
+      aiLookupPanelOpen: false,
+      aiLookupCommentaryOn: false,
+      aiLookupPanelPos: null,
+      aiLookupActiveChatId: null,
       youtubeNoteBack: null,
       lexiconNoteBack: null,
       markdownReferenceOpen: false,
@@ -1804,6 +1819,10 @@ export const useAppStore = create<AppState>()(
       clearPendingYouTubeVideo: () => set({ pendingYouTubeVideo: null }),
       setAutoPiP: (v) => set({ autoPiP: v }),
       setYoutubeIsPlaying: (v) => set({ youtubeIsPlaying: v }),
+      setAiLookupPanelOpen: (v) => set({ aiLookupPanelOpen: v }),
+      setAiLookupCommentaryOn: (v) => set({ aiLookupCommentaryOn: v }),
+      setAiLookupPanelPos: (pos) => set({ aiLookupPanelPos: pos }),
+      setAiLookupActiveChatId: (id) => set({ aiLookupActiveChatId: id }),
       setYoutubeNoteBack: (note) => set({ youtubeNoteBack: note }),
       setLexiconNoteBack: (note) => set({ lexiconNoteBack: note }),
       openMarkdownReference: () => set({ markdownReferenceOpen: true }),
@@ -2047,6 +2066,8 @@ export const useAppStore = create<AppState>()(
         defaultBibleTranslation: state.defaultBibleTranslation,
         hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,
+        aiLookupCommentaryOn: state.aiLookupCommentaryOn,
+        aiLookupPanelPos: state.aiLookupPanelPos,
         pdfFeatureEnabled: state.pdfFeatureEnabled,
         dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,

@@ -396,6 +396,56 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref'
+
+export interface AiLookupResult {
+  textId: string
+  bookId: string
+  chapter: number
+  verse: number
+  text: string
+  source: AiLookupResultSource
+  commentary?: string
+}
+
+export interface AiLookupResponse {
+  results: AiLookupResult[]
+  summary?: string
+  error?: string
+}
+
+export interface AiLookupChatSummary {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AiLookupChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  results?: AiLookupResult[]
+  summary?: string
+  createdAt: string
+}
+
+export interface AiLookupChat {
+  id: string
+  title: string
+  messages: AiLookupChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+interface AiLookupAPI {
+  checkAvailable: () => Promise<{ available: boolean; models: string[] }>
+  query: (question: string, opts: { commentary: boolean; model?: string; textId?: string }) => Promise<AiLookupResponse>
+  listChats: () => Promise<AiLookupChatSummary[]>
+  getChat: (id: string) => Promise<AiLookupChat | null>
+  saveChat: (chat: { id?: string; title: string; messages: AiLookupChatMessage[] }) => Promise<{ id: string }>
+  deleteChat: (id: string) => Promise<{ success: boolean }>
+}
+
 declare global {
   interface Window {
     bible: BibleAPI
@@ -407,6 +457,7 @@ declare global {
     vault: VaultAPI
     youtube: YouTubeAPI
     crossrefs: CrossRefsAPI
+    aiLookup: AiLookupAPI
     app: AppAPI
     bgImport: BgImportAPI
     eSwordImport: ESwordImportAPI

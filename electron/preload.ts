@@ -234,6 +234,16 @@ contextBridge.exposeInMainWorld('crossrefs', {
   status: () => ipcRenderer.invoke('crossrefs:status'),
 })
 
+contextBridge.exposeInMainWorld('aiLookup', {
+  checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
+  query: (question: string, opts: { commentary: boolean; model?: string; textId?: string }) =>
+    ipcRenderer.invoke('ailookup:query', question, opts),
+  listChats: () => ipcRenderer.invoke('ailookup:listChats'),
+  getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
+  saveChat: (chat: unknown) => ipcRenderer.invoke('ailookup:saveChat', chat),
+  deleteChat: (id: string) => ipcRenderer.invoke('ailookup:deleteChat', id),
+})
+
 contextBridge.exposeInMainWorld('youtube', {
   loadAll: () => ipcRenderer.invoke('youtube:loadAll'),
   refresh: () => ipcRenderer.invoke('youtube:refresh'),

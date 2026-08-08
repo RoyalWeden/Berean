@@ -19,6 +19,10 @@ import BgImportProgress from '@/components/shell/BgImportProgress'
 import PresenterControls from '@/components/shell/PresenterControls'
 import type { SpaceId, Tab } from '@/types'
 
+// AI Lookup's floating panel is a small, occasionally-opened surface — code-split
+// like the other lazy modals below so it doesn't add to the initial bundle.
+const AiLookupPanel = lazy(() => import('@/components/ailookup/AiLookupPanel'))
+
 // Heavy, rarely-opened surfaces are code-split so they aren't parsed/evaluated
 // as part of the initial bundle — each only loads when first opened.
 const SettingsModal = lazy(() => import('@/components/settings/SettingsModal'))
@@ -114,6 +118,7 @@ export default function App() {
   const importModalOpen = useAppStore((s) => s.importModalOpen)
   const onboardingOpen = useAppStore((s) => s.onboardingOpen)
   const tasksVisible = useAppStore((s) => s.tasksVisible)
+  const aiLookupPanelOpen = useAppStore((s) => s.aiLookupPanelOpen)
 
   // Sync viewer window with active tab state
   useViewerSync()
@@ -1047,6 +1052,7 @@ export default function App() {
       <BgImportProgress />
       <LazyOnce when={onboardingOpen}><Onboarding /></LazyOnce>
       <LazyOnce when={tasksVisible}><TasksPanel /></LazyOnce>
+      <LazyOnce when={aiLookupPanelOpen}><AiLookupPanel /></LazyOnce>
     </div>
   )
 }
