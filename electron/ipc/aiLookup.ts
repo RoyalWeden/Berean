@@ -397,10 +397,18 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   }
 
   // 5. Rank by keyword overlap + notes boosts; stable-sort keeps original (guesses-first,
-  // then FTS rank order) ordering for ties.
+  // then FTS rank order) ordering for ties. A small +1 nudge for ai-guess results isn't about
+  // privileging the source category in general — it specifically covers questions phrased
+  // around an idea the KJV text never states in those exact words (e.g. "idolatry" doesn't
+  // appear at Gen 12:1, even though that's the right passage), where a guess can otherwise be
+  // legitimately verified yet still lose the ranking to generic keyword noise on raw overlap
+  // count alone.
   const scored = candidates.map((c, i) => ({
     c, i,
-    score: keywordOverlapScore(c.text, keywords) + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0) + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
+    score: keywordOverlapScore(c.text, keywords)
+      + (c.source === 'ai-guess' ? 1 : 0)
+      + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0)
+      + (notesSignal.boostedKeys.has(dedupeKey(c)) ? 1 : 0),
   }))
   scored.sort((a, b) => b.score - a.score || a.i - b.i)
   candidates = scored.map((s) => s.c).slice(0, MAX_PRIMARY_RESULTS)
