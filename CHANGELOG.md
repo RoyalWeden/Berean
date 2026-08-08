@@ -122,6 +122,26 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.20] - 2026-08-08
+
+Daily Notes
+- Daily notes now begin at sunrise instead of midnight — the note that opens
+  for "today" stays on yesterday's note until the sun actually comes up
+  (uses your device's location to work out sunrise; if location isn't
+  available it falls back to the old midnight behavior with no change).
+- Saturday's daily note now reads "Sabbath, <date>" in the top bar instead of
+  "Saturday, <date>".
+- The daily note's top-bar header now shows a full written-out date
+  ("Tuesday, January 1, 2026") instead of the raw stored title.
+
+Notes
+- Fixed the note editor's Link button doing nothing (silently crashing)
+  when clicked — it now opens a small URL field right in the toolbar.
+
+Scripture Reading
+- Fixed the chapter-level cross-reference banner's hover state looking
+  barely-there compared to the per-verse note/cross-reference icons.
+
 ## [0.4.19] - 2026-08-05
 
 Notes
