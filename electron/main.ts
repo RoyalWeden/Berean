@@ -681,6 +681,17 @@ app.whenReady().then(async () => {
   session.fromPartition('persist:youtube')
   log.info('youtube session created')
 
+  // ── Geolocation permission (default session = main app window only) ──────────
+  // Daily notes begin at sunrise, not midnight (src/lib/dailyNoteUtils.ts) — the
+  // renderer requests the device's location once per launch to compute it. No
+  // handler existed before this, so explicitly allow only 'geolocation' and deny
+  // everything else, rather than assume Electron's implicit default for other
+  // permission types. The YouTube <webview> uses its own 'persist:youtube' session
+  // (above) and never requests geolocation, so it's untouched by this handler.
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'geolocation')
+  })
+
   // ── Content-Security-Policy (default session = main app window only) ─────────
   // The YouTube <webview> uses the separate 'persist:youtube' session, so this
   // does not touch it. Dev needs 'unsafe-eval' + ws: for Vite HMR; the packaged

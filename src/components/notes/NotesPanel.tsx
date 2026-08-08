@@ -24,22 +24,35 @@ import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
 import { orderedFolders } from './NoteContextMenu'
-import { isSystemNote, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
+import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
-import { toDateKey, dailyNoteTitle } from '@/lib/dailyNoteUtils'
+import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
 
-function todayKey(): string { return toDateKey(new Date()) }
+// Days begin at dawn, not midnight (see dailyNoteUtils.ts's getDailyNoteAnchorDate) —
+// dailyNoteToday() returns the sunrise-shifted "today" wherever that matters.
+function todayKey(): string { return toDateKey(dailyNoteToday()) }
 
 
 function formatVerseRef(ref: string): string {
   const [bookId, chapter, verse] = ref.split('.')
   if (!bookId) return ref
   return bookChapterVerseLabel(bookId, Number(chapter), verse ? Number(verse) : undefined)
+}
+
+// Top-bar-only display form of a note's title — for daily notes, "Tuesday, August 5,
+// 2026" instead of the raw "Daily — 2026-08-05" stored/used everywhere else (DB, tab
+// bar, sidebar). Falls back to the raw title for non-daily notes or an unparseable date.
+function headerDisplayTitle(note: Note): string {
+  if (isDailyNote(note)) {
+    const dateKey = dailyNoteDateKey(note)
+    if (dateKey) return dailyNoteDisplayTitle(dateKey)
+  }
+  return note.title || 'Untitled'
 }
 
 export default function NotesPanel({ floating = false }: { floating?: boolean }) {
@@ -88,7 +101,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [continuousDailyDate, setContinuousDailyDate] = useState(() => {
     const tab = tabs.find((t) => t.id === activeTabId)
     const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
-    return saved ? new Date(saved) : new Date()
+    return saved ? new Date(saved) : dailyNoteToday()
   })
   // Resync when notesTabId changes WITHOUT a remount (ActivePanel no longer remounts
   // NotesPanel for same-type tab switches — see its own comment) — the lazy initializer above
@@ -100,7 +113,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     prevContinuousDailyTabIdRef.current = notesTabId
     const tab = tabs.find((t) => t.id === notesTabId)
     const saved = (tab?.state as NoteTabState | undefined)?.continuousDailyDate
-    setContinuousDailyDate(saved ? new Date(saved) : new Date())
+    setContinuousDailyDate(saved ? new Date(saved) : dailyNoteToday())
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesTabId])
   // Persist the in-view day whenever it changes (continuous-daily-scroll mode).
@@ -504,7 +517,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     // create-if-missing flow for an arbitrary date, instead of duplicating it.
     function onOpen(e: Event) {
       const iso = (e as CustomEvent<{ date?: string }>).detail?.date
-      openDailyNoteRef.current(iso ? new Date(`${iso}T00:00:00`) : new Date())
+      openDailyNoteRef.current(iso ? new Date(`${iso}T00:00:00`) : dailyNoteToday())
     }
     window.addEventListener('berean:openDailyNote', onOpen)
     return () => window.removeEventListener('berean:openDailyNote', onOpen)
@@ -1240,13 +1253,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                     className="flex items-center gap-1.5 flex-1 min-w-0 text-left group"
                   >
                     <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] transition-colors">
-                      {activeNote.title || 'Untitled'}
+                      {headerDisplayTitle(activeNote)}
                     </span>
                     <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))] transition-colors" />
                   </button>
                 ) : (
                   <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none">
-                    {activeNote.title || 'Untitled'}
+                    {headerDisplayTitle(activeNote)}
                   </span>
                 )}
               </div>

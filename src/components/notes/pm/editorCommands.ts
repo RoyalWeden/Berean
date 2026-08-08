@@ -36,12 +36,34 @@ export function createEditorCommands(view: EditorView) {
     view.focus()
   }
 
-  function applyLink() {
-    const url = window.prompt('Link URL:')
+  // Electron's renderer doesn't support window.prompt() (throws "prompt() is and
+  // will not be supported"), so the URL can't be collected here — callers own a
+  // small popover/input UI instead and pass the already-collected url in.
+  function applyLink(url: string) {
     if (!url) return
     const { from, to } = view.state.selection
     view.dispatch(view.state.tr.addMark(from, to, schema.marks.link.create({ href: url })))
     view.focus()
+  }
+
+  // Reads the href of an existing link mark at the current selection/cursor, so a
+  // link-URL popover can be pre-filled when editing a link rather than always
+  // starting blank.
+  function currentLinkHref(): string {
+    const { from, to, empty } = view.state.selection
+    const marks = empty
+      ? (view.state.storedMarks ?? view.state.selection.$from.marks())
+      : null
+    if (marks) {
+      const mark = schema.marks.link.isInSet(marks)
+      return mark?.attrs.href ?? ''
+    }
+    let href = ''
+    view.state.doc.nodesBetween(from, to, (node) => {
+      const mark = schema.marks.link.isInSet(node.marks)
+      if (mark) href = mark.attrs.href
+    })
+    return href
   }
 
   function toggleTaskList() {
@@ -87,7 +109,7 @@ export function createEditorCommands(view: EditorView) {
   }
 
   return {
-    isMarkActive, run, applyHighlight, removeHighlight, applyLink, toggleTaskList,
+    isMarkActive, run, applyHighlight, removeHighlight, applyLink, currentLinkHref, toggleTaskList,
     setHeading, toggleBlockquote, outdent, indent, setBulletList, setOrderedList,
   }
 }

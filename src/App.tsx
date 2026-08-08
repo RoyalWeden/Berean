@@ -51,6 +51,22 @@ export default function App() {
     setHermasTextId(hermasTranslation)
     setHermasVariant(hermasVariantForTextId(hermasTranslation))
   }, [hermasTranslation])
+  // Daily notes begin at sunrise, not midnight (dailyNoteUtils.ts's dailyNoteToday) —
+  // resolve the device's location once per launch so that calculation has something
+  // to work with. No retry/watch loop: a stale cached lat/lon (persisted in the store)
+  // only matters if the user relocates by a meaningful distance between launches, and
+  // a denied/unavailable request just leaves the previous cached value (or null) in
+  // place, silently falling back to the plain-midnight boundary.
+  const setDailyNoteLocation = useAppStore((s) => s.setDailyNoteLocation)
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setDailyNoteLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => { /* denied or unavailable — keep whatever cached value we already have */ },
+      { maximumAge: Infinity, timeout: 10_000 }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)

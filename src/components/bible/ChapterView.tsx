@@ -241,7 +241,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
     <div className="mb-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] opacity-55 hover:opacity-85 transition-opacity text-[11px] cursor-pointer select-none"
+        className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 transition-opacity text-[11px] cursor-pointer select-none"
       >
         <BookOpen size={11} strokeWidth={1.8} />
         <span>{label}</span>

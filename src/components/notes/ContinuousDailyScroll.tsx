@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { PenLine, Plus } from 'lucide-react'
 import { renderMarkdownToHTML } from './pm/staticRender'
 import type { Note } from '@/types'
-import { toDateKey, dailyNoteTitle, addDays } from '@/lib/dailyNoteUtils'
+import { toDateKey, dailyNoteTitle, addDays, dailyNoteToday } from '@/lib/dailyNoteUtils'
 
 function formatDateHeader(date: Date): string {
   return date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
@@ -20,8 +20,11 @@ interface ContinuousDailyScrollProps {
 }
 
 export default function ContinuousDailyScroll({ targetDate, notes, onDateChange, onDayOpen }: ContinuousDailyScrollProps) {
+  // Days begin at dawn, not midnight — see dailyNoteUtils.ts's getDailyNoteAnchorDate.
+  // Computed once on mount, same as the plain-midnight boundary this replaces; it
+  // won't re-shift live if the app stays open across sunrise.
   const today = useMemo(() => {
-    const d = new Date()
+    const d = dailyNoteToday()
     d.setHours(0, 0, 0, 0)
     return d
   }, [])

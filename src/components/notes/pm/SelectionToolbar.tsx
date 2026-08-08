@@ -28,8 +28,10 @@ import { createEditorCommands } from './editorCommands'
 export default function SelectionToolbar({
   view, toolbarState,
 }: { view: EditorView; toolbarState: SelectionToolbarState }) {
-  const [openDropdown, setOpenDropdown] = useState<'none' | 'type' | 'list' | 'highlight'>('none')
+  const [openDropdown, setOpenDropdown] = useState<'none' | 'type' | 'list' | 'highlight' | 'link'>('none')
   const rootRef = useRef<HTMLDivElement>(null)
+  const linkInputRef = useRef<HTMLInputElement>(null)
+  const [linkUrl, setLinkUrl] = useState('')
   const [pos, setPos] = useState<{ left: number; top: number; flipped: boolean } | null>(null)
 
   // Close any open dropdown when the selection moves to a new spot.
@@ -78,6 +80,12 @@ export default function SelectionToolbar({
     return () => document.removeEventListener('mousedown', onDown)
   }, [openDropdown])
 
+  // Autofocus the URL field the moment the link popover opens — mirrors what
+  // window.prompt() used to give for free.
+  useEffect(() => {
+    if (openDropdown === 'link') linkInputRef.current?.focus()
+  }, [openDropdown])
+
 
   // All command logic lives in editorCommands.ts, shared with the persistent Toolbar.tsx —
   // this component only owns its own dropdown-open UI state and closes it after a command.
@@ -94,8 +102,18 @@ export default function SelectionToolbar({
     setOpenDropdown('none')
   }
 
-  function applyLink() {
-    cmds.applyLink()
+  // window.prompt() throws in Electron's renderer ("prompt() is and will not be
+  // supported"), so the URL is collected via the small popover below instead —
+  // opening it seeds the input with any existing link href on the selection.
+  function openLinkPopover() {
+    setLinkUrl(cmds.currentLinkHref())
+    setOpenDropdown('link')
+  }
+
+  function submitLink() {
+    const url = linkUrl.trim()
+    setOpenDropdown('none')
+    if (url) cmds.applyLink(url)
   }
 
   function toggleTaskList() {
@@ -148,7 +166,13 @@ export default function SelectionToolbar({
         </button>
 
         {sep}
-        <button title="Link" onMouseDown={applyLink} className={cls(isMarkActive('link'))}><Link2 size={14} /></button>
+        <button
+          title="Link"
+          onMouseDown={() => { if (openDropdown === 'link') setOpenDropdown('none'); else openLinkPopover() }}
+          className={cls(openDropdown === 'link' || isMarkActive('link'))}
+        >
+          <Link2 size={14} />
+        </button>
         {sep}
 
         {/* Lists */}
@@ -226,6 +250,32 @@ export default function SelectionToolbar({
               className="w-full flex items-center justify-center gap-1.5 text-[11px] py-1 rounded-md cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
             >
               <Ban size={11} /> Remove highlight
+            </button>
+          </div>
+        )}
+
+        {openDropdown === 'link' && (
+          <div
+            className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 pm-toolbar-solid rounded-lg shadow-2xl p-1.5 flex items-center gap-1 w-[240px]"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <input
+              ref={linkInputRef}
+              type="text"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submitLink()
+                else if (e.key === 'Escape') setOpenDropdown('none')
+              }}
+              placeholder="https://…"
+              className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] focus:outline-none focus:border-[rgb(var(--color-accent))]"
+            />
+            <button
+              onMouseDown={submitLink}
+              className={`${iconBtn} ${inactive} text-xs px-2 py-1`}
+            >
+              Apply
             </button>
           </div>
         )}

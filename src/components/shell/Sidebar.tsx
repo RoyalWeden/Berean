@@ -13,7 +13,7 @@ import { normalizeBookName } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
 import type { Book, Note } from '@/types'
 import { CalendarGrid, toDateKey, findDailyNote } from '@/components/notes/CalendarWidget'
-import { dailyNoteTitle } from '@/lib/dailyNoteUtils'
+import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
@@ -319,7 +319,7 @@ export default function Sidebar() {
   }
 
   function openTodaysDailyNote() {
-    openDailyNoteInTab(new Date())
+    openDailyNoteInTab(dailyNoteToday())
   }
 
   // If the active Notes tab is pointed at a daily note, sync the sidebar calendar to that
@@ -744,7 +744,7 @@ export default function Sidebar() {
                 <Tooltip.Trigger asChild>
                   <button
                     onClick={openTodaysDailyNote}
-                    onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: new Date(), x: e.clientX, y: e.clientY }) }}
+                    onContextMenu={(e) => { e.preventDefault(); setDailyNoteMenu({ date: dailyNoteToday(), x: e.clientX, y: e.clientY }) }}
                     className="no-drag flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                   >
                     <CalendarDays size={11} />

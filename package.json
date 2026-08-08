@@ -49,6 +49,7 @@
     "prosemirror-state": "^1.4.4",
     "prosemirror-tables": "^1.8.5",
     "prosemirror-view": "^1.42.0",
+    "suncalc": "^2.0.1",
     "zustand": "^4.5.2"
   },
   "overrides": {
@@ -138,7 +139,10 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": false
+      "notarize": false,
+      "extendInfo": {
+        "NSLocationWhenInUseUsageDescription": "Berean uses your location only to compute local sunrise time, which determines when a new daily note begins."
+      }
     },
     "mas": {
       "target": [
@@ -154,7 +158,8 @@
       "hardenedRuntime": false,
       "minimumSystemVersion": "12.0",
       "extendInfo": {
-        "LSMinimumSystemVersion": "12.0"
+        "LSMinimumSystemVersion": "12.0",
+        "NSLocationWhenInUseUsageDescription": "Berean uses your location only to compute local sunrise time, which determines when a new daily note begins."
       },
       "entitlements": "build/entitlements.mas.plist",
       "entitlementsInherit": "build/entitlements.mas.inherit.plist",

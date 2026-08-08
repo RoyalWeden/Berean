@@ -234,6 +234,14 @@ export interface AppState {
   pdfFeatureEnabled: boolean
   setPdfFeatureEnabled: (v: boolean) => void
 
+  // Cached device geolocation, used only to compute real sunrise for the daily-note
+  // "day boundary" (dailyNoteUtils.ts's getDailyNoteAnchorDate/dailyNoteToday).
+  // Re-fetched once per app launch (see App.tsx); this cached value is used meanwhile
+  // and as a fallback if a fresh fetch fails/is denied. null = never resolved — daily
+  // notes fall back to plain midnight-boundary behavior.
+  dailyNoteLocation: { lat: number; lon: number } | null
+  setDailyNoteLocation: (loc: { lat: number; lon: number } | null) => void
+
   // YouTube playback preferences
   autoPiP: boolean
   setAutoPiP: (v: boolean) => void
@@ -1119,6 +1127,9 @@ export const useAppStore = create<AppState>()(
 
       pdfFeatureEnabled: false,
       setPdfFeatureEnabled: (v) => set({ pdfFeatureEnabled: v }),
+
+      dailyNoteLocation: null,
+      setDailyNoteLocation: (loc) => set({ dailyNoteLocation: loc }),
 
       pendingYouTubeVideo: null,
       autoPiP: true,
@@ -2037,6 +2048,7 @@ export const useAppStore = create<AppState>()(
         hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,
         pdfFeatureEnabled: state.pdfFeatureEnabled,
+        dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,
