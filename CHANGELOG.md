@@ -122,49 +122,6 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
-
-Notes
-- Fixed note status changes (dropdown, right-click menu, board drag) not
-  showing up in the sidebar, board, and other windows until something else
-  happened to refresh the notes list.
-- Fixed a race where jumping to a note via search (Cmd+K) could briefly load
-  the wrong note into an already-open notes tab.
-- Fixed verse blocks (a reference line + its verse text, e.g. pasting in
-  "2 Peter 3:1-2" with the verse text under it) not boxing/formatting when a
-  note was first opened — it silently required an unrelated click/keystroke
-  to force it to appear. Two competing decoration passes were racing to
-  register the callback that verifies the pasted text against the Bible DB
-  and repaints once verification finishes; only the first one to run — which
-  didn't actually repaint anything — ever got called.
-- Fixed switching into a note tab (from another tab or another space)
-  sometimes showing the notes home list instead of the note. In dev mode,
-  React's StrictMode double-invokes a fresh panel's effects; a "skip the
-  very first call" guard on the global back/home button's listener survived
-  that unchanged, so its second invocation fired for real and cleared the
-  just-restored note. Same fix applied to the equivalent Lexicon and
-  YouTube "home" listeners, and to the Bible panel's presenter-push
-  listener, since all four shared the identical pattern.
-- Fixed the Lexicon tab's saved scroll position appearing a beat late —
-  entry content painted first, then visibly jumped to the saved scroll spot
-  once a fixed 80ms timer fired. Now applied via the same double-rAF
-  technique the notes editor's own scroll restore uses, landing before the
-  first paint instead of after it.
-- Fixed the Lexicon tab no longer saving scroll position (regression from
-  the fix above): the scroll-restore rAF fires an arbitrary moment after
-  the entry loads, not truly "next frame" — if the user started scrolling
-  before it landed (very easy to do, and near-guaranteed under dev-only
-  React StrictMode, which runs the restore twice on every fresh mount), it
-  silently reset scrollTop back to the old saved value moments before the
-  debounced save could persist the real one. The restore now backs off the
-  instant the user scrolls, instead of unconditionally overwriting it.
-
-Performance
-- Berean now backs off some of its own background polling (YouTube tab's
-  style re-injection and transcript-sync intervals, vault file-watcher
-  cadence) while the system is on battery power or under macOS thermal
-  pressure, instead of always running at full speed.
-
 ## [0.4.19] - 2026-08-05
 
 Notes
@@ -173,14 +130,34 @@ Notes
   right-click menu, filter the notes list by status, and browse
   status-tracked notes in a new Kanban board view (switchable from the same
   place as list/folder view).
-- Fixed verse references and Strong's number formatting sometimes not
-  appearing in a note until clicking into it.
+- Fixed verse references, Strong's number formatting, and verse blocks (a
+  reference line + its verse text) sometimes not appearing in a note until
+  clicking into it or making some other unrelated edit.
 - Fixed the right-click "Set status" menu shifting position when opened —
   it now opens as its own small popup instead.
 - Refreshed the look of the notes list, folder view, and board view for a
   more consistent, less boxy feel across all three.
 - Fixed a bug where fully re-importing the Octarine/Obsidian vault could
   silently clear a note's status (and a few other fields) back to unset.
+- Fixed note status changes (dropdown, right-click menu, board drag) not
+  showing up in the sidebar, board, and other windows until something else
+  happened to refresh the notes list.
+- Fixed a race where jumping to a note via search (Cmd+K) could briefly load
+  the wrong note into an already-open notes tab.
+- Fixed switching into a note tab (from another tab or another space)
+  sometimes showing the notes home list instead of the note.
+
+Lexicon
+- Fixed the Lexicon tab's saved scroll position appearing a beat late,
+  visibly jumping into place after the entry had already painted — and a
+  follow-up case where scroll position could stop saving altogether if you
+  scrolled again shortly after opening an entry.
+
+Performance
+- Berean now backs off some of its own background polling (YouTube tab's
+  style re-injection and transcript-sync intervals, vault file-watcher
+  cadence) while the system is on battery power or under macOS thermal
+  pressure, instead of always running at full speed.
 
 ## [0.4.18] - 2026-08-05
 
