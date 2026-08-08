@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react'
 import type { Note } from '@/types'
 import { useAppStore } from '@/store'
 import { zoomedFontSize } from '@/lib/zoom'
-import { toDateKey } from '@/lib/dailyNoteUtils'
+import { toDateKey, dailyNoteToday } from '@/lib/dailyNoteUtils'
 
 export { toDateKey }
 
@@ -58,7 +58,8 @@ interface CalendarGridProps {
 export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact, selectedDate, onContextMenu, todayAction }: CalendarGridProps) {
   const year = date.getFullYear()
   const month = date.getMonth()
-  const today = new Date()
+  // Days begin at dawn, not midnight — see dailyNoteUtils.ts's getDailyNoteAnchorDate.
+  const today = dailyNoteToday()
   const todayStr = toDateKey(today)
   const selectedStr = selectedDate ? toDateKey(selectedDate) : null
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()

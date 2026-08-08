@@ -28,6 +28,13 @@
   <key>com.apple.security.files.downloads.read-only</key>
   <true/>
 
+  <!-- Location: daily notes begin at sunrise, not midnight (dailyNoteUtils.ts's
+       getDailyNoteAnchorDate) — needs device location to compute it. Also requires
+       the "Location" capability enabled for this App ID in the Apple Developer
+       portal and build/embedded.provisionprofile regenerated; not automatable here. -->
+  <key>com.apple.security.personal-information.location</key>
+  <true/>
+
   <!-- Explicitly empty application-groups — prevents electron-builder from
        auto-injecting "TEAMID.BUNDLEID" which requires a registered App Group
        in the provisioning profile (we don't need inter-app data sharing). -->

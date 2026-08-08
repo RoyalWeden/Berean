@@ -19,7 +19,7 @@ import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styl
 import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 
-type DropdownKind = 'type' | 'list' | 'highlight' | 'table'
+type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link'
 
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
@@ -39,6 +39,8 @@ export default function Toolbar({ view, tabId, inTable }: { view: EditorView | n
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const linkInputRef = useRef<HTMLInputElement>(null)
+  const [linkUrl, setLinkUrl] = useState('')
   const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
   const focusMode = tabId != null && noteFocusModeTabId === tabId
   const toggleNoteFocusMode = useAppStore((s) => s.toggleNoteFocusMode)
@@ -92,6 +94,13 @@ export default function Toolbar({ view, tabId, inTable }: { view: EditorView | n
     if (!inTable && openDropdown === 'table') setOpenDropdown('none')
   }, [inTable, openDropdown])
 
+  // Autofocus the URL field the moment the link popover opens — mirrors what
+  // window.prompt() used to give for free (see editorCommands.ts's applyLink
+  // for why prompt() itself can't be used here — Electron's renderer throws).
+  useEffect(() => {
+    if (openDropdown === 'link') linkInputRef.current?.focus()
+  }, [openDropdown])
+
   if (!view) return null
   const editorView = view // narrowed local — TS doesn't carry the null-check narrowing of a
   // parameter into nested function declarations below (insertVerseStarter), so this local
@@ -102,6 +111,20 @@ export default function Toolbar({ view, tabId, inTable }: { view: EditorView | n
   function applyHighlight(color: string) { cmds.applyHighlight(color); setOpenDropdown('none') }
   function removeHighlight() { cmds.removeHighlight(); setOpenDropdown('none') }
   function toggleTaskList() { cmds.toggleTaskList(); setOpenDropdown('none') }
+
+  function openLinkDropdownAt(e: React.MouseEvent<HTMLButtonElement>) {
+    if (openDropdown === 'link') { setOpenDropdown('none'); return }
+    setLinkUrl(cmds.currentLinkHref())
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
+    setOpenDropdown('link')
+  }
+
+  function submitLink() {
+    const url = linkUrl.trim()
+    setOpenDropdown('none')
+    if (url) cmds.applyLink(url)
+  }
   // Verse blocks are plain paragraph text auto-detected by blockDecorations.ts once it
   // matches a real verse in the DB (see slashCommands.ts's startVerseBlock for the full
   // reasoning) — this button can't insert a finished block itself without a full book/
@@ -209,7 +232,11 @@ export default function Toolbar({ view, tabId, inTable }: { view: EditorView | n
       </button>
 
       {sep}
-      <button title="Link" onMouseDown={cmds.applyLink} className={cls(isMarkActive('link'))}><Link2 size={14} /></button>
+      <button
+        title="Link"
+        onMouseDown={openLinkDropdownAt}
+        className={cls(openDropdown === 'link' || isMarkActive('link'))}
+      ><Link2 size={14} /></button>
       {sep}
 
       <button
@@ -382,6 +409,29 @@ export default function Toolbar({ view, tabId, inTable }: { view: EditorView | n
                 className={`${iconBtn} text-red-400 hover:bg-red-500/15 flex items-center gap-2 text-xs px-2 py-1.5 justify-start`}
               >
                 <Trash2 size={13} /> Delete table
+              </button>
+            </div>
+          )}
+
+          {openDropdown === 'link' && (
+            <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1.5 flex items-center gap-1 w-[240px]">
+              <input
+                ref={linkInputRef}
+                type="text"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitLink()
+                  else if (e.key === 'Escape') setOpenDropdown('none')
+                }}
+                placeholder="https://…"
+                className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] placeholder:text-[rgb(var(--color-text-muted))] focus:outline-none focus:border-[rgb(var(--color-accent))]"
+              />
+              <button
+                onMouseDown={submitLink}
+                className={`${iconBtn} ${inactive} text-xs px-2 py-1`}
+              >
+                Apply
               </button>
             </div>
           )}
