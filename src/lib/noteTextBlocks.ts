@@ -219,7 +219,21 @@ export function verseTextMatchRatio(candidate: string, actual: string): number {
 // ratio per (ref + candidate-text) so the synchronous decoration builder can read
 // it. A miss kicks off a background fetch, then re-decorates when it resolves.
 const verseRatioCache = new Map<string, number>()
-const versePending = new Set<string>()
+// Presence of a key means a fetch is in flight for it. Value is every onResolved
+// callback registered while it was pending — NOT just the first one. Multiple call
+// sites race to be the "first" caller for the same key on the very first redraw of a
+// note (createRefDecorationsPlugin's exclusion-range pass in refDecorations.ts calls
+// buildBlockDecorations with a no-op onResolved just to get block ranges; blockDecorations.ts's
+// own decorations() prop calls it again with the REAL onResolved that dispatches a refresh
+// transaction — someProp("decorations", ...) invokes every plugin's decorations() on the same
+// redraw, in plugin-array order, so whichever runs first "wins" the pending slot). Storing only
+// the first caller's callback meant that whenever the no-op ran first, the real dispatch never
+// happened at all — the cache got populated correctly, but nothing ever told ProseMirror to
+// repaint, so the block stayed unformatted until some unrelated transaction (a click, a
+// keystroke, a note switch) forced the next decorations() pass to read the now-populated cache.
+// Calling every registered callback once the fetch resolves closes that gap regardless of which
+// caller happened to arrive first.
+const versePending = new Map<string, Array<() => void>>()
 
 function verseCacheKey(refText: string, candidate: string): string {
   return refText + ' ' + candidate.replace(/\s+/g, ' ').trim().toLowerCase()
@@ -298,8 +312,9 @@ export function verseTextAccepted(
   if (!w?.bible?.queryChapter) return true
   const key = verseCacheKey(refText, candidate)
   if (verseRatioCache.has(key)) return verseRatioCache.get(key)! >= threshold
-  if (versePending.has(key)) return null
-  versePending.add(key)
+  const pendingCallbacks = versePending.get(key)
+  if (pendingCallbacks) { pendingCallbacks.push(onResolved); return null }
+  versePending.set(key, [onResolved])
   fetchActualVerseText(refText)
     .then((actual) => {
       // verseTextMatchRatio(candidate, actual) — candidate first, matching its own
@@ -313,13 +328,15 @@ export function verseTextAccepted(
       // previous ratio-1 auto-accept, which silently treated arbitrary trailing text as
       // verified verse text whenever the lookup itself failed for any reason.
       verseRatioCache.set(key, actual ? verseTextMatchRatio(candidate, actual) : 0)
+      const callbacks = versePending.get(key)
       versePending.delete(key)
-      onResolved()
+      callbacks?.forEach((cb) => cb())
     })
     .catch(() => {
       verseRatioCache.set(key, 0)
+      const callbacks = versePending.get(key)
       versePending.delete(key)
-      onResolved()
+      callbacks?.forEach((cb) => cb())
     })
   return null
 }

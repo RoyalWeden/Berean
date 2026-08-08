@@ -233,6 +233,12 @@ function PanelSlot({
 export default function YouTubeTab({ floating = false }: { floating?: boolean }) {
   const activeSpace = useAppStore((s) => s.activeSpace)
   const autoPiP = useAppStore((s) => s.autoPiP)
+  // 'throttled' on battery power / under thermal pressure (see store/index.ts,
+  // electron/powerAwareness.ts) — stretches the polling intervals below so a video left
+  // playing doesn't keep spending CPU on style re-injection / transcript-sync polling at full
+  // cadence while the system is already under load (e.g. screen-sharing in a video call).
+  const resourceMode = useAppStore((s) => s.resourceMode)
+  const pollMultiplier = resourceMode === 'throttled' ? 2 : 1
   const pendingYouTubeVideo = useAppStore((s) => s.pendingYouTubeVideo)
   const clearPendingYouTubeVideo = useAppStore((s) => s.clearPendingYouTubeVideo)
   const renameTab = useAppStore((s) => s.renameTab)
@@ -482,9 +488,15 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
   // Global top bar's back button reached the browse/home position for this tab (see
   // youtubeHomeToken's registration in the store, mirroring notesHomeToken/lexiconHomeToken).
-  const youtubeHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token, not a "have I run before" boolean — see NotesPanel.tsx's
+  // identical fix (lastSeenNotesHomeTokenRef) for why a boolean-ref "skip the first call"
+  // guard is unsafe under React 18 StrictMode's dev-only double-invoke of a genuine mount's
+  // effects.
+  const lastSeenYoutubeHomeTokenRef = useRef(youtubeHomeToken)
   useEffect(() => {
-    if (!youtubeHomeMounted.current) { youtubeHomeMounted.current = true; return }
+    if (youtubeHomeToken === lastSeenYoutubeHomeTokenRef.current) return
+    lastSeenYoutubeHomeTokenRef.current = youtubeHomeToken
     handleBack()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [youtubeHomeToken])
@@ -990,9 +1002,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
       } catch { /* ignore */ }
     }
     applyStyles() // immediate first run at fade-in moment
-    const interval = setInterval(applyStyles, 1000)
+    const interval = setInterval(applyStyles, 1000 * pollMultiplier)
     return () => clearInterval(interval)
-  }, [playerReady, watchFallback, activeVideoId, activeSpace, isPiPActive])
+  }, [playerReady, watchFallback, activeVideoId, activeSpace, isPiPActive, pollMultiplier])
 
   // Pause immediately when the video ends; reset saved position to 0 so next open starts fresh
   useEffect(() => {
@@ -1166,9 +1178,9 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         )
         if (typeof t === 'number') setCurrentTimeMs(Math.round(t * 1000))
       } catch { /* ignore */ }
-    }, 400)
+    }, 400 * pollMultiplier)
     return () => { if (timePollRef.current) { clearInterval(timePollRef.current); timePollRef.current = null } }
-  }, [activeVideoId, playerReady, watchFallback, activeTranscript.length, activeSpace, isPiPActive])
+  }, [activeVideoId, playerReady, watchFallback, activeTranscript.length, activeSpace, isPiPActive, pollMultiplier])
 
   // Seek the player to a given time (seconds) and resume playback.
   const seekTo = useCallback((seconds: number) => {

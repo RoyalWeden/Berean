@@ -5,6 +5,7 @@ import { join, extname, basename } from 'path'
 import chokidar from 'chokidar'
 import { getBereanDb } from '../db/berean'
 import { getTextDb } from '../db/bible'
+import { getResourceMode } from '../powerAwareness'
 
 function getVaultPath(): string {
   const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get('vaultPath') as { value: string } | undefined
@@ -448,12 +449,21 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 
       // Use polling to avoid native FSEvents ABI issues in Electron.
       // Watch the vault root so changes in any user folder are detected.
+      // Doubled if the system is already under load when the watcher starts (on battery /
+      // macOS thermal pressure — see powerAwareness.ts) — a depth-10 polling scan of the whole
+      // vault every 1.5s is real, ongoing CPU/disk-I/O cost for as long as sync stays on, so
+      // there's no reason to run it at full cadence while something else (e.g. a video call)
+      // is already competing for the machine. Read once at watcher-(re)creation time rather
+      // than kept live for a running watcher — chokidar doesn't support changing an active
+      // watcher's poll interval, and this only gets re-evaluated on the next
+      // vault:watch/reconfigure call, which is an acceptable trade-off for the added
+      // complexity a live-swap would need.
       watcher = chokidar.watch(vaultPath, {
         ignoreInitial: true,
         persistent: true,
         depth: 10,
         usePolling: true,
-        interval: 1500,
+        interval: getResourceMode() === 'throttled' ? 3000 : 1500,
         ignored: /\.json$|[/\\]\.(berean|git)[/\\]/,
       })
 

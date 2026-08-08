@@ -182,6 +182,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // every pass EXCEPT this first one. A ref, unlike state, is visible synchronously to a later
   // effect in the same commit, so it closes that specific gap.
   const tabSwitchInFlightRef = useRef(false)
+  // "Latest request wins" guard shared by the tab-restore effect and the explicit
+  // pendingNoteId open effect below — both can end up racing to set activeNote when a
+  // Cmd+K search jump reactivates an existing (stale) notes tab via ensureTab() while also
+  // requesting a different note via requestOpenNote(): if the restore effect's async
+  // window.notes.getNote() for the OLD note resolves after the pendingNoteId effect's fetch
+  // for the intended note, it would silently clobber the correct note back to the wrong one.
+  // Each effect stamps its own sequence number before starting async work and only applies
+  // the result if no newer request has started in the meantime.
+  const openSeqRef = useRef(0)
   // The guard above only works if it's already true by the time the title-sync effect RUNS —
   // but that effect is declared earlier in this file than the restore effect that used to be
   // the only place setting it, and React fires a component's effects in declaration order
@@ -671,6 +680,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // visible UI, so simply switching away and back didn't self-heal it.
   useEffect(() => {
     if (!notesTabId) return
+    const seq = ++openSeqRef.current
     skipNextPersistRef.current = true
     tabSwitchInFlightRef.current = true
     setNoteRestorePending(true)
@@ -710,7 +720,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     }
     window.notes.getNote(savedNoteId)
       .then((note) => {
-        if (note) {
+        // A newer open request (another tab switch, or an explicit pendingNoteId open from
+        // e.g. a Cmd+K search jump) has started since — don't clobber it with this stale one.
+        if (note && openSeqRef.current === seq) {
           setActiveNote(note)
           setRestoredScrollTop(savedScrollTop)
           setRestoredCursorPos(savedCursorPos)
@@ -819,10 +831,11 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Open a specific note (only from explicit requests like full tab opens)
   useEffect(() => {
     if (!pendingNoteId) return
+    const seq = ++openSeqRef.current
     clearPendingNote()
     window.notes.getNote(pendingNoteId)
       .then((note) => {
-        if (!note) return
+        if (!note || openSeqRef.current !== seq) return
         setNotes((prev) => [note, ...prev.filter((n) => n.id !== note.id)])
         setActiveNote(note)
         lastScrollTopRef.current = 0
@@ -914,9 +927,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }
 
   // Global top bar's back button reached the list/home position for this tab.
-  const notesHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token value, not a "have I run before" boolean — React 18
+  // StrictMode (dev only) double-invokes every effect on a genuine mount: run the effect,
+  // simulate a cleanup (none here), run it again. A boolean ref survives that unchanged
+  // (refs aren't reset between the two invocations, since it's the same fiber), so the OLD
+  // "if (!mountedRef.current) { mountedRef.current = true; return }" guard only protected the
+  // FIRST of the two StrictMode passes — the second pass saw the guard already consumed and
+  // called goBack() regardless, wiping activeNote back to the list on every genuine remount
+  // of NotesPanel even though notesHomeToken never actually changed. Since ActivePanel.tsx
+  // remounts NotesPanel fresh every time you switch into the Notes space from a different
+  // tab (its key swaps 'panel:note' in), this fired on essentially every such switch in dev,
+  // reading as "switching to a tab with a note open goes to the home page instead." Comparing
+  // against the last-seen VALUE instead is idempotent across StrictMode's replay: the second
+  // pass sees the same token it just recorded and is correctly a no-op.
+  const lastSeenNotesHomeTokenRef = useRef(notesHomeToken)
   useEffect(() => {
-    if (!notesHomeMounted.current) { notesHomeMounted.current = true; return }
+    if (notesHomeToken === lastSeenNotesHomeTokenRef.current) return
+    lastSeenNotesHomeTokenRef.current = notesHomeToken
     goBack()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesHomeToken])
@@ -1067,6 +1095,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, status: status ?? undefined } : n)))
     if (activeNote?.id === note.id) setActiveNote({ ...activeNote, status: status ?? undefined })
     await window.notes.updateNote(note.id, { status }).catch(() => {})
+    bumpNoteToken() // so the sidebar/board/other windows pick up the new status
   }
 
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -1257,7 +1286,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 const updates = { status }
                 const patched = { ...activeNote, status: status ?? undefined }
                 setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
+                setActiveNote(patched)
                 await window.notes.updateNote(activeNote.id, updates).catch(() => {})
+                bumpNoteToken() // so the sidebar/board/other windows pick up the new status
               }}
               compact
             />

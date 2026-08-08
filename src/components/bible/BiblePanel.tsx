@@ -466,9 +466,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // on getScrollEl()/tabState which only this panel has access to. Skips the initial
   // mount so opening a Bible tab doesn't push to an already-open viewer unprompted.
   const presenterPushToken = useAppStore((s) => s.presenterPushToken)
-  const presenterPushMounted = useRef(false)
+  // Tracks the last SEEN token, not a "have I run before" boolean — see NotesPanel.tsx's
+  // identical fix (lastSeenNotesHomeTokenRef) for why a boolean-ref "skip the first call"
+  // guard is unsafe under React 18 StrictMode's dev-only double-invoke of a genuine mount's
+  // effects: the boolean survives the replay unchanged, so the SECOND of the two invocations
+  // sees it already consumed and fires anyway, pushing to the presenter view on every fresh
+  // mount of this panel even though presenterPushToken never actually changed.
+  const lastSeenPresenterPushTokenRef = useRef(presenterPushToken)
   useEffect(() => {
-    if (!presenterPushMounted.current) { presenterPushMounted.current = true; return }
+    if (presenterPushToken === lastSeenPresenterPushTokenRef.current) return
+    lastSeenPresenterPushTokenRef.current = presenterPushToken
     if (floating) return
     const container = getScrollEl()
     if (container) {

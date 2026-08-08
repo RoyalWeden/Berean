@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
-import { act } from 'react'
+import { act, StrictMode } from 'react'
 import NotesPanel from '../NotesPanel'
 import { useAppStore } from '@/store'
 import { setCachedNote } from '@/lib/noteCache'
@@ -193,6 +193,55 @@ describe('NotesPanel tab-switch state sync', () => {
     expect(tabAState.scrollTop).toBe(222)
     const scrollerAfter = el.querySelector('.berean-pm-editor') as HTMLElement
     expect(scrollerAfter.scrollTop).toBe(222)
+  })
+
+  it('switching to a tab whose note is NOT cache-warm (cold fetch) still loads it, not the home list', async () => {
+    // noteC deliberately never goes through setCachedNote — forces the restore effect's async
+    // window.notes.getNote() branch instead of the synchronous cache fast path.
+    const noteC = makeNote({ id: 'note-c', title: 'Note C', content: 'Content C' })
+    ;(window.notes.getNote as ReturnType<typeof vi.fn>).mockImplementation(
+      async (id: string) => (id === noteA.id ? noteA : id === noteB.id ? noteB : id === noteC.id ? noteC : null),
+    )
+    const tabC = makeNoteTab('tab-c', noteC.id)
+    useAppStore.setState({
+      tabs: { scripture: [], notes: [...useAppStore.getState().tabs.notes, tabC], lexicon: [], youtube: [], search: [] },
+    })
+
+    const el = mount()
+    expect(el.querySelector('.ProseMirror')?.textContent).toContain('Content A')
+
+    await act(async () => {
+      useAppStore.getState().setActiveTab('notes', 'tab-c')
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(el.querySelector('.ProseMirror')?.textContent).toContain('Content C')
+    expect(el.textContent).not.toContain('Click a note to open it')
+  })
+
+  it('a fresh (StrictMode double-effect) mount onto a tab whose note is NOT cache-warm loads it, not the home list — mirrors switching INTO the Notes space from elsewhere, where ActivePanel.tsx remounts NotesPanel from scratch', async () => {
+    const noteC = makeNote({ id: 'note-c', title: 'Note C', content: 'Content C' })
+    ;(window.notes.getNote as ReturnType<typeof vi.fn>).mockImplementation(
+      async (id: string) => (id === noteA.id ? noteA : id === noteB.id ? noteB : id === noteC.id ? noteC : null),
+    )
+    const tabC = makeNoteTab('tab-c', noteC.id)
+    useAppStore.setState({
+      tabs: { scripture: [], notes: [tabC], lexicon: [], youtube: [], search: [] },
+      activeTabId: { scripture: null, notes: 'tab-c', lexicon: null, youtube: null, search: null },
+    })
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root!.render(<StrictMode><NotesPanel floating /></StrictMode>)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('.ProseMirror')?.textContent).toContain('Content C')
+    expect(container.textContent).not.toContain('Click a note to open it')
   })
 
   it('resyncs the status dropdown to the newly active note instead of showing the previous note\'s status', async () => {

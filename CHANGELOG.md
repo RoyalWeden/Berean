@@ -130,14 +130,34 @@ Notes
   right-click menu, filter the notes list by status, and browse
   status-tracked notes in a new Kanban board view (switchable from the same
   place as list/folder view).
-- Fixed verse references and Strong's number formatting sometimes not
-  appearing in a note until clicking into it.
+- Fixed verse references, Strong's number formatting, and verse blocks (a
+  reference line + its verse text) sometimes not appearing in a note until
+  clicking into it or making some other unrelated edit.
 - Fixed the right-click "Set status" menu shifting position when opened —
   it now opens as its own small popup instead.
 - Refreshed the look of the notes list, folder view, and board view for a
   more consistent, less boxy feel across all three.
 - Fixed a bug where fully re-importing the Octarine/Obsidian vault could
   silently clear a note's status (and a few other fields) back to unset.
+- Fixed note status changes (dropdown, right-click menu, board drag) not
+  showing up in the sidebar, board, and other windows until something else
+  happened to refresh the notes list.
+- Fixed a race where jumping to a note via search (Cmd+K) could briefly load
+  the wrong note into an already-open notes tab.
+- Fixed switching into a note tab (from another tab or another space)
+  sometimes showing the notes home list instead of the note.
+
+Lexicon
+- Fixed the Lexicon tab's saved scroll position appearing a beat late,
+  visibly jumping into place after the entry had already painted — and a
+  follow-up case where scroll position could stop saving altogether if you
+  scrolled again shortly after opening an entry.
+
+Performance
+- Berean now backs off some of its own background polling (YouTube tab's
+  style re-injection and transcript-sync intervals, vault file-watcher
+  cadence) while the system is on battery power or under macOS thermal
+  pressure, instead of always running at full speed.
 
 ## [0.4.18] - 2026-08-05
 

@@ -1125,6 +1125,29 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // the restore effect, still reading the OLD entryRestorePending/activeEntry — see
   // NotesPanel.tsx's tabSwitchInFlightRef comment for the full explanation of this race.
   const tabSwitchInFlightRef = useRef(false)
+  // "Latest request wins" guard for the restore effect below — mirrors NotesPanel.tsx's
+  // openSeqRef exactly, but here it also has to cover the double-rAF scroll-restore, not just
+  // setActiveEntry. React 18 StrictMode (dev only) double-invokes this effect on every genuine
+  // mount of LexiconPanel (which ActivePanel.tsx does on every switch INTO the Lexicon space),
+  // kicking off two separate window.lexicon.getEntry() calls that each schedule their OWN
+  // double-rAF `entryScrollRef.current.scrollTop = savedScroll` assignment. Without a guard,
+  // whichever of the two resolves LAST wins — and since a real user can start scrolling before
+  // that second, stale restore's rAF pair has fired, its scrollTop reset silently clobbers the
+  // user's live scroll back to the (stale) savedScroll value moments later, reading as "the
+  // scroll position isn't saving" (the save itself was fine; a stale restore overwrote it
+  // before the debounced save's 150ms timer ever read it back).
+  const entryOpenSeqRef = useRef(0)
+  // Belt-and-suspenders alongside entryOpenSeqRef: even a SINGLE restore (no StrictMode
+  // duplicate involved) schedules its double-rAF scroll-set for "2 animation frames after the
+  // entry fetch resolves" — an arbitrary amount of real wall-clock time later, not truly
+  // "next frame," since the fetch itself is an async IPC round trip. A real user reading a
+  // freshly-opened entry can easily start scrolling within that window; without this flag the
+  // restore's rAF still fires afterward and silently resets scrollTop back to the stale
+  // savedScroll it captured at effect-start, clobbering the user's own scroll milliseconds
+  // before the debounced save (150ms) would have read and persisted it — reading as "the
+  // scroll position isn't saving." Set true by the onScroll handler, reset false at the start
+  // of every restore; the double-rAF below skips its own assignment once this is true.
+  const userScrolledSinceRestoreRef = useRef(false)
   // Set during RENDER, not inside an effect, so the guard is already true before ANY of this
   // component's effects run in the commit that switches lexiconTabId — see NotesPanel.tsx's
   // prevNotesTabIdForGuardRef comment for the full explanation (effect declaration order isn't
@@ -1139,6 +1162,8 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   // duplication, and now on every tab switch — see skipNextLexPersistRef's comment above).
   useEffect(() => {
     if (!lexiconTabId) return
+    const seq = ++entryOpenSeqRef.current
+    userScrolledSinceRestoreRef.current = false
     skipNextLexPersistRef.current = true
     tabSwitchInFlightRef.current = true
     setEntryRestorePending(true)
@@ -1179,11 +1204,23 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     if (!savedNum) { setActiveEntry(null); setEntryRestorePending(false); deferClear(); return }
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
-        if (entry) {
+        // A newer restore request (another tab switch, or StrictMode's dev-only double-invoke
+        // of this same effect on a fresh mount) has started since — don't let this stale one's
+        // scroll-restore clobber whatever the user's done since. See entryOpenSeqRef's comment.
+        if (entry && entryOpenSeqRef.current === seq) {
           setActiveEntry(entry)
-          setTimeout(() => {
-            if (entryScrollRef.current) entryScrollRef.current.scrollTop = savedScroll
-          }, 80)
+          // A fixed setTimeout(80) here raced the actual render: the entry committed and
+          // painted at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll
+          // once the timer fired — reading as "shows for a second without scroll then it
+          // jumps." Matches NoteEditorPM.tsx's own scroll-restore double-rAF: the first
+          // rAF runs before the browser has painted this render's DOM changes, the second
+          // (nested) rAF then fires after that paint's layout is actually settled, so the
+          // scrollTop assignment lands before the user ever sees the unscrolled frame.
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
+              entryScrollRef.current.scrollTop = savedScroll
+            }
+          }))
         }
       })
       .catch(() => {})
@@ -1291,9 +1328,17 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   }, [])
 
   // Global top bar's back button reached the list/search position for this tab.
-  const lexiconHomeMounted = useRef(false)
+  //
+  // Tracks the last SEEN token, not a "have I run before" boolean — see NotesPanel.tsx's
+  // identical fix (lastSeenNotesHomeTokenRef) for why a boolean-ref "skip the first call"
+  // guard is unsafe under React 18 StrictMode's dev-only double-invoke of a genuine mount's
+  // effects: the boolean survives the replay unchanged, so the second invocation sees it
+  // already consumed and fires anyway, spuriously clearing the just-restored entry on every
+  // fresh mount of this panel even though lexiconHomeToken never actually changed.
+  const lastSeenLexiconHomeTokenRef = useRef(lexiconHomeToken)
   useEffect(() => {
-    if (!lexiconHomeMounted.current) { lexiconHomeMounted.current = true; return }
+    if (lexiconHomeToken === lastSeenLexiconHomeTokenRef.current) return
+    lastSeenLexiconHomeTokenRef.current = lexiconHomeToken
     setActiveEntry(null)
     setSavedSearch(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1334,6 +1379,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
           wordReplacerRules={activeWordReplacerRules}
           onScroll={(e) => {
             const el = e.currentTarget
+            userScrolledSinceRestoreRef.current = true
             if (lexScrollSaveTimer.current) clearTimeout(lexScrollSaveTimer.current)
             lexScrollSaveTimer.current = setTimeout(() => {
               if (lexiconTabId) updateTabState('lexicon', lexiconTabId, { scrollTop: el.scrollTop })
