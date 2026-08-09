@@ -236,12 +236,19 @@ contextBridge.exposeInMainWorld('crossrefs', {
 
 contextBridge.exposeInMainWorld('aiLookup', {
   checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
-  query: (question: string, opts: { commentary: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }> }) =>
+  query: (question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }> }) =>
     ipcRenderer.invoke('ailookup:query', question, opts),
   listChats: () => ipcRenderer.invoke('ailookup:listChats'),
   getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
   saveChat: (chat: unknown) => ipcRenderer.invoke('ailookup:saveChat', chat),
   deleteChat: (id: string) => ipcRenderer.invoke('ailookup:deleteChat', id),
+  // Live status text during a single query() call (e.g. "Searching Jubilees…") — the main
+  // process handler sends these via event.sender.send while the async work is still in
+  // flight, same request/response call still resolves with the final result as normal.
+  onProgress: (cb: (status: string) => void) => {
+    ipcRenderer.removeAllListeners('ailookup:progress')
+    ipcRenderer.on('ailookup:progress', (_, status) => cb(status))
+  },
 })
 
 contextBridge.exposeInMainWorld('youtube', {

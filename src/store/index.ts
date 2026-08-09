@@ -254,6 +254,10 @@ export interface AppState {
   setAiLookupPanelOpen: (v: boolean) => void
   aiLookupCommentaryOn: boolean
   setAiLookupCommentaryOn: (v: boolean) => void
+  /** "Deep search" — an extra AI verification+retry pass before returning results. Slower,
+   *  off by default; see electron/ipc/aiLookup.ts's agentic verification step. */
+  aiLookupAgenticOn: boolean
+  setAiLookupAgenticOn: (v: boolean) => void
   aiLookupPanelPos: { x: number; y: number } | null
   setAiLookupPanelPos: (pos: { x: number; y: number }) => void
   aiLookupActiveChatId: string | null
@@ -1147,6 +1151,7 @@ export const useAppStore = create<AppState>()(
       youtubeIsPlaying: false,
       aiLookupPanelOpen: false,
       aiLookupCommentaryOn: false,
+      aiLookupAgenticOn: false,
       aiLookupPanelPos: null,
       aiLookupActiveChatId: null,
       youtubeNoteBack: null,
@@ -1821,6 +1826,7 @@ export const useAppStore = create<AppState>()(
       setYoutubeIsPlaying: (v) => set({ youtubeIsPlaying: v }),
       setAiLookupPanelOpen: (v) => set({ aiLookupPanelOpen: v }),
       setAiLookupCommentaryOn: (v) => set({ aiLookupCommentaryOn: v }),
+      setAiLookupAgenticOn: (v) => set({ aiLookupAgenticOn: v }),
       setAiLookupPanelPos: (pos) => set({ aiLookupPanelPos: pos }),
       setAiLookupActiveChatId: (id) => set({ aiLookupActiveChatId: id }),
       setYoutubeNoteBack: (note) => set({ youtubeNoteBack: note }),
@@ -2067,6 +2073,7 @@ export const useAppStore = create<AppState>()(
         hermasTranslation: state.hermasTranslation,
         autoPiP: state.autoPiP,
         aiLookupCommentaryOn: state.aiLookupCommentaryOn,
+        aiLookupAgenticOn: state.aiLookupAgenticOn,
         aiLookupPanelPos: state.aiLookupPanelPos,
         pdfFeatureEnabled: state.pdfFeatureEnabled,
         dailyNoteLocation: state.dailyNoteLocation,

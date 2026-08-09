@@ -49,6 +49,13 @@ export interface AiLookupResponse {
   /** Extracted search keywords, returned so the UI can highlight matched terms in verse text
    *  without re-deriving them. */
   keywords: string[]
+  /** A canonical (KJV/LXX) guess that surfaced alongside a focus-text (pseudepigrapha)
+   *  question — shown separately, after the focus text's own results, with `relatedNote`
+   *  explaining why: naming a specific work means that work's own content should lead, but a
+   *  "this is also/really recorded in Genesis 12:1" pointer is still useful, just not the
+   *  headline answer. Empty unless a focus text was in play. */
+  related: AiLookupResult[]
+  relatedNote?: string
   summary?: string
   error?: string
 }
@@ -310,6 +317,30 @@ function dedupeKey(r: Pick<AiLookupResult, 'textId' | 'bookId' | 'chapter' | 've
   return `${r.textId}|${r.bookId}|${r.chapter}|${r.verse}`
 }
 
+/** "Deep search" verification pass — shows the model the candidates already found (real,
+ *  verified DB rows) and asks whether they actually answer the question; if not, it can
+ *  suggest different search keywords for ONE retry. It never gets to introduce a reference
+ *  directly here — only steer the next keyword search — so this can't reintroduce
+ *  hallucination risk the way letting it just "answer again" would. */
+function verificationPrompt(question: string, focusWorkName: string | null, candidates: AiLookupResult[], keywords: string[]): string {
+  const list = candidates.slice(0, 6).map((c) => `${c.bookName} ${c.chapter}:${c.verse}${c.endVerse ? '-' + c.endVerse : ''} — ${c.text}`).join('\n')
+  return `A user asked: "${question}"${focusWorkName ? ` (specifically about ${focusWorkName})` : ''}
+
+Search keywords tried: ${JSON.stringify(keywords)}
+
+Candidate verses found so far (real, verified text):
+${list || '(none found)'}
+
+Do these candidates actually answer the question? Respond with ONLY a JSON object:
+{
+  "satisfied": true|false,
+  "refinedKeywords": ["short phrase", "..."]
+}
+Only include "refinedKeywords" (3-6 short literal phrases likely to appear verbatim in the
+text, same rules as before) if "satisfied" is false and you have a genuinely different set of
+terms worth trying — don't repeat the same keywords. JSON only, no markdown.`
+}
+
 /** Merges runs of contiguous verse numbers (same textId/bookId/chapter, same source) into a
  *  single ranged result — the model-independent path to showing verse ranges, since keyword
  *  search naturally returns individual verse rows even when three in a row all matched. */
@@ -384,9 +415,30 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
   return result
 }
 
-async function runLookup(question: string, opts: { commentary: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }): Promise<AiLookupResponse> {
+/** Ranks candidates by keyword overlap (+ a notes boost, when available) — shared by the
+ *  primary-result ranking (§5) and the agentic verification preview (§2b), which runs before
+ *  the notes signal exists yet, hence the optional param. */
+function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal): AiLookupResult[] {
+  return items
+    .map((c, i) => ({
+      c, i,
+      score: keywordOverlapScore(c.text, keywords)
+        + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0),
+    }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((s) => s.c)
+}
+
+interface Emit { (status: string): void }
+
+async function runLookup(
+  question: string,
+  opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] },
+  emit: Emit = () => {},
+): Promise<AiLookupResponse> {
   const model = opts.model || DEFAULT_OLLAMA_MODEL
   const wordReplacerRules = opts.wordReplacerRules ?? []
+  const empty = (error?: string): AiLookupResponse => ({ results: [], visibleCount: 0, keywords: [], related: [], error })
 
   // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
   // that text FIRST, then falls back to also searching the default (kjva). Computed before the
@@ -395,21 +447,22 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
+  emit('Reading your question…')
   const { available } = await checkOllamaAvailable()
-  if (!available) return { results: [], visibleCount: 0, keywords: [], error: 'ollama-unavailable' }
+  if (!available) return empty('ollama-unavailable')
 
   let extraction: AiExtraction
   try {
     extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName), model)
   } catch {
-    return { results: [], visibleCount: 0, keywords: [], error: 'ollama-request-failed' }
+    return empty('ollama-request-failed')
   }
-  const keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6))
+  let keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6))
   const guesses = (extraction.guesses ?? []).slice(0, 5)
 
   const seen = new Set<string>()
   const guessCandidates: AiLookupResult[] = []
-  const keywordCandidates: AiLookupResult[] = []
+  let keywordCandidates: AiLookupResult[] = []
 
   function add(bucket: AiLookupResult[], textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
     const r: AiLookupResult = {
@@ -418,137 +471,184 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
     }
     const key = dedupeKey(r)
     if (seen.has(key)) return
-    seen.add(key)
     bucket.push(r)
+    seen.add(key)
   }
 
   const textPasses = focusTextId && focusTextId !== DEFAULT_TEXT_ID
     ? [focusTextId, DEFAULT_TEXT_ID]
     : [DEFAULT_TEXT_ID]
 
+  // 1. AI direct guesses — a small, fixed budget that can never be starved out by the much
+  // larger keyword pool. Allowed for canonical texts AND the current question's focus text
+  // (Jubilees/Enoch/etc each have a single-book `books` table with ordinary chapter:verse
+  // numbering, so a guess resolves the same way a canonical guess does) — resolveBookId
+  // naturally only resolves a guess against the text whose own book map actually contains
+  // that name, so a "Genesis" guess never matches jubilees.db and vice versa.
   for (const textId of textPasses) {
     const db = getTextDb(textId)
-    if (!db) continue
-
-    // 1. AI direct guesses go FIRST — a small, fixed budget that can never be starved out by
-    // the much larger keyword pool gathered afterward. Allowed for canonical texts AND the
-    // current question's focus text (Jubilees/Enoch/etc each have a single-book `books` table
-    // with ordinary chapter:verse numbering, so a guess resolves the same way a canonical
-    // guess does) — resolveBookId naturally only resolves a guess against the text whose own
-    // book map actually contains that name, so a "Genesis" guess never matches jubilees.db and
-    // a "Jubilees" guess never matches kjva.db even though both texts are checked here.
-    if (CANONICAL_TEXT_IDS.has(textId) || textId === focusTextId) {
-      for (const g of guesses) {
-        if (guessCandidates.length >= 8) break
-        const bookId = resolveBookId(g.book, textId)
-        if (!bookId) continue
-        // `verse` comes back missing surprisingly often (a whole-chapter reference like "John
-        // 17", or a range given as just chapter+endVerse) — default it to 1 rather than letting
-        // `undefined` reach the DB query (better-sqlite3 throws on an undefined bind parameter,
-        // which would otherwise crash every guess in the same response, not just this one).
-        const startVerse = g.verse ?? 1
-        let endVerse = g.endVerse && g.endVerse > startVerse ? g.endVerse : undefined
-        // Whole-chapter guess with no endVerse either — look up the chapter's real last verse
-        // instead of guessing an arbitrary span. Capped tighter (10, not 20) than a real
-        // explicit range below: this fallback case is a total unknown-length guess, and a wide
-        // concatenated block of unrelated verses scores artificially well in keyword-overlap
-        // ranking purely from its size (observed: a 21-verse fallback span beat a correct,
-        // precise single-verse hit on a WRONG guess) — 10 keeps that risk much smaller while
-        // still showing a genuinely useful chunk of the chapter's opening.
-        if (!endVerse && g.verse == null) {
-          const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
-          if (maxRow?.m && maxRow.m > startVerse) endVerse = Math.min(maxRow.m, startVerse + 10)
-        }
-        if (endVerse) endVerse = Math.min(endVerse, startVerse + 20)
-        if (endVerse) {
-          const parts: string[] = []
-          for (let v = startVerse; v <= endVerse; v++) {
-            const verse = queryVerse(bookId, g.chapter, v, textId)
-            if (verse) parts.push(verse.text)
-          }
-          if (parts.length === 0) continue
-          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
-        } else {
-          const verse = queryVerse(bookId, g.chapter, startVerse, textId)
-          if (!verse) continue
-          add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, text: verse.text }, 'ai-guess')
-        }
+    if (!db || !(CANONICAL_TEXT_IDS.has(textId) || textId === focusTextId)) continue
+    for (const g of guesses) {
+      if (guessCandidates.length >= 8) break
+      const bookId = resolveBookId(g.book, textId)
+      if (!bookId) continue
+      // `verse` comes back missing surprisingly often (a whole-chapter reference like "John
+      // 17", or a range given as just chapter+endVerse) — default it to 1 rather than letting
+      // `undefined` reach the DB query (better-sqlite3 throws on an undefined bind parameter,
+      // which would otherwise crash every guess in the same response, not just this one).
+      const startVerse = g.verse ?? 1
+      let endVerse = g.endVerse && g.endVerse > startVerse ? g.endVerse : undefined
+      // Whole-chapter guess with no endVerse either — look up the chapter's real last verse
+      // instead of guessing an arbitrary span. Capped tighter (10, not 20) than a real
+      // explicit range below: this fallback case is a total unknown-length guess, and a wide
+      // concatenated block of unrelated verses scores artificially well in keyword-overlap
+      // ranking purely from its size (observed: a 21-verse fallback span beat a correct,
+      // precise single-verse hit on a WRONG guess) — 10 keeps that risk much smaller while
+      // still showing a genuinely useful chunk of the chapter's opening.
+      if (!endVerse && g.verse == null) {
+        const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
+        if (maxRow?.m && maxRow.m > startVerse) endVerse = Math.min(maxRow.m, startVerse + 10)
       }
-    }
-
-    // 2. Keyword search via FTS5. Phrase mode first for every keyword (and every word-replacer
-    // variant of it, e.g. "Yeshua" also tries "Jesus" — see getWordReplacerVariants); the loose
-    // 'all'-mode (independent prefix-wildcard AND) fallback only kicks in if EVERY keyword's
-    // phrase search came back empty — a single keyword falling back while others still have
-    // real phrase hits is what used to flood the pool with generic-word noise.
-    const phraseResults = keywords.map((kw) => {
-      const variants = getWordReplacerVariants(kw, wordReplacerRules)
-      const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
-      return { kw, variants, rows }
-    })
-    const anyPhraseHits = phraseResults.some((r) => r.rows.length > 0)
-    for (const { variants, rows } of phraseResults) {
-      if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
-      const finalRows = rows.length > 0 || !anyPhraseHits
-        ? (rows.length > 0 ? rows : variants.flatMap((v) => searchVerses(v, textId, 'all')))
-        : []
-      for (const row of finalRows.slice(0, 6)) {
-        if (keywordCandidates.length >= CANDIDATE_POOL_CAP) break
-        add(keywordCandidates, textId, { book_id: row.book_id, chapter: row.chapter, verse_num: row.verse_num, text: row.text }, 'keyword')
+      if (endVerse) endVerse = Math.min(endVerse, startVerse + 20)
+      if (endVerse) {
+        const parts: string[] = []
+        for (let v = startVerse; v <= endVerse; v++) {
+          const verse = queryVerse(bookId, g.chapter, v, textId)
+          if (verse) parts.push(verse.text)
+        }
+        if (parts.length === 0) continue
+        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
+      } else {
+        const verse = queryVerse(bookId, g.chapter, startVerse, textId)
+        if (!verse) continue
+        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, text: verse.text }, 'ai-guess')
       }
     }
   }
+
+  // 2. Keyword search via FTS5 — pulled into a closure so the agentic retry (step 2b) can
+  // re-run it with a refined keyword list without duplicating this logic. Phrase mode first
+  // for every keyword (and every word-replacer variant of it, e.g. "Yeshua" also tries
+  // "Jesus" — see getWordReplacerVariants); the loose 'all'-mode (independent prefix-wildcard
+  // AND) fallback only kicks in if EVERY keyword's phrase search came back empty — a single
+  // keyword falling back while others still have real phrase hits is what used to flood the
+  // pool with generic-word noise.
+  function searchKeywords(kws: string[]): AiLookupResult[] {
+    const out: AiLookupResult[] = []
+    const localSeen = new Set<string>()
+    for (const textId of textPasses) {
+      if (!getTextDb(textId)) continue
+      const phraseResults = kws.map((kw) => {
+        const variants = getWordReplacerVariants(kw, wordReplacerRules)
+        const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
+        return { variants, rows }
+      })
+      const anyPhraseHits = phraseResults.some((r) => r.rows.length > 0)
+      for (const { variants, rows } of phraseResults) {
+        if (out.length >= CANDIDATE_POOL_CAP) break
+        const finalRows = rows.length > 0 || !anyPhraseHits
+          ? (rows.length > 0 ? rows : variants.flatMap((v) => searchVerses(v, textId, 'all')))
+          : []
+        for (const row of finalRows.slice(0, 6)) {
+          if (out.length >= CANDIDATE_POOL_CAP) break
+          const r: AiLookupResult = {
+            textId, bookId: row.book_id, bookName: bookNameFor(row.book_id, textId),
+            chapter: row.chapter, verse: row.verse_num, text: row.text, source: 'keyword',
+          }
+          const key = dedupeKey(r)
+          if (localSeen.has(key)) continue
+          localSeen.add(key)
+          out.push(r)
+        }
+      }
+    }
+    return out
+  }
+
+  emit(focusWorkName ? `Searching ${focusWorkName}…` : 'Searching Scripture…')
+  keywordCandidates = searchKeywords(keywords)
+  // searchKeywords dedupes against itself internally (its own localSeen) but not against the
+  // outer `seen` set guesses were added to — merge those keys in now so cross-reference
+  // expansion later doesn't re-add a verse that's already showing as a keyword result.
+  for (const c of keywordCandidates) seen.add(dedupeKey(c))
 
   // 3. Merge adjacent verses (same textId/book/chapter, contiguous verse numbers, same
   // source) into displayed ranges — model-independent, so this fires whether or not the
   // AI's own guesses happened to include a range.
-  const mergedGuesses = mergeAdjacent(guessCandidates)
-  const mergedKeywords = mergeAdjacent(keywordCandidates)
-  const allCandidates = [...mergedGuesses, ...mergedKeywords]
+  let mergedGuesses = mergeAdjacent(guessCandidates)
+  let mergedKeywords = mergeAdjacent(keywordCandidates)
 
-  if (allCandidates.length === 0) return { results: [], visibleCount: 0, keywords, error: undefined }
-
-  // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
-  const notesSignal = computeNotesSignal(allCandidates)
-  for (const c of allCandidates) {
-    const key = dedupeKey(c)
-    if (notesSignal.notedKeys.has(key)) c.noted = true
+  // 2b. "Deep search" (agentic) verification — shows the model its own real, verified
+  // candidates and asks if they actually answer the question; if not, ONE retry with
+  // different keywords (never a second retry, to keep latency bounded). The model still
+  // never gets to introduce a reference directly — only steer what gets searched next.
+  if (opts.agentic && (mergedGuesses.length > 0 || mergedKeywords.length > 0)) {
+    emit('Checking whether these results actually answer your question…')
+    try {
+      const preview = scoreCandidates([...mergedGuesses, ...mergedKeywords], keywords)
+      const verdict = await runOllamaJson<{ satisfied?: boolean; refinedKeywords?: string[] }>(
+        verificationPrompt(question, focusWorkName, preview, keywords), model
+      )
+      if (verdict.satisfied === false && verdict.refinedKeywords && verdict.refinedKeywords.length > 0) {
+        emit('Refining search terms and trying again…')
+        const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6))
+        if (refined.length > 0) {
+          const retryHits = searchKeywords(refined)
+          keywords = [...keywords, ...refined]
+          keywordCandidates = [...keywordCandidates, ...retryHits.filter((r) => !seen.has(dedupeKey(r)))]
+          for (const r of retryHits) seen.add(dedupeKey(r))
+          mergedKeywords = mergeAdjacent(keywordCandidates)
+        }
+      }
+    } catch { /* verification is best-effort — a failed call just skips the retry */ }
   }
 
-  // 5. CANONICAL guesses LEAD the primary result set unconditionally — validated ~90%+ accurate
-  // (Round 3's 37-question batch). A pseudepigrapha (focus-text) guess does NOT get the same
-  // free pass: repeated testing on the Jubilees case showed only ~30-50% accuracy there, so
-  // instead it's merged into the same keyword-overlap-scored pool as that same text's own
-  // keyword hits — it still gets a fair shot (especially now that the archaic-translation hint
-  // above gives keyword search a real chance of finding the right verse too), but a wrong guess
-  // can no longer automatically bury a correct keyword-found one beneath it. Tried adding a
-  // small "is a guess" score nudge here too; reverted after testing showed it let a WRONG,
-  // wide whole-chapter guess (a 21-verse concatenated block — much likelier to contain some
-  // keyword by sheer size than a single verse) beat a precise, correct single-verse keyword
-  // hit. Plain keyword-overlap scoring alone produced the better result in both test runs.
-  const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
-    items
-      .map((c, i) => ({
-        c, i,
-        score: keywordOverlapScore(c.text, keywords)
-          + (notesSignal.notedKeys.has(dedupeKey(c)) ? 2 : 0),
-      }))
-      .sort((a, b) => b.score - a.score || a.i - b.i)
-      .map((s) => s.c)
+  if (mergedGuesses.length === 0 && mergedKeywords.length === 0) return { ...empty(), keywords }
 
+  // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
+  const allCandidates = [...mergedGuesses, ...mergedKeywords]
+  const notesSignal = computeNotesSignal(allCandidates)
+  for (const c of allCandidates) {
+    if (notesSignal.notedKeys.has(dedupeKey(c))) c.noted = true
+  }
+
+  const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
+    scoreCandidates(items, keywords, notesSignal)
+
+  // 5. Result assembly. When a focus text is named, ITS OWN content leads — a canonical guess
+  // no longer jumps ahead of what was actually asked about (previously it did, which read as
+  // "I asked about Jubilees and got a Genesis answer" with no explanation). A canonical guess
+  // is instead kept as a separate `related` pointer, shown after the focus results with a
+  // one-line note — still visible, just not the headline answer. Without a focus text, this
+  // is unchanged from Round 3/4: canonical guesses lead, keyword search only backfills gaps.
+  emit('Ranking results…')
   const canonicalGuesses = mergedGuesses.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
   const focusGuesses = mergedGuesses.filter((c) => !CANONICAL_TEXT_IDS.has(c.textId))
 
-  let candidates = canonicalGuesses.slice(0, TOTAL_PRIMARY_CAP)
-  if (candidates.length < TOTAL_PRIMARY_CAP && focusTextId) {
+  let candidates: AiLookupResult[]
+  let related: AiLookupResult[] = []
+  let relatedNote: string | undefined
+
+  if (focusTextId) {
     const focusPool = scoreAndSort([...focusGuesses, ...mergedKeywords.filter((c) => c.textId === focusTextId)])
-    const focusRoom = TOTAL_PRIMARY_CAP - candidates.length
-    candidates = [...candidates, ...focusPool.slice(0, focusRoom)]
-  }
-  if (candidates.length < TOTAL_PRIMARY_CAP) {
-    const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
-    const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
-    candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
+    candidates = focusPool.slice(0, TOTAL_PRIMARY_CAP)
+    if (candidates.length < TOTAL_PRIMARY_CAP) {
+      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
+      const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
+      candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
+    }
+    if (canonicalGuesses.length > 0) {
+      related = canonicalGuesses.slice(0, 2)
+      const first = related[0]
+      relatedNote = `This may also be recorded in the Bible at ${first.bookName} ${first.chapter}:${first.verse}${first.endVerse ? '-' + first.endVerse : ''} — ${focusWorkName}'s retelling may use different wording for the same event.`
+    }
+  } else {
+    candidates = canonicalGuesses.slice(0, TOTAL_PRIMARY_CAP)
+    if (candidates.length < TOTAL_PRIMARY_CAP) {
+      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
+      const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
+      candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
+    }
   }
 
   // 6. Cross-reference expansion — only from the final primary set (not the whole raw
@@ -597,6 +697,7 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
   // 7. Optional commentary — a second pass over the ranked, already-verified candidates.
   // The model explains and may flag entries to drop; it never introduces a new reference.
   if (opts.commentary) {
+    emit('Writing commentary…')
     try {
       const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
         commentaryPrompt(question, candidates), model
@@ -615,15 +716,15 @@ async function runLookup(question: string, opts: { commentary: boolean; model?: 
       return {
         results: [...finalPrimary, ...finalCrossRefs],
         visibleCount: finalPrimary.length,
-        keywords, summary: raw.summary,
+        keywords, related, relatedNote, summary: raw.summary,
       }
     } catch {
       // Commentary is best-effort — a failed second call shouldn't drop the verified results.
-      return { results, visibleCount, keywords }
+      return { results, visibleCount, keywords, related, relatedNote }
     }
   }
 
-  return { results, visibleCount, keywords }
+  return { results, visibleCount, keywords, related, relatedNote }
 }
 
 interface StoredChat {
@@ -640,6 +741,8 @@ interface ChatMessage {
   results?: AiLookupResult[]
   visibleCount?: number
   keywords?: string[]
+  related?: AiLookupResult[]
+  relatedNote?: string
   summary?: string
   createdAt: string
 }
@@ -647,8 +750,8 @@ interface ChatMessage {
 export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('ailookup:checkAvailable', () => checkOllamaAvailable())
 
-  ipcMain.handle('ailookup:query', (_e, question: string, opts: { commentary: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }) =>
-    runLookup(question, opts))
+  ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }) =>
+    runLookup(question, opts, (status) => event.sender.send('ailookup:progress', status)))
 
   ipcMain.handle('ailookup:listChats', () => {
     const rows = getBereanDb()

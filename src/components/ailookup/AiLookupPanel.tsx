@@ -11,21 +11,6 @@ const PANEL_WIDTH = 380
 const PANEL_HEIGHT = 520
 const MARGIN = 16
 
-const SOURCE_LABEL: Record<AiLookupResult['source'], string> = {
-  keyword: 'search match',
-  'ai-guess': 'AI recall',
-  'cross-ref': 'cross-reference',
-}
-// Reuses the same alpha-varied, theme-stable accent-token pill styling as
-// VerseIndicator.tsx (rounded-full, bg accent/20, text accent) — a distinct muted
-// tone per source lets a user tell "the DB found this by keyword" apart from
-// "the model recalled this directly" or "this came in via cross-reference" at a glance.
-const SOURCE_CLASS: Record<AiLookupResult['source'], string> = {
-  keyword: 'bg-[rgb(var(--color-accent))/16] text-[rgb(var(--color-accent))]',
-  'ai-guess': 'bg-[rgb(var(--color-text-muted))/16] text-[rgb(var(--color-text-muted))]',
-  'cross-ref': 'bg-[rgb(var(--highlight-purple)/0.20)] text-[rgb(var(--highlight-purple))]',
-}
-
 // Near-opaque (~92%, a genuinely subtle ~8% see-through), via an explicit color-mix()
 // instead of a Tailwind arbitrary-value opacity modifier (`bg-[...]/NN`) — that approach
 // rendered far more transparent than intended, so this sidesteps any ambiguity about
@@ -73,6 +58,8 @@ export default function AiLookupPanel() {
   const setOpen = useAppStore((s) => s.setAiLookupPanelOpen)
   const commentaryOn = useAppStore((s) => s.aiLookupCommentaryOn)
   const setCommentaryOn = useAppStore((s) => s.setAiLookupCommentaryOn)
+  const agenticOn = useAppStore((s) => s.aiLookupAgenticOn)
+  const setAgenticOn = useAppStore((s) => s.setAiLookupAgenticOn)
   const storedPos = useAppStore((s) => s.aiLookupPanelPos)
   const setStoredPos = useAppStore((s) => s.setAiLookupPanelPos)
   const activeChatId = useAppStore((s) => s.aiLookupActiveChatId)
@@ -97,6 +84,7 @@ export default function AiLookupPanel() {
   const [messages, setMessages] = useState<AiLookupChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [progressStatus, setProgressStatus] = useState('Searching…')
   const [historyOpen, setHistoryOpen] = useState(false)
   // How many primary results are shown per message index, keyed by message index —
   // starts at that message's own visibleCount, bumped by "Show more".
@@ -108,6 +96,12 @@ export default function AiLookupPanel() {
 
   useEffect(() => {
     window.aiLookup.checkAvailable().then((r) => setAvailability({ checked: true, available: r.available })).catch(() => setAvailability({ checked: true, available: false }))
+  }, [])
+
+  // Live status text for the loading state (e.g. "Searching Jubilees…") — registered once,
+  // not per-query, same pattern as the other progress bridges (youtube.ts's onProgress etc).
+  useEffect(() => {
+    window.aiLookup.onProgress((status) => setProgressStatus(status))
   }, [])
 
   useEffect(() => {
@@ -168,9 +162,11 @@ export default function AiLookupPanel() {
     const withUser = [...messages, userMsg]
     setMessages(withUser)
     setLoading(true)
+    setProgressStatus('Reading your question…')
     try {
       const res = await window.aiLookup.query(question, {
         commentary: commentaryOn,
+        agentic: agenticOn,
         wordReplacerRules: activeWordReplacerRules.length > 0
           ? activeWordReplacerRules.map((r) => ({ queries: r.queries, replacement: r.replacement }))
           : undefined,
@@ -185,6 +181,8 @@ export default function AiLookupPanel() {
         results: res.results,
         visibleCount: res.visibleCount,
         keywords: res.keywords,
+        related: res.related,
+        relatedNote: res.relatedNote,
         summary: res.summary,
         createdAt: new Date().toISOString(),
       }
@@ -240,11 +238,17 @@ export default function AiLookupPanel() {
         </button>
       </div>
 
-      {/* Commentary toggle — no bg of its own, so the outer panel's own near-opaque
-          background (see above) shows through uniformly instead of a solid patch. */}
+      {/* Commentary / Deep search toggles — no bg of their own, so the outer panel's own
+          near-opaque background (see above) shows through uniformly instead of a solid patch. */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
         <span className="text-[11px] text-[rgb(var(--color-text-muted))]">Commentary</span>
         <Switch checked={commentaryOn} onCheckedChange={() => setCommentaryOn(!commentaryOn)} />
+      </div>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
+        <span className="text-[11px] text-[rgb(var(--color-text-muted))]" title="Verifies the first results actually answer your question and retries once with different search terms if not — slower, off by default.">
+          Deep search
+        </span>
+        <Switch checked={agenticOn} onCheckedChange={() => setAgenticOn(!agenticOn)} />
       </div>
 
       {historyOpen ? (
@@ -315,7 +319,6 @@ export default function AiLookupPanel() {
                               <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">
                                 {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
                               </span>
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${SOURCE_CLASS[r.source]}`}>{SOURCE_LABEL[r.source]}</span>
                               {r.noted && <BookMarked size={11} className="text-[rgb(var(--color-accent))]" />}
                             </div>
                             <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
@@ -330,22 +333,30 @@ export default function AiLookupPanel() {
                             <>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setCrossRefsOpen((prev) => ({ ...prev, [crKey]: !crOpen })) }}
-                                className="mt-0.5 flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                                className="mt-1 flex items-center gap-1 text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
                               >
                                 {crOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                 <Link2 size={10} /> {nested.length} related
                               </button>
                               {crOpen && (
-                                <div className="ml-3 mt-1 space-y-1 border-l-2 border-[rgb(var(--color-surface-4))] pl-2">
+                                // Same rounded-bubble language as the primary result above, just
+                                // smaller/more muted (tighter padding, smaller text, no border
+                                // accent color on hover) so they read as "part of the same
+                                // family" instead of a plain indented list — the earlier
+                                // reported "too much line spacing" was this being laid out as a
+                                // loose text row rather than a compact card like this.
+                                <div className="ml-3 mt-1 flex flex-wrap gap-1">
                                   {nested.map((cr, ci) => (
                                     <button
                                       key={ci}
                                       onClick={() => navigateToResult(cr)}
                                       onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
-                                      className="w-full text-left rounded-shell hover:bg-[rgb(var(--color-surface-2))] px-1.5 py-1 transition-colors cursor-pointer"
+                                      className="text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))]/70 px-2 py-1 transition-colors cursor-pointer max-w-full"
                                     >
-                                      <span className="text-[10px] font-medium text-[rgb(var(--color-text-muted))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
-                                      <span className="text-[10px] text-[rgb(var(--color-text-muted))]"> — {activeWordReplacerRules.length > 0 ? applyWordReplacer(cr.text, activeWordReplacerRules) : cr.text}</span>
+                                      <span className="text-[10px] font-semibold text-[rgb(var(--color-text-secondary))]">{cr.bookName} {cr.chapter}:{cr.verse}</span>
+                                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-tight mt-0.5 line-clamp-2">
+                                        {activeWordReplacerRules.length > 0 ? applyWordReplacer(cr.text, activeWordReplacerRules) : cr.text}
+                                      </p>
                                     </button>
                                   ))}
                                 </div>
@@ -364,13 +375,40 @@ export default function AiLookupPanel() {
                         <ChevronDown size={12} /> Show {primary.length - shown} more
                       </button>
                     )}
+
+                    {/* A canonical guess that surfaced alongside a focus-text (Jubilees/Enoch/
+                        etc) question — kept visible but clearly secondary, not the headline
+                        answer, with a note explaining why it's here instead of leading. */}
+                    {(m.related ?? []).length > 0 && (
+                      <div className="pt-1 border-t border-[rgb(var(--color-surface-4))] space-y-1.5">
+                        {m.relatedNote && <p className="text-[10px] text-[rgb(var(--color-text-muted))] italic">{m.relatedNote}</p>}
+                        {m.related!.map((r, ri) => (
+                          <button
+                            key={ri}
+                            onClick={() => navigateToResult(r)}
+                            onContextMenu={(e) => verseCopy.open(e, {
+                              bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
+                              text: r.text, lxx: r.textId === 'lxx',
+                            })}
+                            className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))]/70 px-2.5 py-1.5 transition-colors cursor-pointer"
+                          >
+                            <span className="text-[10px] font-semibold text-[rgb(var(--color-text-secondary))]">
+                              {r.bookName} {r.chapter}:{r.verse}{r.endVerse ? `-${r.endVerse}` : ''}
+                            </span>
+                            <p className="text-[10px] text-[rgb(var(--color-text-muted))] leading-snug mt-0.5">
+                              {activeWordReplacerRules.length > 0 ? applyWordReplacer(r.text, activeWordReplacerRules) : r.text}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
             {loading && (
               <div className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-muted))]">
-                <Loader2 size={13} className="animate-spin" /> Searching…
+                <Loader2 size={13} className="animate-spin" /> {progressStatus}
               </div>
             )}
           </div>

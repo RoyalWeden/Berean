@@ -422,6 +422,10 @@ export interface AiLookupResponse {
   visibleCount: number
   /** Extracted search keywords, for highlighting matched terms in verse text. */
   keywords: string[]
+  /** A canonical guess that surfaced alongside a focus-text question — shown separately,
+   *  after the focus text's own results, with `relatedNote` explaining why. */
+  related: AiLookupResult[]
+  relatedNote?: string
   summary?: string
   error?: string
 }
@@ -439,6 +443,8 @@ export interface AiLookupChatMessage {
   results?: AiLookupResult[]
   visibleCount?: number
   keywords?: string[]
+  related?: AiLookupResult[]
+  relatedNote?: string
   summary?: string
   createdAt: string
 }
@@ -454,7 +460,12 @@ export interface AiLookupChat {
 interface AiLookupAPI {
   checkAvailable: () => Promise<{ available: boolean; models: string[] }>
   query: (question: string, opts: {
-    commentary: boolean; model?: string; textId?: string
+    commentary: boolean
+    /** "Deep search" — an extra verification pass that checks whether the initial results
+     *  actually answer the question and, if not, retries once with different search terms.
+     *  Slower (one to two extra Ollama calls); off by default. */
+    agentic?: boolean
+    model?: string; textId?: string
     /** Enabled, non-Strong's word-replacer rules — so keyword search also tries the DB's
      *  original wording (e.g. "Jesus") when the model used the app's preferred wording
      *  (e.g. "Yeshua"), or vice versa. Pass only `{ queries, replacement }` pairs. */
@@ -464,6 +475,9 @@ interface AiLookupAPI {
   getChat: (id: string) => Promise<AiLookupChat | null>
   saveChat: (chat: { id?: string; title: string; messages: AiLookupChatMessage[] }) => Promise<{ id: string }>
   deleteChat: (id: string) => Promise<{ success: boolean }>
+  /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,
+   *  not per-query; same removeAllListeners-then-on pattern as the other progress bridges. */
+  onProgress: (cb: (status: string) => void) => void
 }
 
 declare global {
