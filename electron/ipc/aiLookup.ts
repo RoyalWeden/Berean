@@ -434,12 +434,25 @@ function mergeAdjacent(items: AiLookupResult[]): AiLookupResult[] {
 }
 
 /** Base relevance score: how many extracted keywords literally appear in the verse text. */
-function keywordOverlapScore(text: string, keywords: string[]): number {
+/** Scores a candidate's literal overlap with the extracted keywords — but checks EVERY
+ *  word-replacer variant of each keyword, not just its literal text. Without this, a candidate
+ *  that was only found via a variant (e.g. keyword "Yeshua" found the verse through its "Jesus"
+ *  variant, since the underlying KJV text says "Jesus") would score zero here even though it's
+ *  a real match — the exact wording that got it INTO the candidate pool (searchKeywords already
+ *  runs every variant through FTS) isn't the same string this was re-checking against. That
+ *  mismatch became a real bug once the always-on relevance threshold started dropping any
+ *  zero-score keyword-sourced candidate: with word replacer on by default, most/all matches
+ *  found through a variant were silently discarded here despite being genuinely relevant. */
+function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = []): number {
   const lower = text.toLowerCase()
   let score = 0
   for (const kw of keywords) {
-    const words = cleanWords(kw)
-    if (words.length > 0 && words.every((w) => lower.includes(w.toLowerCase()))) score++
+    const variants = getWordReplacerVariants(kw, wordReplacerRules)
+    const hit = variants.some((v) => {
+      const words = cleanWords(v)
+      return words.length > 0 && words.every((w) => lower.includes(w.toLowerCase()))
+    })
+    if (hit) score++
   }
   return score
 }
@@ -481,11 +494,11 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
  *  wording doesn't literally echo the extracted keywords (the whole reason guesses exist
  *  alongside keyword search), and a Strong's occurrence is relevant by construction (an exact
  *  tag match, not a guess at all). */
-function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal): AiLookupResult[] {
+function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = []): AiLookupResult[] {
   return items
     .map((c, i) => ({
       c, i,
-      score: keywordOverlapScore(c.text, keywords)
+      score: keywordOverlapScore(c.text, keywords, wordReplacerRules)
         + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0),
     }))
     .filter((s) => s.score > 0 || s.c.source !== 'keyword')
@@ -730,7 +743,7 @@ async function runLookup(
       emit(pick(VERIFY_MESSAGES))
       let verdict: { satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }
       try {
-        const preview = scoreCandidates([...strongsSeed.candidates, ...mergedGuesses, ...mergedKeywords], keywords)
+        const preview = scoreCandidates([...strongsSeed.candidates, ...mergedGuesses, ...mergedKeywords], keywords, undefined, wordReplacerRules)
         verdict = await runOllamaJson<{ satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }>(
           verificationPrompt(question, focusWorkName, preview, triedKeywordSets), model
         )
@@ -799,7 +812,7 @@ async function runLookup(
   }
 
   const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
-    scoreCandidates(items, keywords, notesSignal)
+    scoreCandidates(items, keywords, notesSignal, wordReplacerRules)
 
   // 5. Result assembly. When a focus text is named, ITS OWN content leads — a canonical guess
   // no longer jumps ahead of what was actually asked about (previously it did, which read as
