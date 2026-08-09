@@ -396,7 +396,7 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
-export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs'
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source'
 
 export interface AiLookupResult {
   textId: string

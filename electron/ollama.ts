@@ -48,13 +48,35 @@ export async function checkOllamaAvailable(): Promise<{ available: boolean; mode
   }
 }
 
+// Keeps the model resident between calls instead of Ollama's default 5-minute idle-unload —
+// directly benchmarked this round (see /private/tmp/.../scratchpad/ollama-speed-benchmark.md):
+// forcing an unload before every call (simulating a real gap between study-session questions)
+// cost ~1.2s of load_duration per call; adding keep_alive and only unloading before the FIRST
+// call in a batch cut median total latency from 3.82s to 2.63s (-31%), with prompt_eval/eval
+// time statistically unchanged between arms — the entire improvement is exactly the load-time
+// mechanism keep_alive is supposed to affect, not a placebo. 30 minutes comfortably covers a
+// real reading/thinking pause between questions; the cost is ~7GB staying resident longer
+// (same figure as the NUM_CTX comment above) rather than freed after 5 minutes idle.
+const KEEP_ALIVE = '30m'
+
+// Worst-case backstop, not a typical-path speed lever — benchmarked this round: capping this at
+// 512 changed nothing in 30 real extraction-style calls (tok/s identical, no response exceeded
+// 82 tokens), so it costs nothing typical-case and only exists to bound a pathological runaway
+// generation. Deliberately NOT applied to runOllamaText below — commentary responses are
+// free-form and legitimately want more than 512 tokens; capping that one would truncate real
+// output, per the same benchmark's explicit caveat.
+const NUM_PREDICT_JSON = 512
+
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
 export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000): Promise<T> {
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false, format: 'json', options: { num_ctx: NUM_CTX } }),
+    body: JSON.stringify({
+      model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE,
+      options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT_JSON },
+    }),
   }, timeoutMs)
   if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
   const data = await res.json() as { response: string }
@@ -67,7 +89,7 @@ export async function runOllamaText(prompt: string, model = DEFAULT_OLLAMA_MODEL
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, stream: false, options: { num_ctx: NUM_CTX } }),
+    body: JSON.stringify({ model, prompt, stream: false, keep_alive: KEEP_ALIVE, options: { num_ctx: NUM_CTX } }),
   }, timeoutMs)
   if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)
   const data = await res.json() as { response: string }

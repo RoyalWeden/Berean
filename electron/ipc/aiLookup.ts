@@ -6,6 +6,15 @@ import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse } from './crossrefs'
 import { getLexiconEntry, getLexiconOccurrences } from './lexicon'
 import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL } from '../ollama'
+// A real, already-existing, actively-maintained reference parser + book-name table — unlike
+// normalizeBookName/getWordReplacerVariants elsewhere in this file (deliberately ported, not
+// imported, since they're small and this main-process build doesn't otherwise pull from src/),
+// this one is large and load-bearing for the whole app's reference handling, so importing it
+// directly (rather than porting a copy that could silently drift) is the right call here —
+// electron.vite.config.ts's `main` build target already aliases `@` -> `src`, same as the
+// renderer, and tsconfig.node.json already has the matching `paths` entry.
+import { parseRef, isExactBookToken, type ParsedRef } from '@/lib/parseRef'
+import { PSEUDEPIGRAPHA_ARCHAIC_VOCAB } from './archaicVocab'
 
 // Minimal shape of src/store's WordReplacerRule this file actually needs — deliberately not
 // importing the renderer's src/lib/wordReplacer.ts here even though its logic is identical
@@ -19,7 +28,7 @@ export interface WordReplacerRuleLite {
   replacement: string
 }
 
-export type ResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs'
+export type ResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source'
 
 export interface AiLookupResult {
   textId: string
@@ -248,6 +257,39 @@ function getWordReplacerVariants(keyword: string, rules: WordReplacerRuleLite[])
   return [...variants]
 }
 
+/** Expands a keyword with archaic-translation-era phrase variants (see archaicVocab.ts) when
+ *  searching a pseudepigrapha text — a deterministic, code-side lever for the same problem
+ *  getWordReplacerVariants solves for user-configured Yeshua/Jesus-style rules: a modern-phrased
+ *  keyword (e.g. "idolatry") often has zero literal overlap with these texts' real 1913-era
+ *  wording ("the house of the idols"), no matter how the extraction prompt's own soft "phrase it
+ *  archaically" instruction is followed on any given call. Gated to pseudepigrapha textIds only
+ *  — canonical KJV/LXX text doesn't need this. Substring-match against `modern`, same simple
+ *  approach as getWordReplacerVariants, not a full NLP match — good enough for short search
+ *  phrases. */
+// Stem, not exact-substring, match — the model doesn't reliably produce the SAME inflection of
+// a word every call (confirmed empirically: 1 in 6 real extraction calls for the exact same
+// question produced "idolatrous" instead of "idolatry" — plain `.includes('idolatry')` misses
+// that entirely, silently skipping the archaic-vocab expansion on a random fraction of calls
+// for no good reason). A shared 6-character prefix ("idolat" for both "idolatry" and
+// "idolatrous") is a simple, effective-enough stem for this use case without pulling in a real
+// stemming library for what's still just short search phrases.
+function stemMatches(modernWord: string, keywordLower: string): boolean {
+  const stem = modernWord.length > 6 ? modernWord.slice(0, 6) : modernWord
+  return keywordLower.includes(stem)
+}
+
+function getArchaicVariants(keyword: string, textId: string): string[] {
+  const lq = keyword.trim().toLowerCase()
+  if (!lq) return []
+  const variants: string[] = []
+  for (const rule of PSEUDEPIGRAPHA_ARCHAIC_VOCAB) {
+    if (!(rule.textIds as string[]).includes(textId)) continue
+    const hit = rule.modern.some((phrase) => phrase.toLowerCase().split(/\s+/).every((w) => stemMatches(w, lq)))
+    if (hit) variants.push(rule.archaic)
+  }
+  return variants
+}
+
 function extractionPrompt(question: string, focusWorkName: string | null, history: ChatHistoryTurn[] = []): string {
   // Recent turns only (caller already caps this — see runLookup) — gives a follow-up question
   // ("what about the chapter after that") something to resolve against, without needing the
@@ -433,21 +475,27 @@ function mergeAdjacent(items: AiLookupResult[]): AiLookupResult[] {
   return merged
 }
 
-/** Base relevance score: how many extracted keywords literally appear in the verse text. */
 /** Scores a candidate's literal overlap with the extracted keywords — but checks EVERY
- *  word-replacer variant of each keyword, not just its literal text. Without this, a candidate
- *  that was only found via a variant (e.g. keyword "Yeshua" found the verse through its "Jesus"
- *  variant, since the underlying KJV text says "Jesus") would score zero here even though it's
- *  a real match — the exact wording that got it INTO the candidate pool (searchKeywords already
- *  runs every variant through FTS) isn't the same string this was re-checking against. That
- *  mismatch became a real bug once the always-on relevance threshold started dropping any
- *  zero-score keyword-sourced candidate: with word replacer on by default, most/all matches
- *  found through a variant were silently discarded here despite being genuinely relevant. */
-function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = []): number {
+ *  word-replacer AND archaic-vocabulary (see archaicVocab.ts, only applied when `textId` is
+ *  passed) variant of each keyword, not just its literal text. Without this, a candidate that
+ *  was only found via a variant (e.g. keyword "Yeshua" found the verse through its "Jesus"
+ *  variant, since the underlying KJV text says "Jesus"; or keyword "idolatry" found a Jubilees
+ *  verse through its "the house of the idols" archaic variant) would score zero here even
+ *  though it's a real match — the exact wording that got it INTO the candidate pool
+ *  (searchKeywords already runs every variant through FTS) isn't the same string this was
+ *  re-checking against. That mismatch became a real bug once the always-on relevance threshold
+ *  started dropping any zero-score keyword-sourced candidate: with word replacer on by default,
+ *  most/all matches found through a variant were silently discarded here despite being
+ *  genuinely relevant — the archaic-vocab table would hit the identical bug if not threaded
+ *  through the same way. */
+function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = [], textId?: string): number {
   const lower = text.toLowerCase()
   let score = 0
   for (const kw of keywords) {
-    const variants = getWordReplacerVariants(kw, wordReplacerRules)
+    const variants = [
+      ...getWordReplacerVariants(kw, wordReplacerRules),
+      ...(textId ? getArchaicVariants(kw, textId) : []),
+    ]
     const hit = variants.some((v) => {
       const words = cleanWords(v)
       return words.length > 0 && words.every((w) => lower.includes(w.toLowerCase()))
@@ -494,12 +542,29 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
  *  wording doesn't literally echo the extracted keywords (the whole reason guesses exist
  *  alongside keyword search), and a Strong's occurrence is relevant by construction (an exact
  *  tag match, not a guess at all). */
-function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = []): AiLookupResult[] {
+/** Deterministic accuracy lever ("Lever A"): a KEYWORD-search hit landing in the SAME chapter
+ *  the extraction call already guessed for the focus text is corroborating evidence — the two
+ *  independent signals (the model's own recall, and literal text matching) agreeing on a
+ *  chapter is a much stronger signal than either alone, especially valuable for pseudepigrapha
+ *  where guess accuracy alone is known to be unreliable (~30-50%, prior testing) but a guess
+ *  that DOES land the right neighborhood still narrows things down usefully. Not narrowing the
+ *  search itself (a wrong guess would then wrongly exclude the right chapter) — just a ranking
+ *  boost, so a correct keyword hit outside the guessed chapter can still win on its own merits.
+ *  Deliberately restricted to `source === 'keyword'` — a guess candidate's own chapter always
+ *  trivially satisfies "matches a guessed chapter" (it IS the guess), so applying this to
+ *  guesses too would let a WRONG guess self-reinforce on nothing but matching itself, which is
+ *  the opposite of "independent corroboration" and was confirmed, empirically, to make things
+ *  worse: a bad guess (e.g. chapter 19) getting a free +1 for agreeing with its own chapter
+ *  number let it edge out a correct chapter-12 keyword hit that had NO such freebie. */
+interface ChapterHint { textId: string; chapters: Set<number> }
+
+function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = [], chapterHint?: ChapterHint): AiLookupResult[] {
   return items
     .map((c, i) => ({
       c, i,
-      score: keywordOverlapScore(c.text, keywords, wordReplacerRules)
-        + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0),
+      score: keywordOverlapScore(c.text, keywords, wordReplacerRules, c.textId)
+        + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0)
+        + (c.source === 'keyword' && chapterHint?.textId === c.textId && chapterHint.chapters.has(c.chapter) ? 1 : 0),
     }))
     .filter((s) => s.score > 0 || s.c.source !== 'keyword')
     .sort((a, b) => b.score - a.score || a.i - b.i)
@@ -569,6 +634,148 @@ function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn:
   return { candidates, info }
 }
 
+// ── "What does verse X quote" — a deterministic, LLM-free question type ────────────────────
+//
+// Detection is local and pre-LLM: a trigger-phrase regex plus a literal, resolvable reference
+// found in the question text. `parseRef` (src/lib/parseRef.ts) is anchored — it expects its
+// ENTIRE input to be just a reference, not one embedded partway through a sentence like "what
+// does john 1:1 quote?" — so this scans the question for a reference-shaped substring first,
+// then hands JUST that substring to parseRef. Only `isExactBookToken` matches are accepted
+// (never parseRef's own fuzzy/prefix tiers) — this is a high-stakes short-circuit that skips
+// the entire normal guess/keyword pipeline, so a loose book-name match on an unrelated word in
+// the sentence (e.g. "to" prefix-matching "Tobit") would be a real, silent wrong-turn risk that
+// isn't worth the small recall gain fuzzy matching would otherwise buy here.
+const QUOTE_TRIGGER = /\b(quote|quoting|quotes|quoted|reference|referenc\w*|allud\w*|cit\w*|sourced?\s+from|echo(?:e[sd])?|where\s+(?:is|does).{0,20}(?:from|quoted))\b/i
+
+// Matches a bare "1:1" / "1.1" / "1:1-5" / "1" chapter[:verse[-endVerse]] token, with an
+// optional trailing punctuation mark (question mark, comma, etc) stripped.
+const CHAPTER_VERSE_TOKEN_RE = /^(\d{1,3})(?:[:.](\d{1,3})(?:[-–](\d{1,3}))?)?[.,!?;:]?$/
+
+/** Scans a free-text question word-by-word for a "Book Chapter[:Verse]"-shaped reference —
+ *  `parseRef` (src/lib/parseRef.ts) itself is anchored (expects its ENTIRE input to be just a
+ *  reference, not one embedded partway through a sentence), so this finds the candidate
+ *  substring first. A single greedy regex over the whole sentence was tried and rejected here:
+ *  its lazy book-token group still swallows every preceding word up to the first digit (e.g.
+ *  "what does john 1:1" resolves the "book" as "what does john", which fails
+ *  `isExactBookToken` and — since regex.exec only advances to the next unmatched position, not
+ *  back to try a shorter book-token window at the SAME position — never gets a chance to try
+ *  "john" alone). Concretely confirmed: that approach let "what does john 1:1 quote" fall
+ *  through to the normal LLM pipeline undetected, which then let John 1:1 itself leak into the
+ *  output — exactly the case this feature exists to prevent. Word-tokenizing and trying the
+ *  1-3 words immediately before each chapter:verse-shaped token (shortest window first, since
+ *  most book names are 1-2 words) avoids that failure mode entirely. */
+function findReferenceInText(question: string): ParsedRef | null {
+  const tokens = question.split(/\s+/)
+  for (let i = 0; i < tokens.length; i++) {
+    const numMatch = tokens[i].match(CHAPTER_VERSE_TOKEN_RE)
+    if (!numMatch) continue
+    for (const windowLen of [1, 2, 3]) {
+      const start = i - windowLen
+      if (start < 0) break
+      const bookToken = tokens.slice(start, i).join(' ').replace(/[^\w\s]/g, '').trim()
+      const candidates = [bookToken]
+      // Also try prepending one more leading numeral/roman-numeral token (e.g. "1 John",
+      // "II Kings") — the digit sits one token further back than the immediate window, since
+      // "1"/"john" are two separate tokens. Tried FIRST (unshift, not push): "1 john" must win
+      // over the bare "john" it contains, or "what does 1 john 1:1 mean" would silently resolve
+      // to John instead of 1 John — a real book is a real book, this can't be left ambiguous.
+      if (start > 0) {
+        const lead = tokens[start - 1].replace(/[^\w]/g, '')
+        if (/^(?:[1-3]|I{1,3})$/i.test(lead)) candidates.unshift(`${lead} ${bookToken}`)
+      }
+      for (const cand of candidates) {
+        if (!cand || !isExactBookToken(cand)) continue
+        const candidateRef = `${cand} ${numMatch[1]}${numMatch[2] ? `:${numMatch[2]}${numMatch[3] ? `-${numMatch[3]}` : ''}` : ''}`
+        const parsed = parseRef(candidateRef)
+        if (parsed) return parsed
+      }
+    }
+  }
+  return null
+}
+
+/** Handles "what does John 1:1 quote/reference/allude to" style questions entirely
+ *  deterministically — no Ollama call at all. The seed verse is resolved+verified locally
+ *  (queryVerse), then its real cross_references.db/tske_refs.db links (already exported,
+ *  electron/ipc/crossrefs.ts) are pulled DIRECTLY — the one genuinely new call pattern here,
+ *  since elsewhere in this file those two functions only ever run over the FINAL ranked primary
+ *  result set (step 6 below), never against a literal user-named verse up front. Because
+ *  `results` here is built ONLY from the cross-ref/TSKE query output, the seed verse can never
+ *  appear in it by construction — not a filter bolted on after, structurally impossible — plus
+ *  one defensive filter in case TSKE ever returns a self-referential/reciprocal row. */
+function runQuoteLookup(seed: ParsedRef, emit: Emit): AiLookupResponse | null {
+  const bookId = seed.bookId
+  const chapter = seed.chapter
+  const verse = seed.verse ?? 1
+  const seedVerse = queryVerse(bookId, chapter, verse, DEFAULT_TEXT_ID)
+  if (!seedVerse) return null // not a real verse — fall through to the normal pipeline
+
+  emit(`Looking up what ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse} quotes…`)
+
+  const isSeed = (r: { bookId: string; chapter: number; verse: number }) =>
+    r.bookId === bookId && r.chapter === chapter && r.verse === verse
+
+  const seen = new Set<string>()
+  const results: AiLookupResult[] = []
+
+  // TSKE first — its `heading` groups by quoted phrase, the closest thing either DB has to an
+  // explicit "this is a quotation" signal; non-reciprocal groups are the ones worth leading
+  // with (reciprocal ones are looser "also see" associations, not quotation-specific).
+  const tske = getTskeForVerse(bookId, chapter, verse)
+  for (const group of tske.groups) {
+    if (group.isReciprocal) continue
+    for (const ref of group.refs) {
+      if (results.length >= MAX_CROSS_REFS) break
+      if (!ref.text || isSeed(ref)) continue
+      const key = `${DEFAULT_TEXT_ID}|${ref.bookId}|${ref.chapter}|${ref.verse}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      results.push({
+        textId: DEFAULT_TEXT_ID, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, DEFAULT_TEXT_ID),
+        chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? undefined, text: ref.text,
+        source: 'quote-source',
+      })
+    }
+  }
+
+  // Backfill with the classic cross_references.db table (vote-ranked) if TSKE didn't have
+  // enough / anything — still a real, deterministic DB signal, just a looser "related verse"
+  // one rather than TSKE's phrase-grouped quotation signal specifically.
+  if (results.length < MAX_CROSS_REFS) {
+    const classic = getCrossRefsForVerse(bookId, chapter, verse)
+    for (const ref of classic.refs) {
+      if (results.length >= MAX_CROSS_REFS) break
+      if (!ref.text || isSeed(ref)) continue
+      const key = `${DEFAULT_TEXT_ID}|${ref.bookId}|${ref.chapter}|${ref.verse}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      results.push({
+        textId: DEFAULT_TEXT_ID, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, DEFAULT_TEXT_ID),
+        chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? undefined, text: ref.text,
+        source: 'quote-source',
+      })
+    }
+  }
+
+  // Defensive filter — structurally the seed should never end up in `results` (see comment
+  // above), but this costs nothing and guards against a self-referential/reciprocal TSKE row.
+  const filtered = results.filter((r) => !isSeed(r))
+
+  // `summary` (not `relatedNote` — that field only renders alongside a non-empty `related`
+  // array in the UI, and this branch never populates `related`) renders unconditionally as a
+  // small italic line above the results, so it's the right field to explain that this answer
+  // came from real cross-reference data, not an AI guess.
+  return {
+    results: filtered,
+    visibleCount: filtered.length,
+    keywords: [],
+    related: [],
+    summary: filtered.length > 0
+      ? `Real cross-references for ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse}, ranked by vote/quotation signal — not an AI guess.`
+      : `${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse} has no recorded cross-references in this app's data.`,
+  }
+}
+
 async function runLookup(
   question: string,
   opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[] },
@@ -587,6 +794,21 @@ async function runLookup(
   const explicitFocus = opts.textId && opts.textId !== DEFAULT_TEXT_ID ? opts.textId : null
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
+
+  // "What does verse X quote/reference/allude to" — detected locally (trigger phrase + a
+  // literal, resolvable reference), entirely deterministic, no Ollama call at all if it fires.
+  // Checked before the extraction call so a well-formed quotation question short-circuits the
+  // rest of the pipeline outright rather than wastefully running an extraction call whose
+  // result would just get thrown away.
+  if (QUOTE_TRIGGER.test(question)) {
+    const seedRef = findReferenceInText(question)
+    if (seedRef) {
+      const quoteResponse = runQuoteLookup(seedRef, emit)
+      if (quoteResponse) return quoteResponse
+      // seedRef parsed but didn't resolve to a real verse (out-of-range chapter etc) — fall
+      // through to the normal pipeline rather than dead-ending on a bad parse.
+    }
+  }
 
   emit(pick(READING_MESSAGES))
   const { available } = await checkOllamaAvailable()
@@ -633,13 +855,26 @@ async function runLookup(
   // numbering, so a guess resolves the same way a canonical guess does) — resolveBookId
   // naturally only resolves a guess against the text whose own book map actually contains
   // that name, so a "Genesis" guess never matches jubilees.db and vice versa.
+  // Chapters the model's own guess named for the focus text specifically — corroborating
+  // evidence for step 5's ranking (see the ChapterHint/"Lever A" comment above scoreCandidates).
+  const focusGuessChapters = new Set<number>()
   for (const textId of textPasses) {
     const db = getTextDb(textId)
     if (!db || !(CANONICAL_TEXT_IDS.has(textId) || textId === focusTextId)) continue
     for (const g of guesses) {
       if (guessCandidates.length >= 8) break
+      // `chapter` is typed as required, but the model doesn't always comply at runtime (a
+      // malformed/incomplete guess object) — found via this round's battery testing: an
+      // Enoch guess missing `chapter` reached a DB query as a literal `undefined` bind
+      // parameter and crashed the ENTIRE request (better-sqlite3 throws on that, same failure
+      // mode `verse` already had a guard for below — `chapter` never did). Skip the guess
+      // instead of letting one malformed guess take down the whole response.
+      if (typeof g.chapter !== 'number' || !Number.isFinite(g.chapter)) continue
       const bookId = resolveBookId(g.book, textId)
       if (!bookId) continue
+      if (focusTextId && textId === focusTextId && !CANONICAL_TEXT_IDS.has(textId)) {
+        focusGuessChapters.add(g.chapter)
+      }
       // `verse` comes back missing surprisingly often (a whole-chapter reference like "John
       // 17", or a range given as just chapter+endVerse) — default it to 1 rather than letting
       // `undefined` reach the DB query (better-sqlite3 throws on an undefined bind parameter,
@@ -687,7 +922,10 @@ async function runLookup(
     for (const textId of textPasses) {
       if (!getTextDb(textId)) continue
       const phraseResults = kws.map((kw) => {
-        const variants = getWordReplacerVariants(kw, wordReplacerRules)
+        const variants = [
+          ...getWordReplacerVariants(kw, wordReplacerRules),
+          ...getArchaicVariants(kw, textId),
+        ]
         const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
         return { variants, rows }
       })
@@ -811,8 +1049,11 @@ async function runLookup(
     if (notesSignal.notedKeys.has(dedupeKey(c))) c.noted = true
   }
 
+  const chapterHint: ChapterHint | undefined = focusTextId && focusGuessChapters.size > 0
+    ? { textId: focusTextId, chapters: focusGuessChapters }
+    : undefined
   const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
-    scoreCandidates(items, keywords, notesSignal, wordReplacerRules)
+    scoreCandidates(items, keywords, notesSignal, wordReplacerRules, chapterHint)
 
   // 5. Result assembly. When a focus text is named, ITS OWN content leads — a canonical guess
   // no longer jumps ahead of what was actually asked about (previously it did, which read as
