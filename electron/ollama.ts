@@ -17,11 +17,15 @@ export const DEFAULT_OLLAMA_MODEL = 'llama3.1:latest'
 
 // Ollama defaults an unset context window to the MODEL'S OWN max (131,072 tokens for
 // llama3.1) — observed via `ollama ps` ballooning to 22GB resident memory for this feature's
-// prompts, which are only ever a few hundred tokens (question + a handful of verses). That's
-// not a one-time fluke of testing; every request would reload at that same size. 8192 is
-// comfortably more than this feature ever needs (the commentary prompt, the largest one, caps
-// at 12 verses) while cutting the KV-cache memory footprint by roughly 16x.
-const NUM_CTX = 8192
+// prompts, which were only ever a few hundred to a couple thousand tokens. That's not a
+// one-time fluke of testing; every request would reload at that same size. 16384 (bumped from
+// an earlier 8192) leaves comfortable room for the largest single call — the commentary prompt
+// with up to 12 verses, PLUS the new conversational-memory block (recent chat turns folded into
+// the extraction prompt) — while still cutting the KV-cache footprint roughly 8x versus the
+// model's own unbounded default. Measured: 8192 cost ~1GB of KV-cache overhead over the base
+// model weight; doubling to 16384 should cost roughly another ~1GB (~7GB total), nowhere close
+// to the 22GB seen at the model's full 131K default.
+const NUM_CTX = 16384
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()

@@ -4,6 +4,7 @@ import { getBereanDb } from '../db/berean'
 import { queryVerse, searchVerses } from './bible'
 import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse } from './crossrefs'
+import { getLexiconEntry, getLexiconOccurrences } from './lexicon'
 import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL } from '../ollama'
 
 // Minimal shape of src/store's WordReplacerRule this file actually needs — deliberately not
@@ -18,7 +19,7 @@ export interface WordReplacerRuleLite {
   replacement: string
 }
 
-export type ResultSource = 'keyword' | 'ai-guess' | 'cross-ref'
+export type ResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs'
 
 export interface AiLookupResult {
   textId: string
@@ -56,6 +57,9 @@ export interface AiLookupResponse {
    *  headline answer. Empty unless a focus text was in play. */
   related: AiLookupResult[]
   relatedNote?: string
+  /** A short "H430 (Elohim) — God, god-like ones..." gloss line — set whenever the question
+   *  contained (or the model proposed and we verified) a real Strong's number. */
+  strongsInfo?: string
   summary?: string
   error?: string
 }
@@ -68,6 +72,16 @@ interface AiExtraction {
   // real, observed shapes, not just theoretical — see the runLookup guess-processing loop
   // for how a missing `verse` is normalized instead of crashing the DB query.
   guesses: Array<{ book: string; chapter: number; verse?: number | null; endVerse?: number | null }>
+  // A Strong's number the model recalls as relevant for a "what's the word for X" style
+  // question — verified against the real lexicon DB before ever being used (see
+  // resolveStrongsNumbers), same trust model as a book/chapter guess.
+  strongsNum?: string | null
+}
+
+/** One prior turn, trimmed down to just what the extraction prompt needs. */
+export interface ChatHistoryTurn {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 // Soft ceiling while gathering keyword candidates — purely to bound worst-case work, not a
@@ -234,7 +248,13 @@ function getWordReplacerVariants(keyword: string, rules: WordReplacerRuleLite[])
   return [...variants]
 }
 
-function extractionPrompt(question: string, focusWorkName: string | null): string {
+function extractionPrompt(question: string, focusWorkName: string | null, history: ChatHistoryTurn[] = []): string {
+  // Recent turns only (caller already caps this — see runLookup) — gives a follow-up question
+  // ("what about the chapter after that") something to resolve against, without needing the
+  // model to somehow remember anything itself (each call is still a fresh, stateless request).
+  const historyBlock = history.length > 0
+    ? `\nRecent conversation (for context only — answer the CURRENT question below, not these):\n${history.map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n`
+    : ''
   const guessRule = focusWorkName
     ? `- "guesses": 0-5 direct chapter:verse references you recall as relevant. The user is
   specifically asking about **${focusWorkName}** — if you recall a specific passage in
@@ -267,13 +287,14 @@ function extractionPrompt(question: string, focusWorkName: string | null): strin
     : ''
 
   return `You are a Bible search-term extractor for a KJV/LXX/pseudepigrapha study app. A user asked a question about where to find a passage in Scripture. Your ONLY job is to produce search input for a database — do not answer the question yourself, do not add commentary.
-
+${historyBlock}
 User question: "${question}"
 
 Respond with ONLY a JSON object of this exact shape:
 {
   "keywords": ["short phrase or name", "..."],
-  "guesses": [{"book": "Genesis", "chapter": 12, "verse": 1, "endVerse": 3}]
+  "guesses": [{"book": "Genesis", "chapter": 12, "verse": 1, "endVerse": 3}],
+  "strongsNum": "H2580"
 }
 
 Rules:
@@ -284,6 +305,11 @@ Rules:
   phrases or names over single generic words (avoid bare words like "God", "love", "earth" —
   they match thousands of unrelated verses).${styleNote}
 ${guessRule}
+- "strongsNum": optional. Only if the question is specifically about a Hebrew or Greek WORD or
+  its meaning (e.g. "the Hebrew word for grace", "what does agape mean") and you actually recall
+  its Strong's number — a single string like "H2580" or "G26". It will be verified against the
+  real lexicon before use and silently ignored if wrong, so don't guess wildly; omit it for
+  ordinary topic/passage questions.
 - No explanation, no markdown, JSON only.`
 }
 
@@ -319,14 +345,22 @@ function dedupeKey(r: Pick<AiLookupResult, 'textId' | 'bookId' | 'chapter' | 've
 
 /** "Deep search" verification pass — shows the model the candidates already found (real,
  *  verified DB rows) and asks whether they actually answer the question; if not, it can
- *  suggest different search keywords for ONE retry. It never gets to introduce a reference
- *  directly here — only steer the next keyword search — so this can't reintroduce
+ *  suggest different search keywords AND/OR (for a pseudepigrapha focus text) a different
+ *  chapter to focus on, for the next round of a bounded multi-round loop (see runLookup's
+ *  agentic loop — up to 3 total attempts). Every keyword set already tried is listed so the
+ *  model doesn't suggest the same one again. It never gets to introduce a reference directly
+ *  here — only steer what gets searched/guessed next — so this can't reintroduce
  *  hallucination risk the way letting it just "answer again" would. */
-function verificationPrompt(question: string, focusWorkName: string | null, candidates: AiLookupResult[], keywords: string[]): string {
-  const list = candidates.slice(0, 6).map((c) => `${c.bookName} ${c.chapter}:${c.verse}${c.endVerse ? '-' + c.endVerse : ''} — ${c.text}`).join('\n')
+function verificationPrompt(question: string, focusWorkName: string | null, candidates: AiLookupResult[], triedKeywordSets: string[][]): string {
+  const list = candidates.slice(0, 8).map((c) => `${c.bookName} ${c.chapter}:${c.verse}${c.endVerse ? '-' + c.endVerse : ''} — ${c.text}`).join('\n')
+  const chapterRule = focusWorkName
+    ? `\n- "tryChapter": optional. If you think a DIFFERENT ${focusWorkName} chapter than what's
+  shown above actually covers this (a chapter number you recall), include it — it'll be pulled
+  in and checked for the next round.`
+    : ''
   return `A user asked: "${question}"${focusWorkName ? ` (specifically about ${focusWorkName})` : ''}
 
-Search keywords tried: ${JSON.stringify(keywords)}
+Keyword sets already tried (don't repeat any of these): ${JSON.stringify(triedKeywordSets)}
 
 Candidate verses found so far (real, verified text):
 ${list || '(none found)'}
@@ -334,11 +368,32 @@ ${list || '(none found)'}
 Do these candidates actually answer the question? Respond with ONLY a JSON object:
 {
   "satisfied": true|false,
-  "refinedKeywords": ["short phrase", "..."]
+  "refinedKeywords": ["short phrase", "..."]${focusWorkName ? ',\n  "tryChapter": 12' : ''}
 }
 Only include "refinedKeywords" (3-6 short literal phrases likely to appear verbatim in the
-text, same rules as before) if "satisfied" is false and you have a genuinely different set of
-terms worth trying — don't repeat the same keywords. JSON only, no markdown.`
+text, same rules as before — genuinely different from every set already tried above) if
+"satisfied" is false and you have real, different terms worth trying.${chapterRule}
+JSON only, no markdown.`
+}
+
+/** Final relevance pass for "deep search" — after the agentic loop settles, asks the model to
+ *  flag any candidate in the FINAL set that isn't actually relevant (shares a word but not the
+ *  topic, etc), so it can be dropped. Distinct from commentaryPrompt (which also writes
+ *  explanatory prose) — this runs regardless of whether Commentary is on, since it's a
+ *  relevance check, not commentary. */
+function relevancePrunePrompt(question: string, candidates: AiLookupResult[]): string {
+  const list = candidates.map((c) => `${c.bookId} ${c.chapter}:${c.verse}${c.endVerse ? '-' + c.endVerse : ''} — ${c.text}`).join('\n')
+  return `A user asked: "${question}"
+
+Candidate verses (real, verified text) about to be shown as the answer:
+${list}
+
+Flag any that are NOT actually relevant to the question (e.g. only share a generic word, not
+the real topic). Respond with ONLY a JSON object:
+{ "irrelevant": ["BOOKID CH:VS", "..."] }
+Use exactly the "BOOKID CHAPTER:VERSE" form (start verse only) from the list above. Leave the
+array empty if all candidates are genuinely relevant — don't flag something just to flag it.
+JSON only, no markdown.`
 }
 
 /** Merges runs of contiguous verse numbers (same textId/bookId/chapter, same source) into a
@@ -417,7 +472,15 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
 
 /** Ranks candidates by keyword overlap (+ a notes boost, when available) — shared by the
  *  primary-result ranking (§5) and the agentic verification preview (§2b), which runs before
- *  the notes signal exists yet, hence the optional param. */
+ *  the notes signal exists yet, hence the optional param.
+ *
+ *  Relevance threshold ("don't show results just for the sake of showing results"): a
+ *  keyword-SOURCED candidate that scores zero real overlap gets dropped entirely rather than
+ *  padded into the list to hit a fixed count — always on, both modes. Guesses/Strong's-sourced
+ *  results are exempt: a verified guess is already a targeted, direct answer even when its
+ *  wording doesn't literally echo the extracted keywords (the whole reason guesses exist
+ *  alongside keyword search), and a Strong's occurrence is relevant by construction (an exact
+ *  tag match, not a guess at all). */
 function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal): AiLookupResult[] {
   return items
     .map((c, i) => ({
@@ -425,19 +488,84 @@ function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSigna
       score: keywordOverlapScore(c.text, keywords)
         + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0),
     }))
+    .filter((s) => s.score > 0 || s.c.source !== 'keyword')
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map((s) => s.c)
 }
 
 interface Emit { (status: string): void }
 
+// Loading-status phrasing — a small pool of tasteful, lightly varied alternates per stage
+// (picked at random each call) instead of one identical sentence every time, while still
+// literally describing what's actually happening at that moment, never generic filler.
+function pick(arr: string[]): string { return arr[Math.floor(Math.random() * arr.length)] }
+const READING_MESSAGES = ['Reading your question…', 'Looking at what you asked…', 'Taking a look…']
+const searchingMessages = (target: string) => [`Searching ${target}…`, `Looking through ${target}…`, `Combing through ${target}…`]
+const VERIFY_MESSAGES = ['Checking these results…', 'Making sure this is on target…', 'Double-checking the results…']
+const REFINE_MESSAGES = ['Trying a different search…', 'Taking another pass…', 'Refining the search terms…']
+const PRUNE_MESSAGES = ['Double-checking relevance…', 'Trimming anything that doesn’t fit…', 'One more check…']
+const RANK_MESSAGES = ['Sorting the results…', 'Putting these in order…', 'Ranking the results…']
+const COMMENTARY_MESSAGES = ['Writing brief notes…', 'Adding a little context…', 'Jotting down commentary…']
+
+/** Finds every bare Strong's-number token (H430, G26, case-insensitive, optional space/leading
+ *  zeros) anywhere in free text — same normalization as src/lib/strongsSearch.ts's
+ *  parseStrongsQuery, adapted to scan a whole sentence instead of requiring the entire input to
+ *  be just the number (ported rather than imported — same cross-process reasoning as
+ *  normalizeBookName/getWordReplacerVariants above). */
+function detectStrongsNumbers(text: string): string[] {
+  const re = /\b([HG])\s?0*(\d{1,5})\b/gi
+  const found = new Set<string>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    found.add(`${m[1].toUpperCase()}${m[2]}`)
+  }
+  return [...found]
+}
+
+interface StrongsSeedResult {
+  candidates: AiLookupResult[]
+  info?: string
+}
+
+/** Resolves a list of Strong's numbers (explicit ones detected in the question, plus any the
+ *  model itself proposed) into verified, real occurrences — every number is checked against
+ *  the real lexicon DB first (getLexiconEntry), so a hallucinated/invalid one is silently
+ *  dropped exactly like an unresolvable book/chapter guess is elsewhere in this file. Verse
+ *  occurrences come from getLexiconOccurrences, which scans the tagged text directly (an exact
+ *  tag match, not a model guess) — the most trustworthy source this pipeline has. */
+function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn: (bookId: string, textId: string) => string): StrongsSeedResult {
+  const candidates: AiLookupResult[] = []
+  let info: string | undefined
+  for (const num of nums.slice(0, 2)) {
+    const entry = getLexiconEntry(num)
+    if (!entry) continue
+    if (!info) {
+      const label = entry.transliteration || entry.lemma || entry.strongsNum
+      info = `${entry.strongsNum} (${label}) — ${entry.gloss || entry.definition || 'no short definition available'}`
+    }
+    for (const occ of getLexiconOccurrences(num).slice(0, 6)) {
+      const key = `${occ.text_id}|${occ.book_id}|${occ.chapter}|${occ.verse_num}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      candidates.push({
+        textId: occ.text_id, bookId: occ.book_id, bookName: bookNameForFn(occ.book_id, occ.text_id),
+        chapter: occ.chapter, verse: occ.verse_num, text: occ.text, source: 'strongs',
+      })
+    }
+  }
+  return { candidates, info }
+}
+
 async function runLookup(
   question: string,
-  opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] },
+  opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[] },
   emit: Emit = () => {},
 ): Promise<AiLookupResponse> {
   const model = opts.model || DEFAULT_OLLAMA_MODEL
   const wordReplacerRules = opts.wordReplacerRules ?? []
+  // Last few turns only — enough for a natural follow-up to resolve against without letting
+  // prompt size grow unbounded over a long chat.
+  const history = (opts.history ?? []).slice(-4)
   const empty = (error?: string): AiLookupResponse => ({ results: [], visibleCount: 0, keywords: [], related: [], error })
 
   // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
@@ -447,13 +575,13 @@ async function runLookup(
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
-  emit('Reading your question…')
+  emit(pick(READING_MESSAGES))
   const { available } = await checkOllamaAvailable()
   if (!available) return empty('ollama-unavailable')
 
   let extraction: AiExtraction
   try {
-    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName), model)
+    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName, history), model)
   } catch {
     return empty('ollama-request-failed')
   }
@@ -463,6 +591,13 @@ async function runLookup(
   const seen = new Set<string>()
   const guessCandidates: AiLookupResult[] = []
   let keywordCandidates: AiLookupResult[] = []
+
+  // Strong's numbers — explicit ones typed in the question (e.g. "H430") resolve regardless of
+  // anything else; a model-proposed one (from a "what's the word for X" style question) is
+  // included too, but only after being verified against the real lexicon DB just like every
+  // other AI-proposed reference in this pipeline.
+  const strongsNums = [...detectStrongsNumbers(question), ...(extraction.strongsNum ? [extraction.strongsNum.trim().toUpperCase()] : [])]
+  const strongsSeed = strongsNums.length > 0 ? resolveStrongsNumbers(strongsNums, seen, bookNameFor) : { candidates: [], info: undefined }
 
   function add(bucket: AiLookupResult[], textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
     const r: AiLookupResult = {
@@ -565,7 +700,7 @@ async function runLookup(
     return out
   }
 
-  emit(focusWorkName ? `Searching ${focusWorkName}…` : 'Searching Scripture…')
+  emit(pick(searchingMessages(focusWorkName ?? 'Scripture')))
   keywordCandidates = searchKeywords(keywords)
   // searchKeywords dedupes against itself internally (its own localSeen) but not against the
   // outer `seen` set guesses were added to — merge those keys in now so cross-reference
@@ -578,35 +713,86 @@ async function runLookup(
   let mergedGuesses = mergeAdjacent(guessCandidates)
   let mergedKeywords = mergeAdjacent(keywordCandidates)
 
-  // 2b. "Deep search" (agentic) verification — shows the model its own real, verified
-  // candidates and asks if they actually answer the question; if not, ONE retry with
-  // different keywords (never a second retry, to keep latency bounded). The model still
-  // never gets to introduce a reference directly — only steer what gets searched next.
-  if (opts.agentic && (mergedGuesses.length > 0 || mergedKeywords.length > 0)) {
-    emit('Checking whether these results actually answer your question…')
-    try {
-      const preview = scoreCandidates([...mergedGuesses, ...mergedKeywords], keywords)
-      const verdict = await runOllamaJson<{ satisfied?: boolean; refinedKeywords?: string[] }>(
-        verificationPrompt(question, focusWorkName, preview, keywords), model
-      )
-      if (verdict.satisfied === false && verdict.refinedKeywords && verdict.refinedKeywords.length > 0) {
-        emit('Refining search terms and trying again…')
+  // 2b. "Deep search" (agentic) verification — a bounded loop, up to 3 total attempts
+  // (initial + up to 2 refinement rounds). Each round shows the model its own real, verified
+  // candidates and asks if they actually answer the question; if not, it can request different
+  // keywords (tracked across rounds so it never repeats a set already tried) and/or, for a
+  // pseudepigrapha focus text, suggest a different chapter to check. Stops the moment it's
+  // satisfied, or the moment a round makes no real progress (so a stuck model can't burn all 3
+  // rounds for nothing). The model still never gets to introduce a reference directly — only
+  // steer what gets searched next; every candidate it ever sees was already independently
+  // verified against the real DB.
+  const triedKeywordSets: string[][] = [keywords]
+  if (opts.agentic) {
+    const MAX_ROUNDS = 3
+    for (let round = 1; round < MAX_ROUNDS; round++) {
+      if (mergedGuesses.length === 0 && mergedKeywords.length === 0 && strongsSeed.candidates.length === 0) break
+      emit(pick(VERIFY_MESSAGES))
+      let verdict: { satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }
+      try {
+        const preview = scoreCandidates([...strongsSeed.candidates, ...mergedGuesses, ...mergedKeywords], keywords)
+        verdict = await runOllamaJson<{ satisfied?: boolean; refinedKeywords?: string[]; tryChapter?: number }>(
+          verificationPrompt(question, focusWorkName, preview, triedKeywordSets), model
+        )
+      } catch {
+        break // verification is best-effort — a failed call just stops the loop early
+      }
+      if (verdict.satisfied !== false) break
+
+      let madeProgress = false
+
+      if (verdict.refinedKeywords && verdict.refinedKeywords.length > 0) {
         const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6))
-        if (refined.length > 0) {
+        const alreadyTried = triedKeywordSets.some((set) => set.length === refined.length && set.every((k, i) => k === refined[i]))
+        if (refined.length > 0 && !alreadyTried) {
+          emit(pick(REFINE_MESSAGES))
           const retryHits = searchKeywords(refined)
+          const newHits = retryHits.filter((r) => !seen.has(dedupeKey(r)))
+          for (const r of newHits) seen.add(dedupeKey(r))
+          keywordCandidates = [...keywordCandidates, ...newHits]
           keywords = [...keywords, ...refined]
-          keywordCandidates = [...keywordCandidates, ...retryHits.filter((r) => !seen.has(dedupeKey(r)))]
-          for (const r of retryHits) seen.add(dedupeKey(r))
           mergedKeywords = mergeAdjacent(keywordCandidates)
+          triedKeywordSets.push(refined)
+          if (newHits.length > 0) madeProgress = true
         }
       }
-    } catch { /* verification is best-effort — a failed call just skips the retry */ }
+
+      if (focusTextId && focusWorkName && verdict.tryChapter && Number.isInteger(verdict.tryChapter)) {
+        const db = getTextDb(focusTextId)
+        const bookId = resolveBookId(focusWorkName, focusTextId)
+        if (db && bookId) {
+          const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, verdict.tryChapter) as { m: number | null } | undefined
+          if (maxRow?.m) {
+            const endV = Math.min(maxRow.m, 10)
+            const parts: string[] = []
+            for (let v = 1; v <= endV; v++) {
+              const verse = queryVerse(bookId, verdict.tryChapter, v, focusTextId)
+              if (verse) parts.push(verse.text)
+            }
+            const key = `${focusTextId}|${bookId}|${verdict.tryChapter}|1`
+            if (parts.length > 0 && !seen.has(key)) {
+              seen.add(key)
+              guessCandidates.push({
+                textId: focusTextId, bookId, bookName: bookNameFor(bookId, focusTextId),
+                chapter: verdict.tryChapter, verse: 1, endVerse: endV > 1 ? endV : undefined, text: parts.join(' '), source: 'ai-guess',
+              })
+              mergedGuesses = mergeAdjacent(guessCandidates)
+              madeProgress = true
+            }
+          }
+        }
+      }
+
+      if (!madeProgress) break
+    }
   }
 
-  if (mergedGuesses.length === 0 && mergedKeywords.length === 0) return { ...empty(), keywords }
+  if (mergedGuesses.length === 0 && mergedKeywords.length === 0 && strongsSeed.candidates.length === 0) {
+    return { ...empty(), keywords, strongsInfo: strongsSeed.info }
+  }
 
   // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
-  const allCandidates = [...mergedGuesses, ...mergedKeywords]
+  const allCandidates = [...strongsSeed.candidates, ...mergedGuesses, ...mergedKeywords]
   const notesSignal = computeNotesSignal(allCandidates)
   for (const c of allCandidates) {
     if (notesSignal.notedKeys.has(dedupeKey(c))) c.noted = true
@@ -621,7 +807,7 @@ async function runLookup(
   // is instead kept as a separate `related` pointer, shown after the focus results with a
   // one-line note — still visible, just not the headline answer. Without a focus text, this
   // is unchanged from Round 3/4: canonical guesses lead, keyword search only backfills gaps.
-  emit('Ranking results…')
+  emit(pick(RANK_MESSAGES))
   const canonicalGuesses = mergedGuesses.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
   const focusGuesses = mergedGuesses.filter((c) => !CANONICAL_TEXT_IDS.has(c.textId))
 
@@ -649,6 +835,33 @@ async function runLookup(
       const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
       candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
     }
+  }
+
+  // Strong's-sourced results get their own budget on top of the primary cap — an exact tag
+  // match is the most trustworthy source this pipeline has (no LLM guess involved in the verse
+  // list itself), so it's never crowded out by keyword/guess candidates competing for the same
+  // slots. Always led first.
+  if (strongsSeed.candidates.length > 0) {
+    const nonStrongs = candidates.filter((c) => !strongsSeed.candidates.some((sc) => dedupeKey(sc) === dedupeKey(c)))
+    candidates = [...strongsSeed.candidates, ...nonStrongs]
+  }
+
+  // 5b. Final agentic relevance prune — after everything else has been decided, one last call
+  // reviews the FINAL primary set and flags anything that isn't actually relevant even though
+  // it scored non-zero (e.g. shares only a generic word, not the real topic). Never wipes the
+  // set down to zero from this alone. Strong's-sourced results are exempt — an exact tag match
+  // in the text_tagged column is definitionally on-topic for that Strong's number.
+  if (opts.agentic && candidates.length > 0) {
+    emit(pick(PRUNE_MESSAGES))
+    try {
+      const verdict = await runOllamaJson<{ irrelevant?: string[] }>(relevancePrunePrompt(question, candidates), model)
+      const irrelevant = new Set(verdict.irrelevant ?? [])
+      if (irrelevant.size > 0) {
+        const keyFor = (r: AiLookupResult) => `${r.bookId} ${r.chapter}:${r.verse}`
+        const pruned = candidates.filter((r) => r.source === 'strongs' || !irrelevant.has(keyFor(r)))
+        if (pruned.length > 0) candidates = pruned
+      }
+    } catch { /* prune is best-effort — a failed call just skips it */ }
   }
 
   // 6. Cross-reference expansion — only from the final primary set (not the whole raw
@@ -697,7 +910,7 @@ async function runLookup(
   // 7. Optional commentary — a second pass over the ranked, already-verified candidates.
   // The model explains and may flag entries to drop; it never introduces a new reference.
   if (opts.commentary) {
-    emit('Writing commentary…')
+    emit(pick(COMMENTARY_MESSAGES))
     try {
       const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
         commentaryPrompt(question, candidates), model
@@ -716,15 +929,15 @@ async function runLookup(
       return {
         results: [...finalPrimary, ...finalCrossRefs],
         visibleCount: finalPrimary.length,
-        keywords, related, relatedNote, summary: raw.summary,
+        keywords, related, relatedNote, summary: raw.summary, strongsInfo: strongsSeed.info,
       }
     } catch {
       // Commentary is best-effort — a failed second call shouldn't drop the verified results.
-      return { results, visibleCount, keywords, related, relatedNote }
+      return { results, visibleCount, keywords, related, relatedNote, strongsInfo: strongsSeed.info }
     }
   }
 
-  return { results, visibleCount, keywords, related, relatedNote }
+  return { results, visibleCount, keywords, related, relatedNote, strongsInfo: strongsSeed.info }
 }
 
 interface StoredChat {
@@ -744,13 +957,14 @@ interface ChatMessage {
   related?: AiLookupResult[]
   relatedNote?: string
   summary?: string
+  strongsInfo?: string
   createdAt: string
 }
 
 export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('ailookup:checkAvailable', () => checkOllamaAvailable())
 
-  ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[] }) =>
+  ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[] }) =>
     runLookup(question, opts, (status) => event.sender.send('ailookup:progress', status)))
 
   ipcMain.handle('ailookup:listChats', () => {

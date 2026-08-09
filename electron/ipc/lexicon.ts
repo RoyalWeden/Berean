@@ -28,28 +28,41 @@ function mapEntry(row: DbEntry) {
   }
 }
 
-export function registerLexiconHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => {
-    const num = strongsNum.trim().toUpperCase()
-    try {
-      if (num.startsWith('H')) {
-        const db = getHebrewDb()
-        const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
-        return row ? mapEntry(row) : null
-      } else if (num.startsWith('G')) {
-        const db = getGreekDb()
-        const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
-        return row ? mapEntry(row) : null
-      }
-      return null
-    } catch {
-      return null
+/** Looks up a single Strong's entry (word/gloss/definition/etc) — exported as a plain function,
+ *  not just an IPC handler, so other main-process modules (electron/ipc/aiLookup.ts, verifying
+ *  a Strong's number before using it) can reuse it without a second DB-access path. */
+export function getLexiconEntry(strongsNum: string): ReturnType<typeof mapEntry> | null {
+  const num = strongsNum.trim().toUpperCase()
+  try {
+    if (num.startsWith('H')) {
+      const db = getHebrewDb()
+      const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
+      return row ? mapEntry(row) : null
+    } else if (num.startsWith('G')) {
+      const db = getGreekDb()
+      const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
+      return row ? mapEntry(row) : null
     }
-  })
+    return null
+  } catch {
+    return null
+  }
+}
 
-  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => {
-    const num = strongsNum.trim().toUpperCase()
-    try {
+export interface LexiconOccurrence {
+  book_id: string
+  chapter: number
+  verse_num: number
+  text: string
+  text_id: string
+  matchWordIndices: number[]
+}
+
+/** Finds every real, tag-verified occurrence of a Strong's number in the tagged texts — exported
+ *  as a plain function for the same reuse reason as getLexiconEntry above. */
+export function getLexiconOccurrences(strongsNum: string): LexiconOccurrence[] {
+  const num = strongsNum.trim().toUpperCase()
+  try {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
       if (!lexDb) { return [] }
 
@@ -258,7 +271,12 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
     } catch (e) {
       return []
     }
-  })
+}
+
+export function registerLexiconHandlers(ipcMain: IpcMain): void {
+  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => getLexiconEntry(strongsNum))
+
+  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => getLexiconOccurrences(strongsNum))
 
   ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => {
     const num = strongsNum.trim().toUpperCase()

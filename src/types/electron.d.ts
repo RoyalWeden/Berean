@@ -396,7 +396,7 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
-export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref'
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs'
 
 export interface AiLookupResult {
   textId: string
@@ -426,6 +426,9 @@ export interface AiLookupResponse {
    *  after the focus text's own results, with `relatedNote` explaining why. */
   related: AiLookupResult[]
   relatedNote?: string
+  /** A short "H430 (Elohim) — God, god-like ones..." gloss line — set whenever the question
+   *  contained (or the AI proposed and it was verified to be) a real Strong's number. */
+  strongsInfo?: string
   summary?: string
   error?: string
 }
@@ -446,6 +449,7 @@ export interface AiLookupChatMessage {
   related?: AiLookupResult[]
   relatedNote?: string
   summary?: string
+  strongsInfo?: string
   createdAt: string
 }
 
@@ -470,6 +474,10 @@ interface AiLookupAPI {
      *  original wording (e.g. "Jesus") when the model used the app's preferred wording
      *  (e.g. "Yeshua"), or vice versa. Pass only `{ queries, replacement }` pairs. */
     wordReplacerRules?: Array<{ queries: string[]; replacement: string }>
+    /** Recent chat turns (role + content only), so a natural follow-up like "what about the
+     *  next chapter" has something to resolve against. Capped to the last few turns by the
+     *  caller — the main process caps further before it ever reaches the model. */
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>
   }) => Promise<AiLookupResponse>
   listChats: () => Promise<AiLookupChatSummary[]>
   getChat: (id: string) => Promise<AiLookupChat | null>

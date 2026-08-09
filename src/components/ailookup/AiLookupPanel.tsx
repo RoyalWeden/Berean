@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2 } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil } from 'lucide-react'
 import { useAppStore } from '@/store'
-import Switch from '@/components/shell/Switch'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { AiLookupChatMessage, AiLookupResult } from '@/types/electron'
@@ -17,6 +16,17 @@ const MARGIN = 16
 // whether/how Tailwind compiles opacity onto a fully custom `rgb(var(--x))` value.
 const PANEL_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-1)) 92%, transparent)' }
 const HEADER_BG = { backgroundColor: 'color-mix(in srgb, rgb(var(--color-surface-2)) 92%, transparent)' }
+
+// Rotated through for the empty-state example — one worked sample question shouldn't be the
+// only thing shown every time. Covers the different question shapes the pipeline actually
+// supports (a "where" lookup, a topical search, and a Strong's number).
+const EXAMPLE_PROMPTS = [
+  'where does Abraham leave his family because of idolatry?',
+  'verses about the Sabbath being a sign forever',
+  'what does H2580 mean?',
+  'where is the wedding at Cana?',
+  'verses about not eating blood',
+]
 
 function defaultPos() {
   if (typeof window === 'undefined') return { x: 0, y: 0 }
@@ -92,6 +102,9 @@ export default function AiLookupPanel() {
   // Cross-references are collapsed by default (each answer was reported as "way too long"
   // with them always open) — tracked per "messageIndex-resultIndex" key, toggled open on click.
   const [crossRefsOpen, setCrossRefsOpen] = useState<Record<string, boolean>>({})
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [examplePrompt] = useState(() => EXAMPLE_PROMPTS[Math.floor(Math.random() * EXAMPLE_PROMPTS.length)])
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -154,22 +167,26 @@ export default function AiLookupPanel() {
     if (!activeChatId) setActiveChatId(saved.id)
   }
 
-  async function send() {
-    const question = input.trim()
-    if (!question || loading) return
-    setInput('')
+  // Shared by both a normal send and an edit-and-regenerate — `base` is everything the new
+  // question should be appended after (the full thread for a normal send, or everything
+  // before the edited turn for an edit, which is how the edit truncates/replaces the rest).
+  async function runQuery(question: string, base: AiLookupChatMessage[]) {
     const userMsg: AiLookupChatMessage = { role: 'user', content: question, createdAt: new Date().toISOString() }
-    const withUser = [...messages, userMsg]
+    const withUser = [...base, userMsg]
     setMessages(withUser)
     setLoading(true)
     setProgressStatus('Reading your question…')
     try {
+      // Recent turns only, role+content — enough for a follow-up ("what about the next
+      // chapter") to resolve against without the prompt growing unbounded over a long chat.
+      const history = base.slice(-6).map((m) => ({ role: m.role, content: m.content }))
       const res = await window.aiLookup.query(question, {
         commentary: commentaryOn,
         agentic: agenticOn,
         wordReplacerRules: activeWordReplacerRules.length > 0
           ? activeWordReplacerRules.map((r) => ({ queries: r.queries, replacement: r.replacement }))
           : undefined,
+        history,
       })
       const assistantMsg: AiLookupChatMessage = {
         role: 'assistant',
@@ -184,6 +201,7 @@ export default function AiLookupPanel() {
         related: res.related,
         relatedNote: res.relatedNote,
         summary: res.summary,
+        strongsInfo: res.strongsInfo,
         createdAt: new Date().toISOString(),
       }
       const withAssistant = [...withUser, assistantMsg]
@@ -194,6 +212,26 @@ export default function AiLookupPanel() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function send() {
+    const question = input.trim()
+    if (!question || loading) return
+    setInput('')
+    await runQuery(question, messages)
+  }
+
+  // Editing a past question truncates everything after it (its old answer + any later turns)
+  // and regenerates from there — same behavior as ChatGPT/Claude, keeps the chat a single
+  // coherent thread rather than branching.
+  async function submitEdit(mi: number) {
+    const question = editValue.trim()
+    if (!question || loading) return
+    setEditingIndex(null)
+    const base = messages.slice(0, mi)
+    setExpanded({})
+    setCrossRefsOpen({})
+    await runQuery(question, base)
   }
 
   function newChat() {
@@ -226,7 +264,7 @@ export default function AiLookupPanel() {
         style={HEADER_BG}
       >
         <Sparkles size={14} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
-        <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))] flex-1 truncate">AI Scripture Lookup</span>
+        <span className="text-xs font-semibold text-[rgb(var(--color-text-primary))] flex-1 truncate">Berean Chat</span>
         <button onClick={newChat} title="New chat" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
           <Plus size={14} />
         </button>
@@ -238,18 +276,35 @@ export default function AiLookupPanel() {
         </button>
       </div>
 
-      {/* Commentary / Deep search toggles — no bg of their own, so the outer panel's own
-          near-opaque background (see above) shows through uniformly instead of a solid patch. */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
-        <span className="text-[11px] text-[rgb(var(--color-text-muted))]">Commentary</span>
-        <Switch checked={commentaryOn} onCheckedChange={() => setCommentaryOn(!commentaryOn)} />
-      </div>
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))]">
-        <span className="text-[11px] text-[rgb(var(--color-text-muted))]" title="Verifies the first results actually answer your question and retries once with different search terms if not — slower, off by default.">
-          Deep search
-        </span>
-        <Switch checked={agenticOn} onCheckedChange={() => setAgenticOn(!agenticOn)} />
-      </div>
+      {/* Commentary / Deep search — floating pill toggles sharing one row instead of two
+          full-width settings rows. No bg of their own, so the panel's own near-opaque
+          background shows through. Hidden while viewing chat history — these settings apply
+          to the NEXT question, which isn't relevant while just browsing past chats. */}
+      {!historyOpen && (
+        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[rgb(var(--color-surface-4))]">
+          <button
+            onClick={() => setCommentaryOn(!commentaryOn)}
+            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+              commentaryOn
+                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
+                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+            }`}
+          >
+            <MessageSquareText size={11} /> Commentary
+          </button>
+          <button
+            onClick={() => setAgenticOn(!agenticOn)}
+            title="Verifies the results actually answer your question and refines the search (up to twice more) if not — slower, off by default."
+            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+              agenticOn
+                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
+                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+            }`}
+          >
+            <SearchCheck size={11} /> Deep search
+          </button>
+        </div>
+      )}
 
       {historyOpen ? (
         <ChatHistoryList onSelect={openChat} onClose={() => setHistoryOpen(false)} />
@@ -265,13 +320,45 @@ export default function AiLookupPanel() {
             )}
             {messages.length === 0 && availability.available && (
               <p className="text-xs text-[rgb(var(--color-text-muted))] text-center pt-6">
-                Ask where a passage is — e.g. "where does Abraham leave his family because of idolatry?"
+                Ask where something is in Scripture, or for verses about a topic — e.g. "{examplePrompt}"
               </p>
             )}
             {messages.map((m, mi) => {
               if (m.role === 'user') {
+                const isEditing = editingIndex === mi
+                if (isEditing) {
+                  return (
+                    <div key={mi} className="flex justify-end">
+                      <div className="max-w-[85%] w-full flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(mi) }
+                            if (e.key === 'Escape') setEditingIndex(null)
+                          }}
+                          className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5 outline-none border border-[rgb(var(--color-accent))] text-[rgb(var(--color-text-primary))]"
+                        />
+                        <button onClick={() => submitEdit(mi)} title="Save & regenerate" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-accent))] cursor-pointer flex-shrink-0">
+                          <Send size={12} />
+                        </button>
+                        <button onClick={() => setEditingIndex(null)} title="Cancel" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
                 return (
-                  <div key={mi} className="flex justify-end">
+                  <div key={mi} className="group flex justify-end items-center gap-1">
+                    <button
+                      onClick={() => { setEditingIndex(mi); setEditValue(m.content) }}
+                      title="Edit & regenerate"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
+                    >
+                      <Pencil size={11} />
+                    </button>
                     <div className="max-w-[85%] rounded-shell bg-[rgb(var(--color-accent))/14] text-[rgb(var(--color-text-primary))] text-xs px-3 py-2">{m.content}</div>
                   </div>
                 )
@@ -300,6 +387,11 @@ export default function AiLookupPanel() {
                   <div className="max-w-full w-full space-y-2">
                     {m.content && <p className="text-xs text-[rgb(var(--color-text-muted))]">{m.content}</p>}
                     {m.summary && <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>}
+                    {m.strongsInfo && (
+                      <p className="text-[11px] text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5">
+                        {m.strongsInfo}
+                      </p>
+                    )}
 
                     {visiblePrimary.map((r, ri) => {
                       const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
@@ -418,7 +510,7 @@ export default function AiLookupPanel() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-              placeholder={availability.available ? 'Ask where a passage is…' : 'Ollama not running'}
+              placeholder={availability.available ? 'Ask where something is, or for verses about a topic…' : 'Ollama not running'}
               disabled={!availability.available || loading}
               className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5 outline-none border border-transparent focus:border-[rgb(var(--color-accent))] disabled:opacity-50 text-[rgb(var(--color-text-primary))]"
             />
