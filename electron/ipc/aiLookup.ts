@@ -1481,6 +1481,14 @@ export async function runLookup(
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
+  // Round 11: a canonical book named in the question ("in Matthew...") scopes canonical keyword
+  // search to just that book — reuses detectBookInQuestion (also used for Strong's occurrence
+  // scoping). Only matters for canonical: every non-canonical text is already single-book, so a
+  // book constraint there is a no-op. Only applied when there's NO focus text (a focus-text
+  // question searches that work's own book, which already IS single-book) — avoids ever
+  // narrowing the deliberately-named non-canonical search down further by accident.
+  const questionBookId = !focusTextId ? detectBookInQuestion(question) : null
+
   // "What notes have I written about X" — notes ARE the answer, no verse search at all. Checked
   // first (before quote-lookup and the extraction call) since it's the most specific/unambiguous
   // trigger — entirely deterministic, no Ollama call.
@@ -1717,6 +1725,10 @@ export async function runLookup(
       // non-canonical instead of being the only thing searched). Canonical stays unfiltered only
       // in the FOCUSED branch's own canonical backfill pass — unchanged from Round 9 there.
       const kwsForText = CANONICAL_TEXT_IDS.has(textId) && focusTextId ? kws : filterGenericKeywords(kws, true)
+      // Round 11: a book named in the question scopes canonical search to it — reuses the same
+      // book-list scoping searchVerses already supports for the regular scripture-search UI
+      // (electron/ipc/bible.ts), just never threaded through from here before.
+      const bookScope = CANONICAL_TEXT_IDS.has(textId) && questionBookId ? [questionBookId] : undefined
       // Strict (rarity-gated) archaic-vocab variants when this text is only being searched
       // opportunistically (unfocused — see the getArchaicVariants/keywordOverlapScore comments).
       const phraseResults = kwsForText.map((kw) => {
@@ -1724,14 +1736,14 @@ export async function runLookup(
           ...getWordReplacerVariants(kw, wordReplacerRules),
           ...getArchaicVariants(kw, textId, !focusTextId),
         ]
-        const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
+        const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase', bookScope))
         return { variants, rows }
       })
       const anyPhraseHits = phraseResults.some((r) => r.rows.length > 0)
       for (const { variants, rows } of phraseResults) {
         if (out.length >= CANDIDATE_POOL_CAP) break
         const finalRows = rows.length > 0 || !anyPhraseHits
-          ? (rows.length > 0 ? rows : variants.flatMap((v) => searchVerses(v, textId, 'all')))
+          ? (rows.length > 0 ? rows : variants.flatMap((v) => searchVerses(v, textId, 'all', bookScope)))
           : []
         for (const row of finalRows.slice(0, 6)) {
           if (out.length >= CANDIDATE_POOL_CAP) break
