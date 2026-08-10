@@ -303,6 +303,24 @@ const OVERLY_GENERIC_IN_FOCUS_TEXT = new Set([
   'abraham', 'isaac', 'jacob', 'noah', 'moses', 'family', 'leave', 'wife', 'children',
 ])
 
+// Round 11: common moral/theological THEME words — distinct from OVERLY_GENERIC_IN_FOCUS_TEXT's
+// narrative PROPER NOUNS (Abraham, Moses, ...) above. A word like "Moses" is rare outside a
+// handful of books and, when it matches, genuinely identifies WHERE a passage is; a word like
+// "idolatry" recurs constantly, unconnected, across the entire moral-exhortation genre these
+// pseudepigrapha/patristic texts largely belong to (Recognitions of Clement, 1 Clement, Hermas,
+// Barnabas each condemn idolatry as abstract vice at least once — none of it about Abraham's
+// story). Confirmed directly: "idolatry" occurs only 1-2 times even WITHIN each of those
+// individual texts, so per-text rarity gating alone can't tell a genuinely on-topic rare match
+// (Jubilees' archaic-vocab BRIDGE to "the house of the idols," a specific curated phrase) apart
+// from a coincidental bare mention of the same theme word elsewhere. See requireSpecificEvidence
+// in keywordOverlapScore below — this list only ever disqualifies a BARE, unbridged match to the
+// literal word itself; a text-specific archaic-vocab bridge variant is a different literal
+// string and is never affected by this list.
+const OVERLY_GENERIC_THEMATIC_WORDS = new Set([
+  'idolatry', 'idols', 'idol', 'worship', 'sin', 'sins', 'wickedness', 'evil', 'wicked',
+  'righteousness', 'righteous', 'holy', 'holiness', 'transgression', 'iniquity',
+])
+
 // Common function words a keyword phrase can carry without adding any real discriminating
 // content of its own — used only by the multi-word check below, to decide whether a phrase like
 // "Abraham's family" is functionally nothing more than the two denylisted names it's built from.
@@ -699,7 +717,20 @@ function phraseRarityCount(words: string[], textId: string): number {
   return count
 }
 
-function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = [], textId?: string, opportunistic = false): number {
+// Round 11: `requireSpecificEvidence` disqualifies a match that is ONLY a bare, unbridged hit on
+// a word from OVERLY_GENERIC_THEMATIC_WORDS — used for guess-evidence checks (any text, since an
+// ungrounded guess shouldn't lead on "idolatry" alone regardless of canon) and for NON-CANONICAL
+// keyword-sourced scoring specifically when opportunistic (canonical's own topical search, e.g.
+// a plain "verses about idolatry" query with no competing guess, must keep working normally — a
+// bare thematic word is exactly what that kind of query is legitimately searching for; the
+// problem is only ever a coincidental thematic-word mention winning a cross-text competition it
+// has no real connection to). A text-specific archaic-vocab BRIDGE variant (a different literal
+// string, e.g. "the house of the idols") is never affected — only the bare keyword itself is
+// gated. Confirmed directly: this is what actually distinguishes Jubilees' genuine match (always
+// via the bridge — the bare word "idolatry" never even occurs in Jubilees' own text) from
+// Recognitions of Clement/Hermas/Barnabas's coincidental one (no bridge exists for those texts at
+// all, so a bare match is the ONLY path they have).
+function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = [], textId?: string, opportunistic = false, requireSpecificEvidence = false): number {
   const lower = text.toLowerCase()
   // Round 10: the focus-text generic-word denylist (OVERLY_GENERIC_IN_FOCUS_TEXT) is applied
   // HERE, per candidate, based on that candidate's own textId — not once globally before search
@@ -717,6 +748,7 @@ function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules
   const effectiveKeywords = (textId && !CANONICAL_TEXT_IDS.has(textId)) || opportunistic ? filterGenericKeywords(keywords, true) : keywords
   let score = 0
   for (const kw of effectiveKeywords) {
+    const bareKeywordLower = kw.trim().toLowerCase()
     const variants = [
       ...getWordReplacerVariants(kw, wordReplacerRules),
       ...(textId ? getArchaicVariants(kw, textId, opportunistic) : []),
@@ -726,6 +758,8 @@ function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules
     for (const v of variants) {
       const words = cleanWords(v)
       if (words.length === 0 || !words.every((w) => lower.includes(w.toLowerCase()))) continue
+      if (requireSpecificEvidence && words.length === 1 && v.trim().toLowerCase() === bareKeywordLower
+        && OVERLY_GENERIC_THEMATIC_WORDS.has(words[0].toLowerCase())) continue
       anyHit = true
       if (!opportunistic && textId && words.length >= 3 && phraseRarityCount(words, textId) <= 4) bestBonus = true
     }
@@ -915,7 +949,12 @@ function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSigna
   return items
     .map((c, i) => ({
       c, i,
-      score: keywordOverlapScore(c.text, keywords, wordReplacerRules, c.textId, preferCanonicalTies)
+      // requireSpecificEvidence (Round 11): only for NON-canonical candidates when opportunistic
+      // — canonical's own bare-thematic-word matches stay untouched (a plain "verses about
+      // idolatry" topical query must keep working normally), while a non-canonical text's ONLY
+      // path to a coincidental bare-word win is closed. See the requireSpecificEvidence comment
+      // above keywordOverlapScore.
+      score: keywordOverlapScore(c.text, keywords, wordReplacerRules, c.textId, preferCanonicalTies, preferCanonicalTies && !CANONICAL_TEXT_IDS.has(c.textId))
         + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0)
         + (c.source === 'keyword' && chapterHint?.chaptersByText.get(c.textId)?.has(c.chapter) ? 1 : 0),
     }))
@@ -1616,14 +1655,21 @@ export async function runLookup(
   // use. (For a non-canonical guess, the non-canonical generic-denylist still applies regardless
   // of this flag — see filterGenericKeywords's call sites — so Jubilees-side behavior here is
   // unaffected.)
+  // `requireSpecificEvidence=true` (Round 11): a guess must not be able to lead unconditionally
+  // on nothing but a bare mention of a generic theme word — confirmed directly: the model
+  // guessed 1 Samuel 15:23 ("stubbornness is as iniquity and idolatry") for a question about
+  // Abraham leaving his family, and its only "evidence" was that bare word. Applies regardless
+  // of canonical/non-canonical — an ungrounded guess in EITHER is equally suspect on this signal
+  // alone. "Moses" (a proper noun, not in OVERLY_GENERIC_THEMATIC_WORDS) is unaffected, so the
+  // Exodus 20 ten-commandments fix this same function exists for still works.
   function guessHasEvidence(g: AiLookupResult): boolean {
-    if (keywordOverlapScore(g.text, keywords, wordReplacerRules, g.textId, false) > 0) return true
+    if (keywordOverlapScore(g.text, keywords, wordReplacerRules, g.textId, false, true) > 0) return true
     const db = getTextDb(g.textId)
     if (!db) return false
     try {
       const rows = db.prepare('SELECT text FROM verses WHERE book_id = ? AND chapter = ?').all(g.bookId, g.chapter) as Array<{ text: string }>
       const wholeChapterText = rows.map((r) => r.text).join(' ')
-      return keywordOverlapScore(wholeChapterText, keywords, wordReplacerRules, g.textId, false) > 0
+      return keywordOverlapScore(wholeChapterText, keywords, wordReplacerRules, g.textId, false, true) > 0
     } catch {
       return false
     }
