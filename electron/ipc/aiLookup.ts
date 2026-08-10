@@ -212,6 +212,19 @@ function detectFocusTextId(question: string): string | null {
   return null
 }
 
+/** Round 11: when the question names the focus work AND a chapter number together (e.g.
+ *  "jubilees 12", "why does Abraham leave his family in Jubilees 12"), pulls out that chapter
+ *  number directly — used to deterministically pin the real chapter instead of depending
+ *  entirely on the extraction LLM's own recall (only ~30-50% reliable for non-canonical guesses,
+ *  per prior testing). Confirmed root cause of a reported bug: the model's own guess sometimes
+ *  missed the exact stated chapter, canonical backfill silently filled the remaining slots
+ *  instead, and commentary ended up written about content the user never actually asked about. */
+function detectExplicitFocusChapter(question: string, focusWorkName: string): number | null {
+  const escaped = focusWorkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = question.match(new RegExp(`${escaped}\\s+(\\d{1,3})\\b`, 'i'))
+  return m ? Number(m[1]) : null
+}
+
 // Per-text book id<->name maps, built from that text's own `books` table (each text DB —
 // including pseudepigrapha — has one). Cached per textId since it never changes at runtime.
 const _bookMaps = new Map<string, { toId: Map<string, string>; toName: Map<string, string> }>()
@@ -580,30 +593,66 @@ ${guessRule}
 - No explanation, no markdown, JSON only.`
 }
 
-function commentaryPrompt(question: string, verses: AiLookupResult[], tabContextBlock = ''): string {
-  const list = verses.slice(0, 12).map((v) => `${v.bookId} ${v.chapter}:${v.verse}${v.endVerse ? '-' + v.endVerse : ''} — ${v.text}`).join('\n')
+// Round 11: rewritten from the ground up after direct feedback that Commentary mode "didn't
+// answer the question at all" — the old version was structurally a per-verse captioning/
+// relevance-filter task, never actually instructed to answer anything. It also never knew which
+// candidates were the FOCUS TEXT the user actually asked about vs. canonical backfill padding
+// filling out the display cap (see KEYWORD_BACKFILL_CAP), so a "why does X happen in Jubilees
+// 12" question could get commentary written about unrelated Genesis filler with no signal that
+// it wasn't the real answer. And it never saw real note content at all, despite the reported
+// output "referring to notes" — that language wasn't grounded in anything; it was invented.
+function commentaryPrompt(
+  question: string,
+  verses: AiLookupResult[],
+  tabContextBlock = '',
+  focusWorkName: string | null = null,
+  focusTextId: string | null = null,
+  notesAugment: AiLookupNoteResult[] = [],
+): string {
+  const list = verses.slice(0, 12).map((v) => {
+    const isFocusContent = focusTextId ? v.textId === focusTextId : true
+    const label = isFocusContent ? '' : ' [related — a different text, not what was specifically asked about]'
+    return `${v.bookId} ${v.chapter}:${v.verse}${v.endVerse ? '-' + v.endVerse : ''}${label} — ${v.text}`
+  }).join('\n')
+
+  const focusBlock = focusWorkName
+    ? `\nThe user specifically asked about **${focusWorkName}** — answer using ITS content below; a
+verse marked [related] is a different text and should only support the answer, never replace it.\n`
+    : ''
+
+  const notesBlock = notesAugment.length > 0
+    ? `\nThe user has their own note(s) that may be relevant — real content, use it only if it
+genuinely helps answer the question, never invent a note that isn't listed here:\n${notesAugment.map((n) => `- "${n.title}": ${n.snippet}`).join('\n')}\n`
+    : ''
+
   return `A user asked: "${question}"
-${tabContextBlock}
+${tabContextBlock}${focusBlock}${notesBlock}
 Here are candidate verses already found and verified against the actual Bible text (do not add,
 remove text from, or renumber any of them):
 ${list}
 
-Two jobs:
-1. For each verse that's genuinely relevant to the question, write ONE brief sentence (max ~20
-   words) explaining how it relates. Keep it terse — this is a reference tool, not a sermon.
-2. Flag any verse above that is NOT actually relevant to the question (e.g. it only shares a
+Three jobs, in this order:
+1. DIRECTLY ANSWER the question in 2-4 sentences, grounded ONLY in the verse text given above (and
+   the note content above, if any) — never from outside/general knowledge. A candidate spanning a
+   whole passage/chapter has each verse marked inline like "[12:5] text..." — read through ALL of
+   it and answer using whichever specific verse(s) actually address what was asked, not just
+   whichever part you read last. If the given verses don't actually contain enough to answer it,
+   say so plainly instead of filling in the gap.
+2. For each verse that's genuinely relevant, write ONE brief caption (max ~15 words) noting how
+   it specifically supports the answer — skip this for a verse that's purely [related] padding
+   and didn't really contribute.
+3. Flag any verse above that is NOT actually relevant to the question (e.g. it only shares a
    generic word, not the actual topic) so it can be dropped from the results.
-Then write a 1-2 sentence overall summary.
 
 Respond with ONLY a JSON object of this exact shape:
 {
+  "summary": "the direct answer from job 1",
   "perVerse": {"GEN 12:1": "..."},
-  "irrelevant": ["GEN 12:1", "..."],
-  "summary": "..."
+  "irrelevant": ["GEN 12:1", "..."]
 }
 Keys/entries must be exactly "BOOKID CHAPTER:VERSE" (the start verse only, matching the list
-above). "irrelevant" lists ONLY the ones that don't belong — omit it or leave empty if all are
-relevant. JSON only, no markdown.`
+above, without the [related] label). "irrelevant" lists ONLY the ones that don't belong — omit it
+or leave empty if all are relevant. JSON only, no markdown.`
 }
 
 function dedupeKey(r: Pick<AiLookupResult, 'textId' | 'bookId' | 'chapter' | 'verse'>): string {
@@ -1512,6 +1561,45 @@ export async function runLookup(
     ? [focusTextId, DEFAULT_TEXT_ID]
     : [DEFAULT_TEXT_ID, ...ALL_PSEUDEPIGRAPHA_TEXT_IDS]
 
+  // Round 11: deterministic chapter pin (see detectExplicitFocusChapter) — added BEFORE the AI
+  // guess loop below, deliberately, so it claims the chapter's dedup key first: `add()`'s dedup
+  // is keyed on exact chapter:verse only (not endVerse), so if the model's own guess loop ran
+  // FIRST and added a narrower single-verse guess for the same chapter (e.g. just verse 1), this
+  // wider, real, DB-verified whole-chapter pin would silently be dropped as a "duplicate" of a
+  // strictly worse entry — confirmed directly: this is exactly what happened before reordering.
+  // Real, DB-verified text, so it flows through the exact same ranking/commentary machinery as
+  // any other guess, just guaranteed present regardless of extraction reliability. Capped at 60
+  // verses as a sane backstop against a pathological chapter length — real pseudepigrapha
+  // chapters are typically well under that.
+  if (focusTextId && focusWorkName) {
+    const pinnedChapter = detectExplicitFocusChapter(question, focusWorkName)
+    if (pinnedChapter != null) {
+      const pinDb = getTextDb(focusTextId)
+      const pinBookId = resolveBookId(focusWorkName, focusTextId)
+      if (pinDb && pinBookId) {
+        const maxRow = pinDb.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(pinBookId, pinnedChapter) as { m: number | null } | undefined
+        if (maxRow?.m) {
+          const endV = Math.min(maxRow.m, 60)
+          const parts: string[] = []
+          // Verse numbers are prefixed inline (not just plain concatenated text) — found via
+          // testing: without them, the commentary model tends to anchor on whichever verse it
+          // saw LAST (e.g. the "get thee up" instruction near the chapter's end) rather than the
+          // actually-relevant one earlier in the same chapter (e.g. the idol-burning at 12:12),
+          // even though both are present in the same blob. Explicit verse numbers give it a real
+          // handle to cite/reason about specific verses instead of treating the whole chapter as
+          // one undifferentiated block.
+          for (let v = 1; v <= endV; v++) {
+            const verse = queryVerse(pinBookId, pinnedChapter, v, focusTextId)
+            if (verse) parts.push(`[${pinnedChapter}:${v}] ${verse.text}`)
+          }
+          if (parts.length > 0) {
+            add(guessCandidates, focusTextId, { book_id: pinBookId, chapter: pinnedChapter, verse_num: 1, verse_end: endV > 1 ? endV : undefined, text: parts.join(' ') }, 'ai-guess')
+          }
+        }
+      }
+    }
+  }
+
   // 1. AI direct guesses — a small, fixed budget that can never be starved out by the much
   // larger keyword pool. Allowed against every text in textPasses (Jubilees/Enoch/etc each have
   // a single-book `books` table with ordinary chapter:verse numbering, so a guess resolves the
@@ -1990,7 +2078,7 @@ export async function runLookup(
     emit(pick(COMMENTARY_MESSAGES))
     try {
       const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
-        commentaryPrompt(question, candidates, tabContextBlock), model
+        commentaryPrompt(question, candidates, tabContextBlock, focusWorkName, focusTextId, notesAugment), model
       )
       const irrelevant = new Set(raw.irrelevant ?? [])
       for (const r of candidates) {
