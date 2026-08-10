@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
@@ -241,6 +241,10 @@ export default function AiLookupPanel() {
   const [crossRefsOpen, setCrossRefsOpen] = useState<Record<string, boolean>>({})
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
+  // Briefly shows a checkmark in place of the copy icon after a successful copy — cleared by
+  // its own timeout, keyed by message index so only the button just clicked flips.
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [examplePrompt] = useState(() => EXAMPLE_PROMPTS[Math.floor(Math.random() * EXAMPLE_PROMPTS.length)])
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
@@ -391,6 +395,14 @@ export default function AiLookupPanel() {
     await runQuery(question, messages)
   }
 
+  function copyMessage(mi: number, content: string) {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedIndex(mi)
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
+      copiedTimeoutRef.current = setTimeout(() => setCopiedIndex(null), 1500)
+    }).catch(() => {})
+  }
+
   // Editing a past question truncates everything after it (its old answer + any later turns)
   // and regenerates from there — same behavior as ChatGPT/Claude, keeps the chat a single
   // coherent thread rather than branching.
@@ -522,6 +534,13 @@ export default function AiLookupPanel() {
                 }
                 return (
                   <div key={mi} className="group flex justify-end items-center gap-1">
+                    <button
+                      onClick={() => copyMessage(mi, m.content)}
+                      title="Copy message"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
+                    >
+                      {copiedIndex === mi ? <Check size={11} className="text-[rgb(var(--color-accent))]" /> : <Copy size={11} />}
+                    </button>
                     <button
                       onClick={() => { setEditingIndex(mi); setEditValue(m.content) }}
                       title="Edit & regenerate"
