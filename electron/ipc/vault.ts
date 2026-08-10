@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
 import { BrowserWindow, app } from 'electron'
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, copyFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'fs'
 import { join, extname, basename } from 'path'
 import chokidar from 'chokidar'
 import { getBereanDb } from '../db/berean'
@@ -564,6 +564,65 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
   })
 }
 
+// ─── Notes trash — vault-file side ─────────────────────────────────────────────
+//
+// A trashed note's .md file moves into `<vaultPath>/.trash/` (leading dot — scanMdFiles above
+// already skips any directory starting with '.', so trashed files are automatically invisible
+// to import/reconcile/export without any extra filtering there) instead of being left in place
+// or deleted outright. Filenames are prefixed with the note's own id so two notes that happened
+// to resolve to the same filename (e.g. same title, different folders) can't collide once both
+// land in the same flat trash folder. The chokidar watcher (registered in vault:watch above)
+// only listens for 'change' events, never 'add'/'unlink', so moving a file in or out of .trash/
+// doesn't risk triggering any watcher-driven reconcile/import logic — confirmed by reading the
+// watcher setup above before relying on that.
+function trashFilePath(vaultPath: string, noteId: string): string {
+  return join(vaultPath, '.trash', `${noteId}.md`)
+}
+
+/** Moves a note's current vault file into .trash/, if it has one and a vault is configured.
+ *  Called right after the note's own `deleted_at` is set in the DB (electron/ipc/notes.ts). */
+export function moveNoteToVaultTrash(note: NoteRow): void {
+  try {
+    const vaultPath = getVaultPath()
+    if (!vaultPath) return
+    const folderPathMap = buildFolderPathMap()
+    const { dir, filename } = resolveNotePath(note, vaultPath, folderPathMap)
+    const src = join(dir, filename)
+    if (!existsSync(src)) return
+    const dest = trashFilePath(vaultPath, note.id)
+    ensureDir(join(vaultPath, '.trash'))
+    copyFileSync(src, dest)
+    unlinkSync(src)
+  } catch { /* vault-file move is best-effort — the DB soft-delete is the source of truth */ }
+}
+
+/** Moves a note's file back out of .trash/ to its normal resolved location. Called right after
+ *  `deleted_at` is cleared (restore). `note` should be the row AFTER restore (fresh folder_id). */
+export function restoreNoteFromVaultTrash(note: NoteRow): void {
+  try {
+    const vaultPath = getVaultPath()
+    if (!vaultPath) return
+    const src = trashFilePath(vaultPath, note.id)
+    if (!existsSync(src)) return
+    const folderPathMap = buildFolderPathMap()
+    const { dir, filename } = resolveNotePath(note, vaultPath, folderPathMap)
+    ensureDir(dir)
+    copyFileSync(src, join(dir, filename))
+    unlinkSync(src)
+  } catch { /* best-effort, same reasoning as moveNoteToVaultTrash */ }
+}
+
+/** Permanently deletes a note's file from .trash/ — called on manual purge/empty-trash and by
+ *  the 30-day auto-purge timer, alongside the real DB DELETE (electron/ipc/notes.ts). */
+export function purgeNoteFromVaultTrash(noteId: string): void {
+  try {
+    const vaultPath = getVaultPath()
+    if (!vaultPath) return
+    const p = trashFilePath(vaultPath, noteId)
+    if (existsSync(p)) unlinkSync(p)
+  } catch { /* best-effort */ }
+}
+
 // ─── Standalone export function (callable from main process too) ──────────────
 
 // Cached tab state from the last renderer-initiated export.
@@ -594,7 +653,10 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
 
     // ── 1. Notes (written into the vault folder hierarchy by type) ──────────
     const folderPathMap = buildFolderPathMap()
-    const noteRows = db.prepare('SELECT * FROM notes').all() as NoteRow[]
+    // Trashed notes are never exported — see moveNoteToVaultTrash below, which moves their
+    // vault file into .trash/ (and out of the normal per-type/folder tree) the moment they're
+    // soft-deleted, so there's nothing left here to skip on subsequent runs either.
+    const noteRows = db.prepare('SELECT * FROM notes WHERE deleted_at IS NULL').all() as NoteRow[]
 
     // Build per-verse highlight span groups for embedding ==emoji== markup in verse notes.
     type HlSpan = { color: string; start_char: number; end_char: number; text_id: string }
@@ -980,5 +1042,46 @@ export function setupAutoExport(intervalMinutes: number): void {
     if (autoExportTimer && typeof (autoExportTimer as NodeJS.Timeout).unref === 'function') {
       (autoExportTimer as NodeJS.Timeout).unref()
     }
+  }
+}
+
+// ─── Notes trash — 30-day auto-purge timer ────────────────────────────────────
+//
+// Same shape as setupAutoExport above (module-level setInterval handle, unref()'d, callable
+// once at startup) — checked hourly rather than every few minutes since a day-granularity
+// deadline doesn't need finer polling, and permanently purges any note trashed more than 30
+// days ago. Not user-configurable, same as the export interval.
+const TRASH_PURGE_CHECK_INTERVAL_MINUTES = 60
+const TRASH_RETENTION_DAYS = 30
+
+let trashPurgeTimer: ReturnType<typeof setInterval> | null = null
+
+function purgeExpiredTrash(): void {
+  try {
+    const db = getBereanDb()
+    const cutoff = Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000
+    const expired = db.prepare('SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?').all(cutoff) as Array<{ id: string }>
+    if (expired.length === 0) return
+    const tx = db.transaction(() => {
+      for (const { id } of expired) {
+        db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+        db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+      }
+    })
+    tx()
+    for (const { id } of expired) purgeNoteFromVaultTrash(id)
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send('notes:changed')
+    console.log(`[vault] purged ${expired.length} note(s) from trash (>${TRASH_RETENTION_DAYS} days)`)
+  } catch { /* best-effort background job — a failed sweep just retries next interval */ }
+}
+
+/** Starts the recurring trash-purge check. Called once at startup (electron/main.ts) —
+ *  unlike auto-export, this isn't gated by any user setting; trash always ages out. */
+export function setupTrashPurge(): void {
+  if (trashPurgeTimer) { clearInterval(trashPurgeTimer); trashPurgeTimer = null }
+  purgeExpiredTrash() // catch up on anything that expired while the app was closed
+  trashPurgeTimer = setInterval(purgeExpiredTrash, TRASH_PURGE_CHECK_INTERVAL_MINUTES * 60 * 1000)
+  if (trashPurgeTimer && typeof (trashPurgeTimer as NodeJS.Timeout).unref === 'function') {
+    (trashPurgeTimer as NodeJS.Timeout).unref()
   }
 }

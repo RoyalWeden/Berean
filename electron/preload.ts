@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('notes', {
   createNote: (data: unknown) => ipcRenderer.invoke('notes:create', data),
   updateNote: (id: string, data: unknown) => ipcRenderer.invoke('notes:update', id, data),
   deleteNote: (id: string) => ipcRenderer.invoke('notes:delete', id),
+  // Trash
+  restoreNote: (id: string) => ipcRenderer.invoke('notes:restore', id),
+  listTrash: () => ipcRenderer.invoke('notes:listTrash'),
+  purgeTrashItem: (id: string) => ipcRenderer.invoke('notes:purgeTrashItem', id),
+  emptyTrash: () => ipcRenderer.invoke('notes:emptyTrash'),
   deleteAllNotes: () => ipcRenderer.invoke('notes:deleteAll'),
   deleteByTag: (tag: string) => ipcRenderer.invoke('notes:deleteByTag', tag),
   getNotes: (limit?: number, offset?: number) =>
@@ -232,6 +237,24 @@ contextBridge.exposeInMainWorld('crossrefs', {
   getHermasTaylorChapter: (bookId: string, chapter: number) =>
     ipcRenderer.invoke('crossrefs:getHermasTaylorChapter', bookId, chapter),
   status: () => ipcRenderer.invoke('crossrefs:status'),
+})
+
+contextBridge.exposeInMainWorld('aiLookup', {
+  checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
+  unloadModel: () => ipcRenderer.invoke('ailookup:unloadModel'),
+  query: (question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
+    ipcRenderer.invoke('ailookup:query', question, opts),
+  listChats: () => ipcRenderer.invoke('ailookup:listChats'),
+  getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
+  saveChat: (chat: unknown) => ipcRenderer.invoke('ailookup:saveChat', chat),
+  deleteChat: (id: string) => ipcRenderer.invoke('ailookup:deleteChat', id),
+  // Live status text during a single query() call (e.g. "Searching Jubilees…") — the main
+  // process handler sends these via event.sender.send while the async work is still in
+  // flight, same request/response call still resolves with the final result as normal.
+  onProgress: (cb: (status: string) => void) => {
+    ipcRenderer.removeAllListeners('ailookup:progress')
+    ipcRenderer.on('ailookup:progress', (_, status) => cb(status))
+  },
 })
 
 contextBridge.exposeInMainWorld('youtube', {

@@ -5,6 +5,7 @@ import {
   Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
+  RotateCcw, AlertTriangle,
 } from 'lucide-react'
 import type { Note, NoteFolder, NoteStatus, PdfDoc } from '@/types'
 import NoteContextMenu, { orderedFolders, type SessionInfo } from './NoteContextMenu'
@@ -36,6 +37,16 @@ export function noteIsMovable(note: Note): boolean {
   return systemFolderOf(note) === null
 }
 
+// "Deleted 3 days ago" / "Deleted today" style label for the Trash list — also implicitly
+// communicates how much of the 30-day auto-purge window is left without a separate countdown.
+function deletedAgoLabel(deletedAt: number | undefined): string {
+  if (!deletedAt) return ''
+  const days = Math.floor((Date.now() - deletedAt) / 86_400_000)
+  if (days <= 0) return 'Deleted today'
+  if (days === 1) return 'Deleted yesterday'
+  return `Deleted ${days} days ago`
+}
+
 const SYSTEM_FOLDERS: { key: SystemKey; label: string; icon: typeof CalendarDays }[] = [
   { key: 'daily',        label: 'Daily Notes',  icon: CalendarDays },
   { key: 'verse',        label: 'Verse Notes',  icon: BookMarked },
@@ -55,6 +66,11 @@ interface Props {
   onCreateIdiom?: () => void
   onCreateIdiomInFolder?: (folderId: string) => void
   onCreateFolder: (parentId: string | null) => void
+  /** Id of a just-created folder that should immediately open its rename input, auto-focused
+   *  and selected — set by the parent right after createFolder resolves, cleared via
+   *  onAutoRenameHandled once consumed here. */
+  autoRenameFolderId?: string | null
+  onAutoRenameHandled?: () => void
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
   onDeleteFolderDeep: (id: string) => void
@@ -83,7 +99,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 export default function NotesFolderView({
   notes, folders, activeNoteId,
   onSelect, onDelete, onSetNoteFolder,
-  onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
+  onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
   onToggleSelectNote, onToggleSelectFolder,
@@ -217,6 +233,19 @@ export default function NotesFolderView({
     window.addEventListener('berean:pdfsChanged', onChange)
     return () => window.removeEventListener('berean:pdfsChanged', onChange)
   }, [pdfFeatureEnabled])
+  // Trash (locked folder, same self-fetching shape as the PDFs section above) — refetches on
+  // the same noteChangeToken bump every other note mutation in the app already relies on
+  // (App.tsx's window.notes.onChanged listener), so a delete/restore/purge from anywhere shows
+  // up here without any new plumbing.
+  const noteChangeToken = useAppStore((s) => s.noteChangeToken)
+  const [trashedNotes, setTrashedNotes] = useState<Note[]>([])
+  useEffect(() => {
+    window.notes.listTrash().then(setTrashedNotes).catch(() => {})
+  }, [noteChangeToken])
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false)
+  const [trashMenu, setTrashMenu] = useState<{ x: number; y: number } | null>(null)
+  const trashMenuRef = useRef<HTMLDivElement>(null)
+
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
@@ -243,6 +272,29 @@ export default function NotesFolderView({
   useEffect(() => { if (renamingId) { renameRef.current?.focus(); renameRef.current?.select() } }, [renamingId])
   useEffect(() => { if (renamingNoteId) { noteRenameRef.current?.focus(); noteRenameRef.current?.select() } }, [renamingNoteId])
 
+  // Opens the rename input automatically right after a folder is created (see the pencil
+  // button below for the manual equivalent this reuses verbatim: setRenameVal + setRenamingId,
+  // which the auto-focus effect right above already reacts to). Also expands every ancestor of
+  // the new folder — a subfolder created inside a currently-collapsed parent wouldn't render a
+  // row at all otherwise, so the rename input would have nothing to attach to.
+  useEffect(() => {
+    if (!autoRenameFolderId) return
+    const folder = folders.find((f) => f.id === autoRenameFolderId)
+    if (!folder) return // parent hasn't re-rendered with the new folder yet — effect re-fires once it has
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      let cur: NoteFolder | undefined = folder
+      while (cur?.parentId) {
+        next.add(cur.parentId)
+        cur = folders.find((f) => f.id === cur!.parentId)
+      }
+      return next
+    })
+    setRenameVal(folder.name)
+    setRenamingId(folder.id)
+    onAutoRenameHandled?.()
+  }, [autoRenameFolderId, folders, onAutoRenameHandled])
+
   // Close inline move menu on outside click
   useEffect(() => {
     if (!noteMoveMenu) return
@@ -261,6 +313,18 @@ export default function NotesFolderView({
     window.addEventListener('berean:closeContextMenus', onClose)
     return () => window.removeEventListener('berean:closeContextMenus', onClose)
   }, [])
+
+  // Trash context-menu dismissal
+  useEffect(() => {
+    if (!trashMenu) return
+    function onClick(e: MouseEvent) {
+      if (trashMenuRef.current && !trashMenuRef.current.contains(e.target as Node)) setTrashMenu(null)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setTrashMenu(null) }
+    window.addEventListener('mousedown', onClick, true)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mousedown', onClick, true); window.removeEventListener('keydown', onKey) }
+  }, [trashMenu])
 
   // Folder context-menu dismissal
   useEffect(() => {
@@ -909,6 +973,106 @@ export default function NotesFolderView({
               ))
         )}
       </div>
+      )}
+
+      {/* Trash (locked) — soft-deleted notes. Restorable individually, or permanently cleared
+          all at once via right-click "Empty Trash" (with a warning, no "don't ask again" skip
+          given the stakes — see the confirm modal below). Auto-purges 30 days after each note's
+          own deletion regardless of whether this UI is ever opened (electron/ipc/vault.ts's
+          setupTrashPurge, a background timer, not something this component drives). */}
+      <div onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (trashedNotes.length > 0) setTrashMenu({ x: e.clientX, y: e.clientY })
+      }}>
+        <div
+          data-folder-row
+          onClick={() => toggle('trash')}
+          className="group flex items-center gap-1.5 pl-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors"
+        >
+          <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
+          <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+          <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
+          <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
+          <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{trashedNotes.length || ''}</span>
+        </div>
+        {expanded.has('trash') && (
+          trashedNotes.length === 0
+            ? <div className="pl-8 pr-2 py-1.5 text-[11px] text-[rgb(var(--color-text-muted))] italic">Trash is empty</div>
+            : trashedNotes.map((n) => (
+                <div key={n.id}
+                  style={{ paddingLeft: 28 }}
+                  className="group flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
+                  <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-xs text-[rgb(var(--color-text-secondary))]">{n.title || 'Untitled'}</div>
+                    <div className="text-[10px] text-[rgb(var(--color-text-muted))]">{deletedAgoLabel(n.deletedAt)}</div>
+                  </div>
+                  <button
+                    title="Restore"
+                    onClick={() => window.notes.restoreNote(n.id).then(() => useAppStore.getState().bumpNoteToken())}
+                    className="flex-shrink-0 p-1 rounded hover:bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                  <button
+                    title="Delete forever"
+                    onClick={() => window.notes.purgeTrashItem(n.id).then(() => useAppStore.getState().bumpNoteToken())}
+                    className="flex-shrink-0 p-1 rounded hover:bg-red-500/10 text-[rgb(var(--color-text-muted))] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+        )}
+      </div>
+      {/* "Empty Trash" — reached via right-click on the Trash row above, not a per-item menu */}
+      {trashMenu && createPortal(
+        <MenuPositioner ref={trashMenuRef} x={trashMenu.x} y={trashMenu.y}>
+          <div className="glass-panel rounded-shell-lg py-1 min-w-[160px] shadow-xl">
+            <button
+              className={`${MENU_ITEM} text-red-400 hover:text-red-300 hover:bg-red-500/10`}
+              onClick={() => { setTrashMenu(null); setConfirmEmptyTrash(true) }}
+            >
+              <Trash2 size={13} className="flex-shrink-0" /> Empty Trash
+            </button>
+          </div>
+        </MenuPositioner>,
+        document.body
+      )}
+      {confirmEmptyTrash && createPortal(
+        <div className="native-buttons fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
+          <div className="glass-panel rounded-shell-lg p-5 w-80 max-w-full">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
+              <p className="text-sm font-semibold text-[rgb(var(--color-text-primary))]">
+                Empty Trash?
+              </p>
+            </div>
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-4">
+              This will permanently delete {trashedNotes.length} note{trashedNotes.length === 1 ? '' : 's'} in Trash.
+              This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                onClick={() => setConfirmEmptyTrash(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer"
+                onClick={() => {
+                  window.notes.emptyTrash().then(() => useAppStore.getState().bumpNoteToken())
+                  setConfirmEmptyTrash(false)
+                }}
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Divider */}

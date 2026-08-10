@@ -80,9 +80,21 @@ export default function FloatingRail() {
 
   useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }, [])
 
-  function open() {
+  // `e.buttons` reflects the real OS-level button state at dispatch time regardless of which
+  // process/frame originally saw the mousedown — so this also catches a drag that STARTED
+  // inside the YouTube webview (e.g. scrubbing its timeline): Electron's <webview> is a
+  // separate native compositor layer, so a mousedown on YouTube's own seek bar never reaches
+  // this host document at all, but once the drag carries the cursor across into this rail's
+  // hover strip, `buttons` still correctly reports the button as held. Skipping open() in that
+  // case is what stops the rail popping open and getting in the way mid-drag; onMouseMove below
+  // re-arms it the moment the button is actually released while the cursor is still here.
+  function open(e?: React.MouseEvent) {
+    if (e && e.buttons !== 0) return
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
     setHovered(true)
+  }
+  function onMove(e: React.MouseEvent) {
+    if (!hovered && e.buttons === 0) open()
   }
   function scheduleClose() {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -97,6 +109,7 @@ export default function FloatingRail() {
       className="no-drag fixed z-40 transition-[left] duration-200 ease-in-out"
       style={{ top: `calc(50% + ${headerHeight / 2}px)`, left, transform: 'translateY(-50%)' }}
       onMouseEnter={open}
+      onMouseMove={onMove}
       onMouseLeave={scheduleClose}
     >
       <motion.div

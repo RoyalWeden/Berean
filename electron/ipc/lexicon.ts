@@ -28,28 +28,47 @@ function mapEntry(row: DbEntry) {
   }
 }
 
-export function registerLexiconHandlers(ipcMain: IpcMain): void {
-  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => {
-    const num = strongsNum.trim().toUpperCase()
-    try {
-      if (num.startsWith('H')) {
-        const db = getHebrewDb()
-        const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
-        return row ? mapEntry(row) : null
-      } else if (num.startsWith('G')) {
-        const db = getGreekDb()
-        const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
-        return row ? mapEntry(row) : null
-      }
-      return null
-    } catch {
-      return null
+/** Looks up a single Strong's entry (word/gloss/definition/etc) — exported as a plain function,
+ *  not just an IPC handler, so other main-process modules (electron/ipc/aiLookup.ts, verifying
+ *  a Strong's number before using it) can reuse it without a second DB-access path. */
+export function getLexiconEntry(strongsNum: string): ReturnType<typeof mapEntry> | null {
+  const num = strongsNum.trim().toUpperCase()
+  try {
+    if (num.startsWith('H')) {
+      const db = getHebrewDb()
+      const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
+      return row ? mapEntry(row) : null
+    } else if (num.startsWith('G')) {
+      const db = getGreekDb()
+      const row = db.prepare('SELECT * FROM entries WHERE strongs_id = ?').get(num) as DbEntry | undefined
+      return row ? mapEntry(row) : null
     }
-  })
+    return null
+  } catch {
+    return null
+  }
+}
 
-  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => {
-    const num = strongsNum.trim().toUpperCase()
-    try {
+export interface LexiconOccurrence {
+  book_id: string
+  chapter: number
+  verse_num: number
+  text: string
+  text_id: string
+  matchWordIndices: number[]
+}
+
+/** Finds every real, tag-verified occurrence of a Strong's number in the tagged texts — exported
+ *  as a plain function for the same reuse reason as getLexiconEntry above.
+ *  `bookId` (optional): scopes results to a single book (e.g. "MAT") — filtered on the already-
+ *  fetched rows before the expensive per-row match-index computation below, so a question like
+ *  "where in Matthew is G5485 used" only ever shows Matthew occurrences instead of silently
+ *  substituting the first N alphabetically (which could be a different book entirely, or none
+ *  at all if the number simply doesn't occur there — see aiLookup.ts's callers for the "not
+ *  found" handling this makes possible). */
+export function getLexiconOccurrences(strongsNum: string, bookId?: string): LexiconOccurrence[] {
+  const num = strongsNum.trim().toUpperCase()
+  try {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
       if (!lexDb) { return [] }
 
@@ -88,9 +107,11 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
 
       // Fetch up to 500 per source so both KJVA and LXX are represented even for
       // frequently-occurring G-numbers. H-numbers are KJVA-only.
-      const rawRows: RawRow[] = isGreek
+      let rawRows: RawRow[] = isGreek
         ? [...scanTaggedOccurrences(kjva, 'kjva', 500), ...scanTaggedOccurrences(lxxDb, 'lxx', 500)]
         : scanTaggedOccurrences(kjva, 'kjva', 1000)
+
+      if (bookId) rawRows = rawRows.filter((r) => r.book_id === bookId.toUpperCase())
 
       if (!rawRows.length) return []
 
@@ -258,7 +279,12 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
     } catch (e) {
       return []
     }
-  })
+}
+
+export function registerLexiconHandlers(ipcMain: IpcMain): void {
+  ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => getLexiconEntry(strongsNum))
+
+  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => getLexiconOccurrences(strongsNum))
 
   ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => {
     const num = strongsNum.trim().toUpperCase()

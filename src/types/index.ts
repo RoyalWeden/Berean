@@ -268,6 +268,8 @@ export interface Note {
   idiomAliases?: string[]
   idiomAutoVariants?: boolean
   idiomData?: IdiomData
+  /** Set when the note is in Trash (Unix ms) — undefined for a normal, non-trashed note. */
+  deletedAt?: number
 }
 
 /** Structured idiom fields for the reference-book editor + export. */

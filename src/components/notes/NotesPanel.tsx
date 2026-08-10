@@ -389,7 +389,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [])
 
   const loadFolders = useCallback(() => {
-    window.notes.getFolders().then(setFolders).catch(() => {})
+    return window.notes.getFolders().then(setFolders).catch(() => {})
   }, [])
 
   // Load folders + persisted view-mode preference on mount. Falls back to the legacy
@@ -456,8 +456,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.notes.getNotes(100000, 0).then(setNotes).catch(() => {})
     window.notes.listIdioms?.().then(setIdiomCache).catch(() => {})
   }, [setIdiomCache])
+  // Auto-focus-rename right after creating a folder, instead of leaving it named "New Folder"
+  // until the user separately hovers/right-clicks → Rename. NotesFolderView already has the
+  // full rename UI (inline input, auto-focus-and-select, Enter/Escape/blur) wired to its own
+  // renamingId/renameVal state for the existing pencil-button rename — this just captures the
+  // new folder's real id (previously discarded) and hands it down so that same UI opens itself.
+  const [autoRenameFolderId, setAutoRenameFolderId] = useState<string | null>(null)
   const handleCreateFolder = useCallback(async (parentId: string | null) => {
-    await window.notes.createFolder('New Folder', parentId); loadFolders()
+    const result = await window.notes.createFolder('New Folder', parentId)
+    // Awaited (not fire-and-forget) — `folders` must already include the new row before
+    // autoRenameFolderId is set below, or NotesFolderView's rename input would try to open on
+    // a folder that isn't in the tree yet (the auto-focus effect only fires once per id change,
+    // so a row that appears a render later would never get focused).
+    await loadFolders()
+    if (result?.id) setAutoRenameFolderId(result.id)
   }, [loadFolders])
   const handleRenameFolder = useCallback(async (id: string, name: string) => {
     await window.notes.renameFolder(id, name); loadFolders()
@@ -1774,6 +1786,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onCreateIdiom={() => setIdiomModal({ term: '', meaning: '' })}
                   onCreateIdiomInFolder={(folderId) => setIdiomModal({ term: '', meaning: '', folderId })}
                   onCreateFolder={handleCreateFolder}
+                  autoRenameFolderId={autoRenameFolderId}
+                  onAutoRenameHandled={() => setAutoRenameFolderId(null)}
                   onRenameFolder={handleRenameFolder}
                   onDeleteFolder={handleDeleteFolder}
                   onDeleteFolderDeep={handleDeleteFolderDeep}

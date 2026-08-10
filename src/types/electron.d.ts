@@ -15,6 +15,11 @@ interface NotesAPI {
   // so callers need a way to explicitly send null rather than just omitting the field.
   updateNote: (id: string, data: Partial<Omit<Note, 'status'>> & { status?: Note['status'] | null }) => Promise<{ success: boolean; error?: string }>
   deleteNote: (id: string) => Promise<{ success: boolean; error?: string }>
+  // Trash
+  restoreNote: (id: string) => Promise<{ success: boolean; error?: string }>
+  listTrash: () => Promise<Note[]>
+  purgeTrashItem: (id: string) => Promise<{ success: boolean; error?: string }>
+  emptyTrash: () => Promise<{ success: boolean; purged: string[] }>
   deleteAllNotes: () => Promise<{ success: boolean }>
   deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>
   getNotes: (limit?: number, offset?: number) => Promise<Note[]>
@@ -396,6 +401,157 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source'
+
+export interface AiLookupResult {
+  textId: string
+  bookId: string
+  bookName: string
+  chapter: number
+  verse: number
+  endVerse?: number
+  text: string
+  source: AiLookupResultSource
+  commentary?: string
+  /** True if a verse note already exists at this exact reference. */
+  noted?: boolean
+  /** Only set on `source: 'cross-ref'` results — which primary result they were expanded
+   *  from, so the UI can nest them under it instead of listing them as flat entries. */
+  crossRefOf?: { bookId: string; chapter: number; verse: number }
+}
+
+export interface AiLookupNoteResult {
+  id: string
+  title: string
+  snippet: string
+  isIdiom: boolean
+  idiomTerm?: string
+}
+
+/** Round 11: a video found via "find me a video about X" — searched from the local,
+ *  already-synced, allowlisted-channel library only (see CLAUDE.md §12). */
+export interface AiLookupVideoResult {
+  videoId: string
+  title: string
+  channelName: string
+  thumbnailUrl: string
+}
+
+export interface AiLookupStrongsCard {
+  strongsNum: string
+  lemma: string
+  transliteration: string
+  /** short_def — the classic "how this word is rendered in the KJV" gloss list. */
+  gloss: string
+  definition: string
+  derivation: string
+  occurrenceCount: number
+}
+
+export interface AiLookupResponse {
+  results: AiLookupResult[]
+  /** How many of `results` (counting only primary, non-cross-ref ones) to show before a
+   *  "Show more" button reveals the rest. */
+  visibleCount: number
+  /** Extracted search keywords, for highlighting matched terms in verse text. */
+  keywords: string[]
+  /** A canonical guess that surfaced alongside a focus-text question — shown separately,
+   *  after the focus text's own results, with `relatedNote` explaining why. */
+  related: AiLookupResult[]
+  relatedNote?: string
+  /** A real, DB-verified Strong's word card — set whenever the question contained (or the AI
+   *  proposed and it was verified to be) a real Strong's number. */
+  strongsCard?: AiLookupStrongsCard
+  summary?: string
+  error?: string
+  /** Real, DB-verified note matches — either the whole answer (an explicit note-ask) or a small
+   *  augmentation alongside verse results. */
+  notes?: AiLookupNoteResult[]
+  /** True when `notes` fully answers the question on its own — the UI skips the verse-results
+   *  section entirely in that case. */
+  notesAreThePrimaryAnswer?: boolean
+  /** Set when the question was an explicit video request — see AiLookupVideoResult. */
+  videos?: AiLookupVideoResult[]
+}
+
+export interface AiLookupChatSummary {
+  id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AiLookupChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  results?: AiLookupResult[]
+  visibleCount?: number
+  keywords?: string[]
+  related?: AiLookupResult[]
+  relatedNote?: string
+  summary?: string
+  strongsCard?: AiLookupStrongsCard
+  notes?: AiLookupNoteResult[]
+  notesAreThePrimaryAnswer?: boolean
+  videos?: AiLookupVideoResult[]
+  createdAt: string
+}
+
+export interface AiLookupChat {
+  id: string
+  title: string
+  messages: AiLookupChatMessage[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** A lightweight pointer to the renderer's currently active tab — the main process fetches the
+ *  REAL content server-side from just this reference (never trusts renderer-supplied text), same
+ *  DB-verified-only principle as every other candidate this pipeline ever shows. */
+export interface AiLookupTabContextRef {
+  type: 'bible' | 'note' | 'lexicon' | 'youtube'
+  bookId?: string
+  chapter?: number
+  translation?: string
+  noteId?: string
+  strongsNum?: string
+  videoId?: string
+}
+
+interface AiLookupAPI {
+  checkAvailable: () => Promise<{ available: boolean; models: string[] }>
+  /** Proactively unloads the local Ollama model right away — call when the chat panel closes.
+   *  Redundant with the main process's own idle-unload timer (which fires a couple minutes
+   *  after the last question regardless of panel state); this just makes closing feel instant. */
+  unloadModel: () => Promise<{ success: boolean }>
+  query: (question: string, opts: {
+    commentary: boolean
+    /** "Deep search" — an extra verification pass that checks whether the initial results
+     *  actually answer the question and, if not, retries once with different search terms.
+     *  Slower (one to two extra Ollama calls); off by default. */
+    agentic?: boolean
+    model?: string; textId?: string
+    /** Enabled, non-Strong's word-replacer rules — so keyword search also tries the DB's
+     *  original wording (e.g. "Jesus") when the model used the app's preferred wording
+     *  (e.g. "Yeshua"), or vice versa. Pass only `{ queries, replacement }` pairs. */
+    wordReplacerRules?: Array<{ queries: string[]; replacement: string }>
+    /** Recent chat turns (role + content only), so a natural follow-up like "what about the
+     *  next chapter" has something to resolve against. Capped to the last few turns by the
+     *  caller — the main process caps further before it ever reaches the model. */
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>
+    /** Sent when the "use current tab as context" toggle is on, or an inline mention like "this
+     *  chapter" was detected — see AiLookupTabContextRef. */
+    tabContext?: AiLookupTabContextRef
+  }) => Promise<AiLookupResponse>
+  listChats: () => Promise<AiLookupChatSummary[]>
+  getChat: (id: string) => Promise<AiLookupChat | null>
+  saveChat: (chat: { id?: string; title: string; messages: AiLookupChatMessage[] }) => Promise<{ id: string }>
+  deleteChat: (id: string) => Promise<{ success: boolean }>
+  /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,
+   *  not per-query; same removeAllListeners-then-on pattern as the other progress bridges. */
+  onProgress: (cb: (status: string) => void) => void
+}
+
 declare global {
   interface Window {
     bible: BibleAPI
@@ -407,6 +563,7 @@ declare global {
     vault: VaultAPI
     youtube: YouTubeAPI
     crossrefs: CrossRefsAPI
+    aiLookup: AiLookupAPI
     app: AppAPI
     bgImport: BgImportAPI
     eSwordImport: ESwordImportAPI

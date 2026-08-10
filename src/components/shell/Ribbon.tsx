@@ -2,7 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { useState, useEffect, useRef } from 'react'
 import {
-  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search,
+  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
@@ -50,6 +50,9 @@ export default function Ribbon() {
 
   const openFindBar = useAppStore((s) => s.openFindBar)
   const setActivePanelId = useAppStore((s) => s.setActivePanelId)
+
+  const aiLookupPanelOpen = useAppStore((s) => s.aiLookupPanelOpen)
+  const setAiLookupPanelOpen = useAppStore((s) => s.setAiLookupPanelOpen)
 
   const [zoomPopoverOpen, setZoomPopoverOpen] = useState(false)
   // Hover-to-open/close for the zoom popover — same timing as TopBar.tsx's nav dropdown and
@@ -341,6 +344,26 @@ export default function Ribbon() {
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
+
+        {/* ── AI Scripture Lookup ── */}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={() => setAiLookupPanelOpen(!aiLookupPanelOpen)}
+              className={`no-drag flex items-center justify-center w-8 h-8 rounded-shell transition-colors cursor-pointer ${
+                aiLookupPanelOpen ? 'bg-[rgb(var(--color-accent))/16] text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]'
+              }`}
+            >
+              <Sparkles size={16} />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+              AI Scripture Lookup
+              <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
