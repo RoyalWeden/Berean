@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil } from 'lucide-react'
+import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import type { AiLookupChatMessage, AiLookupResult } from '@/types/electron'
+import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
 const PANEL_WIDTH = 380
@@ -57,6 +57,119 @@ function HighlightedText({ text, keywords }: { text: string; keywords: string[] 
           : <Fragment key={i}>{part}</Fragment>
       )}
     </>
+  )
+}
+
+// Auto-grows with content up to a max height (~4 lines) then scrolls internally — replaces the
+// old fixed-height single-line <input> for both the composer and the edit-message field, so a
+// long message wraps and stays fully visible/editable instead of scrolling horizontally inside
+// a box too short to show it.
+const TEXTAREA_MAX_HEIGHT = 88 // ~4 lines at this font size
+
+function AutoGrowTextarea({ value, onChange, onKeyDown, placeholder, disabled, autoFocus, className }: {
+  value: string
+  onChange: (v: string) => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  placeholder?: string
+  disabled?: boolean
+  autoFocus?: boolean
+  className?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      autoFocus={autoFocus}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      disabled={disabled}
+      style={{ maxHeight: TEXTAREA_MAX_HEIGHT, resize: 'none' }}
+      className={className}
+    />
+  )
+}
+
+/** A real, DB-verified Strong's word card — definition-only by default (occurrences render
+ *  separately, as ordinary verse chips, only when the question actually asked for them — see
+ *  STRONGS_OCCURRENCES_REQUESTED_RE in aiLookup.ts). Clickable via the same ensureTab('lexicon')
+ *  → openLexiconEntry → setActiveSpace('lexicon') primitive used everywhere else in the app. */
+function StrongsCard({ card }: { card: AiLookupStrongsCard }) {
+  const ensureTab = useAppStore((s) => s.ensureTab)
+  const openLexiconEntry = useAppStore((s) => s.openLexiconEntry)
+  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  return (
+    <button
+      onClick={() => { ensureTab('lexicon'); openLexiconEntry(card.strongsNum); setActiveSpace('lexicon') }}
+      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-3 py-2.5 transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-1.5 mb-1">
+        <BookOpenText size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+        <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))]">{card.strongsNum}</span>
+        {card.transliteration && <span className="text-[11px] italic text-[rgb(var(--color-text-secondary))]">{card.transliteration}</span>}
+        {card.lemma && <span className="text-[11px] text-[rgb(var(--color-text-muted))]">{card.lemma}</span>}
+      </div>
+      {card.gloss && (
+        <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug">
+          <span className="text-[rgb(var(--color-text-muted))]">Renders as: </span>{card.gloss}
+        </p>
+      )}
+      {card.derivation && (
+        <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-snug mt-0.5">
+          <span className="text-[rgb(var(--color-text-muted))]">Derivation: </span>{card.derivation}
+        </p>
+      )}
+      <p className="text-[10px] text-[rgb(var(--color-text-muted))] mt-1">
+        {card.occurrenceCount} occurrence{card.occurrenceCount === 1 ? '' : 's'} in Scripture · click for full entry
+      </p>
+    </button>
+  )
+}
+
+/** A note result — clickable via the same ensureTab('note') → setActiveSpace('notes') →
+ *  requestOpenNote primitive used everywhere else in the app. */
+function NoteCard({ note }: { note: AiLookupNoteResult }) {
+  const ensureTab = useAppStore((s) => s.ensureTab)
+  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  const requestOpenNote = useAppStore((s) => s.requestOpenNote)
+  return (
+    <button
+      onClick={() => { ensureTab('note'); setActiveSpace('notes'); requestOpenNote(note.id) }}
+      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+        <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] truncate">{note.title}</span>
+        {note.isIdiom && (
+          <span className="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">
+            idiom{note.idiomTerm ? `: ${note.idiomTerm}` : ''}
+          </span>
+        )}
+      </div>
+      {note.snippet && <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug line-clamp-2">{note.snippet}</p>}
+    </button>
+  )
+}
+
+/** A small pill/badge for a deterministic (non-AI-prose) summary line — cross-ref/quote-lookup
+ *  answers set `summary` to a fixed template string, not AI-generated prose (unless Commentary
+ *  is on, in which case it IS real AI narration — still shown here, just with the same neutral
+ *  badge framing rather than looking like a chat reply, per the request that these should read
+ *  as a label, not a sentence of AI prose). */
+function SourceBadge({ text }: { text: string }) {
+  return (
+    <div className="inline-flex items-start gap-1.5 max-w-full text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-2))] rounded-full px-2.5 py-1 border border-[rgb(var(--color-surface-4))]">
+      <Quote size={10} className="flex-shrink-0 mt-0.5 opacity-70" />
+      <span>{text}</span>
+    </div>
   )
 }
 
@@ -188,11 +301,15 @@ export default function AiLookupPanel() {
           : undefined,
         history,
       })
+      // "Nothing found" only applies when NOTHING at all came back — a Strong's card, a notes
+      // answer, or a summary/badge line are all legitimate complete answers on their own, even
+      // when `results` (verse chips) is empty.
+      const hasAnyAnswer = res.results.length > 0 || !!res.strongsCard || (res.notes?.length ?? 0) > 0 || !!res.summary
       const assistantMsg: AiLookupChatMessage = {
         role: 'assistant',
         content: res.error === 'ollama-unavailable'
           ? "Ollama isn't running — start it locally to use AI Lookup."
-          : res.results.length === 0
+          : !hasAnyAnswer
             ? "No matching verses found — try rephrasing."
             : '',
         results: res.results,
@@ -201,7 +318,9 @@ export default function AiLookupPanel() {
         related: res.related,
         relatedNote: res.relatedNote,
         summary: res.summary,
-        strongsInfo: res.strongsInfo,
+        strongsCard: res.strongsCard,
+        notes: res.notes,
+        notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer,
         createdAt: new Date().toISOString(),
       }
       const withAssistant = [...withUser, assistantMsg]
@@ -329,11 +448,11 @@ export default function AiLookupPanel() {
                 if (isEditing) {
                   return (
                     <div key={mi} className="flex justify-end">
-                      <div className="max-w-[85%] w-full flex items-center gap-1">
-                        <input
+                      <div className="max-w-[85%] w-full flex items-end gap-1">
+                        <AutoGrowTextarea
                           autoFocus
                           value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
+                          onChange={setEditValue}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(mi) }
                             if (e.key === 'Escape') setEditingIndex(null)
@@ -386,14 +505,26 @@ export default function AiLookupPanel() {
                 <div key={mi} className="flex justify-start">
                   <div className="max-w-full w-full space-y-2">
                     {m.content && <p className="text-xs text-[rgb(var(--color-text-muted))]">{m.content}</p>}
-                    {m.summary && <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>}
-                    {m.strongsInfo && (
-                      <p className="text-[11px] text-[rgb(var(--color-text-secondary))] bg-[rgb(var(--color-surface-2))] rounded-shell px-2.5 py-1.5">
-                        {m.strongsInfo}
-                      </p>
+                    {m.summary && (
+                      // Deterministic branches (quote-lookup, notes-only) always return
+                      // `keywords: []` — the normal guess/keyword pipeline never does, since it
+                      // comes straight from the extraction call. That's the signal used to pick
+                      // badge (label-like, not AI prose) vs the plain italic "AI thinking out
+                      // loud" styling — even when Commentary produced a real narrated summary
+                      // for a deterministic branch, it still reads as a label, per feedback that
+                      // these shouldn't look like a chat reply.
+                      keywords.length === 0
+                        ? <SourceBadge text={m.summary} />
+                        : <p className="text-xs text-[rgb(var(--color-text-primary))] italic">{m.summary}</p>
+                    )}
+                    {m.strongsCard && <StrongsCard card={m.strongsCard} />}
+                    {(m.notes ?? []).length > 0 && (
+                      <div className="space-y-1.5">
+                        {m.notes!.map((n) => <NoteCard key={n.id} note={n} />)}
+                      </div>
                     )}
 
-                    {visiblePrimary.map((r, ri) => {
+                    {!m.notesAreThePrimaryAnswer && visiblePrimary.map((r, ri) => {
                       const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
                       const crKey = `${mi}-${ri}`
                       const crOpen = crossRefsOpen[crKey] ?? false
@@ -459,7 +590,7 @@ export default function AiLookupPanel() {
                       )
                     })}
 
-                    {hasMore && (
+                    {!m.notesAreThePrimaryAnswer && hasMore && (
                       <button
                         onClick={() => setExpanded((prev) => ({ ...prev, [mi]: primary.length }))}
                         className="w-full flex items-center justify-center gap-1 text-[11px] text-[rgb(var(--color-accent))] hover:underline py-1 cursor-pointer"
@@ -505,10 +636,10 @@ export default function AiLookupPanel() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 px-2.5 py-2 border-t border-[rgb(var(--color-surface-4))]">
-            <input
+          <div className="flex items-end gap-2 px-2.5 py-2 border-t border-[rgb(var(--color-surface-4))]">
+            <AutoGrowTextarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={setInput}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               placeholder={availability.available ? 'Ask where something is, or for verses about a topic…' : 'Ollama not running'}
               disabled={!availability.available || loading}
@@ -517,7 +648,7 @@ export default function AiLookupPanel() {
             <button
               onClick={send}
               disabled={!availability.available || loading || !input.trim()}
-              className="p-1.5 rounded-shell bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 cursor-pointer disabled:cursor-default"
+              className="p-1.5 rounded-shell bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 cursor-pointer disabled:cursor-default flex-shrink-0"
             >
               <Send size={13} />
             </button>

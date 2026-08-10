@@ -420,6 +420,25 @@ export interface AiLookupResult {
   crossRefOf?: { bookId: string; chapter: number; verse: number }
 }
 
+export interface AiLookupNoteResult {
+  id: string
+  title: string
+  snippet: string
+  isIdiom: boolean
+  idiomTerm?: string
+}
+
+export interface AiLookupStrongsCard {
+  strongsNum: string
+  lemma: string
+  transliteration: string
+  /** short_def — the classic "how this word is rendered in the KJV" gloss list. */
+  gloss: string
+  definition: string
+  derivation: string
+  occurrenceCount: number
+}
+
 export interface AiLookupResponse {
   results: AiLookupResult[]
   /** How many of `results` (counting only primary, non-cross-ref ones) to show before a
@@ -431,11 +450,17 @@ export interface AiLookupResponse {
    *  after the focus text's own results, with `relatedNote` explaining why. */
   related: AiLookupResult[]
   relatedNote?: string
-  /** A short "H430 (Elohim) — God, god-like ones..." gloss line — set whenever the question
-   *  contained (or the AI proposed and it was verified to be) a real Strong's number. */
-  strongsInfo?: string
+  /** A real, DB-verified Strong's word card — set whenever the question contained (or the AI
+   *  proposed and it was verified to be) a real Strong's number. */
+  strongsCard?: AiLookupStrongsCard
   summary?: string
   error?: string
+  /** Real, DB-verified note matches — either the whole answer (an explicit note-ask) or a small
+   *  augmentation alongside verse results. */
+  notes?: AiLookupNoteResult[]
+  /** True when `notes` fully answers the question on its own — the UI skips the verse-results
+   *  section entirely in that case. */
+  notesAreThePrimaryAnswer?: boolean
 }
 
 export interface AiLookupChatSummary {
@@ -454,7 +479,9 @@ export interface AiLookupChatMessage {
   related?: AiLookupResult[]
   relatedNote?: string
   summary?: string
-  strongsInfo?: string
+  strongsCard?: AiLookupStrongsCard
+  notes?: AiLookupNoteResult[]
+  notesAreThePrimaryAnswer?: boolean
   createdAt: string
 }
 

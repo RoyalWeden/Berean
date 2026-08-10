@@ -182,6 +182,90 @@ export function getTskeForVerse(bookId: string, chapter: number, verse: number) 
   }
 }
 
+// ── Reverse direction: "what quotes/references verse X" (incoming), the opposite of
+// getCrossRefsForVerse/getTskeForVerse above (which answer "what does verse X quote/reference",
+// outgoing). Same tables, same ranking/grouping logic, just querying the `to_*` columns as the
+// lookup key and reading the `from_*` columns as the result — the schema has no `from_vs_end`
+// column (the FROM side of a row is always a single verse), so these are slightly simpler than
+// their outgoing counterparts. Added for aiLookup.ts's reverse quote-lookup ("what verses quote
+// Psalm 2:7" / "what quotes Psalm 2").
+export function getIncomingCrossRefsForVerse(bookId: string, chapter: number, verse: number) {
+  try {
+    const database = openDb()
+    if (!database) return { refs: [], loading: false, error: true }
+
+    const rows = prep(database,
+      'SELECT from_book, from_ch, from_vs, votes FROM refs WHERE to_book = ? AND to_ch = ? AND to_vs = ? ORDER BY votes DESC LIMIT 150'
+    ).all(bookId.toUpperCase(), chapter, verse) as Array<{
+      from_book: string; from_ch: number; from_vs: number; votes: number
+    }>
+
+    const texts = fetchVerseTexts(rows.map((r) => [r.from_book, r.from_ch, r.from_vs] as [string, number, number]))
+
+    const refs = rows.map((r) => ({
+      bookId: r.from_book,
+      chapter: r.from_ch,
+      verse: r.from_vs,
+      endVerse: null as number | null,
+      votes: r.votes,
+      text: texts.get(`${r.from_book}|${r.from_ch}|${r.from_vs}`) ?? '',
+    }))
+
+    return { refs, loading: false, error: false }
+  } catch {
+    return { refs: [], loading: false, error: true }
+  }
+}
+
+export function getIncomingTskeForVerse(bookId: string, chapter: number, verse: number) {
+  try {
+    const database = openTskeDb()
+    if (!database) return { groups: [], loading: false, error: true }
+
+    const rows = prep(database,
+      `SELECT heading, is_reciprocal, from_book, from_ch, from_vs, sort_order, context
+       FROM tske_refs
+       WHERE to_book = ? AND to_ch = ? AND to_vs = ?
+       ORDER BY is_reciprocal ASC, rowid ASC`
+    ).all(bookId.toUpperCase(), chapter, verse) as Array<{
+      heading: string | null; is_reciprocal: number
+      from_book: string; from_ch: number; from_vs: number
+      sort_order: number; context: string | null
+    }>
+
+    const texts = fetchVerseTexts(rows.map((r) => [r.from_book, r.from_ch, r.from_vs] as [string, number, number]))
+
+    const groupMap = new Map<string, {
+      heading: string | null
+      isReciprocal: boolean
+      refs: Array<{ bookId: string; chapter: number; verse: number; endVerse: number | null; text: string; context: string | null }>
+    }>()
+    for (const r of rows) {
+      const key = r.is_reciprocal ? '__RECIPROCAL__' : (r.heading ?? '__NONE__')
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          heading: r.is_reciprocal ? null : decodeTskeText(r.heading),
+          isReciprocal: r.is_reciprocal === 1,
+          refs: [],
+        })
+      }
+      const text = texts.get(`${r.from_book}|${r.from_ch}|${r.from_vs}`) ?? ''
+      groupMap.get(key)!.refs.push({
+        bookId: r.from_book,
+        chapter: r.from_ch,
+        verse: r.from_vs,
+        endVerse: null,
+        text,
+        context: decodeTskeText(r.context ?? null),
+      })
+    }
+
+    return { groups: Array.from(groupMap.values()), loading: false, error: false }
+  } catch {
+    return { groups: [], loading: false, error: true }
+  }
+}
+
 export function registerCrossRefsHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('crossrefs:status', () => {
     const hasData = existsSync(dataPath('cross_references.db'))

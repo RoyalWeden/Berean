@@ -67,6 +67,15 @@ const KEEP_ALIVE = '30m'
 // output, per the same benchmark's explicit caveat.
 const NUM_PREDICT_JSON = 512
 
+// Lower than Ollama's default (~0.8) — requested for steadier answers run-to-run. Tested
+// directly this round: at 0.2 the model's Jubilees guess became MORE CONSISTENT, not more
+// correct (same wrong chapter every time) — this is not a correctness fix for any specific
+// case, it's a general-quality change for reducing "ask the same question twice, get different
+// answers" on ordinary extraction calls. Only applied to the structured-JSON extraction/
+// verification/prune calls, not runOllamaText's free-form commentary, where some variation in
+// phrasing is fine (even welcome) rather than something to suppress.
+const EXTRACTION_TEMPERATURE = 0.3
+
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
 export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000): Promise<T> {
@@ -75,7 +84,7 @@ export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MO
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model, prompt, stream: false, format: 'json', keep_alive: KEEP_ALIVE,
-      options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT_JSON },
+      options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT_JSON, temperature: EXTRACTION_TEMPERATURE },
     }),
   }, timeoutMs)
   if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`)

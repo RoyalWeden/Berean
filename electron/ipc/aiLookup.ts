@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
 import { queryVerse, searchVerses } from './bible'
 import { getTextDb } from '../db/bible'
-import { getCrossRefsForVerse, getTskeForVerse } from './crossrefs'
+import { getCrossRefsForVerse, getTskeForVerse, getIncomingCrossRefsForVerse, getIncomingTskeForVerse } from './crossrefs'
 import { getLexiconEntry, getLexiconOccurrences } from './lexicon'
 import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL } from '../ollama'
 // A real, already-existing, actively-maintained reference parser + book-name table — unlike
@@ -66,11 +66,42 @@ export interface AiLookupResponse {
    *  headline answer. Empty unless a focus text was in play. */
   related: AiLookupResult[]
   relatedNote?: string
-  /** A short "H430 (Elohim) — God, god-like ones..." gloss line — set whenever the question
-   *  contained (or the model proposed and we verified) a real Strong's number. */
-  strongsInfo?: string
+  /** A real, DB-verified Strong's word card — set whenever the question contained (or the model
+   *  proposed and we verified) a real Strong's number. Rendered as its own clickable card (opens
+   *  the full Lexicon tab), not folded into the verse-results list. */
+  strongsCard?: AiLookupStrongsCard
   summary?: string
   error?: string
+  /** Real, DB-verified note matches — either the whole answer (an explicit "what notes have I
+   *  written about X" question) or a small augmentation alongside verse results (a topical/
+   *  meaning question that also happens to match a note's title/idiom-term/verse-ref). Never a
+   *  loose full-content match — see computeMatchingNotes. A note has a fundamentally different
+   *  shape than a verse (`AiLookupResult`), so this is its own array rather than forcing it into
+   *  that type via a fake `source: 'note'`. */
+  notes?: AiLookupNoteResult[]
+  /** True when `notes` fully answers the question on its own (an explicit note-ask) — the UI
+   *  uses this to skip rendering an empty/irrelevant verse-results section entirely, rather than
+   *  showing "no matching verses" underneath a perfectly good notes answer. */
+  notesAreThePrimaryAnswer?: boolean
+}
+
+export interface AiLookupNoteResult {
+  id: string
+  title: string
+  snippet: string
+  isIdiom: boolean
+  idiomTerm?: string
+}
+
+export interface AiLookupStrongsCard {
+  strongsNum: string
+  lemma: string
+  transliteration: string
+  /** short_def — the classic "how this word is rendered in the KJV" gloss list. */
+  gloss: string
+  definition: string
+  derivation: string
+  occurrenceCount: number
 }
 
 interface AiExtraction {
@@ -244,11 +275,27 @@ const OVERLY_GENERIC_SINGLE_WORDS = new Set([
   'israel', 'said', 'went', 'saith', 'thing', 'things', 'great', 'good',
 ])
 
-/** Drops keywords that are a single, overly-generic word — see OVERLY_GENERIC_SINGLE_WORDS. */
-function filterGenericKeywords(keywords: string[]): string[] {
+// Patriarch/narrative names that are legitimate, specific keywords for ordinary canonical
+// search, but provide near-zero discriminating power inside a pseudepigrapha focus text that
+// retells the same Genesis-through-Exodus narrative in full (Jubilees, and to a lesser extent
+// Enoch/T12P) — these names recur in nearly every chapter there. Found via testing: a bare
+// "Abraham" keyword hit was outscoring a precise archaic-vocabulary match purely because it
+// numerically matched more (wrong) chapters, contributing directly to a wrong top-ranked guess.
+// Applied ONLY when a focus text is active — these are perfectly good keywords everywhere else.
+const OVERLY_GENERIC_IN_FOCUS_TEXT = new Set([
+  'abraham', 'isaac', 'jacob', 'noah', 'moses', 'family', 'leave', 'wife', 'children',
+])
+
+/** Drops keywords that are a single, overly-generic word — see OVERLY_GENERIC_SINGLE_WORDS
+ *  (always) and OVERLY_GENERIC_IN_FOCUS_TEXT (only when `inFocusText` is true). */
+function filterGenericKeywords(keywords: string[], inFocusText = false): string[] {
   return keywords.filter((kw) => {
     const words = cleanWords(kw)
-    return !(words.length === 1 && OVERLY_GENERIC_SINGLE_WORDS.has(words[0].toLowerCase()))
+    if (words.length !== 1) return true
+    const w = words[0].toLowerCase()
+    if (OVERLY_GENERIC_SINGLE_WORDS.has(w)) return false
+    if (inFocusText && OVERLY_GENERIC_IN_FOCUS_TEXT.has(w)) return false
+    return true
   })
 }
 
@@ -324,6 +371,15 @@ function extractionPrompt(question: string, focusWorkName: string | null, histor
   const historyBlock = history.length > 0
     ? `\nRecent conversation (for context only — answer the CURRENT question below, not these):\n${history.map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n`
     : ''
+  // Found via testing: asking for "Yeshua's longest prayer" (John 17) got a guess of
+  // {chapter:17, verse:1} with no endVerse — a completely natural way to CITE the passage, but
+  // it meant only verse 1 ever displayed instead of the whole prayer. The model isn't wrong to
+  // give a starting verse; nothing was telling it a whole discourse needs its real end too.
+  const wholePassageRule = `- If the passage you're recalling is a well-known DISCOURSE spanning
+  multiple verses (a prayer, sermon, parable, speech, or similar — not a single-verse quote),
+  set "endVerse" to where it actually ends, not just its opening verse. Example: Yeshua's high
+  priestly prayer is the WHOLE of John 17 — guess {"book":"John","chapter":17,"verse":1,
+  "endVerse":26}, not verse 1 alone.`
   const guessRule = focusWorkName
     ? `- "guesses": 0-5 direct chapter:verse references you recall as relevant. The user is
   specifically asking about **${focusWorkName}** — if you recall a specific passage in
@@ -331,12 +387,14 @@ function extractionPrompt(question: string, focusWorkName: string | null, histor
   chapter:verse numbering like any Bible book). You may also include KJV/Bible guesses (using
   full English book names) if a related canonical passage comes to mind. "endVerse" is
   optional, only for a real multi-verse range you recall. Omit "guesses" (empty array) if
-  unsure — do not fabricate a reference you don't actually recall.`
+  unsure — do not fabricate a reference you don't actually recall.
+${wholePassageRule}`
     : `- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English
   Bible book names only (not Jubilees/Enoch/etc — ask about a specific work by name if that's
   what the user wants, this question didn't name one). "endVerse" is optional, only include it
   for a real multi-verse range you recall. Omit "guesses" (empty array) if unsure — do not
-  fabricate.`
+  fabricate.
+${wholePassageRule}`
 
   // Pseudepigrapha texts in this app are early-20th-century English translations (Jubilees and
   // 1 Enoch are both R.H. Charles, 1913/1917) — archaic, formal wording. A question phrased in
@@ -558,6 +616,80 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
   return result
 }
 
+function noteRowToResult(row: { id: string; title: string | null; content: string; type: string; idiom_term: string | null }): AiLookupNoteResult {
+  const rawSnippet = (row.content || '').replace(/^---[\s\S]*?---\n?/, '').replace(/[#*`_>~[\]]/g, '').replace(/\n/g, ' ').trim()
+  return {
+    id: row.id,
+    title: row.title || 'Untitled note',
+    snippet: rawSnippet.slice(0, 160),
+    isIdiom: row.type === 'idiom',
+    idiomTerm: row.idiom_term ?? undefined,
+  }
+}
+
+/** Explicit note-ask ("what notes have I written about X") — notes ARE the answer, so this uses
+ *  the same full-text notes_fts search electron/ipc/notes.ts's notes:search handler already
+ *  uses (ported here rather than round-tripping through IPC to itself, since this file already
+ *  runs in the main process and has direct DB access) — real recall matters more than precision
+ *  when the user explicitly asked to search notes. */
+function searchNotesExplicit(question: string, limit = 8): AiLookupNoteResult[] {
+  try {
+    const db = getBereanDb()
+    const words = cleanWords(question).filter((w) => w.length >= 3 && !GENERIC_NOTE_SEARCH_WORDS.has(w.toLowerCase()))
+    if (words.length === 0) return []
+    const ftsQ = words.map((w) => `"${w.replace(/"/g, '')}"`).join(' OR ')
+    const rows = db.prepare(`
+      SELECT n.id, n.title, n.content, n.type, n.idiom_term FROM notes_fts f
+      JOIN notes n ON n.rowid = f.rowid
+      WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+      ORDER BY n.updated_at DESC
+      LIMIT ?
+    `).all(ftsQ, limit) as Array<{ id: string; title: string | null; content: string; type: string; idiom_term: string | null }>
+    return rows.map(noteRowToResult)
+  } catch {
+    return []
+  }
+}
+
+// Words that would otherwise appear in nearly every "what notes have I written about X" style
+// question itself (not the topic being searched for) — stripped before building the FTS query,
+// same reasoning as filterGenericKeywords but for the question's own framing words, not the
+// topic. Deliberately separate from OVERLY_GENERIC_SINGLE_WORDS (that set is about weak Bible-
+// text search terms; this one is about the "notes have I written about" scaffolding).
+const GENERIC_NOTE_SEARCH_WORDS = new Set([
+  'what', 'have', 'has', 'notes', 'note', 'written', 'wrote', 'about', 'did', 'any', 'anything',
+  'show', 'find', 'search', 'for', 'the', 'a', 'an', 'my', 'ive', 'you',
+])
+
+/** Implicit augmentation for topical/meaning questions ("what does a fox mean in scripture")
+ *  — deliberately much stricter than searchNotesExplicit, per the earlier "From your notes"
+ *  removal (Round 4): only a genuine TITLE or idiom-term match counts, never loose full-content
+ *  text matching, so this can't repeat that complaint. Checked against the same keywords already
+ *  extracted for verse search, not re-derived. */
+function searchNotesImplicit(keywords: string[], limit = 3): AiLookupNoteResult[] {
+  if (keywords.length === 0) return []
+  try {
+    const db = getBereanDb()
+    const rows = db.prepare(`SELECT id, title, content, type, idiom_term FROM notes WHERE deleted_at IS NULL AND (idiom_term IS NOT NULL OR title != '')`)
+      .all() as Array<{ id: string; title: string | null; content: string; type: string; idiom_term: string | null }>
+    const out: AiLookupNoteResult[] = []
+    for (const row of rows) {
+      const title = (row.title || '').toLowerCase()
+      const idiomTerm = (row.idiom_term || '').toLowerCase()
+      const hit = keywords.some((kw) => {
+        const words = cleanWords(kw)
+        if (words.length === 0) return false
+        return words.every((w) => title.includes(w.toLowerCase())) || (idiomTerm && words.every((w) => idiomTerm.includes(w.toLowerCase())))
+      })
+      if (hit) out.push(noteRowToResult(row))
+      if (out.length >= limit) break
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 /** Ranks candidates by keyword overlap (+ a notes boost, when available) — shared by the
  *  primary-result ranking (§5) and the agentic verification preview (§2b), which runs before
  *  the notes signal exists yet, hence the optional param.
@@ -585,7 +717,7 @@ function computeNotesSignal(candidates: AiLookupResult[]): NotesSignal {
  *  number let it edge out a correct chapter-12 keyword hit that had NO such freebie. */
 interface ChapterHint { textId: string; chapters: Set<number> }
 
-function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = [], chapterHint?: ChapterHint): AiLookupResult[] {
+function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = [], chapterHint?: ChapterHint, minKeywordScore = 1): AiLookupResult[] {
   return items
     .map((c, i) => ({
       c, i,
@@ -593,7 +725,7 @@ function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSigna
         + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0)
         + (c.source === 'keyword' && chapterHint?.textId === c.textId && chapterHint.chapters.has(c.chapter) ? 1 : 0),
     }))
-    .filter((s) => s.score > 0 || s.c.source !== 'keyword')
+    .filter((s) => s.score >= minKeywordScore || s.c.source !== 'keyword')
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .map((s) => s.c)
 }
@@ -629,25 +761,36 @@ function detectStrongsNumbers(text: string): string[] {
 
 interface StrongsSeedResult {
   candidates: AiLookupResult[]
-  info?: string
+  card?: AiLookupStrongsCard
 }
 
+// A definition-only Strong's question ("what is the greek strongs for grace") shouldn't dump a
+// pile of occurrence verses underneath the word card by default — per direct feedback, that's
+// noise unless actually asked for. Occurrences only fetch when the question itself asks for
+// them: "where"/"which verses"/"occurs"/"appears"/"used in"/"found in".
+const STRONGS_OCCURRENCES_REQUESTED_RE = /\b(where|which\s+verses?|occurs?|occurrence|appears?|used\s+in|found\s+in|every\s+place)\b/i
+
 /** Resolves a list of Strong's numbers (explicit ones detected in the question, plus any the
- *  model itself proposed) into verified, real occurrences — every number is checked against
- *  the real lexicon DB first (getLexiconEntry), so a hallucinated/invalid one is silently
- *  dropped exactly like an unresolvable book/chapter guess is elsewhere in this file. Verse
- *  occurrences come from getLexiconOccurrences, which scans the tagged text directly (an exact
- *  tag match, not a model guess) — the most trustworthy source this pipeline has. */
-function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn: (bookId: string, textId: string) => string): StrongsSeedResult {
+ *  model itself proposed) into a verified word card (always) and real occurrences (only when
+ *  the question actually asked for them — see STRONGS_OCCURRENCES_REQUESTED_RE) — every number
+ *  is checked against the real lexicon DB first (getLexiconEntry), so a hallucinated/invalid one
+ *  is silently dropped exactly like an unresolvable book/chapter guess is elsewhere in this
+ *  file. Verse occurrences come from getLexiconOccurrences, which scans the tagged text directly
+ *  (an exact tag match, not a model guess) — the most trustworthy source this pipeline has. */
+function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn: (bookId: string, textId: string) => string, includeOccurrences: boolean): StrongsSeedResult {
   const candidates: AiLookupResult[] = []
-  let info: string | undefined
+  let card: AiLookupStrongsCard | undefined
   for (const num of nums.slice(0, 2)) {
     const entry = getLexiconEntry(num)
     if (!entry) continue
-    if (!info) {
-      const label = entry.transliteration || entry.lemma || entry.strongsNum
-      info = `${entry.strongsNum} (${label}) — ${entry.gloss || entry.definition || 'no short definition available'}`
+    if (!card) {
+      card = {
+        strongsNum: entry.strongsNum, lemma: entry.lemma, transliteration: entry.transliteration,
+        gloss: entry.gloss, definition: entry.definition, derivation: entry.derivation,
+        occurrenceCount: entry.occurrences,
+      }
     }
+    if (!includeOccurrences) continue
     for (const occ of getLexiconOccurrences(num).slice(0, 6)) {
       const key = `${occ.text_id}|${occ.book_id}|${occ.chapter}|${occ.verse_num}`
       if (seen.has(key)) continue
@@ -658,7 +801,7 @@ function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn:
       })
     }
   }
-  return { candidates, info }
+  return { candidates, card }
 }
 
 // ── "What does verse X quote" — a deterministic, LLM-free question type ────────────────────
@@ -673,6 +816,27 @@ function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn:
 // the sentence (e.g. "to" prefix-matching "Tobit") would be a real, silent wrong-turn risk that
 // isn't worth the small recall gain fuzzy matching would otherwise buy here.
 const QUOTE_TRIGGER = /\b(quote|quoting|quotes|quoted|reference|referenc\w*|allud\w*|cit\w*|sourced?\s+from|echo(?:e[sd])?|where\s+(?:is|does).{0,20}(?:from|quoted))\b/i
+
+// Direction matters: "what does John 1:1 quote" (X is the SOURCE, outgoing — existing) is the
+// opposite question from "what verses quote Psalm 2" / "where is Psalm 2:7 quoted" (X is the
+// TARGET, incoming — new this round). Checked FIRST, before QUOTE_TRIGGER, since these phrasings
+// ("what/which/who quote(s)...", passive "is ... quoted") are specific enough to classify
+// direction reliably; QUOTE_TRIGGER alone can't tell them apart (both contain "quote"/"quoted").
+// Falls back to forward (existing behavior) when this doesn't match but QUOTE_TRIGGER still does.
+const REVERSE_QUOTE_TRIGGER = /\b(?:what|which|who)\s+(?:verses?|scriptures?|passages?)?\s*(?:quotes?|references?|cites?|alludes?\s+to)\b|\bis\s+.{0,40}\bquoted\b|\bwhere\s+is\s+.{0,40}\bquoted\b|\bquoted\s+(?:in|by|elsewhere|anywhere)\b|\breferenced\s+(?:in|by)\b/i
+
+// "What notes have I written about X" / "my notes about X" / "did I write anything about X" —
+// an explicit ask to search NOTES, not verses. Local, pre-LLM, same zero-latency pattern as the
+// quote/Strong's classifiers above. Deliberately requires "notes"/"note" OR a first-person
+// writing verb ("I written"/"I write"/"I wrote"/"did I write") — a bare "what about X" shouldn't
+// misfire into notes-only mode.
+const NOTE_ASK_TRIGGER = /\b(?:my\s+notes?|notes?\s+(?:have|has)\s+i|written\s+(?:about|on)|did\s+i\s+write|have\s+i\s+written|what\s+notes?|show\s+me\s+my\s+notes?|find\s+my\s+notes?|search\s+my\s+notes?)\b/i
+
+// A question naming a well-known discourse ("Yeshua's longest prayer") but whose guess only
+// came back as a bare verse 1 (no endVerse — the model gave a starting-point citation, not a
+// wrong-length range) is a real, observed failure mode — see the whole-passage extraction-prompt
+// rule above, and this regex as its safety net for whenever the prompt rule alone doesn't stick.
+const WHOLE_PASSAGE_QUESTION_RE = /\b(prayer|sermon|parable|discourse|speech|whole\s+chapter)\b/i
 
 // Matches a bare "1:1" / "1.1" / "1:1-5" / "1" chapter[:verse[-endVerse]] token, with an
 // optional trailing punctuation mark (question mark, comma, etc) stripped.
@@ -730,63 +894,135 @@ function findReferenceInText(question: string): ParsedRef | null {
  *  `results` here is built ONLY from the cross-ref/TSKE query output, the seed verse can never
  *  appear in it by construction — not a filter bolted on after, structurally impossible — plus
  *  one defensive filter in case TSKE ever returns a self-referential/reciprocal row. */
-function runQuoteLookup(seed: ParsedRef, emit: Emit): AiLookupResponse | null {
-  const bookId = seed.bookId
-  const chapter = seed.chapter
-  const verse = seed.verse ?? 1
-  const seedVerse = queryVerse(bookId, chapter, verse, DEFAULT_TEXT_ID)
-  if (!seedVerse) return null // not a real verse — fall through to the normal pipeline
-
-  emit(`Looking up what ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse} quotes…`)
-
+/** Pulls real cross-ref/TSKE hits for ONE verse, in the given direction — `forward` = what this
+ *  verse quotes/references (outgoing, `getCrossRefsForVerse`/`getTskeForVerse`), `reverse` =
+ *  what quotes/references this verse (incoming, `getIncomingCrossRefsForVerse`/
+ *  `getIncomingTskeForVerse`). Same TSKE-first-then-classic-backfill logic either direction. */
+function quoteRefsForVerse(bookId: string, chapter: number, verse: number, direction: 'forward' | 'reverse', seen: Set<string>): AiLookupResult[] {
   const isSeed = (r: { bookId: string; chapter: number; verse: number }) =>
     r.bookId === bookId && r.chapter === chapter && r.verse === verse
-
-  const seen = new Set<string>()
-  const results: AiLookupResult[] = []
-
-  // TSKE first — its `heading` groups by quoted phrase, the closest thing either DB has to an
-  // explicit "this is a quotation" signal; non-reciprocal groups are the ones worth leading
-  // with (reciprocal ones are looser "also see" associations, not quotation-specific).
-  const tske = getTskeForVerse(bookId, chapter, verse)
+  const out: AiLookupResult[] = []
+  const tske = direction === 'forward' ? getTskeForVerse(bookId, chapter, verse) : getIncomingTskeForVerse(bookId, chapter, verse)
   for (const group of tske.groups) {
     if (group.isReciprocal) continue
     for (const ref of group.refs) {
-      if (results.length >= MAX_CROSS_REFS) break
+      if (out.length >= MAX_CROSS_REFS) break
       if (!ref.text || isSeed(ref)) continue
       const key = `${DEFAULT_TEXT_ID}|${ref.bookId}|${ref.chapter}|${ref.verse}`
       if (seen.has(key)) continue
       seen.add(key)
-      results.push({
+      out.push({
         textId: DEFAULT_TEXT_ID, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, DEFAULT_TEXT_ID),
         chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? undefined, text: ref.text,
         source: 'quote-source',
       })
     }
   }
-
-  // Backfill with the classic cross_references.db table (vote-ranked) if TSKE didn't have
-  // enough / anything — still a real, deterministic DB signal, just a looser "related verse"
-  // one rather than TSKE's phrase-grouped quotation signal specifically.
-  if (results.length < MAX_CROSS_REFS) {
-    const classic = getCrossRefsForVerse(bookId, chapter, verse)
+  if (out.length < MAX_CROSS_REFS) {
+    const classic = direction === 'forward' ? getCrossRefsForVerse(bookId, chapter, verse) : getIncomingCrossRefsForVerse(bookId, chapter, verse)
     for (const ref of classic.refs) {
-      if (results.length >= MAX_CROSS_REFS) break
+      if (out.length >= MAX_CROSS_REFS) break
       if (!ref.text || isSeed(ref)) continue
       const key = `${DEFAULT_TEXT_ID}|${ref.bookId}|${ref.chapter}|${ref.verse}`
       if (seen.has(key)) continue
       seen.add(key)
-      results.push({
+      out.push({
         textId: DEFAULT_TEXT_ID, bookId: ref.bookId, bookName: bookNameFor(ref.bookId, DEFAULT_TEXT_ID),
         chapter: ref.chapter, verse: ref.verse, endVerse: ref.endVerse ?? undefined, text: ref.text,
         source: 'quote-source',
       })
     }
   }
+  return out
+}
 
-  // Defensive filter — structurally the seed should never end up in `results` (see comment
-  // above), but this costs nothing and guards against a self-referential/reciprocal TSKE row.
-  const filtered = results.filter((r) => !isSeed(r))
+/** Optionally narrates a deterministic quote-lookup answer with the existing commentaryPrompt/
+ *  runOllamaJson call — ONLY when Commentary is on (Michael's own existing signal for "I want
+ *  AI involved here," per this round's decision, rather than a new toggle). Off by default:
+ *  the fixed template `summary` already set on `response` is what shows, no added latency, no
+ *  hallucination surface. On: reuses the SAME prompt/call the main pipeline already uses for
+ *  its own commentary pass — narrates the primary (non-nested) quote-source verses, replacing
+ *  the fixed summary with a real one; per-verse commentary lines and relevance pruning apply
+ *  the same way they already do for ordinary guess/keyword results. Best-effort — a failed call
+ *  just leaves the deterministic response untouched. */
+async function maybeAddCommentary(response: AiLookupResponse, question: string, opts: { commentary: boolean; model?: string }): Promise<AiLookupResponse> {
+  if (!opts.commentary) return response
+  const primary = response.results.filter((r) => r.source !== 'cross-ref')
+  if (primary.length === 0) return response
+  try {
+    const model = opts.model || DEFAULT_OLLAMA_MODEL
+    const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
+      commentaryPrompt(question, primary), model
+    )
+    for (const r of primary) {
+      const key = `${r.bookId} ${r.chapter}:${r.verse}`
+      if (raw.perVerse?.[key]) r.commentary = raw.perVerse[key]
+    }
+    return { ...response, summary: raw.summary ?? response.summary }
+  } catch {
+    return response
+  }
+}
+
+/** Handles both "what does John 1:1 quote" (forward) and "what verses quote Psalm 2:7" /
+ *  "what verses quote Psalm 2" (reverse, single-verse or whole-chapter) entirely
+ *  deterministically — no Ollama call at all. Chapter-scope (no verse in the parsed reference)
+ *  builds a PER-VERSE grouped answer: each verse of the chapter that has at least one real hit
+ *  becomes its own primary `quote-source` result (the verse itself), with its citing/cited
+ *  verses nested under it via the EXISTING `crossRefOf` mechanism `AiLookupPanel.tsx` already
+ *  renders as a collapsible "N related" group for ordinary cross-refs — reused here rather than
+ *  building new grouping UI. Verses with zero hits are omitted, not padded in. */
+function runQuoteLookup(seed: ParsedRef, direction: 'forward' | 'reverse', emit: Emit): AiLookupResponse | null {
+  const bookId = seed.bookId
+  const chapter = seed.chapter
+  const seen = new Set<string>()
+
+  if (seed.verse == null) {
+    // Whole-chapter scope — only meaningful (and only reachable) for a bare "Book Chapter"
+    // reference with no verse; the caller (runLookup) only takes this path when the trigger is
+    // reverse, since "what does a whole chapter quote" isn't a natural question shape, but the
+    // grouping logic itself is direction-agnostic so both are supported here regardless.
+    const db = getTextDb(DEFAULT_TEXT_ID)
+    const maxRow = db?.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, chapter) as { m: number | null } | undefined
+    const maxVerse = maxRow?.m
+    if (!maxVerse) return null
+    emit(`Checking every verse of ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter} for ${direction === 'reverse' ? 'incoming' : 'outgoing'} quotations…`)
+
+    const results: AiLookupResult[] = []
+    let hitVerseCount = 0
+    for (let v = 1; v <= maxVerse; v++) {
+      const hits = quoteRefsForVerse(bookId, chapter, v, direction, seen)
+      if (hits.length === 0) continue
+      const seedVerse = queryVerse(bookId, chapter, v, DEFAULT_TEXT_ID)
+      if (!seedVerse) continue
+      hitVerseCount++
+      results.push({
+        textId: DEFAULT_TEXT_ID, bookId, bookName: bookNameFor(bookId, DEFAULT_TEXT_ID),
+        chapter, verse: v, text: seedVerse.text, source: 'quote-source',
+      })
+      // Nested citing/cited verses get `source: 'cross-ref'` (not 'quote-source') — that's the
+      // exact flag AiLookupPanel.tsx's existing render loop already uses to exclude an item from
+      // the primary list and instead group it under its `crossRefOf` parent as a collapsible
+      // "N related" list, which is the reuse this whole design is built around.
+      for (const hit of hits) results.push({ ...hit, source: 'cross-ref', crossRefOf: { bookId, chapter, verse: v } })
+    }
+    return {
+      results,
+      visibleCount: results.filter((r) => !r.crossRefOf).length,
+      keywords: [],
+      related: [],
+      summary: hitVerseCount > 0
+        ? `Real ${direction === 'reverse' ? 'incoming quotations of' : 'outgoing quotations from'} ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter} — ${hitVerseCount} verse${hitVerseCount === 1 ? '' : 's'} with a match, ranked by vote/quotation signal, not an AI guess.`
+        : `No recorded ${direction === 'reverse' ? 'incoming' : 'outgoing'} cross-references found for any verse in ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}.`,
+    }
+  }
+
+  const verse = seed.verse
+  const seedVerse = queryVerse(bookId, chapter, verse, DEFAULT_TEXT_ID)
+  if (!seedVerse) return null // not a real verse — fall through to the normal pipeline
+
+  emit(`Looking up what ${direction === 'reverse' ? 'quotes' : bookNameFor(bookId, DEFAULT_TEXT_ID) + ' ' + chapter + ':' + verse + ' quotes'}…`)
+  const filtered = quoteRefsForVerse(bookId, chapter, verse, direction, seen)
 
   // `summary` (not `relatedNote` — that field only renders alongside a non-empty `related`
   // array in the UI, and this branch never populates `related`) renders unconditionally as a
@@ -798,8 +1034,8 @@ function runQuoteLookup(seed: ParsedRef, emit: Emit): AiLookupResponse | null {
     keywords: [],
     related: [],
     summary: filtered.length > 0
-      ? `Real cross-references for ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse}, ranked by vote/quotation signal — not an AI guess.`
-      : `${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse} has no recorded cross-references in this app's data.`,
+      ? `Real ${direction === 'reverse' ? 'quotations of' : 'cross-references for'} ${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse}, ranked by vote/quotation signal — not an AI guess.`
+      : `${bookNameFor(bookId, DEFAULT_TEXT_ID)} ${chapter}:${verse} has no recorded ${direction === 'reverse' ? 'incoming quotations' : 'cross-references'} in this app's data.`,
   }
 }
 
@@ -822,6 +1058,20 @@ async function runLookup(
   const focusTextId = explicitFocus ?? detectFocusTextId(question)
   const focusWorkName = focusTextId ? singleBookWorkName(focusTextId) : null
 
+  // "What notes have I written about X" — notes ARE the answer, no verse search at all. Checked
+  // first (before quote-lookup and the extraction call) since it's the most specific/unambiguous
+  // trigger — entirely deterministic, no Ollama call.
+  if (NOTE_ASK_TRIGGER.test(question)) {
+    emit('Searching your notes…')
+    const notes = searchNotesExplicit(question)
+    return {
+      results: [], visibleCount: 0, keywords: [], related: [], notes, notesAreThePrimaryAnswer: true,
+      summary: notes.length > 0
+        ? `${notes.length} note${notes.length === 1 ? '' : 's'} found — searched your notes, not Scripture text.`
+        : `No matching notes found.`,
+    }
+  }
+
   // "What does verse X quote/reference/allude to" — detected locally (trigger phrase + a
   // literal, resolvable reference), entirely deterministic, no Ollama call at all if it fires.
   // Checked before the extraction call so a well-formed quotation question short-circuits the
@@ -830,8 +1080,9 @@ async function runLookup(
   if (QUOTE_TRIGGER.test(question)) {
     const seedRef = findReferenceInText(question)
     if (seedRef) {
-      const quoteResponse = runQuoteLookup(seedRef, emit)
-      if (quoteResponse) return quoteResponse
+      const direction = REVERSE_QUOTE_TRIGGER.test(question) ? 'reverse' : 'forward'
+      const quoteResponse = runQuoteLookup(seedRef, direction, emit)
+      if (quoteResponse) return await maybeAddCommentary(quoteResponse, question, opts)
       // seedRef parsed but didn't resolve to a real verse (out-of-range chapter etc) — fall
       // through to the normal pipeline rather than dead-ending on a bad parse.
     }
@@ -847,7 +1098,7 @@ async function runLookup(
   } catch {
     return empty('ollama-request-failed')
   }
-  let keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6))
+  let keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6), !!focusTextId)
   const guesses = (extraction.guesses ?? []).slice(0, 5)
 
   const seen = new Set<string>()
@@ -859,7 +1110,9 @@ async function runLookup(
   // included too, but only after being verified against the real lexicon DB just like every
   // other AI-proposed reference in this pipeline.
   const strongsNums = [...detectStrongsNumbers(question), ...(extraction.strongsNum ? [extraction.strongsNum.trim().toUpperCase()] : [])]
-  const strongsSeed = strongsNums.length > 0 ? resolveStrongsNumbers(strongsNums, seen, bookNameFor) : { candidates: [], info: undefined }
+  const strongsSeed = strongsNums.length > 0
+    ? resolveStrongsNumbers(strongsNums, seen, bookNameFor, STRONGS_OCCURRENCES_REQUESTED_RE.test(question))
+    : { candidates: [], card: undefined }
 
   function add(bucket: AiLookupResult[], textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
     const r: AiLookupResult = {
@@ -919,7 +1172,26 @@ async function runLookup(
         const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
         if (maxRow?.m && maxRow.m > startVerse) endVerse = Math.min(maxRow.m, startVerse + 10)
       }
-      if (endVerse) endVerse = Math.min(endVerse, startVerse + 20)
+      // Second, narrower trigger for the same shape of fallback: an explicit verse:1 (not a
+      // null/omitted verse) on a CANONICAL guess, when the question itself names a discourse-
+      // shaped passage ("prayer", "sermon", ...) — deliberately gated on both the canonical-only
+      // text AND the question wording, not applied generally, since blindly widening every
+      // verse-1 guess would wrongly expand genuinely single-verse questions (e.g. John 3:16)
+      // into unwanted ranges. Uses the chapter's REAL full length (capped only at a sane 40, for
+      // the rare very-long-chapter case) rather than the null-verse fallback's tighter 10-verse
+      // cap — that tighter cap exists because a null-verse guess could still be pointing at the
+      // wrong chapter entirely, but here the question's own wording is corroborating evidence,
+      // and a canonical guess is already ~90%+ reliable (Round 3), so showing the true whole
+      // passage — which is the entire point of this fallback firing — is the right trade-off.
+      let isWholePassageWiden = false
+      if (!endVerse && startVerse === 1 && CANONICAL_TEXT_IDS.has(textId) && WHOLE_PASSAGE_QUESTION_RE.test(question)) {
+        const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
+        if (maxRow?.m && maxRow.m > startVerse) { endVerse = Math.min(maxRow.m, startVerse + 40); isWholePassageWiden = true }
+      }
+      // The generic +20 clamp below is sized for an AI-EXPLICIT range (a guess the model gave
+      // real endVerse digits for) — the whole-passage widen just above already has its own
+      // wider, deliberately-reasoned +40 cap, so it's exempt from being clamped back down again.
+      if (endVerse && !isWholePassageWiden) endVerse = Math.min(endVerse, startVerse + 20)
       if (endVerse) {
         const parts: string[] = []
         for (let v = startVerse; v <= endVerse; v++) {
@@ -1020,7 +1292,7 @@ async function runLookup(
       let madeProgress = false
 
       if (verdict.refinedKeywords && verdict.refinedKeywords.length > 0) {
-        const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6))
+        const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6), !!focusTextId)
         const alreadyTried = triedKeywordSets.some((set) => set.length === refined.length && set.every((k, i) => k === refined[i]))
         if (refined.length > 0 && !alreadyTried) {
           emit(pick(REFINE_MESSAGES))
@@ -1066,7 +1338,7 @@ async function runLookup(
   }
 
   if (mergedGuesses.length === 0 && mergedKeywords.length === 0 && strongsSeed.candidates.length === 0) {
-    return { ...empty(), keywords, strongsInfo: strongsSeed.info }
+    return { ...empty(), keywords, strongsCard: strongsSeed.card }
   }
 
   // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
@@ -1079,8 +1351,15 @@ async function runLookup(
   const chapterHint: ChapterHint | undefined = focusTextId && focusGuessChapters.size > 0
     ? { textId: focusTextId, chapters: focusGuessChapters }
     : undefined
-  const scoreAndSort = (items: AiLookupResult[]): AiLookupResult[] =>
-    scoreCandidates(items, keywords, notesSignal, wordReplacerRules, chapterHint)
+  const scoreAndSort = (items: AiLookupResult[], minKeywordScore = 1): AiLookupResult[] =>
+    scoreCandidates(items, keywords, notesSignal, wordReplacerRules, chapterHint, minKeywordScore)
+  // Backfill-quality gating: a guess (from either the focus text or canonical) is already
+  // strong evidence the question is answered — padding it with weak, single-keyword-overlap
+  // backfill just adds noise ("too many results", reported directly). Require backfill
+  // candidates to score ≥2 (real multi-keyword or corroborated overlap, not a single generic
+  // word match) whenever a guess already contributed something; with zero guesses, keyword
+  // search is the ONLY signal available, so it keeps the looser default (≥1).
+  const backfillMinScore = mergedGuesses.length > 0 ? 2 : 1
 
   // 5. Result assembly. When a focus text is named, ITS OWN content leads — a canonical guess
   // no longer jumps ahead of what was actually asked about (previously it did, which read as
@@ -1100,7 +1379,7 @@ async function runLookup(
     const focusPool = scoreAndSort([...focusGuesses, ...mergedKeywords.filter((c) => c.textId === focusTextId)])
     candidates = focusPool.slice(0, TOTAL_PRIMARY_CAP)
     if (candidates.length < TOTAL_PRIMARY_CAP) {
-      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
+      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID), backfillMinScore)
       const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
       candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
     }
@@ -1112,7 +1391,7 @@ async function runLookup(
   } else {
     candidates = canonicalGuesses.slice(0, TOTAL_PRIMARY_CAP)
     if (candidates.length < TOTAL_PRIMARY_CAP) {
-      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID))
+      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID), backfillMinScore)
       const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
       candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
     }
@@ -1200,6 +1479,12 @@ async function runLookup(
   const visibleCount = candidates.length
   const results = [...candidates, ...crossRefs]
 
+  // Implicit notes augmentation — a topical/meaning question ("what does a fox mean in
+  // scripture") might have a directly relevant idiom/regular note; surfaced only on a genuine
+  // title/idiom-term match (searchNotesImplicit), never loose full-text noise, per the earlier
+  // "From your notes" removal (Round 4).
+  const notesAugment = searchNotesImplicit(keywords)
+
   // 7. Optional commentary — a second pass over the ranked, already-verified candidates.
   // The model explains and may flag entries to drop; it never introduces a new reference.
   if (opts.commentary) {
@@ -1222,15 +1507,15 @@ async function runLookup(
       return {
         results: [...finalPrimary, ...finalCrossRefs],
         visibleCount: finalPrimary.length,
-        keywords, related, relatedNote, summary: raw.summary, strongsInfo: strongsSeed.info,
+        keywords, related, relatedNote, summary: raw.summary, strongsCard: strongsSeed.card, notes: notesAugment,
       }
     } catch {
       // Commentary is best-effort — a failed second call shouldn't drop the verified results.
-      return { results, visibleCount, keywords, related, relatedNote, strongsInfo: strongsSeed.info }
+      return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment }
     }
   }
 
-  return { results, visibleCount, keywords, related, relatedNote, strongsInfo: strongsSeed.info }
+  return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment }
 }
 
 interface StoredChat {
@@ -1250,7 +1535,9 @@ interface ChatMessage {
   related?: AiLookupResult[]
   relatedNote?: string
   summary?: string
-  strongsInfo?: string
+  strongsCard?: AiLookupStrongsCard
+  notes?: AiLookupNoteResult[]
+  notesAreThePrimaryAnswer?: boolean
   createdAt: string
 }
 
