@@ -485,7 +485,19 @@ export default function AiLookupPanel() {
   return (
     <div
       // Deliberately near-opaque, not a real translucent "glass" panel — see PANEL_BG comment.
-      className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden"
+      // z-[600] (Round 11, was z-50): the note editor's own popups/menus/toolbar dropdowns use
+      // z-[9999]/z-[10000]/z-60 — clicking one of those while it happened to overlap this
+      // panel's screen position was painting ABOVE the panel and intercepting the click (z-50
+      // lost to all of them), which read as "the note thinks I'm clicking on it" even though the
+      // user was clicking the panel. z-[600] sits comfortably above ordinary app chrome/floating
+      // surfaces (the highest other one found was z-[500]) but still well below the 9998+ tier
+      // reserved for context menus/popups — including the ones this panel spawns itself
+      // (VerseCopyMenu/StrongsContextMenu, both z-[10000]), so those still correctly paint above
+      // it, same as before. `.no-drag` on the FULL container now too, not just the header/resize
+      // handle — this codebase has hit Electron's OS-level drag-region hit-testing bug before
+      // (it ignores paint order/visibility, only screen-space overlap), and a user-resizable,
+      // user-draggable panel like this one can end up overlapping the top drag-region strip.
+      className="no-drag fixed z-[600] flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden"
       style={{ left: pos.x, top: pos.y, width: size.width, height: size.height, ...PANEL_BG }}
     >
       {/* Header — drag handle */}
