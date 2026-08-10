@@ -118,20 +118,47 @@ const DEFAULT_TEXT_ID = 'kjva'
 // electron/db/bible.ts). Checked longest-first against the raw question so "1 enoch" doesn't
 // get shadowed by a shorter, unrelated substring. Deliberately covers the texts most likely to
 // come up by name in a lookup question — not exhaustive of every text/alias combination.
+// Order matters — detectFocusTextId below returns the FIRST match, in array order, not the
+// longest, so a more specific alias must be listed before any shorter alias it also contains
+// as a substring (e.g. "hermas taylor" before bare "hermas", "recognitions of clement" before
+// bare "clement") or the specific one can never be reached.
 const TEXT_ALIASES: Array<[string, string]> = [
   ['book of jubilees', 'jubilees'], ['jubilees', 'jubilees'],
   ['1 enoch', 'enoch'], ['book of enoch', 'enoch'], ['enoch', 'enoch'],
   ['septuagint', 'lxx'], ['brenton', 'lxx'], [' lxx', 'lxx'],
+  // Two distinct Hermas translations in this app (hermas.db vs hermas_taylor.db) — the
+  // Taylor-specific aliases must be checked first or they'd never be reached, since they all
+  // contain the substring "hermas" that the plain aliases below would otherwise match first.
+  ['taylor hermas', 'hermas_taylor'], ['hermas taylor', 'hermas_taylor'], ["taylor's hermas", 'hermas_taylor'],
   ['shepherd of hermas', 'hermas'], ['hermas', 'hermas'],
   ['epistle of barnabas', 'ep_barnabas'], ['barnabas', 'ep_barnabas'],
-  ['first clement', '1clement'], ['1 clement', '1clement'], ['clement', 'recog_clement'],
+  // "Recognitions" checked before bare "clement" for the same reason as Hermas above.
+  ['recognitions of clement', 'recog_clement'], ['recognitions', 'recog_clement'],
+  ['first clement', '1clement'], ['1 clement', '1clement'],
+  // Bare "clement" defaults to 1 Clement — the far more commonly-referenced of the two works
+  // sharing that name, rather than the previous default (Recognitions), which most people
+  // wouldn't mean by a bare "Clement" mention.
+  ['clement', '1clement'],
   ['testaments of the twelve patriarchs', 't12p'], ['twelve patriarchs', 't12p'],
+  // Each patriarch's individual testament is one book WITHIN t12p.db, not its own text — but a
+  // real question naming one ("testament of reuben", "testament of levi") never mentions the
+  // collective work's name at all, so without these the whole book was undetectable as a focus
+  // text — confirmed via battery testing: 0/13 T12P questions matched before this fix, since
+  // every one of them names an individual patriarch's testament, never "the twelve patriarchs"
+  // itself. The specific book (TREU/TLEV/etc) still resolves normally afterward via
+  // resolveBookId once t12p is established as the focus text.
+  ['testament of reuben', 't12p'], ['testament of simeon', 't12p'], ['testament of levi', 't12p'],
+  ['testament of judah', 't12p'], ['testament of issachar', 't12p'], ['testament of zebulun', 't12p'],
+  ['testament of dan', 't12p'], ['testament of naphtali', 't12p'], ['testament of gad', 't12p'],
+  ['testament of asher', 't12p'], ['testament of joseph', 't12p'], ['testament of benjamin', 't12p'],
   ['testament of job', 't_job'],
   ['ascension of isaiah', 'asc_isaiah'],
   ['2 baruch', '2baruch'], ['second baruch', '2baruch'],
   ['didache', 'didache_hoole'],
   ['apocalypse of abraham', 'apoc_abraham'],
+  ['apocalypse of elijah', 'apoc_elijah'],
   ['testament of jacob', 't_jacob'],
+  ['gad the seer', 'gad'],
 ]
 
 function detectFocusTextId(question: string): string | null {
@@ -1105,6 +1132,17 @@ async function runLookup(
   // it scored non-zero (e.g. shares only a generic word, not the real topic). Never wipes the
   // set down to zero from this alone. Strong's-sourced results are exempt — an exact tag match
   // in the text_tagged column is definitionally on-topic for that Strong's number.
+  //
+  // The single top-ranked candidate is ALSO exempt — deep search must never do worse than fast
+  // search, and this was the exact mechanism that let it: candidates[0] is whatever the
+  // deterministic keyword/guess scoring (identical in both modes) already decided was the best
+  // answer, so it's exactly what fast mode would have shown as its headline result. Nothing
+  // downstream of that ranking is more trustworthy than the ranking itself — an LLM's own
+  // after-the-fact relevance judgment on ONE candidate, in a single call, is not a more reliable
+  // signal than the deterministic score that put it in first place, and letting it override that
+  // is precisely how a Round-7 battery run measured deep mode scoring WORSE than fast mode on
+  // the same questions (13/20 vs 16/20 on "quote", 4/10 vs 7/10 on "edge"). The prune may still
+  // trim anything ranked below #1.
   if (opts.agentic && candidates.length > 0) {
     emit(pick(PRUNE_MESSAGES))
     try {
@@ -1112,7 +1150,8 @@ async function runLookup(
       const irrelevant = new Set(verdict.irrelevant ?? [])
       if (irrelevant.size > 0) {
         const keyFor = (r: AiLookupResult) => `${r.bookId} ${r.chapter}:${r.verse}`
-        const pruned = candidates.filter((r) => r.source === 'strongs' || !irrelevant.has(keyFor(r)))
+        const topKey = keyFor(candidates[0])
+        const pruned = candidates.filter((r) => r.source === 'strongs' || keyFor(r) === topKey || !irrelevant.has(keyFor(r)))
         if (pruned.length > 0) candidates = pruned
       }
     } catch { /* prune is best-effort — a failed call just skips it */ }

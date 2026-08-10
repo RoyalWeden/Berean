@@ -6,6 +6,20 @@
 // Used by aiLookup.ts's searchKeywords to expand a keyword into archaic variants when searching
 // a pseudepigrapha focus text, the same way getWordReplacerVariants expands user-configured
 // word-replacer variants.
+//
+// Split across genre-grouped files (each independently researched/verified) to keep this one
+// from growing unwieldy — merged back into one exported array below, which is all callers ever
+// need to import.
+import { APOSTOLIC_ARCHAIC_VOCAB } from './archaicVocabApostolic'
+import { TESTAMENTS_ARCHAIC_VOCAB } from './archaicVocabTestaments'
+import { APOCALYPTIC_ARCHAIC_VOCAB } from './archaicVocabApocalyptic'
+
+// Every textId this table can target — the full set of TEXT_FILES keys in electron/db/bible.ts
+// that aren't a canonical/LXX text (those don't need archaic-vocabulary expansion at all).
+export type PseudepigraphaTextId =
+  | 'jubilees' | 'enoch' | 'hermas' | 'hermas_taylor' | 'ep_barnabas' | '1clement' | 'recog_clement'
+  | 't12p' | 't_job' | 't_jacob' | 'asc_isaiah' | '2baruch' | 'didache_hoole' | 'apoc_abraham'
+  | 'apoc_elijah' | 'gad'
 
 export interface ArchaicPhraseRule {
   /** Modern word(s)/phrase(s) that, if present in an extracted keyword, trigger this expansion. */
@@ -13,7 +27,7 @@ export interface ArchaicPhraseRule {
   /** The archaic phrase to add as a search variant. */
   archaic: string
   /** Which text(s) this applies to — textId values used elsewhere in this app. */
-  textIds: Array<'jubilees' | 'enoch'>
+  textIds: PseudepigraphaTextId[]
 }
 
 export const PSEUDEPIGRAPHA_ARCHAIC_VOCAB: ArchaicPhraseRule[] = [
@@ -93,4 +107,20 @@ export const PSEUDEPIGRAPHA_ARCHAIC_VOCAB: ArchaicPhraseRule[] = [
   { modern: ['humanity', 'mankind', 'humankind', 'people'], archaic: 'the children of men', textIds: ['enoch', 'jubilees'] },
   // Jubilees 4:15 — "...Mahalalel took unto him to wife DinaH..." (also 25:8, 28:17, 28:20)
   { modern: ['married', 'marry', 'marriage', 'wed'], archaic: 'to wife', textIds: ['jubilees'] },
+
+  // ── "Apostolic Fathers" era: Shepherd of Hermas (two translations), Epistle of Barnabas,
+  // 1 Clement, Recognitions of Clement — see archaicVocabApostolic.ts for the full citation
+  // header (register notes, the hermas/hermas_taylor wording-divergence log).
+  ...APOSTOLIC_ARCHAIC_VOCAB,
+
+  // ── "Testament" genre: Testaments of the Twelve Patriarchs, Testament of Job, Testament of
+  // Jacob — see archaicVocabTestaments.ts for the full citation header.
+  ...TESTAMENTS_ARCHAIC_VOCAB,
+
+  // ── Apocalyptic/mixed: Ascension of Isaiah, 2 Baruch, Didache, Apocalypse of Abraham,
+  // Apocalypse of Elijah, Gad the Seer — see archaicVocabApocalyptic.ts for the full citation
+  // header, including the per-text register verification (two of these turned out to be
+  // MODERN-register translations, not archaic — entries there are terminology gaps only, not
+  // archaisms; Gad the Seer got exactly one narrow entry for its quoted-oracle KJV pastiche).
+  ...APOCALYPTIC_ARCHAIC_VOCAB,
 ]
