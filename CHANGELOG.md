@@ -122,6 +122,37 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.21] - 2026-08-10
+
+Berean Chat
+- New AI-powered natural-language Bible search, backed by a local Ollama
+  model — ask things like "where does Abraham leave his family because of
+  idolatry" or "why does Abraham leave his family in Jubilees 12" and get
+  real, verified verses back (never fabricated), searched across the KJV,
+  the Septuagint, and 16 non-canonical/pseudepigrapha texts (Jubilees, 1
+  Enoch, and more).
+- Floating, draggable, resizable chat panel with its own saved history —
+  reopen and continue a past conversation, edit and regenerate a past
+  question, copy any message.
+- Optional Deep Search double-checks its own results and retries with
+  different search terms if they don't actually answer the question.
+  Optional Commentary directly answers the question in its own words,
+  grounded only in the verses actually found — never outside knowledge.
+- Understands Strong's number questions ("what does H2580 mean", "where is
+  G5485 used in Matthew", "give me 2 places G5485 is mentioned"),
+  cross-reference/quotation questions ("what does Romans 5 quote", "what
+  quotes Psalm 2"), and questions about your own notes ("what have I
+  written about the sabbath").
+- Can use whatever you're currently looking at as extra context — turn on
+  the "This tab" toggle, or just mention it inline ("what does this chapter
+  say about...").
+- Can find videos in your synced YouTube library ("find me a video about the
+  sabbath").
+- Ranking weighs non-canonical texts fairly against the King James Bible
+  instead of always defaulting to canonical — a genuinely better answer
+  from Jubilees or another pseudepigrapha text can win outright, while the
+  KJV is still favored on a genuine toss-up.
+
 ## [0.4.20] - 2026-08-08
 
 Daily Notes
