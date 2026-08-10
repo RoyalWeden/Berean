@@ -54,10 +54,58 @@ export async function checkOllamaAvailable(): Promise<{ available: boolean; mode
 // cost ~1.2s of load_duration per call; adding keep_alive and only unloading before the FIRST
 // call in a batch cut median total latency from 3.82s to 2.63s (-31%), with prompt_eval/eval
 // time statistically unchanged between arms — the entire improvement is exactly the load-time
-// mechanism keep_alive is supposed to affect, not a placebo. 30 minutes comfortably covers a
-// real reading/thinking pause between questions; the cost is ~7GB staying resident longer
-// (same figure as the NUM_CTX comment above) rather than freed after 5 minutes idle.
-const KEEP_ALIVE = '30m'
+// mechanism keep_alive is supposed to affect, not a placebo.
+//
+// Round 11: shrunk from 30m to 5m, and paired with a MORE aggressive proactive idle-unload
+// below (noteOllamaActivity/IDLE_UNLOAD_MS) — direct feedback that leaving the model resident
+// for 30 minutes (~7GB) cost too much idle memory, especially since the chat panel staying open
+// while the user goes back to browsing scripture/notes doesn't mean the model is still needed.
+// This value is now just the FALLBACK Ollama itself enforces if the proactive JS-side timer
+// somehow doesn't fire (e.g. the app quit uncleanly mid-session) — the real, everyday unload
+// path is the 2-minute idle timer, not this 5-minute window.
+const KEEP_ALIVE = '5m'
+
+// Proactively unloads the model a couple of minutes after the user STOPS asking questions —
+// deliberately shorter than KEEP_ALIVE above and independent of whether the chat panel is still
+// open, so leaving it open while browsing elsewhere doesn't keep ~7GB resident indefinitely.
+// Reset on every real call (see noteOllamaActivity), so the model stays loaded while the user is
+// actively going back and forth, and only unloads once they've genuinely stopped.
+const IDLE_UNLOAD_MS = 2 * 60 * 1000
+let idleUnloadTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Sends a real request with `keep_alive: 0`, Ollama's own signal to unload the model right
+ *  after responding — best-effort; a failure (Ollama not running, network hiccup) is silently
+ *  ignored, same as every other best-effort path in this file. An empty prompt keeps this cheap
+ *  — it's a control message, not a real generation call. */
+async function unloadModelNow(model: string): Promise<void> {
+  try {
+    await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: 0 }),
+    }, 5000)
+  } catch { /* best-effort — see comment above */ }
+}
+
+/** Call at the start of every real AI Lookup call — (re)starts the idle-unload countdown so an
+ *  active back-and-forth keeps the model loaded (fast), while genuinely stopping (even with the
+ *  chat panel left open) lets it unload again after IDLE_UNLOAD_MS instead of waiting out the
+ *  full KEEP_ALIVE window. */
+function noteOllamaActivity(model: string): void {
+  if (idleUnloadTimer) clearTimeout(idleUnloadTimer)
+  idleUnloadTimer = setTimeout(() => {
+    idleUnloadTimer = null
+    void unloadModelNow(model)
+  }, IDLE_UNLOAD_MS)
+}
+
+/** Call immediately when the AI Lookup panel closes — a redundant, instant path on top of the
+ *  idle timer above (which already covers "left the panel open but stopped asking questions"),
+ *  for the common case of actually closing the panel. */
+export function unloadOllamaImmediately(model = DEFAULT_OLLAMA_MODEL): void {
+  if (idleUnloadTimer) { clearTimeout(idleUnloadTimer); idleUnloadTimer = null }
+  void unloadModelNow(model)
+}
 
 // Worst-case backstop, not a typical-path speed lever — benchmarked this round: capping this at
 // 512 changed nothing in 30 real extraction-style calls (tok/s identical, no response exceeded
@@ -79,6 +127,7 @@ const EXTRACTION_TEMPERATURE = 0.3
 /** Runs a single prompt against a local Ollama model, forcing JSON output.
  *  Throws on any failure (network, non-2xx, timeout) — callers must catch. */
 export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 45_000): Promise<T> {
+  noteOllamaActivity(model)
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -95,6 +144,7 @@ export async function runOllamaJson<T>(prompt: string, model = DEFAULT_OLLAMA_MO
 /** Runs a single prompt and returns plain text (no forced JSON) — used for
  *  free-form commentary, where forcing a JSON shape would just add noise. */
 export async function runOllamaText(prompt: string, model = DEFAULT_OLLAMA_MODEL, timeoutMs = 30_000): Promise<string> {
+  noteOllamaActivity(model)
   const res = await fetchWithTimeout(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

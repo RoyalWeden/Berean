@@ -508,6 +508,10 @@ export interface AiLookupTabContextRef {
 
 interface AiLookupAPI {
   checkAvailable: () => Promise<{ available: boolean; models: string[] }>
+  /** Proactively unloads the local Ollama model right away — call when the chat panel closes.
+   *  Redundant with the main process's own idle-unload timer (which fires a couple minutes
+   *  after the last question regardless of panel state); this just makes closing feel instant. */
+  unloadModel: () => Promise<{ success: boolean }>
   query: (question: string, opts: {
     commentary: boolean
     /** "Deep search" — an extra verification pass that checks whether the initial results

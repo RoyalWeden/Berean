@@ -516,7 +516,11 @@ export default function AiLookupPanel() {
         <button onClick={() => setHistoryOpen((v) => !v)} title="Chat history" className={`p-1 rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer ${historyOpen ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>
           <HistoryIcon size={14} />
         </button>
-        <button onClick={() => setOpen(false)} title="Close" className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer">
+        <button
+          onClick={() => { setOpen(false); window.aiLookup.unloadModel().catch(() => {}) }}
+          title="Close"
+          className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer"
+        >
           <X size={14} />
         </button>
       </div>

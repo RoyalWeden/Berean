@@ -5,7 +5,7 @@ import { queryVerse, searchVerses } from './bible'
 import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse, getIncomingCrossRefsForVerse, getIncomingTskeForVerse } from './crossrefs'
 import { getLexiconEntry, getLexiconOccurrences } from './lexicon'
-import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL } from '../ollama'
+import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL, unloadOllamaImmediately } from '../ollama'
 // A real, already-existing, actively-maintained reference parser + book-name table — unlike
 // normalizeBookName/getWordReplacerVariants elsewhere in this file (deliberately ported, not
 // imported, since they're small and this main-process build doesn't otherwise pull from src/),
@@ -845,6 +845,15 @@ function mergeAdjacent(items: AiLookupResult[]): AiLookupResult[] {
  *  getArchaicVariants) rather than just discounting the score bonus is what actually fixes it —
  *  a common epithet is excluded from the search/candidate pool for that text entirely in this
  *  mode, not just scored lower. */
+// Round 11: capped (was unbounded) — every distinct phrase/text-id combination ever queried
+// across the whole app session used to stay in memory for the process lifetime regardless of
+// whether the AI panel was even open, part of the "reduce idle memory" cleanup this round. A
+// real study session realistically touches at most a few hundred distinct phrases; 1000 is a
+// generous ceiling that's still small (short strings + numbers), so this is about bounding
+// worst-case unbounded growth over a long-running app process, not a meaningful cache-hit-rate
+// tradeoff for ordinary use. Simple full-clear-on-cap rather than real LRU eviction — cheap and
+// good enough given how rarely this would ever actually fire.
+const _PHRASE_RARITY_CACHE_MAX = 1000
 const _phraseRarityCache = new Map<string, number>()
 function phraseRarityCount(words: string[], textId: string): number {
   if (words.length === 0) return 0
@@ -859,6 +868,7 @@ function phraseRarityCount(words: string[], textId: string): number {
     const row = db.prepare('SELECT COUNT(*) as c FROM verses_fts WHERE verses_fts MATCH ?').get(ftsQ) as { c: number } | undefined
     count = row?.c ?? 0
   } catch { /* malformed FTS query (rare punctuation) — treat as not-rare, no bonus */ count = 999 }
+  if (_phraseRarityCache.size >= _PHRASE_RARITY_CACHE_MAX) _phraseRarityCache.clear()
   _phraseRarityCache.set(key, count)
   return count
 }
@@ -2142,6 +2152,11 @@ interface ChatMessage {
 
 export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('ailookup:checkAvailable', () => checkOllamaAvailable())
+
+  // Round 11: called when the Berean Chat panel closes — an instant, redundant path on top of
+  // ollama.ts's own proactive idle-unload timer (which already covers "left the panel open but
+  // stopped asking questions"), for the common case of actually closing it.
+  ipcMain.handle('ailookup:unloadModel', () => { unloadOllamaImmediately(); return { success: true } })
 
   ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[]; tabContext?: AiLookupTabContextRef }) =>
     runLookup(question, opts, (status) => event.sender.send('ailookup:progress', status)))
