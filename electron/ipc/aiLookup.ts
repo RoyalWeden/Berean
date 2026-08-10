@@ -247,6 +247,43 @@ function resolveBookId(raw: string, textId: string): string | null {
   return toId.get(upper) ?? null
 }
 
+/** Scans free text (a whole question, not a single book name) for a real canonical book name/
+ *  abbreviation mentioned anywhere in it — e.g. "where in Matthew is G5485 used" → "MAT". Used
+ *  for Strong's occurrence book-scoping (§Round 11) and, more generally, for constraining
+ *  keyword search to a named book/testament. Longest match wins (so "song of solomon" isn't
+ *  shadowed by a shorter false match), and matches are word-boundary-checked, not bare substring
+ *  — real book names are checked against `getBookMaps`'s own name/abbreviation table, the same
+ *  source of truth every other book-name resolution in this file already uses, so nothing new
+ *  needs curating here. Names shorter than 3 characters are skipped (too easy to collide with
+ *  ordinary English words, e.g. a 2-letter abbreviation). */
+function detectBookInQuestion(question: string): string | null {
+  const { toId } = getBookMaps(DEFAULT_TEXT_ID)
+  let best: { id: string; len: number } | null = null
+  for (const [name, id] of toId) {
+    if (name.length < 3) continue
+    const re = new RegExp(`(^|[^a-z0-9])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, 'i')
+    if (re.test(question) && (!best || name.length > best.len)) best = { id, len: name.length }
+  }
+  return best?.id ?? null
+}
+
+const SPELLED_OUT_NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  a: 1, // "give me a place where..." — informal singular
+}
+
+/** Parses "give me 2 places", "three verses", "5 occurrences" etc — the requested COUNT of
+ *  results, distinct from whether occurrences were requested at all (STRONGS_OCCURRENCES_
+ *  REQUESTED_RE). Returns null (use the default) if no explicit count is mentioned. Capped by
+ *  the caller, not here — this just parses what was asked. */
+function detectRequestedCount(question: string): number | null {
+  const m = question.match(/\b(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|a)\b\s+(places?|verses?|times?|occurrences?|references?|instances?|spots?)\b/i)
+  if (!m) return null
+  const raw = m[1].toLowerCase()
+  const n = /^\d+$/.test(raw) ? Number(raw) : SPELLED_OUT_NUMBERS[raw]
+  return n && n > 0 ? n : null
+}
+
 // Ported from src/lib/parseRef.ts's normalizeBookName (not imported — same cross-process
 // reasoning as WordReplacerRuleLite above). The text DBs store book names with roman-numeral
 // prefixes ("I Samuel", "II Kings"); the rest of the app already normalizes these to arabic
@@ -1059,6 +1096,14 @@ function detectStrongsNumbers(text: string): string[] {
 interface StrongsSeedResult {
   candidates: AiLookupResult[]
   card?: AiLookupStrongsCard
+  /** Set when a book scope was requested but that number genuinely doesn't occur there (real,
+   *  DB-verified absence, not a fetch failure) — surfaced to the user instead of silently
+   *  substituting occurrences from some other book. See Round 11. */
+  note?: string
+  /** True when the user asked for a SPECIFIC count ("give me 2 places") — the final response
+   *  should show exactly that (capped) set of real occurrences and nothing else, not pad the
+   *  answer with unrelated keyword/guess candidates the general pipeline also happened to find. */
+  exactCountRequested?: boolean
 }
 
 // A definition-only Strong's question ("what is the greek strongs for grace") shouldn't dump a
@@ -1067,16 +1112,27 @@ interface StrongsSeedResult {
 // them: "where"/"which verses"/"occurs"/"appears"/"used in"/"found in".
 const STRONGS_OCCURRENCES_REQUESTED_RE = /\b(where|which\s+verses?|occurs?|occurrence|appears?|used\s+in|found\s+in|every\s+place)\b/i
 
+// Sane upper bound on an explicitly-requested count ("give me 2 places") — protects against a
+// runaway/abusive number while still comfortably covering any real, ordinary request.
+const MAX_REQUESTED_OCCURRENCES = 20
+const DEFAULT_OCCURRENCES_SHOWN = 6
+
 /** Resolves a list of Strong's numbers (explicit ones detected in the question, plus any the
  *  model itself proposed) into a verified word card (always) and real occurrences (only when
  *  the question actually asked for them — see STRONGS_OCCURRENCES_REQUESTED_RE) — every number
  *  is checked against the real lexicon DB first (getLexiconEntry), so a hallucinated/invalid one
  *  is silently dropped exactly like an unresolvable book/chapter guess is elsewhere in this
  *  file. Verse occurrences come from getLexiconOccurrences, which scans the tagged text directly
- *  (an exact tag match, not a model guess) — the most trustworthy source this pipeline has. */
-function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn: (bookId: string, textId: string) => string, includeOccurrences: boolean): StrongsSeedResult {
+ *  (an exact tag match, not a model guess) — the most trustworthy source this pipeline has.
+ *  `bookId`/`requestedCount` (Round 11): a book named in the question ("in Matthew") scopes
+ *  occurrences to real, DB-verified matches in that book only — a genuine zero-result book
+ *  scope sets `note` explaining that, rather than silently showing occurrences from unrelated
+ *  books. A requested count ("give me 2 places") overrides the default cap of 6. */
+function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn: (bookId: string, textId: string) => string, includeOccurrences: boolean, bookId?: string | null, requestedCount?: number | null): StrongsSeedResult {
   const candidates: AiLookupResult[] = []
   let card: AiLookupStrongsCard | undefined
+  let note: string | undefined
+  const limit = Math.min(requestedCount ?? DEFAULT_OCCURRENCES_SHOWN, MAX_REQUESTED_OCCURRENCES)
   for (const num of nums.slice(0, 2)) {
     const entry = getLexiconEntry(num)
     if (!entry) continue
@@ -1088,7 +1144,24 @@ function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn:
       }
     }
     if (!includeOccurrences) continue
-    for (const occ of getLexiconOccurrences(num).slice(0, 6)) {
+    const occs = getLexiconOccurrences(num, bookId ?? undefined)
+    if (bookId && occs.length === 0) {
+      const bookLabel = bookNameForFn(bookId, DEFAULT_TEXT_ID)
+      note = `${num} doesn't occur in ${bookLabel} — showing real occurrences elsewhere instead.`
+      // Fall back to an UNSCOPED search so the answer still shows something real and useful,
+      // just honestly labeled as not being in the book that was actually asked about.
+      for (const occ of getLexiconOccurrences(num).slice(0, limit)) {
+        const key = `${occ.text_id}|${occ.book_id}|${occ.chapter}|${occ.verse_num}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        candidates.push({
+          textId: occ.text_id, bookId: occ.book_id, bookName: bookNameForFn(occ.book_id, occ.text_id),
+          chapter: occ.chapter, verse: occ.verse_num, text: occ.text, source: 'strongs',
+        })
+      }
+      continue
+    }
+    for (const occ of occs.slice(0, limit)) {
       const key = `${occ.text_id}|${occ.book_id}|${occ.chapter}|${occ.verse_num}`
       if (seen.has(key)) continue
       seen.add(key)
@@ -1098,7 +1171,7 @@ function resolveStrongsNumbers(nums: string[], seen: Set<string>, bookNameForFn:
       })
     }
   }
-  return { candidates, card }
+  return { candidates, card, note, exactCountRequested: includeOccurrences && requestedCount != null }
 }
 
 // ── "What does verse X quote" — a deterministic, LLM-free question type ────────────────────
@@ -1417,7 +1490,7 @@ export async function runLookup(
   // other AI-proposed reference in this pipeline.
   const strongsNums = [...detectStrongsNumbers(question), ...(extraction.strongsNum ? [extraction.strongsNum.trim().toUpperCase()] : [])]
   const strongsSeed = strongsNums.length > 0
-    ? resolveStrongsNumbers(strongsNums, seen, bookNameFor, STRONGS_OCCURRENCES_REQUESTED_RE.test(question))
+    ? resolveStrongsNumbers(strongsNums, seen, bookNameFor, STRONGS_OCCURRENCES_REQUESTED_RE.test(question), detectBookInQuestion(question), detectRequestedCount(question))
     : { candidates: [], card: undefined }
 
   function add(bucket: AiLookupResult[], textId: string, row: { book_id: string; chapter: number; verse_num: number; verse_end?: number; text: string }, source: ResultSource) {
@@ -1676,7 +1749,7 @@ export async function runLookup(
   }
 
   if (mergedGuesses.length === 0 && mergedKeywords.length === 0 && strongsSeed.candidates.length === 0) {
-    return { ...empty(), keywords, strongsCard: strongsSeed.card }
+    return { ...empty(), keywords, strongsCard: strongsSeed.card, summary: strongsSeed.note }
   }
 
   // 4. Notes signal — boosts ranking, never fabricates a new verse from a loose text match.
@@ -1823,8 +1896,13 @@ export async function runLookup(
   // list itself), so it's never crowded out by keyword/guess candidates competing for the same
   // slots. Always led first.
   if (strongsSeed.candidates.length > 0) {
-    const nonStrongs = candidates.filter((c) => !strongsSeed.candidates.some((sc) => dedupeKey(sc) === dedupeKey(c)))
-    candidates = [...strongsSeed.candidates, ...nonStrongs]
+    // Round 11: an explicit count ("give me 2 places") means show exactly that (already capped
+    // inside resolveStrongsNumbers) and NOTHING else — padding the answer with unrelated
+    // keyword/guess candidates the general pipeline also happened to find would silently ignore
+    // what was actually asked for.
+    candidates = strongsSeed.exactCountRequested
+      ? strongsSeed.candidates
+      : [strongsSeed.candidates, candidates.filter((c) => !strongsSeed.candidates.some((sc) => dedupeKey(sc) === dedupeKey(c)))].flat()
   }
 
   // 5b. Final agentic relevance prune — after everything else has been decided, one last call
@@ -1928,15 +2006,15 @@ export async function runLookup(
       return {
         results: [...finalPrimary, ...finalCrossRefs],
         visibleCount: finalPrimary.length,
-        keywords, related, relatedNote, summary: raw.summary, strongsCard: strongsSeed.card, notes: notesAugment,
+        keywords, related, relatedNote, summary: raw.summary ?? strongsSeed.note, strongsCard: strongsSeed.card, notes: notesAugment,
       }
     } catch {
       // Commentary is best-effort — a failed second call shouldn't drop the verified results.
-      return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment }
+      return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment, summary: strongsSeed.note }
     }
   }
 
-  return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment }
+  return { results, visibleCount, keywords, related, relatedNote, strongsCard: strongsSeed.card, notes: notesAugment, summary: strongsSeed.note }
 }
 
 interface StoredChat {

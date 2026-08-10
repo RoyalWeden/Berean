@@ -59,8 +59,14 @@ export interface LexiconOccurrence {
 }
 
 /** Finds every real, tag-verified occurrence of a Strong's number in the tagged texts — exported
- *  as a plain function for the same reuse reason as getLexiconEntry above. */
-export function getLexiconOccurrences(strongsNum: string): LexiconOccurrence[] {
+ *  as a plain function for the same reuse reason as getLexiconEntry above.
+ *  `bookId` (optional): scopes results to a single book (e.g. "MAT") — filtered on the already-
+ *  fetched rows before the expensive per-row match-index computation below, so a question like
+ *  "where in Matthew is G5485 used" only ever shows Matthew occurrences instead of silently
+ *  substituting the first N alphabetically (which could be a different book entirely, or none
+ *  at all if the number simply doesn't occur there — see aiLookup.ts's callers for the "not
+ *  found" handling this makes possible). */
+export function getLexiconOccurrences(strongsNum: string, bookId?: string): LexiconOccurrence[] {
   const num = strongsNum.trim().toUpperCase()
   try {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
@@ -101,9 +107,11 @@ export function getLexiconOccurrences(strongsNum: string): LexiconOccurrence[] {
 
       // Fetch up to 500 per source so both KJVA and LXX are represented even for
       // frequently-occurring G-numbers. H-numbers are KJVA-only.
-      const rawRows: RawRow[] = isGreek
+      let rawRows: RawRow[] = isGreek
         ? [...scanTaggedOccurrences(kjva, 'kjva', 500), ...scanTaggedOccurrences(lxxDb, 'lxx', 500)]
         : scanTaggedOccurrences(kjva, 'kjva', 1000)
+
+      if (bookId) rawRows = rawRows.filter((r) => r.book_id === bookId.toUpperCase())
 
       if (!rawRows.length) return []
 
