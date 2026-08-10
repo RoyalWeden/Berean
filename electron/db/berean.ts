@@ -592,6 +592,20 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v21: ai_chats table')
     }
+  },
+  {
+    // Notes trash: soft-delete instead of immediate permanent removal. `deleted_at` is a
+    // Unix-ms timestamp, NULL for a normal (non-trashed) note — every existing note-listing
+    // query gets a `deleted_at IS NULL` filter added alongside this (see electron/ipc/notes.ts).
+    // Folders themselves are NOT soft-deleted (folders:deleteDeep still hard-deletes the folder
+    // rows) — only notes go to trash, deliberately narrower scope; a note whose folder was
+    // hard-deleted restores to root (folder_id NULL) instead of a now-nonexistent folder.
+    version: 22,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN deleted_at INTEGER`) } catch {}
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at)`)
+      console.log('[berean-db] v22: deleted_at column on notes (trash)')
+    }
   }
 ]
 

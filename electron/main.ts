@@ -69,7 +69,7 @@ import { closeLexiconDbs } from './db/lexicon'
 import { registerBibleHandlers } from './ipc/bible'
 import { registerNotesHandlers } from './ipc/notes'
 import { registerPdfHandlers } from './ipc/pdf'
-import { registerVaultHandlers, runExportAll, setupAutoExport, AUTO_EXPORT_INTERVAL_MINUTES } from './ipc/vault'
+import { registerVaultHandlers, runExportAll, setupAutoExport, AUTO_EXPORT_INTERVAL_MINUTES, setupTrashPurge } from './ipc/vault'
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
 import { registerHighlightHandlers } from './ipc/highlights'
@@ -751,6 +751,9 @@ app.whenReady().then(async () => {
     const enabled = row ? (JSON.parse(row.value) as boolean) : false
     setupAutoExport(enabled ? AUTO_EXPORT_INTERVAL_MINUTES : 0)
   } catch { /* ignore — timer stays off if setting unreadable */ }
+  // Trash auto-purge — always on, not gated by vault sync (trash is a core-app-DB concept;
+  // the vault-file side of it is just one more thing purgeExpiredTrash cleans up alongside).
+  setupTrashPurge()
   registerSettingsHandlers(ipcMain)
   registerLexiconHandlers(ipcMain)
   registerHighlightHandlers(ipcMain)

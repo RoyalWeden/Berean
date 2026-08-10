@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron'
 import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
 import { numberTokenAlternates } from './numberWords'
+import { moveNoteToVaultTrash, restoreNoteFromVaultTrash, purgeNoteFromVaultTrash, type NoteRow as VaultNoteRow } from './vault'
 
 /** Notify every OTHER open window (including floating/detached ones) that notes
  *  changed, so each window's own `noteChangeToken` bumps and any open Scripture/
@@ -92,6 +93,7 @@ interface NoteRow {
   idiom_aliases: string | null
   idiom_auto_variants: number | null
   idiom_data: string | null
+  deleted_at: number | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -123,6 +125,7 @@ function rowToNote(row: NoteRow) {
     idiomAliases:      row.idiom_aliases ? (JSON.parse(row.idiom_aliases) as string[]) : undefined,
     idiomAutoVariants: row.idiom_auto_variants === 1 ? true : undefined,
     idiomData:         row.idiom_data ? safeParse(row.idiom_data) : undefined,
+    deletedAt:         row.deleted_at ?? undefined,
   }
 }
 
@@ -232,7 +235,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:listIdioms', () => {
     const rows = getBereanDb()
-      .prepare(`SELECT id, title, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants FROM notes WHERE type = 'idiom' AND idiom_term IS NOT NULL ORDER BY idiom_term COLLATE NOCASE ASC`)
+      .prepare(`SELECT id, title, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants FROM notes WHERE type = 'idiom' AND idiom_term IS NOT NULL AND deleted_at IS NULL ORDER BY idiom_term COLLATE NOCASE ASC`)
       .all() as Array<{ id: string; title: string | null; idiom_term: string; idiom_meaning: string | null; idiom_aliases: string | null; idiom_auto_variants: number | null }>
     return rows.map(r => ({
       id: r.id,
@@ -243,12 +246,73 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     }))
   })
 
+  // Soft-delete — moves the note to Trash rather than removing it. `note_versions` is left
+  // alone (was previously hard-deleted alongside the note here) so version history survives
+  // until the note is actually purged. See notes:restore/listTrash/purgeTrashItem/emptyTrash
+  // below for the rest of the trash lifecycle, and vault.ts for the matching vault-file move.
   ipcMain.handle('notes:delete', (event, id: string) => {
     const db = getBereanDb()
-    db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
-    db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+    const before = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow | undefined
+    db.prepare('UPDATE notes SET deleted_at = ? WHERE id = ?').run(Date.now(), id)
+    if (before) moveNoteToVaultTrash(before as unknown as VaultNoteRow)
     broadcastNotesChanged(event.sender)
     return { success: true }
+  })
+
+  // Undo a soft-delete. If the note's own folder was itself hard-deleted in the meantime
+  // (folders:deleteDeep removes folder rows outright — see below), fall back to root (NULL)
+  // rather than restoring into a folder_id that no longer exists.
+  ipcMain.handle('notes:restore', (event, id: string) => {
+    const db = getBereanDb()
+    const note = db.prepare('SELECT folder_id FROM notes WHERE id = ?').get(id) as { folder_id: string | null } | undefined
+    if (!note) return { success: false, error: 'Note not found' }
+    let folderId = note.folder_id
+    if (folderId) {
+      const exists = db.prepare('SELECT 1 FROM note_folders WHERE id = ?').get(folderId)
+      if (!exists) folderId = null
+    }
+    db.prepare('UPDATE notes SET deleted_at = NULL, folder_id = ? WHERE id = ?').run(folderId, id)
+    const after = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow
+    restoreNoteFromVaultTrash(after as unknown as VaultNoteRow)
+    broadcastNotesChanged(event.sender)
+    return { success: true }
+  })
+
+  ipcMain.handle('notes:listTrash', () => {
+    const rows = getBereanDb()
+      .prepare('SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC')
+      .all() as NoteRow[]
+    return rows.map(rowToNote)
+  })
+
+  // Permanent, real DELETE — used by both the manual "Empty Trash" action and the 30-day
+  // auto-purge timer (electron/ipc/vault.ts's setupTrashPurge). Only ever operates on rows
+  // that are ALREADY soft-deleted, as a defensive belt-and-suspenders check (a stray call with
+  // a live note's id should never permanently destroy it outside the normal delete flow).
+  ipcMain.handle('notes:purgeTrashItem', (event, id: string) => {
+    const db = getBereanDb()
+    const row = db.prepare('SELECT deleted_at FROM notes WHERE id = ?').get(id) as { deleted_at: number | null } | undefined
+    if (!row || row.deleted_at == null) return { success: false, error: 'Note is not in trash' }
+    db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+    db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+    purgeNoteFromVaultTrash(id)
+    broadcastNotesChanged(event.sender)
+    return { success: true }
+  })
+
+  ipcMain.handle('notes:emptyTrash', (event) => {
+    const db = getBereanDb()
+    const ids = (db.prepare('SELECT id FROM notes WHERE deleted_at IS NOT NULL').all() as Array<{ id: string }>).map((r) => r.id)
+    const tx = db.transaction(() => {
+      for (const id of ids) {
+        db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+        db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+      }
+    })
+    tx()
+    for (const id of ids) purgeNoteFromVaultTrash(id)
+    broadcastNotesChanged(event.sender)
+    return { success: true, purged: ids }
   })
 
   // ── Note folders (user-created, nestable) ──────────────────────────────────
@@ -287,10 +351,14 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
-  // Delete a folder AND its contents: recursively removes all descendant
-  // folders and every note contained in any of them. Destructive.
-  ipcMain.handle('folders:deleteDeep', (_event, id: string) => {
+  // Delete a folder AND its contents: recursively removes all descendant folders (hard-deleted
+  // — folders themselves aren't trash items in this design) and moves every note contained in
+  // any of them to Trash (soft-deleted, same as a normal notes:delete) rather than destroying
+  // them outright. Restoring one of these notes later falls back to root, since its folder_id
+  // no longer resolves to a real folder — see notes:restore above.
+  ipcMain.handle('folders:deleteDeep', (event, id: string) => {
     const db = getBereanDb()
+    let trashedNotes: NoteRow[] = []
     const tx = db.transaction(() => {
       const all = db.prepare('SELECT id, parent_id FROM note_folders').all() as Array<{ id: string; parent_id: string | null }>
       const childrenOf = new Map<string | null, string[]>()
@@ -305,11 +373,19 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
         toDelete.push(cur)
         for (const c of childrenOf.get(cur) ?? []) stack.push(c)
       }
-      const delNotes = db.prepare('DELETE FROM notes WHERE folder_id = ?')
+      const getNotes = db.prepare('SELECT * FROM notes WHERE folder_id = ? AND deleted_at IS NULL')
+      const trashNotes = db.prepare('UPDATE notes SET deleted_at = ? WHERE folder_id = ?')
       const delFolder = db.prepare('DELETE FROM note_folders WHERE id = ?')
-      for (const fid of toDelete) { delNotes.run(fid); delFolder.run(fid) }
+      const now = Date.now()
+      for (const fid of toDelete) {
+        trashedNotes.push(...(getNotes.all(fid) as NoteRow[]))
+        trashNotes.run(now, fid)
+        delFolder.run(fid)
+      }
     })
     tx()
+    for (const note of trashedNotes) moveNoteToVaultTrash(note as unknown as VaultNoteRow)
+    broadcastNotesChanged(event.sender)
     return { success: true }
   })
 
@@ -341,7 +417,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:getAll', (_event, limit = 200, offset = 0) => {
-    const rows = prep(getBereanDb(), 'SELECT * FROM notes ORDER BY updated_at DESC LIMIT ? OFFSET ?')
+    const rows = prep(getBereanDb(), 'SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ? OFFSET ?')
       .all(limit, offset) as NoteRow[]
     return rows.map(rowToNote)
   })
@@ -352,16 +428,16 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     let sql: string
     if (textId === 'kjva') {
       // Reading KJV → own notes first, then LXX notes
-      sql = `SELECT * FROM notes WHERE verse_ref = ?
+      sql = `SELECT * FROM notes WHERE verse_ref = ? AND deleted_at IS NULL
                AND (text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')
              ORDER BY CASE WHEN text_id = 'lxx' THEN 1 ELSE 0 END, created_at ASC`
     } else if (textId === 'lxx') {
       // Reading LXX → own notes first, then KJV notes
-      sql = `SELECT * FROM notes WHERE verse_ref = ?
+      sql = `SELECT * FROM notes WHERE verse_ref = ? AND deleted_at IS NULL
                AND (text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)
              ORDER BY CASE WHEN text_id != 'lxx' THEN 1 ELSE 0 END, created_at ASC`
     } else {
-      sql = 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? ORDER BY created_at ASC'
+      sql = 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? AND deleted_at IS NULL ORDER BY created_at ASC'
     }
     const db = getBereanDb()
     const rows = (textId === 'kjva' || textId === 'lxx'
@@ -389,7 +465,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return cleanNotesWords(query).some((w) => w.toLowerCase() === 'untitled')
   }
   function untitledNoteRows(db: ReturnType<typeof getBereanDb>, limit: number): NoteRow[] {
-    return prep(db, `SELECT * FROM notes WHERE title = '' ORDER BY updated_at DESC LIMIT ?`).all(limit) as NoteRow[]
+    return prep(db, `SELECT * FROM notes WHERE title = '' AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?`).all(limit) as NoteRow[]
   }
 
   ipcMain.handle('notes:search', (_event, query: string, limit = 20, mode: NotesWordMode = 'all') => {
@@ -407,7 +483,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
         stmt = prep(db, `
           SELECT n.* FROM notes_fts f
           JOIN notes n ON n.rowid = f.rowid
-          WHERE notes_fts MATCH ?
+          WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
           ORDER BY n.updated_at DESC
           LIMIT ?
         `)
@@ -439,7 +515,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
         rows = prep(db, `
           SELECT n.* FROM notes_fts f
           JOIN notes n ON n.rowid = f.rowid
-          WHERE notes_fts MATCH ?
+          WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
           ORDER BY n.updated_at DESC
           LIMIT ?
         `).all(match, limit) as NoteRow[]
@@ -476,7 +552,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     // e.g. a whole-chapter note) or a verse-specific form under it ("BOOK.CH.verse")
     // but NOT a deeper sub-range ("BOOK.CH.verse.something").
     const stmt = prep(getBereanDb(),
-      `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND ${tidClause}
+      `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND deleted_at IS NULL AND ${tidClause}
        ORDER BY verse_ref ASC`
     )
     const rows = (textId === 'kjva' || textId === 'lxx'
@@ -496,7 +572,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
       : 'text_id = ?'
     const stmt = prep(getBereanDb(),
-      `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND ${tidClause}`
+      `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND deleted_at IS NULL AND ${tidClause}`
     )
     const rows = (textId === 'kjva' || textId === 'lxx'
       ? stmt.all(`${prefix}%`, `${prefix}%.%`)

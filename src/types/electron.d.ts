@@ -15,6 +15,11 @@ interface NotesAPI {
   // so callers need a way to explicitly send null rather than just omitting the field.
   updateNote: (id: string, data: Partial<Omit<Note, 'status'>> & { status?: Note['status'] | null }) => Promise<{ success: boolean; error?: string }>
   deleteNote: (id: string) => Promise<{ success: boolean; error?: string }>
+  // Trash
+  restoreNote: (id: string) => Promise<{ success: boolean; error?: string }>
+  listTrash: () => Promise<Note[]>
+  purgeTrashItem: (id: string) => Promise<{ success: boolean; error?: string }>
+  emptyTrash: () => Promise<{ success: boolean; purged: string[] }>
   deleteAllNotes: () => Promise<{ success: boolean }>
   deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>
   getNotes: (limit?: number, offset?: number) => Promise<Note[]>

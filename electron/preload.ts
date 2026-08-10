@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('notes', {
   createNote: (data: unknown) => ipcRenderer.invoke('notes:create', data),
   updateNote: (id: string, data: unknown) => ipcRenderer.invoke('notes:update', id, data),
   deleteNote: (id: string) => ipcRenderer.invoke('notes:delete', id),
+  // Trash
+  restoreNote: (id: string) => ipcRenderer.invoke('notes:restore', id),
+  listTrash: () => ipcRenderer.invoke('notes:listTrash'),
+  purgeTrashItem: (id: string) => ipcRenderer.invoke('notes:purgeTrashItem', id),
+  emptyTrash: () => ipcRenderer.invoke('notes:emptyTrash'),
   deleteAllNotes: () => ipcRenderer.invoke('notes:deleteAll'),
   deleteByTag: (tag: string) => ipcRenderer.invoke('notes:deleteByTag', tag),
   getNotes: (limit?: number, offset?: number) =>
