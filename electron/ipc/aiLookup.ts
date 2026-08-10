@@ -6,6 +6,7 @@ import { getTextDb } from '../db/bible'
 import { getCrossRefsForVerse, getTskeForVerse, getIncomingCrossRefsForVerse, getIncomingTskeForVerse } from './crossrefs'
 import { getLexiconEntry, getLexiconOccurrences } from './lexicon'
 import { checkOllamaAvailable, runOllamaJson, runOllamaText, DEFAULT_OLLAMA_MODEL, unloadOllamaImmediately } from '../ollama'
+import { searchYoutubeVideos, type YoutubeVideoSearchResult } from './youtube'
 // A real, already-existing, actively-maintained reference parser + book-name table — unlike
 // normalizeBookName/getWordReplacerVariants elsewhere in this file (deliberately ported, not
 // imported, since they're small and this main-process build doesn't otherwise pull from src/),
@@ -83,6 +84,11 @@ export interface AiLookupResponse {
    *  uses this to skip rendering an empty/irrelevant verse-results section entirely, rather than
    *  showing "no matching verses" underneath a perfectly good notes answer. */
   notesAreThePrimaryAnswer?: boolean
+  /** Round 11: set when the question was an explicit video request ("find me a video about
+   *  X") — searched from the already-synced, allowlisted-channel local library only (see
+   *  CLAUDE.md §12), never a live/all-of-YouTube search. Like `notes`, a fundamentally different
+   *  shape than a verse result, so its own array. */
+  videos?: AiLookupVideoResult[]
 }
 
 export interface AiLookupNoteResult {
@@ -91,6 +97,13 @@ export interface AiLookupNoteResult {
   snippet: string
   isIdiom: boolean
   idiomTerm?: string
+}
+
+export interface AiLookupVideoResult {
+  videoId: string
+  title: string
+  channelName: string
+  thumbnailUrl: string
 }
 
 export interface AiLookupStrongsCard {
@@ -1261,6 +1274,28 @@ const REVERSE_QUOTE_TRIGGER = /\b(?:what|which|who)\s+(?:verses?|scriptures?|pas
 // misfire into notes-only mode.
 const NOTE_ASK_TRIGGER = /\b(?:my\s+notes?|notes?\s+(?:have|has)\s+i|written\s+(?:about|on)|did\s+i\s+write|have\s+i\s+written|what\s+notes?|show\s+me\s+my\s+notes?|find\s+my\s+notes?|search\s+my\s+notes?)\b/i
 
+// "Find me a video about X" / "do you have a video on X" / "any videos about X" — an explicit
+// ask to search the LOCAL, already-synced YouTube library (allowlisted channels only — see
+// CLAUDE.md §12; this deliberately never searches live/all of YouTube). Local, pre-LLM, same
+// zero-latency deterministic pattern as the note/quote classifiers above.
+const YOUTUBE_VIDEO_TRIGGER = /\b(?:find|show|got|have)\b.{0,15}\bvideos?\b|\bvideos?\b.{0,15}\b(?:about|on|regarding|covering|for)\b|\bany\s+videos?\b|\byoutube\b/i
+
+/** Pulls the search topic out of a video-request question — prefers whatever follows "about"/
+ *  "on"/"regarding"/"covering"/"for" (the most common real phrasing), falling back to the whole
+ *  question with the trigger words themselves stripped out. Best-effort, not exhaustive parsing
+ *  — searchYoutubeVideos's own fuzzy/token fallback covers the rest. */
+function extractVideoSearchQuery(question: string): string {
+  const m = question.match(/\bvideos?\b\s*(?:about|on|regarding|covering|for)\s+(.+)/i)
+  if (m) return m[1].replace(/[?.!]+$/, '').trim()
+  return question
+    .replace(/\b(?:find|show|got|have|any|do\s+you\s+have|me\s+a?|a\s+)\b/gi, ' ')
+    .replace(/\bvideos?\b/gi, ' ')
+    .replace(/\byoutube\b/gi, ' ')
+    .replace(/[?.!]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // A question naming a well-known discourse ("Yeshua's longest prayer") but whose guess only
 // came back as a bare verse 1 (no endVerse — the model gave a starting-point citation, not a
 // wrong-length range) is a real, observed failure mode — see the whole-passage extraction-prompt
@@ -1510,6 +1545,23 @@ export async function runLookup(
       summary: notes.length > 0
         ? `${notes.length} note${notes.length === 1 ? '' : 's'} found — searched your notes, not Scripture text.`
         : `No matching notes found.`,
+    }
+  }
+
+  // "Find me a video about X" — searches the local, already-synced YouTube library only (see
+  // YOUTUBE_VIDEO_TRIGGER comment). Entirely deterministic, no Ollama call.
+  if (YOUTUBE_VIDEO_TRIGGER.test(question)) {
+    emit('Searching your YouTube library…')
+    const query = extractVideoSearchQuery(question)
+    const rawVideos: YoutubeVideoSearchResult[] = query ? searchYoutubeVideos(query, 8) : []
+    const videos: AiLookupVideoResult[] = rawVideos.map((v) => ({
+      videoId: v.videoId, title: v.title, channelName: v.channelName, thumbnailUrl: v.thumbnailUrl,
+    }))
+    return {
+      results: [], visibleCount: 0, keywords: [], related: [], videos,
+      summary: videos.length > 0
+        ? `${videos.length} video${videos.length === 1 ? '' : 's'} found in your synced library.`
+        : `No matching videos found in your synced library (only allowlisted channels are searched).`,
     }
   }
 

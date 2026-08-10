@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check, Eye } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef } from '@/types/electron'
+import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef, AiLookupVideoResult } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
 // Resizable (Round 10) — these are now the MINIMUM size (the panel's original fixed dimensions),
@@ -189,6 +189,28 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
         )}
       </div>
       {note.snippet && <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-snug line-clamp-2">{note.snippet}</p>}
+    </button>
+  )
+}
+
+/** Round 11 — "find me a video about X". Searched from the local, already-synced,
+ *  allowlisted-channel library only (see CLAUDE.md §12), same reuse-primitive pattern as
+ *  NoteCard above. */
+function VideoCard({ video }: { video: AiLookupVideoResult }) {
+  const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
+  const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  return (
+    <button
+      onClick={() => { openYouTubeVideoInNewTab(video.videoId); setActiveSpace('youtube') }}
+      className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
+    >
+      {video.thumbnailUrl
+        ? <img src={video.thumbnailUrl} alt="" className="w-14 h-9 rounded object-cover flex-shrink-0" />
+        : <Youtube size={20} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] leading-snug line-clamp-2">{video.title}</p>
+        <p className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{video.channelName}</p>
+      </div>
     </button>
   )
 }
@@ -410,7 +432,7 @@ export default function AiLookupPanel() {
       // "Nothing found" only applies when NOTHING at all came back — a Strong's card, a notes
       // answer, or a summary/badge line are all legitimate complete answers on their own, even
       // when `results` (verse chips) is empty.
-      const hasAnyAnswer = res.results.length > 0 || !!res.strongsCard || (res.notes?.length ?? 0) > 0 || !!res.summary
+      const hasAnyAnswer = res.results.length > 0 || !!res.strongsCard || (res.notes?.length ?? 0) > 0 || (res.videos?.length ?? 0) > 0 || !!res.summary
       const assistantMsg: AiLookupChatMessage = {
         role: 'assistant',
         content: res.error === 'ollama-unavailable'
@@ -427,6 +449,7 @@ export default function AiLookupPanel() {
         strongsCard: res.strongsCard,
         notes: res.notes,
         notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer,
+        videos: res.videos,
         createdAt: new Date().toISOString(),
       }
       const withAssistant = [...withUser, assistantMsg]
@@ -669,6 +692,11 @@ export default function AiLookupPanel() {
                     {(m.notes ?? []).length > 0 && (
                       <div className="space-y-1.5">
                         {m.notes!.map((n) => <NoteCard key={n.id} note={n} />)}
+                      </div>
+                    )}
+                    {(m.videos ?? []).length > 0 && (
+                      <div className="space-y-1.5">
+                        {m.videos!.map((v) => <VideoCard key={v.videoId} video={v} />)}
                       </div>
                     )}
 

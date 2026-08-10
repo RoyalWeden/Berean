@@ -428,6 +428,15 @@ export interface AiLookupNoteResult {
   idiomTerm?: string
 }
 
+/** Round 11: a video found via "find me a video about X" — searched from the local,
+ *  already-synced, allowlisted-channel library only (see CLAUDE.md §12). */
+export interface AiLookupVideoResult {
+  videoId: string
+  title: string
+  channelName: string
+  thumbnailUrl: string
+}
+
 export interface AiLookupStrongsCard {
   strongsNum: string
   lemma: string
@@ -461,6 +470,8 @@ export interface AiLookupResponse {
   /** True when `notes` fully answers the question on its own — the UI skips the verse-results
    *  section entirely in that case. */
   notesAreThePrimaryAnswer?: boolean
+  /** Set when the question was an explicit video request — see AiLookupVideoResult. */
+  videos?: AiLookupVideoResult[]
 }
 
 export interface AiLookupChatSummary {
@@ -482,6 +493,7 @@ export interface AiLookupChatMessage {
   strongsCard?: AiLookupStrongsCard
   notes?: AiLookupNoteResult[]
   notesAreThePrimaryAnswer?: boolean
+  videos?: AiLookupVideoResult[]
   createdAt: string
 }
 
