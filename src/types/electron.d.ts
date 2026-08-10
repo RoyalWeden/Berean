@@ -493,6 +493,19 @@ export interface AiLookupChat {
   updatedAt: string
 }
 
+/** A lightweight pointer to the renderer's currently active tab — the main process fetches the
+ *  REAL content server-side from just this reference (never trusts renderer-supplied text), same
+ *  DB-verified-only principle as every other candidate this pipeline ever shows. */
+export interface AiLookupTabContextRef {
+  type: 'bible' | 'note' | 'lexicon' | 'youtube'
+  bookId?: string
+  chapter?: number
+  translation?: string
+  noteId?: string
+  strongsNum?: string
+  videoId?: string
+}
+
 interface AiLookupAPI {
   checkAvailable: () => Promise<{ available: boolean; models: string[] }>
   query: (question: string, opts: {
@@ -510,6 +523,9 @@ interface AiLookupAPI {
      *  next chapter" has something to resolve against. Capped to the last few turns by the
      *  caller — the main process caps further before it ever reaches the model. */
     history?: Array<{ role: 'user' | 'assistant'; content: string }>
+    /** Sent when the "use current tab as context" toggle is on, or an inline mention like "this
+     *  chapter" was detected — see AiLookupTabContextRef. */
+    tabContext?: AiLookupTabContextRef
   }) => Promise<AiLookupResponse>
   listChats: () => Promise<AiLookupChatSummary[]>
   getChat: (id: string) => Promise<AiLookupChat | null>

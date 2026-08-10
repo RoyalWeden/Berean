@@ -465,7 +465,7 @@ function getArchaicVariants(keyword: string, textId: string, strict = false): st
   return variants
 }
 
-function extractionPrompt(question: string, focusWorkName: string | null, history: ChatHistoryTurn[] = []): string {
+function extractionPrompt(question: string, focusWorkName: string | null, history: ChatHistoryTurn[] = [], tabContextBlock = ''): string {
   // Recent turns only (caller already caps this — see runLookup) — gives a follow-up question
   // ("what about the chapter after that") something to resolve against, without needing the
   // model to somehow remember anything itself (each call is still a fresh, stateless request).
@@ -517,7 +517,7 @@ ${wholePassageRule}`
     : ''
 
   return `You are a Bible search-term extractor for a KJV/LXX/pseudepigrapha study app. A user asked a question about where to find a passage in Scripture. Your ONLY job is to produce search input for a database — do not answer the question yourself, do not add commentary.
-${historyBlock}
+${historyBlock}${tabContextBlock}
 User question: "${question}"
 
 Respond with ONLY a JSON object of this exact shape:
@@ -543,10 +543,10 @@ ${guessRule}
 - No explanation, no markdown, JSON only.`
 }
 
-function commentaryPrompt(question: string, verses: AiLookupResult[]): string {
+function commentaryPrompt(question: string, verses: AiLookupResult[], tabContextBlock = ''): string {
   const list = verses.slice(0, 12).map((v) => `${v.bookId} ${v.chapter}:${v.verse}${v.endVerse ? '-' + v.endVerse : ''} — ${v.text}`).join('\n')
   return `A user asked: "${question}"
-
+${tabContextBlock}
 Here are candidate verses already found and verified against the actual Bible text (do not add,
 remove text from, or renumber any of them):
 ${list}
@@ -571,6 +571,66 @@ relevant. JSON only, no markdown.`
 
 function dedupeKey(r: Pick<AiLookupResult, 'textId' | 'bookId' | 'chapter' | 'verse'>): string {
   return `${r.textId}|${r.bookId}|${r.chapter}|${r.verse}`
+}
+
+/** A pointer to the renderer's currently active tab — mirrors AiLookupTabContextRef in
+ *  src/types/electron.d.ts. The renderer only ever sends the REFERENCE (bookId/chapter, noteId,
+ *  strongsNum, videoId); the real content is always fetched here, server-side, against the real
+ *  DB — same "never trust renderer-supplied text" principle as every other candidate in this
+ *  pipeline. */
+export interface AiLookupTabContextRef {
+  type: 'bible' | 'note' | 'lexicon' | 'youtube'
+  bookId?: string
+  chapter?: number
+  translation?: string
+  noteId?: string
+  strongsNum?: string
+  videoId?: string
+}
+
+// Keeps a whole chapter/note/entry from blowing the NUM_CTX budget (already tight per
+// ollama.ts's own comments — a full extraction+context call needs to fit comfortably). A whole
+// Bible chapter is almost always well under this; a long note or video description is truncated
+// with a visible marker rather than silently cut.
+const TAB_CONTEXT_MAX_CHARS = 4000
+
+function truncateContext(text: string): string {
+  return text.length > TAB_CONTEXT_MAX_CHARS ? text.slice(0, TAB_CONTEXT_MAX_CHARS) + ' […truncated]' : text
+}
+
+/** Builds a labeled context block from the active tab, or '' if there's nothing to fetch/it
+ *  can't be resolved (never throws — a missing/stale tab reference just means no extra context,
+ *  not a failed question). */
+function buildTabContextBlock(ref: AiLookupTabContextRef | undefined): string {
+  if (!ref) return ''
+  try {
+    if (ref.type === 'bible' && ref.bookId && ref.chapter) {
+      const textId = (ref.translation || DEFAULT_TEXT_ID).toLowerCase()
+      const db = getTextDb(textId)
+      if (!db) return ''
+      const rows = db.prepare('SELECT verse_num, text FROM verses WHERE book_id = ? AND chapter = ? ORDER BY verse_num').all(ref.bookId, ref.chapter) as Array<{ verse_num: number; text: string }>
+      if (rows.length === 0) return ''
+      const bookName = bookNameFor(ref.bookId, textId)
+      const body = rows.map((r) => `${r.verse_num}. ${r.text}`).join(' ')
+      return `\nThe user currently has ${bookName} ${ref.chapter} (${textId.toUpperCase()}) open:\n${truncateContext(body)}\n`
+    }
+    if (ref.type === 'note' && ref.noteId) {
+      const row = getBereanDb().prepare('SELECT title, content FROM notes WHERE id = ? AND deleted_at IS NULL').get(ref.noteId) as { title: string; content: string } | undefined
+      if (!row) return ''
+      return `\nThe user currently has a note open, titled "${row.title || '(untitled)'}":\n${truncateContext(row.content)}\n`
+    }
+    if (ref.type === 'lexicon' && ref.strongsNum) {
+      const entry = getLexiconEntry(ref.strongsNum)
+      if (!entry) return ''
+      return `\nThe user currently has the lexicon entry for ${ref.strongsNum} (${entry.lemma}, ${entry.transliteration}) open: ${truncateContext(entry.definition || entry.gloss || '')}\n`
+    }
+    if (ref.type === 'youtube' && ref.videoId) {
+      const row = getBereanDb().prepare('SELECT title, channel_name, description FROM youtube_videos WHERE video_id = ?').get(ref.videoId) as { title: string; channel_name: string; description: string } | undefined
+      if (!row) return ''
+      return `\nThe user currently has a YouTube video open: "${row.title}" (${row.channel_name}).${row.description ? ' Description: ' + truncateContext(row.description) : ''}\n`
+    }
+  } catch { /* a bad/stale reference just means no context, not a failed question */ }
+  return ''
 }
 
 /** "Deep search" verification pass — shows the model the candidates already found (real,
@@ -1281,7 +1341,7 @@ function runQuoteLookup(seed: ParsedRef, direction: 'forward' | 'reverse', emit:
 // without going through IPC.
 export async function runLookup(
   question: string,
-  opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[] },
+  opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[]; tabContext?: AiLookupTabContextRef },
   emit: Emit = () => {},
 ): Promise<AiLookupResponse> {
   const model = opts.model || DEFAULT_OLLAMA_MODEL
@@ -1289,6 +1349,7 @@ export async function runLookup(
   // Last few turns only — enough for a natural follow-up to resolve against without letting
   // prompt size grow unbounded over a long chat.
   const history = (opts.history ?? []).slice(-4)
+  const tabContextBlock = buildTabContextBlock(opts.tabContext)
   const empty = (error?: string): AiLookupResponse => ({ results: [], visibleCount: 0, keywords: [], related: [], error })
 
   // Text-focused search: a question naming a specific work (e.g. "in Jubilees...") searches
@@ -1334,7 +1395,7 @@ export async function runLookup(
 
   let extraction: AiExtraction
   try {
-    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName, history), model)
+    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName, history, tabContextBlock), model)
   } catch {
     return empty('ollama-request-failed')
   }
@@ -1851,7 +1912,7 @@ export async function runLookup(
     emit(pick(COMMENTARY_MESSAGES))
     try {
       const raw = await runOllamaJson<{ perVerse?: Record<string, string>; irrelevant?: string[]; summary?: string }>(
-        commentaryPrompt(question, candidates), model
+        commentaryPrompt(question, candidates, tabContextBlock), model
       )
       const irrelevant = new Set(raw.irrelevant ?? [])
       for (const r of candidates) {
@@ -1904,7 +1965,7 @@ interface ChatMessage {
 export function registerAiLookupHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('ailookup:checkAvailable', () => checkOllamaAvailable())
 
-  ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[] }) =>
+  ipcMain.handle('ailookup:query', (event, question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: WordReplacerRuleLite[]; history?: ChatHistoryTurn[]; tabContext?: AiLookupTabContextRef }) =>
     runLookup(question, opts, (status) => event.sender.send('ailookup:progress', status)))
 
   ipcMain.handle('ailookup:listChats', () => {

@@ -258,6 +258,12 @@ export interface AppState {
    *  off by default; see electron/ipc/aiLookup.ts's agentic verification step. */
   aiLookupAgenticOn: boolean
   setAiLookupAgenticOn: (v: boolean) => void
+  /** "Use current tab as context" toggle — when on, every question also sends whatever's in the
+   *  currently active tab (chapter text, note content, lexicon entry, video title) as extra
+   *  context. Independent of, and additive with, inline mentions like "this chapter" in the
+   *  message itself (see AiLookupPanel.tsx's TAB_CONTEXT_PHRASES). */
+  aiLookupUseTabContext: boolean
+  setAiLookupUseTabContext: (v: boolean) => void
   aiLookupPanelPos: { x: number; y: number } | null
   setAiLookupPanelPos: (pos: { x: number; y: number }) => void
   /** User-resized dimensions of the Berean Chat panel — null until the user drags the resize
@@ -1156,6 +1162,7 @@ export const useAppStore = create<AppState>()(
       aiLookupPanelOpen: false,
       aiLookupCommentaryOn: false,
       aiLookupAgenticOn: false,
+      aiLookupUseTabContext: false,
       aiLookupPanelPos: null,
       aiLookupPanelSize: null,
       aiLookupActiveChatId: null,
@@ -1832,6 +1839,7 @@ export const useAppStore = create<AppState>()(
       setAiLookupPanelOpen: (v) => set({ aiLookupPanelOpen: v }),
       setAiLookupCommentaryOn: (v) => set({ aiLookupCommentaryOn: v }),
       setAiLookupAgenticOn: (v) => set({ aiLookupAgenticOn: v }),
+      setAiLookupUseTabContext: (v) => set({ aiLookupUseTabContext: v }),
       setAiLookupPanelPos: (pos) => set({ aiLookupPanelPos: pos }),
       setAiLookupPanelSize: (size) => set({ aiLookupPanelSize: size }),
       setAiLookupActiveChatId: (id) => set({ aiLookupActiveChatId: id }),
@@ -2080,6 +2088,7 @@ export const useAppStore = create<AppState>()(
         autoPiP: state.autoPiP,
         aiLookupCommentaryOn: state.aiLookupCommentaryOn,
         aiLookupAgenticOn: state.aiLookupAgenticOn,
+        aiLookupUseTabContext: state.aiLookupUseTabContext,
         aiLookupPanelPos: state.aiLookupPanelPos,
         aiLookupPanelSize: state.aiLookupPanelSize,
         pdfFeatureEnabled: state.pdfFeatureEnabled,

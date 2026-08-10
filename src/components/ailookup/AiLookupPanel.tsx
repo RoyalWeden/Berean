@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check, Eye } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard } from '@/types/electron'
+import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
 // Resizable (Round 10) — these are now the MINIMUM size (the panel's original fixed dimensions),
@@ -32,6 +32,20 @@ const EXAMPLE_PROMPTS = [
   'where is the wedding at Cana?',
   'verses about not eating blood',
 ]
+
+// Best-effort inline trigger for "use the current tab as context" without turning the toggle
+// on — not exhaustive NLP, just the handful of phrasings someone would naturally reach for.
+// Checked against the raw message text (case-insensitive); the toggle pill is the reliable,
+// always-on way to get the same behavior for every message in a stretch of conversation.
+const TAB_CONTEXT_PHRASES = [
+  'this chapter', 'this verse', 'this passage', 'this note', 'this entry', 'this video',
+  'this page', 'current tab', 'currently viewing', 'currently open', "what i'm looking at",
+  'what i am looking at', 'on screen',
+]
+function mentionsCurrentTab(message: string): boolean {
+  const lower = message.toLowerCase()
+  return TAB_CONTEXT_PHRASES.some((p) => lower.includes(p))
+}
 
 function defaultSize() {
   return { width: MIN_WIDTH, height: MIN_HEIGHT }
@@ -203,6 +217,8 @@ export default function AiLookupPanel() {
   const setCommentaryOn = useAppStore((s) => s.setAiLookupCommentaryOn)
   const agenticOn = useAppStore((s) => s.aiLookupAgenticOn)
   const setAgenticOn = useAppStore((s) => s.setAiLookupAgenticOn)
+  const useTabContext = useAppStore((s) => s.aiLookupUseTabContext)
+  const setUseTabContext = useAppStore((s) => s.setAiLookupUseTabContext)
   const storedPos = useAppStore((s) => s.aiLookupPanelPos)
   const setStoredPos = useAppStore((s) => s.setAiLookupPanelPos)
   const storedSize = useAppStore((s) => s.aiLookupPanelSize)
@@ -312,6 +328,36 @@ export default function AiLookupPanel() {
     setStoredPos(pos)
   }
 
+  // Builds a lightweight {type, ref} pointer from whatever tab is active in whichever space the
+  // user is currently in — the main process fetches the REAL content server-side from just this
+  // reference (see buildTabContextBlock in aiLookup.ts), never trusting renderer-supplied text.
+  // Returns undefined if the active tab's type isn't one this feature supports yet (search/pdf)
+  // or nothing is open.
+  function getActiveTabContextRef(): AiLookupTabContextRef | undefined {
+    const state = useAppStore.getState()
+    const space = state.activeSpace
+    const activeId = state.activeTabId[space]
+    const tab = activeId ? state.tabs[space].find((t) => t.id === activeId) : null
+    if (!tab) return undefined
+    if (tab.type === 'bible') {
+      const s = tab.state as { bookId: string; chapter: number; translation: string }
+      return { type: 'bible', bookId: s.bookId, chapter: s.chapter, translation: s.translation }
+    }
+    if (tab.type === 'note') {
+      const s = tab.state as { noteId: string | null }
+      return s.noteId ? { type: 'note', noteId: s.noteId } : undefined
+    }
+    if (tab.type === 'lexicon') {
+      const s = tab.state as { strongsNum: string | null }
+      return s.strongsNum ? { type: 'lexicon', strongsNum: s.strongsNum } : undefined
+    }
+    if (tab.type === 'youtube') {
+      const s = tab.state as { videoId: string | null }
+      return s.videoId ? { type: 'youtube', videoId: s.videoId } : undefined
+    }
+    return undefined
+  }
+
   function navigateToResult(r: AiLookupResult) {
     const state = useAppStore.getState()
     const activeId = state.activeTabId.scripture
@@ -348,6 +394,10 @@ export default function AiLookupPanel() {
       // Recent turns only, role+content — enough for a follow-up ("what about the next
       // chapter") to resolve against without the prompt growing unbounded over a long chat.
       const history = base.slice(-6).map((m) => ({ role: m.role, content: m.content }))
+      // Tab context: sent when the toggle is on, OR the message itself mentions the current
+      // tab inline (e.g. "this chapter") even with the toggle off — either way is a one-off
+      // per-message decision, not persisted state on the message itself.
+      const tabContext = (useTabContext || mentionsCurrentTab(question)) ? getActiveTabContextRef() : undefined
       const res = await window.aiLookup.query(question, {
         commentary: commentaryOn,
         agentic: agenticOn,
@@ -355,6 +405,7 @@ export default function AiLookupPanel() {
           ? activeWordReplacerRules.map((r) => ({ queries: r.queries, replacement: r.replacement }))
           : undefined,
         history,
+        tabContext,
       })
       // "Nothing found" only applies when NOTHING at all came back — a Strong's card, a notes
       // answer, or a summary/badge line are all legitimate complete answers on their own, even
@@ -484,6 +535,17 @@ export default function AiLookupPanel() {
             }`}
           >
             <SearchCheck size={11} /> Deep search
+          </button>
+          <button
+            onClick={() => setUseTabContext(!useTabContext)}
+            title="Sends whatever's in your currently active tab (chapter, note, lexicon entry, video) as extra context — you can also just mention it inline, e.g. 'this chapter', without turning this on."
+            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
+              useTabContext
+                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white shadow-sm'
+                : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))]'
+            }`}
+          >
+            <Eye size={11} /> This tab
           </button>
         </div>
       )}

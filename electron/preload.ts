@@ -241,7 +241,7 @@ contextBridge.exposeInMainWorld('crossrefs', {
 
 contextBridge.exposeInMainWorld('aiLookup', {
   checkAvailable: () => ipcRenderer.invoke('ailookup:checkAvailable'),
-  query: (question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }> }) =>
+  query: (question: string, opts: { commentary: boolean; agentic?: boolean; model?: string; textId?: string; wordReplacerRules?: Array<{ queries: string[]; replacement: string }>; history?: Array<{ role: 'user' | 'assistant'; content: string }>; tabContext?: { type: 'bible' | 'note' | 'lexicon' | 'youtube'; bookId?: string; chapter?: number; translation?: string; noteId?: string; strongsNum?: string; videoId?: string } }) =>
     ipcRenderer.invoke('ailookup:query', question, opts),
   listChats: () => ipcRenderer.invoke('ailookup:listChats'),
   getChat: (id: string) => ipcRenderer.invoke('ailookup:getChat', id),
