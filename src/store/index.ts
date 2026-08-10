@@ -260,6 +260,10 @@ export interface AppState {
   setAiLookupAgenticOn: (v: boolean) => void
   aiLookupPanelPos: { x: number; y: number } | null
   setAiLookupPanelPos: (pos: { x: number; y: number }) => void
+  /** User-resized dimensions of the Berean Chat panel — null until the user drags the resize
+   *  handle at least once, same lazy-persistence pattern as aiLookupPanelPos. */
+  aiLookupPanelSize: { width: number; height: number } | null
+  setAiLookupPanelSize: (size: { width: number; height: number }) => void
   aiLookupActiveChatId: string | null
   setAiLookupActiveChatId: (id: string | null) => void
   youtubeNoteBack: { noteId: string; title: string } | null
@@ -1153,6 +1157,7 @@ export const useAppStore = create<AppState>()(
       aiLookupCommentaryOn: false,
       aiLookupAgenticOn: false,
       aiLookupPanelPos: null,
+      aiLookupPanelSize: null,
       aiLookupActiveChatId: null,
       youtubeNoteBack: null,
       lexiconNoteBack: null,
@@ -1828,6 +1833,7 @@ export const useAppStore = create<AppState>()(
       setAiLookupCommentaryOn: (v) => set({ aiLookupCommentaryOn: v }),
       setAiLookupAgenticOn: (v) => set({ aiLookupAgenticOn: v }),
       setAiLookupPanelPos: (pos) => set({ aiLookupPanelPos: pos }),
+      setAiLookupPanelSize: (size) => set({ aiLookupPanelSize: size }),
       setAiLookupActiveChatId: (id) => set({ aiLookupActiveChatId: id }),
       setYoutubeNoteBack: (note) => set({ youtubeNoteBack: note }),
       setLexiconNoteBack: (note) => set({ lexiconNoteBack: note }),
@@ -2075,6 +2081,7 @@ export const useAppStore = create<AppState>()(
         aiLookupCommentaryOn: state.aiLookupCommentaryOn,
         aiLookupAgenticOn: state.aiLookupAgenticOn,
         aiLookupPanelPos: state.aiLookupPanelPos,
+        aiLookupPanelSize: state.aiLookupPanelSize,
         pdfFeatureEnabled: state.pdfFeatureEnabled,
         dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,

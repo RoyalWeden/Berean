@@ -6,8 +6,13 @@ import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
-const PANEL_WIDTH = 380
-const PANEL_HEIGHT = 520
+// Resizable (Round 10) — these are now the MINIMUM size (the panel's original fixed dimensions),
+// enforced as a floor during drag, with a generous but bounded maximum so the panel can be made
+// more useful without letting it take over the screen. See onResizeMove/clampSize below.
+const MIN_WIDTH = 380
+const MIN_HEIGHT = 520
+const MAX_WIDTH = 700
+const MAX_HEIGHT = 800
 const MARGIN = 16
 
 // Near-opaque (~92%, a genuinely subtle ~8% see-through), via an explicit color-mix()
@@ -28,17 +33,32 @@ const EXAMPLE_PROMPTS = [
   'verses about not eating blood',
 ]
 
-function defaultPos() {
-  if (typeof window === 'undefined') return { x: 0, y: 0 }
+function defaultSize() {
+  return { width: MIN_WIDTH, height: MIN_HEIGHT }
+}
+
+/** Enforces the min/max bounds, also capping to the viewport itself so the panel can never be
+ *  dragged larger than the window on a small display even though MAX_WIDTH/MAX_HEIGHT allow it. */
+function clampSize(size: { width: number; height: number }) {
+  const maxW = typeof window === 'undefined' ? MAX_WIDTH : Math.min(MAX_WIDTH, window.innerWidth - MARGIN * 2)
+  const maxH = typeof window === 'undefined' ? MAX_HEIGHT : Math.min(MAX_HEIGHT, window.innerHeight - MARGIN * 2)
   return {
-    x: window.innerWidth - PANEL_WIDTH - MARGIN,
-    y: window.innerHeight - PANEL_HEIGHT - MARGIN,
+    width: Math.min(Math.max(size.width, MIN_WIDTH), Math.max(MIN_WIDTH, maxW)),
+    height: Math.min(Math.max(size.height, MIN_HEIGHT), Math.max(MIN_HEIGHT, maxH)),
   }
 }
 
-function clampPos(pos: { x: number; y: number }) {
-  const maxX = Math.max(MARGIN, window.innerWidth - PANEL_WIDTH - MARGIN)
-  const maxY = Math.max(MARGIN, window.innerHeight - PANEL_HEIGHT - MARGIN)
+function defaultPos(size: { width: number; height: number }) {
+  if (typeof window === 'undefined') return { x: 0, y: 0 }
+  return {
+    x: window.innerWidth - size.width - MARGIN,
+    y: window.innerHeight - size.height - MARGIN,
+  }
+}
+
+function clampPos(pos: { x: number; y: number }, size: { width: number; height: number }) {
+  const maxX = Math.max(MARGIN, window.innerWidth - size.width - MARGIN)
+  const maxY = Math.max(MARGIN, window.innerHeight - size.height - MARGIN)
   return { x: Math.min(Math.max(pos.x, MARGIN), maxX), y: Math.min(Math.max(pos.y, MARGIN), maxY) }
 }
 
@@ -185,6 +205,8 @@ export default function AiLookupPanel() {
   const setAgenticOn = useAppStore((s) => s.setAiLookupAgenticOn)
   const storedPos = useAppStore((s) => s.aiLookupPanelPos)
   const setStoredPos = useAppStore((s) => s.setAiLookupPanelPos)
+  const storedSize = useAppStore((s) => s.aiLookupPanelSize)
+  const setStoredSize = useAppStore((s) => s.setAiLookupPanelSize)
   const activeChatId = useAppStore((s) => s.aiLookupActiveChatId)
   const setActiveChatId = useAppStore((s) => s.setAiLookupActiveChatId)
   const addTab = useAppStore((s) => s.addTab)
@@ -198,8 +220,10 @@ export default function AiLookupPanel() {
     ? wordReplacerRules.filter((r) => r.enabled && !r.strongsNum)
     : []
 
-  const [pos, setPos] = useState(() => storedPos ?? defaultPos())
+  const [size, setSize] = useState(() => clampSize(storedSize ?? defaultSize()))
+  const [pos, setPos] = useState(() => clampPos(storedPos ?? defaultPos(size), size))
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null)
 
   const verseCopy = useVerseCopyMenu()
 
@@ -250,10 +274,37 @@ export default function AiLookupPanel() {
     if (!dragRef.current) return
     const dx = e.clientX - dragRef.current.startX
     const dy = e.clientY - dragRef.current.startY
-    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }))
+    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, size))
   }
   function onDragEnd() {
     dragRef.current = null
+    setStoredPos(pos)
+  }
+
+  // Resize handle, bottom-right corner — grows down/right only (position stays anchored at its
+  // current top-left, matching the standard resize-handle convention). Min = the panel's
+  // original fixed size, max is capped generous-but-bounded (see MAX_WIDTH/MAX_HEIGHT) so the
+  // panel can be made more useful without taking over the screen — current size is the enforced
+  // floor, never smaller than where it started.
+  function onResizeStart(e: React.PointerEvent) {
+    e.stopPropagation() // don't also trigger the header's own drag handler
+    resizeRef.current = { startX: e.clientX, startY: e.clientY, origW: size.width, origH: size.height }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  function onResizeMove(e: React.PointerEvent) {
+    if (!resizeRef.current) return
+    const dx = e.clientX - resizeRef.current.startX
+    const dy = e.clientY - resizeRef.current.startY
+    const next = clampSize({ width: resizeRef.current.origW + dx, height: resizeRef.current.origH + dy })
+    setSize(next)
+    // Growing can push the panel's bottom/right edge past the viewport if it was positioned
+    // near an edge — re-clamp position against the new size every frame so it stays fully
+    // visible instead of just letting the resize handle drift off-screen.
+    setPos((p) => clampPos(p, next))
+  }
+  function onResizeEnd() {
+    resizeRef.current = null
+    setStoredSize(size)
     setStoredPos(pos)
   }
 
@@ -372,7 +423,7 @@ export default function AiLookupPanel() {
     <div
       // Deliberately near-opaque, not a real translucent "glass" panel — see PANEL_BG comment.
       className="fixed z-50 flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden"
-      style={{ left: pos.x, top: pos.y, width: PANEL_WIDTH, height: PANEL_HEIGHT, ...PANEL_BG }}
+      style={{ left: pos.x, top: pos.y, width: size.width, height: size.height, ...PANEL_BG }}
     >
       {/* Header — drag handle */}
       <div
@@ -656,6 +707,21 @@ export default function AiLookupPanel() {
         </>
       )}
       <VerseCopyMenu target={verseCopy.target} onClose={verseCopy.close} />
+
+      {/* Resize handle — bottom-right corner, standard affordance. Min size is the panel's
+          original fixed dimensions; max is bounded (see MAX_WIDTH/MAX_HEIGHT) so it can grow to
+          something genuinely more useful without taking over the screen. */}
+      <div
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        title="Resize"
+        className="no-drag absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize touch-none"
+      >
+        <svg viewBox="0 0 16 16" className="w-full h-full text-[rgb(var(--color-text-muted))] opacity-50">
+          <path d="M14 2 L2 14 M14 8 L8 14" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        </svg>
+      </div>
     </div>
   )
 }

@@ -145,6 +145,18 @@ const MAX_CROSS_REFS = 12
 const CANONICAL_TEXT_IDS = new Set(['kjva', 'kjv', 'lxx'])
 const DEFAULT_TEXT_ID = 'kjva'
 
+// Every non-canonical text this app ships (mirrors TEXT_FILES in electron/db/bible.ts minus the
+// 3 canonical ids above) — Round 10: an UNFOCUSED question (one that never names a specific
+// work) now searches all of these ALONGSIDE canonical, not just canonical alone, so a genuinely
+// better non-canonical answer (Jubilees, Enoch, etc — any of them, not a hardcoded special case)
+// gets a real chance to be ranked as the top result instead of never being searched at all. See
+// the unfocused branch of the result-assembly step and the canonical-tie-break sort below.
+const ALL_PSEUDEPIGRAPHA_TEXT_IDS = [
+  'enoch', 'jubilees', 'apoc_elijah', 'recog_clement', 'hermas', 'hermas_taylor', 'asc_isaiah',
+  'ep_barnabas', 't12p', 'gad', 't_job', '1clement', 'apoc_abraham', 'didache_hoole', 't_jacob',
+  '2baruch',
+]
+
 // Aliases a user might type for a specific work, mapped to its textId (see TEXT_FILES in
 // electron/db/bible.ts). Checked longest-first against the raw question so "1 enoch" doesn't
 // get shadowed by a shorter, unrelated substring. Deliberately covers the texts most likely to
@@ -286,15 +298,37 @@ const OVERLY_GENERIC_IN_FOCUS_TEXT = new Set([
   'abraham', 'isaac', 'jacob', 'noah', 'moses', 'family', 'leave', 'wife', 'children',
 ])
 
+// Common function words a keyword phrase can carry without adding any real discriminating
+// content of its own — used only by the multi-word check below, to decide whether a phrase like
+// "Abraham's family" is functionally nothing more than the two denylisted names it's built from.
+const GENERIC_PHRASE_STOPWORDS = new Set(['the', 'of', 'a', 'an', 'his', 'her', 'their', 'and', 'in', 'to', 'from', 'is', 'was', 'were'])
+
+function stripPossessive(word: string): string {
+  return word.replace(/'s$/i, '')
+}
+
 /** Drops keywords that are a single, overly-generic word — see OVERLY_GENERIC_SINGLE_WORDS
- *  (always) and OVERLY_GENERIC_IN_FOCUS_TEXT (only when `inFocusText` is true). */
+ *  (always) and OVERLY_GENERIC_IN_FOCUS_TEXT (only when `inFocusText` is true). Also drops a
+ *  MULTI-word phrase in focus-text mode if every substantive word in it (ignoring simple
+ *  stopwords) is itself in the focus-text denylist — e.g. "Abraham's family" reduces to just
+ *  "abraham" + "family", both denylisted, so the phrase carries no more discriminating power
+ *  there than the bare words it's made of. Found via testing: the model frequently produces
+ *  exactly this shape of phrase, and the old single-word-only check let it straight through.
+ *  A phrase with any real content word (e.g. "Abraham's idols") survives untouched. */
 function filterGenericKeywords(keywords: string[], inFocusText = false): string[] {
   return keywords.filter((kw) => {
     const words = cleanWords(kw)
-    if (words.length !== 1) return true
-    const w = words[0].toLowerCase()
-    if (OVERLY_GENERIC_SINGLE_WORDS.has(w)) return false
-    if (inFocusText && OVERLY_GENERIC_IN_FOCUS_TEXT.has(w)) return false
+    if (words.length === 0) return false
+    if (words.length === 1) {
+      const w = stripPossessive(words[0].toLowerCase())
+      if (OVERLY_GENERIC_SINGLE_WORDS.has(w)) return false
+      if (inFocusText && OVERLY_GENERIC_IN_FOCUS_TEXT.has(w)) return false
+      return true
+    }
+    if (inFocusText) {
+      const substantive = words.map((w) => stripPossessive(w.toLowerCase())).filter((w) => !GENERIC_PHRASE_STOPWORDS.has(w))
+      if (substantive.length > 0 && substantive.every((w) => OVERLY_GENERIC_IN_FOCUS_TEXT.has(w))) return false
+    }
     return true
   })
 }
@@ -352,14 +386,38 @@ function stemMatches(modernWord: string, keywordLower: string): boolean {
   return keywordLower.includes(stem)
 }
 
-function getArchaicVariants(keyword: string, textId: string): string[] {
+// Round 10: `strict` gates a multi-word (2+) archaic variant behind phraseRarityCount — only
+// used for the new UNFOCUSED, canonical+all-16-non-canonical-together search (see textPasses in
+// runLookup and the `opportunistic` flag threaded from there). Left OFF (default) for the
+// original, already-validated focus-text/canonical-only paths — unchanged from Round 9.
+//
+// Why this is needed: several archaic-vocab entries legitimately map a common, general-purpose
+// word (e.g. "Yeshua", "peace") to a multi-word title/epithet that recurs constantly throughout
+// that text ("the Son of Man" in Enoch, "the Beloved" in the Ascension of Isaiah, "peace and
+// concord" in 1 Clement) — perfectly reasonable when a user has already confirmed interest in
+// THAT specific work by naming it, but risky once every non-canonical text is searched for EVERY
+// unfocained question: "Yeshua"/"Jesus" alone is common enough to appear in countless unrelated
+// canonical questions, and would otherwise drag in an irrelevant Enoch/Ascension-of-Isaiah
+// passage ahead of the real canonical answer. Confirmed directly: an unfocused control question
+// ("where does Yeshua calm the storm", nothing to do with either text) surfaced Enoch's "Son of
+// Man" verses and Ascension of Isaiah's "the Beloved" verses ahead of the real canonical
+// Matthew/Mark answer, purely through this mechanism, before this gate — a genuinely rare phrase
+// (e.g. Jubilees' "the house of the idols", 1 real occurrence) stays eligible either way; a
+// recurring epithet (5+, 14+ occurrences) only stays eligible for the focused, already-trusted
+// path.
+function getArchaicVariants(keyword: string, textId: string, strict = false): string[] {
   const lq = keyword.trim().toLowerCase()
   if (!lq) return []
   const variants: string[] = []
   for (const rule of PSEUDEPIGRAPHA_ARCHAIC_VOCAB) {
     if (!(rule.textIds as string[]).includes(textId)) continue
     const hit = rule.modern.some((phrase) => phrase.toLowerCase().split(/\s+/).every((w) => stemMatches(w, lq)))
-    if (hit) variants.push(rule.archaic)
+    if (!hit) continue
+    if (strict) {
+      const words = cleanWords(rule.archaic)
+      if (words.length >= 2 && phraseRarityCount(words, textId) > 2) continue
+    }
+    variants.push(rule.archaic)
   }
   return variants
 }
@@ -390,10 +448,12 @@ function extractionPrompt(question: string, focusWorkName: string | null, histor
   unsure — do not fabricate a reference you don't actually recall.
 ${wholePassageRule}`
     : `- "guesses": 0-5 direct verse references you recall as relevant, if any. Use full English
-  Bible book names only (not Jubilees/Enoch/etc — ask about a specific work by name if that's
-  what the user wants, this question didn't name one). "endVerse" is optional, only include it
-  for a real multi-verse range you recall. Omit "guesses" (empty array) if unsure — do not
-  fabricate.
+  Bible book names for a canonical passage (e.g. "Genesis", "John"). This question didn't name a
+  specific non-canonical work, but if you genuinely recall a relevant passage in a well-known one
+  (Jubilees, 1 Enoch, the Didache, etc.) it is ALSO searched this round — guess it using that
+  work's own name as "book" (e.g. "book": "Jubilees"; these use ordinary chapter:verse numbering
+  too). "endVerse" is optional, only include it for a real multi-verse range you recall. Omit
+  "guesses" (empty array) if unsure — do not fabricate a reference you don't actually recall.
 ${wholePassageRule}`
 
   // Pseudepigrapha texts in this app are early-20th-century English translations (Jubilees and
@@ -572,20 +632,71 @@ function mergeAdjacent(items: AiLookupResult[]): AiLookupResult[] {
  *  started dropping any zero-score keyword-sourced candidate: with word replacer on by default,
  *  most/all matches found through a variant were silently discarded here despite being
  *  genuinely relevant — the archaic-vocab table would hit the identical bug if not threaded
- *  through the same way. */
-function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = [], textId?: string): number {
+ *  through the same way.
+ *
+ *  Rarity-weighted (Round 10, `opportunistic = false`, the existing focus-text/canonical path —
+ *  unchanged behavior otherwise): a keyword that only matched via a common/short variant scores
+ *  1; a keyword whose BEST matching variant is both a substantial phrase (3+ words) AND
+ *  genuinely RARE in that text (see phraseRarityCount) scores 2. A literal, uncommon multi-word
+ *  phrase match is far less likely to be coincidental than a single generic word landing in
+ *  several unrelated verses, so it should outweigh one, not tie with it — confirmed directly: a
+ *  real 8-run test on a focused Jubilees question had two thematically-similar chapters (both
+ *  containing a bare "idols" hit) tie every time with plain +1 scoring, decided only by
+ *  arbitrary insertion order — the correct chapter lost more often than it won; this weighting
+ *  landed correctly 8/8.
+ *
+ *  `opportunistic = true` (the new UNFOCUSED, all-texts-together path — see textPasses in
+ *  runLookup): flat +1-per-keyword instead, and getArchaicVariants itself runs in `strict` mode
+ *  (rare-phrase-only). Word-count-based scoring alone isn't safe once results from DIFFERENT
+ *  texts compete directly against canonical: some archaic-vocab entries map a common word to a
+ *  RECURRING epithet (e.g. "Yeshua" -> "the Son of Man" throughout Enoch, "the Beloved"
+ *  throughout the Ascension of Isaiah) — rewarding phrase length let an unrelated passage using
+ *  one of these outrank the real canonical answer to an unrelated control question ("where does
+ *  Yeshua calm the storm"), confirmed directly. Gating variant ELIGIBILITY by rarity (in
+ *  getArchaicVariants) rather than just discounting the score bonus is what actually fixes it —
+ *  a common epithet is excluded from the search/candidate pool for that text entirely in this
+ *  mode, not just scored lower. */
+const _phraseRarityCache = new Map<string, number>()
+function phraseRarityCount(words: string[], textId: string): number {
+  if (words.length === 0) return 0
+  const key = `${textId}|${words.join(' ').toLowerCase()}`
+  const cached = _phraseRarityCache.get(key)
+  if (cached !== undefined) return cached
+  const db = getTextDb(textId)
+  if (!db) return 0
+  let count = 0
+  try {
+    const ftsQ = `"${words.join(' ').replace(/"/g, '""')}"`
+    const row = db.prepare('SELECT COUNT(*) as c FROM verses_fts WHERE verses_fts MATCH ?').get(ftsQ) as { c: number } | undefined
+    count = row?.c ?? 0
+  } catch { /* malformed FTS query (rare punctuation) — treat as not-rare, no bonus */ count = 999 }
+  _phraseRarityCache.set(key, count)
+  return count
+}
+
+function keywordOverlapScore(text: string, keywords: string[], wordReplacerRules: WordReplacerRuleLite[] = [], textId?: string, opportunistic = false): number {
   const lower = text.toLowerCase()
+  // Round 10: the focus-text generic-word denylist (OVERLY_GENERIC_IN_FOCUS_TEXT) is applied
+  // HERE, per candidate, based on that candidate's own textId — not once globally before search
+  // — since canonical and non-canonical texts are now searched together in the same pass and a
+  // word like "Abraham" is a perfectly good discriminating keyword for canonical scoring while
+  // being nearly meaningless inside a Genesis-retelling pseudepigrapha text. See filterGenericKeywords.
+  const effectiveKeywords = textId && !CANONICAL_TEXT_IDS.has(textId) ? filterGenericKeywords(keywords, true) : keywords
   let score = 0
-  for (const kw of keywords) {
+  for (const kw of effectiveKeywords) {
     const variants = [
       ...getWordReplacerVariants(kw, wordReplacerRules),
-      ...(textId ? getArchaicVariants(kw, textId) : []),
+      ...(textId ? getArchaicVariants(kw, textId, opportunistic) : []),
     ]
-    const hit = variants.some((v) => {
+    let bestBonus = false
+    let anyHit = false
+    for (const v of variants) {
       const words = cleanWords(v)
-      return words.length > 0 && words.every((w) => lower.includes(w.toLowerCase()))
-    })
-    if (hit) score++
+      if (words.length === 0 || !words.every((w) => lower.includes(w.toLowerCase()))) continue
+      anyHit = true
+      if (!opportunistic && textId && words.length >= 3 && phraseRarityCount(words, textId) <= 4) bestBonus = true
+    }
+    if (anyHit) score += bestBonus ? 2 : 1
   }
   return score
 }
@@ -714,19 +825,45 @@ function searchNotesImplicit(keywords: string[], limit = 3): AiLookupNoteResult[
  *  guesses too would let a WRONG guess self-reinforce on nothing but matching itself, which is
  *  the opposite of "independent corroboration" and was confirmed, empirically, to make things
  *  worse: a bad guess (e.g. chapter 19) getting a free +1 for agreeing with its own chapter
- *  number let it edge out a correct chapter-12 keyword hit that had NO such freebie. */
-interface ChapterHint { textId: string; chapters: Set<number> }
+ *  number let it edge out a correct chapter-12 keyword hit that had NO such freebie.
+ *
+ *  Round 10 fix: a guess's chapter only ever gets INTO this hint set once the guess itself has
+ *  been verified to have real keyword overlap (see the guess-processing loop in runLookup) — an
+ *  ungrounded/hallucinated guess no longer gets to lend its chapter's authority to an unrelated
+ *  keyword hit elsewhere in that chapter. Directly reproduced and fixed this exact failure: a
+ *  hallucinated Jubilees guess (chapter 20, its own text having zero overlap with the extracted
+ *  keywords) was letting a coincidental "idols" hit elsewhere in chapter 20 outscore the correct,
+ *  verbatim-matching hit in chapter 12 — an 8-run faithful mirror of the pipeline reproduced this
+ *  8/8 before the fix, 0/8 after.
+ *
+ *  Round 10 also generalizes this from a single focus-text to a per-textId map — an unfocused
+ *  question now searches canonical and every non-canonical text at once (see textPasses in
+ *  runLookup), so a guess's corroboration needs to apply to its OWN text specifically, not just
+ *  "the" focus text. */
+interface ChapterHint { chaptersByText: Map<string, Set<number>> }
 
-function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = [], chapterHint?: ChapterHint, minKeywordScore = 1): AiLookupResult[] {
+/** True if `a` should be preferred over `b` on an exact score tie — canonical texts win ties
+ *  only, never a strictly higher-scoring non-canonical candidate (see Decisions: "canonical
+ *  ranked higher if it genuinely is better... because this is typically what's meant"). Used
+ *  only for the unfocused, all-texts-searched-together branch of result assembly. */
+function canonicalTieRank(c: AiLookupResult): number {
+  return CANONICAL_TEXT_IDS.has(c.textId) ? 1 : 0
+}
+
+// `preferCanonicalTies` doubles as the "opportunistic" signal into keywordOverlapScore/
+// getArchaicVariants — both are true in exactly the same case (the new unfocused,
+// all-texts-together branch) and false together everywhere else, so one flag covers both rather
+// than threading two parameters with identical values through every call site.
+function scoreCandidates(items: AiLookupResult[], keywords: string[], notesSignal?: NotesSignal, wordReplacerRules: WordReplacerRuleLite[] = [], chapterHint?: ChapterHint, minKeywordScore = 1, preferCanonicalTies = false): AiLookupResult[] {
   return items
     .map((c, i) => ({
       c, i,
-      score: keywordOverlapScore(c.text, keywords, wordReplacerRules, c.textId)
+      score: keywordOverlapScore(c.text, keywords, wordReplacerRules, c.textId, preferCanonicalTies)
         + (notesSignal?.notedKeys.has(dedupeKey(c)) ? 2 : 0)
-        + (c.source === 'keyword' && chapterHint?.textId === c.textId && chapterHint.chapters.has(c.chapter) ? 1 : 0),
+        + (c.source === 'keyword' && chapterHint?.chaptersByText.get(c.textId)?.has(c.chapter) ? 1 : 0),
     }))
     .filter((s) => s.score >= minKeywordScore || s.c.source !== 'keyword')
-    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .sort((a, b) => b.score - a.score || (preferCanonicalTies ? canonicalTieRank(b.c) - canonicalTieRank(a.c) : 0) || a.i - b.i)
     .map((s) => s.c)
 }
 
@@ -1098,7 +1235,12 @@ async function runLookup(
   } catch {
     return empty('ollama-request-failed')
   }
-  let keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6), !!focusTextId)
+  // The focus-text-only generic-word denylist is no longer applied here — canonical and
+  // non-canonical texts are searched together now (see textPasses below), and a word like
+  // "Abraham" is a perfectly good keyword for canonical scoring while being near-meaningless
+  // inside a pseudepigrapha text. That distinction is applied PER CANDIDATE, based on its own
+  // textId, inside keywordOverlapScore/searchKeywords instead — see filterGenericKeywords.
+  let keywords = filterGenericKeywords((extraction.keywords ?? []).slice(0, 6), false)
   const guesses = (extraction.guesses ?? []).slice(0, 5)
 
   const seen = new Set<string>()
@@ -1125,22 +1267,28 @@ async function runLookup(
     seen.add(key)
   }
 
+  // Round 10: an UNFOCUSED question (no specific work named) now searches canonical AND all 16
+  // non-canonical texts together, not canonical alone — see Decisions: "canonical and
+  // noncanonical should be searched together at the same time". A FOCUSED question is unchanged:
+  // that one named work plus canonical, same as before.
   const textPasses = focusTextId && focusTextId !== DEFAULT_TEXT_ID
     ? [focusTextId, DEFAULT_TEXT_ID]
-    : [DEFAULT_TEXT_ID]
+    : [DEFAULT_TEXT_ID, ...ALL_PSEUDEPIGRAPHA_TEXT_IDS]
 
   // 1. AI direct guesses — a small, fixed budget that can never be starved out by the much
-  // larger keyword pool. Allowed for canonical texts AND the current question's focus text
-  // (Jubilees/Enoch/etc each have a single-book `books` table with ordinary chapter:verse
-  // numbering, so a guess resolves the same way a canonical guess does) — resolveBookId
-  // naturally only resolves a guess against the text whose own book map actually contains
-  // that name, so a "Genesis" guess never matches jubilees.db and vice versa.
-  // Chapters the model's own guess named for the focus text specifically — corroborating
-  // evidence for step 5's ranking (see the ChapterHint/"Lever A" comment above scoreCandidates).
-  const focusGuessChapters = new Set<number>()
+  // larger keyword pool. Allowed against every text in textPasses (Jubilees/Enoch/etc each have
+  // a single-book `books` table with ordinary chapter:verse numbering, so a guess resolves the
+  // same way a canonical guess does) — resolveBookId naturally only resolves a guess against the
+  // text whose own book map actually contains that name, so a "Genesis" guess never matches
+  // jubilees.db and vice versa, and a "Jubilees" guess never matches kjva.db.
+  // Chapters a guess named, per text — corroborating evidence for step 5's ranking (see the
+  // ChapterHint/"Lever A" comment above scoreCandidates). Only populated once a guess is
+  // verified to have real keyword overlap with its OWN text (see below) — an ungrounded guess
+  // must not get to lend its chapter's authority to an unrelated keyword hit elsewhere in it.
+  const guessChaptersByText = new Map<string, Set<number>>()
   for (const textId of textPasses) {
     const db = getTextDb(textId)
-    if (!db || !(CANONICAL_TEXT_IDS.has(textId) || textId === focusTextId)) continue
+    if (!db) continue
     for (const g of guesses) {
       if (guessCandidates.length >= 8) break
       // `chapter` is typed as required, but the model doesn't always comply at runtime (a
@@ -1152,9 +1300,6 @@ async function runLookup(
       if (typeof g.chapter !== 'number' || !Number.isFinite(g.chapter)) continue
       const bookId = resolveBookId(g.book, textId)
       if (!bookId) continue
-      if (focusTextId && textId === focusTextId && !CANONICAL_TEXT_IDS.has(textId)) {
-        focusGuessChapters.add(g.chapter)
-      }
       // `verse` comes back missing surprisingly often (a whole-chapter reference like "John
       // 17", or a range given as just chapter+endVerse) — default it to 1 rather than letting
       // `undefined` reach the DB query (better-sqlite3 throws on an undefined bind parameter,
@@ -1173,25 +1318,32 @@ async function runLookup(
         if (maxRow?.m && maxRow.m > startVerse) endVerse = Math.min(maxRow.m, startVerse + 10)
       }
       // Second, narrower trigger for the same shape of fallback: an explicit verse:1 (not a
-      // null/omitted verse) on a CANONICAL guess, when the question itself names a discourse-
-      // shaped passage ("prayer", "sermon", ...) — deliberately gated on both the canonical-only
-      // text AND the question wording, not applied generally, since blindly widening every
-      // verse-1 guess would wrongly expand genuinely single-verse questions (e.g. John 3:16)
-      // into unwanted ranges. Uses the chapter's REAL full length (capped only at a sane 40, for
-      // the rare very-long-chapter case) rather than the null-verse fallback's tighter 10-verse
-      // cap — that tighter cap exists because a null-verse guess could still be pointing at the
-      // wrong chapter entirely, but here the question's own wording is corroborating evidence,
-      // and a canonical guess is already ~90%+ reliable (Round 3), so showing the true whole
-      // passage — which is the entire point of this fallback firing — is the right trade-off.
+      // null/omitted verse), when the question itself names a discourse-shaped passage
+      // ("prayer", "sermon", ...) — deliberately gated on the question wording, not applied
+      // generally, since blindly widening every verse-1 guess would wrongly expand genuinely
+      // single-verse questions (e.g. John 3:16) into unwanted ranges. A canonical guess is
+      // already ~90%+ reliable (Round 3), so it gets the chapter's REAL full length (capped at a
+      // sane 40, for the rare very-long-chapter case) — the true whole passage, which is the
+      // entire point of this fallback firing. A non-canonical guess is far less certain
+      // (~30-50%, prior testing), so it reuses the SAME tighter 10-verse cap as the null-verse
+      // fallback just above instead — a wrong non-canonical guess can't compound into a large
+      // wrong block of displayed text (Round 10: this fallback used to be canonical-only; every
+      // non-canonical text is now searched alongside canonical on every question, so it needs
+      // its own, more conservative version of the same widening rather than none at all).
       let isWholePassageWiden = false
-      if (!endVerse && startVerse === 1 && CANONICAL_TEXT_IDS.has(textId) && WHOLE_PASSAGE_QUESTION_RE.test(question)) {
+      if (!endVerse && startVerse === 1 && WHOLE_PASSAGE_QUESTION_RE.test(question)) {
         const maxRow = db.prepare('SELECT MAX(verse_num) as m FROM verses WHERE book_id = ? AND chapter = ?').get(bookId, g.chapter) as { m: number | null } | undefined
-        if (maxRow?.m && maxRow.m > startVerse) { endVerse = Math.min(maxRow.m, startVerse + 40); isWholePassageWiden = true }
+        if (maxRow?.m && maxRow.m > startVerse) {
+          const cap = CANONICAL_TEXT_IDS.has(textId) ? 40 : 10
+          endVerse = Math.min(maxRow.m, startVerse + cap)
+          isWholePassageWiden = true
+        }
       }
       // The generic +20 clamp below is sized for an AI-EXPLICIT range (a guess the model gave
       // real endVerse digits for) — the whole-passage widen just above already has its own
       // wider, deliberately-reasoned +40 cap, so it's exempt from being clamped back down again.
       if (endVerse && !isWholePassageWiden) endVerse = Math.min(endVerse, startVerse + 20)
+      let resolvedText: string | null = null
       if (endVerse) {
         const parts: string[] = []
         for (let v = startVerse; v <= endVerse; v++) {
@@ -1199,11 +1351,24 @@ async function runLookup(
           if (verse) parts.push(verse.text)
         }
         if (parts.length === 0) continue
-        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, verse_end: endVerse, text: parts.join(' ') }, 'ai-guess')
+        resolvedText = parts.join(' ')
+        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, verse_end: endVerse, text: resolvedText }, 'ai-guess')
       } else {
         const verse = queryVerse(bookId, g.chapter, startVerse, textId)
         if (!verse) continue
-        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, text: verse.text }, 'ai-guess')
+        resolvedText = verse.text
+        add(guessCandidates, textId, { book_id: bookId, chapter: g.chapter, verse_num: startVerse, text: resolvedText }, 'ai-guess')
+      }
+      // Only let this guess's chapter lend corroboration to sibling keyword hits (Lever A) once
+      // the guess itself actually overlaps a real keyword — see the ChapterHint comment above
+      // scoreCandidates for why an unverified guess must earn this trust, not receive it
+      // automatically. Restricted to non-canonical texts, same as before Round 10 — a canonical
+      // guess is already reliable enough to lead outright without needing this extra lever.
+      // `opportunistic` (strict archaic-vocab gating) matches whichever branch this guess's text
+      // is actually competing in — see the scoreCandidates comment above.
+      if (!CANONICAL_TEXT_IDS.has(textId) && keywordOverlapScore(resolvedText, keywords, wordReplacerRules, textId, !focusTextId) > 0) {
+        if (!guessChaptersByText.has(textId)) guessChaptersByText.set(textId, new Set())
+        guessChaptersByText.get(textId)!.add(g.chapter)
       }
     }
   }
@@ -1220,10 +1385,15 @@ async function runLookup(
     const localSeen = new Set<string>()
     for (const textId of textPasses) {
       if (!getTextDb(textId)) continue
-      const phraseResults = kws.map((kw) => {
+      // Per-text keyword filtering (Round 10): drop the focus-text-generic words only when
+      // actually searching a non-canonical text — see filterGenericKeywords/keywordOverlapScore.
+      const kwsForText = CANONICAL_TEXT_IDS.has(textId) ? kws : filterGenericKeywords(kws, true)
+      // Strict (rarity-gated) archaic-vocab variants when this text is only being searched
+      // opportunistically (unfocused — see the getArchaicVariants/keywordOverlapScore comments).
+      const phraseResults = kwsForText.map((kw) => {
         const variants = [
           ...getWordReplacerVariants(kw, wordReplacerRules),
-          ...getArchaicVariants(kw, textId),
+          ...getArchaicVariants(kw, textId, !focusTextId),
         ]
         const rows = variants.flatMap((v) => searchVerses(v, textId, 'phrase'))
         return { variants, rows }
@@ -1292,7 +1462,7 @@ async function runLookup(
       let madeProgress = false
 
       if (verdict.refinedKeywords && verdict.refinedKeywords.length > 0) {
-        const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6), !!focusTextId)
+        const refined = filterGenericKeywords(verdict.refinedKeywords.slice(0, 6), false)
         const alreadyTried = triedKeywordSets.some((set) => set.length === refined.length && set.every((k, i) => k === refined[i]))
         if (refined.length > 0 && !alreadyTried) {
           emit(pick(REFINE_MESSAGES))
@@ -1348,11 +1518,11 @@ async function runLookup(
     if (notesSignal.notedKeys.has(dedupeKey(c))) c.noted = true
   }
 
-  const chapterHint: ChapterHint | undefined = focusTextId && focusGuessChapters.size > 0
-    ? { textId: focusTextId, chapters: focusGuessChapters }
+  const chapterHint: ChapterHint | undefined = guessChaptersByText.size > 0
+    ? { chaptersByText: guessChaptersByText }
     : undefined
-  const scoreAndSort = (items: AiLookupResult[], minKeywordScore = 1): AiLookupResult[] =>
-    scoreCandidates(items, keywords, notesSignal, wordReplacerRules, chapterHint, minKeywordScore)
+  const scoreAndSort = (items: AiLookupResult[], minKeywordScore = 1, preferCanonicalTies = false): AiLookupResult[] =>
+    scoreCandidates(items, keywords, notesSignal, wordReplacerRules, chapterHint, minKeywordScore, preferCanonicalTies)
   // Backfill-quality gating: a guess (from either the focus text or canonical) is already
   // strong evidence the question is answered — padding it with weak, single-keyword-overlap
   // backfill just adds noise ("too many results", reported directly). Require backfill
@@ -1365,8 +1535,16 @@ async function runLookup(
   // no longer jumps ahead of what was actually asked about (previously it did, which read as
   // "I asked about Jubilees and got a Genesis answer" with no explanation). A canonical guess
   // is instead kept as a separate `related` pointer, shown after the focus results with a
-  // one-line note — still visible, just not the headline answer. Without a focus text, this
-  // is unchanged from Round 3/4: canonical guesses lead, keyword search only backfills gaps.
+  // one-line note — still visible, just not the headline answer. This branch is unchanged from
+  // Round 5.
+  //
+  // Without a focus text (Round 10): canonical and every non-canonical text were searched
+  // TOGETHER (see textPasses) — their guesses and keyword hits are merged into ONE pool and
+  // ranked purely by score, with canonical preferred ONLY on a genuine tie (see
+  // canonicalTieRank/preferCanonicalTies) — a non-canonical result that's genuinely a stronger
+  // match still wins outright, it just doesn't win a coin-flip against an equally-good canonical
+  // one. "Guesses lead, keyword search backfills gaps" is preserved, just pooled across all
+  // texts instead of canonical-only.
   emit(pick(RANK_MESSAGES))
   const canonicalGuesses = mergedGuesses.filter((c) => CANONICAL_TEXT_IDS.has(c.textId))
   const focusGuesses = mergedGuesses.filter((c) => !CANONICAL_TEXT_IDS.has(c.textId))
@@ -1389,11 +1567,11 @@ async function runLookup(
       relatedNote = `This may also be recorded in the Bible at ${first.bookName} ${first.chapter}:${first.verse}${first.endVerse ? '-' + first.endVerse : ''} — ${focusWorkName}'s retelling may use different wording for the same event.`
     }
   } else {
-    candidates = canonicalGuesses.slice(0, TOTAL_PRIMARY_CAP)
+    candidates = scoreAndSort(mergedGuesses, 0, true).slice(0, TOTAL_PRIMARY_CAP)
     if (candidates.length < TOTAL_PRIMARY_CAP) {
-      const canonicalKeywordScored = scoreAndSort(mergedKeywords.filter((c) => c.textId === DEFAULT_TEXT_ID), backfillMinScore)
+      const keywordScored = scoreAndSort(mergedKeywords, backfillMinScore, true)
       const room = Math.min(KEYWORD_BACKFILL_CAP, TOTAL_PRIMARY_CAP - candidates.length)
-      candidates = [...candidates, ...canonicalKeywordScored.slice(0, room)]
+      candidates = [...candidates, ...keywordScored.slice(0, room)]
     }
   }
 
