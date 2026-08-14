@@ -86,8 +86,8 @@ function dedupeStatic<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 
 // ── Notes ────────────────────────────────────────────────────────────────────
 
-export function getChapterNotesShared(bookId: string, chapter: number, token: number): Promise<Note[]> {
-  return dedupeNotes(`chapter:${bookId}:${chapter}`, token, () => window.notes.getChapterNotes(bookId, chapter))
+export function getChapterNotesShared(bookId: string, chapter: number, token: number, textId = 'kjva'): Promise<Note[]> {
+  return dedupeNotes(`chapter:${bookId}:${chapter}:${textId}`, token, () => window.notes.getChapterNotes(bookId, chapter, textId))
 }
 
 export function searchNotesShared(query: string, limit: number, token: number): Promise<Note[]> {
@@ -114,12 +114,12 @@ export function getLexiconOccurrencesShared(strongsNum: string): Promise<any> {
 
 // ── Cross-references ─────────────────────────────────────────────────────────
 
-export function getTSKeForChapterShared(bookId: string, chapter: number): Promise<any> {
-  return dedupeStatic(`tske:${bookId}:${chapter}`, () => window.crossrefs.getTSKeForChapter(bookId, chapter))
+export function getTSKeForChapterShared(bookId: string, chapter: number, textId = 'kjva'): Promise<any> {
+  return dedupeStatic(`tske:${bookId}:${chapter}:${textId}`, () => window.crossrefs.getTSKeForChapter(bookId, chapter, textId))
 }
 
-export function getCrossRefsForChapterShared(bookId: string, chapter: number): Promise<any> {
-  return dedupeStatic(`xref:${bookId}:${chapter}`, () => window.crossrefs.getForChapter(bookId, chapter))
+export function getCrossRefsForChapterShared(bookId: string, chapter: number, textId = 'kjva'): Promise<any> {
+  return dedupeStatic(`xref:${bookId}:${chapter}:${textId}`, () => window.crossrefs.getForChapter(bookId, chapter, textId))
 }
 
 /** Test hook — drops every cached entry. */

@@ -3,6 +3,114 @@ import type { EditorView, NodeView } from 'prosemirror-view'
 import { CALLOUT_META, BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
+// ─── code_block NodeView ────────────────────────────────────────────────────
+// Adds a small non-editable header (language picker + copy button) above the actual
+// editable `<pre><code>` — schema.ts's `params` attr already round-trips losslessly
+// through the ``` fence markdown (parser.ts/serializer.ts reuse prosemirror-markdown's
+// own fence node), so this is purely presentational: no schema/serialization change.
+// Syntax highlighting itself is NOT done here — see codeBlockHighlight.ts's own header
+// comment for why that's a separate DECORATION plugin instead of DOM work in this
+// NodeView. Everything this NodeView itself touches (the header's own select/button DOM)
+// is non-content (`contentEditable = 'false'`), mutated only in direct response to a real
+// user event (change/click) — never from a plugin's `view().update()` hook — so it can't
+// reintroduce the DOMObserver feedback loop blockHandles.ts's header comment warns about.
+const CODE_LANGUAGE_PRESETS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Plain text' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'json', label: 'JSON' },
+  { value: 'python', label: 'Python' },
+  { value: 'bash', label: 'Bash' },
+  { value: 'sql', label: 'SQL' },
+  { value: 'css', label: 'CSS' },
+  { value: 'html', label: 'HTML' },
+]
+
+export function codeBlockNodeView(getPos: () => number | undefined) {
+  return (node: PMNode, view: EditorView): NodeView => {
+    let currentNode = node
+
+    const wrap = document.createElement('div')
+    wrap.className = 'pm-code-block'
+
+    const header = document.createElement('div')
+    header.className = 'pm-code-block-header'
+    header.contentEditable = 'false'
+
+    const select = document.createElement('select')
+    select.className = 'pm-code-block-lang'
+    select.title = 'Code block language'
+    for (const preset of CODE_LANGUAGE_PRESETS) {
+      const opt = document.createElement('option')
+      opt.value = preset.value
+      opt.textContent = preset.label
+      select.appendChild(opt)
+    }
+    // A `params` value the user typed by hand (the ``` fence syntax accepts ANY info
+    // string, e.g. ```rust — not just the presets above) still round-trips through
+    // markdown untouched; add it as its own option so the dropdown reflects that instead
+    // of silently snapping to "Plain text" the moment it's opened. Checked against the
+    // select's LIVE options (not just the static presets list) so update() below doesn't
+    // insert a duplicate entry every time the same custom language is re-synced.
+    function syncSelectValue(params: string) {
+      const hasOption = Array.from(select.options).some((o) => o.value === params)
+      if (!hasOption) {
+        const custom = document.createElement('option')
+        custom.value = params
+        custom.textContent = params
+        select.insertBefore(custom, select.firstChild)
+      }
+      select.value = params
+    }
+    syncSelectValue(node.attrs.params || '')
+    // Stops the native <select> dropdown's own mousedown from being picked up as an
+    // editor selection/gesture — same reasoning as the callout header/task checkbox's
+    // own mousedown guards above/below.
+    select.addEventListener('mousedown', (e) => e.stopPropagation())
+    select.addEventListener('change', () => {
+      const pos = getPos()
+      if (pos === undefined) return
+      view.dispatch(view.state.tr.setNodeAttribute(pos, 'params', select.value))
+      view.focus()
+    })
+
+    const copyBtn = document.createElement('button')
+    copyBtn.type = 'button'
+    copyBtn.className = 'pm-code-block-copy'
+    copyBtn.title = 'Copy code'
+    copyBtn.textContent = 'Copy'
+    copyBtn.addEventListener('mousedown', (e) => e.preventDefault())
+    copyBtn.addEventListener('click', (e) => {
+      e.preventDefault()
+      navigator.clipboard.writeText(currentNode.textContent).then(() => {
+        copyBtn.textContent = 'Copied'
+        setTimeout(() => { copyBtn.textContent = 'Copy' }, 1200)
+      }).catch(() => {})
+    })
+
+    header.appendChild(select)
+    header.appendChild(copyBtn)
+
+    const pre = document.createElement('pre')
+    const code = document.createElement('code')
+    pre.appendChild(code)
+
+    wrap.appendChild(header)
+    wrap.appendChild(pre)
+
+    return {
+      dom: wrap,
+      contentDOM: code,
+      update(updatedNode) {
+        if (updatedNode.type.name !== 'code_block') return false
+        currentNode = updatedNode
+        syncSelectValue(updatedNode.attrs.params || '')
+        return true
+      },
+    }
+  }
+}
+
 // ─── Callout NodeView ───────────────────────────────────────────────────────
 // Obsidian-style callout: colored left border + tinted background + an
 // icon/label header row that toggles collapse — replacing the earlier,
@@ -87,13 +195,15 @@ function bulletListDepth(view: EditorView, pos: number): number {
   return Math.max(0, depth - 1)
 }
 
-// KNOWN GAP: bullet-glyph NodeViews read `noteBulletStyle` once, at the
-// moment each list_item is (re)constructed — there's no live subscription
-// that rebuilds already-mounted bullet NodeViews the instant the user
-// changes the setting mid-session (CM6's version re-ran via a store
-// subscription driving `refreshDecorationsEffect`). Acceptable for now: the
-// style still applies correctly on next edit/note-switch; revisit if this
-// needs to be instant.
+// Bullet-glyph NodeViews subscribe directly to the store (below, in the
+// bullet_list branch) so a mid-session `noteBulletStyle` change repaints
+// every mounted bullet marker immediately, instead of waiting for the next
+// edit/note-switch to naturally rebuild them. This is a plain per-instance
+// subscription writing to THIS NodeView's own marker span — not a plugin
+// `view().update()` hook mutating decorated/observed document DOM, so it
+// doesn't reintroduce the dispatch/updateState feedback loop blockHandles.ts's
+// header comment warns about (nothing here calls view.dispatch or
+// view.updateState in response to the store change).
 
 // ─── list_item NodeView ─────────────────────────────────────────────────────
 // Handles all three list_item flavors in one place:
@@ -163,14 +273,12 @@ export function listItemNodeView(getPos: () => number | undefined) {
       // with no memory of which character was typed, so there was no way
       // to visually tell a "-" list apart from a "*" one.
       const bulletMarker = (parentNode.attrs.marker as string) || '-'
-      let symbol: string
-      if (bulletMarker === '-') {
-        symbol = '–'
-      } else {
+      function computeSymbol(): string {
+        if (bulletMarker === '-') return '–'
         const styleName = useAppStore.getState().noteBulletStyle ?? 'classic'
         const styleDef = BULLET_STYLE_DEFS[styleName] ?? BULLET_STYLE_DEFS.classic
         const depth = pos !== undefined ? bulletListDepth(view, pos) : 0
-        symbol = styleDef.symbols[Math.min(depth, styleDef.symbols.length - 1)]
+        return styleDef.symbols[Math.min(depth, styleDef.symbols.length - 1)]
       }
 
       const marker = document.createElement('span')
@@ -181,14 +289,23 @@ export function listItemNodeView(getPos: () => number | undefined) {
       marker.style.marginTop = '0'
       marker.style.lineHeight = '1'
       marker.style.fontSize = '1.35em'
-      marker.textContent = symbol
+      marker.textContent = computeSymbol()
 
       const contentDOM = document.createElement('div')
       contentDOM.className = 'pm-bullet-content'
       contentDOM.style.flex = '1'
       li.appendChild(marker)
       li.appendChild(contentDOM)
-      return { dom: li, contentDOM }
+
+      // Only "*"/"+" bullets actually depend on noteBulletStyle (a literal "-" is always
+      // the same dash glyph, checked above) — skip subscribing at all for those, since a
+      // setting change can never affect their glyph.
+      const unsubscribe = bulletMarker === '-' ? null : useAppStore.subscribe((state, prevState) => {
+        if (state.noteBulletStyle === prevState.noteBulletStyle) return
+        marker.textContent = computeSymbol()
+      })
+
+      return { dom: li, contentDOM, destroy: () => unsubscribe?.() }
     }
 
     // Ordered list — numbered via CSS counter (pmEditor.css). Needs the same

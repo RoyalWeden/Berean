@@ -7,7 +7,7 @@ import { dropCursor } from 'prosemirror-dropcursor'
 import { bereanSchema as schema } from './schema'
 import { parseMarkdown } from './parser'
 import { serializeToMarkdown } from './serializer'
-import { bereanKeymap } from './keymap'
+import { bereanKeymap, createBlockMovementKeymap } from './keymap'
 import { bereanInputRules } from './inputRules'
 import { bereanPastePlugin } from './pastePlugin'
 import { createRefDecorationsPlugin, createRefClickPlugin } from './refDecorations'
@@ -16,9 +16,13 @@ import {
   createAutocompletePlugin, replaceRangeWithText, replaceRangeWithBlock, replaceRangeWithWikilink,
   type WikilinkTrigger, type StrongsTrigger, type VerseSuggestTrigger, type SlashCommandTrigger,
 } from './autocomplete'
-import { calloutNodeView, listItemNodeView } from './nodeViews'
-import { createHeadingCollapsePlugin, headingNodeView } from './headingCollapse'
+import { calloutNodeView, listItemNodeView, codeBlockNodeView } from './nodeViews'
+import { createHeadingCollapsePlugin, headingNodeView, computeHeadingKey, headingPositionsForKeys, setCollapsedHeadingPositions } from './headingCollapse'
 import { createBlockDecorationsPlugin } from './blockDecorations'
+import { createCodeBlockHighlightPlugin } from './codeBlockHighlight'
+import { createBlockHandlesPlugin, blockGripSelectMeta, type BlockMenuTarget } from './blockHandles'
+import { createColumnControlsPlugin } from './columnControls'
+import BlockMenu from './BlockMenu'
 import { bereanTablePlugins } from './tablePlugins'
 import { createSuppressRangesPlugin, suppressRangesKeymap } from './suppressRanges'
 import { createFindHighlightPlugin, setFindQuery } from './findHighlight'
@@ -30,6 +34,7 @@ import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopu
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
 import { parseRef, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
 import { stripLxxMarker } from '@/lib/noteTextBlocks'
+import { computeCaretScrollDelta } from '@/lib/caretScroll'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { useAppStore } from '@/store'
 import type { Note } from '@/types'
@@ -57,6 +62,12 @@ export interface NoteEditorPMProps {
   onCommandsRef?: (cmds: { undo: () => void; redo: () => void }) => void
   onScrollPosition?: (pos: number) => void
   onCursorPosition?: (pos: number) => void
+  // Fluid-feel polish #2.3 — timestamp of the most recent successful autosave completion
+  // (NotesPanel.tsx's handleContentChange/handleTitleChange, chained onto the real save
+  // IPC promise). Forwarded to Toolbar, which shows/fades a brief "Saved" confirmation off
+  // of it. Optional/undefined in contexts with no autosave signal to report (e.g. none
+  // currently, but keeps this editor usable standalone without one).
+  lastSavedAt?: number | null
   initialScrollTop?: number
   initialCursorPos?: number
   autoFocus?: boolean
@@ -98,6 +109,7 @@ export default function NoteEditorPM({
   onCommandsRef,
   onScrollPosition,
   onCursorPosition,
+  lastSavedAt,
   initialScrollTop,
   initialCursorPos,
   autoFocus,
@@ -198,6 +210,18 @@ export default function NoteEditorPM({
 
   const [verseCtxTarget, setVerseCtxTarget] = useState<VerseCopyTarget | null>(null)
   const [strongsCtxTarget, setStrongsCtxTarget] = useState<StrongsContextTarget | null>(null)
+  const [blockMenuTarget, setBlockMenuTarget] = useState<BlockMenuTarget | null>(null)
+  // Read by createBlockMovementKeymap's Escape binding (keymap.ts) — kept current every
+  // render, same stable-ref pattern as refCallbacksRef, since the keymap plugin is built
+  // once at mount and can't take these as one-time constructor values. Escape must only
+  // select the enclosing block when NOTHING else is already claiming it: any autocomplete
+  // popup, the block-menu, either right-click context menu, or the app-wide floating
+  // search (Cmd+K) — matching the task brief's explicit "do not break those" call-out.
+  const popupsOpenRef = useRef(false)
+  popupsOpenRef.current = !!(
+    wikilinkTrigger || strongsTrigger || verseSuggestTrigger || slashTrigger
+    || blockMenuTarget || verseCtxTarget || strongsCtxTarget || useAppStore.getState().searchOpen
+  )
   const notesRef = useRef(notes)
   notesRef.current = notes
 
@@ -217,6 +241,77 @@ export default function NoteEditorPM({
     onLexiconRefContextMenu: (_id: string, _x: number, _y: number) => {},
   })
 
+  // Cursor-follow scroll while typing (fluid-feel polish #2.1) — keeps the caret comfortably
+  // inside the scrollable viewport instead of letting it drift toward the very edge before the
+  // browser's own native caret-follow (which only guarantees the caret is SOMEWHERE on screen,
+  // not comfortably clear of the edge) catches up. Pure threshold math lives in
+  // src/lib/caretScroll.ts (unit-tested there); this just supplies the two real DOM
+  // measurements (caret coords via view.coordsAtPos, viewport rect via the scroll container)
+  // and applies the resulting delta. `scroll-behavior: smooth` on .berean-pm-editor
+  // (pmEditor.css) turns this scrollTop nudge into an actual animated scroll rather than a
+  // jump. Deliberately reuses the same "only scroll when actually out of the comfortable
+  // zone" shape as ChapterView.tsx's Read Aloud auto-follow effect, rather than centering or
+  // scrolling unconditionally on every keystroke.
+  function scrollCaretIntoComfortableView(view: EditorView) {
+    const scrollEl = view.dom.parentElement
+    if (!scrollEl) return
+    let coords: { top: number; bottom: number }
+    try {
+      coords = view.coordsAtPos(view.state.selection.head)
+    } catch {
+      // coordsAtPos can throw for a position that isn't currently rendered/measurable
+      // (e.g. mid-transaction on a doc shape ProseMirror hasn't painted yet) — skip this
+      // pass rather than let a rare edge case break typing.
+      return
+    }
+    const viewportRect = scrollEl.getBoundingClientRect()
+    const delta = computeCaretScrollDelta(coords, viewportRect)
+    if (delta !== 0) scrollEl.scrollTop += delta
+  }
+
+  // Fired by headingNodeView on a real user click (never by the hydration path below) —
+  // persists the toggle to berean.db via IPC. Fire-and-forget: a failed write (DB busy,
+  // note deleted mid-toggle) just means the collapse doesn't survive to the next session,
+  // never something worth surfacing to the user over — matches the "degrade silently"
+  // framing the whole feature was scoped under.
+  function persistHeadingCollapse(view: EditorView, pos: number, collapsed: boolean) {
+    const noteId = noteIdRef.current
+    // `window.notes?.setHeadingCollapsed` (not just `!noteId`) — guards test/Storybook-style
+    // mounts with no `window.notes` bridge at all (this app's IPC preload is only present
+    // inside the real Electron renderer), not just the "no note id yet" case.
+    if (!noteId || !window.notes?.setHeadingCollapsed) return
+    const key = computeHeadingKey(view.state.doc, pos)
+    if (!key) return
+    window.notes.setHeadingCollapsed(noteId, key, collapsed).catch(() => {})
+  }
+
+  // Hydrates persisted collapse state onto a freshly-opened note — called once right after
+  // the view exists (mount) and again on every genuine note switch (not on same-note content
+  // refreshes, which would otherwise re-collapse whatever the user is actively expanding/
+  // collapsing right now). `view` is passed explicitly and re-checked against `viewRef.current`
+  // once the async IPC round-trip resolves, so a note switched away from again mid-flight (or
+  // an unmounted editor) never applies a stale hydration onto whatever's open by then.
+  function loadCollapsedHeadings(view: EditorView, noteId: string | undefined) {
+    if (!noteId || !window.notes?.getCollapsedHeadings) return
+    window.notes.getCollapsedHeadings(noteId).then((keys) => {
+      if (viewRef.current !== view || keys.length === 0) return
+      const positions = headingPositionsForKeys(view.state.doc, keys)
+      if (positions.length > 0) setCollapsedHeadingPositions(view, positions)
+    }).catch(() => {})
+  }
+
+  // Restores a saved scroll position as an instant jump, bypassing the `scroll-behavior:
+  // smooth` #2.1 sets on .berean-pm-editor (pmEditor.css) for the caret-follow nudge —
+  // opening a note or switching notes should land you exactly where you left off
+  // immediately, not visibly animate to it.
+  function snapScrollTop(el: HTMLElement | null, top: number) {
+    if (!el) return
+    const prevBehavior = el.style.scrollBehavior
+    el.style.scrollBehavior = 'auto'
+    el.scrollTop = top
+    el.style.scrollBehavior = prevBehavior
+  }
+
   // ── Mount: build the EditorView once ──────────────────────────────────────
   useEffect(() => {
     if (!hostRef.current) return
@@ -234,11 +329,28 @@ export default function NoteEditorPM({
         // falling through to list-indent.
         ...bereanTablePlugins,
         bereanKeymap,
+        // Own plugin (not folded into the shared bereanKeymap above) — its Escape/Mod-Shift-
+        // Arrow bindings need to close over per-instance popup state via popupsOpenRef, unlike
+        // bereanKeymap, which is one module-scope plugin object reused by every editor.
+        createBlockMovementKeymap(() => popupsOpenRef.current),
         suppressRangesKeymap,
         gapCursor(),
         dropCursor(),
         bereanPastePlugin,
         createSuppressRangesPlugin(() => noteIdRef.current),
+        // createBlockDecorationsPlugin MUST be registered before createRefDecorationsPlugin —
+        // refDecorations.ts's own buildDecorations() reads blockDecorations.ts's cached
+        // DecorationSet (via blockDecorationsKey.getState) instead of recomputing the same
+        // full-document verse/lexicon-block detection walk a second time on every keystroke.
+        // ProseMirror computes each plugin's new state in array order for a given transaction,
+        // so the reader must come AFTER the plugin whose state it reads, or it sees last
+        // transaction's stale value instead of the current one. createPlaceholderPlugin/
+        // createAutocompletePlugin/createHeadingCollapsePlugin moved down with it only to keep
+        // this move minimal — none of them compete for keymaps/click handling with what's now
+        // ahead of them, and their own relative order to EACH OTHER and to createBlockHandlesPlugin/
+        // createColumnControlsPlugin/etc. below is unchanged.
+        createBlockDecorationsPlugin(),
+        createCodeBlockHighlightPlugin(),
         createRefDecorationsPlugin(),
         createRefClickPlugin({
           onWikilinkClick: (title) => refCallbacksRef.current.onWikilinkClick?.(title),
@@ -259,7 +371,18 @@ export default function NoteEditorPM({
           enableVerseSuggest: () => (isSidePanel ? useAppStore.getState().sidePanelScriptureBlock : useAppStore.getState().noteVerseBlockSuggest) !== false,
         }),
         createHeadingCollapsePlugin(),
-        createBlockDecorationsPlugin(),
+        createBlockHandlesPlugin(
+          (target) => {
+            dispatchCloseContextMenus()
+            setBlockMenuTarget(target)
+          },
+          (v, pos) => {
+            const coords = v.coordsAtPos(pos)
+            setSlashIdx(0)
+            setSlashTrigger({ query: '', from: pos, to: pos, coords: { left: coords.left, bottom: coords.bottom } })
+          },
+        ),
+        createColumnControlsPlugin(),
         createFindHighlightPlugin(),
         createSelectionToolbarPlugin(setSelectionToolbar),
         createTableStatusPlugin(setInTable),
@@ -273,7 +396,8 @@ export default function NoteEditorPM({
       nodeViews: {
         callout: (node) => calloutNodeView(node),
         list_item: (node, editorView, getPos) => listItemNodeView(getPos)(node, editorView),
-        heading: (node, editorView, getPos) => headingNodeView(getPos)(node, editorView),
+        heading: (node, editorView, getPos) => headingNodeView(getPos, persistHeadingCollapse)(node, editorView),
+        code_block: (node, editorView, getPos) => codeBlockNodeView(getPos)(node, editorView),
       },
       dispatchTransaction(tr) {
         const newState = view.state.apply(tr)
@@ -284,6 +408,18 @@ export default function NoteEditorPM({
         }
         if (tr.selectionSet || tr.docChanged) {
           onCursorPositionRef.current?.(newState.selection.head)
+          // Same trigger condition as the cursor-position callback above (typing or an
+          // explicit selection change) — not a timer, not every redraw.
+          //
+          // Exception: the block-gutter grip stages a NodeSelection on MOUSEDOWN, before the
+          // native drag gesture starts (blockHandles.ts — PM's own dragstart reads what to
+          // drag out of view.state.selection, so it has to happen there). Scrolling the
+          // container while a mousedown is still pending cancels Chromium's HTML5 drag
+          // outright, which read as dragging intermittently doing nothing at all —
+          // intermittently, because it only bites when the grabbed block happens to sit
+          // outside the comfort zone. The same meta rides the post-drop selection collapse,
+          // which likewise must not yank the viewport around.
+          if (!tr.getMeta(blockGripSelectMeta)) scrollCaretIntoComfortableView(view)
         }
       },
       handleDOMEvents: {
@@ -314,6 +450,7 @@ export default function NoteEditorPM({
     })
     viewRef.current = view
     setViewReady(true)
+    loadCollapsedHeadings(view, noteIdRef.current)
 
     if (typeof initialCursorPos === 'number') {
       // Persisted cursor positions are PM document positions (see the
@@ -329,9 +466,20 @@ export default function NoteEditorPM({
     }
     if (autoFocus) view.focus()
     if (typeof initialScrollTop === 'number') {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (view.dom.parentElement) view.dom.parentElement.scrollTop = initialScrollTop
-      }))
+      // Was double-nested rAF (wait two frames before the scroll restore fires) with no comment
+      // explaining why two specifically — flagged in the notes-feel pass as adding a visible
+      // "paint at scroll-top-0, then jump" delay on a previously-scrolled note. ProseMirror
+      // applies its DOM mutations synchronously (unlike React), so there's no real second commit
+      // to wait out here; one frame is enough margin for the browser to finish the layout pass
+      // from those mutations before reading/writing scrollTop. Revert to double if this turns
+      // out to occasionally restore against a not-yet-settled layout in practice.
+      requestAnimationFrame(() => {
+        // Restoring a saved position should snap instantly, not animate — #2.1's
+        // `scroll-behavior: smooth` on .berean-pm-editor (pmEditor.css) is meant for the
+        // caret-follow nudge only. Toggle it off for this one instant jump, matching the
+        // note-switch effect's own restore below.
+        snapScrollTop(view.dom.parentElement, initialScrollTop)
+      })
     }
 
     onFocusRef?.(() => view.focus())
@@ -406,12 +554,15 @@ export default function NoteEditorPM({
     })
     view.updateState(newState)
     if (isDifferentNote) {
+      loadCollapsedHeadings(view, noteId)
       if (autoFocusRef.current) view.focus()
       if (typeof initialScrollTopRef.current === 'number') {
         const top = initialScrollTopRef.current
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (view.dom.parentElement) view.dom.parentElement.scrollTop = top
-        }))
+        // Single rAF — see the identical mount-time restore above for why this dropped the
+        // second nested frame.
+        requestAnimationFrame(() => {
+          snapScrollTop(view.dom.parentElement, top)
+        })
       }
     }
   }, [content, noteId])
@@ -606,7 +757,9 @@ export default function NoteEditorPM({
           edit-mode gating. Floats over the editor (this wrapper is `relative` so its own
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
-      {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />}
+      {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && (
+        <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} lastSavedAt={lastSavedAt} />
+      )}
       <div
         ref={hostRef}
         onMouseDown={handleHostMouseDown}
@@ -672,6 +825,7 @@ export default function NoteEditorPM({
       {selectionToolbar && mode === 'edit' && viewRef.current && (
         <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />
       )}
+      <BlockMenu target={blockMenuTarget} view={viewRef.current} noteId={noteId} onClose={() => setBlockMenuTarget(null)} />
       <VerseCopyMenu target={verseCtxTarget} onClose={() => setVerseCtxTarget(null)} />
       <StrongsContextMenu
         target={strongsCtxTarget}

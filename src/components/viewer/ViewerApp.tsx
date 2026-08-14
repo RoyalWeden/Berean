@@ -173,7 +173,6 @@ export default function ViewerApp() {
   }, [viewerTheme, theme, themePreset, systemIsDark])
 
   const handleContent = useCallback((raw: unknown) => {
-    console.log('[ViewerApp] handleContent called with:', JSON.stringify(raw))
     setPayload(raw as ViewerPayload)
   }, [])
 

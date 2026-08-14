@@ -17,6 +17,8 @@ import CrashReport from '@/components/shell/CrashReport'
 import TabSwitcher from '@/components/shell/TabSwitcher'
 import BgImportProgress from '@/components/shell/BgImportProgress'
 import PresenterControls from '@/components/shell/PresenterControls'
+import AudioPlayer from '@/components/audio/AudioPlayer'
+import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import type { SpaceId, Tab } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
@@ -46,6 +48,7 @@ export default function App() {
   // DOM node for the top bar's portal slot — set once ShellHeader mounts, consumed
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
+  useTTSPlayback()
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
@@ -874,6 +877,10 @@ export default function App() {
           useAppStore.getState().setViewerWindowOpen(true)
           // pushCurrentToViewer will be called by onViewerReady signal
         })
+      } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'r') {
+        // ── Cmd+Shift+R → Read Aloud play/pause ─────────────────────────
+        e.preventDefault()
+        useAppStore.getState().togglePlayPause()
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         window.dispatchEvent(new CustomEvent('berean:togglePiP'))
@@ -1032,6 +1039,7 @@ export default function App() {
       </TopBarSlotContext.Provider>
       <FloatingSearch />
       <PresenterControls />
+      <AudioPlayer />
       <LazyOnce when={settingsOpen}><SettingsModal /></LazyOnce>
       <MarkdownReferenceModal />
       <CrashReport />

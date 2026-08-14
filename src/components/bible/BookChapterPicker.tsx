@@ -70,6 +70,13 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  // Scrolled into view whenever the popover opens (or the active book changes) — see the
+  // useLayoutEffect below. Neither the book list nor the chapter grid did this at all before:
+  // opening the picker on, say, Revelation always showed the book list scrolled to the top
+  // (Genesis), and picking a book always showed the chapter grid scrolled to chapter 1, with no
+  // indication of where the CURRENT book/chapter actually was without manually scrolling to find it.
+  const activeBookRowRef = useRef<HTMLButtonElement>(null)
+  const currentChapterBtnRef = useRef<HTMLButtonElement>(null)
 
   const PANEL_W = 520
   const PANEL_H = 380
@@ -114,6 +121,18 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
       window.removeEventListener('resize', onMove)
     }
   }, [open])
+
+  // Scroll the active book row and the current chapter cell into view — on open (activeBookId
+  // was just set to currentBookId by the effect above, in the same before-paint cycle) and again
+  // whenever the user picks a different book in the left column (a fresh chapter grid, which
+  // should show its own current-chapter highlight if there is one, not start scrolled to the
+  // top). useLayoutEffect + 'auto' (instant, no animation) — this is a popover that just
+  // appeared/just switched books, not a navigation the user should watch glide.
+  useLayoutEffect(() => {
+    if (!open) return
+    activeBookRowRef.current?.scrollIntoView({ block: 'center' })
+    currentChapterBtnRef.current?.scrollIntoView({ block: 'center' })
+  }, [open, activeBookId])
 
   // Keep activeBookId synced when currentBookId changes externally
   useEffect(() => {
@@ -201,6 +220,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
   const BookRow = ({ book }: { book: Book }) => (
     <button
       key={book.id}
+      ref={book.id === activeBookId ? activeBookRowRef : undefined}
       onClick={() => setActiveBookId(book.id)}
       className={`w-full text-left px-3 py-1.5 text-sm cursor-pointer transition-colors rounded-sm ${
         book.id === activeBookId
@@ -431,6 +451,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                         {section.chapters.map((ch, subIdx) => (
                           <button
                             key={ch}
+                            ref={activeBook.id === currentBookId && ch === currentChapter ? currentChapterBtnRef : undefined}
                             onClick={() => selectChapter(ch)}
                             className={`
                               flex items-center justify-center h-7 w-full text-[11px] rounded cursor-pointer transition-colors
@@ -471,6 +492,7 @@ export default function BookChapterPicker({ books, currentBookId, currentChapter
                     {Array.from({ length: activeBook.chapters_count }, (_, i) => i + 1).map((n) => (
                       <button
                         key={n}
+                        ref={activeBook.id === currentBookId && n === currentChapter ? currentChapterBtnRef : undefined}
                         onClick={() => selectChapter(n)}
                         className={`
                           flex items-center justify-center h-8 w-full text-xs rounded cursor-pointer transition-colors

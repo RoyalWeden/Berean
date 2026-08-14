@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapChapterOnTranslationSwitch, isLxxTranslation, isKjvTranslation,
+  toCanonicalChapters, equivalentChapters,
 } from '../translationChapterMap'
 
 const k2l = (book: string, ch: number) => mapChapterOnTranslationSwitch(book, ch, 'kjva', 'lxx')
@@ -155,5 +156,69 @@ describe('books that are NOT reordered stay identity', () => {
     expect(k2l('GEN', 50)).toBe(50)
     expect(k2l('ISA', 53)).toBe(53)
     expect(l2k('HOS', 14)).toBe(14)
+  })
+})
+
+describe('toCanonicalChapters (LXX chapter → KJV-keyed lookup chapters)', () => {
+  it('non-Psalms books are always identity, regardless of textId', () => {
+    expect(toCanonicalChapters('GEN', 1, 'lxx')).toEqual([1])
+    expect(toCanonicalChapters('JER', 30, 'lxx')).toEqual([30])
+    expect(toCanonicalChapters('JOL', 3, 'lxx')).toEqual([3])
+  })
+  it('Psalms viewed in KJV numbering is always identity', () => {
+    for (const ch of [1, 9, 10, 100, 116, 147, 150]) {
+      expect(toCanonicalChapters('PSA', ch, 'kjva')).toEqual([ch])
+      expect(toCanonicalChapters('psa', ch, 'kjv')).toEqual([ch])
+    }
+  })
+  it('Psalms viewed in LXX numbering: merge chapters union to both KJV chapters', () => {
+    expect(toCanonicalChapters('PSA', 9, 'lxx')).toEqual([9, 10])
+    expect(toCanonicalChapters('PSA', 113, 'lxx')).toEqual([114, 115])
+  })
+  it('Psalms viewed in LXX numbering: non-merge chapters map to a single KJV chapter', () => {
+    expect(toCanonicalChapters('PSA', 1, 'lxx')).toEqual([1])
+    expect(toCanonicalChapters('PSA', 8, 'lxx')).toEqual([8])
+    expect(toCanonicalChapters('PSA', 10, 'lxx')).toEqual([11])
+    expect(toCanonicalChapters('PSA', 114, 'lxx')).toEqual([116])
+    expect(toCanonicalChapters('PSA', 115, 'lxx')).toEqual([116])
+    expect(toCanonicalChapters('PSA', 146, 'lxx')).toEqual([147])
+    expect(toCanonicalChapters('PSA', 147, 'lxx')).toEqual([147])
+    expect(toCanonicalChapters('PSA', 150, 'lxx')).toEqual([150])
+  })
+  it('is case-insensitive on bookId/textId', () => {
+    expect(toCanonicalChapters('psa', 9, 'LXX')).toEqual([9, 10])
+  })
+})
+
+describe('equivalentChapters (bidirectional chapter mapping between two textIds)', () => {
+  it('same-tradition pairs are always identity', () => {
+    expect(equivalentChapters('PSA', 9, 'kjva', 'kjv')).toEqual([9])
+    expect(equivalentChapters('PSA', 9, 'lxx', 'lxx')).toEqual([9])
+  })
+  it('non-Psalms books fall back to the single-value chapter-switch mapping', () => {
+    expect(equivalentChapters('JER', 26, 'kjva', 'lxx')).toEqual([33])
+    expect(equivalentChapters('JER', 33, 'lxx', 'kjva')).toEqual([26])
+    expect(equivalentChapters('GEN', 5, 'kjva', 'lxx')).toEqual([5])
+  })
+  it('LXX → KJV matches toCanonicalChapters exactly', () => {
+    for (const ch of [1, 9, 10, 100, 113, 116, 147, 150]) {
+      expect(equivalentChapters('PSA', ch, 'lxx', 'kjva')).toEqual(toCanonicalChapters('PSA', ch, 'lxx'))
+    }
+  })
+  it('KJV → LXX split chapters union to both LXX chapters', () => {
+    expect(equivalentChapters('PSA', 116, 'kjva', 'lxx')).toEqual([114, 115])
+    expect(equivalentChapters('PSA', 147, 'kjva', 'lxx')).toEqual([146, 147])
+  })
+  it('KJV → LXX merge chapters (9,10 / 114,115) map to the single merged LXX chapter', () => {
+    expect(equivalentChapters('PSA', 9, 'kjva', 'lxx')).toEqual([9])
+    expect(equivalentChapters('PSA', 10, 'kjva', 'lxx')).toEqual([9])
+    expect(equivalentChapters('PSA', 114, 'kjva', 'lxx')).toEqual([113])
+    expect(equivalentChapters('PSA', 115, 'kjva', 'lxx')).toEqual([113])
+  })
+  it('round-trips a KJV split chapter back to itself via either LXX half', () => {
+    const lxxHalves = equivalentChapters('PSA', 116, 'kjva', 'lxx')
+    for (const lxxCh of lxxHalves) {
+      expect(equivalentChapters('PSA', lxxCh, 'lxx', 'kjva')).toEqual([116])
+    }
   })
 })

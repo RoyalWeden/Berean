@@ -4,6 +4,7 @@ import type { Note, NoteStatus } from '@/types'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
+import NoteIcon from './NoteIcon'
 
 interface Props {
   notes: Note[]
@@ -78,8 +79,11 @@ export default function NotesBoardView({ notes, onSelect, onSetStatus }: Props) 
                     // tactile lift.
                     className="rounded-shell bg-[rgb(var(--color-surface-3))] shadow-sm hover:shadow-md px-2.5 py-2 cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-[background-color,box-shadow]"
                   >
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
-                      {note.title || 'Untitled'}
+                    <p className="flex items-center gap-1 min-w-0">
+                      <NoteIcon icon={note.icon} size={13} />
+                      <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
+                        {note.title || 'Untitled'}
+                      </span>
                     </p>
                     {snippet && (
                       <p

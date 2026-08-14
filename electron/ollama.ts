@@ -25,7 +25,9 @@ export const DEFAULT_OLLAMA_MODEL = 'llama3.1:latest'
 // model's own unbounded default. Measured: 8192 cost ~1GB of KV-cache overhead over the base
 // model weight; doubling to 16384 should cost roughly another ~1GB (~7GB total), nowhere close
 // to the 22GB seen at the model's full 131K default.
-const NUM_CTX = 16384
+// Exported (Round: token budgeting) so aiLookup.ts's prompt assembly can budget material against
+// the real context window instead of only ad hoc character/row caps — see electron/tokenBudget.ts.
+export const NUM_CTX = 16384
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
@@ -56,21 +58,27 @@ export async function checkOllamaAvailable(): Promise<{ available: boolean; mode
 // time statistically unchanged between arms — the entire improvement is exactly the load-time
 // mechanism keep_alive is supposed to affect, not a placebo.
 //
-// Round 11: shrunk from 30m to 5m, and paired with a MORE aggressive proactive idle-unload
-// below (noteOllamaActivity/IDLE_UNLOAD_MS) — direct feedback that leaving the model resident
-// for 30 minutes (~7GB) cost too much idle memory, especially since the chat panel staying open
-// while the user goes back to browsing scripture/notes doesn't mean the model is still needed.
-// This value is now just the FALLBACK Ollama itself enforces if the proactive JS-side timer
-// somehow doesn't fire (e.g. the app quit uncleanly mid-session) — the real, everyday unload
-// path is the 2-minute idle timer, not this 5-minute window.
-const KEEP_ALIVE = '5m'
+// Round 11 shrunk this to 5m paired with a 2-minute proactive idle-unload below, on feedback
+// that ~7GB resident for 30 minutes was too much idle memory. In practice that made "thinking
+// for two minutes between questions" — the ordinary pace of actually reading a passage before
+// asking the next question — pay a ~2.7s cold-reload tax on almost every question, which is a
+// worse trade than the memory it saved on a 32GB machine. Restored to 15m, matched to
+// IDLE_UNLOAD_MS below so this is genuinely just Ollama's own fallback, not a second shorter
+// timer racing the JS one back down to 2 minutes.
+const KEEP_ALIVE = '15m'
 
-// Proactively unloads the model a couple of minutes after the user STOPS asking questions —
-// deliberately shorter than KEEP_ALIVE above and independent of whether the chat panel is still
-// open, so leaving it open while browsing elsewhere doesn't keep ~7GB resident indefinitely.
-// Reset on every real call (see noteOllamaActivity), so the model stays loaded while the user is
-// actively going back and forth, and only unloads once they've genuinely stopped.
-const IDLE_UNLOAD_MS = 2 * 60 * 1000
+// Proactively unloads the model after the user STOPS asking questions — independent of whether
+// the chat panel is still open, so leaving it open while browsing elsewhere doesn't keep ~7GB
+// resident forever. Reset on every real call (see noteOllamaActivity), so the model stays loaded
+// while the user is actively going back and forth, and only unloads once they've genuinely
+// stopped for this long.
+//
+// Raised from 2m to 15m this round — 2 minutes was shorter than a normal reading pause between
+// questions in an actual Bible study session, so nearly every question paid a ~2.7s cold-load
+// tax (measured, see ollama.ts:53 above) for no real memory benefit: the panel is usually reused
+// within a few minutes, not left resident all afternoon. 15m still frees the ~7GB once a session
+// is clearly over, without punishing normal read-then-ask pacing.
+const IDLE_UNLOAD_MS = 15 * 60 * 1000
 let idleUnloadTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Sends a real request with `keep_alive: 0`, Ollama's own signal to unload the model right
@@ -113,7 +121,8 @@ export function unloadOllamaImmediately(model = DEFAULT_OLLAMA_MODEL): void {
 // generation. Deliberately NOT applied to runOllamaText below — commentary responses are
 // free-form and legitimately want more than 512 tokens; capping that one would truncate real
 // output, per the same benchmark's explicit caveat.
-const NUM_PREDICT_JSON = 512
+// Exported alongside NUM_CTX above, same token-budgeting reason.
+export const NUM_PREDICT_JSON = 512
 
 // Lower than Ollama's default (~0.8) — requested for steadier answers run-to-run. Tested
 // directly this round: at 0.2 the model's Jubilees guess became MORE CONSISTENT, not more

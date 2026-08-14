@@ -62,6 +62,36 @@ function table(state: MarkdownSerializerState, node: PMNode) {
 // check and are never actually invoked in isolation.
 const noop = () => {}
 
+// ─── Side-by-side columns (2.4) ─────────────────────────────────────────────
+// See schema.ts's column_list/column comment and parser.ts's matching
+// section for the full round-trip design. Each column is serialized by
+// recursively calling `serializeToMarkdown` (defined further down this same
+// file — safe to reference here despite being declared later, since this
+// function body only runs at CALL time, well after module init has finished
+// assigning it) on a throwaway `doc` wrapping just that column's own
+// content, reusing every existing serializer rule (marks, lists, tables,
+// nested column_lists, the extra-blank-line/trailing-blank recovery, all of
+// it) with zero duplication — exactly parser.ts's own "recurse through the
+// same top-level function" strategy, mirrored on the write side.
+//
+// Each column's 3-line shape (`<!-- berean:col -->`, its own markdown
+// (possibly empty), `<!-- /berean:col -->`) is emitted UNCONDITIONALLY, even
+// when a column's markdown is the empty string — omitting the middle line
+// entirely for an empty column would collapse the required "one newline
+// after the open marker, one newline before the close marker" gap that
+// parser.ts's splitColumns depends on to find the boundary at all, which
+// would silently fail to round-trip an empty column back into a real node.
+function columnList(state: MarkdownSerializerState, node: PMNode) {
+  const lines: string[] = ['<!-- berean:columns -->']
+  node.forEach((col) => {
+    const colDoc = schema.nodes.doc.create(null, col.content)
+    lines.push('<!-- berean:col -->', serializeToMarkdown(colDoc), '<!-- /berean:col -->')
+  })
+  lines.push('<!-- /berean:columns -->')
+  state.write(lines.join('\n'))
+  state.closeBlock(node)
+}
+
 // ─── Callouts ───────────────────────────────────────────────────────────────
 // Reconstructs the `> [!TYPE] ...` blockquote form: prepend the marker to
 // the callout's first paragraph, then reuse blockquote's own wrapBlock
@@ -121,6 +151,12 @@ export const bereanMarkdownSerializer = new MarkdownSerializer(
     table_row: noop,
     table_header: noop,
     table_cell: noop,
+    column_list: columnList,
+    // column is only ever rendered manually from inside columnList() above (via
+    // node.forEach/col.content), never through the normal state.render() dispatch — same
+    // "satisfies strict:true's per-type-handler check, never actually invoked" role as the
+    // table_row/table_header/table_cell noops above.
+    column: noop,
   },
   {
     ...defaultMarkdownSerializer.marks,

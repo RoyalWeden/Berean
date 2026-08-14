@@ -61,7 +61,7 @@ function StrongsInline({
     // wordContent: either segment-split spans (char highlight) or plain wordNode (find highlight)
     const wordContent = wordSegments
       ? wordSegments.map((seg, si) => (
-          <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+          <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
         ))
       : wordNode
     // gap: '2px' (was 0, with the word span pulled up via a negative marginBottom) — the word
@@ -110,7 +110,7 @@ function StrongsInline({
   if (primaryNum) {
     const wContent = wordSegments
       ? wordSegments.map((seg, si) => (
-          <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+          <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
         ))
       : wordNode
     return (
@@ -129,7 +129,7 @@ function StrongsInline({
   if (isItalic) {
     const wContent = wordSegments
       ? wordSegments.map((seg, si) => (
-          <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+          <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
         ))
       : word
     return <span className="mr-[0.25em] italic opacity-70">{wContent}</span>
@@ -138,7 +138,7 @@ function StrongsInline({
   // Fallback: plain word — clickable to search the lexicon
   const wContent = wordSegments
     ? wordSegments.map((seg, si) => (
-        <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+        <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
       ))
     : wordNode
   return (

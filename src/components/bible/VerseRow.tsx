@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen, Search } from 'lucide-react'
+import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2 } from 'lucide-react'
 import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
 import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
@@ -15,8 +15,9 @@ import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
-import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, getVerseRowStyle } from './verseRowStyles'
+import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
+import { parseTaggedTokens, type TaggedToken } from '@/lib/taggedTokens'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -54,72 +55,12 @@ interface VerseRowProps {
   highlightStrongsExtraWords?: string[]
   onStrongsClick?: (num: string) => void
   onWordClick?: (word: string) => void
-}
-
-interface TaggedToken {
-  word: string
-  strongsNum: string | string[] | null  // string[] = multi-Strongs (e.g. divided{H914|H996})
-  isItalic: boolean
-  isRedLetter: boolean
-  isParenthetical: boolean  // true for ~{H853} tokens — grammatical particle, no English word
-  isStrongsBracket: boolean // true for sup>(  sup>) alignment brackets — never rendered as plain text
-}
-
-/**
- * Parse `text_tagged` column format into structured tokens.
- * Format per token (space-separated):
- *   word{H7225}     – word with Strong's number
- *   word{}          – word present in source but no Strong's (e.g. conjunctions, articles)
- *   *word{}         – KJV italic (translator-supplied) word, no Strong's
- *   !word{G1063}    – red-letter word (Yeshua's speech) with or without Strong's
- *   ~{H853}         – parenthetical Strongs: grammatical particle, no English equivalent
- *   word{H914|H996} – multi-Strongs: word bound to multiple Hebrew/Greek roots
- */
-function parseTaggedTokens(tagged: string): TaggedToken[] {
-  const tokens: TaggedToken[] = []
-  for (let part of tagged.split(' ')) {
-    if (!part) continue
-
-    // Strip malformed markup fragments where '<' was dropped during data import.
-    // <sup>/<blu> wrappers appear in KJVA text_tagged: sup> wraps Strong's alignment
-    // brackets; blu> wraps epistolary subscription notes (e.g. "To the Galatians written
-    // from Rome."). Keep the text content; drop the tag fragments.
-    // Track sup> specifically: if the remaining word is only a bracket char it's a
-    // Strong's alignment marker that must NOT render as visible text.
-    const wasSupWrapped = /^\/sup>|^sup>/i.test(part)
-    part = part.replace(/^\/sup>/i, '').replace(/^sup>/i, '')
-    part = part.replace(/^\/blu>/i, '').replace(/^blu>/i, '')
-    // <b>/</b> bold wrappers (seen in some Psalms) also lost their '<' — strip the fragments.
-    // '>' never occurs in real verse text, so removing these anywhere is safe.
-    part = part.replace(/<?\/?b>/gi, '')
-    if (!part) continue
-
-    // Parenthetical token: ~{H853} — no associated English word
-    if (part.startsWith('~{') && part.endsWith('}')) {
-      const strongsRaw = part.slice(2, -1).trim()
-      tokens.push({ word: '', strongsNum: strongsRaw || null, isItalic: false, isRedLetter: false, isParenthetical: true, isStrongsBracket: false })
-      continue
-    }
-
-    const isRedLetter = part.startsWith('!')
-    const afterRed = isRedLetter ? part.slice(1) : part
-    const isItalic = afterRed.startsWith('*')
-    const raw = isItalic ? afterRed.slice(1) : afterRed
-    const braceIdx = raw.lastIndexOf('{')
-    if (braceIdx !== -1 && raw.endsWith('}')) {
-      const word = raw.slice(0, braceIdx)
-      const strongsRaw = raw.slice(braceIdx + 1, -1).trim()
-      // Multi-Strongs: split on '|' to get primary + secondary numbers
-      const parts = strongsRaw ? strongsRaw.split('|') : []
-      const strongsNum = parts.length > 1 ? parts : (parts[0] || null)
-      // A sup>-wrapped bare bracket with no Strongs is a pure alignment marker, not text
-      const isStrongsBracket = wasSupWrapped && !strongsNum && /^[()[\]]+$/.test(word)
-      tokens.push({ word, strongsNum, isItalic, isRedLetter, isParenthetical: false, isStrongsBracket })
-    } else {
-      tokens.push({ word: raw, strongsNum: null, isItalic, isRedLetter, isParenthetical: false, isStrongsBracket: false })
-    }
-  }
-  return tokens
+  /** Read Aloud (TTS) is currently reading THIS verse — see ChapterView.tsx, which computes
+   *  this by comparing the store's audioPlayback state against this row's own book/chapter/verse. */
+  playbackVerse?: boolean
+  /** Index (SpokenWord.wordIndex — see extractSpokenText.ts) of the word currently being
+   *  spoken, only meaningful when playbackVerse is true. null = between words / not yet known. */
+  playbackWordIndex?: number | null
 }
 
 /**
@@ -365,7 +306,7 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -418,6 +359,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const filterBiblePanelByVerse = useAppStore((s) => s.filterBiblePanelByVerse)
   const openCrossRefsInBiblePanel = useAppStore((s) => s.openCrossRefsInBiblePanel)
   const setCrossRefSource = useAppStore((s) => s.setCrossRefSource)
+  const startPlaybackFrom = useAppStore((s) => s.startPlaybackFrom)
   // NOT a useAppStore() subscription: noteChangeToken here is only ever read inside the
   // handleCrossRefIconMouseEnter callback below (to key a cache lookup), never in render
   // output. Subscribing via the hook would re-render every mounted VerseRow in the chapter
@@ -556,6 +498,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   function openVerseNotes() {
     const verseRef = `${verse.book_id}.${verse.chapter}.${verse.verse_num}`
     filterBiblePanelByVerse(verseRef)
+    setPopoverOpen(false)
+  }
+
+  function playAudioFromHere() {
+    startPlaybackFrom(verse.book_id, verse.chapter, verse.verse_num, textId ?? 'kjva')
     setPopoverOpen(false)
   }
 
@@ -866,7 +813,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     return words.some(w => t.includes(w))
   }, [findQuery, findWordMode, verse.text])
 
-  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch })
+  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
 
   // Determine rendering mode
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
@@ -909,13 +856,19 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
       // Compute char start position in verse.text for each token (before any filtering).
       // Parenthetical tokens (~{H853}) have no English word — they don't advance charPos.
+      // spokenIndex mirrors extractSpokenText.ts's buildSpokenWords exactly (same skip rule:
+      // isParenthetical/isStrongsBracket tokens are never spoken, so they never get an index)
+      // — this is what lets Read Aloud's playbackWordIndex line up with the right rendered token.
       let charPos = 0
+      let spokenPos = 0
       const tokensWithCharPos = tokens.map(t => {
         const charStart = charPos
         const origLen = t.word.length // length in verse.text, before any word-replacer substitution
         // Parenthetical (~{}) and Strong's-bracket (sup>() sup>)) tokens have no plain-text word
-        if (!t.isParenthetical && !t.isStrongsBracket) charPos += t.word.length + 1 // word + trailing space
-        return { ...t, charStart, origLen }
+        const hasSpokenWord = !t.isParenthetical && !t.isStrongsBracket
+        if (hasSpokenWord) charPos += t.word.length + 1 // word + trailing space
+        const spokenIndex = hasSpokenWord ? spokenPos++ : -1
+        return { ...t, charStart, origLen, spokenIndex }
       })
 
       const hideItalics = hiddenAnnotations.includes('kjva_italics')
@@ -972,9 +925,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               // Suppress "the"/"The" that preceded a Strong's-replaced divine name
               if (suppressedIndices.has(i)) return null
               // Build per-character highlight segments for this word (null = no overlap = plain)
-              const wordSegs = token.isParenthetical
+              let wordSegs = token.isParenthetical
                 ? null
                 : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+              // Read Aloud active-word tint — takes visual priority over a real highlight
+              // underneath since it's the exact word being spoken right now (transient, per plan).
+              if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
+                wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+              }
               // Space after this token — check if it falls within a charHighlight (original-text coords)
               const spaceCharPos = token.charStart + token.origLen
               const spaceHl = !token.isParenthetical && i < displayTokens.length - 1
@@ -1014,7 +972,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           {plainTokens.map((token, i) => {
             const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
             // Per-character highlight segments (null = no overlap)
-            const wordSegs = splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+            let wordSegs = splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+            if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
+              wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+            }
             // Space highlight (original-text coords)
             const spaceCharPos = token.charStart + token.origLen
             const spaceHl = i < plainTokens.length - 1
@@ -1025,7 +986,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
             const activeIdioms = idiomHighlightEnabled && expandedIdioms.length > 0 ? expandedIdioms : []
             const wordContent = wordSegs
               ? wordSegs.map((seg, si) => (
-                  <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+                  <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
                 ))
               : isFindMatch
               ? applyFindHighlight(token.word, findQuery, highlightMode)
@@ -1122,9 +1083,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         <span>
           {words.map((word, i) => {
             const wordCharStart = wordPositions[i] ?? 0
-            const wordSegs = charHighlights.length > 0
+            let wordSegs = charHighlights.length > 0
               ? splitWordByHighlights(word, wordCharStart, charHighlights, WORD_HIGHLIGHT_BG)
               : null
+            if (playbackVerse && playbackWordIndex === i) wordSegs = [{ text: word, bg: PLAYBACK_WORD_BG }]
             const spaceCharPos = wordCharStart + word.length
             const spaceHl = charHighlights.length > 0 && i < words.length - 1
               ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
@@ -1177,9 +1139,11 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         {words.map((word, i) => {
           const wHL = highlights.find(h => h.startWord !== null && h.startWord <= i && i <= (h.endWord ?? i))
           const wordCharStart = wordPositions[i] ?? 0
-          const wordSegs = charHighlights.length > 0
+          let wordSegs = charHighlights.length > 0
             ? splitWordByHighlights(word, wordCharStart, charHighlights, WORD_HIGHLIGHT_BG)
             : null
+          const isPlaybackWord = playbackVerse && playbackWordIndex === i
+          if (isPlaybackWord) wordSegs = [{ text: word, bg: PLAYBACK_WORD_BG }]
           const wordContent = activeIdioms.length
             ? wrapIdiomTerms(word, activeIdioms, handleIdiomEnter, handleIdiomLeave, handleIdiomClick, handleIdiomContextMenu)
             : word
@@ -1188,13 +1152,17 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               {wordSegs ? (
                 <span data-word={i}>
                   {wordSegs.map((seg, si) => (
-                    <span key={si} style={seg.bg ? { backgroundColor: seg.bg, borderRadius: '2px' } : undefined}>{seg.text}</span>
+                    <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
                   ))}
                 </span>
               ) : (
                 <span
                   data-word={i}
-                  style={wHL ? { backgroundColor: WORD_HIGHLIGHT_BG[wHL.color], borderRadius: '2px', padding: '1px 0' } : undefined}
+                  className="transition-colors duration-150 ease-out"
+                  style={
+                    isPlaybackWord ? { backgroundColor: PLAYBACK_WORD_BG, borderRadius: '2px', padding: '1px 0' }
+                    : wHL ? { backgroundColor: WORD_HIGHLIGHT_BG[wHL.color], borderRadius: '2px', padding: '1px 0' } : { backgroundColor: 'transparent' }
+                  }
                 >{wordContent}</span>
               )}
               {i < words.length - 1 && (() => {
@@ -1218,7 +1186,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative transition-[background-color,border-color] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
+      className={`flex gap-3 group relative transition-[background-color,border-color,margin-bottom] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1287,6 +1255,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               <GitFork size={12} className="text-[rgb(var(--color-text-muted))]" />
               Show cross references
             </button>
+            <button
+              onClick={playAudioFromHere}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
+            >
+              <Volume2 size={12} className="text-[rgb(var(--color-text-muted))]" />
+              Play audio from here
+            </button>
             <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
             <div className="px-3 py-2 space-y-1.5">
               {[0, 1, 2].map((row) => (
@@ -1323,8 +1298,18 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         data-verse-text="true"
         onMouseUp={handleVerseMouseUp}
         onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))]"
-        style={{ lineHeight: 'var(--line-height-comfortable)' }}
+        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-300"
+        // The row wrapper's own `leading-snug`/`leading-relaxed` classes above are meant to
+        // respond to showStrongs, but a Tailwind `leading-*` class on the PARENT has nothing of
+        // its own to apply line-height to once this child sets its own inline line-height —
+        // inline style on a descendant always wins, so toggling Strong's used to only change
+        // margin, not the actual verse-text line spacing (silently smaller density change than
+        // the code appeared to intend, snapping instantly since there was no transition either).
+        // Scale relative to the user's own compact/comfortable/spacious line-height setting
+        // (--line-height-comfortable, synced from Settings in App.tsx) rather than a fixed
+        // number, so Strong's mode stays "somewhat denser than whatever this user already
+        // chose," not an independent value that ignores their preference.
+        style={{ lineHeight: showStrongs ? 'calc(var(--line-height-comfortable) * 0.82)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

@@ -4,7 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model'
 import { parseRef, type ParsedRef } from '@/lib/parseRef'
 import { findVerseRefMatches } from '@/lib/noteTextBlocks'
 import { suppressRangesKey } from './suppressRanges'
-import { buildBlockDecorations } from './blockDecorations'
+import { buildBlockDecorations, blockDecorationsKey } from './blockDecorations'
 
 // Mirrors NoteEditor.tsx's buildLiveDecorations regex set exactly (verse-ref
 // scanning is centralized in the exported `findVerseRefMatches`; lxx-prefix
@@ -17,7 +17,20 @@ const LEXICON_REF_RE = /\b[HGhg]\d{1,5}\b/g
 // read-only renderer (version history, print/export, daily scroll,
 // Presenter) — those have no EditorState/suppress-range state at all, so
 // `isSuppressed` defaults to "nothing is suppressed."
-export function buildRefDecorationsForDoc(doc: PMNode, isSuppressed: (from: number, to: number) => boolean = () => false): DecorationSet {
+export function buildRefDecorationsForDoc(
+  doc: PMNode,
+  isSuppressed: (from: number, to: number) => boolean = () => false,
+  // Optional pre-computed block-decoration set, so the LIVE editor path (buildDecorations below)
+  // can reuse blockDecorations.ts's own already-cached DecorationSet instead of recomputing the
+  // same full-document verse/lexicon-block detection walk a SECOND time on every keystroke — this
+  // function used to unconditionally call buildBlockDecorations(doc, ...) itself here purely to
+  // get `-ref`/`-def` exclusion ranges, duplicating the exact work blockDecorations.ts's own
+  // plugin was already doing. Left undefined (computed fresh) for callers with no live plugin
+  // state to read from — staticRender.ts's read-only renderer (version history, print/export,
+  // daily scroll, Presenter), which only runs once per render, not per keystroke, so recomputing
+  // there isn't the hot-path cost this was about.
+  blockDecorationSet?: DecorationSet,
+): DecorationSet {
   const decorations: Decoration[] = []
 
   // Two more reasons a range should be skipped, beyond the caller's own
@@ -35,7 +48,7 @@ export function buildRefDecorationsForDoc(doc: PMNode, isSuppressed: (from: numb
   // legitimately appearing in ordinary verse BODY text still need their own
   // ref styling.
   const blockRefRanges: Array<{ from: number; to: number }> = []
-  buildBlockDecorations(doc, () => {}).find(0, doc.content.size).forEach((d) => {
+  ;(blockDecorationSet ?? buildBlockDecorations(doc, () => {})).find(0, doc.content.size).forEach((d) => {
     const cls = (d as unknown as { type: { attrs?: { class?: string } } }).type.attrs?.class ?? ''
     if (/-(ref|def)\b/.test(cls)) blockRefRanges.push({ from: d.from, to: d.to })
   })
@@ -155,7 +168,14 @@ function buildDecorations(state: EditorState): DecorationSet {
     const ranges = suppressRangesKey.getState(state) ?? []
     return ranges.some((r) => r.from < to && r.to > from)
   }
-  return buildRefDecorationsForDoc(state.doc, isSuppressed)
+  // Read blockDecorations.ts's own already-cached DecorationSet (kept up to date by ITS OWN
+  // docChanged-gated apply()) instead of recomputing the same full-document block-detection walk
+  // here too. Only correct because createBlockDecorationsPlugin is registered BEFORE this plugin
+  // in NoteEditorPM.tsx's plugins array — ProseMirror computes each plugin's new state in array
+  // order for a given transaction, so by the time THIS plugin's apply() runs, blockDecorations'
+  // state has already been updated for the CURRENT transaction, not left one transaction stale.
+  const cachedBlockSet = blockDecorationsKey.getState(state) as DecorationSet | undefined
+  return buildRefDecorationsForDoc(state.doc, isSuppressed, cachedBlockSet)
 }
 
 // Separate plugin (not decoration-producing) purely for click dispatch, so

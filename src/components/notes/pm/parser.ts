@@ -123,12 +123,178 @@ function expandExtraBlankLines(source: string): string {
     .join('')
 }
 
+// ─── Side-by-side columns (2.4) ─────────────────────────────────────────────
+// `<!-- berean:columns -->` / `<!-- berean:col -->` / closing counterparts —
+// see schema.ts's column_list/column node comment for why this is HTML
+// comments, not a GFM table. Recognized via a regex pre-split BEFORE the
+// source reaches markdown-it (rather than a custom markdown-it block-rule
+// plugin): each columns region is swapped out for a unique placeholder
+// paragraph, the REST of the document goes through the completely
+// unmodified parse pipeline, then convertCallouts' own post-process walk
+// (below) replaces each placeholder paragraph with a real column_list node
+// built by recursively calling THIS SAME parseMarkdown function on each
+// column's own raw markdown text — reusing 100% of the existing parsing
+// logic (marks, lists, callouts, tables, nested fences, even nested
+// column_lists, for free) with zero duplication.
+//
+// Extraction is done with a line-by-line scan (not a single regex over the
+// whole string) specifically so it can stay fence-aware: a fenced code
+// block's OWN lines are skipped over without ever testing them against the
+// marker patterns, so literal "<!-- berean:col -->" example text pasted
+// inside a code fence (even one nested inside a column's own content) is
+// never mistaken for a real marker. A naive "mask code fences by string
+// substitution first" approach was considered and rejected — collapsing a
+// multi-line fence to a single-line placeholder token shifts character
+// offsets, which breaks re-extracting the ORIGINAL (unmasked) column text
+// afterward; the line-based scan sidesteps that class of bug entirely by
+// never needing offset bookkeeping.
+//
+// Malformed input (an unmatched columns/col marker, or a columns block with
+// fewer than 2 <!-- berean:col --> pairs — column_list's own schema.ts
+// content model, `column{2,}`, forbids fewer) is a deliberate no-op: the
+// marker lines are put back verbatim into the parsed stream rather than
+// dropped, so a malformed block round-trips as plain (readable) paragraph
+// text instead of silently losing content.
+//
+// KNOWN LIMITATION: this only recognizes markers that sit on their OWN
+// line with nothing else on it (exactly what the serializer always
+// produces) — hand-edited markdown that puts a marker mid-line won't be
+// recognized as a column boundary. That's a deliberate, safe fallback (see
+// above), not data loss.
+
+const FENCE_LINE_RE = /^(```|~~~)/
+const COLUMNS_OPEN_RE = /^<!--\s*berean:columns\s*-->\s*$/
+const COLUMNS_CLOSE_RE = /^<!--\s*\/berean:columns\s*-->\s*$/
+const COL_OPEN_RE = /^<!--\s*berean:col\s*-->\s*$/
+const COL_CLOSE_RE = /^<!--\s*\/berean:col\s*-->\s*$/
+
+// U+2063 INVISIBLE SEPARATOR bookends — practically invisible and never something a user
+// would type by hand, so a real note's own text can never collide with this placeholder,
+// mirroring EXTRA_BLANK_MARKER's own zero-width-space sentinel above.
+function columnsPlaceholder(id: number): string {
+  return `⁣berean-columns-${id}⁣`
+}
+const COLUMNS_PLACEHOLDER_RE = /^⁣berean-columns-(\d+)⁣$/
+
+/** Splits `blockLines` (the raw lines strictly between a `<!-- berean:columns -->` /
+ * `<!-- /berean:columns -->` pair) into each column's own raw markdown text, honoring
+ * fenced code blocks so a marker-lookalike line inside one is never treated as a real
+ * `<!-- berean:col -->` boundary. Returns null on any structural mismatch (a stray line
+ * outside a col/…/col pair, or fewer than 2 columns found) — the caller falls back to
+ * leaving the whole block as literal text rather than guessing.
+ *
+ * DEPTH-TRACKED, not nearest-match: a column may itself contain a full nested
+ * `<!-- berean:columns -->…<!-- /berean:columns -->` block (see the "nesting" section of
+ * extractColumnBlocks' own doc comment) — which means that column's raw text also contains
+ * its OWN `<!-- berean:col -->`/`<!-- /berean:col -->` pairs, nested one level deeper. A
+ * naive scan that stops at the FIRST `<!-- /berean:col -->` it sees would close the outer
+ * column early, right after the nested list's first inner column. Counting nested opens
+ * against closes (depth, below) finds the TRUE matching close at the correct depth instead. */
+function splitColumns(blockLines: string[]): string[] | null {
+  const cols: string[] = []
+  let i = 0
+  while (i < blockLines.length) {
+    const line = blockLines[i]
+    if (!COL_OPEN_RE.test(line)) {
+      if (line.trim() !== '') return null // stray non-blank content outside a col pair
+      i++
+      continue
+    }
+    i++
+    const colLines: string[] = []
+    let inFence = false
+    let fenceMarker = ''
+    let depth = 1
+    let closed = false
+    while (i < blockLines.length) {
+      const l = blockLines[i]
+      if (!inFence && FENCE_LINE_RE.test(l.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(l.trim())![1] }
+      else if (inFence && l.trim().startsWith(fenceMarker)) inFence = false
+      if (!inFence && COL_OPEN_RE.test(l)) depth++
+      else if (!inFence && COL_CLOSE_RE.test(l)) {
+        depth--
+        if (depth === 0) { i++; closed = true; break }
+      }
+      colLines.push(l)
+      i++
+    }
+    if (!closed) return null // unterminated <!-- berean:col -->
+    cols.push(colLines.join('\n'))
+  }
+  return cols.length >= 2 ? cols : null
+}
+
+/** Scans `source` line-by-line, replacing every well-formed top-level
+ * `<!-- berean:columns -->…<!-- /berean:columns -->` region with a unique placeholder line
+ * (fence-aware — see the module comment above), collecting each region's per-column raw
+ * markdown into `columnLists` keyed by that placeholder's id. Everything else (including
+ * ordinary fenced code blocks outside any columns region) passes through completely
+ * untouched. */
+function extractColumnBlocks(source: string): { text: string; columnLists: Map<number, string[]> } {
+  const columnLists = new Map<number, string[]>()
+  const lines = source.split('\n')
+  const out: string[] = []
+  let counter = 0
+  let i = 0
+  let inFence = false
+  let fenceMarker = ''
+  while (i < lines.length) {
+    const line = lines[i]
+    if (!inFence && FENCE_LINE_RE.test(line.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(line.trim())![1]; out.push(line); i++; continue }
+    if (inFence) {
+      if (line.trim().startsWith(fenceMarker)) inFence = false
+      out.push(line)
+      i++
+      continue
+    }
+    if (COLUMNS_OPEN_RE.test(line)) {
+      const blockLines: string[] = []
+      i++
+      let innerFence = false
+      let innerFenceMarker = ''
+      // Depth-tracked (not nearest-match) for the same reason splitColumns tracks `<!--
+      // berean:col -->` depth: a column may contain its own nested columns block, whose
+      // closing marker must NOT be mistaken for this (outer) block's own close.
+      let depth = 1
+      let closed = false
+      while (i < lines.length) {
+        const l = lines[i]
+        if (!innerFence && FENCE_LINE_RE.test(l.trim())) { innerFence = true; innerFenceMarker = FENCE_LINE_RE.exec(l.trim())![1] }
+        else if (innerFence && l.trim().startsWith(innerFenceMarker)) innerFence = false
+        if (!innerFence && COLUMNS_OPEN_RE.test(l)) depth++
+        else if (!innerFence && COLUMNS_CLOSE_RE.test(l)) {
+          depth--
+          if (depth === 0) { i++; closed = true; break }
+        }
+        blockLines.push(l)
+        i++
+      }
+      const cols = closed ? splitColumns(blockLines) : null
+      if (cols) {
+        const id = counter++
+        columnLists.set(id, cols)
+        out.push(columnsPlaceholder(id))
+      } else {
+        // Malformed — restore verbatim (readable plain text, not data loss).
+        out.push('<!-- berean:columns -->', ...blockLines)
+        if (closed) out.push('<!-- /berean:columns -->')
+      }
+      continue
+    }
+    out.push(line)
+    i++
+  }
+  return { text: out.join('\n'), columnLists }
+}
+
 /**
  * Parse markdown source into a ProseMirror document, then run structural
  * post-processing that isn't expressible as a token→node ParseSpec mapping:
  * callout detection, i.e. a `blockquote` whose first paragraph starts with
- * `[!TYPE]` becomes a `callout` node with that leading marker stripped, and
- * extra-blank-line marker paragraphs becoming genuinely empty paragraphs.
+ * `[!TYPE]` becomes a `callout` node with that leading marker stripped;
+ * extra-blank-line marker paragraphs becoming genuinely empty paragraphs;
+ * and columns-placeholder paragraphs becoming real column_list nodes (see
+ * the "Side-by-side columns" section above).
  * (Verse/lexicon blocks are deliberately NOT handled here — see schema.ts;
  * they stay plain paragraphs and are decorated live in Phase 5.)
  */
@@ -139,24 +305,25 @@ export function parseMarkdown(source: string): PMNode {
   // hand this a null/undefined value — coercing here means the EditorView
   // never fails to construct over it (which otherwise silently leaves the
   // note completely non-editable, with no visible error at all).
-  const preprocessed = expandExtraBlankLines(source ?? '')
-  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode)
+  const { text: columnsStripped, columnLists } = extractColumnBlocks(source ?? '')
+  const preprocessed = expandExtraBlankLines(columnsStripped)
+  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode, columnLists)
 }
 
 const CALLOUT_RE = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]\s?/i
 
-function convertCallouts(doc: PMNode): PMNode {
-  return mapBlockChildren(doc)
+function convertCallouts(doc: PMNode, columnLists: Map<number, string[]>): PMNode {
+  return mapBlockChildren(doc, columnLists)
 }
 
-function mapBlockChildren(node: PMNode): PMNode {
+function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>): PMNode {
   if (!node.isBlock || node.content.size === 0) return node
   const mapped: PMNode[] = []
-  node.forEach((child) => mapped.push(maybeConvertNode(child)))
+  node.forEach((child) => mapped.push(maybeConvertNode(child, columnLists)))
   return node.copy(Fragment.fromArray(mapped))
 }
 
-function maybeConvertNode(node: PMNode): PMNode {
+function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>): PMNode {
   // Extra-blank-line marker paragraph (see expandExtraBlankLines above) —
   // a paragraph whose sole content is the zero-width-space marker becomes
   // a genuinely empty paragraph, which serializer.ts's custom paragraph
@@ -166,16 +333,30 @@ function maybeConvertNode(node: PMNode): PMNode {
     if (only && only.isText && only.text === EXTRA_BLANK_MARKER) {
       return schema.nodes.paragraph.create()
     }
+    // Columns placeholder paragraph (see extractColumnBlocks above) — becomes a real
+    // column_list, with each column's raw markdown parsed independently through THIS SAME
+    // parseMarkdown function (recursive — also transparently handles a column that itself
+    // contains a nested <!-- berean:columns --> block).
+    if (only && only.isText) {
+      const m = COLUMNS_PLACEHOLDER_RE.exec(only.text || '')
+      if (m) {
+        const cols = columnLists.get(Number(m[1]))
+        if (cols) {
+          const columnNodes = cols.map((colMd) => schema.nodes.column.create(null, parseMarkdown(colMd).content))
+          return schema.nodes.column_list.create(null, columnNodes)
+        }
+      }
+    }
   }
-  if (node.type.name !== 'blockquote') return mapBlockChildren(node)
+  if (node.type.name !== 'blockquote') return mapBlockChildren(node, columnLists)
 
   const firstPara = node.firstChild
   const firstText = firstPara && firstPara.type.name === 'paragraph' ? firstPara.firstChild : null
   const m = firstText && firstText.isText ? CALLOUT_RE.exec(firstText.text || '') : null
-  if (!m) return mapBlockChildren(node)
+  if (!m) return mapBlockChildren(node, columnLists)
 
   const calloutType = m[1].toUpperCase()
-  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node)
+  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node, columnLists)
 
   // Strip the "[!TYPE] " marker from the start of the first paragraph's text.
   const strippedFirstPara = firstPara!.cut(m[0].length)
@@ -190,5 +371,5 @@ function maybeConvertNode(node: PMNode): PMNode {
   if (restChildren.length === 0) restChildren.push(schema.nodes.paragraph.create())
 
   const converted = schema.nodes.callout.create({ calloutType }, Fragment.fromArray(restChildren))
-  return mapBlockChildren(converted)
+  return mapBlockChildren(converted, columnLists)
 }

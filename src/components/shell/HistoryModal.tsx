@@ -352,9 +352,10 @@ export default function HistoryModal() {
   // "Study view" (default on): hides routine chapter-to-chapter Bible reading —
   // by far the noisiest entry type (every chapter change while reading, arrow-
   // key paging, tab restores) — while keeping every deliberate action (notes,
-  // lexicon, Strong's clicks, compare, search, imports) visible. Only meaningful
-  // on the All/Scripture tabs (it's the only tab types that include 'bible'); other
-  // tabs are unaffected either way.
+  // lexicon, Strong's clicks, compare, search, imports) visible. Only applies
+  // within the dedicated Scripture tab — "All" always shows every visit
+  // (including routine reads) so it stays a complete record regardless of
+  // this toggle; other tabs never contain 'bible' entries anyway.
   const [hideRoutineReading, setHideRoutineReading] = useState(true)
   const [sortNewest, setSortNewest]       = useState(true)
   const [showFilters, setShowFilters]     = useState(false)
@@ -479,7 +480,10 @@ export default function HistoryModal() {
     }
     if (deferredDate) entries = entries.filter(e => toDateStr(e.timestamp) === deferredDate)
     if (deferredTypes.size > 0) entries = entries.filter(e => deferredTypes.has(e.type))
-    if (hideRoutineReading && deferredTab !== 'scripture') entries = entries.filter(e => e.type !== 'bible')
+    // Study-only only ever refines the Scripture tab's own list — "All" must always
+    // show every visit (including routine chapter-to-chapter reads) regardless of
+    // this toggle's state, since it's the one view meant to be a complete record.
+    if (hideRoutineReading && deferredTab === 'scripture') entries = entries.filter(e => e.type !== 'bible')
     return entries
   }, [history, deferredSearch, deferredDate, deferredTypes, hideRoutineReading, deferredTab, noteTitles, noteContents, chapterTextCache, lexiconDefCache])
 
@@ -648,9 +652,9 @@ export default function HistoryModal() {
         {/* ── Filter panel ── */}
         {showFilters && (
           <div className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0 space-y-2 bg-[rgb(var(--color-surface-2))]">
-            {/* Study vs. All — only meaningful on tabs that can contain routine Bible
-                chapter-to-chapter reads (the noisiest entry type by far). */}
-            {(activeHistoryTab === 'all' || activeHistoryTab === 'scripture') && (
+            {/* Study vs. All — only ever refines the Scripture tab's own list; "All"
+                always shows every visit regardless of this toggle (see preTabFiltered). */}
+            {activeHistoryTab === 'scripture' && (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-[rgb(var(--color-text-muted))] w-9 flex-shrink-0">Reads</span>
                 <div className="flex items-center rounded-full border border-[rgb(var(--color-surface-4))] overflow-hidden text-[9px] font-medium">

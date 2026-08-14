@@ -259,6 +259,56 @@ describe('NotesPanel tab-switch state sync', () => {
     statusBtn = Array.from(el.querySelectorAll('button')).find((b) => b.title === 'Set status' || (b.title || '').startsWith('Status:')) as HTMLButtonElement
     expect(statusBtn?.title).toBe('Set status')
   })
+
+  // Regression test for the "wrong content in a Notes tab" bug: the noteChangeToken
+  // "external change" refetch effect fires for ANY note change anywhere in the app, captures
+  // whichever note is active AT THAT MOMENT, and does an async window.notes.getNote() round
+  // trip for it. If the user switches to a different tab before that resolves, the resolved
+  // handler used to compare the fetch only against content/updatedAt — never the note's id —
+  // so a stale response for the OLD note would look like a legitimate external edit of the NEW
+  // note and silently overwrite it. Exercises that exact out-of-order-resolution race.
+  it('does not clobber the newly active tab\'s note when a stale external-change getNote() resolves after switching tabs', async () => {
+    const noteAStale = makeNote({ id: noteA.id, title: 'Note A', content: 'STALE EXTERNAL CONTENT', updatedAt: Date.now() + 99999 })
+    let resolveGetNote: ((note: Note | null) => void) | null = null
+    ;(window.notes.getNote as ReturnType<typeof vi.fn>).mockImplementation((id: string) => {
+      if (id === noteA.id) {
+        return new Promise<Note | null>((resolve) => { resolveGetNote = resolve })
+      }
+      if (id === noteB.id) return Promise.resolve(noteB)
+      return Promise.resolve(null)
+    })
+
+    const el = mount()
+    expect(el.querySelector('.ProseMirror')?.textContent).toContain('Content A')
+
+    // Fire the external-change refetch effect while note A is still active — this captures
+    // `current = note A` and kicks off the deferred getNote('note-a') above.
+    await act(async () => {
+      useAppStore.getState().bumpNoteToken()
+      await Promise.resolve()
+    })
+    expect(resolveGetNote).toBeTruthy()
+
+    // Before that fetch resolves, the user switches to tab B (cache-warm, so this resolves
+    // synchronously within the act()).
+    await act(async () => {
+      useAppStore.getState().setActiveTab('notes', 'tab-b')
+      await Promise.resolve()
+    })
+    expect(el.querySelector('.ProseMirror')?.textContent).toContain('Content B')
+
+    // Now the stale fetch for note A resolves. Pre-fix, this overwrote whatever's currently
+    // displayed (note B) with note A's stale content because the handler never checked that the
+    // fetched note's id still matched the active one.
+    await act(async () => {
+      resolveGetNote!(noteAStale)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(el.querySelector('.ProseMirror')?.textContent).toContain('Content B')
+    expect(el.textContent).not.toContain('STALE EXTERNAL CONTENT')
+  })
 })
 
 // c7f6898 — "stop deleting titled notes on back-nav": goBack() only kept empty-body notes when

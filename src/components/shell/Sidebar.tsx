@@ -255,10 +255,40 @@ export default function Sidebar() {
   async function openDailyNoteInTab(date: Date) {
     const noteId = await resolveDailyNoteId(date)
     if (!noteId) return
-    useAppStore.getState().createTab('note')
     const store = useAppStore.getState()
-    const newTabId = store.activeTabId['notes']
-    if (newTabId) store.updateTabState('notes', newTabId, { noteId, isNew: false })
+
+    // Reuse a Notes tab already pointed at THIS daily note instead of stacking a fresh duplicate
+    // every time the same day is clicked (clicking the 5th three times used to leave three
+    // identical tabs behind).
+    const existing = (store.tabs.notes ?? []).find(
+      (t) => t.type === 'note' && (t.state as { noteId?: string | null } | undefined)?.noteId === noteId,
+    )
+    if (existing) {
+      store.activateTab(existing)
+      store.bumpNoteToken()
+      return
+    }
+
+    // Build the tab ALREADY carrying its title and noteId, rather than the old
+    // createTab('note')-then-updateTabState() two-step. That two-step caused both reported
+    // calendar bugs:
+    //  - createTab stamps a note tab with the generic `title: 'Notes'` (see its `type === 'note'`
+    //    branch in store/index.ts), and nothing in this path ever replaced it — so a daily note
+    //    opened from the sidebar calendar sat in the tab bar labelled "Notes" instead of its date.
+    //  - it left the tab observably `{ noteId: null, isNew: true }` between the two store writes.
+    //    NotesPanel's restore AND persist effects both key on the active notes tab id, so a pass
+    //    landing in that window sees a blank tab while `activeNote` is still the PREVIOUS tab's
+    //    note — normally today's daily note — and can write that back over the day actually
+    //    requested, which is exactly "opening a different day opens today's note".
+    // The sibling openDailyNoteInNewTab() below already constructed its tab this way; matching
+    // that shape means the two paths can no longer drift apart.
+    store.addTab({
+      id: `note-${noteId}-${Date.now()}`,
+      spaceId: 'notes',
+      type: 'note',
+      title: dailyNoteTitle(date),
+      state: { noteId, isNew: false },
+    })
     useAppStore.getState().bumpNoteToken()
   }
 

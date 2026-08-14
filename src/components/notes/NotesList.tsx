@@ -8,6 +8,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import type { Note, NoteStatus } from '@/types'
 import { stripMarkdownFormatting } from '@/lib/notePreviewText'
 import { NoteBadgeRow } from './NoteBadgeRow'
+import NoteIcon from './NoteIcon'
 
 // Build up to `max` truncated snippets around occurrences of `query` in `content`.
 export function contentSnippets(content: string, query: string, max = 3): string[] {
@@ -236,8 +237,11 @@ export default function NotesList({
                     className="text-sm font-medium text-[rgb(var(--color-text-primary))] bg-[rgb(var(--color-surface-4))] rounded px-1 w-full outline-none border border-[rgb(var(--color-accent))/50]"
                   />
                 ) : (
-                  <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate w-full">
-                    {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
+                  <span className="flex items-center gap-1 w-full min-w-0">
+                    <NoteIcon icon={note.icon} size={13} />
+                    <span className="text-sm font-medium text-[rgb(var(--color-text-primary))] truncate">
+                      {findQuery ? applyFindHighlight(note.title || 'Untitled', findQuery) : (note.title || 'Untitled')}
+                    </span>
                   </span>
                 )}
                 {!isRenaming && (

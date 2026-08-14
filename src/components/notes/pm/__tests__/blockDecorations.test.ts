@@ -72,6 +72,15 @@ describe('multi-paragraph verse/lexicon block detection', () => {
     view.destroy()
   })
 
+  it('single-line LXX verse block ("Book c:v LXX body…") includes the "LXX" word in the styled ref span, not just "Book c:v" — regression for the span stopping short and leaving "LXX" as unstyled body text', () => {
+    const doc = docFromLines('Isaiah 9:12 LXX But the people that walked in darkness have seen a great light')
+    const view = makeView(doc)
+    const refEl = view.dom.querySelector('.pm-verse-block-ref')
+    expect(refEl).not.toBeNull()
+    expect(refEl!.textContent).toBe('Isaiah 9:12 LXX')
+    view.destroy()
+  })
+
   it('lexicon blocks are NOT gated by noteScriptureBlock (matches the original CM6 behavior)', () => {
     useAppStore.getState().setNoteScriptureBlock?.(false)
     const doc = docFromLines('H7225 בְּרֵאשִׁית rêʼshîyth;', 'the first, in place, time, order or rank')
@@ -150,12 +159,71 @@ describe('verse block false-positive verification (window.bible mocked)', () => 
     }
     const doc = docFromLines('2 Peter 3:5 this talks about a warning')
     const view = makeView(doc)
-    // Pending verification suppresses the block on the first synchronous pass.
-    expect(view.dom.innerHTML).not.toContain('pm-verse-block')
-    // Let the mocked async fetch + re-decoration resolve.
+    // Pending verification suppresses the (boxed) block on the first synchronous pass —
+    // it now shows the #2.2 "checking" bridge state instead of nothing, but must NOT be
+    // boxed yet (that's still gated on the async result).
+    expect(view.dom.innerHTML).not.toContain('pm-verse-block ')
+    expect(view.dom.innerHTML).toContain('pm-verse-block-checking')
+    // Let the mocked async fetch + re-decoration resolve — first past
+    // noteTextBlocks.ts's own VERSE_LOOKUP_DEBOUNCE_MS (300ms; real timers here, not fake),
+    // since the DB round-trip doesn't even start until that elapses.
+    await new Promise((r) => setTimeout(r, 320))
     await new Promise((r) => setTimeout(r, 0))
     await new Promise((r) => setTimeout(r, 0))
-    expect(view.dom.innerHTML).not.toContain('pm-verse-block')
+    // Rejected once resolved — neither boxed nor still showing "checking".
+    expect(view.dom.innerHTML).not.toContain('pm-verse-block ')
+    expect(view.dom.innerHTML).not.toContain('pm-verse-block-checking')
+    view.destroy()
+  })
+})
+
+// Fluid-feel polish #2.2 — see NoteEditorPM's verseBlockAsyncAccept.test.tsx for the
+// end-to-end (through the real React-mounted editor) version of this coverage; these two
+// exercise the pending → checking-class behavior directly against buildBlockDecorations'
+// output for both the single-line and multi-line candidate shapes.
+describe('verse block "checking" micro-state while verification is pending', () => {
+  let originalBible: unknown
+
+  beforeEach(() => {
+    useAppStore.getState().setNoteScriptureBlock?.(true)
+    originalBible = (window as unknown as { bible?: unknown }).bible
+  })
+  afterEach(() => {
+    useAppStore.getState().setNoteScriptureBlock?.(false)
+    ;(window as unknown as { bible?: unknown }).bible = originalBible
+  })
+
+  it('single-line candidate: pending shows pm-verse-block-checking, not pm-verse-block, on the first synchronous pass', () => {
+    ;(window as unknown as { bible: { queryChapter: (...a: unknown[]) => Promise<unknown> } }).bible = {
+      queryChapter: vi.fn(() => new Promise(() => {})), // never resolves within this test
+    }
+    const doc = docFromLines('Genesis 1:1 In the beginning God created the heaven and the earth.')
+    const view = makeView(doc)
+    const html = view.dom.innerHTML
+    expect(html).toContain('pm-verse-block-checking')
+    expect(html).not.toContain('pm-lexicon-block-checking') // sanity: right class, not a typo'd sibling
+    // "pm-verse-block " (trailing space) only appears as part of a real boxed decoration's
+    // multi-class attribute (e.g. `pm-verse-block pm-verse-block-only`) — the checking-only
+    // class alone never produces that substring, so this distinguishes "checking" from
+    // "actually boxed" without a regex \b that would (wrongly) also match inside
+    // "pm-verse-block-checking" itself.
+    expect(html).not.toContain('pm-verse-block ')
+    view.destroy()
+  })
+
+  it('multi-line candidate: pending shows pm-verse-block-checking on the ref line, not pm-verse-block', () => {
+    ;(window as unknown as { bible: { queryChapter: (...a: unknown[]) => Promise<unknown> } }).bible = {
+      queryChapter: vi.fn(() => new Promise(() => {})),
+    }
+    const doc = docFromLines(
+      'Genesis 5:6-7',
+      '6 And Seth lived an hundred and five years, and begat Enos:',
+      '7 And Seth lived after he begat Enos eight hundred and seven years, and begat sons and daughters:',
+    )
+    const view = makeView(doc)
+    const html = view.dom.innerHTML
+    expect(html).toContain('pm-verse-block-checking')
+    expect(html).not.toContain('pm-verse-block ')
     view.destroy()
   })
 })

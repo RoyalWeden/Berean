@@ -166,3 +166,56 @@ export function mapChapterOnTranslationSwitch(
 
   return chapter
 }
+
+/**
+ * Maps a chapter as displayed in `textId` to its KJV-equivalent chapter(s), for querying
+ * translation-agnostic (KJV-keyed) data — user notes, `cross_references.db`, and
+ * `tske_refs.db` are all keyed to KJV/Hebrew chapter numbers regardless of which
+ * translation is currently on screen.
+ *
+ * Returns an array because an LXX merge chapter legitimately corresponds to TWO KJV
+ * chapters — e.g. LXX Psalm 9 merges KJV Psalms 9 and 10, so content and notes/cross-refs
+ * for BOTH KJV chapters need to be pulled in when viewing LXX Psalm 9. Callers should
+ * query/union across every entry returned, not just the first.
+ *
+ * Only Psalms has this offset in Berean's current data (see the module comment above) —
+ * every other book, and every non-LXX `textId`, is an identity mapping (`[chapter]`).
+ */
+export function toCanonicalChapters(bookId: string, chapter: number, textId: string): number[] {
+  if (bookId.toUpperCase() !== 'PSA' || !isLxxTranslation(textId)) return [chapter]
+  if (chapter === 9) return [9, 10]      // LXX 9 = KJV 9+10 merged
+  if (chapter === 113) return [114, 115] // LXX 113 = KJV 114+115 merged
+  return [psalmLxxToKjv(chapter)]
+}
+
+/**
+ * General bidirectional form of `toCanonicalChapters`: maps a chapter as displayed in
+ * `fromTextId` to the chapter number(s) it corresponds to in `toTextId`'s own numbering.
+ * Used for cross-linking user notes between KJV and LXX (unlike cross-references/TSKe,
+ * notes can be created under EITHER numbering system, so the target side isn't always
+ * KJV). Returns multiple entries whenever the source chapter spans more than one chapter
+ * in the target numbering — an LXX→KJV merge chapter, or a KJV→LXX split chapter.
+ *
+ *   equivalentChapters(bookId, chapter, textId, 'kjva') === toCanonicalChapters(bookId, chapter, textId)
+ */
+export function equivalentChapters(
+  bookId: string,
+  chapter: number,
+  fromTextId: string,
+  toTextId: string,
+): number[] {
+  const from = fromTextId.toLowerCase()
+  const to = toTextId.toLowerCase()
+  if (isLxxTranslation(from) === isLxxTranslation(to)) return [chapter]
+
+  if (bookId.toUpperCase() === 'PSA') {
+    if (isLxxTranslation(from) && isKjvTranslation(to)) return toCanonicalChapters(bookId, chapter, fromTextId)
+    if (isKjvTranslation(from) && isLxxTranslation(to)) {
+      if (chapter === 116) return [114, 115] // KJV 116 splits into LXX 114+115
+      if (chapter === 147) return [146, 147] // KJV 147 splits into LXX 146+147
+      return [psalmKjvToLxx(chapter)]
+    }
+  }
+
+  return [mapChapterOnTranslationSwitch(bookId, chapter, fromTextId, toTextId)]
+}

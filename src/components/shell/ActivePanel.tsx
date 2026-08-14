@@ -73,8 +73,16 @@ export default function ActivePanel() {
               there's no intermediate frame to flash through, and — since old and new are never
               both mounted at once (no overlapping enter/exit) — no risk of the double-portaled-
               header collision the AnimatePresence's mode="wait" was originally added to avoid
-              (see TabHeaderPortal). */}
-          <div key={tab ? (tab.type === 'note' ? 'panel:note' : tab.id) : 'empty'} className="absolute inset-0">
+              (see TabHeaderPortal).
+              'note' and 'bible' share one key across every tab of their type (not tab.id) so
+              switching between two notes, or between two scripture tabs, updates content in
+              place instead of unmounting+remounting the whole panel — BiblePanel.tsx tears down
+              every VerseRow/StrongsInline in the outgoing chapter (~8-11k elements on a page
+              like Psalm 119) and re-issues 3 fresh IPC fetches on every single switch otherwise,
+              real per-switch cost. BiblePanel.tsx has its own render-phase reset for the mount-
+              scoped local state this relies on (see its prevBibleTabIdForResetRef) — lexicon/
+              search/pdf don't have the equivalent audit done yet, so they still remount. */}
+          <div key={tab ? (tab.type === 'note' || tab.type === 'bible' ? `panel:${tab.type}` : tab.id) : 'empty'} className="absolute inset-0">
             {!tab && <EmptyState />}
             {tab?.type === 'bible'   && <ErrorBoundary label="Bible panel error"><BiblePanel /></ErrorBoundary>}
             {tab?.type === 'note'    && <ErrorBoundary label="Notes panel error"><NotesPanel /></ErrorBoundary>}

@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Home } from 'lucide-react'
 import PanelHeader from './PanelHeader'
 import { useTopBarSlot } from './TopBarSlotContext'
-import { useAppStore } from '@/store'
 
 /**
  * Drop-in replacement for PanelHeader at each of the 5 tab-panel call sites.
@@ -26,59 +24,18 @@ export default function TabHeaderPortal({
   children: ReactNode
 }) {
   const slotEl = useTopBarSlot()
-  const content = (
-    <>
-      <HomeButton />
-      {children}
-    </>
-  )
+  // The Home button used to be rendered here, ahead of `children`. It moved into ShellHeader's
+  // fixed left nav pill (beside back/forward/history): portaled here it landed in the top bar's
+  // flex-1, justify-end slot, so its appearing/disappearing with tab navigation state pushed
+  // every other control in that slot sideways. It is a global navigation action like back and
+  // forward, so it belongs with them in the cluster that never reflows — see the comment at its
+  // new home in ShellHeader.tsx. Floating windows keep their own PanelHeader and have no shared
+  // top bar, so they simply have no Home affordance now; their nav is per-window anyway.
+  const content = <>{children}</>
   if (floating) return <PanelHeader floating className={className}>{content}</PanelHeader>
   if (!active || !slotEl) return null
   return createPortal(
     <div className={`flex items-center gap-2 min-w-0 w-full ${className}`}>{content}</div>,
     slotEl
-  )
-}
-
-// A small, persistent way back to the tab's own search/browse view — the
-// mechanism (navTabBack repeated to the synthetic idx-(-1) "home" entry)
-// already existed but was only reachable via a long-press/right-click on
-// the top bar's global back button (TopBar.tsx's nav-history dropdown),
-// not as a visible affordance on the tab itself. Notes, Lexicon, and YouTube
-// tabs support a "home" state (navSupportsHome in the store) — YouTube's own
-// local "← Back" button (which just did setActiveVideoId(null) and duplicated
-// this) was removed from YouTubeTab.tsx in favor of this shared affordance.
-function HomeButton() {
-  const activeSpace = useAppStore((s) => s.activeSpace)
-  const activeTabId = useAppStore((s) => s.activeTabId[activeSpace])
-  const tabNavStacks = useAppStore((s) => s.tabNavStacks)
-  const goToTabHome = useAppStore((s) => s.goToTabHome)
-
-  const tabStack = activeTabId ? tabNavStacks[activeTabId] : null
-  const stackType = tabStack?.stack[0]?.type
-  const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube' || stackType === 'bible'
-  if (!supportsHome || !tabStack) return null
-  // Bible tabs have no synthetic -1 "nothing open" state (see goToTabHome's own comment) —
-  // their "home" is idx 0, the earliest tracked chapter, so the disabled-when-already-there
-  // check differs from the other three types' idx < 0 check.
-  if (stackType === 'bible' ? tabStack.idx <= 0 : tabStack.idx < 0) return null
-
-  const label = stackType === 'note' ? 'Notes list' : stackType === 'lexicon' ? 'Lexicon search' : stackType === 'youtube' ? 'YouTube browse' : 'Scripture browse'
-
-  // Plain native title, not Radix Tooltip: this component is portaled from
-  // each panel's own component tree (NotesPanel/LexiconPanel), not from
-  // inside TopBar.tsx's tree — createPortal relocates the DOM node but not
-  // the React fiber/context lineage, so it doesn't inherit TopBar's local
-  // <Tooltip.Provider> (this codebase wraps providers per-component, not
-  // globally — confirmed no global provider exists). A native title avoids
-  // needing to thread its own provider through here.
-  return (
-    <button
-      onClick={() => goToTabHome()}
-      title={label}
-      className="no-drag flex-shrink-0 p-1.5 rounded-shell transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]"
-    >
-      <Home size={14} />
-    </button>
   )
 }

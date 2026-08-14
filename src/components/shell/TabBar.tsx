@@ -566,7 +566,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           const isCrossSpaceTarget  = crossSpaceHoverIdx === idx
 
           return (
-            <div key={tab.id} className="relative">
+            // `layout` — reordering a tab (drag-drop) previously left every OTHER tab to just
+            // snap to its new row position on the very next render, since a plain `<div>` has
+            // nothing animating its own layout. framer-motion's `layout` prop already proved out
+            // in this exact list (the `layoutId="active-tab-pill"` background below), so this
+            // reuses the same mechanism to smoothly slide tabs into their new positions instead
+            // of an abrupt reflow — the "make tab reordering feel smoother" half of this request.
+            <motion.div key={tab.id} layout="position" transition={{ type: 'spring', stiffness: 500, damping: 40 }} className="relative">
               {showInsertBefore && (
                 <div className="absolute top-0 left-1 right-1 h-0.5 rounded-full bg-[rgb(var(--color-accent))] z-10 -translate-y-px pointer-events-none" />
               )}
@@ -637,7 +643,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
               {showInsertAfter && (
                 <div className="absolute bottom-0 left-1 right-1 h-0.5 rounded-full bg-[rgb(var(--color-accent))] z-10 translate-y-px pointer-events-none" />
               )}
-            </div>
+            </motion.div>
           )
         })}
       </div>

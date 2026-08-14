@@ -28,6 +28,13 @@ const REF_LINE_2 = '2 Peter 3:3-4'
 const V3 = 'Knowing this first, that there shall come in the last days scoffers, walking after their own lusts,'
 const V4 = 'And saying, Where is the promise of his coming? for since the fathers fell asleep, all things continue as they were from the beginning of the creation.'
 
+// A third, distinct ref+candidate pair (own cache key) so the "checking" micro-state test
+// below observes a genuinely fresh/pending lookup rather than reading a cache entry the
+// first test in this file already resolved for the same REF_LINE/V1/V2 combination.
+const REF_LINE_3 = '2 Peter 3:5-6'
+const V5 = 'For this they willingly are ignorant of, that by the word of God the heavens were of old, and the earth standing out of the water and in the water:'
+const V6 = 'Whereby the world that then was, being overflowed with water, perished:'
+
 function mount(props: Parameters<typeof NoteEditorPM>[0]) {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -42,6 +49,10 @@ async function flushAsyncVerification() {
   // React state update — flushing them without wrapping in `act()` deliberately mirrors
   // what happens in the real app, where nothing forces a React re-render either; the
   // repaint has to come from ProseMirror's own dispatch alone.
+  // First wait past noteTextBlocks.ts's own VERSE_LOOKUP_DEBOUNCE_MS (300ms) — the actual
+  // DB round-trip is now debounced (real timers here, not fake ones), so it doesn't even
+  // START until that elapses.
+  await new Promise((r) => setTimeout(r, 320))
   await new Promise((r) => setTimeout(r, 0))
   await new Promise((r) => setTimeout(r, 0))
 }
@@ -56,6 +67,8 @@ describe('verse block: async DB verification accepts a genuine match with no int
         { verse_num: 2, text: V2 },
         { verse_num: 3, text: V3 },
         { verse_num: 4, text: V4 },
+        { verse_num: 5, text: V5 },
+        { verse_num: 6, text: V6 },
       ]),
     }
   })
@@ -78,6 +91,23 @@ describe('verse block: async DB verification accepts a genuine match with no int
 
     await flushAsyncVerification()
 
+    expect(el.querySelector('.pm-verse-block')).toBeTruthy()
+  })
+
+  // Fluid-feel polish #2.2: while accepted === null (the query is in flight), the
+  // reference line should carry the "checking" bridge class instead of sitting fully
+  // unstyled — and that class should be gone once verification resolves either way, so it
+  // never lingers as a stray leftover state.
+  it('shows the "checking" micro-state on the ref line while verification is pending, then clears it once resolved', async () => {
+    const content = `${REF_LINE_3}\n\n5 ${V5}\n\n6 ${V6}`
+    const el = mount({ noteId: 'note-verse-checking', content, onChange: () => {} })
+
+    expect(el.querySelector('.pm-verse-block-checking')).toBeTruthy()
+    expect(el.querySelector('.pm-verse-block')).toBeNull()
+
+    await flushAsyncVerification()
+
+    expect(el.querySelector('.pm-verse-block-checking')).toBeNull()
     expect(el.querySelector('.pm-verse-block')).toBeTruthy()
   })
 

@@ -91,27 +91,35 @@ export function getLexiconOccurrences(strongsNum: string, bookId?: string): Lexi
 
       type RawRow = { text_id: string; book_id: string; chapter: number; verse: number }
 
-      function scanTaggedOccurrences(db: ReturnType<typeof getTextDb>, textId: string, limit: number): RawRow[] {
+      // `bookScope` (optional) is pushed straight into the SQL WHERE clause — filtering AFTER
+      // the LIMIT used to mean a book-scoped lookup on a common word came back completely empty
+      // whenever the first 500/1000 tagged hits (in book_id, chapter, verse_num order) simply
+      // never reached the requested book, even though real occurrences existed there. Confirmed
+      // as a live bug: filtering in JS after LIMIT silently broke the book-scoping feature
+      // outright for any book late enough in canonical order. Filtering in SQL means LIMIT only
+      // ever caps the (already book-scoped) result set, not the pre-filter scan.
+      function scanTaggedOccurrences(db: ReturnType<typeof getTextDb>, textId: string, limit: number, bookScope?: string): RawRow[] {
         if (!db) return []
         const [p1, p2, p3, p4] = likeVariants(num)
+        const bookClause = bookScope ? ' AND book_id = ?' : ''
+        const params = bookScope ? [p1, p2, p3, p4, bookScope, limit] : [p1, p2, p3, p4, limit]
         const rows = (db as any).prepare(
           `SELECT book_id, chapter, verse_num as verse FROM verses
-           WHERE text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?
+           WHERE (text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ? OR text_tagged LIKE ?)${bookClause}
            ORDER BY book_id, chapter, verse_num LIMIT ?`
-        ).all(p1, p2, p3, p4, limit) as Array<{ book_id: string; chapter: number; verse: number }>
+        ).all(...params) as Array<{ book_id: string; chapter: number; verse: number }>
         return rows.map((r) => ({ ...r, text_id: textId }))
       }
 
       const kjva = getTextDb('kjva')
       const lxxDb = getTextDb('lxx')
+      const bookScope = bookId ? bookId.toUpperCase() : undefined
 
       // Fetch up to 500 per source so both KJVA and LXX are represented even for
       // frequently-occurring G-numbers. H-numbers are KJVA-only.
-      let rawRows: RawRow[] = isGreek
-        ? [...scanTaggedOccurrences(kjva, 'kjva', 500), ...scanTaggedOccurrences(lxxDb, 'lxx', 500)]
-        : scanTaggedOccurrences(kjva, 'kjva', 1000)
-
-      if (bookId) rawRows = rawRows.filter((r) => r.book_id === bookId.toUpperCase())
+      const rawRows: RawRow[] = isGreek
+        ? [...scanTaggedOccurrences(kjva, 'kjva', 500, bookScope), ...scanTaggedOccurrences(lxxDb, 'lxx', 500, bookScope)]
+        : scanTaggedOccurrences(kjva, 'kjva', 1000, bookScope)
 
       if (!rawRows.length) return []
 
@@ -281,6 +289,79 @@ export function getLexiconOccurrences(strongsNum: string, bookId?: string): Lexi
     }
 }
 
+/** Gloss/definition search over both lexicons — extracted from the `lexicon:search` IPC handler
+ *  below (same query, unchanged) into a standalone exported function so aiLookup.ts's Strong's
+ *  gloss bridge (Team B item 2c) can reuse the exact same matching/ranking logic the on-demand
+ *  Lexicon tab already uses, instead of re-deriving a second search path against the same two
+ *  tables. */
+export function searchLexiconGloss(query: string, lang: 'H' | 'G' | 'all'): ReturnType<typeof mapEntry>[] {
+  const q = `%${query.trim()}%`
+  const sql = `
+    SELECT * FROM entries
+    WHERE strongs_id LIKE ? OR word LIKE ? OR transliteration LIKE ?
+       OR short_def LIKE ? OR full_def LIKE ? OR bdb_def LIKE ?
+    ORDER BY
+      CASE
+        WHEN short_def LIKE ? THEN 0
+        WHEN strongs_id LIKE ? OR word LIKE ? OR transliteration LIKE ? THEN 1
+        ELSE 2
+      END,
+      strongs_id
+    LIMIT 30
+  `
+  const results: ReturnType<typeof mapEntry>[] = []
+  try {
+    if (lang === 'H' || lang === 'all') {
+      const rows = getHebrewDb().prepare(sql).all(q, q, q, q, q, q, q, q, q, q) as DbEntry[]
+      results.push(...rows.map(mapEntry))
+    }
+    if (lang === 'G' || lang === 'all') {
+      const rows = getGreekDb().prepare(sql).all(q, q, q, q, q, q, q, q, q, q) as DbEntry[]
+      results.push(...rows.map(mapEntry))
+    }
+  } catch {
+    // ignore
+  }
+  return results
+}
+
+/**
+ * Finds a lexicon entry by transliteration, comparing NORMALIZED (diacritics stripped, e.g.
+ * "agápē" -> "agape") rather than via SQL `LIKE`. Extracted here, not inline in
+ * `bridgeKeywordToStrongsNum` (aiLookup.ts), because the underlying bug is a genuine
+ * `searchLexiconGloss` limitation shared by the on-demand Lexicon tab's own search too, not
+ * something specific to that one caller.
+ *
+ * WHY searchLexiconGloss ITSELF CANNOT ANSWER THIS: its `transliteration LIKE ?` clause does a
+ * byte-for-byte substring match, and SQLite's LIKE is not diacritic-insensitive. Nearly every
+ * Greek/Hebrew transliteration in these tables carries accents or macrons (Greek "agápē" for
+ * G26, Hebrew "bĕrîyth" for H1285, ...) — exactly the characters an English speaker's plain-ASCII
+ * query never types. Confirmed directly: `SELECT ... WHERE transliteration LIKE '%agape%'` against
+ * strongs_greek.db returns ZERO rows even though G26's transliteration IS "agápē", which
+ * `normalizeTransliteration` (aiLookup.ts) correctly reduces to "agape" — the row was simply
+ * never IN searchLexiconGloss's result set for that JS-side check to ever run against.
+ *
+ * Fixed by not routing through SQL LIKE for this specific lookup at all: both lexicons are small
+ * (low thousands of rows), so this pulls just `strongs_id`/`transliteration` for the whole table
+ * and does the normalized comparison in JS, once, per call.
+ */
+export function findByNormalizedTransliteration(
+  normalizedQuery: string,
+  lang: 'H' | 'G' | 'all',
+  normalize: (s: string) => string,
+): { strongsId: string; transliteration: string } | null {
+  const dbs = lang === 'all' ? [getHebrewDb(), getGreekDb()] : [lang === 'H' ? getHebrewDb() : getGreekDb()]
+  for (const db of dbs) {
+    try {
+      const rows = db.prepare('SELECT strongs_id, transliteration FROM entries WHERE transliteration IS NOT NULL')
+        .all() as { strongs_id: string; transliteration: string }[]
+      const hit = rows.find((r) => normalize(r.transliteration) === normalizedQuery)
+      if (hit) return { strongsId: hit.strongs_id, transliteration: hit.transliteration }
+    } catch { /* ignore — same best-effort convention as searchLexiconGloss above */ }
+  }
+  return null
+}
+
 export function registerLexiconHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => getLexiconEntry(strongsNum))
 
@@ -306,34 +387,5 @@ export function registerLexiconHandlers(ipcMain: IpcMain): void {
     }))
   })
 
-  ipcMain.handle('lexicon:search', (_e, query: string, lang: 'H' | 'G' | 'all') => {
-    const q = `%${query.trim()}%`
-    const sql = `
-      SELECT * FROM entries
-      WHERE strongs_id LIKE ? OR word LIKE ? OR transliteration LIKE ?
-         OR short_def LIKE ? OR full_def LIKE ? OR bdb_def LIKE ?
-      ORDER BY
-        CASE
-          WHEN short_def LIKE ? THEN 0
-          WHEN strongs_id LIKE ? OR word LIKE ? OR transliteration LIKE ? THEN 1
-          ELSE 2
-        END,
-        strongs_id
-      LIMIT 30
-    `
-    const results: ReturnType<typeof mapEntry>[] = []
-    try {
-      if (lang === 'H' || lang === 'all') {
-        const rows = getHebrewDb().prepare(sql).all(q, q, q, q, q, q, q, q, q, q) as DbEntry[]
-        results.push(...rows.map(mapEntry))
-      }
-      if (lang === 'G' || lang === 'all') {
-        const rows = getGreekDb().prepare(sql).all(q, q, q, q, q, q, q, q, q, q) as DbEntry[]
-        results.push(...rows.map(mapEntry))
-      }
-    } catch {
-      // ignore
-    }
-    return results
-  })
+  ipcMain.handle('lexicon:search', (_e, query: string, lang: 'H' | 'G' | 'all') => searchLexiconGloss(query, lang))
 }

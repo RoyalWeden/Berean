@@ -9,11 +9,11 @@ interface BibleAPI {
 
 interface NotesAPI {
   createNote: (data: Partial<Note>) => Promise<{ success: boolean; note?: Note; error?: string }>
-  // status is widened to accept `null` here (on top of Partial<Note>'s `NoteStatus | undefined`)
+  // status/icon are widened to accept `null` here (on top of Partial<Note>'s `T | undefined`)
   // — the IPC handler distinguishes "don't touch this field" (undefined, the normal Partial<T>
-  // meaning) from "clear it back to no status" (null) by checking `data.status !== undefined`,
+  // meaning) from "clear it back to none/no icon" (null) by checking `data.X !== undefined`,
   // so callers need a way to explicitly send null rather than just omitting the field.
-  updateNote: (id: string, data: Partial<Omit<Note, 'status'>> & { status?: Note['status'] | null }) => Promise<{ success: boolean; error?: string }>
+  updateNote: (id: string, data: Partial<Omit<Note, 'status' | 'icon'>> & { status?: Note['status'] | null; icon?: string | null }) => Promise<{ success: boolean; error?: string }>
   deleteNote: (id: string) => Promise<{ success: boolean; error?: string }>
   // Trash
   restoreNote: (id: string) => Promise<{ success: boolean; error?: string }>
@@ -39,6 +39,10 @@ interface NotesAPI {
   deleteFolderDeep: (id: string) => Promise<{ success: boolean }>
   setFolderParent: (id: string, parentId: string | null) => Promise<{ success: boolean; error?: string }>
   listIdioms: () => Promise<Array<{ id: string; term: string; meaning: string; aliases: string[]; autoVariants: boolean }>>
+  // Heading collapse persistence (round 12 item 6) — see headingCollapse.ts's
+  // computeHeadingKey for how headingKey is derived.
+  getCollapsedHeadings: (noteId: string) => Promise<string[]>
+  setHeadingCollapsed: (noteId: string, headingKey: string, collapsed: boolean) => Promise<{ success: boolean }>
   onChanged: (cb: () => void) => void
 }
 
@@ -200,6 +204,8 @@ interface AppAPI {
   exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => Promise<{ success: boolean; canceled?: boolean }>
   broadcastTabState: (payload: unknown) => void
   onTabStateUpdate: (cb: (payload: unknown) => void) => void
+  broadcastAudioState: (payload: unknown) => void
+  onAudioStateUpdate: (cb: (payload: unknown) => void) => void
   returnFloatTab: (payload: { type: string; state: Record<string, unknown> }) => void
   // Auto-updater (GitHub Releases — disabled for MAS builds)
   getVersion: () => Promise<string>
@@ -334,10 +340,10 @@ interface HermasTaylorRef {
 }
 
 interface CrossRefsAPI {
-  getForVerse: (bookId: string, chapter: number, verse: number) => Promise<CrossRefsResult>
-  getTSKeForVerse: (bookId: string, chapter: number, verse: number) => Promise<TSKeResult>
-  getForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterCrossRefEntry[]; error: boolean }>
-  getTSKeForChapter: (bookId: string, chapter: number) => Promise<{ verseRefs: ChapterTSKeEntry[]; error: boolean }>
+  getForVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<CrossRefsResult>
+  getTSKeForVerse: (bookId: string, chapter: number, verse: number, textId?: string) => Promise<TSKeResult>
+  getForChapter: (bookId: string, chapter: number, textId?: string) => Promise<{ verseRefs: ChapterCrossRefEntry[]; error: boolean }>
+  getTSKeForChapter: (bookId: string, chapter: number, textId?: string) => Promise<{ verseRefs: ChapterTSKeEntry[]; error: boolean }>
   getHermasTaylorChapter: (bookId: string, chapter: number) => Promise<{ refs: HermasTaylorRef[]; error: boolean }>
   status: () => Promise<{ hasData: boolean; loading: boolean; error: boolean }>
 }
@@ -401,7 +407,7 @@ interface BgImportAPI {
   onProgress: (cb: (p: BgImportProgress) => void) => void
 }
 
-export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source'
+export type AiLookupResultSource = 'keyword' | 'ai-guess' | 'cross-ref' | 'strongs' | 'quote-source' | 'tske' | 'cross-ref-seed'
 
 export interface AiLookupResult {
   textId: string
@@ -435,6 +441,11 @@ export interface AiLookupVideoResult {
   title: string
   channelName: string
   thumbnailUrl: string
+  /** Set only for a transcript-content match — the caption segment's playback position in
+   *  milliseconds, so the panel can deep-link straight to the moment the topic is discussed. */
+  startMs?: number
+  /** Set alongside `startMs` — the real transcript text surrounding the match. */
+  snippet?: string
 }
 
 export interface AiLookupStrongsCard {
@@ -495,6 +506,12 @@ export interface AiLookupChatMessage {
   notesAreThePrimaryAnswer?: boolean
   videos?: AiLookupVideoResult[]
   createdAt: string
+  /** True only while this message is still being filled in by the live pipeline — set on the
+   *  placeholder AiLookupPanel appends when a question is sent, and kept on any partial that
+   *  lands before the final response replaces it. Purely transient UI state: it is stripped
+   *  before a chat is persisted (see AiLookupPanel's `persist`), so a reloaded chat can never
+   *  contain a message stuck pending. */
+  pending?: boolean
 }
 
 export interface AiLookupChat {
@@ -550,6 +567,44 @@ interface AiLookupAPI {
   /** Live status text during a single query() call (e.g. "Searching Jubilees…") — call once,
    *  not per-query; same removeAllListeners-then-on pattern as the other progress bridges. */
   onProgress: (cb: (status: string) => void) => void
+  /** Speed round: fires ONCE per query(), as soon as retrieval finishes — before the optional
+   *  Commentary pass (a second, ~4s Ollama call) even starts. Carries the SAME shape query()'s
+   *  eventual resolved value does, just without `summary`/per-verse `commentary` filled in yet
+   *  (identical to the final response when Commentary is off, since there's nothing left to
+   *  wait for in that case — the caller can safely treat every partial as "good enough to show
+   *  now, may still be refined"). The panel must never sit on a blank spinner while real,
+   *  already-verified results are sitting in memory waiting on a slower model call — see
+   *  electron/ipc/aiLookup.ts's `emitPartial` call site for where this fires. Call once, same
+   *  removeAllListeners-then-on pattern as onProgress above. */
+  onPartial: (cb: (partial: AiLookupResponse) => void) => void
+}
+
+/** Read Aloud (TTS) — Kokoro model download bridge (electron/ipc/ttsModel.ts). Mirrors the
+ *  eSwordImport bridge's start/cancel/onProgress shape (see below), the closest existing
+ *  precedent for a long-running, cancellable, progress-reporting main-process job. */
+interface TTSModelAPI {
+  // `needsRuntimeFile`: true when a pack downloaded before the ORT WASM runtime file was added to
+  // the manifest is otherwise complete — see ttsModelManifest.ts's `computeStatus`. Callers should
+  // fetch just that file via `downloadRuntimeFile()` rather than re-running `download()`.
+  getStatus: () => Promise<{ ready: boolean; fileCount: number; needsRuntimeFile: boolean }>
+  download: () => Promise<{ success: true } | { success: false; error: string }>
+  /** Upgrade path for an existing pack missing only the ORT runtime file (see `needsRuntimeFile`
+   *  above) — fetches ~21.6MB instead of re-downloading the whole ~125MB pack. */
+  downloadRuntimeFile: () => Promise<{ success: true } | { success: false; error: string }>
+  cancelDownload: () => Promise<boolean>
+  clearModelCache: () => Promise<{ success: boolean; error?: string }>
+  getModelId: () => Promise<string>
+  onDownloadProgress: (cb: (p: { receivedBytes: number; totalBytes: number }) => void) => void
+  onDownloadVerifying: (cb: () => void) => void
+}
+
+/** Read Aloud (TTS) — synthesized-audio cache bridge (electron/ipc/ttsAudioCache.ts). `get`
+ *  returns null on a cache miss; `put`'s `data` is a raw WAV ArrayBuffer. */
+interface TTSAudioCacheAPI {
+  get: (key: string) => Promise<ArrayBuffer | null>
+  put: (key: string, data: ArrayBuffer) => Promise<boolean>
+  clear: () => Promise<boolean>
+  stats: () => Promise<{ entryCount: number; totalBytes: number; capBytes: number }>
 }
 
 declare global {
@@ -569,6 +624,8 @@ declare global {
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
     workspaces: WorkspacesAPI
+    ttsModel: TTSModelAPI
+    ttsAudioCache: TTSAudioCacheAPI
     viewer: {
       onContent: (cb: (payload: unknown) => void) => void
       onSettings: (cb: (settings: ViewerSyncedSettings) => void) => void

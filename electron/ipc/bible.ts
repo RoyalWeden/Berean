@@ -106,15 +106,26 @@ export function queryVerse(bookId: string, chapter: number, verseNum: number, te
 }
 
 /** FTS5 verse search, exported so other main-process modules can reuse the exact
- *  same query-building/caching logic 'bible:searchText' uses below. */
-export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode = 'all', bookIds?: string[]): VerseSearchRow[] {
+ *  same query-building/caching logic 'bible:searchText' uses below. `chapter` (optional) further
+ *  narrows to a single chapter within `bookIds` — used by electron/ipc/aiLookup.ts to pin keyword
+ *  search to a chapter the question named explicitly, on top of (not instead of) the existing
+ *  book-level scope; a chapter number without a book scope is a caller error and is ignored, same
+ *  as an empty `bookIds` array is for book scoping. */
+export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode = 'all', bookIds?: string[], chapter?: number): VerseSearchRow[] {
   if (!query.trim()) return []
   const db = getTextDb(textId)
   if (!db) return []
 
   const trimmed = query.trim()
   const scoped = !!bookIds && bookIds.length > 0
+  const chapterScoped = scoped && chapter != null
   const bookIdsClause = scoped ? ` AND v.book_id IN (${bookIds!.map(() => '?').join(',')})` : ''
+  const chapterClause = chapterScoped ? ' AND v.chapter = ?' : ''
+  // Any query shaped with a bind list that can vary call-to-call (book scope, and now chapter
+  // scope too) skips the cached-per-sql-string prepare() below — same reasoning `scoped` alone
+  // already used: a cached statement is keyed only on the SQL text, and `IN (?,?,...)` / a fixed
+  // chapter number both change that text per call, so caching would be pointless here anyway.
+  const dynamic = scoped
 
   if (wordMode === 'any') {
     const terms = cleanWords(trimmed)
@@ -125,16 +136,17 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
       SELECT v.book_id, v.chapter, v.verse_num, v.text
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
-      WHERE verses_fts MATCH ?${bookIdsClause}
+      WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}
       ORDER BY rank
       LIMIT ${limit}
     `
-    const stmt = scoped ? (db as any).prepare(sql) : prep(db, sql)
+    const stmt = dynamic ? (db as any).prepare(sql) : prep(db, sql)
+    const chapterParam = chapterScoped ? [chapter] : []
     for (const term of terms) {
       const ftsQ = safeFtsQuery(term, 'all')
       if (!ftsQ) continue
       try {
-        const termRows = stmt.all(...(scoped ? [ftsQ, ...bookIds!] : [ftsQ])) as VerseSearchRow[]
+        const termRows = stmt.all(...(scoped ? [ftsQ, ...bookIds!, ...chapterParam] : [ftsQ])) as VerseSearchRow[]
         for (const row of termRows) {
           const key = `${row.book_id}|${row.chapter}|${row.verse_num}`
           if (!seen.has(key)) { seen.add(key); rows.push(row) }
@@ -152,12 +164,12 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
       SELECT v.book_id, v.chapter, v.verse_num, v.text
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
-      WHERE verses_fts MATCH ?${bookIdsClause}
+      WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}
       ORDER BY rank
       LIMIT ${limit}
     `
-    const stmt = scoped ? (db as any).prepare(sql) : prep(db, sql)
-    return stmt.all(...(scoped ? [ftsQ, ...bookIds!] : [ftsQ])) as VerseSearchRow[]
+    const stmt = dynamic ? (db as any).prepare(sql) : prep(db, sql)
+    return stmt.all(...(scoped ? [ftsQ, ...bookIds!, ...(chapterScoped ? [chapter] : [])] : [ftsQ])) as VerseSearchRow[]
   } catch {
     return []
   }

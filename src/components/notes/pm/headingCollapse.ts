@@ -4,16 +4,76 @@ import type { Node as PMNode } from 'prosemirror-model'
 
 // Port of NoteEditor.tsx's collapsible-heading system (collapsedHeadingsField
 // + CollapsedHeadingWidget + CollapseArrowWidget + buildCollapsedHeadingDecos,
-// NoteEditor.tsx:939-1057). Confirmed finding from the migration research:
-// collapse state is PURE EPHEMERAL UI STATE, never persisted to markdown —
-// so this is reimplemented as plugin-local state with zero serialization
-// concern, exactly mirroring the original's architecture.
+// NoteEditor.tsx:939-1057). Collapse state itself still lives as plugin-local
+// state keyed by live document POSITION (positions shift on every edit, so
+// they're exactly right for "what's collapsed right now in THIS open
+// document" — wrong for anything meant to survive a reload). Persistence
+// (round 12 item 6) is a layer OUTSIDE this plugin state, not a replacement
+// for it: berean.db's note_heading_collapse table stores the stable
+// `computeHeadingKey` string below, and NoteEditorPM.tsx translates those
+// keys back to live positions (via `headingPositionsForKeys`) once per note
+// load, feeding them in through `setCollapsedPositionsMeta` — a bulk
+// "replace the whole collapsed-set" transaction, used ONLY for that initial
+// hydration, never for an ordinary click (which still goes through the
+// original per-position toggle below).
 
 export const headingCollapseKey = new PluginKey<Set<number>>('berean-heading-collapse')
 const toggleHeadingMeta = 'berean-toggle-heading-collapse'
+const setCollapsedPositionsMeta = 'berean-set-heading-collapse-positions'
 
 export function toggleHeadingCollapse(view: EditorView, headingPos: number) {
   view.dispatch(view.state.tr.setMeta(toggleHeadingMeta, headingPos))
+}
+
+// Replaces the ENTIRE collapsed-position set in one shot — used exactly once per note
+// load (NoteEditorPM.tsx, right after the async getCollapsedHeadings IPC round-trip
+// resolves) to hydrate persisted collapse state onto a freshly-opened document. Never
+// used for a live user toggle (toggleHeadingCollapse above handles that, unchanged).
+export function setCollapsedHeadingPositions(view: EditorView, positions: number[]) {
+  view.dispatch(view.state.tr.setMeta(setCollapsedPositionsMeta, positions))
+}
+
+// Stable heading identity for persistence — level + trimmed text + an ordinal disambiguating
+// multiple headings that happen to share the exact same level+text (otherwise they'd
+// collide on one row and collapse/expand together). Deliberately NOT a document position
+// (see this file's header comment) and deliberately NOT the note's own content (persisted
+// separately in berean.db, not serialized into markdown — see berean.ts's v24 migration
+// comment for why). Reasonably but not perfectly stable: renaming a heading's text, or
+// reordering same-titled headings relative to each other, changes/reassigns its key —
+// an accepted tradeoff given ProseMirror has no built-in persistent node identity to hang
+// this off of instead.
+export function computeHeadingKey(doc: PMNode, pos: number): string | null {
+  const node = doc.nodeAt(pos)
+  if (!node || node.type.name !== 'heading') return null
+  const level = node.attrs.level as number
+  const text = node.textContent.trim()
+  let ordinal = 0
+  let found = false
+  doc.forEach((child, offset) => {
+    if (found || child.type.name !== 'heading') return
+    if ((child.attrs.level as number) !== level || child.textContent.trim() !== text) return
+    if (offset === pos) { found = true; return }
+    ordinal++
+  })
+  return `${level}:${text}#${ordinal}`
+}
+
+// Reverse of computeHeadingKey — resolves a list of persisted keys back to live positions in
+// THIS document, silently dropping any key that doesn't match a current heading (the note was
+// edited since the key was saved, the heading was deleted/renamed, or this is a stale key from
+// before a doc reload) — exactly the "degrade silently if the note or heading no longer
+// exists" behavior the task brief calls for, with no special-casing needed: a key simply
+// finds no match and is dropped.
+export function headingPositionsForKeys(doc: PMNode, keys: string[]): number[] {
+  if (keys.length === 0) return []
+  const wanted = new Set(keys)
+  const positions: number[] = []
+  doc.forEach((node, offset) => {
+    if (node.type.name !== 'heading') return
+    const key = computeHeadingKey(doc, offset)
+    if (key && wanted.has(key)) positions.push(offset)
+  })
+  return positions
 }
 
 export function createHeadingCollapsePlugin() {
@@ -23,8 +83,11 @@ export function createHeadingCollapsePlugin() {
       init: () => new Set<number>(),
       apply(tr, collapsed) {
         const togglePos = tr.getMeta(toggleHeadingMeta) as number | undefined
+        const setPositions = tr.getMeta(setCollapsedPositionsMeta) as number[] | undefined
         let next = collapsed
-        if (typeof togglePos === 'number') {
+        if (Array.isArray(setPositions)) {
+          next = new Set(setPositions)
+        } else if (typeof togglePos === 'number') {
           next = new Set(collapsed)
           if (next.has(togglePos)) next.delete(togglePos)
           else next.add(togglePos)
@@ -96,7 +159,16 @@ export function createHeadingCollapsePlugin() {
 const CHEVRON_RIGHT_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
 const CHEVRON_DOWN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
 
-export function headingNodeView(getPos: () => number | undefined) {
+export function headingNodeView(
+  getPos: () => number | undefined,
+  // Fired right after a real user click toggles collapse — NOT for the bulk hydration
+  // path above, which restores already-persisted state and would otherwise round-trip
+  // straight back into a redundant write. NoteEditorPM.tsx wires this to the
+  // notes:setHeadingCollapsed IPC call, keyed by computeHeadingKey at the CURRENT
+  // position (recomputed fresh each click, same "never trust a stale closed-over
+  // position" discipline blockHandles.ts's currentPosForBlockIndex documents).
+  onToggleCollapse?: (view: EditorView, pos: number, collapsed: boolean) => void,
+) {
   return (node: PMNode, view: EditorView): NodeView => {
     const dom = document.createElement(`h${node.attrs.level}`)
     // Arrow lives in the left gutter (absolutely positioned, out of normal
@@ -151,6 +223,8 @@ export function headingNodeView(getPos: () => number | undefined) {
       // state by the time this line runs.
       toggleHeadingCollapse(view, pos)
       updateArrow()
+      const collapsed = !!headingCollapseKey.getState(view.state)?.has(pos)
+      onToggleCollapse?.(view, pos, collapsed)
     })
     dom.appendChild(arrow)
 

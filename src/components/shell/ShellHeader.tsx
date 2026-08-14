@@ -182,6 +182,44 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                  sidebar state (see file header comment — this is the functional fix over the
                  old split where collapsing the sidebar hid these entirely). ── */}
             <ActionPillGroup>
+              {/* ── Home — first in the nav pill, immediately right of the sidebar toggle ──
+                   This used to be portaled in from each panel's own TabHeaderPortal, which lands
+                   in the flex-1 tab-content slot on the RIGHT. Because it appeared and vanished
+                   with the active tab's navigation state, every other control in that slot
+                   shifted sideways whenever it came or went — reported as "the home button
+                   shifts around the top buttons."
+                   It now lives here in the fixed left cluster, which never reflows, and is
+                   ALWAYS rendered — dimmed and inert when the current tab has no home to return
+                   to, exactly like the back/forward/history buttons beside it. A control that
+                   holds its position and greys out is far easier to aim at than one that
+                   disappears. ── */}
+              {(() => {
+                // Bible tabs have no synthetic -1 "nothing open" state (see goToTabHome's own
+                // comment) — their home is idx 0, the earliest tracked chapter, so the
+                // already-at-home check differs from the other three types' idx < 0 check.
+                const homeSupported = navStackType === 'note' || navStackType === 'lexicon'
+                  || navStackType === 'youtube' || navStackType === 'bible'
+                const canGoHome = !!currentTabNav && homeSupported &&
+                  (navStackType === 'bible' ? currentTabNav.idx > 0 : currentTabNav.idx >= 0)
+                const homeLabel = navStackType === 'note' ? 'Notes list'
+                  : navStackType === 'lexicon' ? 'Lexicon search'
+                  : navStackType === 'youtube' ? 'YouTube browse'
+                  : navStackType === 'bible' ? 'Scripture browse'
+                  : 'Home'
+                return (
+                  <button
+                    onClick={canGoHome ? () => { cancelNavDropdownOpen(); useAppStore.getState().goToTabHome() } : undefined}
+                    title={canGoHome ? homeLabel : 'No home view for this tab'}
+                    className={`flex items-center justify-center w-7 h-7 transition-colors ${
+                      canGoHome
+                        ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
+                        : 'text-[rgb(var(--color-text-muted))] opacity-30 cursor-default'
+                    }`}
+                  >
+                    <Home size={14} />
+                  </button>
+                )
+              })()}
               <button
                 onClick={canGoBack ? () => {
                   cancelNavDropdownOpen()
@@ -251,6 +289,15 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                whole bar shares one background now, so there's nothing marking a boundary
                that would need to line up with Sidebar's animating width; ordinary flex
                spacing (this div is flex-1, justify-end) is enough. ── */}
+          {/* ── Divider: global navigation | everything else ──────────────────────────────
+               The left cluster (sidebar toggle, home, back/forward/history) acts on the WINDOW
+               and is identical no matter what is open. Everything to the right is the active
+               tab's own controls, portaled in and changing completely per tab. Without a
+               boundary the two read as one undifferentiated row of icons; this hairline makes
+               the split legible at a glance. `self-stretch` with vertical inset keeps it a
+               proportional hairline rather than a full-height rule cutting the bar in two. ── */}
+          <div className="self-stretch w-px my-2.5 bg-[rgb(var(--color-surface-4))] flex-shrink-0 ml-1 mr-2" aria-hidden="true" />
+
           <div ref={slotRef} className="flex-1 flex items-center justify-end gap-2 min-w-0 overflow-hidden" />
 
           {/* ── Download in progress — same top-bar slot as the button below, shown instead of
