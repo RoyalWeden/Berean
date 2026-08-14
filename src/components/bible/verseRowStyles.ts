@@ -32,6 +32,14 @@ export const HIGHLIGHT_BORDER: Record<HighlightColor, string> =
 export const WORD_HIGHLIGHT_BG: Record<HighlightColor, string> =
   Object.fromEntries(HIGHLIGHT_COLOR_IDS.map((id) => [id, highlightWordBg(id)])) as Record<HighlightColor, string>
 
+// ── Read Aloud (TTS) playback tints ──────────────────────────────────────────
+// Deliberately NOT one of the 5 saved-highlight colors above — Read Aloud is a transient,
+// auto-advancing visual cue (not a persisted highlight), so it gets its own theme-aware
+// token pair that composes as an ADDITIONAL layer on top of any real highlight/find-match
+// styling already applied to a row, rather than replacing it.
+export const PLAYBACK_ROW_BG = 'rgb(var(--color-accent) / 0.06)'
+export const PLAYBACK_WORD_BG = 'rgb(var(--color-accent) / 0.32)'
+
 const HIGHLIGHT_ACCENT_STYLE_BASE: CSSProperties = {
   paddingLeft: '0.5rem',
   marginLeft: '-0.75rem',
@@ -47,28 +55,49 @@ export function getVerseRowStyle(opts: {
   isHighlighted?: boolean
   activeHighlight?: HighlightColor | null
   isFindMatch?: boolean
+  /** Read Aloud is currently reading this verse — composes on TOP of any style below via
+   *  an inset box-shadow (never overrides backgroundColor, so a real highlight underneath
+   *  stays fully visible) rather than participating in the priority chain above. */
+  isPlaybackVerse?: boolean
 }): CSSProperties | undefined {
-  const { isHighlighted, activeHighlight, isFindMatch } = opts
+  const { isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse } = opts
+  const playbackLayer: CSSProperties = isPlaybackVerse
+    ? { boxShadow: `inset 0 0 0 999px ${PLAYBACK_ROW_BG}` }
+    : {}
   if (isHighlighted) {
     return {
       ...HIGHLIGHT_ACCENT_STYLE_BASE,
       backgroundColor: 'var(--verse-highlight-bg)',
-      borderLeft: '3px solid rgb(var(--color-accent))'
+      borderLeft: '3px solid rgb(var(--color-accent))',
+      ...playbackLayer,
     }
   }
   if (activeHighlight) {
     return {
       ...HIGHLIGHT_ACCENT_STYLE_BASE,
       backgroundColor: HIGHLIGHT_ROW_BG[activeHighlight],
-      borderLeft: `3px solid ${HIGHLIGHT_BORDER[activeHighlight]}`
+      borderLeft: `3px solid ${HIGHLIGHT_BORDER[activeHighlight]}`,
+      ...playbackLayer,
     }
   }
   if (isFindMatch) {
     return {
       ...HIGHLIGHT_ACCENT_STYLE_BASE,
-      backgroundColor: 'rgba(234,179,8,0.08)',
-      borderLeft: '3px solid rgba(234,179,8,0.5)'
+      // Was a hardcoded amber rgba() literal, disconnected from the 15-color highlight token
+      // system every other color here goes through (highlightPalette.ts's own header comment
+      // warns this palette has drifted into separate copies before — this was exactly a 4th,
+      // untracked one). Reference the SAME `--highlight-amber` CSS var the real "Amber" saved
+      // highlight uses (so it can never drift out of sync with a theme change), just at find-
+      // match's own lighter alpha (0.08/0.5, distinct from highlightRowBg/highlightBorder's
+      // 0.15/0.7 — find matches are transient search results, not a persisted highlight, so
+      // deliberately less visually heavy) rather than exporting a new bespoke helper for it.
+      backgroundColor: 'rgb(var(--highlight-amber) / 0.08)',
+      borderLeft: '3px solid rgb(var(--highlight-amber) / 0.5)',
+      ...playbackLayer,
     }
+  }
+  if (isPlaybackVerse) {
+    return { ...HIGHLIGHT_ACCENT_STYLE_BASE, backgroundColor: PLAYBACK_ROW_BG, borderLeft: '3px solid rgb(var(--color-accent) / 0.5)' }
   }
   return undefined
 }

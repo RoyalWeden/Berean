@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
 import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -19,7 +19,8 @@ import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
-import { computePresenterBand as computeBandGeometry, measureContentHeight } from '@/lib/presenterBand'
+import { computePresenterBand as computeBandGeometry, measureContentHeight, shallowEqualNumberRecord } from '@/lib/presenterBand'
+import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
 
@@ -31,8 +32,9 @@ import type { ViewerVisibleRegion } from '@/types/electron'
 import { ANNOTATION_KEYS, TRANSLATIONS, EDITIONS, editionForTextId } from '@/lib/bibleTexts'
 import { bookName, normalizeBookName } from '@/lib/parseRef'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
-import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, getHermasPrevChapter, getHermasNextChapter, hermasVariantForTextId } from '@/lib/hermasMap'
+import { isHermasBook, getHermasChapterLabel, getHermasShortLabel, hermasVariantForTextId } from '@/lib/hermasMap'
 import { hasPrologueChapter } from '@/lib/prologueBooks'
+import { getPrevChapterRef, getNextChapterRef } from '@/lib/bibleNav'
 
 // Module-level cache of getBooks() results per textId, shared across every BiblePanel
 // instance/remount. ActivePanel.tsx fully unmounts/remounts BiblePanel on every tab switch, so
@@ -46,6 +48,14 @@ import { hasPrologueChapter } from '@/lib/prologueBooks'
 // fixed-this-session pattern used for NotesPanel's continuousDailyDate / LexiconPanel's
 // savedSearch.
 const booksCache = new Map<string, Book[]>()
+
+// scriptureLayout presets that dock a resizable panel at the actual BOTTOM of the screen (as
+// opposed to a side panel, or a panel with no open/close/resize concept at all) — used to keep
+// fixed-position overlays like the verse-digit-jump pill (below) from landing on top of that
+// panel's own controls. Kept as a Set at module scope rather than inlined at each use site so
+// the two places that need "is this a bottom-panel layout" (today: just the digit overlay, but
+// see Phase 2's plan to extend animation to these same layouts) can't drift apart.
+const BOTTOM_PANEL_HEIGHT_LAYOUTS = new Set<ScriptureLayout>(['panel-bottom', 'notes-bottom', 'compare-notes', 'split-bottom'])
 
 export default function BiblePanel({ floating = false }: { floating?: boolean }) {
   // Narrowed to this panel's own space — subscribing to the whole `tabs` record (all 5 spaces)
@@ -89,6 +99,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const idiomHighlightEnabled = useAppStore((s) => s.idiomHighlightEnabled)
   // Region of scripture currently visible in the presenter window (for the outline band)
   const [viewerVisibleRegion, setViewerVisibleRegion] = useState<ViewerVisibleRegion | null>(null)
+  // Last region actually applied — lets onViewerVisibleRegion below skip redundant reports.
+  const lastViewerRegionRef = useRef<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
   const laserRAFRef = useRef<number | null>(null)
   const selectionRAFRef = useRef<number | null>(null)
@@ -265,6 +277,73 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // pointed at the tab that just left it.
   const lastRightPanelTabRef = useRef<'notes' | 'lexicon' | 'crossrefs'>(rightPanelTab)
 
+  // ── Reset mount-scoped local state when the ACTIVE TAB itself changes ────────────────────
+  // ActivePanel.tsx now keys every scripture tab under the SAME 'panel:bible' DOM key (matching
+  // notes' own long-standing pattern) instead of `tab.id` — switching scripture tabs used to
+  // fully unmount+remount this whole component just to show different content: tearing down
+  // every VerseRow/StrongsInline in the outgoing chapter (~8-11k elements for a page like Psalm
+  // 119) and re-issuing 3 fresh IPC fetches, real measurable cost on every single tab switch.
+  // Most of this component already re-derives correctly on a tab switch without any extra work
+  // (activeTabId/tabState are read live from the store every render, not captured once at
+  // mount), but the `useState(() => tabState.X)` LAZY initializers above only ever run ONCE per
+  // mount — without a real remount they'd keep showing the PREVIOUS tab's right-panel open/
+  // width/content state until the user happened to touch it. Reset directly in the render body
+  // (not a useEffect) — the same "adjust state during render when a dependency changed" pattern
+  // NotesPanel.tsx already uses for its own analogous notesTabId problem
+  // (prevNotesTabIdForGuardRef) — so the correct tab's state is already in place for THIS
+  // render's paint, with no one-frame flash of the outgoing tab's leftover state.
+  const prevBibleTabIdForResetRef = useRef(activeTabId)
+  if (prevBibleTabIdForResetRef.current !== activeTabId) {
+    prevBibleTabIdForResetRef.current = activeTabId
+    setRightPanelOpen(tabState.rightPanelOpen ?? false)
+    setRightPanelWidth(tabState.rightPanelWidth ?? 280)
+    setBottomPanelHeight(tabState.bottomPanelHeight ?? 240)
+    setRightPanelTab(tabState.rightPanelTab ?? 'notes')
+    setRightPanelNoteId(tabState.rightPanelNoteId ?? null)
+    setRightPanelLexiconEntry(tabState.rightPanelLexiconEntry ?? null)
+    setRightPanelVerseFilter(tabState.rightPanelVerseFilter ?? null)
+    setRightPanelExpandAll(tabState.rightPanelExpandAll ?? false)
+    setRightPanelSlotBTabs(tabState.rightPanelSlotBTabs ?? (tabState.rightPanelSlotB ? [tabState.rightPanelSlotB] : []))
+    setRightPanelSlotB(tabState.rightPanelSlotB ?? null)
+    setRightPanelNoteIdB(tabState.rightPanelNoteIdB ?? null)
+    setRightPanelLexiconEntryB(tabState.rightPanelLexiconEntryB ?? null)
+    setRightPanelVerseFilterB(tabState.rightPanelVerseFilterB ?? null)
+    setRightPanelExpandAllB(tabState.rightPanelExpandAllB ?? false)
+    lastNoteCursorRef.current = tabState.rightPanelNoteCursor ?? null
+    lastNoteCursorRefB.current = tabState.rightPanelNoteCursorB ?? null
+    lastRightPanelTabRef.current = tabState.rightPanelTab ?? 'notes'
+    // Purely transient UI (popover open/closed, temporary picker positions, in-progress
+    // gestures) that a real remount would always have started fresh — none of this is
+    // meaningful once we're looking at an entirely different tab's content.
+    setPdfPicker(null)
+    setInfoOpen(false)
+    setInfoPos(null)
+    setLayoutPickerOpen(false)
+    setLayoutPickerAnchor(null)
+    setAddPanelTextId(null)
+    setFlashAnchor(null)
+    setCompareFocusedCol(0)
+    setCompareSyncEligible(false)
+    // Find-bar match list self-heals (its own effect depends on tabState.bookId/chapter), but
+    // the INDEX into it doesn't — without this, find-next/prev could start from a leftover index
+    // from the previous tab's match count and jump to the wrong occurrence on the first click.
+    setFindMatchIdx(0)
+    // Compare-mode column DOM refs — CompareView repopulates these on its own re-render, but
+    // clear them here too so a read in the brief window before that happens can't see a stale
+    // ref from a compare tab with a different column count.
+    compareColRefs.current = []
+    // Presenter outline band: the region-mismatch guard inside computePresenterBand already
+    // protects against drawing a stale band for the wrong book/chapter, but clearing these
+    // outright avoids even a one-frame flash of the outgoing tab's band before that guard (or
+    // the fresh requestViewerVisibleRegion() effect a few lines down) catches up.
+    setViewerVisibleRegion(null)
+    setPresenterBand(null)
+    lastViewerRegionRef.current = null
+    findCenterVerseRef.current = null
+    findScrollSuppressRef.current = 0
+    virtualScrollPctRef.current = 0
+  }
+
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
     // This prevents the redirect-to-first-book firing erroneously when both translation
@@ -389,6 +468,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const r = region as ViewerVisibleRegion
       // Compare-view columns carry a colIndex — route those to CompareView via an event.
       if (r.colIndex !== undefined) { window.dispatchEvent(new CustomEvent('berean:compareRegion', { detail: r })); return }
+      // The viewer's own scroll-driven report can fire once per rAF while it's mid-scroll
+      // (see ViewerBiblePage.tsx's reportVisible doc comment) even though its measured
+      // fraction/verseFracs are usually identical frame-to-frame once settled. Skip the
+      // state update — and everything downstream of it (computePresenterBand's own
+      // getBoundingClientRect() pass + a BiblePanel re-render) — when nothing changed.
+      const last = lastViewerRegionRef.current
+      if (last && last.bookId === r.bookId && last.chapter === r.chapter
+        && last.visibleFraction === r.visibleFraction && last.clientHeight === r.clientHeight
+        && shallowEqualNumberRecord(last.verseFracs, r.verseFracs)) {
+        return
+      }
+      lastViewerRegionRef.current = r
       setViewerVisibleRegion(r)
     })
   }, [floating])
@@ -460,6 +551,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       scrollPercentOverride,
     }))
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Latest computePresenterBand, readable from callbacks (like clearTargetVerse below) that
+  // must NOT take it as a dependency — computePresenterBand's identity changes on every
+  // viewerVisibleRegion update, and those callbacks are handed to memo(ChapterView) as props
+  // whose stable identity is what lets that memo actually bail out (see the comment above
+  // clearTargetVerse's definition).
+  const computePresenterBandRef = useRef(computePresenterBand)
+  computePresenterBandRef.current = computePresenterBand
 
   // Presenter "send to view" push — triggered by the shared top bar's presenter button
   // (TopBar.tsx) via presenterPushToken, since the scroll-position capture below depends
@@ -913,6 +1012,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Accumulate typed digits and navigate after a short pause.
   const [verseDigitAccum, setVerseDigitAccum] = useState('')
   const verseDigitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Declared after prevBibleTabIdForResetRef's block above (can't add these two there without a
+  // "used before declaration" error), so reset them separately here — still via useLayoutEffect
+  // (not useEffect) so it fires before paint, same "no flash of stale state" guarantee. Before
+  // BiblePanel stayed mounted across tab switches, a real remount's effect cleanup would cancel
+  // any in-flight digit accumulation for free; without this, typing a couple of digits then
+  // switching tabs within the 1s window fired the jump ~1s later against the NEW tab instead.
+  useLayoutEffect(() => {
+    setVerseDigitAccum('')
+    if (verseDigitTimerRef.current) { clearTimeout(verseDigitTimerRef.current); verseDigitTimerRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabId])
 
   useEffect(() => {
     function onVerseDigit(e: Event) {
@@ -927,7 +1037,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             if (container) {
               const el = container.querySelector<HTMLElement>(`[data-verse="${verseNum}"]`)
               if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                scrollVerseIntoView(el, VERSE_JUMP_ANIMATED_START)
               }
             }
           }
@@ -1092,7 +1202,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = tabState.compareMode ? compareColRefs.current[compareFocusedCol] : getScrollEl()
     if (matches.length > 0 && container) {
       const el = container.querySelector<HTMLElement>(`[data-verse="${matches[0]}"]`)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      scrollVerseIntoView(el, VERSE_JUMP_ANIMATED_CENTER)
       presenterScrollToVerse(matches[0])
     }
   }, [findBarQuery, findBarOpen, findBarWordMode, activeSpace, tabState.bookId, tabState.chapter, tabState.compareMode, compareFocusedCol]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1184,24 +1294,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
       return
     }
-    if (tabState.endChapter) {
-      // In multi-chapter mode, go to previous single chapter
-      navigate(tabState.bookId, tabState.chapter - 1)
-    } else if (isHermasBook(tabState.bookId)) {
-      const prev = getHermasPrevChapter(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))
-      if (prev !== null) navigate(tabState.bookId, prev)
-      // else: already at first Hermas chapter, no cross-book wrap for pseudepigrapha
-    } else if (tabState.chapter > 1) {
-      navigate(tabState.bookId, tabState.chapter - 1)
-    } else if (hasPrologueChapter(tabState.bookId) && tabState.chapter === 1) {
-      // Step into the book's unnumbered chapter-0 Prologue before wrapping to the previous book.
-      navigate(tabState.bookId, 0)
-    } else if (tabState.chapter === 0) {
-      // Already at the Prologue — nothing before it in this book, no cross-book wrap.
-    } else {
-      const bookIdx = books.findIndex((b) => b.id === tabState.bookId)
-      if (bookIdx > 0) { const prev = books[bookIdx - 1]; navigate(prev.id, prev.chapters_count) }
-    }
+    const ref = getPrevChapterRef(books, tabState.bookId, tabState.chapter, textId, { endChapter: tabState.endChapter })
+    if (ref) navigate(ref.bookId, ref.chapter)
   }
 
   function nextChapter() {
@@ -1211,19 +1305,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
       return
     }
-    if (tabState.endChapter) {
-      // In multi-chapter mode, go to next single chapter after the range
-      navigate(tabState.bookId, tabState.endChapter + 1)
-    } else if (isHermasBook(tabState.bookId)) {
-      const next = getHermasNextChapter(tabState.bookId, tabState.chapter, hermasVariantForTextId(textId))
-      if (next !== null) navigate(tabState.bookId, next)
-      // else: already at last Hermas chapter
-    } else if (tabState.chapter < chapterCount) {
-      navigate(tabState.bookId, tabState.chapter + 1)
-    } else {
-      const bookIdx = books.findIndex((b) => b.id === tabState.bookId)
-      if (bookIdx < books.length - 1) navigate(books[bookIdx + 1].id, 1)
-    }
+    const ref = getNextChapterRef(books, tabState.bookId, tabState.chapter, chapterCount, textId, { endChapter: tabState.endChapter })
+    if (ref) navigate(ref.bookId, ref.chapter)
   }
 
   function toggleRightPanel() {
@@ -1428,6 +1511,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
 
   const clearTargetVerse = useCallback(() => {
     if (!memoTabId) return
+    // Mirror presenterScrollToVerse's other half of this pair: the presenter (when open) centers
+    // on this same verse via its own `verse` payload prop (ViewerBiblePage.tsx, block: 'center'),
+    // so it is NOT mirroring the main window's scroll proportion right now. Tell
+    // computePresenterBand which verse to anchor on instead — without this the outline band
+    // either doesn't move (verse was already on-screen, so no scroll event ever fired to trigger
+    // a recompute) or lands using a stale proportional guess.
+    const jumpedVerse = tabStateRef.current.targetVerse
+    if (jumpedVerse != null) findCenterVerseRef.current = jumpedVerse
     updateTabState('scripture', memoTabId, {
       targetVerse: undefined, targetVerseQuery: undefined, targetVerseWordMode: undefined,
       targetVerseStrongsWords: undefined, targetVerseStrongsExtraWords: undefined,
@@ -1447,6 +1538,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // same mechanism the find bar already uses via presenterScrollToVerse — so the presenter
     // keeps the target verse centered in context instead of pinned to its edge.
     findScrollSuppressRef.current = Date.now() + 700
+    // If the jumped-to verse was already on screen, the scrollIntoView above was a no-op, so no
+    // native `scroll` event fires and nothing else would trigger a band recompute for this jump.
+    // Force one directly (the target verse's DOM position is already settled — this callback
+    // fires after ChapterView's own scroll-to-verse effect has run).
+    if (!useAppStore.getState().viewerPaused) computePresenterBandRef.current()
   }, [memoTabId, updateTabState])
 
   const handleStrongsClick = useCallback((strongsNum: string) => {
@@ -1546,10 +1642,17 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     document.addEventListener('mouseup', onUp)
   }
 
-  // Vertical resize drag handle (for bottom panel layouts) — same rAF throttling.
+  // Vertical resize drag handle (for panel-bottom/notes-bottom/notes-top/compare-notes) — same
+  // rAF throttling as the horizontal one above. Was writing into rightPanelWidth (the SIDE
+  // panel's own width state) despite being labeled/positioned as a height drag — dragging this
+  // divider silently changed what width the side panel would use if the layout was later
+  // switched to 'standard'. Now writes bottomPanelHeight, the same field
+  // handleLCVResizeMouseDown/split-bottom's divider already correctly uses, with the same clamp
+  // range (120-520, matching split-bottom's own sbHeight) instead of the horizontal drag's
+  // 200-520 width range.
   const vResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   function handleVResizeMouseDown(e: React.MouseEvent) {
-    vResizeRef.current = { startY: e.clientY, startHeight: rightPanelWidth }
+    vResizeRef.current = { startY: e.clientY, startHeight: bottomPanelHeight }
     setIsResizingPanel(true)
     e.preventDefault()
     let rafId: number | null = null
@@ -1563,16 +1666,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         rafId = null
         if (!vResizeRef.current) return
         const delta = vResizeRef.current.startY - latestY
-        setRightPanelWidth(Math.max(120, Math.min(480, vResizeRef.current.startHeight + delta)))
+        setBottomPanelHeight(Math.max(120, Math.min(520, vResizeRef.current.startHeight + delta)))
       })
     }
     function onUp(e: MouseEvent) {
       if (!vResizeRef.current) return
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
       const delta = vResizeRef.current.startY - e.clientY
-      const finalHeight = Math.max(120, Math.min(480, vResizeRef.current.startHeight + delta))
-      setRightPanelWidth(finalHeight)
-      if (activeTab) updateTabState('scripture', activeTab.id, { rightPanelWidth: finalHeight })
+      const finalHeight = Math.max(120, Math.min(520, vResizeRef.current.startHeight + delta))
+      setBottomPanelHeight(finalHeight)
+      if (activeTab) updateTabState('scripture', activeTab.id, { bottomPanelHeight: finalHeight })
       vResizeRef.current = null
       setIsResizingPanel(false)
       document.removeEventListener('mousemove', onMove)
@@ -1658,9 +1761,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         viewerScrollRAFRef.current = null
         const base = computeViewerPayload()
         if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
+        // Coalesced into the same rAF as the push above (was previously unthrottled,
+        // running its own getBoundingClientRect() pass over every verse on every raw
+        // scroll event even when the push right above it was already rAF-throttled).
+        if (!useAppStore.getState().viewerPaused) computePresenterBand()
       })
+    } else if (!st.viewerPaused) {
+      // Viewer window closed, or this scroll is a suppressed programmatic jump — no rAF
+      // batching needed since computePresenterBand() itself no-ops cheaply when the viewer
+      // isn't open, but still run it synchronously here so a non-viewer scroll doesn't skip
+      // clearing a stale band.
+      computePresenterBand()
     }
-    if (!st.viewerPaused) computePresenterBand()
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────
@@ -2160,9 +2272,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       {/* PDF library picker */}
       {pdfPicker && <PdfPicker anchor={pdfPicker} onClose={() => setPdfPicker(null)} />}
 
-      {/* Verse digit overlay — shown while accumulating a type-anywhere verse number */}
+      {/* Verse digit overlay — shown while accumulating a type-anywhere verse number.
+          `bottom-16` (64px) was unconditional regardless of layout — in a bottom-panel layout
+          (panel-bottom/notes-bottom/compare-notes use `rightPanelWidth` clamped as their height,
+          split-bottom uses `bottomPanelHeight`; see BOTTOM_PANEL_HEIGHT_LAYOUTS below) that
+          panel can be up to 600px tall, well past this overlay's fixed 64px offset — sitting the
+          pill right on top of the panel's own controls. Raise it above the panel when one is
+          actually docked at the bottom of the screen. */}
       {verseDigitAccum && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl flex items-center gap-2 pointer-events-none select-none">
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded-xl bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] shadow-2xl flex items-center gap-2 pointer-events-none select-none"
+          style={{
+            bottom: BOTTOM_PANEL_HEIGHT_LAYOUTS.has(currentLayout)
+              ? (currentLayout === 'split-bottom'
+                  ? Math.max(120, Math.min(520, bottomPanelHeight))
+                  : Math.max(160, Math.min(600, rightPanelWidth))) + 24
+              : 64,
+          }}
+        >
           <span className="text-xs text-[rgb(var(--color-text-muted))]">Go to verse</span>
           <span className="text-lg font-bold text-[rgb(var(--color-text-primary))] font-mono">{verseDigitAccum}</span>
         </div>
@@ -2201,6 +2328,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Shared scripture view block
     const scriptureView = tabState.compareMode ? (
       <CompareView
+        // CompareView has its own substantial mount-scoped state (per-column data, scroll
+        // positions, etc.) that hasn't been audited/made tab-aware the way ChapterView just was
+        // — rather than risk the same class of stale-content bug with an unaudited surface,
+        // force a clean remount specifically for compare-mode tabs on switch. Compare mode is a
+        // deliberately-chosen, less frequent view than plain scripture reading, so this doesn't
+        // reintroduce the everyday-tab-switch cost the BiblePanel remount fix targeted.
+        key={activeTabId}
         bookId={tabState.bookId}
         chapter={tabState.chapter}
         sourceTextId={textId}
@@ -2230,6 +2364,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       />
     ) : continuousChapterScroll && !tabState.endChapter && !isHermasBook(tabState.bookId) ? (
       <ContinuousChapterScroll
+        // Same reasoning as CompareView's key above: ContinuousChapterScroll owns its own
+        // substantial windowing state (firstCh/lastCh/visibleCh, IntersectionObserver-driven
+        // heading tracking) that hasn't been individually audited/made tab-aware the way
+        // ChapterView just was. Force a clean remount on tab switch for correctness rather than
+        // risk the same stale-content bug in an unaudited surface — continuous scroll is an
+        // opt-in reading preference, not every scripture tab switch, so this doesn't reintroduce
+        // the everyday cost the BiblePanel remount fix targeted.
+        key={activeTabId}
         ref={continuousScrollRef}
         bookId={tabState.bookId}
         chapter={tabState.chapter}
@@ -2410,6 +2552,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onVersesLoaded={ch === tabState.chapter ? onVersesLoaded : undefined}
                 onTargetVerseConsumed={ch === tabState.chapter ? clearTargetVerse : undefined}
                 flashAnchor={ch === tabState.chapter ? flashAnchor : undefined}
+                tabId={activeTabId}
               />
             ))
           : (
@@ -2432,6 +2575,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 onVersesLoaded={onVersesLoaded}
                 onTargetVerseConsumed={clearTargetVerse}
                 flashAnchor={flashAnchor}
+                tabId={activeTabId}
               />
             )
         }
@@ -2541,6 +2685,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // case's motion.div below) tracks the gesture. Shared by every layout case
     // below since panelSize is computed once here, not per-case.
     const panelSize = Math.max(160, Math.min(600, rightPanelWidth))
+    // For the bottom-docked panel layouts below (panel-bottom/notes-bottom/notes-top/
+    // compare-notes) — was using `panelSize` (derived from rightPanelWidth) as a HEIGHT purely
+    // because it happened to produce a visually reasonable number, while the divider that
+    // actually resizes it (handleVResizeMouseDown, wired to vDivider below) was ALSO mistakenly
+    // writing into rightPanelWidth. That meant dragging this divider in e.g. notes-bottom
+    // silently changed what width the SIDE panel would use if the user later switched to
+    // 'standard' layout. Both now consistently use bottomPanelHeight — the field
+    // handleLCVResizeMouseDown/split-bottom's own divider already correctly used — same clamp
+    // range split-bottom's sbHeight already established.
+    const bottomPanelSize = Math.max(120, Math.min(520, bottomPanelHeight))
 
     switch (currentLayout) {
       // ── No side panel ────────────────────────────────────────────────────────
@@ -2763,7 +2917,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0" onDragOver={handlePanelAreaDragOver} onDrop={handlePanelAreaDrop}>
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex gap-1.5 mx-1.5">
               {rightPanelSlotB && (
                 <div className="flex-1 flex flex-col overflow-hidden rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">{panelEl('B')}</div>
               )}
@@ -2778,7 +2932,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">{scriptureView}</div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('A', 'notes')}
             </div>
           </div>
@@ -2788,7 +2942,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       case 'notes-top':
         return (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('A', 'notes')}
             </div>
             {vDivider}
@@ -2802,6 +2956,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
               <CompareView
+                key={activeTabId}
                 bookId={tabState.bookId}
                 chapter={tabState.chapter}
                 sourceTextId={textId}
@@ -2821,7 +2976,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               />
             </div>
             {vDivider}
-            <div style={{ height: panelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
+            <div style={{ height: bottomPanelSize }} className="flex-shrink-0 flex flex-col overflow-hidden mx-1.5 rounded-shell-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] shadow-lg">
               {panelEl('A', 'notes')}
             </div>
           </div>

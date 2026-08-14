@@ -3,7 +3,7 @@ import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, 
 import { useAppStore } from '@/store'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
-import type { AiLookupChatMessage, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef, AiLookupVideoResult } from '@/types/electron'
+import type { AiLookupChatMessage, AiLookupResponse, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef, AiLookupVideoResult } from '@/types/electron'
 import ChatHistoryList from './ChatHistoryList'
 
 // Resizable (Round 10) — these are now the MINIMUM size (the panel's original fixed dimensions),
@@ -199,9 +199,13 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
 function VideoCard({ video }: { video: AiLookupVideoResult }) {
   const openYouTubeVideoInNewTab = useAppStore((s) => s.openYouTubeVideoInNewTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
+  // startMs/snippet are only set for a transcript-content match (see mergeVideoSearchResults in
+  // aiLookup.ts) — a plain title match has no single "moment" to deep-link to, so it opens at 0
+  // exactly like before this feature existed.
+  const startSeconds = video.startMs != null ? Math.floor(video.startMs / 1000) : 0
   return (
     <button
-      onClick={() => { openYouTubeVideoInNewTab(video.videoId); setActiveSpace('youtube') }}
+      onClick={() => { openYouTubeVideoInNewTab(video.videoId, startSeconds); setActiveSpace('youtube') }}
       className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer flex items-center gap-2"
     >
       {video.thumbnailUrl
@@ -209,10 +213,24 @@ function VideoCard({ video }: { video: AiLookupVideoResult }) {
         : <Youtube size={20} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
       <div className="min-w-0">
         <p className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] leading-snug line-clamp-2">{video.title}</p>
-        <p className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">{video.channelName}</p>
+        <p className="text-[10px] text-[rgb(var(--color-text-muted))] truncate">
+          {video.channelName}{video.startMs != null ? ` — at ${formatTimestamp(startSeconds)}` : ''}
+        </p>
+        {video.snippet && <p className="text-[10px] text-[rgb(var(--color-text-secondary))] leading-snug line-clamp-2 mt-0.5">"{video.snippet}"</p>}
       </div>
     </button>
   )
+}
+
+/** mm:ss (or h:mm:ss past the hour mark) for a transcript-match deep-link label — plain
+ *  arithmetic, no Intl/date library needed for a duration this short. */
+function formatTimestamp(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
+  const ss = String(s).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
 /** A small pill/badge for a deterministic (non-AI-prose) summary line — cross-ref/quote-lookup
@@ -227,6 +245,25 @@ function SourceBadge({ text }: { text: string }) {
       <span>{text}</span>
     </div>
   )
+}
+
+/** The answer-bearing fields of a pipeline response, in the shape a chat message carries them.
+ *  Shared by the progressive-partial handler and the final response so the two can never drift
+ *  into rendering a different subset of the same payload — a partial and the final answer differ
+ *  ONLY by commentary having landed, never by which fields the UI knows how to show. */
+function messageFieldsFrom(res: AiLookupResponse): Partial<AiLookupChatMessage> {
+  return {
+    results: res.results,
+    visibleCount: res.visibleCount,
+    keywords: res.keywords,
+    related: res.related,
+    relatedNote: res.relatedNote,
+    summary: res.summary,
+    strongsCard: res.strongsCard,
+    notes: res.notes,
+    notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer,
+    videos: res.videos,
+  }
 }
 
 export default function AiLookupPanel() {
@@ -283,6 +320,9 @@ export default function AiLookupPanel() {
   // its own timeout, keyed by message index so only the button just clicked flips.
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Bumped at the start of every question — see the onPartial effect below for why a straggling
+  // partial from an abandoned question must not paint over a newer answer.
+  const partialSeqRef = useRef(0)
   const [examplePrompt] = useState(() => EXAMPLE_PROMPTS[Math.floor(Math.random() * EXAMPLE_PROMPTS.length)])
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
@@ -294,6 +334,37 @@ export default function AiLookupPanel() {
   // not per-query, same pattern as the other progress bridges (youtube.ts's onProgress etc).
   useEffect(() => {
     window.aiLookup.onProgress((status) => setProgressStatus(status))
+  }, [])
+
+  // ── Progressive results (speed round) ───────────────────────────────────────
+  // Retrieval finishes well before the pipeline does. By the time runLookup calls emitPartial
+  // (aiLookup.ts, just before step 7) every real DB-verified verse the user will ever see
+  // already exists in memory — all that remains is the optional Commentary pass, a second ~4s
+  // Ollama call that writes prose over those SAME results and never introduces a new reference.
+  // Waiting for it meant sitting on a blank spinner while the finished answer was already on the
+  // other side of an IPC boundary.
+  //
+  // So: a partial paints the assistant message immediately, and the final `query` response
+  // replaces it in place once commentary lands. `partialSeqRef` is what makes that safe — it's
+  // bumped at the start of every send(), and a partial is dropped unless its sequence still
+  // matches, so a straggling partial from an abandoned question can't paint over the answer to a
+  // newer one. Same "latest request wins" guard NotesPanel.tsx uses for its own async loads.
+  //
+  // Registered ONCE rather than per-query: preload's onPartial does
+  // removeAllListeners('ailookup:partial') before subscribing, so re-registering per query would
+  // be harmless today but would quietly break the moment a second panel existed.
+  useEffect(() => {
+    window.aiLookup.onPartial((partial) => {
+      const seq = partialSeqRef.current
+      setMessages((prev) => {
+        if (seq !== partialSeqRef.current) return prev
+        // Only ever fills the placeholder this panel appended for the in-flight question —
+        // never rewrites an already-completed answer.
+        const last = prev[prev.length - 1]
+        if (!last || last.role !== 'assistant' || !last.pending) return prev
+        return [...prev.slice(0, -1), { ...last, ...messageFieldsFrom(partial), pending: true }]
+      })
+    })
   }, [])
 
   useEffect(() => {
@@ -399,7 +470,10 @@ export default function AiLookupPanel() {
 
   async function persist(nextMessages: AiLookupChatMessage[]) {
     const title = nextMessages.find((m) => m.role === 'user')?.content.slice(0, 60) || 'AI Lookup'
-    const saved = await window.aiLookup.saveChat({ id: activeChatId ?? undefined, title, messages: nextMessages })
+    // `pending` is live-render state only (see the onPartial effect) — strip it on the way to
+    // the DB so a chat reopened later can never contain a message frozen mid-flight.
+    const clean = nextMessages.map(({ pending: _pending, ...m }) => m)
+    const saved = await window.aiLookup.saveChat({ id: activeChatId ?? undefined, title, messages: clean })
     if (!activeChatId) setActiveChatId(saved.id)
   }
 
@@ -420,6 +494,12 @@ export default function AiLookupPanel() {
       // tab inline (e.g. "this chapter") even with the toggle off — either way is a one-off
       // per-message decision, not persisted state on the message itself.
       const tabContext = (useTabContext || mentionsCurrentTab(question)) ? getActiveTabContextRef() : undefined
+      // Placeholder the partial handler fills in. Appended BEFORE the query so a partial that
+      // arrives mid-flight has something to attach to; `pending` marks it as the only message
+      // partials are ever allowed to overwrite.
+      const seq = ++partialSeqRef.current
+      setMessages([...withUser, { role: 'assistant', content: '', pending: true, createdAt: new Date().toISOString() }])
+
       const res = await window.aiLookup.query(question, {
         commentary: commentaryOn,
         agentic: agenticOn,
@@ -440,18 +520,14 @@ export default function AiLookupPanel() {
           : !hasAnyAnswer
             ? "No matching verses found — try rephrasing."
             : '',
-        results: res.results,
-        visibleCount: res.visibleCount,
-        keywords: res.keywords,
-        related: res.related,
-        relatedNote: res.relatedNote,
-        summary: res.summary,
-        strongsCard: res.strongsCard,
-        notes: res.notes,
-        notesAreThePrimaryAnswer: res.notesAreThePrimaryAnswer,
-        videos: res.videos,
+        ...messageFieldsFrom(res),
         createdAt: new Date().toISOString(),
+        // Cleared: this is the settled answer, so no further partial may touch it.
       }
+      // A response from a question the user has already moved on from must not clobber whatever
+      // is on screen now — same sequence guard the partial handler uses, applied to the final
+      // result too, since `query` is awaited across a window in which send() can be called again.
+      if (seq !== partialSeqRef.current) return
       const withAssistant = [...withUser, assistantMsg]
       setMessages(withAssistant)
       await persist(withAssistant)
@@ -540,7 +616,13 @@ export default function AiLookupPanel() {
           <HistoryIcon size={14} />
         </button>
         <button
-          onClick={() => { setOpen(false); window.aiLookup.unloadModel().catch(() => {}) }}
+          // Speed round: used to also call window.aiLookup.unloadModel() here, which forced an
+          // immediate Ollama unload on every panel close — guaranteeing the NEXT open pays a cold
+          // model load (~2.7s) even if the user reopens seconds later (e.g. accidental close, or
+          // closing just to glance at a verse). The idle-unload timer in electron/ollama.ts
+          // already reclaims the memory once the user has genuinely stopped asking questions;
+          // closing the panel doesn't need its own, more aggressive unload path on top of that.
+          onClick={() => setOpen(false)}
           title="Close"
           className="p-1 rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer"
         >
@@ -607,6 +689,17 @@ export default function AiLookupPanel() {
               </p>
             )}
             {messages.map((m, mi) => {
+              // A pending placeholder with nothing in it yet renders NOTHING — the loading
+              // indicator below already says work is happening, and drawing an empty assistant
+              // bubble beside it read as the panel flickering (reported during Deep search,
+              // where no partial is emitted at all, so the placeholder stayed empty for the
+              // whole run). The moment a partial or the final answer fills it, it renders
+              // normally. Deliberately checks for real CONTENT rather than just `pending`, so a
+              // partial that arrives with results still shows immediately.
+              if (m.role === 'assistant' && m.pending && !m.content && !m.summary
+                  && !m.results?.length && !m.strongsCard && !m.notes?.length && !m.videos?.length) {
+                return null
+              }
               if (m.role === 'user') {
                 const isEditing = editingIndex === mi
                 if (isEditing) {
@@ -700,7 +793,16 @@ export default function AiLookupPanel() {
                       </div>
                     )}
 
-                    {!m.notesAreThePrimaryAnswer && visiblePrimary.map((r, ri) => {
+                    {/* Round: item #2 — verses are supporting material now, not something
+                        `notesAreThePrimaryAnswer` hides outright. Notes/videos above already
+                        render first when they lead, so a scripture answer found ALONGSIDE a real
+                        note match still reaches the user instead of being silently discarded —
+                        the exact bug this round fixes (runLookup used to return zero verses
+                        whenever a note was found, even with a genuinely better scripture answer
+                        sitting right there). `notesAreThePrimaryAnswer` still means what its name
+                        says — notes are the headline — it just no longer means "and nothing
+                        else is shown." */}
+                    {visiblePrimary.map((r, ri) => {
                       const nested = crossRefsByParent.get(`${r.bookId}|${r.chapter}|${r.verse}`) ?? []
                       const crKey = `${mi}-${ri}`
                       const crOpen = crossRefsOpen[crKey] ?? false
@@ -766,7 +868,7 @@ export default function AiLookupPanel() {
                       )
                     })}
 
-                    {!m.notesAreThePrimaryAnswer && hasMore && (
+                    {hasMore && (
                       <button
                         onClick={() => setExpanded((prev) => ({ ...prev, [mi]: primary.length }))}
                         className="w-full flex items-center justify-center gap-1 text-[11px] text-[rgb(var(--color-accent))] hover:underline py-1 cursor-pointer"

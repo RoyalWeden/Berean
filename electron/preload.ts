@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('notes', {
   setFolderParent: (id: string, parentId: string | null) =>
     ipcRenderer.invoke('folders:setParent', id, parentId),
   listIdioms: () => ipcRenderer.invoke('notes:listIdioms'),
+  // Heading collapse persistence (round 12 item 6)
+  getCollapsedHeadings: (noteId: string) => ipcRenderer.invoke('notes:getCollapsedHeadings', noteId),
+  setHeadingCollapsed: (noteId: string, headingKey: string, collapsed: boolean) =>
+    ipcRenderer.invoke('notes:setHeadingCollapsed', noteId, headingKey, collapsed),
   // Cross-window sync: main process broadcasts this to every OTHER window whenever
   // any note mutation succeeds, so each renderer's own noteChangeToken can bump.
   onChanged: (cb: () => void) => {
@@ -162,6 +166,13 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('app:tabStateUpdate')
     ipcRenderer.on('app:tabStateUpdate', (_, payload) => cb(payload))
   },
+  // Cross-window Read Aloud (TTS) playback sync — mirrors broadcastTabState/onTabStateUpdate
+  // exactly. Throttled to verse-level granularity by the sender (useTTSPlayback.ts), not here.
+  broadcastAudioState: (payload: unknown) => ipcRenderer.send('app:broadcastAudioState', payload),
+  onAudioStateUpdate: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('app:audioStateUpdate')
+    ipcRenderer.on('app:audioStateUpdate', (_, payload) => cb(payload))
+  },
   // Return a floating tab back to the main window
   returnFloatTab: (payload: { type: string; state: Record<string, unknown> }) =>
     ipcRenderer.send('app:returnFloatTab', payload),
@@ -198,7 +209,6 @@ contextBridge.exposeInMainWorld('viewer', {
   onContent: (cb: (payload: unknown) => void) => {
     ipcRenderer.removeAllListeners('viewer:content')
     ipcRenderer.on('viewer:content', (_, payload) => {
-      console.log('[Viewer preload] viewer:content received:', JSON.stringify(payload))
       cb(payload)
     })
   },
@@ -226,14 +236,14 @@ contextBridge.exposeInMainWorld('viewer', {
 })
 
 contextBridge.exposeInMainWorld('crossrefs', {
-  getForVerse: (bookId: string, chapter: number, verse: number) =>
-    ipcRenderer.invoke('crossrefs:getForVerse', bookId, chapter, verse),
-  getTSKeForVerse: (bookId: string, chapter: number, verse: number) =>
-    ipcRenderer.invoke('crossrefs:getTSKeForVerse', bookId, chapter, verse),
-  getForChapter: (bookId: string, chapter: number) =>
-    ipcRenderer.invoke('crossrefs:getForChapter', bookId, chapter),
-  getTSKeForChapter: (bookId: string, chapter: number) =>
-    ipcRenderer.invoke('crossrefs:getTSKeForChapter', bookId, chapter),
+  getForVerse: (bookId: string, chapter: number, verse: number, textId?: string) =>
+    ipcRenderer.invoke('crossrefs:getForVerse', bookId, chapter, verse, textId),
+  getTSKeForVerse: (bookId: string, chapter: number, verse: number, textId?: string) =>
+    ipcRenderer.invoke('crossrefs:getTSKeForVerse', bookId, chapter, verse, textId),
+  getForChapter: (bookId: string, chapter: number, textId?: string) =>
+    ipcRenderer.invoke('crossrefs:getForChapter', bookId, chapter, textId),
+  getTSKeForChapter: (bookId: string, chapter: number, textId?: string) =>
+    ipcRenderer.invoke('crossrefs:getTSKeForChapter', bookId, chapter, textId),
   getHermasTaylorChapter: (bookId: string, chapter: number) =>
     ipcRenderer.invoke('crossrefs:getHermasTaylorChapter', bookId, chapter),
   status: () => ipcRenderer.invoke('crossrefs:status'),
@@ -254,6 +264,13 @@ contextBridge.exposeInMainWorld('aiLookup', {
   onProgress: (cb: (status: string) => void) => {
     ipcRenderer.removeAllListeners('ailookup:progress')
     ipcRenderer.on('ailookup:progress', (_, status) => cb(status))
+  },
+  // Speed round: fires once retrieval is done, before Commentary (if on) runs its own slower
+  // Ollama call — same request/response `query()` call still resolves with the final result as
+  // normal afterward. See AiLookupAPI['onPartial'] in src/types/electron.d.ts for the full why.
+  onPartial: (cb: (partial: unknown) => void) => {
+    ipcRenderer.removeAllListeners('ailookup:partial')
+    ipcRenderer.on('ailookup:partial', (_, partial) => cb(partial))
   },
 })
 
@@ -324,6 +341,30 @@ contextBridge.exposeInMainWorld('eSwordImport', {
     ipcRenderer.removeAllListeners('eSwordImport:progress')
     ipcRenderer.on('eSwordImport:progress', (_, p) => cb(p))
   },
+})
+
+contextBridge.exposeInMainWorld('ttsModel', {
+  getStatus: () => ipcRenderer.invoke('ttsModel:getStatus'),
+  download: () => ipcRenderer.invoke('ttsModel:download'),
+  downloadRuntimeFile: () => ipcRenderer.invoke('ttsModel:downloadRuntimeFile'),
+  cancelDownload: () => ipcRenderer.invoke('ttsModel:cancelDownload'),
+  clearModelCache: () => ipcRenderer.invoke('ttsModel:clearModelCache'),
+  getModelId: () => ipcRenderer.invoke('ttsModel:getModelId'),
+  onDownloadProgress: (cb: (p: { receivedBytes: number; totalBytes: number }) => void) => {
+    ipcRenderer.removeAllListeners('ttsModel:downloadProgress')
+    ipcRenderer.on('ttsModel:downloadProgress', (_, p) => cb(p))
+  },
+  onDownloadVerifying: (cb: () => void) => {
+    ipcRenderer.removeAllListeners('ttsModel:downloadVerifying')
+    ipcRenderer.on('ttsModel:downloadVerifying', () => cb())
+  },
+})
+
+contextBridge.exposeInMainWorld('ttsAudioCache', {
+  get: (key: string) => ipcRenderer.invoke('ttsAudioCache:get', key),
+  put: (key: string, data: ArrayBuffer) => ipcRenderer.invoke('ttsAudioCache:put', key, data),
+  clear: () => ipcRenderer.invoke('ttsAudioCache:clear'),
+  stats: () => ipcRenderer.invoke('ttsAudioCache:stats'),
 })
 
 // Expose platform so renderer can adapt window chrome without Node access

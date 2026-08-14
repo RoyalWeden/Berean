@@ -79,12 +79,40 @@ export function createBlockDecorationsPlugin() {
   // version's `refreshDecorationsEffect` dispatch from inside its own
   // decoration builder.
   let liveView: EditorView | null = null
+  function refreshOnResolve() {
+    if (liveView) liveView.dispatch(liveView.state.tr.setMeta(refreshMeta, true))
+  }
 
   return new Plugin({
     key: blockDecorationsKey,
+    // Was a plain refresh-token counter — decorations(state) below ignored it entirely and
+    // called buildBlockDecorations(state.doc, ...) unconditionally on EVERY call, which
+    // prosemirror-view makes on effectively every redraw, including pure selection changes
+    // (arrow keys, clicks) with no doc change at all. Unlike refDecorations.ts's own plugin
+    // (which already correctly caches its DecorationSet in plugin state and bails when
+    // `!tr.docChanged`), every cursor move here repaid a full-document verse/lexicon-block
+    // detection walk for no reason. Now caches the real DecorationSet in plugin state, same
+    // gating condition (docChanged OR the refresh meta this plugin's own async verse-lookup
+    // callback sets) refDecorations.ts already uses — `old.map(tr.mapping, tr.doc)` cheaply
+    // remaps the cached set forward for anything else (selection-only transactions).
+    // The refresh callback closes over the OUTER `liveView` variable rather than taking a
+    // snapshot of it, so it's safe to use the exact same callback in `init` (which runs before
+    // the view() hook below sets liveView) as in `apply` — by the time an async verse-text
+    // lookup actually RESOLVES and this callback runs, `view()` has always already run (the
+    // EditorView constructor calls it synchronously, well before any DB round-trip resolves).
+    // An earlier version of this used a no-op callback in init specifically, on the theory that
+    // liveView wasn't available yet — that broke the refresh entirely for the single most common
+    // case a plugin state machine like this needs to handle: opening a note that ALREADY
+    // contains an unverified verse-like block, so init's build is the ONLY one that ever fires
+    // for that lookup (verseTextAccepted's own pending-promise cache means a later apply() call
+    // for the same candidate text is just a cache hit, not a fresh request that could rebind a
+    // "real" callback) — the checking pulse never resolved to either boxed or plain.
     state: {
-      init: () => 0,
-      apply: (tr, token) => (tr.getMeta(refreshMeta) ? token + 1 : token),
+      init: (_, state) => buildBlockDecorations(state.doc, refreshOnResolve),
+      apply(tr, old, _oldState, newState) {
+        if (!tr.docChanged && !tr.getMeta(refreshMeta)) return old.map(tr.mapping, tr.doc)
+        return buildBlockDecorations(newState.doc, refreshOnResolve)
+      },
     },
     view(view) {
       liveView = view
@@ -107,9 +135,7 @@ export function createBlockDecorationsPlugin() {
     },
     props: {
       decorations(state) {
-        return buildBlockDecorations(state.doc, () => {
-          if (liveView) liveView.dispatch(liveView.state.tr.setMeta(refreshMeta, true))
-        })
+        return this.getState(state)
       },
     },
   })
@@ -193,6 +219,15 @@ export function buildBlockDecorations(doc: PMNode, onResolved: () => void): Deco
           const accepted = verseTextAccepted(trimmed, bodyParts.join(' '), threshold, onResolved)
           if (accepted === true) {
             blocks.push({ kind: 'verse', startLine: i, endLine: end, refFrom: line.from, refTo: line.to, refText: bareRefLine, lxx: strippedRefLine.lxx })
+          } else if (accepted === null) {
+            // Fluid-feel polish #2.2: while verification is still pending (the async
+            // window.bible.queryChapter round-trip inside verseTextAccepted hasn't resolved
+            // yet), mark the reference line with a brief "checking" micro-state instead of
+            // leaving it as fully plain text. Does NOT change the fail-closed accept/reject
+            // logic above — this is purely a visual bridge so the transition from "unboxed"
+            // to "boxed" reads as one continuous animation instead of an abrupt pop once the
+            // lookup resolves (see pmEditor.css's .pm-verse-block-checking pulse).
+            decorations.push(Decoration.inline(line.from, line.to, { class: 'pm-verse-block-checking' }))
           }
           i = end + 1
           continue
@@ -201,14 +236,23 @@ export function buildBlockDecorations(doc: PMNode, onResolved: () => void): Deco
         // B) Single-line verse block: "Book c:v verse text…"
         const m = SINGLE_VERSE_LINE_RE.exec(line.text)
         if (m) {
-          const { refLabel, body } = splitLeadingLxx(m[2], m[3])
+          const { refLabel, body, markerLen } = splitLeadingLxx(m[2], m[3])
           const strippedRef = stripLxxMarker(refLabel)
           if (parseRef(strippedRef.ref)) {
             const accepted = verseTextAccepted(refLabel, body, threshold, onResolved)
+            const refFrom = line.from + m[1].length
+            // + markerLen: when the "LXX" marker came from the FRONT of the body (m[3], not
+            // the ref-only m[2]) rather than the ref's own trailing text, extend the span to
+            // cover it too — see splitLeadingLxx's doc comment for why the ref-only length
+            // alone leaves "LXX" out of the styled span.
+            const refTo = refFrom + m[2].length + markerLen
             if (accepted === true) {
-              const refFrom = line.from + m[1].length
-              const refTo = refFrom + m[2].length
               blocks.push({ kind: 'verse', startLine: i, endLine: i, refFrom, refTo, refText: strippedRef.ref, lxx: strippedRef.lxx })
+            } else if (accepted === null) {
+              // Same "checking" micro-state as the multi-line branch above, scoped to just
+              // the reference span (not the whole line) since the single-line form has body
+              // text sharing the same line as the ref.
+              decorations.push(Decoration.inline(refFrom, refTo, { class: 'pm-verse-block-checking' }))
             }
           }
         }

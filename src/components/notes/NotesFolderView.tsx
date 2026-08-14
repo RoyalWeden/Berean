@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
   Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, Trash2,
@@ -574,10 +575,14 @@ export default function NotesFolderView({
         // Flat, no border — matches NotesList's row treatment (a bordered box around every
         // single row read as heavy/boxy and out of step with the rest of the app). Just a
         // soft hover tint and a slightly stronger accent tint for the active note.
+        // Was hover:bg-surface-3 — but NotesPanel.tsx's own root container is ALSO
+        // bg-surface-3, so hovering a note row painted the identical color already behind it:
+        // zero contrast, invisible on every theme (not just one). Folder rows right above this
+        // one already correctly use surface-4 for exactly this reason; matched here too.
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
           activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/8]' :
-          'hover:bg-[rgb(var(--color-surface-3))]'
+          'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
       >
         {selectMode && (
@@ -770,14 +775,28 @@ export default function NotesFolderView({
             </>
           )}
         </div>
-        {isOpen && (
-          <div>
-            {kids
-              .filter((k) => !searchQuery || foldersWithMatches.has(k.id))
-              .map((k) => renderUserFolder(k, depth + 1))}
-            {fNotes.map((n) => renderNote(n, depth + 1))}
-          </div>
-        )}
+        {/* Was an instant show/hide with no transition at all — flagged in the notes-feel pass.
+            AnimatePresence/motion (already a dependency, used throughout the app) handles the
+            "animate to/from height:auto" problem CSS transitions can't do without a JS
+            measurement step. Scoped to just this general user-folder tree (the most common
+            case) for now, not the more specialized book/chapter/year/month/pdfs/trash sections
+            below, which would need the same treatment as a follow-up. */}
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              {kids
+                .filter((k) => !searchQuery || foldersWithMatches.has(k.id))
+                .map((k) => renderUserFolder(k, depth + 1))}
+              {fNotes.map((n) => renderNote(n, depth + 1))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }

@@ -40,6 +40,30 @@ const nodes: Record<string, NodeSpec> = {
     toDOM: (node) => ['div', { 'data-callout': node.attrs.calloutType, class: `pm-callout pm-callout-${String(node.attrs.calloutType).toLowerCase()}` }, 0],
   },
 
+  // Side-by-side layout (2.4 of the notes-editor migration plan). `column_list`'s content
+  // model requires 2+ columns (a "layout" of fewer would be meaningless); `column` is
+  // deliberately NOT a member of the `block` group, so it can only ever appear as a direct
+  // child of `column_list` — never a bare top-level doc block, never nested inside a list
+  // item/blockquote/table cell/etc. Same "narrowly-scoped node" shape as prosemirror-tables'
+  // own table_row/table_cell (tableNodes() below), just declared by hand since there's no
+  // off-the-shelf helper for a flex-column layout. Markdown representation (parser.ts/
+  // serializer.ts) is HTML-comment-delimited (`<!-- berean:columns -->` /
+  // `<!-- berean:col -->`), NOT a GFM table — table cells in THIS schema are `inline*`-only
+  // (see the cellContent comment below), which can't hold a heading/list/callout inside a
+  // column, and that block-content requirement is the whole reason columns exist.
+  column_list: {
+    content: 'column{2,}',
+    group: 'block',
+    parseDOM: [{ tag: 'div[data-column-list]' }],
+    toDOM: () => ['div', { 'data-column-list': 'true', class: 'pm-column-list' }, 0],
+  },
+
+  column: {
+    content: 'block+',
+    parseDOM: [{ tag: 'div[data-column]' }],
+    toDOM: () => ['div', { 'data-column': 'true', class: 'pm-column' }, 0],
+  },
+
   // NOTE: verse blocks and lexicon blocks are intentionally NOT modeled as
   // schema nodes. In the original CM6 editor, detection of these is
   // data-dependent (verse text is verified against the real Bible DB via an

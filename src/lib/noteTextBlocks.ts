@@ -60,11 +60,21 @@ export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
  * (as produced when copying a Septuagint verse), fold it into the reference label and
  * return the cleaned body. e.g. ("Isaiah 9:12", "LXX But the people…") →
  * { refLabel: "Isaiah 9:12 LXX", body: "But the people…", lxx: true }.
+ *
+ * `markerLen` is the exact character length of whatever literally-typed marker text
+ * (e.g. "LXX ", "lxx  ") was consumed from the FRONT of `body` — callers computing a
+ * document decoration span for the ref need this to extend that span past the original
+ * ref-only match and actually cover the "LXX" word, since it's still literally sitting in
+ * the body's own character range even though it's folded into `refLabel` here (a plain
+ * string, not itself a position). Without it (blockDecorations.ts's original bug — see
+ * that file's use site), the ref pill's styled span stopped right after "Isaiah 9:12" and
+ * "LXX" rendered as unstyled body text, reported as "the LXX text isn't formatted with the
+ * rest of the verse reference."
  */
-export function splitLeadingLxx(refStr: string, body: string): { refLabel: string; body: string; lxx: boolean } {
+export function splitLeadingLxx(refStr: string, body: string): { refLabel: string; body: string; lxx: boolean; markerLen: number } {
   const m = body.match(/^LXX[ \t]+(\S.*)$/i)
-  if (m) return { refLabel: `${refStr} LXX`, body: m[1], lxx: true }
-  return { refLabel: refStr, body, lxx: false }
+  if (m) return { refLabel: `${refStr} LXX`, body: m[1], lxx: true, markerLen: m[0].length - m[1].length }
+  return { refLabel: refStr, body, lxx: false, markerLen: 0 }
 }
 
 export interface VerseBlockMatch {
@@ -217,27 +227,54 @@ export function verseTextMatchRatio(candidate: string, actual: string): number {
 // ─── Async verse-text verification cache ──────────────────────────────────────
 // Resolving real verse text requires the Bible DB (async). We cache the computed
 // ratio per (ref + candidate-text) so the synchronous decoration builder can read
-// it. A miss kicks off a background fetch, then re-decorates when it resolves.
+// it. A miss kicks off a background fetch (debounced — see VERSE_LOOKUP_DEBOUNCE_MS
+// below), then re-decorates when it resolves.
+//
+// Every onResolved callback registered while a key is pending gets called once it resolves —
+// NOT just the first one. Multiple call sites race to be the "first" caller for the same key on
+// the very first redraw of a note (createRefDecorationsPlugin's exclusion-range pass in
+// refDecorations.ts calls buildBlockDecorations with a no-op onResolved just to get block
+// ranges; blockDecorations.ts's own decorations() prop calls it again with the REAL onResolved
+// that dispatches a refresh transaction — a `decorations` prop is invoked for every plugin on
+// the same redraw, in plugin-array order, so whichever runs first "wins" the pending slot if
+// only the first callback were kept). Calling every registered callback once the fetch resolves
+// closes that gap regardless of which caller happened to arrive first.
 const verseRatioCache = new Map<string, number>()
-// Presence of a key means a fetch is in flight for it. Value is every onResolved
-// callback registered while it was pending — NOT just the first one. Multiple call
-// sites race to be the "first" caller for the same key on the very first redraw of a
-// note (createRefDecorationsPlugin's exclusion-range pass in refDecorations.ts calls
-// buildBlockDecorations with a no-op onResolved just to get block ranges; blockDecorations.ts's
-// own decorations() prop calls it again with the REAL onResolved that dispatches a refresh
-// transaction — someProp("decorations", ...) invokes every plugin's decorations() on the same
-// redraw, in plugin-array order, so whichever runs first "wins" the pending slot). Storing only
-// the first caller's callback meant that whenever the no-op ran first, the real dispatch never
-// happened at all — the cache got populated correctly, but nothing ever told ProseMirror to
-// repaint, so the block stayed unformatted until some unrelated transaction (a click, a
-// keystroke, a note switch) forced the next decorations() pass to read the now-populated cache.
-// Calling every registered callback once the fetch resolves closes that gap regardless of which
-// caller happened to arrive first.
-const versePending = new Map<string, Array<() => void>>()
+
+// Every distinct (refText, candidate-text) pair typed during a session gets its own cache
+// entry, and the debounce above still means a long editing session composing many verse blocks
+// accumulates a growing number of unique keys (one per candidate text that ever settled long
+// enough to be looked up) — a slow leak with nothing to evict it otherwise. A full LRU is more
+// machinery than this needs; capping to "clear everything once it gets large" is cheap and good
+// enough for a per-session convenience cache (a cleared entry just means the next lookup for
+// that exact text re-fetches, not a correctness issue).
+const VERSE_RATIO_CACHE_MAX = 500
+function cacheVerseRatio(key: string, ratio: number): void {
+  if (verseRatioCache.size >= VERSE_RATIO_CACHE_MAX) verseRatioCache.clear()
+  verseRatioCache.set(key, ratio)
+}
 
 function verseCacheKey(refText: string, candidate: string): string {
   return refText + ' ' + candidate.replace(/\s+/g, ' ').trim().toLowerCase()
 }
+
+// ─── Debounce the actual DB round-trip ─────────────────────────────────────────
+// verseCacheKey includes the full candidate BODY text, so while the user is still typing
+// inside a verse-block's body, every keystroke produces a fresh cache-miss key — without this,
+// each one fired its own undebounced `fetchActualVerseText` IPC round-trip (see that function
+// and verseTextAccepted below), with no way to cancel a now-superseded in-flight one. Same
+// *shape* of bug as blockHandles.ts's pre-fix per-keystroke gutter rebuild, one layer down (an
+// async DB call instead of DOM work) — visually, the `.pm-verse-block-checking` pulse never
+// settled to "accepted" while still typing, only once the user paused.
+//
+// Keyed by refText (not the full cache key) — a debounce keyed on the ever-changing candidate
+// text would never coalesce anything, since every keystroke would get its OWN fresh key and
+// therefore its own fresh timer. Grouping by refText and always tracking the LATEST candidate
+// seen for it is what actually collapses a burst of keystrokes into one eventual fetch.
+const VERSE_LOOKUP_DEBOUNCE_MS = 300
+interface PendingVerseLookup { key: string; candidate: string; callbacks: Array<() => void> }
+const versePendingByRef = new Map<string, PendingVerseLookup>()
+const verseDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 interface BibleQueryWindow {
   bible?: { queryChapter?: (b: string, c: number, t?: string) => Promise<Array<{ verse_num: number; text: string; text_tagged?: string }>> }
@@ -312,32 +349,50 @@ export function verseTextAccepted(
   if (!w?.bible?.queryChapter) return true
   const key = verseCacheKey(refText, candidate)
   if (verseRatioCache.has(key)) return verseRatioCache.get(key)! >= threshold
-  const pendingCallbacks = versePending.get(key)
-  if (pendingCallbacks) { pendingCallbacks.push(onResolved); return null }
-  versePending.set(key, [onResolved])
-  fetchActualVerseText(refText)
-    .then((actual) => {
-      // verseTextMatchRatio(candidate, actual) — candidate first, matching its own
-      // documented contract ("fraction of CANDIDATE words found in ACTUAL"). These were
-      // swapped here, which instead computed "fraction of the real verse's words found in
-      // the user's pasted text" against the wrong denominator (actual's word count, not
-      // the candidate's) — same rough ballpark for a verbatim paste, but not what the
-      // 0.9 threshold is documented/tuned against.
-      // A missing/unresolvable verse (bad book/translation, DB miss) is NOT evidence the
-      // candidate text is real verse content — fail closed (ratio 0, reject) instead of the
-      // previous ratio-1 auto-accept, which silently treated arbitrary trailing text as
-      // verified verse text whenever the lookup itself failed for any reason.
-      verseRatioCache.set(key, actual ? verseTextMatchRatio(candidate, actual) : 0)
-      const callbacks = versePending.get(key)
-      versePending.delete(key)
-      callbacks?.forEach((cb) => cb())
-    })
-    .catch(() => {
-      verseRatioCache.set(key, 0)
-      const callbacks = versePending.get(key)
-      versePending.delete(key)
-      callbacks?.forEach((cb) => cb())
-    })
+
+  // Register/update the pending lookup for this refText — grouped by refText (not the
+  // ever-changing `key`) so a burst of keystrokes all landing on the SAME verse-block ref
+  // updates one shared record (always pointing at whichever candidate is CURRENT) instead of
+  // each keystroke creating its own separate, eventually-abandoned pending entry. Any onResolved
+  // callback queued for an earlier, now-superseded candidate still gets called once the debounce
+  // finally fires — harmless: it just prompts a repaint, and the doc has moved on since anyway.
+  const existing = versePendingByRef.get(refText)
+  if (existing) {
+    existing.key = key
+    existing.candidate = candidate
+    existing.callbacks.push(onResolved)
+  } else {
+    versePendingByRef.set(refText, { key, candidate, callbacks: [onResolved] })
+  }
+
+  const existingTimer = verseDebounceTimers.get(refText)
+  if (existingTimer) clearTimeout(existingTimer)
+  verseDebounceTimers.set(refText, setTimeout(() => {
+    verseDebounceTimers.delete(refText)
+    const pending = versePendingByRef.get(refText)
+    versePendingByRef.delete(refText)
+    if (!pending) return
+    fetchActualVerseText(refText)
+      .then((actual) => {
+        // verseTextMatchRatio(candidate, actual) — candidate first, matching its own
+        // documented contract ("fraction of CANDIDATE words found in ACTUAL"). These were
+        // swapped here, which instead computed "fraction of the real verse's words found in
+        // the user's pasted text" against the wrong denominator (actual's word count, not
+        // the candidate's) — same rough ballpark for a verbatim paste, but not what the
+        // 0.9 threshold is documented/tuned against.
+        // A missing/unresolvable verse (bad book/translation, DB miss) is NOT evidence the
+        // candidate text is real verse content — fail closed (ratio 0, reject) instead of the
+        // previous ratio-1 auto-accept, which silently treated arbitrary trailing text as
+        // verified verse text whenever the lookup itself failed for any reason.
+        cacheVerseRatio(pending.key, actual ? verseTextMatchRatio(pending.candidate, actual) : 0)
+        pending.callbacks.forEach((cb) => cb())
+      })
+      .catch(() => {
+        cacheVerseRatio(pending.key, 0)
+        pending.callbacks.forEach((cb) => cb())
+      })
+  }, VERSE_LOOKUP_DEBOUNCE_MS))
+
   return null
 }
 

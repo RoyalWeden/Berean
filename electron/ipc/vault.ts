@@ -137,7 +137,7 @@ function parseVaultColor(raw: string | null | undefined): string {
 
 export type NoteRow = {
   id: string; type: string; title: string | null; content: string;
-  verse_ref: string | null; color: string; status?: string | null; created_at: number; updated_at: number;
+  verse_ref: string | null; color: string; icon?: string | null; status?: string | null; created_at: number; updated_at: number;
   tags: string; folder_id?: string | null
 }
 
@@ -155,6 +155,11 @@ export function noteToMarkdown(note: NoteRow, overrideColor?: string, highlighte
   const colorLine = (effectiveColor && effectiveColor !== 'blue')
     ? `color: ${toOctarineEmoji(effectiveColor)}`
     : null
+
+  // Page icon: a bare emoji, only included when set — unlike `color` there's no legacy
+  // text-name convention to bridge (color/text round-trip predates this app; icon didn't
+  // exist before Berean, so it's always written/read as the emoji itself).
+  const iconLine = note.icon ? `icon: ${note.icon}` : null
 
   // One-way export only (status is a purely in-app organizational field — editing this line
   // in Obsidian/Octarine does not flow back into Berean; see vault:watch/vault:reconcile,
@@ -201,6 +206,7 @@ export function noteToMarkdown(note: NoteRow, overrideColor?: string, highlighte
     `updated: ${updatedIso}`,
     `tags: [${tags.join(', ')}]`,
     colorLine,
+    iconLine,
     statusLine,
     ...verseProps,
     dateLine,
@@ -895,6 +901,7 @@ export function runImportAll(): ImportAllResult {
         const titleRaw  = get(/^title:\s*(.+)$/m) ?? 'Untitled'
         const title     = titleRaw.replace(/^["']|["']$/g, '')
         const color     = parseVaultColor(get(/^color:\s*(.+)$/m))
+        const icon      = get(/^icon:\s*(.+)$/m)
         const folderId  = get(/^folder_id:\s*(.+)$/m)
         const tagsRaw   = get(/^tags:\s*\[([^\]]*)]$/m) ?? ''
         const tags      = JSON.stringify(tagsRaw.split(',').map((t) => t.trim()).filter(Boolean))
@@ -906,14 +913,14 @@ export function runImportAll(): ImportAllResult {
         // of an already-known note. status in particular is intentionally one-way
         // export-only (see noteToMarkdown) and must never be clobbered from a file re-read.
         db.prepare(`INSERT INTO notes
-          (id, type, title, content, verse_ref, color, created_at, updated_at, tags, folder_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, type, title, content, verse_ref, color, icon, created_at, updated_at, tags, folder_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             type = excluded.type, title = excluded.title, content = excluded.content,
-            verse_ref = excluded.verse_ref, color = excluded.color,
+            verse_ref = excluded.verse_ref, color = excluded.color, icon = excluded.icon,
             created_at = excluded.created_at, updated_at = excluded.updated_at,
             tags = excluded.tags, folder_id = excluded.folder_id`)
-          .run(noteId, noteType, title, body, verseRef, color, createdAt, updatedAt, tags, folderId)
+          .run(noteId, noteType, title, body, verseRef, color, icon, createdAt, updatedAt, tags, folderId)
         notes++
       } catch { /* skip malformed file */ }
     }

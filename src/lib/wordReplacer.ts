@@ -132,26 +132,55 @@ export function applyStrongsWordReplacer(
   return word
 }
 
-/**
- * Apply word replacer rules to a string.
- * Multi-word / longer queries are sorted first so compound phrases
- * ("jesus christ" → "Yeshua Messiah") match before their sub-phrases ("jesus" → "Yeshua").
- */
-export function applyWordReplacer(text: string, rules: WordReplacerRule[]): string {
+interface CompiledWordReplacerRule {
+  replacement: string
+  matchers: RegExp[]
+}
+
+// applyWordReplacer is called PER RESULT ROW / PER VERSE, often several times within a single
+// React render pass (e.g. FloatingSearch.tsx builds its result list — up to a dozen+ verse/note
+// snippets — inline in the component body, so this runs once per row on every keystroke, not
+// just once per debounced search). Re-filtering, re-sorting, and re-compiling a fresh RegExp
+// for every rule × every query on EVERY call was real, measurable work duplicated across all of
+// those calls even though `rules` itself is the SAME array reference for the whole render pass
+// (it only changes when the user edits Word Replacer settings) — reported as the floating
+// search's typed characters visibly lagging behind. Cache the sorted/compiled form per `rules`
+// array identity so repeat calls with the same rules reference reuse it instead of rebuilding.
+const compiledCache = new WeakMap<WordReplacerRule[], CompiledWordReplacerRule[]>()
+
+function getCompiledRules(rules: WordReplacerRule[]): CompiledWordReplacerRule[] {
+  const cached = compiledCache.get(rules)
+  if (cached) return cached
   // Skip Strong's-number rules — those only apply to KJVA tagged token rendering
   const sorted = [...rules].filter(r => r.enabled && !r.strongsNum).sort((a, b) => {
     const aMax = Math.max(...a.queries.map(q => q.length))
     const bMax = Math.max(...b.queries.map(q => q.length))
     return bMax - aMax
   })
+  const compiled = sorted.map((rule) => ({
+    replacement: rule.replacement,
+    matchers: [...rule.queries]
+      .sort((a, b) => b.length - a.length)
+      .map((query) => {
+        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const pattern = rule.wholeWord ? `\\b${escaped}\\b` : escaped
+        return new RegExp(pattern, 'gi')
+      }),
+  }))
+  compiledCache.set(rules, compiled)
+  return compiled
+}
+
+/**
+ * Apply word replacer rules to a string.
+ * Multi-word / longer queries are sorted first so compound phrases
+ * ("jesus christ" → "Yeshua Messiah") match before their sub-phrases ("jesus" → "Yeshua").
+ */
+export function applyWordReplacer(text: string, rules: WordReplacerRule[]): string {
   let result = text
-  for (const rule of sorted) {
-    // Also sort queries within the rule longest-first
-    const sortedQueries = [...rule.queries].sort((a, b) => b.length - a.length)
-    for (const query of sortedQueries) {
-      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const pattern = rule.wholeWord ? `\\b${escaped}\\b` : escaped
-      result = result.replace(new RegExp(pattern, 'gi'), (match) => {
+  for (const rule of getCompiledRules(rules)) {
+    for (const matcher of rule.matchers) {
+      result = result.replace(matcher, (match) => {
         // Preserve leading capitalisation
         if (match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()) {
           return rule.replacement.charAt(0).toUpperCase() + rule.replacement.slice(1)

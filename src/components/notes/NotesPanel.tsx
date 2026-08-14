@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
-import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List } from 'lucide-react'
+import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT, usePositionedMenu } from '@/lib/usePositionedMenu'
+import NoteIconPicker from './NoteIconPicker'
+import { Plus, Home, Trash2, HelpCircle, X, Search, Eye, EyeOff, Paperclip, CheckSquare, SortAsc, Filter, AlignJustify, BookOpen, BookText, Printer, FolderTree, FileText, FolderPlus, FolderInput, ExternalLink, PenLine, History, SlidersHorizontal, Columns3, List, Undo2, Redo2 } from 'lucide-react'
 import NoteVersionHistory from './NoteVersionHistory'
 import ContinuousDailyScroll from './ContinuousDailyScroll'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -177,6 +178,12 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // edit, without racing against the user having typed further in the
   // meantime. See that effect's comment for the full race it closes.
   const lastSelfSaveRef = useRef<{ content: string; title: string } | null>(null)
+  // Fluid-feel polish #2.3 (quiet autosave "Saved" indicator, Toolbar.tsx) — a timestamp
+  // bumped only when the debounced autosave's OWN save IPC call actually resolves (chained
+  // onto the same window.notes.updateNote(...) promise handleContentChange/handleTitleChange
+  // already fire, not a new save-tracking mechanism or a timer of its own). Passed down
+  // through NoteEditorPM to Toolbar, which shows/fades a small confirmation off of it.
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
   // NotesPanel is a single shared instance reused across every Notes tab (PanelLayout.tsx
   // renders one, not one per tab). Right after switching tabs, `activeNote` still holds the
   // PREVIOUS tab's note for one render until the restore effect below catches up — the persist
@@ -375,6 +382,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const boardView = viewMode === 'board'
   const [folders, setFolders] = useState<NoteFolder[]>([])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
+  const iconPicker = usePositionedMenu<{ _tag?: 'icon' }>()
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
   const [convertIdiomModal, setConvertIdiomModal] = useState<{ note: Note; term: string; meaning: string; keepContent: boolean } | null>(null)
   // One-time "click a note to open it" hint above the notes list — dismissed
@@ -585,6 +593,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const noteScrollRAF = useRef<number | null>(null)
   const editorFocusRef = useRef<(() => void) | null>(null)
+  const editorCommandsRef = useRef<{ undo: () => void; redo: () => void } | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   // The title sits in the shared drag-region header bar. While it's a plain <input>, a
   // mousedown-drag on it can't also move the window (Electron/Chromium can't treat the
@@ -687,6 +696,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.notes.getNote(current.id).then((note) => {
       const cur = activeNoteRef.current
       if (!note || !cur) return
+      // Identity guard — this fetch was kicked off for whatever note was active WHEN THE EFFECT
+      // FIRED, but noteChangeToken bumps for ANY note anywhere in the app (saves, creates,
+      // deletes, status changes elsewhere), and NotesPanel is a single shared instance reused
+      // across every open Notes tab. If the user switches tabs before this IPC round-trip
+      // resolves, `cur` (re-read live above) is now a DIFFERENT note than the one we fetched.
+      // Content/updatedAt will almost always differ between two unrelated notes, so without this
+      // check the comparison below would look like a legitimate "changed externally" edit and
+      // clobber the newly-active, correct note with stale data from whatever was open earlier —
+      // the root cause of Notes tabs intermittently showing another note's content.
+      if (note.id !== cur.id) return
       const lastSave = lastSelfSaveRef.current
       const isOwnSaveEcho = lastSave !== null && note.content === lastSave.content && note.title === lastSave.title
       if (isOwnSaveEcho) return
@@ -756,6 +775,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       })
       .catch(() => {})
       .finally(() => {
+        // Same "latest request wins" guard as the .then() above. Without it, rapid A→B→A tab
+        // switching lets a stale request's .finally() clear these guards out from under a newer,
+        // still-in-flight request for the same effect — e.g. seq 1 (tab A) resolves after seq 2
+        // (tab B) has already started, clearing tabSwitchInFlightRef/noteRestorePending that seq
+        // 2 is still relying on. Self-resolving: every branch of this effect (isNew, no
+        // savedNoteId, cache hit, or this async fetch) either clears these flags synchronously
+        // for its own seq, or clears them here guarded by its own seq — so whichever run is
+        // actually current always ends up clearing them itself; a suppressed stale .finally()
+        // never leaves them stuck true.
+        if (openSeqRef.current !== seq) return
         setNoteRestorePending(false)
         tabSwitchInFlightRef.current = false
       })
@@ -1091,7 +1120,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     saveTimer.current = setTimeout(() => {
       const id = activeNote.id
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
-      window.notes.updateNote(id, { content }).catch(() => {})
+      window.notes.updateNote(id, { content })
+        .then(() => setLastAutosaveAt(Date.now())) // fires the "Saved" flash only on an actual completed save
+        .catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)))
       maybeSyncNote(id)
       bumpNoteToken() // so the presenter window (if open) refetches the updated note
@@ -1108,7 +1139,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       lastSelfSaveRef.current = { content: updated.content, title: updated.title }
-      window.notes.updateNote(activeNote.id, { title }).catch(() => {})
+      window.notes.updateNote(activeNote.id, { title })
+        .then(() => setLastAutosaveAt(Date.now()))
+        .catch(() => {})
       setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? updated : n)))
       bumpNoteToken()
     }, 500)
@@ -1121,6 +1154,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     if (activeNote?.id === note.id) setActiveNote({ ...activeNote, status: status ?? undefined })
     await window.notes.updateNote(note.id, { status }).catch(() => {})
     bumpNoteToken() // so the sidebar/board/other windows pick up the new status
+  }
+
+  // Set/clear the active note's page icon (editor header — see the input rendered next to the
+  // title below). Saved immediately (not debounced) — icon changes are infrequent, discrete
+  // "pick one emoji" actions, not continuous typing, so there's no autosave-style burst to
+  // coalesce, matching NoteStatusDropdown's onChange right above in the header. `raw` is
+  // capped at a small length rather than fully grapheme-cluster-segmented — good enough for
+  // "one emoji, possibly a multi-codepoint ZWJ sequence" without building real Unicode
+  // segmentation for a decorative field (see NoteIcon.tsx).
+  async function handleIconChange(raw: string) {
+    if (!activeNote) return
+    const icon = raw.slice(0, 8).trim()
+    const patched = { ...activeNote, icon: icon || undefined }
+    setNotes((prev) => prev.map((n) => (n.id === activeNote.id ? patched : n)))
+    setActiveNote(patched)
+    await window.notes.updateNote(activeNote.id, { icon: icon || null }).catch(() => {})
+    bumpNoteToken() // so the sidebar/board/other windows pick up the new icon
   }
 
   function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -1251,6 +1301,32 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       <TabHeaderPortal floating={floating}>
         {editing ? (
           <>
+            {/* Page icon — a single emoji shown before the title. Click opens an in-app
+                emoji picker (NoteIconPicker) rather than relying on the user knowing to
+                paste one or invoke the OS-level picker — that was the previous approach
+                and read as "there's no picker, it just lets me type". */}
+            <button
+              type="button"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect()
+                iconPicker.openMenu({ x: r.left, y: r.bottom + 4 })
+              }}
+              title="Page icon — click to choose an emoji"
+              className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] outline-none text-[rgb(var(--color-text-primary))] transition-colors"
+            >
+              {activeNote.icon || <span className="text-[rgb(var(--color-text-muted))]/50">🙂</span>}
+            </button>
+            {iconPicker.menu && (
+              <NoteIconPicker
+                x={iconPicker.menu.x}
+                y={iconPicker.menu.y}
+                currentIcon={activeNote.icon}
+                onSelect={(emoji) => handleIconChange(emoji)}
+                onRemove={() => handleIconChange('')}
+                onClose={iconPicker.closeMenu}
+                menuRef={iconPicker.menuRef}
+              />
+            )}
             {isSystemNote(activeNote) || activeNote.type === 'idiom' ? (
               /* System notes (daily, verse, esword, biblegateway) — title is read-only.
                  Idiom notes too: IdiomHeader below already owns an editable Term field
@@ -1317,6 +1393,31 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               }}
               compact
             />
+            {/* Undo/redo — mirrors ⌘Z/⌘⇧Z (keymap.ts), exposed here too since a mouse-driven
+                editing action (a toolbar formatting click, a drag-reorder, a paste) is just as
+                likely to need undoing as a typed one. Only meaningful while actually editing —
+                hidden in read-only 'view' mode. No disabled state: prosemirror-history's
+                undo()/redo() are harmless no-ops with nothing to undo/redo, and tracking
+                undoDepth()/redoDepth() reactively would mean re-rendering this header on every
+                single transaction just to grey out two buttons. */}
+            {editorMode === 'edit' && (
+              <div className="flex items-center">
+                <button
+                  onClick={() => editorCommandsRef.current?.undo()}
+                  title="Undo (⌘Z)"
+                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+                >
+                  <Undo2 size={13} />
+                </button>
+                <button
+                  onClick={() => editorCommandsRef.current?.redo()}
+                  title="Redo (⌘⇧Z)"
+                  className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+                >
+                  <Redo2 size={13} />
+                </button>
+              </div>
+            )}
             {/* Quick "look" preset for the note editor while typing — separate,
                 curated shortcut next to the mode toggle; the fuller font-family
                 picker stays in Settings → Display. */}
@@ -1543,7 +1644,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               noteId={activeNote.id}
               tabId={notesTabId ?? undefined}
               onChange={handleContentChange}
+              lastSavedAt={lastAutosaveAt}
               onFocusRef={(fn) => { editorFocusRef.current = fn }}
+              onCommandsRef={(cmds) => { editorCommandsRef.current = cmds }}
               onScrollPosition={(pos) => { lastScrollTopRef.current = pos }}
               onCursorPosition={(pos) => { lastCursorPosRef.current = pos }}
               initialScrollTop={restoredScrollTop}

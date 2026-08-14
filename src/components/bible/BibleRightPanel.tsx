@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon, FileText, PanelRightOpen, Columns2 } from 'lucide-react'
-import { buildLexiconCopyText, normalizeStrongsNums } from '@/components/lexicon/LexiconPanel'
+import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
@@ -279,7 +279,6 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
     const hasExtended = (activeEntry.extendedDef?.trim().length ?? 0) > 0
     // Match explicit H/G-prefixed numbers AND bare numbers (prefix inferred from entry language)
     const langPrefix = activeEntry.strongsNum.startsWith('H') ? 'H' : 'G'
-    const derivParts = hasDerivation ? activeEntry.derivation.split(/(\b[HG]\d{1,5}\b|\b\d{1,5}\b)/g) : []
     const extDefNorm = hasExtended ? normalizeStrongsNums(activeEntry.extendedDef, langPrefix) : ''
 
     return (
@@ -329,7 +328,11 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           </div>
           {activeEntry.gloss && (
             <div className="text-xs text-[rgb(var(--color-text-primary))] font-medium bg-[rgb(var(--color-surface-4))] px-2 py-1.5 rounded">
-              {activeEntry.gloss}
+              {/* Was plain text — the "Compare 3050, 3069." cross-refs Strong's glosses commonly
+                  end with were never clickable in this side-panel view (reported: "still shows
+                  as it did before" after the main LexiconPanel.tsx got this same fix). Shared
+                  DerivationText component so this can't drift out of sync with that fix again. */}
+              <DerivationText text={activeEntry.gloss} lang={langPrefix} onNav={navToEntry} />
             </div>
           )}
           {!expanded && (
@@ -344,34 +347,20 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           {activeEntry.definition && (
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Definition</p>
-              <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">{activeEntry.definition}</p>
+              <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-relaxed">
+                <DerivationText text={activeEntry.definition} lang={langPrefix} onNav={navToEntry} />
+              </p>
             </div>
           )}
           {hasDerivation && (
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1">Derivation</p>
               <p className="text-[11px] text-[rgb(var(--color-text-muted))] leading-relaxed italic">
-                {derivParts.map((part, i) => {
-                  // Already has H/G prefix — strip leading zeros (Greek DB pads, e.g. H07386 → H7386)
-                  if (/^[HG]\d+$/.test(part)) {
-                    const normalized = part[0] + String(parseInt(part.slice(1), 10))
-                    return (
-                      <button key={i} onClick={(e) => navToEntry(normalized, e.metaKey || e.ctrlKey)}
-                        className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                      >{normalized}</button>
-                    )
-                  }
-                  // Bare number (e.g. 7225 or 26) — prefix with entry's language
-                  if (/^\d{1,5}$/.test(part)) {
-                    const num = `${langPrefix}${parseInt(part, 10)}`
-                    return (
-                      <button key={i} onClick={(e) => navToEntry(num, e.metaKey || e.ctrlKey)}
-                        className="font-mono text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
-                      >{num}</button>
-                    )
-                  }
-                  return <span key={i}>{part}</span>
-                })}
+                {/* Was a separate inline copy of this same split/link logic — missing
+                    DerivationText's guard against linkifying chapter:verse references (e.g.
+                    "(Deuteronomy 32:38)" got read as bare Strong's numbers). Shared component
+                    instead of a third copy of the same regex. */}
+                <DerivationText text={activeEntry.derivation} lang={langPrefix} onNav={navToEntry} />
               </p>
             </div>
           )}
@@ -625,6 +614,19 @@ function RefLabel({ bookId, chapter, verse, endVerse }: { bookId: string; chapte
 // Re-export NoteVerseRef as UserNoteRef for local use
 type UserNoteRef = import('@/lib/noteRefs').NoteVerseRef
 
+/** The active scripture tab's translation (lowercased, defaulting to 'kjva'). Shared by
+ *  every chapter-level cross-ref/TSKe/notes view in this file so a chapter viewed in LXX
+ *  numbering queries KJV-keyed data (notes, cross_references.db, tske_refs.db) under its
+ *  correct KJV-equivalent chapter(s) instead of assuming the on-screen chapter number is
+ *  already KJV-numbered — see translationChapterMap.ts's `toCanonicalChapters`. */
+function useActiveScriptureTranslation(): string {
+  return useAppStore((s) => {
+    const tabId = s.activeTabId['scripture']
+    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
+    return tab ? (tab.state as BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva' : 'kjva'
+  })
+}
+
 // Small inline component to lazily fetch + show verse text
 /** Renders verse text inline — ref label and text sit on the same wrapped line.
  *  - verse === 0  → chapter reference: shows verse 1 text + "…"
@@ -636,11 +638,7 @@ function VerseText({ bookId, chapter, verse, endVerse }: { bookId: string; chapt
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   // Use the active scripture tab's translation for canonical books (so LXX cross-refs show LXX text)
-  const activeTranslation = useAppStore((s) => {
-    const tabId = s.activeTabId['scripture']
-    const tab = tabId ? s.tabs['scripture'].find((t) => t.id === tabId) : null
-    return tab ? (tab.state as BibleTabState | undefined)?.translation?.toLowerCase() ?? 'kjva' : 'kjva'
-  })
+  const activeTranslation = useActiveScriptureTranslation()
   useEffect(() => {
     // Pseudepigrapha / apocrypha have their own fixed DB; canonical books use the active translation
     const textId = getTranslationForBook(bookId) ?? activeTranslation
@@ -705,15 +703,16 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
   const [error, setError] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const activeRef = useRef<HTMLDivElement>(null)
+  const textId = useActiveScriptureTranslation()
 
   useEffect(() => {
     if (typeof window.crossrefs?.getTSKeForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    getTSKeForChapterShared(bookId, chapter)
+    getTSKeForChapterShared(bookId, chapter, textId)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
-  }, [bookId, chapter])
+  }, [bookId, chapter, textId])
 
   useEffect(() => {
     if (!loading && activeVerseNum && activeRef.current) {
@@ -853,15 +852,16 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
   const [error, setError] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const activeRef = useRef<HTMLDivElement>(null)
+  const textId = useActiveScriptureTranslation()
 
   useEffect(() => {
     if (typeof window.crossrefs?.getForChapter !== 'function') { setError(true); return }
     setLoading(true); setError(false)
-    getCrossRefsForChapterShared(bookId, chapter)
+    getCrossRefsForChapterShared(bookId, chapter, textId)
       .then((res) => { setVerseRefs(res.error ? [] : res.verseRefs); if (res.error) setError(true) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
-  }, [bookId, chapter])
+  }, [bookId, chapter, textId])
 
   useEffect(() => {
     if (!loading && activeVerseNum && activeRef.current) {
@@ -947,6 +947,7 @@ function UserNotesChapterView({
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const activeRef = useRef<HTMLDivElement>(null)
+  const textId = useActiveScriptureTranslation()
 
   useEffect(() => {
     setLoading(true)
@@ -982,7 +983,7 @@ function UserNotesChapterView({
       }
     }
 
-    getChapterNotesShared(bookId, chapter, noteChangeToken)
+    getChapterNotesShared(bookId, chapter, noteChangeToken, textId)
       .then(async (verseNotes) => {
         const byVerse = new Map<number, UserNoteRef[]>()
         const indirect: Array<{ note: Note; verses: number[] }> = []
@@ -1030,7 +1031,7 @@ function UserNotesChapterView({
       })
       .catch(() => { setVerseNoteRefs([]); setIndirectNotes([]) })
       .finally(() => setLoading(false))
-  }, [bookId, chapter, noteChangeToken])
+  }, [bookId, chapter, noteChangeToken, textId])
 
   useEffect(() => {
     if (!loading && activeVerseNum && activeRef.current) {
@@ -1364,6 +1365,10 @@ export default function BibleRightPanel({
   const createNoteTab = useAppStore((s) => s.createTab)
   const setActiveSpace = useAppStore((s) => s.setActiveSpace)
   const bumpFloatingTabToken = useAppStore((s) => s.bumpFloatingTabToken)
+  // Active scripture tab's translation — chapter-level notes/cross-ref fetches below need
+  // this to map an on-screen LXX Psalm chapter to its KJV-equivalent chapter(s) before
+  // querying KJV-keyed data (see useActiveScriptureTranslation's comment above).
+  const textId = useActiveScriptureTranslation()
 
   // Track the current sidebar note in a ref so the unmount cleanup can access it
   const sidebarNoteRef = useRef<Note | null>(null)
@@ -1433,7 +1438,7 @@ export default function BibleRightPanel({
     if (scope === 'chapter') {
       // Fetch verse notes for this chapter, then also search for general/daily/topic
       // notes that mention the chapter so they appear at the top as indirect connections.
-      getChapterNotesShared(bookId, chapter, noteChangeToken).then(async (verseNotes) => {
+      getChapterNotesShared(bookId, chapter, noteChangeToken, textId).then(async (verseNotes) => {
         setNotes(verseNotes)
         const verseNoteIds = new Set(verseNotes.map(n => n.id))
         const label = bookName(bookId)
@@ -1463,7 +1468,7 @@ export default function BibleRightPanel({
       setChapterMentionNotes([])
       getNotesShared(500, 0, noteChangeToken).then(setNotes).catch(() => {})
     }
-  }, [visibleTab, noteChangeToken, scope, bookId, chapter])
+  }, [visibleTab, noteChangeToken, scope, bookId, chapter, textId])
 
   // Persist open note (omit onNoteChange from deps — new ref each render)
   useEffect(() => {

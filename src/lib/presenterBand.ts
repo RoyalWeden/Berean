@@ -125,6 +125,19 @@ export function visibleVerseRange(entries: PresenterVerseEntry[], topFrac: numbe
   return { first, last }
 }
 
+/** Shallow-equality check for `verseFracs`-shaped records (verse number -> fraction), used to
+ *  skip redundant `ViewerVisibleRegion` reports that carry no actual change. */
+export function shallowEqualNumberRecord(a: Record<number, number>, b: Record<number, number>): boolean {
+  if (a === b) return true
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  for (const k of aKeys) {
+    if (a[k as unknown as number] !== b[k as unknown as number]) return false
+  }
+  return true
+}
+
 /** Compute the outline band {top,height} in main-content px, or null if not drawable. */
 export function computePresenterBand(inp: BandInputs): { top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null {
   const { visibleFraction: f, verseFracs, mainTops, mainScrollHeight: mainH, mainClientHeight, mainScrollTop, scrollPercentOverride } = inp

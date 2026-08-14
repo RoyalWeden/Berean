@@ -2,7 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { useState, useEffect, useRef } from 'react'
 import {
-  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles,
+  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles, Volume2,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
@@ -53,6 +53,27 @@ export default function Ribbon() {
 
   const aiLookupPanelOpen = useAppStore((s) => s.aiLookupPanelOpen)
   const setAiLookupPanelOpen = useAppStore((s) => s.setAiLookupPanelOpen)
+
+  // ── Read Aloud (TTS) global toggle ──────────────────────────────────────────
+  const audioPlayback = useAppStore((s) => s.audioPlayback)
+  const startPlaybackFrom = useAppStore((s) => s.startPlaybackFrom)
+  const togglePlayPause = useAppStore((s) => s.togglePlayPause)
+  const scriptureTabs = useAppStore((s) => s.tabs.scripture)
+  const scriptureActiveTabId = useAppStore((s) => s.activeTabId.scripture)
+  // A session already playing can always be paused/resumed from anywhere (it's a global
+  // player, background playback is the whole point) — but STARTING a fresh read only makes
+  // sense while actually looking at Scripture. From Notes/Lexicon/YouTube/Search there's no
+  // "current verse" a click here could plausibly mean, so the icon simply does nothing there.
+  const canStartReadAloud = activeSpace === 'scripture'
+  function handleReadAloudClick() {
+    if (audioPlayback) { togglePlayPause(); return }
+    if (!canStartReadAloud) return
+    const activeTab = scriptureTabs.find((t) => t.id === scriptureActiveTabId)
+    const state = activeTab?.state as import('@/types').BibleTabState | undefined
+    if (!state) return // no scripture tab open — nothing to read
+    const textId = (state.translation ?? 'KJVA').toLowerCase()
+    startPlaybackFrom(state.bookId, state.chapter, state.targetVerse ?? 1, textId)
+  }
 
   const [zoomPopoverOpen, setZoomPopoverOpen] = useState(false)
   // Hover-to-open/close for the zoom popover — same timing as TopBar.tsx's nav dropdown and
@@ -345,7 +366,33 @@ export default function Ribbon() {
           </Popover.Portal>
         </Popover.Root>
 
-        {/* ── AI Scripture Lookup ── */}
+        {/* ── Read Aloud (TTS) ── */}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={handleReadAloudClick}
+              disabled={!audioPlayback && !canStartReadAloud}
+              className={`no-drag flex items-center justify-center w-8 h-8 rounded-shell transition-colors ${
+                audioPlayback
+                  ? 'bg-[rgb(var(--color-accent))/16] text-[rgb(var(--color-accent))] cursor-pointer'
+                  : canStartReadAloud
+                    ? 'text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer'
+                    : 'text-[rgb(var(--color-text-muted))]/40 cursor-not-allowed'
+              }`}
+            >
+              <Volume2 size={16} />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+              {audioPlayback || canStartReadAloud ? 'Read Aloud' : 'Open a Scripture tab to Read Aloud'}
+              {(audioPlayback || canStartReadAloud) && <ShortcutKeys keys="⌘⇧R" className="ml-2" />}
+              <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        {/* ── Berean Chat (AI Scripture Lookup) ── */}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
@@ -359,7 +406,7 @@ export default function Ribbon() {
           </Tooltip.Trigger>
           <Tooltip.Portal>
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
-              AI Scripture Lookup
+              Berean Chat
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>

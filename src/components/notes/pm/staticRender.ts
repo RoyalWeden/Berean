@@ -4,6 +4,7 @@ import { bereanSchema as schema } from './schema'
 import { parseMarkdown } from './parser'
 import { buildBlockDecorations } from './blockDecorations'
 import { buildRefDecorationsForDoc } from './refDecorations'
+import { buildCodeBlockDecorations } from './codeBlockHighlight'
 import { CALLOUT_META, BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
@@ -102,7 +103,7 @@ function renderInlineWithRanges(node: PMNode, contentStart: number, ranges: Inli
   return frag
 }
 
-interface Decos { block: DecorationSet; ref: DecorationSet }
+interface Decos { block: DecorationSet; ref: DecorationSet; code: DecorationSet }
 
 /** paragraph/heading — the only two node types with `inline*` content
  * directly. `isTopLevel` gates whether the whole-node verse/lexicon block
@@ -262,6 +263,53 @@ function renderList(node: PMNode, pos: number, decos: Decos, bulletDepth: number
   return listEl
 }
 
+// Side-by-side columns (2.4) — read-only counterpart to columnControls.ts/pmEditor.css's
+// live rendering: same `.pm-column-list`/`.pm-column` flex classes, no add/remove controls
+// (those are an editing-only affordance, same rationale as calloutNodeView's collapse
+// header having no equivalent here). Each column's content recurses through renderNodeAt
+// the same as blockquote/callout's own children do.
+function renderColumnList(node: PMNode, pos: number, decos: Decos): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'pm-column-list'
+  let childPos = pos + 1
+  node.forEach((col) => {
+    const colEl = document.createElement('div')
+    colEl.className = 'pm-column'
+    let innerPos = childPos + 1
+    col.forEach((child) => {
+      colEl.appendChild(renderNodeAt(child, innerPos, decos, false))
+      innerPos += child.nodeSize
+    })
+    el.appendChild(colEl)
+    childPos += col.nodeSize
+  })
+  return el
+}
+
+// code_block — mirrors codeBlockNodeView's (nodeViews.ts) `.pm-code-block > pre > code`
+// structure and reuses the SAME buildCodeBlockDecorations token decorations the live
+// editor's own codeBlockHighlight.ts plugin computes, so a highlighted code block looks
+// identical in print/PDF export, version history, the daily scroll, and Presenter. Unlike
+// the live NodeView, there's no header row here at all (no language-picker `<select>`, no
+// Copy button) — both are live-editing-only affordances with no read-only equivalent,
+// same reasoning renderCallout's own comment gives for dropping the live collapse toggle.
+function renderCodeBlock(node: PMNode, pos: number, codeDecos: DecorationSet): HTMLElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'pm-code-block'
+  const pre = document.createElement('pre')
+  const code = document.createElement('code')
+  const contentStart = pos + 1
+  const ranges: InlineRange[] = []
+  for (const d of codeDecos.find(contentStart, contentStart + node.content.size)) {
+    const className = decorationClass(d)
+    if (className) ranges.push({ from: d.from, to: d.to, className })
+  }
+  code.appendChild(renderInlineWithRanges(node, contentStart, ranges))
+  pre.appendChild(code)
+  wrap.appendChild(pre)
+  return wrap
+}
+
 function renderNodeAt(node: PMNode, pos: number, decos: Decos, isTopLevel: boolean, bulletDepth = 0): HTMLElement {
   switch (node.type.name) {
     case 'paragraph':
@@ -269,6 +317,8 @@ function renderNodeAt(node: PMNode, pos: number, decos: Decos, isTopLevel: boole
       return renderTextblock(node, pos, decos, isTopLevel)
     case 'callout':
       return renderCallout(node, pos, decos)
+    case 'column_list':
+      return renderColumnList(node, pos, decos)
     case 'bullet_list':
     case 'ordered_list':
       return renderList(node, pos, decos, bulletDepth)
@@ -281,7 +331,9 @@ function renderNodeAt(node: PMNode, pos: number, decos: Decos, isTopLevel: boole
       })
       return el
     }
-    // code_block, horizontal_rule, table — no ref-decoration support inside
+    case 'code_block':
+      return renderCodeBlock(node, pos, decos.code)
+    // horizontal_rule, table — no ref-decoration support inside a table cell
     // (see the module-level scope note above for tables specifically).
     default:
       return domSerializer.serializeNode(node) as HTMLElement
@@ -293,6 +345,7 @@ export function renderMarkdownToHTML(content: string): string {
   const decos: Decos = {
     block: buildBlockDecorations(doc, () => {}),
     ref: buildRefDecorationsForDoc(doc),
+    code: buildCodeBlockDecorations(doc),
   }
 
   const root = document.createElement('div')

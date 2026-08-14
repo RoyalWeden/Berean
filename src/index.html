@@ -3,10 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; connect-src 'self'; media-src 'self' blob: https:; worker-src 'self' blob:"
-    />
+    <!-- The Content-Security-Policy <meta> tag is injected here at build time by
+         electron.vite.config.ts's `inject-csp-meta` plugin (source of truth: electron/csp.ts's
+         `buildCSP()`) — NOT hand-written, so it can never drift out of sync with main.ts's
+         onHeadersReceived CSP the way it previously did. See csp.ts's header for why this tag,
+         specifically, is the policy that actually governs a packaged build. -->
     <title>Berean</title>
   </head>
   <body>

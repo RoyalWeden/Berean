@@ -697,6 +697,43 @@ body {
   margin-top: -2px !important;
 }
 
+/* ── Root drag-region baseline ───────────────────────────────────────────────
+ * Reported: "duplicating tabs isn't working, so is opening in floating tab and
+ * archiving and all the options in the right-click menu on a tab in the tab
+ * bar." A React render-and-click integration test proved the click handlers,
+ * store actions, and state wiring are all correct (see
+ * TabBarContextMenu.test.tsx — Duplicate/Archive/Open-in-floating-tab all
+ * work in a real DOM with real event dispatch) — so the defect isn't in this
+ * app's JS at all. It's Electron's native drag-region hit-testing.
+ *
+ * Sidebar.tsx's outer wrapper is `.app-drag-region` (so empty sidebar space
+ * drags the window), and TabBar.tsx's right-click menu — like every
+ * positioned/context menu in this app (usePositionedMenu.ts, MenuPositioner)
+ * — is `createPortal`-ed straight to `document.body`, marking only ITSELF
+ * `-webkit-app-region: no-drag` via an inline style set at the moment it
+ * mounts. That self-exclusion is exactly the failure mode: Electron computes
+ * the OS-level draggable mask from a scan of the CURRENT render tree and
+ * pushes it to the browser process on its own schedule, not synchronously per
+ * DOM mutation — a menu that appears in direct response to the same
+ * mousedown/click gesture the user is about to repeat (right-click open,
+ * then immediately left-click an item) can lose that race, so the very next
+ * click lands on a mask that hasn't caught up yet and gets swallowed as a
+ * window-drag attempt instead of reaching the button underneath.
+ *
+ * `-webkit-app-region` is an INHERITED CSS property in Chromium (unlike most
+ * everything else needing an explicit override per descendant) — so marking
+ * `body` itself `no-drag` here means EVERY portal target, this one and any
+ * future one, inherits that exclusion from the very first paint of the app,
+ * long before any menu is ever inserted. There's no fresh-content race left
+ * to lose: the exclusion was already registered before the click that
+ * triggers insertion even happens. `.app-drag-region` below still opts
+ * specific, STATIC, always-present regions (the sidebar, the header) back
+ * INTO drag — those aren't racing anything, since they're present from the
+ * very first frame too, so they keep working exactly as before. */
+body {
+  -webkit-app-region: no-drag;
+}
+
 /* macOS traffic light spacing */
 .app-drag-region {
   -webkit-app-region: drag;

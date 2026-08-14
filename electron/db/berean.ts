@@ -606,6 +606,43 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at)`)
       console.log('[berean-db] v22: deleted_at column on notes (trash)')
     }
+  },
+  {
+    // Page icon: a single emoji shown next to a note's title (list row, board card, editor
+    // header) — purely decorative, same spirit as `color`. NULL/undefined = no icon, falls
+    // back to a default glyph in NoteIcon.tsx.
+    version: 23,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN icon TEXT`) } catch {}
+      console.log('[berean-db] v23: icon column on notes')
+    }
+  },
+  {
+    // Persisted heading-collapse state (notes editor, round 12 item 6) — headingCollapse.ts's
+    // comment used to say this was PURE EPHEMERAL UI STATE, never persisted; this table is
+    // what lifts that limit. Deliberately NOT stored in the note's own markdown content (that
+    // would break lossless Obsidian round-trip — see NoteEditorPM.tsx's dispatchTransaction,
+    // which re-serializes markdown on every keystroke and writes it straight to the vault).
+    // `heading_key` is a caller-computed stable identity (level + text + an ordinal for
+    // duplicate headings — see headingCollapse.ts's computeHeadingKey), NOT a raw document
+    // position: positions shift on every edit anywhere earlier in the note, so they can't
+    // survive being written out and read back on a later session. No foreign key to `notes`
+    // — a row whose note (or whose heading) no longer exists is simply never matched back to
+    // a live position at load time (electron/ipc/notes.ts's notes:getCollapsedHeadings /
+    // NoteEditorPM.tsx's load-time translation), the "degrade silently" behavior the task
+    // brief calls for, rather than something that needs active enforcement here.
+    version: 24,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS note_heading_collapse (
+          note_id     TEXT NOT NULL,
+          heading_key TEXT NOT NULL,
+          collapsed   INTEGER NOT NULL DEFAULT 1,
+          PRIMARY KEY (note_id, heading_key)
+        );
+      `)
+      console.log('[berean-db] v24: note_heading_collapse table')
+    }
   }
 ]
 

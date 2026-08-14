@@ -15,6 +15,7 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: '2CH', name: '2 Chronicles',   patterns: ['2ch', '2chr', '2chron', '2chronicles', '2 ch', '2 chr', '2 chron', '2 chronicles'] },
   { id: 'EZR', name: 'Ezra',           patterns: ['ezr', 'ezra'] },
   { id: 'NEH', name: 'Nehemiah',       patterns: ['neh', 'ne', 'nehemiah'] },
+  { id: 'EST', name: 'Esther',         patterns: ['est', 'esth', 'esther'] },
   { id: 'JOB', name: 'Job',            patterns: ['job', 'jb'] },
   { id: 'PSA', name: 'Psalms',         patterns: ['psa', 'ps', 'pss', 'psalms', 'psalm'] },
   { id: 'PRO', name: 'Proverbs',       patterns: ['pro', 'pr', 'prv', 'prov', 'proverbs'] },

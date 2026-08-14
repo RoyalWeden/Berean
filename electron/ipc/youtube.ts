@@ -1224,6 +1224,70 @@ export function searchYoutubeVideos(query: string, limit = 8): YoutubeVideoSearc
   }))
 }
 
+export interface YoutubeTranscriptSearchResult {
+  videoId: string
+  title: string
+  channelName: string
+  thumbnailUrl: string
+  /** Playback position (milliseconds) of the matching caption segment — lets a caller deep-link
+   *  straight to the moment the topic is actually discussed, instead of just the video start. */
+  startMs: number
+  /** FTS5 `snippet()` output around the match — a short window of real transcript text, not a
+   *  summary, so the user can judge relevance before clicking through. */
+  snippet: string
+}
+
+/** Turns free text into an FTS5 MATCH expression over `youtube_transcripts_fts` — every word
+ *  becomes a required prefix term (`word*` ANDed together), same "AND of prefixes" shape
+ *  electron/ipc/bible.ts's safeFtsQuery uses for its 'all' word-mode, just without that
+ *  function's number-spelled-out alternates (irrelevant for spoken-transcript search) or
+ *  book-name handling (not applicable here) — kept local rather than importing/exporting a
+ *  cross-file helper for one shared line of logic. */
+function transcriptFtsQuery(q: string): string {
+  const words = q.trim().split(/\s+/).filter(Boolean).map((w) => w.replace(/[^a-zA-Z0-9']/g, '')).filter(Boolean)
+  if (words.length === 0) return ''
+  return words.map((w) => `${w}*`).join(' AND ')
+}
+
+/** Full-text search over stored transcript CAPTIONS (electron/db/berean.ts's
+ *  youtube_transcripts_fts, populated dev-side only — see fetchTranscripts below; production
+ *  users just read whatever's already synced). Distinct from searchYoutubeVideos above, which
+ *  only ever matches a title/channel name: this finds a video whose SPOKEN CONTENT covers a
+ *  topic even when that topic never appears in its title (e.g. "which video talks about the
+ *  feast days" — a title never says that explicitly, but the transcript does). Same
+ *  already-synced, allowlisted-channel-only library (youtube_videos is joined in directly, so a
+ *  video that was never synced can never surface here regardless of its transcript). */
+export function searchYoutubeTranscripts(query: string, limit = 8): YoutubeTranscriptSearchResult[] {
+  const ftsQ = transcriptFtsQuery(query)
+  if (!ftsQ) return []
+  try {
+    const rows = getBereanDb()
+      .prepare(`SELECT s.video_id, s.start_ms,
+                       snippet(youtube_transcripts_fts, 0, '', '', '…', 12) AS snippet,
+                       v.title, v.channel_name, v.thumbnail_url
+                FROM youtube_transcripts_fts f
+                JOIN youtube_transcript_segments s ON s.id = f.rowid
+                JOIN youtube_videos v ON v.video_id = s.video_id
+                WHERE youtube_transcripts_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?`)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .all(ftsQ, limit) as any[]
+    return rows.map((r) => ({
+      videoId: r.video_id as string,
+      title: r.title as string,
+      channelName: r.channel_name as string,
+      thumbnailUrl: r.thumbnail_url as string,
+      startMs: r.start_ms as number,
+      snippet: r.snippet as string,
+    }))
+  } catch {
+    // Malformed FTS query (rare punctuation) or the table not yet populated — no transcript
+    // hits, not a failed search; searchYoutubeVideos's own title match still runs regardless.
+    return []
+  }
+}
+
 // ─── IPC registration ─────────────────────────────────────────────────────────
 
 export function registerYouTubeHandlers(ipc: typeof ipcMain): void {

@@ -3,6 +3,16 @@
    treatment), just targeting the class names Decoration.inline/mark/toDOM
    produce in refDecorations.ts and schema.ts instead of CM6 decorations. */
 
+/* Fluid-feel polish #2.1 (cursor-follow scroll while typing, NoteEditorPM.tsx) — this is
+   the editor's own scrollable viewport (the `hostRef` div, `overflow-y-auto` in the
+   component's className). Without this, the scrollTop nudges that keep the caret in the
+   comfortable zone would jump instantly instead of animating; `scroll-behavior: smooth`
+   applies to any scrollTop change (not just scrollIntoView/scrollTo calls), per the CSSOM
+   View spec, so a plain `scrollEl.scrollTop += delta` picks it up for free. */
+.berean-pm-editor {
+  scroll-behavior: smooth;
+}
+
 /* SelectionToolbar.tsx's toolbar + dropdown popovers — plain, reliably-
    opaque background (NOT the shared .glass-panel translucent/blur
    treatment, which an earlier attempt tried to override with a Tailwind
@@ -107,15 +117,57 @@
   margin: 0.6em 0;
   color: rgb(var(--color-text-secondary));
 }
-.berean-pm-editor .ProseMirror pre {
+/* code_block — the box/border/background lives on codeBlockNodeView's own `.pm-code-block`
+   wrapper (nodeViews.ts), not directly on `pre`, so the language-picker/copy-button header
+   sits visually INSIDE the same box as the code, above a borderless nested `pre`. */
+.berean-pm-editor .ProseMirror .pm-code-block {
   background-color: rgb(var(--color-surface-2));
   border: 1px solid rgb(var(--color-surface-4));
   border-radius: 8px;
-  padding: 0.7em 0.9em;
   margin: 0.75em 0;
+  overflow: hidden;
+}
+.berean-pm-editor .ProseMirror .pm-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.25em 0.5em;
+  border-bottom: 1px solid rgb(var(--color-surface-4));
+  background-color: rgb(var(--color-surface-3) / 0.5);
+}
+.berean-pm-editor .ProseMirror .pm-code-block-lang {
+  font-family: inherit;
+  font-size: 0.72em;
+  color: rgb(var(--color-text-muted));
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.berean-pm-editor .ProseMirror .pm-code-block-lang:hover {
+  color: rgb(var(--color-text-secondary));
+}
+.berean-pm-editor .ProseMirror .pm-code-block-copy {
+  font-family: inherit;
+  font-size: 0.72em;
+  color: rgb(var(--color-text-muted));
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.15em 0.5em;
+  border-radius: 4px;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.berean-pm-editor .ProseMirror .pm-code-block-copy:hover {
+  background-color: rgb(var(--color-surface-4));
+  color: rgb(var(--color-text-primary));
+}
+.berean-pm-editor .ProseMirror .pm-code-block pre {
+  margin: 0;
+  padding: 0.7em 0.9em;
   overflow-x: auto;
 }
-.berean-pm-editor .ProseMirror pre code {
+.berean-pm-editor .ProseMirror .pm-code-block pre code {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 0.85em;
   color: rgb(var(--color-text-primary));
@@ -128,6 +180,26 @@
   background-color: rgb(var(--color-surface-3));
   border-radius: 4px;
   padding: 0.1em 0.35em;
+}
+
+/* Code-block syntax token colors (codeBlockHighlight.ts) — deliberately reuse the SAME
+   semantic text/accent tokens every other theme-aware element in this app does, rather than
+   inventing new saturated per-token colors, since Berean ships many accent-color themes
+   (Settings → Theme) and a hardcoded "vscode-dark-style" palette would clash badly against
+   at least some of them. Less vivid than a real syntax theme, but themed correctly everywhere. */
+.pm-code-tok-keyword {
+  color: rgb(var(--color-accent));
+  font-weight: 600;
+}
+.pm-code-tok-string {
+  color: rgb(var(--color-text-secondary));
+}
+.pm-code-tok-comment {
+  color: rgb(var(--color-text-muted));
+  font-style: italic;
+}
+.pm-code-tok-number {
+  color: rgb(var(--color-accent) / 0.75);
 }
 
 /* Verse/lexicon block live-formatting — port of editorTheme.ts's
@@ -146,6 +218,13 @@
   border-left: 3px solid rgb(var(--color-accent) / 0.6);
   background-color: rgb(var(--color-accent) / 0.07);
   padding: 0.55em 0.8em;
+  /* Fluid-feel polish #2.2 — softens re-verification flicker on an ALREADY-boxed block
+     (e.g. editing text inside it invalidates the verse-text cache and re-triggers a pending
+     check): border/background settle into place instead of snapping. Doesn't smooth the
+     unboxed→boxed transition itself (a `Decoration.node` mount/unmount can't be CSS-
+     transitioned — there's no element to animate from); that transition instead reads as
+     continuous via the .pm-verse-block-checking bridge state below, applied while pending. */
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .pm-lexicon-block {
   border-color: rgb(var(--link-lexicon-ref) / 0.35);
@@ -206,6 +285,21 @@
 }
 .pm-lexicon-block-ref:hover { background-color: rgb(var(--link-lexicon-ref) / 0.2); }
 .pm-lexicon-block-def { font-style: italic; }
+/* Fluid-feel polish #2.2 — brief "checking" micro-state on a candidate verse-reference line
+   while blockDecorations.ts's async verification (verseTextAccepted, noteTextBlocks.ts) is
+   still pending. Deliberately understated: a dashed underline (no fill, no layout shift) in
+   a neutral/muted tone, distinct from both the accepted (solid boxed, accent color) and
+   plain-text (nothing) states, so it can't be mistaken for either while it's mid-flight. The
+   pulse gives it a "working on it" read without being a loud spinner. */
+.pm-verse-block-checking {
+  border-bottom: 2px dashed rgb(var(--color-text-muted) / 0.5);
+  border-radius: 2px;
+  animation: pm-verse-checking-pulse 1.1s ease-in-out infinite;
+}
+@keyframes pm-verse-checking-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 /* Verse text itself reads slightly larger/more relaxed than ordinary body paragraphs —
    Scripture quoted inside a note should feel like it "arrives" differently than the user's
    own commentary around it. */
@@ -480,6 +574,178 @@
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/* ── Block drag handles / hover insert button (blockHandles.ts) ─────────────
+   Notion-style left-gutter affordance on every TOP-LEVEL document block. The
+   handle widget is a zero-height sibling inserted immediately BEFORE its
+   block (a `Decoration.widget(offset, ..., {side:-1})`, not a child of the
+   block itself — nesting an arbitrary DOM node inside a table/list/
+   blockquote's own content model risks the browser silently relocating it to
+   make the surrounding markup valid, which would break its positioning
+   entirely).
+
+   Visibility is driven by JS (a mousemove listener in blockHandles.ts's
+   view() hook), not CSS :hover/:has() — that was tried twice and regressed
+   twice: (1) a padding-left/margin-left pair on `.pm-block-hoverable` widening
+   its hit-box into the gutter had to land EXACTLY within the editor's own
+   left inset (`.ProseMirror`'s padding-left below), and `overflow-y: auto`
+   forces the OTHER axis to a computed 'auto' too — per the CSS overflow
+   spec — which clips anything that overshoots for HIT-TESTING, not just
+   paint, so the cursor could never actually enter that sliver; (2) even
+   within bounds, the button STACK (two 16px buttons + gap ≈ 33px tall) can
+   render taller than a single short line's own row (~24-28px), so the lower
+   button falls outside the block's own hoverable rect regardless — exactly
+   "goes away when my cursor is in the gutter, reaching for the button lower
+   in the stack." blockHandles.ts's tracker measures REAL rendered rects
+   (both the block's own row AND the handle's own button-stack rect) instead
+   of relying on either coincidence, and toggles `.pm-gutter-active` below. */
+.pm-block-handle {
+  height: 0;
+  overflow: visible;
+  position: relative;
+  user-select: none;
+}
+.pm-block-handle-inner {
+  position: absolute;
+  left: -26px;
+  top: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.pm-block-handle.pm-gutter-active .pm-block-handle-inner {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pm-block-handle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(var(--color-text-muted));
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.pm-block-handle-btn:hover {
+  background-color: rgb(var(--color-surface-3));
+  color: rgb(var(--color-text-primary));
+}
+.pm-block-handle-grip { cursor: grab; }
+.pm-block-handle-grip:active { cursor: grabbing; }
+
+/* Narrow side-panel embed has no room for the gutter — same trade-off as the
+   heading-collapse arrow above, which hides in this same scope. */
+.pm-side-panel-note .pm-block-handle { display: none; }
+
+/* Both of the transient block states below are applied by blockHandles.ts as
+   DECORATION classes, never by classList.add — see that file's header for the
+   infinite MutationObserver→updateState loop (and renderer OOM) the imperative
+   version caused. The practical consequence for this stylesheet: the
+   transition has to live on the block's PERMANENT class, because what animates
+   is the decoration class being REMOVED, not added. */
+.pm-block-hoverable {
+  transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Freshly inserted / duplicated / dropped block: starts hidden and slightly
+   low, then settles as blockHandles.ts's clear transaction drops the class. */
+.pm-block-enter { opacity: 0; transform: translateY(6px); }
+
+/* The source block for the duration of an active gutter drag — dims and shrinks
+   so it reads as "picked up and following the cursor (via the custom drag-image
+   ghost)" instead of "still sitting there, unrelated to what's being dragged."
+   Deliberately the same treatment TabBar.tsx gives a tab being reordered
+   (`opacity-40 scale-95 cursor-grabbing`), so block reordering and tab
+   reordering feel like the same gesture. */
+.pm-block-dragging-source {
+  opacity: 0.4;
+  transform: scale(0.98);
+  cursor: grabbing;
+}
+
+/* ── Dragging a block must not look like selecting its text ─────────────────
+   ProseMirror's own dragstart takes what it drags from `view.state.selection`,
+   so the grip has to stage a NodeSelection on mousedown — and PM paints a
+   NodeSelection over a textblock as a full native text selection. That is the
+   "I don't want it to look like the text is selected because I am moving the
+   block" report. blockHandles.ts puts `.pm-block-dragging` on this wrapper
+   (outside view.dom, where PM's DOMObserver can't see it) for the life of the
+   gesture, and these rules turn that selection paint into a lifted-card
+   outline instead. */
+.berean-pm-editor.pm-block-dragging .ProseMirror ::selection { background: transparent; }
+.berean-pm-editor.pm-block-dragging .ProseMirror ::-moz-selection { background: transparent; }
+.berean-pm-editor.pm-block-dragging .ProseMirror-selectednode {
+  background: none;
+  outline: 1px solid rgb(var(--color-accent) / 0.4);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Drop indicator (prosemirror-dropcursor, registered in NoteEditorPM.tsx).
+   It ships unstyled; this matches the accent insert line TabBar.tsx draws
+   between tabs (`h-0.5 rounded-full bg-accent`) so the two reorder gestures
+   read identically. */
+.berean-pm-editor .ProseMirror-dropcursor,
+.berean-pm-editor .prosemirror-dropcursor-block {
+  background-color: rgb(var(--color-accent)) !important;
+  border-radius: 2px;
+}
+
+/* ── Side-by-side columns (column_list/column, schema.ts, 2.4) ──────────────
+   Plain flex row/item — no fixed widths, so columns share space evenly and
+   reflow naturally with the editor's own width. Margin/gap values match the
+   callout block's own 0.6em vertical rhythm (nodeViews.ts's calloutNodeView)
+   rather than inventing new spacing. `min-width: 0` on the column is the
+   standard flex-child fix that lets long unbroken content (a wide table, an
+   un-wrapped code line) shrink to the column's actual width instead of
+   forcing the whole row wider than the editor. */
+.berean-pm-editor .ProseMirror .pm-column-list {
+  display: flex;
+  align-items: flex-start;
+  gap: 1em;
+  margin: 0.6em 0;
+}
+.berean-pm-editor .ProseMirror .pm-column {
+  flex: 1;
+  min-width: 0;
+}
+.berean-pm-editor .ProseMirror .pm-column > *:first-child { margin-top: 0; }
+.berean-pm-editor .ProseMirror .pm-column > *:last-child { margin-bottom: 0; }
+
+/* Add/remove-column toolbar (columnControls.ts) — a small always-visible (not hover-gated,
+   unlike the block-handle gutter) text-button pair rendered right after the row, since
+   columns have no other discoverable entry point for growing/shrinking the layout. Styled
+   like a smaller, static sibling of .pm-block-handle-btn rather than inventing a new button
+   language. */
+.pm-column-controls {
+  display: flex;
+  gap: 6px;
+  margin: -0.35em 0 0.7em;
+}
+.pm-column-controls button {
+  padding: 2px 7px;
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 5px;
+  background: rgb(var(--color-surface-2));
+  color: rgb(var(--color-text-muted));
+  font-size: 0.72em;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.pm-column-controls button:hover {
+  background-color: rgb(var(--color-surface-3));
+  color: rgb(var(--color-text-primary));
 }
 
 /* ── Typing "looks" — curated font/line-height/spacing presets, quick-picked

@@ -4,6 +4,7 @@ import { getBereanDb } from '../db/berean'
 import { randomUUID } from 'crypto'
 import { numberTokenAlternates } from './numberWords'
 import { moveNoteToVaultTrash, restoreNoteFromVaultTrash, purgeNoteFromVaultTrash, type NoteRow as VaultNoteRow } from './vault'
+import { equivalentChapters } from '@/lib/translationChapterMap'
 
 /** Notify every OTHER open window (including floating/detached ones) that notes
  *  changed, so each window's own `noteChangeToken` bumps and any open Scripture/
@@ -81,6 +82,7 @@ interface NoteRow {
   content: string | null
   verse_ref: string | null
   color: string
+  icon: string | null
   status: string | null
   created_at: number
   updated_at: number
@@ -113,6 +115,7 @@ function rowToNote(row: NoteRow) {
     content:      row.content ?? '',
     verseRef:     row.verse_ref,
     color:        row.color,
+    icon:         row.icon ?? undefined,
     status:       row.status ?? undefined,
     createdAt:    row.created_at,
     updatedAt:    row.updated_at,
@@ -167,7 +170,7 @@ function pruneNoteVersions(db: ReturnType<typeof getBereanDb>, noteId: string): 
 export function registerNotesHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('notes:create', (event, data: {
-    type?: string; title?: string; content?: string; verseRef?: string; color?: string; status?: string | null; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
+    type?: string; title?: string; content?: string; verseRef?: string; color?: string; icon?: string; status?: string | null; tags?: string[]; textId?: string; folderId?: string | null; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
@@ -182,8 +185,8 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       status = defaultStatus && defaultStatus !== 'none' ? defaultStatus : null
     }
     db.prepare(`
-      INSERT INTO notes (id, type, title, content, verse_ref, color, status, created_at, updated_at, tags, text_id, folder_id, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, type, title, content, verse_ref, color, icon, status, created_at, updated_at, tags, text_id, folder_id, idiom_term, idiom_meaning, idiom_aliases, idiom_auto_variants)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.type ?? 'general',
@@ -191,6 +194,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       data.content ?? '',
       data.verseRef ?? null,
       data.color ?? 'blue',
+      data.icon ?? null,
       status,
       now, now,
       JSON.stringify(data.tags ?? []),
@@ -207,7 +211,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('notes:update', (event, id: string, data: {
-    title?: string; content?: string; color?: string; status?: string | null; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
+    title?: string; content?: string; color?: string; icon?: string | null; status?: string | null; tags?: string[]; idiomTerm?: string; idiomMeaning?: string; idiomAliases?: string[]; idiomAutoVariants?: boolean; idiomData?: unknown
   }) => {
     const db = getBereanDb()
     const existing = db.prepare('SELECT id FROM notes WHERE id = ?').get(id)
@@ -219,6 +223,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title) }
     if (data.content !== undefined) { fields.push('content = ?'); values.push(data.content) }
     if (data.color !== undefined) { fields.push('color = ?'); values.push(data.color) }
+    if (data.icon !== undefined) { fields.push('icon = ?'); values.push(data.icon || null) }
     if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status || null) }
     if (data.tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(data.tags)) }
     if (data.idiomTerm !== undefined) { fields.push('idiom_term = ?'); values.push(data.idiomTerm || null) }
@@ -294,6 +299,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     const row = db.prepare('SELECT deleted_at FROM notes WHERE id = ?').get(id) as { deleted_at: number | null } | undefined
     if (!row || row.deleted_at == null) return { success: false, error: 'Note is not in trash' }
     db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+    db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ?').run(id)
     db.prepare('DELETE FROM notes WHERE id = ?').run(id)
     purgeNoteFromVaultTrash(id)
     broadcastNotesChanged(event.sender)
@@ -306,6 +312,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     const tx = db.transaction(() => {
       for (const id of ids) {
         db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
+        db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ?').run(id)
         db.prepare('DELETE FROM notes WHERE id = ?').run(id)
       }
     })
@@ -425,26 +432,48 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('notes:getByVerse', (_event, verseRef: string, textId = 'kjva') => {
     // KJV and LXX are cross-linked: each shows the other's notes with a translation badge
     // so study connections are always visible. Own-translation notes come first, then cross.
-    let sql: string
-    if (textId === 'kjva') {
-      // Reading KJV → own notes first, then LXX notes
-      sql = `SELECT * FROM notes WHERE verse_ref = ? AND deleted_at IS NULL
-               AND (text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')
-             ORDER BY CASE WHEN text_id = 'lxx' THEN 1 ELSE 0 END, created_at ASC`
-    } else if (textId === 'lxx') {
-      // Reading LXX → own notes first, then KJV notes
-      sql = `SELECT * FROM notes WHERE verse_ref = ? AND deleted_at IS NULL
-               AND (text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)
-             ORDER BY CASE WHEN text_id != 'lxx' THEN 1 ELSE 0 END, created_at ASC`
-    } else {
-      sql = 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? AND deleted_at IS NULL ORDER BY created_at ASC'
-    }
+    //
+    // Psalms is the one book where KJV and LXX chapter numbers diverge (merges/splits
+    // around Pss 9-10, 114-118, 146-147 — see translationChapterMap.ts), so the OTHER
+    // translation's cross-linked notes must be looked up under ITS OWN equivalent
+    // chapter number(s), not the literal chapter typed into `verseRef`. `equivalentChapters`
+    // is the identity mapping for every other book, so this is a no-op there.
+    const parts = verseRef.split('.')
+    const bookId = parts[0]
+    const chapter = parseInt(parts[1] ?? '', 10)
+    const verseNum = parts[2]
     const db = getBereanDb()
-    const rows = (textId === 'kjva' || textId === 'lxx'
-      ? prep(db, sql).all(verseRef)
-      : prep(db, sql).all(verseRef, textId)
-    ) as NoteRow[]
-    return rows.map(rowToNote)
+
+    if (textId !== 'kjva' && textId !== 'lxx') {
+      const rows = prep(db, 'SELECT * FROM notes WHERE verse_ref = ? AND text_id = ? AND deleted_at IS NULL ORDER BY created_at ASC')
+        .all(verseRef, textId) as NoteRow[]
+      return rows.map(rowToNote)
+    }
+
+    const otherTextId = textId === 'kjva' ? 'lxx' : 'kjva'
+    const ownRows = prep(db,
+      textId === 'kjva'
+        ? "SELECT * FROM notes WHERE verse_ref = ? AND (text_id = 'kjva' OR text_id IS NULL) AND deleted_at IS NULL ORDER BY created_at ASC"
+        : "SELECT * FROM notes WHERE verse_ref = ? AND text_id = 'lxx' AND deleted_at IS NULL ORDER BY created_at ASC"
+    ).all(verseRef) as NoteRow[]
+
+    const otherRows: NoteRow[] = []
+    if (bookId && Number.isFinite(chapter) && verseNum) {
+      const otherChapters = equivalentChapters(bookId, chapter, textId, otherTextId)
+      const otherTidClause = otherTextId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
+      const stmt = prep(db, `SELECT * FROM notes WHERE verse_ref = ? AND ${otherTidClause} AND deleted_at IS NULL ORDER BY created_at ASC`)
+      const seen = new Set<string>()
+      for (const ch of otherChapters) {
+        const otherRef = `${bookId}.${ch}.${verseNum}`
+        for (const row of stmt.all(otherRef) as NoteRow[]) {
+          if (!seen.has(row.id)) { seen.add(row.id); otherRows.push(row) }
+        }
+      }
+    }
+
+    const combined = [...ownRows, ...otherRows]
+    combined.sort((a, b) => a.created_at - b.created_at)
+    return combined.map(rowToNote)
   })
 
   ipcMain.handle('notes:getOne', (_event, id: string) => {
@@ -540,46 +569,89 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   })
 
   // Returns all notes for a chapter. KJV and LXX are cross-linked (each sees the other's notes).
-  ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
+  //
+  // Psalms is the one book where KJV and LXX chapter numbers diverge (merges/splits around
+  // Pss 9-10, 114-118, 146-147 — see translationChapterMap.ts), so the cross-linked
+  // translation's notes are looked up under ITS OWN equivalent chapter(s) via
+  // `equivalentChapters`, not the literal chapter number on screen. That mapping is a
+  // no-op for every other book, so non-Psalms behavior is unchanged.
+  function notesForChapterAndTid(db: ReturnType<typeof getBereanDb>, bookId: string, chapter: number, tidClause: string, tidParam?: string): NoteRow[] {
     const chapterRef = `${bookId}.${chapter}`
     const prefix = `${chapterRef}.`
-    const tidClause = textId === 'kjva'
-      ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
-      : textId === 'lxx'
-      ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
-      : 'text_id = ?'
     // verse_ref is either the exact chapter-level form ("BOOK.CH", no verse segment —
     // e.g. a whole-chapter note) or a verse-specific form under it ("BOOK.CH.verse")
     // but NOT a deeper sub-range ("BOOK.CH.verse.something").
-    const stmt = prep(getBereanDb(),
-      `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND deleted_at IS NULL AND ${tidClause}
-       ORDER BY verse_ref ASC`
+    const stmt = prep(db,
+      `SELECT * FROM notes WHERE (verse_ref = ? OR (verse_ref LIKE ? AND verse_ref NOT LIKE ?)) AND deleted_at IS NULL AND ${tidClause}`
     )
-    const rows = (textId === 'kjva' || textId === 'lxx'
-      ? stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`)
-      : stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`, textId)
+    return (tidParam
+      ? stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`, tidParam)
+      : stmt.all(chapterRef, `${prefix}%`, `${prefix}%.%`)
     ) as NoteRow[]
-    return rows.map(rowToNote)
+  }
+
+  ipcMain.handle('notes:getByChapter', (_event, bookId: string, chapter: number, textId = 'kjva') => {
+    const db = getBereanDb()
+
+    if (textId !== 'kjva' && textId !== 'lxx') {
+      const rows = notesForChapterAndTid(db, bookId, chapter, 'text_id = ?', textId)
+      rows.sort((a, b) => (a.verse_ref ?? '').localeCompare(b.verse_ref ?? ''))
+      return rows.map(rowToNote)
+    }
+
+    const ownTid = textId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
+    const ownRows = notesForChapterAndTid(db, bookId, chapter, ownTid)
+
+    const otherTextId = textId === 'kjva' ? 'lxx' : 'kjva'
+    const otherTid = otherTextId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
+    const seen = new Set(ownRows.map((r) => r.id))
+    const otherRows: NoteRow[] = []
+    for (const ch of equivalentChapters(bookId, chapter, textId, otherTextId)) {
+      for (const row of notesForChapterAndTid(db, bookId, ch, otherTid)) {
+        if (!seen.has(row.id)) { seen.add(row.id); otherRows.push(row) }
+      }
+    }
+
+    const combined = [...ownRows, ...otherRows]
+    combined.sort((a, b) => (a.verse_ref ?? '').localeCompare(b.verse_ref ?? ''))
+    return combined.map(rowToNote)
   })
 
   // Returns { [verseNum]: count } for all verses in a chapter that have notes.
-  // KJV and LXX are cross-linked so dots appear for both translations' notes.
-  ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number, textId = 'kjva') => {
+  // KJV and LXX are cross-linked so dots appear for both translations' notes. Same
+  // equivalent-chapter mapping as notes:getByChapter above; verse numbers within a merge
+  // chapter are used as-is (verse-level splits are ignored — same simplification
+  // translationChapterMap.ts's navigation mapping already makes).
+  function chapterVerseRefsForTid(db: ReturnType<typeof getBereanDb>, bookId: string, chapter: number, tidClause: string, tidParam?: string): string[] {
     const prefix = `${bookId}.${chapter}.`
-    const tidClause = textId === 'kjva'
-      ? "(text_id = 'kjva' OR text_id IS NULL OR text_id = 'lxx')"
-      : textId === 'lxx'
-      ? "(text_id = 'lxx' OR text_id = 'kjva' OR text_id IS NULL)"
-      : 'text_id = ?'
-    const stmt = prep(getBereanDb(),
+    const stmt = prep(db,
       `SELECT verse_ref FROM notes WHERE verse_ref LIKE ? AND verse_ref NOT LIKE ? AND deleted_at IS NULL AND ${tidClause}`
     )
-    const rows = (textId === 'kjva' || textId === 'lxx'
-      ? stmt.all(`${prefix}%`, `${prefix}%.%`)
-      : stmt.all(`${prefix}%`, `${prefix}%.%`, textId)
+    const rows = (tidParam
+      ? stmt.all(`${prefix}%`, `${prefix}%.%`, tidParam)
+      : stmt.all(`${prefix}%`, `${prefix}%.%`)
     ) as Array<{ verse_ref: string }>
+    return rows.map((r) => r.verse_ref)
+  }
+
+  ipcMain.handle('notes:getChapterCounts', (_event, bookId: string, chapter: number, textId = 'kjva') => {
+    const db = getBereanDb()
+    let verseRefs: string[]
+
+    if (textId !== 'kjva' && textId !== 'lxx') {
+      verseRefs = chapterVerseRefsForTid(db, bookId, chapter, 'text_id = ?', textId)
+    } else {
+      const ownTid = textId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
+      const otherTextId = textId === 'kjva' ? 'lxx' : 'kjva'
+      const otherTid = otherTextId === 'kjva' ? "(text_id = 'kjva' OR text_id IS NULL)" : "text_id = 'lxx'"
+      verseRefs = chapterVerseRefsForTid(db, bookId, chapter, ownTid)
+      for (const ch of equivalentChapters(bookId, chapter, textId, otherTextId)) {
+        verseRefs.push(...chapterVerseRefsForTid(db, bookId, ch, otherTid))
+      }
+    }
+
     const counts: Record<number, number> = {}
-    for (const { verse_ref } of rows) {
+    for (const verse_ref of verseRefs) {
       const verseNum = parseInt(verse_ref.split('.')[2] ?? '0')
       if (verseNum) counts[verseNum] = (counts[verseNum] ?? 0) + 1
     }
@@ -622,6 +694,33 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     pruneNoteVersions(db, noteId)
     broadcastNotesChanged(event.sender)
     return { success: true, content: ver.content }
+  })
+
+  // ── Heading collapse persistence (round 12 item 6) ─────────────────────────
+  // See berean.ts's v24 migration comment for why this is keyed by a stable `heading_key`
+  // string rather than a document position, and why it's a separate table rather than
+  // markdown content. Every row is scoped to one note_id — no cross-note leakage possible
+  // even if two notes happen to compute the same heading_key.
+  ipcMain.handle('notes:getCollapsedHeadings', (_event, noteId: string) => {
+    const rows = getBereanDb()
+      .prepare('SELECT heading_key FROM note_heading_collapse WHERE note_id = ? AND collapsed = 1')
+      .all(noteId) as Array<{ heading_key: string }>
+    return rows.map((r) => r.heading_key)
+  })
+
+  ipcMain.handle('notes:setHeadingCollapsed', (_event, noteId: string, headingKey: string, collapsed: boolean) => {
+    const db = getBereanDb()
+    if (collapsed) {
+      db.prepare('INSERT OR REPLACE INTO note_heading_collapse (note_id, heading_key, collapsed) VALUES (?, ?, 1)')
+        .run(noteId, headingKey)
+    } else {
+      // Un-collapsing just deletes the row rather than writing collapsed=0 — a note with
+      // every heading expanded (the common case) then has ZERO rows instead of one per
+      // heading, keeping this table's steady-state size proportional to "how much is
+      // actually collapsed right now," not "how many headings have ever existed."
+      db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ? AND heading_key = ?').run(noteId, headingKey)
+    }
+    return { success: true }
   })
 
 }

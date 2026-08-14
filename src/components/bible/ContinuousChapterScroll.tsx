@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import ChapterView from './ChapterView'
 import { bookName } from '@/lib/parseRef'
+import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_START } from '@/lib/scrollToVerse'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -60,6 +61,24 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     const [visibleCh, setVisibleCh] = useState(chapter)
     const scrollRef = useRef<HTMLDivElement>(null)
     const headingRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+    // ── Height-preserving placeholders for evicted chapters ──────────────────────────────
+    // Chapters outside [firstCh, lastCh] used to be fully absent from the DOM with nothing
+    // substituted for the space they occupied (unlike real virtualization libraries, which keep
+    // a measured/estimated-height placeholder so scrollHeight doesn't change out from under the
+    // user). Removing a chapter's DOM entirely shrinks scrollHeight; if that happens above the
+    // visible viewport during fast scrolling, the browser's own scroll-position math can drift
+    // (see the "before"/"after" spacer divs in the render below). chapterWrapperRefs measures
+    // each currently-mounted chapter's REAL rendered height (captured right before an eviction
+    // in handleScroll below) so the placeholders substituted in its place are sized close to
+    // reality, not a guess — falling back to the average of whatever's been measured so far for
+    // chapters that have never been rendered yet this session.
+    const chapterWrapperRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+    const heightCacheRef = useRef<Map<number, number>>(new Map())
+    const measureMountedChapterHeights = useCallback(() => {
+      chapterWrapperRefs.current.forEach((el, ch) => {
+        if (el) heightCacheRef.current.set(ch, el.offsetHeight)
+      })
+    }, [])
     const initialScrollDoneRef = useRef(false)
     // Track whether we're in the middle of a programmatic chapter jump (suppresses chapter-change from observer)
     const programmaticScrollRef = useRef(false)
@@ -161,6 +180,10 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
       // updates are suppressed for the duration), so evicting against the stale value here
       // would unmount the chapter we just jumped to.
       if (!programmaticScrollRef.current) {
+        // Measure whatever's currently mounted BEFORE potentially evicting any of it, so the
+        // placeholder substituted for an evicted chapter is sized from its own last-known real
+        // height, not a guess.
+        measureMountedChapterHeights()
         setFirstCh((prev) => {
           const minAllowed = Math.min(Math.max(1, visibleCh - WINDOW_CHAPTERS), lastCh)
           return minAllowed > prev ? minAllowed : prev
@@ -170,7 +193,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
           return maxAllowed < prev ? maxAllowed : prev
         })
       }
-    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh])
+    }, [onScroll, totalChapters, visibleCh, firstCh, lastCh, measureMountedChapterHeights])
 
     // Public API: scroll a specific chapter's heading into view
     const scrollToChapter = useCallback((ch: number, verse?: number) => {
@@ -187,11 +210,11 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
         requestAnimationFrame(() => {
           if (verse) {
             const el = scrollRef.current?.querySelector(`[data-verse="${verse}"]`) as HTMLElement | null
-            if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return }
+            if (el) { scrollVerseIntoView(el, VERSE_JUMP_ANIMATED_CENTER); return }
           }
           const heading = headingRefs.current.get(ch)
           if (heading) {
-            heading.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollVerseIntoView(heading, VERSE_JUMP_ANIMATED_START)
           }
         })
       })
@@ -203,6 +226,23 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     }), [scrollToChapter])
 
     const chapters = Array.from({ length: lastCh - firstCh + 1 }, (_, i) => firstCh + i)
+
+    // Placeholder height for the evicted range BEFORE firstCh and AFTER lastCh — see
+    // chapterWrapperRefs' own comment above for why this exists. Unmeasured chapters (never
+    // rendered yet this session) fall back to the average of whatever HAS been measured so far;
+    // with nothing measured yet at all (e.g. the very first chapter of a book, nothing scrolled
+    // past), 900px is a reasonable generic guess for one rendered chapter's height rather than 0
+    // (0 would make the very first eviction's placeholder swap look identical to today's
+    // no-placeholder behavior — better to guess wrong in the direction of "close" than to not
+    // even try).
+    const measuredHeights = heightCacheRef.current
+    const avgMeasuredHeight = measuredHeights.size > 0
+      ? Array.from(measuredHeights.values()).reduce((a, b) => a + b, 0) / measuredHeights.size
+      : 900
+    let beforeHeight = 0
+    for (let ch = 1; ch < firstCh; ch++) beforeHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
+    let afterHeight = 0
+    for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
 
     return (
       <div ref={scrollRef} className="flex-1 overflow-y-auto relative" onScroll={handleScroll}>
@@ -230,8 +270,19 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
           </div>
         )}
 
+        {/* Placeholder for evicted chapters before firstCh — keeps scrollHeight (and therefore
+            scrollTop) roughly continuous across an eviction instead of the scrollable region
+            abruptly shrinking. */}
+        {beforeHeight > 0 && <div style={{ height: beforeHeight }} aria-hidden="true" />}
+
         {chapters.map((ch) => (
-          <div key={`${bookId}-${ch}`}>
+          <div
+            key={`${bookId}-${ch}`}
+            ref={(el) => {
+              if (el) chapterWrapperRefs.current.set(ch, el)
+              else chapterWrapperRefs.current.delete(ch)
+            }}
+          >
             {/* Chapter heading divider */}
             <div
               ref={(el) => {
@@ -264,6 +315,9 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
             />
           </div>
         ))}
+
+        {/* Placeholder for evicted chapters after lastCh — same reasoning as the "before" one. */}
+        {afterHeight > 0 && <div style={{ height: afterHeight }} aria-hidden="true" />}
 
         {/* Bottom sentinel — ensures there's enough room to scroll */}
         <div className="h-16" />

@@ -6,6 +6,8 @@ import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
 import { bookName } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import type { UpdateStatus } from '@/types/electron'
+import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
+import { debouncedLocalStorage } from '@/lib/debouncedStorage'
 
 export interface WordReplacerRule {
   id: string
@@ -225,7 +227,7 @@ export interface AppState {
   // YouTube video navigation (from note timestamp links — handles tab creation + space switch)
   pendingYouTubeVideo: { videoId: string; startTime: number } | null
   openYouTubeVideo: (videoId: string, startTime?: number, fromNote?: { noteId: string; title: string }) => void
-  openYouTubeVideoInNewTab: (videoId: string) => void
+  openYouTubeVideoInNewTab: (videoId: string, startTime?: number) => void
   openPdf: (pdfId: string, title: string, page?: number) => void
   clearPendingYouTubeVideo: () => void
 
@@ -532,6 +534,7 @@ export interface AppState {
   openSettings: () => void
   openSettingsToSessions: () => void
   openSettingsToAbout: () => void
+  openSettingsToAudio: () => void
   closeSettings: () => void
   toggleSettings: () => void
   setTheme: (theme: 'dark' | 'light' | 'system') => void
@@ -657,6 +660,63 @@ export interface AppState {
   setTabNavMaxStack: (n: number) => void
   setHistoryMaxEntries: (n: number) => void
   clearAllTabNavStacks: () => void
+
+  // ── Read Aloud (TTS playback) ────────────────────────────────────────────
+  // Live playback state — NOT persisted (no playback-position persistence across restarts,
+  // per plan). Actions call into the ttsEngine singleton (src/lib/tts/ttsEngine.ts) and
+  // mirror its callbacks back into this state; useTTSPlayback.ts (mounted once at App.tsx
+  // root) owns the actual orchestration/auto-advance and drives these actions.
+  audioPlayback: AudioPlaybackState | null
+  setAudioPlayback: (state: AudioPlaybackState | Partial<AudioPlaybackState> | null) => void
+  // Bumped whenever startPlaybackFrom is called — useTTSPlayback.ts watches this token
+  // (not audioPlayback itself, which it also writes to) to know when a NEW playback request
+  // came in vs. its own state mirroring writes.
+  audioPlaybackRequestToken: number
+  startPlaybackFrom: (bookId: string, chapter: number, verseNum: number, textId: string) => void
+  stopPlayback: () => void
+  togglePlayPause: () => void
+  skipVerseToken: number
+  skipVerseDirection: 'prev' | 'next' | null
+  skipVerse: (direction: 'prev' | 'next') => void
+  // Absolute seek — the chapter progress bar (AudioPlayer.tsx) dragging to a specific verse.
+  seekToken: number
+  seekTargetVerseNum: number | null
+  seekToVerse: (verseNum: number) => void
+
+  // Read Aloud preferences — persisted like other display settings.
+  ttsVoiceURI: string | null
+  ttsRate: number
+  ttsHighlightWordsEnabled: boolean
+  ttsAutoAdvanceEnabled: boolean
+  ttsAutoAdvancePauseSec: number
+  setTTSVoiceURI: (v: string | null) => void
+  setTTSRate: (v: number) => void
+  setTTSHighlightWordsEnabled: (v: boolean) => void
+  setTTSAutoAdvanceEnabled: (v: boolean) => void
+  setTTSAutoAdvancePauseSec: (v: number) => void
+
+  // Whether the Kokoro voice pack is present and the real backend is live. NOT persisted — it's
+  // re-checked via IPC on every launch, since the model files can be deleted externally (or by
+  // Settings' own "remove model"). Kokoro is the ONLY engine now (the Web Speech backend was
+  // removed — see ttsEngine.ts), so this doubles as "is Read Aloud usable at all": while it's
+  // false, ttsEngine delegates to an inert no-op backend rather than a fallback engine.
+  kokoroModelReady: boolean
+  setKokoroModelReady: (v: boolean) => void
+}
+
+/** Live (non-persisted) Read Aloud playback state. `finished` marks a clean stop at the end
+ *  of the whole Bible (auto-advance ran out of `getNextChapterRef` results) — distinct from
+ *  a user-initiated stop, so the floating player can show a "finished" state briefly instead
+ *  of just vanishing. */
+export interface AudioPlaybackState {
+  isPlaying: boolean
+  isPaused: boolean
+  textId: string
+  bookId: string
+  chapter: number
+  verse: number
+  wordIndex: number | null
+  finished: boolean
 }
 
 const DEFAULT_TABS: Record<SpaceId, Tab[]> = {
@@ -1149,6 +1209,67 @@ export const useAppStore = create<AppState>()(
       setTabNavMaxStack: (n) => set({ tabNavMaxStack: Math.max(10, Math.min(1000, n)) }),
       setHistoryMaxEntries: (n) => set({ historyMaxEntries: Math.max(50, Math.min(10000, n)) }),
       clearAllTabNavStacks: () => set({ tabNavStacks: {} }),
+
+      // ── Read Aloud (TTS playback) ──────────────────────────────────────────
+      // Thin store actions — the actual speechSynthesis orchestration lives in
+      // useTTSPlayback.ts (mounted once at App.tsx root), which watches
+      // audioPlaybackRequestToken/skipVerseToken and drives the ttsEngine singleton
+      // directly (see src/lib/tts/ttsEngine.ts). Keeping the engine calls out of the
+      // store avoids importing the Web Speech wrapper into every consumer of this store.
+      audioPlayback: null,
+      setAudioPlayback: (state) => set((s) => ({
+        audioPlayback: state === null
+          ? null
+          : { ...(s.audioPlayback ?? {
+              isPlaying: false, isPaused: false, textId: 'kjva', bookId: 'GEN', chapter: 1, verse: 1, wordIndex: null, finished: false,
+            }), ...state },
+      })),
+      audioPlaybackRequestToken: 0,
+      startPlaybackFrom: (bookId, chapter, verseNum, textId) => set((s) => ({
+        audioPlayback: { isPlaying: true, isPaused: false, textId, bookId, chapter, verse: verseNum, wordIndex: null, finished: false },
+        audioPlaybackRequestToken: s.audioPlaybackRequestToken + 1,
+      })),
+      stopPlayback: () => {
+        ttsEngine.stop()
+        set({ audioPlayback: null })
+      },
+      togglePlayPause: () => {
+        const s = get()
+        const ap = s.audioPlayback
+        if (!ap) return
+        if (ap.isPaused) {
+          ttsEngine.resume()
+          set({ audioPlayback: { ...ap, isPaused: false } })
+        } else {
+          ttsEngine.pause()
+          set({ audioPlayback: { ...ap, isPaused: true } })
+        }
+      },
+      skipVerseToken: 0,
+      skipVerseDirection: null,
+      skipVerse: (direction) => set((s) => ({ skipVerseToken: s.skipVerseToken + 1, skipVerseDirection: direction })),
+      seekToken: 0,
+      seekTargetVerseNum: null,
+      seekToVerse: (verseNum) => set((s) => ({ seekToken: s.seekToken + 1, seekTargetVerseNum: verseNum })),
+
+      ttsVoiceURI: null,
+      ttsRate: 1,
+      ttsHighlightWordsEnabled: true,
+      ttsAutoAdvanceEnabled: true,
+      ttsAutoAdvancePauseSec: 2,
+      setTTSVoiceURI: (v) => { ttsEngine.setVoice(v); set({ ttsVoiceURI: v }) },
+      setTTSRate: (v) => { ttsEngine.setRate(v); set({ ttsRate: v }) },
+      setTTSHighlightWordsEnabled: (v) => set({ ttsHighlightWordsEnabled: v }),
+      setTTSAutoAdvanceEnabled: (v) => set({ ttsAutoAdvanceEnabled: v }),
+      setTTSAutoAdvancePauseSec: (v) => set({ ttsAutoAdvancePauseSec: Math.max(0, Math.min(30, v)) }),
+
+      kokoroModelReady: false,
+      setKokoroModelReady: (v) => {
+        set({ kokoroModelReady: v })
+        // No preference to consult any more — with Kokoro the only engine, the pack becoming
+        // available IS the signal to activate it.
+        if (v) void activateKokoroBackend()
+      },
 
       pdfFeatureEnabled: false,
       setPdfFeatureEnabled: (v) => set({ pdfFeatureEnabled: v }),
@@ -1727,6 +1848,9 @@ export const useAppStore = create<AppState>()(
       // Rail's Settings badge (Ribbon.tsx) jumps straight to the About/Updates
       // page when an update is available/ready, instead of the default tab.
       openSettingsToAbout: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'about' }) },
+      // AudioPlayer.tsx's "Get more natural voices…" link — jumps straight to the Audio
+      // section instead of the default Appearance tab.
+      openSettingsToAudio: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'audio' }) },
       closeSettings: () => set({ settingsOpen: false }),
       toggleSettings: () => set((s) => {
         const opening = !s.settingsOpen
@@ -1797,10 +1921,10 @@ export const useAppStore = create<AppState>()(
           youtubeNoteBack: fromNote ?? null,
         })
       },
-      openYouTubeVideoInNewTab: (videoId) => {
+      openYouTubeVideoInNewTab: (videoId, startTime = 0) => {
         get().addHistoryEntry({ type: 'youtube', title: videoId ?? 'YouTube', videoId: videoId ?? undefined })
         get().createTab('youtube') // creates + activates a fresh youtube tab
-        set({ pendingYouTubeVideo: { videoId, startTime: 0 }, activeSpace: 'youtube' })
+        set({ pendingYouTubeVideo: { videoId, startTime }, activeSpace: 'youtube' })
       },
       openPdf: (pdfId, title, page) => {
         const state = get()
@@ -2015,8 +2139,18 @@ export const useAppStore = create<AppState>()(
     {
       name: 'berean-app-state',
       version: 8,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => debouncedLocalStorage),
       onRehydrateStorage: () => (state) => {
+        // Read Aloud (TTS) — the ACTUAL backend activation constructs a Worker, a runtime side
+        // effect `persist`'s plain state rehydration can't perform itself, so it's kicked off
+        // here. Unconditional now that Kokoro is the only engine: if the pack is on disk, Read
+        // Aloud should just work at launch with no preference to consult. `window.ttsModel` is
+        // undefined in non-Electron test contexts (hence the `?.`) — there the inert backend
+        // stays active, which is correct. Deferred to a promise `.then()` so it runs after
+        // `useAppStore` has finished being assigned by the enclosing `create()` call below.
+        window.ttsModel?.getStatus().then((status) => {
+          useAppStore.getState().setKokoroModelReady(status.ready)
+        }).catch(() => { /* leave kokoroModelReady false — Read Aloud stays inert */ })
         if (!state?.tabs) return
 
         // Merge any new default word replacer rules (by ID) that are missing from persisted state
@@ -2144,6 +2278,13 @@ export const useAppStore = create<AppState>()(
         tabNavMaxStack: state.tabNavMaxStack,
         historyMaxEntries: state.historyMaxEntries,
         recentSearchQueries: state.recentSearchQueries,
+        // Read Aloud (TTS) preferences — playback state itself is NOT persisted (see
+        // audioPlayback's own doc comment above): only voice/speed/toggle prefs survive restart.
+        ttsVoiceURI: state.ttsVoiceURI,
+        ttsRate: state.ttsRate,
+        ttsHighlightWordsEnabled: state.ttsHighlightWordsEnabled,
+        ttsAutoAdvanceEnabled: state.ttsAutoAdvanceEnabled,
+        ttsAutoAdvancePauseSec: state.ttsAutoAdvancePauseSec,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

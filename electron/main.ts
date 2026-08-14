@@ -7,6 +7,7 @@ import { is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { setupPowerAwareness, getResourceMode } from './powerAwareness'
+import { buildCSP } from './csp'
 
 // Write to a known container path before anything else — captures crashes that happen
 // before app.ready (before electron-log knows its path).
@@ -80,6 +81,13 @@ import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
 import { registerHistoryHandlers } from './ipc/history'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
+import { registerTTSModelHandlers } from './ipc/ttsModel'
+import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
+import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsModelProtocol'
+
+// Must run before app.whenReady() — Electron ignores privileged-scheme registration once the
+// app is ready (see ttsModelProtocol.ts's file header for why this scheme exists at all).
+registerTTSModelScheme()
 
 // Separate dev userData from prod — macOS HFS+/APFS is case-insensitive so
 // 'berean' and 'Berean' resolve to the same directory without this.
@@ -125,10 +133,24 @@ if (app.isPackaged && process.mas) {
 // NSEventPhase is only populated by phase-aware devices (trackpad/Magic Mouse), so a plain
 // USB mouse wheel should never trigger these and this shouldn't affect mouse-wheel scrolling
 // anywhere else in the app.
+// Electron forwards EVERY input event (keystrokes, mousemoves, wheel) for a webContents to the
+// browser process the moment anything subscribes to 'input-event' on it — regardless of what the
+// handler itself does with them. The only consumer of the swipe signal is BiblePanel.tsx's
+// side-panel gesture, which only runs in the main window, so attaching this to every window
+// (viewer, floating search/panel, YouTube <webview>s) was pure overhead with no consumer. Deferred
+// one tick via setImmediate because 'web-contents-created' fires synchronously during `new
+// BrowserWindow(...)`, before that window's own `__isViewer`/`__isFloat` tag gets assigned right
+// after the constructor returns — by the next tick every window created so far has its tag set.
 app.on('web-contents-created', (_event, contents) => {
-  contents.on('input-event', (_e, inputEvent) => {
-    if (inputEvent.type === 'gestureScrollBegin') contents.send('app:trackpadSwipeBegin')
-    else if (inputEvent.type === 'gestureScrollEnd') contents.send('app:trackpadSwipeEnd')
+  setImmediate(() => {
+    if (contents.isDestroyed()) return
+    if (contents.getType() === 'webview') return // YouTube embeds — never the swipe consumer
+    const owner = BrowserWindow.fromWebContents(contents)
+    if (owner && ((owner as any).__isViewer || (owner as any).__isFloat)) return
+    contents.on('input-event', (_e, inputEvent) => {
+      if (inputEvent.type === 'gestureScrollBegin') contents.send('app:trackpadSwipeBegin')
+      else if (inputEvent.type === 'gestureScrollEnd') contents.send('app:trackpadSwipeEnd')
+    })
   })
 })
 
@@ -713,17 +735,12 @@ app.whenReady().then(async () => {
   // does not touch it. Dev needs 'unsafe-eval' + ws: for Vite HMR; the packaged
   // build is locked down (script-src 'self', no eval) — which resolves Electron's
   // "Insecure Content-Security-Policy" warning for production users.
-  const cspValue = [
-    "default-src 'self'",
-    is.dev ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    "media-src 'self' blob: data: https:",
-    is.dev ? "connect-src 'self' ws: http: https:" : "connect-src 'self' https:",
-    "frame-src 'self' https://www.youtube.com data:",
-    "worker-src 'self' blob:",
-  ].join('; ')
+  //
+  // Built by the SHARED `buildCSP()` (see csp.ts's header) rather than inline here — a packaged
+  // build never reaches this handler at all (onHeadersReceived doesn't fire for file://), so
+  // src/index.html's own <meta> CSP tag is the actual production policy; buildCSP() is what keeps
+  // that tag and this handler from drifting out of sync the way they previously did.
+  const cspValue = buildCSP(is.dev)
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const headers = { ...details.responseHeaders }
@@ -736,6 +753,9 @@ app.whenReady().then(async () => {
   })
   log.info('CSP header handler registered')
 
+  registerTTSModelProtocolHandler()
+  registerTTSModelHandlers(ipcMain)
+  registerTTSAudioCacheHandlers(ipcMain)
   registerBibleHandlers(ipcMain)
   registerNotesHandlers(ipcMain)
   log.info('[berean-main] Notes handlers registered')
@@ -831,12 +851,8 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.on('app:pushViewerContent', (_e, payload: unknown) => {
-    console.log('[Viewer IPC] app:pushViewerContent received — viewerWindow:', !!viewerWindow, '— payload:', JSON.stringify(payload))
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:content', payload)
-      console.log('[Viewer IPC] viewer:content sent to viewer window')
-    } else {
-      console.log('[Viewer IPC] NO viewer window to send to')
     }
   })
 
@@ -946,6 +962,17 @@ app.whenReady().then(async () => {
     allWins.forEach((win) => {
       if (win.webContents !== sender) {
         win.webContents.send('app:tabStateUpdate', payload)
+      }
+    })
+  })
+
+  // Read Aloud (TTS) cross-window playback sync — same fan-out-to-others pattern as
+  // app:broadcastTabState above, on its own channel so it doesn't collide with tab-state syncing.
+  ipcMain.on('app:broadcastAudioState', (event, payload: unknown) => {
+    const sender = event.sender
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (win.webContents !== sender) {
+        win.webContents.send('app:audioStateUpdate', payload)
       }
     })
   })

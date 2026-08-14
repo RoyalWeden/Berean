@@ -137,6 +137,25 @@ function insertTable(view: EditorView, from: number, to: number) {
   insertBlockNode(view, from, to, buildEmptyTable())
 }
 
+// Side-by-side columns (2.4). This is the actual editor-UX ENTRY POINT for creating a
+// column_list — the plan's originally-specified "drag a block onto another's left/right
+// edge" interaction was evaluated against blockHandles.ts's existing native-HTML5-drag
+// mechanism and found to have no clean hook point: PM's own `handleDrop` resolves ONE
+// target position from the drop coordinate with no secondary "which side of this block"
+// signal, so a second drop-zone mode would need a hand-rolled dragover interceptor fighting
+// that native path rather than extending it. Given round-trip correctness (not this specific
+// UX flourish) is the priority on this piece, this slash command — plus the add/remove-
+// column buttons rendered by columnControls.ts — is the simpler, explicitly-sanctioned
+// fallback entry point instead.
+export function buildColumnList(count = 2): PMNode {
+  const columns = Array.from({ length: count }, () => schema.nodes.column.create(null, schema.nodes.paragraph.create()))
+  return schema.nodes.column_list.create(null, columns)
+}
+
+function insertColumns(view: EditorView, from: number, to: number) {
+  insertBlockNode(view, from, to, buildColumnList(2))
+}
+
 // Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're
 // plain paragraph text that blockDecorations.ts recognizes and boxes once it matches a real
 // verse in the DB (async-verified). This command doesn't insert a verse itself; it clears the
@@ -170,6 +189,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'quote', label: 'Quote', description: 'Blockquote for citations', keywords: ['blockquote', 'citation'], group: 'Basic blocks', run: toBlockquote },
   { id: 'code', label: 'Code block', description: 'Monospaced code with no formatting', keywords: ['fence', 'pre', 'monospace'], group: 'Basic blocks', run: toCodeBlock },
   { id: 'table', label: 'Table', description: '2×2 table to start from', keywords: ['grid', 'spreadsheet'], group: 'Basic blocks', run: insertTable },
+  { id: 'columns', label: 'Columns', description: '2-column side-by-side layout', keywords: ['column', 'layout', 'side-by-side', 'split'], group: 'Basic blocks', run: insertColumns },
   { id: 'divider', label: 'Divider', description: 'Horizontal rule', keywords: ['hr', 'rule', 'separator', 'line'], group: 'Basic blocks', run: insertHorizontalRule },
   { id: 'callout-note', label: 'Note', description: 'Blue callout for general notes', keywords: ['callout', 'info', 'blue'], group: 'Callouts', run: toCallout('NOTE') },
   { id: 'callout-tip', label: 'Tip', description: 'Green callout for helpful tips', keywords: ['callout', 'green', 'hint'], group: 'Callouts', run: toCallout('TIP') },

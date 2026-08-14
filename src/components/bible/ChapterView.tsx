@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import VerseRow from './VerseRow'
@@ -8,6 +9,7 @@ import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/p
 import { isHermasBook } from '@/lib/hermasMap'
 import { extractRefsFromNote } from '@/lib/noteRefs'
 import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
+import { scrollVerseIntoView, VERSE_JUMP_INSTANT, VERSE_FOLLOW_DOWN, VERSE_FOLLOW_UP } from '@/lib/scrollToVerse'
 import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { zoomedFontSize } from '@/lib/zoom'
@@ -145,6 +147,14 @@ interface ChapterViewProps {
   onSlowLoadChange?: (loading: boolean) => void
   /** Tighter padding + no max width — used for compare columns. */
   compact?: boolean
+  /** Identity of the scripture tab this instance is showing content for. BiblePanel.tsx no
+   *  longer remounts on tab switch (see its own prevBibleTabIdForResetRef), which means THIS
+   *  component can now be the same instance across a switch to a completely different tab's
+   *  book/chapter — without knowing that happened, its own mount-scoped local state (verses,
+   *  note dots, the KJV/LXX crossfade's "did the translation actually change" tracking) would
+   *  keep showing the OUTGOING tab's data/behavior for one render. Passed through so this
+   *  component can detect the change itself and reset — see prevTabIdForResetRef below. */
+  tabId?: string | null
 }
 
 interface VerseSelection { vn: number; startChar: number; endChar: number }
@@ -256,7 +266,7 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
   )
 }
 
-function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false }: ChapterViewProps) {
+function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, targetVerseQuery, targetVerseWordMode, targetVerseStrongsWords, targetVerseStrongsExtraWords, endVerse, hiddenAnnotations, findQuery, findWordMode = 'phrase', onStrongsClick, onWordClick, onVersesLoaded, onTargetVerseConsumed, onSlowLoadChange, flashAnchor, compact = false, tabId }: ChapterViewProps) {
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
@@ -267,6 +277,19 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const showVerseNumbers = useAppStore((s) => s.showVerseNumbers)
+  // Read Aloud writes a new audioPlayback object on every spoken word (every word-boundary
+  // event). Subscribing to `s.audioPlayback` directly would re-render EVERY mounted ChapterView
+  // instance (e.g. every compare-view column) on every one of those ticks, even chapters that
+  // aren't the one playing. This selector collapses to a stable `null` for any tick that isn't
+  // about THIS bookId/chapter/textId — zustand's default Object.is comparison then bails the
+  // re-render for those instances, so only the chapter actually being read re-renders per word.
+  const audioPlayback = useAppStore(
+    useCallback((s) => {
+      const ap = s.audioPlayback
+      if (!ap || ap.bookId !== bookId || ap.chapter !== chapter || ap.textId !== textId) return null
+      return ap
+    }, [bookId, chapter, textId])
+  )
 
   // Warm-start from chapterCache when this chapter/textId was already fetched by a previous
   // ChapterView mount (e.g. switching back to a tab) — avoids showing the loading skeleton for
@@ -386,6 +409,45 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // book+chapter match doesn't mean the same passage at all, and any resulting "gap"
   // wouldn't be a real cross-text comparison.
   const [missingLxxVerses, setMissingLxxVerses] = useState<Set<number>>(new Set())
+
+  // ── Reset mount-scoped local state when the TAB this instance belongs to changes ──────────
+  // Mirrors BiblePanel.tsx's own prevBibleTabIdForResetRef (same render-phase-reset technique,
+  // not a useEffect, so the correct tab's content is already in place for THIS render's paint —
+  // no one-frame flash of the outgoing tab's chapter). Needed because BiblePanel no longer
+  // remounts this component on a scripture-tab switch: without this, the fetch effect above's
+  // deliberate "keep stale verses on screen during a fetch" behavior (comment a few lines up —
+  // correct for WITHIN-tab navigation like next/prev chapter) also fired for a cross-tab switch
+  // to a different book, briefly redrawing the OUTGOING tab's chapter before the new one loaded.
+  // `prevTextIdRef` needed the same treatment: without resetting it, switching from a KJVA tab to
+  // an LXX tab (different tabs, unrelated to the KJV/LXX toggle button) could be misread as a
+  // same-tab translation switch and spuriously trigger the View Transition crossfade.
+  const prevTabIdForResetRef = useRef(tabId)
+  if (prevTabIdForResetRef.current !== tabId) {
+    prevTabIdForResetRef.current = tabId
+    const key = chapterCacheKey(bookId, chapter, textId ?? 'kjva')
+    const cached = getCachedVerses(key)
+    // Same warm-start-from-cache logic the initial useState lazy initializers above use — a
+    // real mount would have started from exactly this, so this reset reproduces it precisely
+    // rather than unconditionally blanking to an empty/loading state.
+    setVerses(cached ?? [])
+    setVersesKey(cached ? key : null)
+    setLoading(cached === null)
+    setNoteCounts({})
+    setNoteColorsMap({})
+    setVerseHasNoteCrossRefs({})
+    setChapterSources([])
+    setHighlights({})
+    setMissingLxxVerses(new Set())
+    setShowSlowLoadIndicator(false)
+    setMultiToolbar(null)
+    setFlashVerse(null)
+    if (flashVerseTimerRef.current) { clearTimeout(flashVerseTimerRef.current); flashVerseTimerRef.current = null }
+    lastScrolledVerseRef.current = undefined
+    // The NEW tab's own textId — so the very next fetch effect run correctly reads this as "not
+    // a translation switch" (same reasoning as the file-level comment on prevTextIdRef itself).
+    prevTextIdRef.current = textId
+  }
+
   useEffect(() => {
     const eligible = textId === 'lxx' && !['PSA', 'JOL', 'MAL'].includes(bookId.toUpperCase())
       && !(bookId.toUpperCase() === 'JER' && chapter >= 26)
@@ -494,7 +556,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // firing around the same time (cross-ref banner, note counts, etc.), which is how this
     // ended up silently not scrolling at all in practice. An instant jump can't be
     // interrupted mid-animation the same way.
-    el.scrollIntoView({ behavior: 'auto', block: 'start' })
+    scrollVerseIntoView(el, VERSE_JUMP_INSTANT)
     lastScrolledVerseRef.current = targetVerse
     if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current)
     // Carries whatever the search result matched (targetVerseQuery/Word/StrongsWords, read
@@ -544,10 +606,37 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // Top-aligned to match the primary effect above; instant since a layout shift from the
     // cross-ref banner mounting can land right after the initial jump and this just corrects
     // for it — not meant to be seen animating.
-    el?.scrollIntoView({ behavior: 'auto', block: 'start' })
+    scrollVerseIntoView(el, VERSE_JUMP_INSTANT)
     lastScrolledVerseRef.current = undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterSources])
+
+  // Auto-follow Read Aloud: as playback advances to a new verse, keep it in view — but only
+  // scroll when it's actually left the visible area, not on every verse (that would fight the
+  // user reading ahead/back manually while listening). Deliberately independent of the
+  // targetVerse machinery above (that's for one-shot search-style navigation); this re-checks
+  // on every verse change for as long as this chapter is the one actually playing.
+  useEffect(() => {
+    if (!audioPlayback || !containerRef.current) return
+    if (audioPlayback.bookId !== bookId || audioPlayback.chapter !== chapter || audioPlayback.textId !== textId) return
+    const container = containerRef.current
+    // containerRef itself is just the (naturally tall, unclipped) content div — its own rect
+    // spans the WHOLE chapter, not the visible window. The actual scrollable/clipping viewport
+    // is its PARENT (see the scrolledToTop comment elsewhere in this file, which already relies
+    // on this same relationship) — using containerRef's own rect here meant "is the verse below
+    // the visible area" was comparing against the bottom of ALL rendered content instead of the
+    // real viewport, which a child element's rect can essentially never exceed. That's why
+    // scrolling back up (and, just as broken, back down) never actually triggered.
+    const viewport = container.parentElement ?? container
+    const el = container.querySelector(`[data-verse="${audioPlayback.verse}"]`)
+    if (!el) return
+    const elRect = el.getBoundingClientRect()
+    const viewportRect = viewport.getBoundingClientRect()
+    const isBelow = elRect.bottom > viewportRect.bottom
+    const isAbove = elRect.top < viewportRect.top
+    if (isBelow) scrollVerseIntoView(el, VERSE_FOLLOW_DOWN)
+    else if (isAbove) scrollVerseIntoView(el, VERSE_FOLLOW_UP)
+  }, [audioPlayback?.verse, audioPlayback?.bookId, audioPlayback?.chapter, audioPlayback?.textId, bookId, chapter, textId])
 
   useEffect(() => () => { if (flashVerseTimerRef.current) clearTimeout(flashVerseTimerRef.current) }, [])
 
@@ -774,6 +863,18 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   }
 
   return (
+    // Single Tooltip.Provider for this whole chapter's worth of Strong's-number chips, instead
+    // of StrongsTooltip.tsx instantiating its own per word (potentially hundreds per chapter).
+    // Radix's Provider exists specifically so adjacent triggers can share a `skipDelayDuration`
+    // window (fast rehover while scanning) — an independent provider per word meant every single
+    // Strong's chip re-incurred the full 300ms open-delay, so skimming across several tagged
+    // words in a row read as consistently laggy rather than snappy. One provider PER ChapterView
+    // instance (not a single app-wide singleton) is the right granularity, not just a convenient
+    // one: multiple instances can be mounted at once (compare-mode columns, continuous scroll,
+    // multi-chapter range view — see viewTransitionName's own uniqueness comment above), and the
+    // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
+    // unrelated compare columns.
+    <Tooltip.Provider delayDuration={300}>
     <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
@@ -815,6 +916,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         const rowFindWordMode = isSearchNavTarget && flashVerse?.query ? (flashVerse.wordMode ?? 'phrase') : findWordMode
         const rowHighlightStrongsWords = isSearchNavTarget ? flashVerse?.strongsWords : undefined
         const rowHighlightStrongsExtraWords = isSearchNavTarget ? flashVerse?.strongsExtraWords : undefined
+        // Read Aloud (TTS) — comparing against the store's audioPlayback state here (rather
+        // than each VerseRow subscribing itself) is what makes compare-mode columns showing
+        // the same book/chapter highlight in sync automatically: they all read the same
+        // ChapterView-computed booleans from the same store slice.
+        const isPlaybackVerse = audioPlayback !== null
+          && audioPlayback.bookId === bookId
+          && audioPlayback.chapter === chapter
+          && audioPlayback.textId === textId
+          && audioPlayback.verse === verse.verse_num
+        const rowPlaybackWordIndex = isPlaybackVerse ? audioPlayback!.wordIndex : null
         return (
           <Fragment key={verse.verse_num}>
             {missingBefore.length > 0 && (() => {
@@ -855,6 +966,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               highlightStrongsExtraWords={rowHighlightStrongsExtraWords}
               onStrongsClick={onStrongsClick}
               onWordClick={onWordClick}
+              playbackVerse={isPlaybackVerse}
+              playbackWordIndex={rowPlaybackWordIndex}
             />
           </Fragment>
         )
@@ -931,6 +1044,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
         </MenuPositioner>
       )}
     </div>
+    </Tooltip.Provider>
   )
 }
 

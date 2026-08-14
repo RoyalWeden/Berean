@@ -260,6 +260,9 @@ export interface Note {
   importedAt?: number
   tags: string[]
   color?: string
+  /** A single emoji shown next to the note's title (list row, board card, editor header) —
+   *  purely decorative, same spirit as `color`. Undefined = no icon set. */
+  icon?: string
   status?: NoteStatus
   folderId?: string | null
   textId?: string   // translation a verse note is attached to ('kjva' | 'lxx' | …)

@@ -122,6 +122,50 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.22] - 2026-08-13
+
+Read Aloud
+- Read Aloud now works fully offline — a background download failure that
+  only showed up in real-world use (a missing runtime file) is fixed.
+- Switched to the higher-quality neural voice pack (system voices removed);
+  two lower-quality voices are no longer offered.
+- Fixed "Yehovah" mispronunciation.
+- Word-by-word highlighting now tracks the audio more naturally, including
+  pauses at commas and sentence ends.
+- Fixed the progress bar: dragging to a verse while playback was paused or
+  stopped now actually jumps there, instead of doing nothing.
+
+Berean Chat
+- Noticeably more accurate results — several ranking bugs were found and
+  fixed, including one that could let an unrelated verse outrank a verse
+  that directly quotes your question, and one that deleted the only real
+  search term from common questions like "what does the Bible say about
+  love".
+- Strong's word searches (e.g. "agape") now correctly match entries whose
+  original-language spelling uses accented characters.
+- Cross-reference lookups are faster.
+- Topical questions now also draw on the Treasury of Scripture Knowledge's
+  curated headings, and can optionally use a local semantic search index
+  (in addition to keyword search) to find relevant verses that don't share
+  literal wording with your question.
+
+Scripture data
+- Fixed 1 Enoch chapter 90, where two verses were missing entirely from the
+  source text.
+- Fixed the Shepherd of Hermas (Taylor translation): the final chapter of
+  both the Mandates and the Similitudes had publisher back matter in place
+  of the actual text.
+
+Notes & shell
+- Fixed a crash that could happen while dragging a block in the notes
+  editor.
+- Notes editor: code blocks now have syntax highlighting, a language
+  label, and a copy button; new gutter button to insert a block; bullet
+  style updates live; more "turn into" options; move blocks with the
+  keyboard; heading collapse state is remembered.
+- Fixed the tab right-click menu — Duplicate, Archive, and Open in
+  Floating Tab now work reliably.
+
 ## [0.4.21] - 2026-08-10
 
 Berean Chat

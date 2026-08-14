@@ -38,8 +38,11 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
   }, [strongsNum, loaded])
 
   return (
-    <Tooltip.Provider delayDuration={300}>
-      <Tooltip.Root onOpenChange={handleOpenChange}>
+    // No Tooltip.Provider here — one is now hoisted per-chapter in ChapterView.tsx so adjacent
+    // Strong's chips can share its `skipDelayDuration` fast-rehover window instead of every
+    // single word re-incurring the full open delay. See that file's comment for why one provider
+    // per chapter (not a global singleton) is the deliberate granularity.
+    <Tooltip.Root onOpenChange={handleOpenChange}>
         <Tooltip.Trigger asChild>
           {/* text-[10px] + leading-none are both load-bearing, together: `leading-none` alone
               (line-height: 1) still resolves against whatever font-size this span INHERITS from
@@ -101,6 +104,5 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>
-    </Tooltip.Provider>
   )
 }

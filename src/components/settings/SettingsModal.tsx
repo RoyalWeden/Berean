@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical,
+  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
@@ -13,6 +13,7 @@ import Switch from '@/components/shell/Switch'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
+import AudioSection from './sections/AudioSection'
 import HistorySection from './sections/HistorySection'
 import UpdatesSection from './sections/UpdatesSection'
 import PrintExportSection from './sections/PrintExportSection'
@@ -92,6 +93,12 @@ const SHORTCUT_GROUPS = [
     shortcuts: [
       { key: '⌘⇧P', action: 'Toggle Picture-in-Picture' },
       { key: '⌘⇧L', action: 'Insert timestamp into note' },
+    ],
+  },
+  {
+    label: 'Read Aloud',
+    shortcuts: [
+      { key: '⌘⇧R', action: 'Play / pause Read Aloud' },
     ],
   },
 ]
@@ -192,7 +199,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'experimental'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -435,6 +442,7 @@ export default function SettingsModal() {
     { id: 'notes',      label: 'Notes',      icon: FileText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily'] },
     { id: 'vault',      label: 'Sync',       icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
     { id: 'youtube',    label: 'YouTube',    icon: Youtube,   keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions', 'layout'] },
+    { id: 'audio',      label: 'Audio',      icon: Volume2,   keywords: ['audio', 'read aloud', 'tts', 'text to speech', 'voice', 'speak', 'speech', 'listen', 'narration'] },
     { id: 'shortcuts',  label: 'Shortcuts',  icon: Keyboard,  keywords: ['keyboard', 'key', 'shortcut', 'hotkey', 'cmd', 'ctrl'] },
     { id: 'data',       label: 'Data',       icon: Database,  keywords: ['import', 'esword', 'biblegateway', 'migrate', 'history', 'workspace', 'saved', 'reset', 'clear', 'delete', 'wipe', 'factory', 'danger'] },
     { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
@@ -1763,6 +1771,8 @@ export default function SettingsModal() {
                   </div>
                 </>
               )}
+
+              {section === 'audio' && <AudioSection />}
 
               {section === 'shortcuts' && (
                 <div>

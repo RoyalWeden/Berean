@@ -38,13 +38,19 @@ export function stripBracketNotation(text: string): string {
 export function normalizeStrongsNums(text: string, lang: 'H' | 'G'): string {
   // Add prefix to bare numbers; also strip leading zeros from already-prefixed ones
   // (Greek DB stores H07941; Hebrew DB stores H7941 — normalize to the shorter form)
-  // The lookahead alone (excluding a number FOLLOWED by ":"/".") only guards the chapter half
+  // The lookahead alone (excluding a number FOLLOWED by ":") only guards the chapter half
   // of a "32:38" verse reference — "38" (preceded by ":") was still getting converted to a
   // clickable "H38", rendering "(Deuteronomy 32:38)" as "(Deuteronomy 32:H38)". Added a matching
   // lookbehind excluding a number immediately preceded by ":" too.
+  // NOTE: the trailing lookahead used to also exclude "." — meant to catch a "32:38." shaped
+  // reference, but the colon-lookahead/lookbehind pair above already fully covers that case (the
+  // period sits AFTER "38", which the lookbehind already excludes via its preceding ":"). All
+  // that extra "." exclusion actually did was block the extremely common "Compare 3050, 3069."/
+  // "See 7495." shape — a bare cross-reference number simply ending a sentence — from linking at
+  // all, reported as "Compare H3050, 3069." (H3050 linked, 3069 silently not).
   return text
     .replace(/\b([HG])0+(\d)/g, '$1$2')
-    .replace(/(?<![HGa-zA-Z/:])(\b\d{1,5}\b)(?!\s*[:.])/g, (_, n) => `${lang}${parseInt(n, 10)}`)
+    .replace(/(?<![HGa-zA-Z/:])(\b\d{1,5}\b)(?!\s*:)/g, (_, n) => `${lang}${parseInt(n, 10)}`)
 }
 
 /** Build the plain-text string that the copy button places on the clipboard.
@@ -178,7 +184,7 @@ function BdbNotesText({ text }: { text: string }) {
   )
 }
 
-function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
+export function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
   text: string
   lang: 'H' | 'G'
   onNav: (num: string, newTab: boolean) => void
@@ -190,12 +196,14 @@ function DerivationText({ text, lang, onNav, onContextMenu, findQuery }: {
   // Also used for the "Definition" field, which stores cross-refs the same
   // way (e.g. Hebrew H5703's definition ends "See 7495." with no H) — bare
   // numbers there are inferred from the entry's own lang the same way.
-  // The bare-number branch excludes one immediately preceded/followed by ":"/"." (with the
-  // trailing case also allowing a "." as a sentence-ending period) — without this, a plain
-  // chapter:verse reference like "(Deuteronomy 32:38)" got BOTH halves linkified as bare
+  // The bare-number branch excludes one immediately preceded/followed by ":" — without this, a
+  // plain chapter:verse reference like "(Deuteronomy 32:38)" got BOTH halves linkified as bare
   // Strong's cross-refs, rendering as "(Deuteronomy H32:H38)". Mirrors normalizeStrongsNums'
-  // identical guard (used for the copy-text path) above.
-  const parts = text.split(/(\b[HG]\d{1,5}\b|(?<![:.\d])\b\d{1,5}\b(?!\s*[:.]))/g)
+  // identical guard (used for the copy-text path) above — including that function's own fix for
+  // why "." must NOT be part of this exclusion: it isn't needed (the colon guard alone already
+  // covers "32:38"-shaped refs) and excluding it silently broke the far more common "Compare
+  // 3050, 3069." / "See 7495." shape, where a bare cross-reference number just ends a sentence.
+  const parts = text.split(/(\b[HG]\d{1,5}\b|(?<![:.\d])\b\d{1,5}\b(?!\s*:))/g)
   return (
     <span>
       {parts.map((part, i) => {
@@ -485,7 +493,21 @@ function EntryView({
                 ? `Untranslated particle (${entry.strongsNum}) — marks the definite direct object in Hebrew; has no English equivalent and is not rendered in translation`
                 : entry.gloss
               const displayGloss = wr(rawGloss)
-              return findQuery ? applyFindHighlight(displayGloss, findQuery) : displayGloss
+              // Was plain text (via applyFindHighlight alone, no linking) — the gloss field is
+              // where Strong's "Compare 3050, 3069." cross-references actually live (e.g.
+              // H3068's own gloss), and those bare numbers were never clickable at all, unlike
+              // the Definition/Derivation fields just below which already go through
+              // DerivationText for exactly this. Routed through the same component so gloss text
+              // gets the same bare-number-inferred-from-this-entry's-own-language linking.
+              return (
+                <DerivationText
+                  text={displayGloss}
+                  lang={entry.strongsNum.startsWith('H') ? 'H' : 'G'}
+                  onNav={onNav}
+                  onContextMenu={(e, num) => strongsCtx.open(e, num)}
+                  findQuery={findQuery}
+                />
+              )
             })()}
           </div>
         )}
