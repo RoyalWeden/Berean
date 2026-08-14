@@ -122,6 +122,12 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.23] - 2026-08-14
+
+Read Aloud
+- Fixed Read Aloud showing "Text-to-speech is not available in this
+  environment" on fresh installs instead of the voice pack download prompt.
+
 ## [0.4.22] - 2026-08-13
 
 Read Aloud
