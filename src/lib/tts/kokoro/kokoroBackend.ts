@@ -110,6 +110,17 @@ export class KokoroBackend implements TTSBackend {
 
   private getAudioContext(): AudioContext {
     if (!this.audioCtx) this.audioCtx = new AudioContext()
+    // A freshly-constructed AudioContext (or one Chromium has auto-suspended after a period of
+    // silence — e.g. while the next chunk is still synthesizing) can come up/settle in
+    // `suspended` rather than `running`. Packaged builds load over `file://` (see main.ts's
+    // loadFile vs dev's loadURL to the Vite dev server), and Chromium's autoplay/media-engagement
+    // heuristics treat `file://` origins more conservatively than `http://localhost` — this is
+    // what previously made Read Aloud hang after the first word in production only: the eager
+    // "chunk started" event fires unconditionally, but every subsequent word/verse boundary in
+    // playChunkBuffer is gated on `ctx.currentTime` actually advancing, which never happens while
+    // suspended, so playback silently froze with no error. `resume()` is a no-op when already
+    // running, so this is safe to call unconditionally every time the context is touched.
+    if (this.audioCtx.state === 'suspended') void this.audioCtx.resume()
     return this.audioCtx
   }
 
