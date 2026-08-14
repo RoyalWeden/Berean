@@ -20,8 +20,12 @@
  *
  * The tradeoff, stated plainly: Read Aloud now requires the one-time voice-pack download. Until
  * it's downloaded there is no speech at all, where previously system voices worked immediately.
- * `isTTSSupported()` reflects that, and AudioSection.tsx surfaces the download as the prerequisite
- * it now is rather than an optional upgrade.
+ * `isTTSSupported()` reflects whether the ENVIRONMENT can run Kokoro at all (Worker + AudioContext
+ * — true in effectively every real build), not whether the pack happens to be downloaded yet;
+ * AudioSection.tsx uses `kokoroModelReady` separately to decide whether to show the download
+ * prompt or the player. Conflating the two here previously meant every fresh install (an empty
+ * `userData`, since activation only happens once a pack is ready) showed "not available in this
+ * environment" instead of the download prompt.
  *
  * `setActiveTTSBackend` is kept (and still tested) — the seam is what made swapping the engine a
  * contained change in the first place, and it costs nothing to keep for the next one.
@@ -53,7 +57,15 @@ const inertBackend: TTSBackend = {
 const inertVoiceProvider: TTSVoiceProvider = {
   getVoices: () => KOKORO_VOICE_OPTIONS,
   subscribeVoices: () => () => {},
-  isSupported: () => false,
+  // Before the voice pack is downloaded (i.e. before activateKokoroBackend() ever runs), this is
+  // the ONLY voice provider AudioSection.tsx ever sees — so it has to answer the real question
+  // ("can this environment run Kokoro at all?"), not "has Kokoro been activated yet". Hardcoding
+  // `false` here made every fresh install (prod's userData starts empty, unlike a dev profile
+  // that already has a pack downloaded) permanently show "not available in this environment"
+  // instead of the download prompt, since activation itself only happens once a pack is ready —
+  // the one state this provider is active for. Mirrors kokoroVoiceProvider.isSupported() exactly
+  // so swapping providers on activation never flips the answer.
+  isSupported: () => typeof Worker !== 'undefined' && typeof AudioContext !== 'undefined',
 }
 
 let activeBackend: TTSBackend = inertBackend
@@ -103,9 +115,9 @@ export function subscribeVoices(cb: (voices: TTSVoiceOption[]) => void): () => v
   return activeVoiceProvider.subscribeVoices(cb)
 }
 
-/** False until the Kokoro pack is downloaded and the real backend activated — with Web Speech
- *  gone there is no zero-download fallback, so this is now "is the voice pack ready", not "does
- *  this browser have a speech API". */
+/** "Can this environment run Kokoro at all" (Worker + AudioContext) — true whether or not the
+ *  voice pack has been downloaded yet. See `kokoroModelReady` in the store for "is it ready to
+ *  actually speak right now". */
 export function isTTSSupported(): boolean {
   return activeVoiceProvider.isSupported()
 }
