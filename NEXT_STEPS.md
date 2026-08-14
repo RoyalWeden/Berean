@@ -118,20 +118,37 @@ rerun `scripts/eval/semanticEval.ts` once the index is complete), and wiring the
 into the shipped app's distribution pipeline (deliberately deferred — that's a product decision,
 not a code gap).
 
-### 2. TSKE headings / cross-reference active retrieval — status not fully confirmed
-`searchTskeHeadingsByKeywords` (`electron/ipc/crossrefs.ts`) is written and wired into
-`runLookup` in `aiLookup.ts`. The full test suite passes with it present (108/3530, 0 typecheck
-errors) and the harness numbers are stable. **However**: the working agent for this item did not
-send a final completion report before this pause point, so treat the following as independently
-observed, not agent-confirmed:
-- No dedicated test file for `searchTskeHeadingsByKeywords` was found (existing or new) — worth
-  adding.
-- Whether cross-reference seed-and-expand (widening the candidate pool via `cross_references.db`'s
-  vote-weighted edges, not just TSKE heading search) was completed, partially completed, or not
-  started is **unconfirmed** — check `electron/ipc/crossrefs.ts` and the relevant section of
-  `runLookup` directly before assuming either way.
-- If that agent's session is still reachable, ask it for a final status before building further on
-  this area.
+### 2. TSKE headings / cross-reference active retrieval — DONE, confirmed after merge
+Update: the working agent's final report arrived after the merge described at the top of this
+file, but its changes were already captured (they landed in the same worktree commit before the
+worktree was removed) — confirmed present on `main`. Status is now fully resolved, not open:
+- `searchTskeHeadingCandidates` (TSKE `heading`-column search, `source: 'tske'`) and
+  `selectCrossRefAnchors` / `pickTopVotedNeighbors` / `expandCrossRefNeighbors` (vote-weighted
+  `cross_references.db` seed-and-expand, depth-1, capped 2/anchor + 6 total, 20-vote floor,
+  `source: 'cross-ref-seed'`) are both written and wired into `runLookup`'s `guessCandidates`
+  bucket. Neither touches `scoreCandidates`/`keywordOverlapScore`/`canonicalTieRank`/
+  `mergeAdjacent`.
+- Two real bugs were found and fixed during that work: a structural-lead regression (TSKE/cross-ref
+  candidates were briefly able to out-rank real keyword-scored evidence outright, dropping recall@1
+  to 63.9%, before being confined to backfill-only room after the real pool is ranked), and a
+  vote-double-counting bug (the same edge appears as two DB rows, one per direction; fixed by
+  deduping by verse before ranking).
+- On the original 72-case fixture set, harness numbers are byte-identical to the pre-existing
+  baseline (recall@1 83.3%, MRR 0.860) — this work is additive, not a regression. Two new
+  zero-overlap fixtures (`tske-prince-of-peace`, `xref-stripes-healed`) were added and pass; the
+  79-case aggregate number quoted earlier in this file is lower only because of the unrelated
+  semantic-only zero-overlap cases, not because of anything here.
+- Dedicated unit tests exist for the consuming logic:
+  `electron/ipc/__tests__/aiLookup.tskeCrossRefWidening.test.ts` (15 tests). **One real, small gap
+  remains**: `searchTskeHeadingsByKeywords` itself (`electron/ipc/crossrefs.ts`) — the raw
+  LIKE-query/word-boundary filter — has no isolated unit test, only indirect coverage via the eval
+  harness and via the (mocked) consuming-logic tests above. Worth adding a small in-memory-table
+  test asserting the word-boundary filter rejects a substring-only match (e.g. "do" inside
+  "wisdom").
+- Judgment calls made, not yet acted on: depth-1 cross-ref expansion only (no evidence gathered on
+  deeper hops); TSKE/cross-ref-seed candidates are pure backfill and don't compete for a top-3 slot
+  on their own merit — giving them real scoring weight would need a deliberate new input into
+  `scoreCandidates`, deferred pending sign-off.
 
 ### 3. Retrieval items not started this session
 - `guessHasEvidence` fix (a correct verse can still be demoted to score 0 for lacking the model's
