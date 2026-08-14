@@ -122,6 +122,13 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.24] - 2026-08-14
+
+Read Aloud
+- Fixed Read Aloud hanging after the first word with no audio in the
+  installed app (playback worked fine in earlier testing but stalled in
+  the packaged build).
+
 ## [0.4.23] - 2026-08-14
 
 Read Aloud
