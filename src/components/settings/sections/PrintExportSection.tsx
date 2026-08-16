@@ -71,6 +71,7 @@ Genesis 1:1 In the **beginning** Yehovah created the heavens and the earth
     theme: printTheme, marginPreset: printMarginPreset, customMargins: printCustomMargins,
     fontSize: printFontSizePt, fontFamily: printFontFamily,
     includeTitle: printIncludeTitle, colorMode: printColorMode,
+    paperSize: printPaperSize,
   })
 
   const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-1.5'

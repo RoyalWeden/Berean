@@ -450,7 +450,6 @@ export default function Sidebar() {
         // Append any tabs added since the order was last saved
         ...allTabsFlat.filter((t) => !storedOrder.includes(t.id)),
       ]
-
   // Ribbon.tsx (the always-visible workspace icon rail) now owns the
   // "icon-only" role the sidebar itself used to fall back to when
   // collapsed — so collapsing this Explorer pane now just hides it
@@ -485,8 +484,22 @@ export default function Sidebar() {
     <Tooltip.Provider delayDuration={200} disableHoverableContent>
       <aside
         style={{ width: sidebarWidth }}
+        // no-drag, not app-drag-region: this used to be a real CSS drag region, which broke
+        // ANY portaled popup that could end up visually overlapping it — most notably the
+        // tab-bar right-click context menu (TabBar.tsx), which is `position: fixed` at the raw
+        // click coordinates and, for any tab beyond the first few in the list, commonly extends
+        // past tabListRef's own (already no-drag) bottom edge into this <aside>'s still-drag
+        // area below it (e.g. over the daily-note calendar). Per this file's own prior findings
+        // just above (four failed attempts to fix double-click on empty tab-list space): an
+        // overlapping no-drag portal does NOT reliably suppress Electron's drag-region hit-test
+        // over a real `-webkit-app-region: drag` ancestor elsewhere on screen — the click gets
+        // eaten as a window-drag gesture before the renderer ever sees it, regardless of paint
+        // order or z-index. Window-dragging from the header/ribbon (ShellHeader.tsx,
+        // Ribbon.tsx — both still real app-drag-region) is unaffected; only "drag the window by
+        // clicking blank sidebar chrome outside the tab list" is given up here, same tradeoff
+        // already made for the tab-list area itself via the manual moveWindowBy() drag below.
         className={`
-          native-buttons app-drag-region flex flex-col flex-shrink-0 h-full
+          native-buttons no-drag flex flex-col flex-shrink-0 h-full
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}
@@ -494,7 +507,27 @@ export default function Sidebar() {
         // open overlay elsewhere (Ribbon's archive-tabs list, zoom popover, session menu) —
         // those already listen for this broadcast (see HeaderOverflowMenu.tsx, Ribbon.tsx,
         // usePositionedMenu.ts), Sidebar just wasn't one of the places that fired it.
-        onClickCapture={() => window.dispatchEvent(new Event('berean:closeMenus'))}
+        //
+        // ROOT CAUSE of "tab context menu — menu opens, clicking any item does nothing"
+        // (4 rounds of investigation): TabBar's own tab-list — and the context menu it
+        // portals to document.body — renders INSIDE this <aside>. React bubbles a portaled
+        // element's synthetic events through the REACT tree, not the physical DOM tree, so a
+        // click on ANY button inside that portaled menu (Duplicate tab, Close tab, etc.) was
+        // ALSO captured here, since this is a capture-phase ancestor in the React tree. That
+        // fired 'berean:closeMenus' — which usePositionedMenu.ts listens for and closes the
+        // menu on — BEFORE the click's bubble phase ever reached the button's own onClick,
+        // unmounting the menu (and the button) out from under the click. The menu's OWN
+        // "click outside closes it" logic (the same file's mousedown-based onDown) already
+        // correctly ignores clicks genuinely inside the menu; this second, broader broadcast
+        // just wasn't excluding them at all. Guard: skip the broadcast for a click that
+        // originates inside ANY currently-open context menu (the shared `.context-menu` class
+        // every menu in the app already carries — see TabBar.tsx, VerseRow.tsx, Sidebar.tsx's
+        // own other menus, NoteContextMenu.tsx, etc.) — those clicks should be handled by
+        // that menu's own item, not treated as "user clicked away, close overlays."
+        onClickCapture={(e) => {
+          if ((e.target as HTMLElement).closest('.context-menu')) return
+          window.dispatchEvent(new Event('berean:closeMenus'))
+        }}
       >
         {/* ── Session switcher — own row, full sidebar width, always shows the
              current session's name as text (never just an icon behind a

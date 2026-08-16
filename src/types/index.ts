@@ -273,6 +273,8 @@ export interface Note {
   idiomData?: IdiomData
   /** Set when the note is in Trash (Unix ms) — undefined for a normal, non-trashed note. */
   deletedAt?: number
+  /** Pinned notes sort to the top of NotesList.tsx. */
+  pinned?: boolean
 }
 
 /** Structured idiom fields for the reference-book editor + export. */

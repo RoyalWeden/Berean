@@ -122,6 +122,40 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.25] - 2026-08-16
+
+Tabs
+- Fixed the tab right-click menu (Duplicate, Archive, Close, Open in
+  floating tab, Move to session): the menu opened but every action silently
+  did nothing.
+
+Printing & PDF export
+- Margins on multi-page notes now repeat correctly on every page, not just
+  the first.
+- A resized image can no longer print past the page margin.
+- The Letter/A4/Legal paper size setting now actually takes effect.
+- The print preview now shows the exact document that will be
+  printed/exported — page breaks, margins, and image placement are no
+  longer approximated, and a page that ends early now shows real blank
+  space instead of being cut off mid-page.
+- The preview window is wider so viewing a page at 100% zoom no longer
+  requires scrolling sideways, and it now loads noticeably faster.
+
+Notes
+- Fixed a bug where images synced through the vault could become
+  permanently broken after a restart.
+- Typing a cross-chapter verse range (e.g. "Isaiah 63:17-64:3") no longer
+  gets mis-recognized as a bogus reference in the wrong chapter.
+- Period-abbreviated books ("Isa.", "Gen.") and "II"/"III" book prefixes
+  ("II Kings", "III John") are now recognized correctly.
+- Hovering an image now shows a delete button and a resize handle that
+  matches its drag direction.
+- The `/verse` slash command now opens the same verse picker as the
+  toolbar button.
+- Notes can now be pinned to the top of the notes list.
+- Hovering a verse, Strong's, or wikilink reference now shows a quick
+  preview.
+
 ## [0.4.24] - 2026-08-14
 
 Read Aloud

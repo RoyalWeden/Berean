@@ -2,18 +2,21 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import type { EditorView } from 'prosemirror-view'
-import { TextSelection } from 'prosemirror-state'
+import { Fragment } from 'prosemirror-model'
 import { deleteTable } from 'prosemirror-tables'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
-  Table2, Minus, BookOpen, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
+  Table2, Minus, BookOpen, Image as ImageIcon, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
   Square, X, Maximize2, Focus as FocusIcon, Check,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
 import { createEditorCommands } from './editorCommands'
 import { insertBlockNode, buildEmptyTable } from './slashCommands'
+import { pickAndInsertImage } from './imageInsert'
+import { VersePickerPopup } from './AutocompletePopups'
+import { getTranslationForBook, bookChapterVerseLabel } from '@/lib/parseRef'
 import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
@@ -38,7 +41,7 @@ export const SAVE_FLASH_HOLD_MS = 1600
 // instead of two numbers that have to be kept in sync by hand.
 export const SAVE_FLASH_FADE_MS = 500
 
-type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link'
+type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link' | 'verse'
 
 // Persistent, always-visible formatting toolbar docked above the note editor —
 // complements (doesn't replace) SelectionToolbar.tsx's selection-triggered bubble menu.
@@ -179,19 +182,26 @@ export default function Toolbar({
   }
   // Verse blocks are plain paragraph text auto-detected by blockDecorations.ts once it
   // matches a real verse in the DB (see slashCommands.ts's startVerseBlock for the full
-  // reasoning) — this button can't insert a finished block itself without a full book/
-  // chapter/verse picker UI, which doesn't exist yet. Turning on the setting alone was a
-  // silent no-op when it was already on (the reported "doesn't seem to do anything" bug) —
-  // insert visible placeholder text, selected, so replacing it by typing is obvious and
-  // immediate, and the existing verse-suggest autocomplete takes over as soon as what's
-  // typed matches a real reference.
-  function insertVerseStarter() {
+  // reasoning). This button used to be unable to insert a finished block itself, for lack
+  // of any book/chapter/verse picker UI — it inserted literal placeholder text
+  // ("Book chapter:verse") selected, relying entirely on the user typing over it and the
+  // verse-suggest autocomplete catching whatever they typed. VersePickerPopup
+  // (AutocompletePopups.tsx) is that picker; this now fetches the real verse and inserts a
+  // finished two-paragraph block (reference line + text) directly, same shape
+  // NoteEditorPM.tsx's insertVerseBlock already produces for the autocomplete-accept path.
+  async function insertVerseFromPicker(bookId: string, chapter: number, verse: number) {
+    setOpenDropdown('none')
     if (!useAppStore.getState().noteScriptureBlock) useAppStore.getState().setNoteScriptureBlock(true)
-    const placeholder = 'Book chapter:verse'
+    const textId = getTranslationForBook(bookId) ?? 'kjva'
+    const v = await window.bible.queryVerse(bookId, chapter, verse, textId).catch(() => null)
+    if (!v?.text) { editorView.focus(); return }
+    const label = bookChapterVerseLabel(bookId, chapter, verse)
     const { from } = editorView.state.selection
-    const tr = editorView.state.tr.insertText(placeholder, from)
-    tr.setSelection(TextSelection.create(tr.doc, from, from + placeholder.length))
-    editorView.dispatch(tr)
+    const fragment = Fragment.fromArray([
+      schema.nodes.paragraph.create(null, schema.text(label)),
+      schema.nodes.paragraph.create(null, schema.text(`${verse} ${v.text}`)),
+    ])
+    editorView.dispatch(editorView.state.tr.insert(from, fragment).scrollIntoView())
     editorView.focus()
   }
 
@@ -341,7 +351,8 @@ export default function Toolbar({
           node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
           reasoning) — this button just makes sure the detection setting is on and focuses
           the editor so the user can type a reference. */}
-      <button title="Scripture verse — type a reference (e.g. Romans 14:3)" onMouseDown={insertVerseStarter} className={cls(false)}><BookOpen size={14} /></button>
+      <button title="Insert a scripture verse" onMouseDown={(e) => openDropdownAt('verse', e)} className={cls(openDropdown === 'verse')}><BookOpen size={14} /></button>
+      <button title="Insert image" onMouseDown={() => pickAndInsertImage(editorView)} className={cls(false)}><ImageIcon size={14} /></button>
 
       {sep}
       {/* `isolate` + `willChange` give this button its own compositing layer —
@@ -487,6 +498,14 @@ export default function Toolbar({
                 Apply
               </button>
             </div>
+          )}
+
+          {openDropdown === 'verse' && (
+            <VersePickerPopup
+              x={dropdownPos.left} y={dropdownPos.top} textId="kjva"
+              onInsert={insertVerseFromPicker}
+              onDismiss={() => setOpenDropdown('none')}
+            />
           )}
         </div>,
         document.body

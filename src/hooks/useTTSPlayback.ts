@@ -56,6 +56,14 @@ export function useTTSPlayback() {
     if (!ap) return
     let cancelled = false
     if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null }
+    // Stop any still-playing previous session RIGHT NOW, not only once speakChapter() is
+    // finally called after the query below resolves. speakChapter() itself calls stop() too,
+    // but that left a window — for the whole duration of the async queryChapter() IPC call —
+    // during which a previous session's onVerseStart/onWordBoundary callbacks kept firing and
+    // overwriting audioPlayback with the OLD verse, clobbering the verse this request just
+    // asked to start from (e.g. "read from verse 1" briefly/visibly landing on a later verse
+    // while the old session's callbacks kept winning the race).
+    ttsEngine.stop()
 
     window.bible.queryChapter(ap.bookId, ap.chapter, ap.textId).then((verses) => {
       if (cancelled) return
@@ -105,7 +113,12 @@ export function useTTSPlayback() {
     if (!ap || !dir) return
     const queue = queueRef.current
     if (queueKeyRef.current !== `${ap.bookId}:${ap.chapter}:${ap.textId}`) return
-    const curIdx = queue.findIndex((v) => v.verseNum === ap.verse)
+    // Prefer the engine's OWN current index over re-deriving one from ap.verse. ap.verse is
+    // only ever as accurate as Kokoro's estimated (not measured) verse-boundary timing — see
+    // kokoroBackend.ts/timestampAlignment.ts — so basing repeated skips on it lets any drift
+    // between the estimate and true playback compound with every click. ttsEngine.activeIndex
+    // is the engine's own authoritative position and needs no lookup at all.
+    const curIdx = ttsEngine.isActive ? ttsEngine.activeIndex : queue.findIndex((v) => v.verseNum === ap.verse)
     if (curIdx < 0) return
     const targetIdx = dir === 'next' ? curIdx + 1 : curIdx - 1
     if (targetIdx < 0) return // already at first verse of chapter — no cross-chapter skip-back

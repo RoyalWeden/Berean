@@ -148,8 +148,20 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // Similitudes"), and its copy-verse output now adds a further comma before the chapter:verse
 // too. The comma stays attached to its word when findVerseRefMatches later splits bookPhrase
 // on whitespace, so it round-trips through the phrase-reconstruction below unchanged.
+// The numeric-tail group's verse-range extension (`:\d{1,3}` followed by an optional
+// `-\d{1,3}`) used to stop dead at the first post-dash digit run, truncating a genuine
+// cross-chapter reference like "Isaiah 63:17-64:3" at "63:17-64" — dropping the trailing
+// ":3" entirely rather than failing to match. That silently produced a WORSE result than no
+// match at all: parseRef happily accepted the truncated "63:17-64" as a (bogus) same-chapter
+// verse range, so the text still rendered as a normal, clickable reference pill — just
+// linking to the wrong, nonexistent range instead of correctly spanning into chapter 64.
+// The extra optional `(?:[ \t]*[:.][ \t]*\d{1,3})?` tail lets a second colon/period-plus-
+// digits run capture the real end verse whenever the first post-dash digits were actually
+// an end CHAPTER, not an end verse — parseRef's own matching cross-chapter grammar (see
+// that file) is what actually disambiguates the two once the full numeric tail is captured
+// here.
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number
@@ -308,9 +320,24 @@ async function fetchActualVerseText(refText: string): Promise<string | null> {
     const verses = await w.bible.queryChapter(ref.bookId, ch, textId)
     if (!Array.isArray(verses)) continue
     for (const v of verses) {
-      const inRange = endCh === startCh && ref.verse != null
-        ? v.verse_num >= ref.verse && v.verse_num <= (ref.endVerse ?? ref.verse)
-        : true
+      // Previously always `true` whenever startCh !== endCh — a genuine cross-chapter
+      // range ("Isaiah 63:17-64:3") pulled in EVERY verse of EVERY chapter in between,
+      // not the real "first chapter from V1 onward, full middle chapters, last chapter
+      // up to V2" partial range this needs. Same-chapter ranges were already correct
+      // (the ref.verse != null branch below, unchanged); this only adds the missing
+      // first/last-chapter-partial cases for the multi-chapter case.
+      let inRange: boolean
+      if (ref.verse == null) {
+        inRange = true
+      } else if (startCh === endCh) {
+        inRange = v.verse_num >= ref.verse && v.verse_num <= (ref.endVerse ?? ref.verse)
+      } else if (ch === startCh) {
+        inRange = v.verse_num >= ref.verse
+      } else if (ch === endCh) {
+        inRange = ref.endVerse == null || v.verse_num <= ref.endVerse
+      } else {
+        inRange = true // a full chapter strictly between the start and end chapters
+      }
       if (!inRange) continue
       parts.push(v.text)
       taggedParts.push(v.text_tagged ?? '')

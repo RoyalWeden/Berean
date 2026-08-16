@@ -511,7 +511,11 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
         floatState.rightPanelOpen  = false
         floatState._rightPanelWasOpen = 'true'
       }
-      window.app.openFloatingTab(floatType, floatState)
+      // Previously an unhandled promise — a rejection here (main process throwing, IPC channel
+      // gone) would vanish with zero trace in the renderer console.
+      window.app.openFloatingTab(floatType, floatState).catch((err) => {
+        console.error('[TabBar] openFloatingTab (drag-out) failed', err)
+      })
       useAppStore.getState().bumpFloatingTabToken()
       onTabClose(tab)
     }
@@ -677,7 +681,11 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 floatState.rightPanelOpen = false
                 floatState._rightPanelWasOpen = 'true'
               }
-              window.app.openFloatingTab(floatType, floatState)
+              // Previously an unhandled promise — a rejection here (main process throwing, IPC
+              // channel gone) would vanish with zero trace in the renderer console.
+              window.app.openFloatingTab(floatType, floatState).catch((err) => {
+                console.error('[TabBar] openFloatingTab (context menu) failed', err)
+              })
               useAppStore.getState().bumpFloatingTabToken()
               onTabClose(contextMenu.tab)
               closeContextMenu()
@@ -712,14 +720,20 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-            onClick={() => { archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id); closeContextMenu() }}
+            onClick={() => {
+              archiveTab(contextMenu.tab.spaceId, contextMenu.tab.id)
+              closeContextMenu()
+            }}
           >
             <Archive size={12} />
             Archive tab
           </button>
           <button
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-red-500/15 hover:text-red-400 transition-colors cursor-pointer"
-            onClick={() => { onTabClose(contextMenu.tab); closeContextMenu() }}
+            onClick={() => {
+              onTabClose(contextMenu.tab)
+              closeContextMenu()
+            }}
           >
             <Trash2 size={12} />
             Close tab

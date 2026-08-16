@@ -1,7 +1,8 @@
 import type { IpcMain } from 'electron'
 import { BrowserWindow, app } from 'electron'
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'fs'
-import { join, extname, basename } from 'path'
+import { join, extname, basename, relative, sep, dirname } from 'path'
+import { createHash } from 'crypto'
 import chokidar from 'chokidar'
 import { getBereanDb } from '../db/berean'
 import { getTextDb } from '../db/bible'
@@ -226,6 +227,99 @@ export function noteToMarkdown(note: NoteRow, overrideColor?: string, highlighte
   return frontmatter + '\n\n' + body
 }
 
+// ─── Inline-image extraction (vault export only) ───────────────────────────────
+// The note editor stores a pasted/dropped/inserted image as an inline base64 data URL
+// (src/components/notes/pm/imageInsert.ts) — fine for app-internal storage, but a real problem
+// once a note syncs to the vault: a single screenshot bloats the .md file to several MB, kills
+// git/iCloud diffability, and doesn't match Obsidian/Octarine's own convention of a sibling
+// file referenced by relative path. This rewrites any such data URL into a real file under
+// `{vault}/attachments/` (Obsidian's own default attachment-folder name) at export time —
+// app-internal storage (the DB row itself) is untouched; only the .md file written to the
+// vault gets the rewritten reference.
+const IMAGE_DATA_URL_RE = /!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+)\)/g
+const IMAGE_MIME_EXT: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+}
+
+/** `noteDir` is the specific directory THIS note's .md file lands in (its folder-hierarchy
+ *  path, per resolveNotePath/getNoteExportDir — may be nested, not necessarily `vaultPath`
+ *  itself), so the relative-path reference written back into the markdown is always correct
+ *  regardless of how deep the note is filed. Content-hashed filenames (not a per-note/per-
+ *  paste id) — pasting or re-exporting the identical image, even across different notes, is
+ *  deduplicated onto the one file rather than writing a new copy every time. Best-effort: a
+ *  single match that fails to decode/write is left exactly as it was (a large but still valid
+ *  embedded image) rather than risking corrupting the rest of the note. */
+export function extractInlineImages(markdown: string, vaultPath: string, noteDir: string): string {
+  if (!markdown.includes('data:image/')) return markdown // fast path — most notes have no images
+  const attachmentsDir = join(vaultPath, 'attachments')
+  return markdown.replace(IMAGE_DATA_URL_RE, (full: string, alt: string, dataUrl: string) => {
+    try {
+      const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl)
+      if (!m) return full
+      const [, mime, b64] = m
+      const ext = IMAGE_MIME_EXT[mime] ?? 'png'
+      const buffer = Buffer.from(b64, 'base64')
+      const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16)
+      const filePath = join(attachmentsDir, `${hash}.${ext}`)
+      if (!existsSync(filePath)) {
+        ensureDir(attachmentsDir)
+        writeFileSync(filePath, buffer)
+      }
+      // POSIX-style forward slashes regardless of platform — markdown links always use them,
+      // but Node's `relative()` returns OS-native separators (backslashes on Windows).
+      const relPath = relative(noteDir, filePath).split(sep).join('/')
+      return `![${alt}](${relPath})`
+    } catch {
+      return full
+    }
+  })
+}
+
+// Matches a markdown image whose target is a RELATIVE path — not `http(s)://` (a real remote
+// image, leave alone) and not `data:` (already inline, nothing to do). Deliberately excludes
+// those with a negative lookahead rather than trying to positively recognize "a vault-relative
+// path," since the latter has no fixed shape (attachments/, a subfolder, ../ from a nested note,
+// etc.) — anything that isn't remote or already-inline is a candidate.
+const RELATIVE_IMAGE_RE = /!\[([^\]]*)\]\(((?!https?:\/\/|data:)[^)\s][^)]*)\)/g
+const EXT_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+}
+
+/** The inverse of `extractInlineImages` — resolves a relative image path against `noteDir` and
+ *  reads it back into a base64 `data:` URL. This is the fix for a real regression: without it,
+ *  `extractInlineImages`'s own rewrite (base64 → `attachments/…` relative path, written only to
+ *  the EXPORTED .md file, never to the DB) looked like a genuine external edit to
+ *  `vault:reconcile`'s self-write guard (it only recognizes a byte-for-byte no-op as "ignore,
+ *  that's just our own export") — so reconcile "helpfully" imported the relative-path version
+ *  BACK into the DB, permanently breaking the image in the app itself (a relative path means
+ *  nothing to the renderer's own document origin; Obsidian/Octarine resolve it fine, which is
+ *  why this went unnoticed there). Called on a file's body before comparing against/writing into
+ *  the DB (both `vault:reconcile` and `runImportAll`) so the DB always ends up holding the same
+ *  base64 form regardless of whether the relative reference came from Berean's own export or was
+ *  added directly in the vault by the user/Obsidian. Best-effort, matching `extractInlineImages`:
+ *  a missing file or unrecognized extension leaves the reference untouched rather than risking
+ *  corrupting the rest of the note. */
+export function inlineVaultImages(markdown: string, vaultPath: string, noteDir: string): string {
+  if (!markdown.includes('![')) return markdown
+  return markdown.replace(RELATIVE_IMAGE_RE, (full: string, alt: string, relPath: string) => {
+    try {
+      const ext = relPath.split('.').pop()?.toLowerCase() ?? ''
+      const mime = EXT_MIME[ext]
+      if (!mime) return full // not an image extension — e.g. a relative link to another file entirely
+      const absPath = join(noteDir, relPath)
+      // Refuse to read anything outside the vault — a relative path is text from a note file,
+      // not a trusted value; without this a `../../../../etc/passwd`-style reference (typo'd or
+      // deliberately crafted) would otherwise be read and base64-embedded straight into the DB.
+      if (!absPath.startsWith(vaultPath)) return full
+      if (!existsSync(absPath)) return full // referenced file missing — leave as-is, don't break it further
+      const buffer = readFileSync(absPath)
+      return `![${alt}](data:${mime};base64,${buffer.toString('base64')})`
+    } catch {
+      return full
+    }
+  })
+}
+
 // ─── Path helpers ──────────────────────────────────────────────────────────────
 
 // Convert a string to a safe filesystem segment (spaces → underscores, strip forbidden chars).
@@ -419,7 +513,8 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 
       const filePath = join(dir, filename)
       markSelfWrite(filePath)
-      writeFileSync(filePath, noteToMarkdown(row, overrideColor, highlightedVerseText), 'utf-8')
+      const content = extractInlineImages(noteToMarkdown(row, overrideColor, highlightedVerseText), vaultPath, dir)
+      writeFileSync(filePath, content, 'utf-8')
       return { success: true }
     } catch (err) {
       return { success: false, reason: String(err) }
@@ -483,7 +578,11 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
           const match = content.match(/^berean_id:\s*(.+)$/m)
           if (!match) return
           const noteId = match[1].trim()
-          const body = extractNoteBody(content)
+          // inlineVaultImages — same reasoning as vault:reconcile's own comment: if this fires on
+          // Berean's own extractInlineImages export rewrite slipping past isRecentSelfWrite's 3s
+          // TTL (e.g. under system load, where the poll interval above is itself doubled), a
+          // relative image path would otherwise get written into the DB unconverted.
+          const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
           getBereanDb().prepare('UPDATE notes SET content = ?, updated_at = ? WHERE id = ?').run(body, Date.now(), noteId)
           win?.webContents.send('vault:changed', noteId)
         } catch { /* ignore parse errors */ }
@@ -529,7 +628,15 @@ export function registerVaultHandlers(ipcMain: IpcMain): void {
 
           const fileMtime = statSync(filePath).mtimeMs
           if (fileMtime > dbRow.updated_at + 1000) {
-            const body = extractNoteBody(content)
+            // inlineVaultImages BEFORE the no-op comparison below — without it, Berean's own
+            // extractInlineImages rewrite (base64 -> attachments/… relative path, applied only
+            // to the exported .md file, never to the DB — see that function's own comment) reads
+            // as a genuine content difference here, and this guard would "helpfully" import the
+            // relative-path version back into the DB, permanently breaking the image in the app
+            // itself. Converting back to base64 first means a self-export round-trips to a true
+            // no-op again, and a real user-added vault image gets properly inlined instead of
+            // landing in the DB as a dead relative reference.
+            const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
             // A newer mtime doesn't mean a genuine external edit — Berean's OWN export
             // (runExportAll, especially a forced "Export All" or the very first export)
             // rewrites every note's .md file unconditionally, giving every file a fresh
@@ -723,7 +830,8 @@ export function runExportAll(opts?: { tabState?: string; force?: boolean }): { s
       }
 
       markSelfWrite(exportFilePath)
-      writeFileSync(exportFilePath, noteToMarkdown(note, overrideColor, highlightedVerseText), 'utf-8')
+      const content = extractInlineImages(noteToMarkdown(note, overrideColor, highlightedVerseText), vaultPath, dir)
+      writeFileSync(exportFilePath, content, 'utf-8')
       noteCount++
     }
 
@@ -890,7 +998,9 @@ export function runImportAll(): ImportAllResult {
         const noteId = get(/^berean_id:\s*(.+)$/m)
         if (!noteId) continue
 
-        const body = extractNoteBody(content)
+        // Re-inline any relative attachment image paths back to base64 before storing in the
+        // DB — same regression fix as vault:reconcile/vault:watch, see inlineVaultImages() doc.
+        const body = inlineVaultImages(extractNoteBody(content), vaultPath, dirname(filePath))
 
         const rawType   = get(/^type:\s*(.+)$/m) ?? ''
         const noteType  = rawType === 'verse-note' ? 'verse'

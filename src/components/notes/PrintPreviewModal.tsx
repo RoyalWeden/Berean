@@ -3,10 +3,11 @@ import type { ChangeEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Printer, FileDown, Eye, ChevronDown, Plus, Minus } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { buildPrintHTML, PRINT_THEMES, presetToSides } from '@/lib/notePreviewRender'
+import { buildPrintHTML, PRINT_THEMES, presetToSides, PAPER_SIZE_ELECTRON, PAPER_SIZE_INCHES } from '@/lib/notePreviewRender'
 import { buildIdiomsExportHtml, DEFAULT_IDIOMS_OPTIONS, type IdiomExportEntry, type IdiomsExportOptions, type IdiomsOrganization, type IdiomsDensity, type IdiomsLayout } from '@/lib/idiomsExport'
 import type { PrintThemeId } from '@/lib/notePreviewRender'
 import type { Note } from '@/types'
+import { loadPdfFromBytes, type PDFDocumentProxy, type PDFPageProxy } from '@/lib/pdfjs'
 
 interface Props {
   title: string
@@ -37,7 +38,59 @@ function ThemeSwatch({ th, size = 'md' }: { th: (typeof PRINT_THEMES)[PrintTheme
   )
 }
 
-const PAGE_W_PX = 816 // US Letter width: 8.5in @ 96dpi
+/**
+ * One page of a REAL generated PDF, rendered to a canvas via pdf.js — same canvas-render
+ * pattern as PdfPage.tsx (the app's own PDF viewer), trimmed down (no text layer/highlights,
+ * this is a preview, not an interactive document). Each page self-measures via
+ * `page.getViewport()`, so its on-screen size is always exactly what the real PDF says —
+ * never an estimate.
+ */
+function PreviewPdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pageNumber: number; scale: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    let renderTask: ReturnType<PDFPageProxy['render']> | null = null
+    doc.getPage(pageNumber).then(async (page) => {
+      if (cancelled) return
+      const vp = page.getViewport({ scale })
+      setSize({ w: vp.width, h: vp.height })
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = Math.floor(vp.width * dpr)
+      canvas.height = Math.floor(vp.height * dpr)
+      canvas.style.width = `${vp.width}px`
+      canvas.style.height = `${vp.height}px`
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      renderTask = page.render({ canvasContext: ctx, viewport: vp })
+      try {
+        await renderTask.promise
+      } catch {
+        /* render cancellations are expected (rapid scale/page changes); other errors ignored
+           — a blank canvas is a harmless failure mode for a preview */
+      }
+    }).catch(() => {})
+    return () => { cancelled = true; try { renderTask?.cancel() } catch { /* ignore */ } }
+  }, [doc, pageNumber, scale])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="block shadow-xl rounded flex-shrink-0"
+      style={{ width: size?.w, height: size?.h }}
+    />
+  )
+}
+
+const PAGE_W_PX = 816 // US Letter width: 8.5in @ 96dpi — fallback default; the main modal below
+                       // computes its own paperSize-aware width (see pageWidthPx) since a
+                       // hardcoded Letter width made the on-screen preview inaccurate for
+                       // anyone using A4/Legal. ScaledPagePreview (Settings' small sample
+                       // preview) still uses this fixed fallback — lower-stakes, cosmetic-only.
 
 /**
  * Renders print HTML at true page width (8.5in) then scales it down to fit the
@@ -122,6 +175,11 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   // the non-reactive getState() snapshot, since useState's initializer only runs once
   // anyway) or a stable action function grabbed imperatively inside its own handler.
   const pdfDownloadLocation = useAppStore((s) => s.pdfDownloadLocation)
+  // No in-modal picker for this (yet) — it's set in Settings → Print & Export
+  // (PrintExportSection.tsx) and just needs to actually reach the export pipeline, which it
+  // previously didn't at all (a real no-op bug: changing Letter/A4/Legal in Settings never
+  // affected anything). Read reactively so it stays correct if changed while this is open.
+  const printPaperSize = useAppStore((s) => s.printPaperSize)
   const initialStore = useAppStore.getState()
   const [idiomOpts, setIdiomOpts] = useState<IdiomsExportOptions>(DEFAULT_IDIOMS_OPTIONS)
 
@@ -135,9 +193,14 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   const [includeTitle, setIncludeTitle] = useState(initialStore.printIncludeTitle)
   const [includeLinkedNotes, setIncludeLinkedNotes] = useState(initialStore.printIncludeLinkedNotes)
 
-  // Auto-size the preview iframe to its content so there's a single (outer) scrollbar.
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [iframeHeight, setIframeHeight] = useState(1056) // 11in @ 96dpi initial
+  // Regression: this used to be the hardcoded module-level PAGE_W_PX (always Letter width)
+  // regardless of the actual paperSize setting — the on-screen preview's page width silently
+  // disagreed with A4/Legal output. Paired with buildPrintHTML's own paperSize plumbing.
+  // Still used as the pre-load layout guess (spinner sizing, initial fit calc) before the
+  // real PDF below has loaded — once it has, actual per-page pixel dimensions come from
+  // pdf.js's own getViewport(), not this estimate.
+  const pageWidthPx = Math.round((PAPER_SIZE_INCHES[printPaperSize] ?? PAPER_SIZE_INCHES.letter).w * 96)
+  const pageHeightPx = Math.round((PAPER_SIZE_INCHES[printPaperSize] ?? PAPER_SIZE_INCHES.letter).h * 96)
 
   // Preview zoom: fit-to-width by default (no horizontal scroll); user can zoom in/out.
   const previewWrapRef = useRef<HTMLDivElement>(null)
@@ -152,7 +215,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
     // p-4 = 16px each side (32 total). Extra 8px buffer ensures the scaled page
     // never triggers a horizontal scrollbar even with sub-pixel rounding.
     const avail = el.clientWidth - 32 - 8
-    return Math.min(1, Math.max(0.2, avail / PAGE_W_PX))
+    return Math.min(1, Math.max(0.2, avail / pageWidthPx))
   }
 
   // ResizeObserver fires when the element reaches its final size (including after dialog animations).
@@ -209,7 +272,7 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
   // markdown source — rawHtml tells buildPrintHTML to skip the markdown
   // parse step, which otherwise HTML-escapes the raw <div style="..."> tags
   // and prints them as visible tag soup (markdown-it runs with html:false).
-  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes, rawHtml: !!idiomEntries }
+  const opts = { theme, marginPreset: margin, customMargins, fontSize, fontFamily, includeTitle, colorMode, linkedNotes: resolvedLinkedNotes, rawHtml: !!idiomEntries, paperSize: printPaperSize }
 
   // In idioms mode, regenerate the body from the entries + in-modal options, colouring it to
   // match the chosen print theme so the preview updates live as the user tweaks settings.
@@ -219,22 +282,66 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
     return buildIdiomsExportHtml(idiomEntries, idiomOpts, { term: th.verseBorder, rule: th.h2Border, muted: th.verseRef })
   }, [idiomEntries, idiomOpts, theme, content])
 
+  // Strip interactive styling (Strong's chip spans) — the live editor's chip look (monospace,
+  // bold, colored background) is appropriate on-screen but not on a printed/exported page
+  // where nothing is clickable. This used to be applied ONLY at doPrint/doDownload time, so
+  // the on-screen preview showed styled chips the real output never had — a direct, visible
+  // preview/output mismatch, and a text-reflow difference that could shift line wraps and
+  // page-break positions between what was previewed and what actually printed. Now applied
+  // once, here, so the iframe preview and the real output are always built from the exact
+  // same HTML — "the print preview needs to be accurate always" means never diverging on
+  // content, not just on page dimensions.
+  function stripForExport(h: string) {
+    return h.replace(/<span class="berean-strongs-chip"[^>]*>(.*?)<\/span>/g, '$1')
+  }
+
   const html = useMemo(
-    () => buildPrintHTML(title || 'Untitled', effectiveContent, opts),
+    () => stripForExport(buildPrintHTML(title || 'Untitled', effectiveContent, opts)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, effectiveContent, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle, resolvedLinkedNotes]
+    [title, effectiveContent, theme, margin, customMargins, fontSize, fontFamily, colorMode, includeTitle, resolvedLinkedNotes, printPaperSize]
   )
 
-  // Measure rendered content height and size the iframe to it (removes the iframe's own scrollbar)
-  function syncIframeHeight() {
-    const doc = iframeRef.current?.contentWindow?.document
-    if (doc) setIframeHeight(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight))
-  }
+  // Passed alongside the HTML's own @page CSS size (buildPrintHTML) as belt-and-suspenders —
+  // honoring @page CSS `size` for page dimensions isn't guaranteed without Electron's
+  // preferCSSPageSize option, so the native `pageSize` param is the actually-authoritative one.
+  const electronPageSize = PAPER_SIZE_ELECTRON[printPaperSize] ?? PAPER_SIZE_ELECTRON.letter
+
+  // ── Real-PDF preview ─────────────────────────────────────────────────────────
+  // Regression fix: the preview used to be a client-side approximation — one continuous
+  // scaled iframe, sliced into fixed-height "page" windows by dividing pixel height, with no
+  // real per-page margin reservation and no awareness of `page-break-inside: avoid`. That's
+  // structurally incapable of matching the real output: a normal HTML document rendered
+  // on-screen doesn't paginate at all (CSS `@page`/break rules only take effect during actual
+  // print/PDF generation), so no amount of client-side slicing can correctly predict where
+  // margins repeat or where a block gets pushed whole to the next page. Generating the real
+  // PDF (electron/main.ts's app:renderPreviewPDF, sharing the exact same code path as the
+  // actual Export-PDF button) and rendering ITS pages via pdf.js makes this a non-issue by
+  // construction: the preview literally IS the document that would be saved/printed, not an
+  // approximation of it — margins, page breaks, and image placement are pixel-identical.
+  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(true)
+  // Regression fix ("shows a block for a second"): the debounce delay used to apply to the
+  // VERY FIRST generation too — opening the modal always waited a fixed 350ms doing nothing
+  // before even starting the (already-latent) PDF round trip. Debouncing only matters for
+  // settling a BURST of rapid settings changes; the first generation has nothing to debounce
+  // against, so it fires immediately. main.ts's app:renderPreviewPDF also got its own latency
+  // cut (a reused hidden window instead of a fresh one, a data: URL instead of a temp-file
+  // round trip, and waiting on real font-load completion instead of a blind 300ms guess).
+  const hasGeneratedOnceRef = useRef(false)
   useEffect(() => {
-    // Re-measure shortly after the srcDoc updates (layout needs a tick to settle)
-    const id = setTimeout(syncIframeHeight, 60)
-    return () => clearTimeout(id)
-  }, [html])
+    let cancelled = false
+    setPdfLoading(true)
+    const delay = hasGeneratedOnceRef.current ? 350 : 0
+    const id = setTimeout(() => {
+      hasGeneratedOnceRef.current = true
+      window.app.renderPreviewPDF(html, electronPageSize)
+        .then((bytes) => loadPdfFromBytes(bytes))
+        .then((doc) => { if (!cancelled) { setPdfDoc(doc); setPdfError(null); setPdfLoading(false) } })
+        .catch((e) => { if (!cancelled) { setPdfError(String(e)); setPdfLoading(false) } })
+    }, delay)
+    return () => { cancelled = true; clearTimeout(id) }
+  }, [html, electronPageSize])
 
   function persist() {
     const store = useAppStore.getState()
@@ -248,14 +355,10 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
     store.setPrintIncludeLinkedNotes(includeLinkedNotes)
   }
 
-  // Strip interactive styling (strongs chip spans) from the PDF/print output.
-  // The preview keeps them for reference, but the exported document should be clean.
-  function stripForExport(h: string) {
-    return h.replace(/<span class="berean-strongs-chip"[^>]*>(.*?)<\/span>/g, '$1')
-  }
-
-  function doPrint() { persist(); window.app.printNote(stripForExport(html)).catch(() => {}); onClose() }
-  function doDownload() { persist(); window.app.exportNotePDF(stripForExport(html), title || 'note', pdfDownloadLocation).catch(() => {}); onClose() }
+  // `html` is already stripped (see the useMemo above) — printed/exported now, so it's
+  // byte-identical to what was just shown in the preview.
+  function doPrint() { persist(); window.app.printNote(html, electronPageSize).catch(() => {}); onClose() }
+  function doDownload() { persist(); window.app.exportNotePDF(html, title || 'note', pdfDownloadLocation, electronPageSize).catch(() => {}); onClose() }
 
   const segBtn = (active: boolean) =>
     `px-2.5 py-1 text-xs rounded-shell cursor-pointer transition-colors ${active
@@ -271,8 +374,14 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-[60]" style={{ backdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
+          // Was max-w-5xl (1024px) — with the 224px controls sidebar plus padding, the
+          // preview pane never had more than ~760px available, LESS than an 8.5in Letter
+          // page at 96dpi (816px). True 100% zoom therefore ALWAYS needed horizontal
+          // scrolling, on any window size, which is what "the 100% zoom is too close" was
+          // reporting. Widened so a true 100%-zoom Letter/Legal page (816px) comfortably
+          // fits the preview pane without scrolling on any normal window.
           className="glass-panel-modal fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]
-            w-[90vw] max-w-5xl h-[85vh]
+            w-[90vw] max-w-[1400px] h-[85vh]
             rounded-shell-lg flex flex-col overflow-hidden"
         >
           {/* Header */}
@@ -450,8 +559,8 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
               )}
             </div>
 
-            {/* Preview — fits to width by default (no horizontal scroll); the iframe is
-                sized to its content so it never shows its own (second) scrollbar. */}
+            {/* Preview — fits to width by default (no horizontal scroll); renders the real
+                generated PDF via pdf.js (see the pdfDoc effect above). */}
             <div className="flex-1 min-w-0 flex flex-col">
               {/* Zoom toolbar */}
               <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0">
@@ -510,47 +619,79 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                   Fit
                 </button>
               </div>
-              <div ref={previewWrapRef} className={`flex-1 min-w-0 bg-[rgb(var(--color-surface-1))] p-4 overflow-y-auto ${userZoom === null ? 'overflow-x-hidden' : 'overflow-x-auto'}`}>
-                {/* Page wrapper — includes the iframe and page-break overlay lines */}
-                <div
-                  className="shadow-xl rounded"
-                  style={{ width: Math.floor(PAGE_W_PX * scale), height: Math.ceil(iframeHeight * scale), marginInline: 'auto', overflow: 'hidden', position: 'relative' }}
-                >
-                  <iframe
-                    ref={iframeRef}
-                    title="Print preview"
-                    srcDoc={html}
-                    onLoad={syncIframeHeight}
-                    scrolling="no"
-                    style={{
-                      width: PAGE_W_PX,
-                      height: iframeHeight,
-                      border: 'none',
-                      display: 'block',
-                      transform: `scale(${scale})`,
-                      transformOrigin: 'top left',
-                    }}
-                  />
-                  {/* Page break lines — rendered over the iframe so they're scale-accurate */}
-                  {Array.from(
-                    { length: Math.max(0, Math.ceil(iframeHeight / 1056) - 1) },
-                    (_, i) => (i + 1) * 1056 * scale
-                  ).map((y) => (
-                    <div
-                      key={y}
+              {/*
+                Regression fix: `overflow-x-hidden` in Fit mode had NO escape hatch — if
+                `fitScale` was ever even slightly too large for the real available width (a
+                real race: the ResizeObserver correction runs in a useEffect, after first
+                paint), the page's right edge rendered outside the clipped, non-scrollable
+                container and was permanently unreachable — "can't see part of the right
+                edge... even after scrolling" is exactly what a *disabled* scrollbar looks
+                like. Always keeping horizontal scroll available costs nothing when the fit
+                calculation IS correct (no overflow, nothing to scroll) and is the only real
+                fix for when it briefly isn't.
+              */}
+              <div ref={previewWrapRef} className="flex-1 min-w-0 bg-[rgb(var(--color-surface-2))] p-4 overflow-auto">
+                {/*
+                  Regression fix: this used to be a client-side approximation — one continuous
+                  scaled iframe sliced into fixed-height "page" windows purely by dividing
+                  pixel height. A normal HTML document rendered on-screen never actually
+                  paginates (CSS @page/break rules only apply during real print/PDF
+                  generation), so that slicing had no way to know where margins really repeat
+                  or where a block (image, table, verse block) gets pushed whole to the next
+                  page instead of being split. It now renders the REAL generated PDF (pdfDoc,
+                  from app:renderPreviewPDF — the exact same code path as the actual
+                  Export-PDF button) via pdf.js, one canvas per real page: margins, page
+                  breaks, and "does this get cut off" are no longer guessed, they're read
+                  directly off the document that would actually be saved/printed.
+                */}
+                {pdfDoc ? (
+                  <div className="flex flex-col items-center gap-6">
+                    {Array.from({ length: pdfDoc.numPages }, (_, i) => (
+                      <PreviewPdfPage key={i} doc={pdfDoc} pageNumber={i + 1} scale={scale * (96 / 72)} />
+                    ))}
+                  </div>
+                ) : (
+                  // First load ONLY — the real PDF round trip (offscreen window, printToPDF,
+                  // IPC transfer, pdf.js decode) has an unavoidable floor of a few hundred ms
+                  // no matter how much it's optimized (main.ts's app:renderPreviewPDF already
+                  // reuses one hidden window and skips the temp-file/blind-delay steps used by
+                  // the real Export-PDF path). A blank/colored placeholder for that whole
+                  // window reads as "stuck" ("shows blank for a second"). This is instead a
+                  // real, INSTANT render of the SAME html the real PDF is being built from —
+                  // a plain non-paginated iframe, not yet split into real pages/margins-per-
+                  // page (that accuracy is what the real PDF above is FOR) — shown only until
+                  // the first real PDF arrives, then never shown again for the rest of this
+                  // modal's lifetime (pdfDoc stays populated across later regenerations, see
+                  // the debounced effect above, so this never reappears on a settings tweak).
+                  <div
+                    className="mx-auto shadow-xl rounded overflow-hidden relative"
+                    style={{ width: Math.ceil(pageWidthPx * scale), height: Math.ceil(pageHeightPx * scale), background: currentTheme.bg }}
+                  >
+                    <iframe
+                      title="Print preview (loading exact pagination…)"
+                      srcDoc={html}
+                      scrolling="no"
                       style={{
-                        position: 'absolute',
-                        top: Math.round(y) - 1,
-                        left: 0,
-                        right: 0,
-                        height: 3,
-                        background: 'rgba(80,80,80,0.45)',
-                        pointerEvents: 'none',
-                        zIndex: 10,
+                        width: pageWidthPx,
+                        height: pageHeightPx,
+                        border: 'none',
+                        display: 'block',
+                        transform: `scale(${scale})`,
+                        transformOrigin: 'top left',
                       }}
                     />
-                  ))}
-                </div>
+                    {pdfError && (
+                      <div className="absolute inset-x-0 bottom-0 px-2 py-1 text-[10px] text-center bg-black/60 text-white">
+                        Preview failed: {pdfError}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {pdfLoading && pdfDoc && (
+                  <div className="fixed bottom-20 right-8 px-2.5 py-1 rounded-shell bg-[rgb(var(--color-surface-4))] text-[10px] text-[rgb(var(--color-text-secondary))] shadow-lg pointer-events-none">
+                    Updating preview…
+                  </div>
+                )}
               </div>
             </div>
           </div>

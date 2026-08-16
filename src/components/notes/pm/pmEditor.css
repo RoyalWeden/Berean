@@ -96,6 +96,17 @@
    top of the callout's own padding and header spacing — is what made
    callouts feel loose ("too much spacing inside") even after the padding
    itself was tightened. */
+/* "Round 3" fluid-feel polish — the callout header is clickable (toggles collapse,
+   nodeViews.ts's calloutNodeView) but previously had zero hover feedback at all, unlike every
+   other clickable block-chrome element in this stylesheet (code-block header buttons, verse/
+   lexicon block refs, heading-collapse arrows all already get one). A plain background tint,
+   not a border/shadow change, to stay quiet/consistent with those. */
+.berean-pm-editor .ProseMirror .pm-callout-header:hover {
+  background-color: rgb(0 0 0 / 0.04);
+  border-radius: 4px;
+  margin: -0.1em -0.3em;
+  padding: 0.1em 0.3em;
+}
 .berean-pm-editor .ProseMirror .pm-callout-content p {
   margin: 0.25em 0;
 }
@@ -116,6 +127,96 @@
   padding: 0.4em 0 0.4em 0.9em;
   margin: 0.6em 0;
   color: rgb(var(--color-text-secondary));
+}
+
+/* Images — previously ZERO styling anywhere, so a pasted screenshot rendered at native pixel
+   dimensions with nothing stopping it from overflowing the editor column. `.pm-image-wrap`
+   is imageNodeView's own wrapper (nodeViews.ts); the `img` itself only ever gets an explicit
+   inline `width` when the node has a `width` attr (a resized image) — otherwise it's fully
+   governed by this max-width/height:auto pair, which is also what keeps a resized image's own
+   aspect ratio intact as its width is dragged. */
+.berean-pm-editor .ProseMirror .pm-image-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0; /* collapses the wrapper's own inline-box gap beneath the image */
+  vertical-align: bottom;
+}
+.berean-pm-editor .ProseMirror .pm-image-wrap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--color-surface-4));
+  margin: 0.3em 0;
+}
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected img,
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-resizing img {
+  outline: 2px solid rgb(var(--color-accent));
+  outline-offset: 1px;
+}
+/* Resize handle — bottom-right corner, only interactable (and visible) once the image is
+   selected/being dragged, matching the "handle appears on selection" convention nodeViews.ts's
+   own comment describes; kept in the DOM at all times (not conditionally rendered) since this
+   is a plain vanilla-DOM NodeView, not React — visibility is the only thing toggled. */
+.berean-pm-editor .ProseMirror .pm-image-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 6px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgb(var(--color-accent));
+  color: rgb(var(--color-surface-1));
+  border: 1.5px solid rgb(var(--color-surface-1));
+  cursor: nwse-resize;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+/* The glyph itself (nodeViews.ts) draws a NE-SW diagonal; rotating 90° here points it NW-SE
+   to actually match this handle's own `nwse-resize` cursor direction. */
+.berean-pm-editor .ProseMirror .pm-image-resize-handle svg {
+  transform: rotate(90deg);
+}
+.berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-resize-handle,
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected .pm-image-resize-handle,
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-resizing .pm-image-resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Delete button — top-right corner, same reveal-on-hover/selection convention as the resize
+   handle above. A small circular "×" glyph so it reads as destructive without a text label. */
+.berean-pm-editor .ProseMirror .pm-image-delete-btn {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgb(var(--color-surface-1) / 0.85);
+  color: rgb(var(--color-text-primary));
+  border: 1.5px solid rgb(var(--color-surface-4));
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
+}
+.berean-pm-editor .ProseMirror .pm-image-delete-btn:hover {
+  background: rgb(220 38 38);
+  border-color: rgb(220 38 38);
+  color: white;
+}
+.berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-delete-btn,
+.berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected .pm-image-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 /* code_block — the box/border/background lives on codeBlockNodeView's own `.pm-code-block`
    wrapper (nodeViews.ts), not directly on `pre`, so the language-picker/copy-button header
@@ -609,7 +710,14 @@
 .pm-block-handle-inner {
   position: absolute;
   left: -26px;
-  top: 1px;
+  /* Was `top: 1px` (grip ~18px below the block's own top — not inline with it — and the "+"
+     flush with the block top instead of sitting above it), then `top: -16px` (too far up —
+     the "+" ended up flush against the block's top edge with nothing "between" anything).
+     -8px centers the "+" (the stack's first/top child, 16px tall) exactly ON the boundary
+     line between this block and the one above it — spanning 8px into each side, reading as
+     "between the two blocks" rather than sitting inside either one. The grip then lands just
+     below that boundary, near (not flush with) the block's own top line. */
+  top: -8px;
   display: flex;
   flex-direction: column;
   align-items: center;

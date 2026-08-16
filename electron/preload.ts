@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('notes', {
     ipcRenderer.invoke('notes:restoreVersion', noteId, versionId),
   setNoteFolder: (noteId: string, folderId: string | null) =>
     ipcRenderer.invoke('notes:setFolder', noteId, folderId),
+  setNotePinned: (noteId: string, pinned: boolean) =>
+    ipcRenderer.invoke('notes:setPinned', noteId, pinned),
   // Folders
   getFolders: () => ipcRenderer.invoke('folders:getAll'),
   createFolder: (name: string, parentId?: string | null) =>
@@ -157,9 +159,14 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('viewer:ready')
     ipcRenderer.on('viewer:ready', () => cb())
   },
-  // Print / export a rendered note (full HTML document string)
-  printNote: (html: string) => ipcRenderer.invoke('app:printNote', html),
-  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName, downloadLocation ?? ''),
+  // Print / export a rendered note (full HTML document string). `pageSize` is one of
+  // Electron's own accepted pageSize strings ('Letter'|'A4'|'Legal'|...) — see
+  // PAPER_SIZE_ELECTRON in notePreviewRender.ts, the single source of truth for that mapping.
+  printNote: (html: string, pageSize?: string) => ipcRenderer.invoke('app:printNote', html, pageSize),
+  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string, pageSize?: string) => ipcRenderer.invoke('app:exportNotePDF', html, suggestedName, downloadLocation ?? '', pageSize),
+  // Real PDF bytes for the on-screen preview (rendered via pdf.js in PrintPreviewModal) —
+  // the exact same generation path as exportNotePDF, so the preview is never an approximation.
+  renderPreviewPDF: (html: string, pageSize?: string) => ipcRenderer.invoke('app:renderPreviewPDF', html, pageSize),
   // Cross-window tab sync
   broadcastTabState: (payload: unknown) => ipcRenderer.send('app:broadcastTabState', payload),
   onTabStateUpdate: (cb: (payload: unknown) => void) => {

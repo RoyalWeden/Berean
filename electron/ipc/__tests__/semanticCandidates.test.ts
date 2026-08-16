@@ -65,7 +65,13 @@ describe('gatherSemanticCandidates', () => {
   it('passes restrictToTextId through to semanticSearch (focus-text scoping)', async () => {
     semanticSearchMock.mockReturnValue([])
     await gatherSemanticCandidates('q', [], new Set(), { restrictToTextId: 'jubilees' })
-    expect(semanticSearchMock).toHaveBeenCalledWith(expect.anything(), 20, 'jubilees')
+    expect(semanticSearchMock).toHaveBeenCalledWith(expect.anything(), 20, 'jubilees', undefined)
+  })
+
+  it('passes restrictToBookIds through to semanticSearch (testament/book-group scoping)', async () => {
+    semanticSearchMock.mockReturnValue([])
+    await gatherSemanticCandidates('q', [], new Set(), { restrictToBookIds: ['GEN', 'EXO'] })
+    expect(semanticSearchMock).toHaveBeenCalledWith(expect.anything(), 20, undefined, ['GEN', 'EXO'])
   })
 
   it('a candidate that ALSO appears in the keyword-ranked list ranks ahead of a semantic-only one, via RRF', async () => {

@@ -5,6 +5,7 @@
  * PAGE_W_PX = 816 (8.5in @ 96dpi)
  */
 import { describe, it, expect } from 'vitest'
+import { PAPER_SIZE_INCHES } from '@/lib/notePreviewRender'
 
 const PAGE_W_PX = 816
 const PADDING = 32   // p-4 on each side (16px × 2)
@@ -66,3 +67,43 @@ describe('printFitScale — fit scale calculation', () => {
     }
   })
 })
+
+// Regression: PrintPreviewModal.tsx's on-screen preview used to hardcode PAGE_W_PX to Letter
+// width (816px) regardless of the printPaperSize setting — this locks in that
+// `pageWidthPx = PAPER_SIZE_INCHES[paperSize].w * 96` (and the matching height calc for the
+// page-break overlay) actually varies per paper size, matching what buildPrintHTML itself now
+// emits via @page CSS (see notePreviewRender.ts's own paperSize test coverage).
+describe('PrintPreviewModal — paperSize-aware page dimensions', () => {
+  function pageWidthPx(paperSize: 'letter' | 'a4' | 'legal') {
+    return Math.round((PAPER_SIZE_INCHES[paperSize] ?? PAPER_SIZE_INCHES.letter).w * 96)
+  }
+  function pageHeightPx(paperSize: 'letter' | 'a4' | 'legal') {
+    return Math.round((PAPER_SIZE_INCHES[paperSize] ?? PAPER_SIZE_INCHES.letter).h * 96)
+  }
+
+  it('letter → 816×1056px (8.5in×11in @ 96dpi) — matches the previous hardcoded default', () => {
+    expect(pageWidthPx('letter')).toBe(816)
+    expect(pageHeightPx('letter')).toBe(1056)
+  })
+
+  it('a4 → a narrower, taller page than letter', () => {
+    expect(pageWidthPx('a4')).toBeLessThan(pageWidthPx('letter'))
+    expect(pageHeightPx('a4')).toBeGreaterThan(pageHeightPx('letter'))
+  })
+
+  it('legal → same width as letter, taller height', () => {
+    expect(pageWidthPx('legal')).toBe(pageWidthPx('letter'))
+    expect(pageHeightPx('legal')).toBeGreaterThan(pageHeightPx('letter'))
+  })
+})
+
+// SUPERSEDED (kept as history, not a current-behavior test): the preview used to render ONE
+// continuous scaled iframe with thin lines drawn over an ESTIMATED break point computed by
+// `Math.max(1, Math.ceil(iframeHeight / pageHeightPx))` — a naive fixed-height division of a
+// non-paginated HTML document that couldn't know about real per-page margins or
+// `page-break-inside: avoid`. PrintPreviewModal.tsx now renders the REAL generated PDF via
+// pdf.js (app:renderPreviewPDF, electron/main.ts) and gets its true page count directly from
+// `pdfDoc.numPages` — there is no longer a client-side page-count FORMULA to unit-test here;
+// correctness now depends on Chromium's own PDF generation, which this file's plain-formula
+// testing convention can't exercise (would need real Electron IPC + pdf.js, out of scope for
+// a jsdom unit test — covered instead by manual verification per the round's own instructions).

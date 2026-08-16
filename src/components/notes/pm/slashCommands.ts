@@ -4,6 +4,7 @@ import { TextSelection, type EditorState, type Transaction } from 'prosemirror-s
 import { setBlockType, wrapIn } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { bereanSchema as schema } from './schema'
+import { pickAndInsertImage } from './imageInsert'
 import { useAppStore } from '@/store'
 
 // ─── Slash-command menu ─────────────────────────────────────────────────────
@@ -122,6 +123,15 @@ function insertHorizontalRule(view: EditorView, from: number, to: number) {
   insertBlockNode(view, from, to, schema.nodes.horizontal_rule.create())
 }
 
+// Clears the "/image" trigger text first (same reasoning as startVerseBlock below), then opens
+// a file picker — the actual insert happens from imageInsert.ts's `change` listener once a
+// file is chosen (or never, if the picker is cancelled; the trigger text is already gone
+// either way, matching every other slash command's own "delete first" behavior).
+function insertImage(view: EditorView, from: number, to: number) {
+  view.dispatch(view.state.tr.delete(from, to))
+  pickAndInsertImage(view)
+}
+
 // prosemirror-tables ships no "build a default table" helper — table_cell/
 // table_header hold `inline*` content directly (schema.ts's cellContent
 // config), so an empty cell is just `create()` with no child paragraph.
@@ -189,6 +199,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'quote', label: 'Quote', description: 'Blockquote for citations', keywords: ['blockquote', 'citation'], group: 'Basic blocks', run: toBlockquote },
   { id: 'code', label: 'Code block', description: 'Monospaced code with no formatting', keywords: ['fence', 'pre', 'monospace'], group: 'Basic blocks', run: toCodeBlock },
   { id: 'table', label: 'Table', description: '2×2 table to start from', keywords: ['grid', 'spreadsheet'], group: 'Basic blocks', run: insertTable },
+  { id: 'image', label: 'Image', description: 'Insert a picture from a file', keywords: ['picture', 'photo', 'img', 'screenshot'], group: 'Basic blocks', run: insertImage },
   { id: 'columns', label: 'Columns', description: '2-column side-by-side layout', keywords: ['column', 'layout', 'side-by-side', 'split'], group: 'Basic blocks', run: insertColumns },
   { id: 'divider', label: 'Divider', description: 'Horizontal rule', keywords: ['hr', 'rule', 'separator', 'line'], group: 'Basic blocks', run: insertHorizontalRule },
   { id: 'callout-note', label: 'Note', description: 'Blue callout for general notes', keywords: ['callout', 'info', 'blue'], group: 'Callouts', run: toCallout('NOTE') },

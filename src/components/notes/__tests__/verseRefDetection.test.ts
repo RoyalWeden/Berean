@@ -134,6 +134,31 @@ describe('findVerseRefMatches — multiple refs per line', () => {
     expect(m.length).toBe(1)
     expect(m[0].lxx).toBe(true)
   })
+
+  // Regression: the numeric-tail group used to stop at the first post-dash digit run,
+  // truncating "63:17-64:3" at "63:17-64" and dropping the trailing ":3" — silently
+  // mis-linking it as a bogus same-chapter range (Isaiah 63 doesn't have 64 verses)
+  // instead of correctly spanning into chapter 64. See parseRef.ts/noteTextBlocks.ts
+  // for the matching grammar fix this regex now feeds a full, untruncated span into.
+  it('a cross-chapter range ("Isaiah 63:17-64:3") captures its full span, not a truncated one', () => {
+    const m = findVerseRefMatches('See Isaiah 63:17-64:3 for the prayer')
+    expect(m.length).toBe(1)
+    expect(m[0].refText).toBe('Isaiah 63:17-64:3')
+    const parsed = parseRef(m[0].refText)
+    expect(parsed).toMatchObject({ bookId: 'ISA', chapter: 63, verse: 17, endChapter: 64, endVerse: 3 })
+  })
+
+  it('period-abbreviated books are recognised ("Isa. 40:1", "Gen. 1:1")', () => {
+    expect(refIds('Isa. 40:1 comforts')).toEqual(['ISA'])
+    expect(refIds('Gen. 1:1 In the beginning')).toEqual(['GEN'])
+  })
+
+  it('"II Kings"/"III John" roman-numeral prefixes resolve to the correct book, not the wrong one', () => {
+    // Regression: previously resolved to 1 Kings / the Gospel of John (the roman numeral
+    // was silently dropped and the bare word fuzzy-matched the wrong, first-in-canon book).
+    expect(refIds('II Kings 5:1 the leprosy of Naaman')).toEqual(['2KI'])
+    expect(refIds('III John 1:2 beloved I wish')).toEqual(['3JN'])
+  })
 })
 
 // ── 2. All books — single ref recognised ──────────────────────────────────────

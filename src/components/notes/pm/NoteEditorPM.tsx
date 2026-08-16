@@ -16,7 +16,7 @@ import {
   createAutocompletePlugin, replaceRangeWithText, replaceRangeWithBlock, replaceRangeWithWikilink,
   type WikilinkTrigger, type StrongsTrigger, type VerseSuggestTrigger, type SlashCommandTrigger,
 } from './autocomplete'
-import { calloutNodeView, listItemNodeView, codeBlockNodeView } from './nodeViews'
+import { calloutNodeView, listItemNodeView, codeBlockNodeView, imageNodeView } from './nodeViews'
 import { createHeadingCollapsePlugin, headingNodeView, computeHeadingKey, headingPositionsForKeys, setCollapsedHeadingPositions } from './headingCollapse'
 import { createBlockDecorationsPlugin } from './blockDecorations'
 import { createCodeBlockHighlightPlugin } from './codeBlockHighlight'
@@ -30,9 +30,9 @@ import { createSelectionToolbarPlugin, type SelectionToolbarState } from './sele
 import { createTableStatusPlugin } from './tableStatusPlugin'
 import SelectionToolbar from './SelectionToolbar'
 import Toolbar from './Toolbar'
-import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup } from './AutocompletePopups'
+import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup, RefHoverPreview } from './AutocompletePopups'
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
-import { parseRef, getTranslationForBook, type ParsedRef } from '@/lib/parseRef'
+import { parseRef, getTranslationForBook, bookChapterVerseLabel, type ParsedRef } from '@/lib/parseRef'
 import { stripLxxMarker } from '@/lib/noteTextBlocks'
 import { computeCaretScrollDelta } from '@/lib/caretScroll'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
@@ -167,6 +167,16 @@ export default function NoteEditorPM({
   const [strongsTrigger, setStrongsTrigger] = useState<StrongsTrigger | null>(null)
   const [verseSuggestTrigger, setVerseSuggestTrigger] = useState<VerseSuggestTrigger | null>(null)
   const [slashTrigger, setSlashTrigger] = useState<SlashCommandTrigger | null>(null)
+  // Hover-preview popup (RefHoverPreview, AutocompletePopups.tsx) — verse refs show real verse
+  // text, Strong's refs show the short definition, wikilinks show the target note's own preview
+  // (WikilinkPopup's single-pane content, reused rather than building a second preview format).
+  // Implemented locally rather than only through the onWikilinkHoverStart/End props (kept below
+  // for any external consumer that wants to observe hover too) — those props existed already but
+  // had no actual popup behind them anywhere in the app; verse/Strong's refs had neither the
+  // props nor a popup. `seq` guards against a slow verse/lexicon fetch from a PREVIOUS hover
+  // resolving after the user has already moved to (or off of) a different ref.
+  const [refHoverPreview, setRefHoverPreview] = useState<{ x: number; y: number; refLabel: string; text: string; loading: boolean } | null>(null)
+  const refHoverSeqRef = useRef(0)
   const [wikilinkIdx, setWikilinkIdx] = useState(0)
   const [slashIdx, setSlashIdx] = useState(0)
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null)
@@ -239,6 +249,15 @@ export default function NoteEditorPM({
   const ctxMenuHandlersRef = useRef({
     onVerseRefContextMenu: (_ref: ParsedRef & { forcedTranslation?: string }, _x: number, _y: number) => {},
     onLexiconRefContextMenu: (_id: string, _x: number, _y: number) => {},
+  })
+
+  // Same "local handler, plugin built once at mount" reasoning as ctxMenuHandlersRef above,
+  // for the hover-preview popup's handlers (defined further down, near handleVerseRefContextMenu).
+  const hoverHandlersRef = useRef({
+    onWikilinkHoverStart: (_title: string, _rect: DOMRect) => {},
+    onVerseRefHoverStart: (_ref: ParsedRef & { forcedTranslation?: string }, _rect: DOMRect) => {},
+    onLexiconRefHoverStart: (_id: string, _rect: DOMRect) => {},
+    onRefHoverEnd: () => {},
   })
 
   // Cursor-follow scroll while typing (fluid-feel polish #2.1) — keeps the caret comfortably
@@ -356,8 +375,10 @@ export default function NoteEditorPM({
           onWikilinkClick: (title) => refCallbacksRef.current.onWikilinkClick?.(title),
           onVerseRefClick: (ref) => refCallbacksRef.current.onVerseRefClick?.(ref),
           onLexiconRefClick: (id) => refCallbacksRef.current.onLexiconRefClick?.(id),
-          onWikilinkHoverStart: (title, rect) => refCallbacksRef.current.onWikilinkHoverStart?.(title, rect),
-          onWikilinkHoverEnd: () => refCallbacksRef.current.onWikilinkHoverEnd?.(),
+          onWikilinkHoverStart: (title, rect) => hoverHandlersRef.current.onWikilinkHoverStart(title, rect),
+          onVerseRefHoverStart: (ref, rect) => hoverHandlersRef.current.onVerseRefHoverStart(ref, rect),
+          onLexiconRefHoverStart: (id, rect) => hoverHandlersRef.current.onLexiconRefHoverStart(id, rect),
+          onRefHoverEnd: () => hoverHandlersRef.current.onRefHoverEnd(),
           onVerseRefContextMenu: (ref, x, y) => ctxMenuHandlersRef.current.onVerseRefContextMenu(ref, x, y),
           onLexiconRefContextMenu: (id, x, y) => ctxMenuHandlersRef.current.onLexiconRefContextMenu(id, x, y),
         }),
@@ -398,6 +419,7 @@ export default function NoteEditorPM({
         list_item: (node, editorView, getPos) => listItemNodeView(getPos)(node, editorView),
         heading: (node, editorView, getPos) => headingNodeView(getPos, persistHeadingCollapse)(node, editorView),
         code_block: (node, editorView, getPos) => codeBlockNodeView(getPos)(node, editorView),
+        image: (node, editorView, getPos) => imageNodeView(getPos)(node, editorView),
       },
       dispatchTransaction(tr) {
         const newState = view.state.apply(tr)
@@ -635,6 +657,13 @@ export default function NoteEditorPM({
     if (!view) return
     setStrongsTrigger(null)
     const entry = await window.lexicon.getEntry(num).catch(() => null)
+    // Re-check after the await: if the user switched notes/closed this editor while the
+    // lookup was in flight, cleanup already ran view.destroy() and cleared viewRef.current —
+    // dispatching a transaction against that stale, destroyed `view` crashes deep inside
+    // ProseMirror's DOM diffing ("Cannot read properties of null (reading 'matchesNode')"),
+    // since the destroyed view's DOM is gone. viewRef.current !== view also covers the (rarer)
+    // case where a NEW view was mounted in the meantime.
+    if (viewRef.current !== view) return
     if (!entry) { view.focus(); return }
     // buildLexiconCopyText returns "H1234 word;\ndefinition..." (1-2 lines
     // joined by '\n') — split back into real lines so replaceRangeWithBlock
@@ -657,6 +686,12 @@ export default function NoteEditorPM({
     if (isRange) {
       const nums = Array.from({ length: Math.min(parsed.endVerse! - parsed.verse + 1, 20) }, (_, i) => parsed.verse! + i)
       const rows = await Promise.all(nums.map((vn) => window.bible.queryVerse(parsed.bookId, parsed.chapter, vn, tid).catch(() => null)))
+      // Re-check after the await(s): if the user switched notes/closed this editor while the
+      // range fetch was in flight, cleanup already ran view.destroy() and cleared
+      // viewRef.current — dispatching against that stale, destroyed `view` crashes deep inside
+      // ProseMirror's DOM diffing ("Cannot read properties of null (reading 'matchesNode')"),
+      // since the destroyed view's DOM is gone.
+      if (viewRef.current !== view) return
       const bodyLines = rows.map((v, i) => (v?.text ? `${nums[i]} ${v.text}` : null)).filter(Boolean) as string[]
       if (bodyLines.length === 0) { view.focus(); return }
       // Real separate paragraphs (one per verse line), not a joined string
@@ -666,6 +701,7 @@ export default function NoteEditorPM({
       replaceRangeWithBlock(view, from, to, [label, ...bodyLines])
     } else {
       const v = await window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, tid).catch(() => null)
+      if (viewRef.current !== view) return // see the range branch's comment above
       if (!v?.text) { view.focus(); return }
       replaceRangeWithText(view, from, to, `${label} ${v.text}`)
     }
@@ -687,6 +723,56 @@ export default function NoteEditorPM({
     setStrongsCtxTarget({ strongsNum: strongsId, x, y })
   }
 
+  // ── Hover-preview popup (RefHoverPreview) ────────────────────────────────────
+  // See refHoverPreview's own state comment above for why this exists as real local behavior
+  // now instead of only the pass-through onWikilinkHoverStart/End props. `seq` is bumped on
+  // every hover start/end so a slow fetch from an ABANDONED hover (mouse already moved to a
+  // different ref, or off any ref) can't land after the fact and show stale content under the
+  // wrong ref, or resurrect the popup after handleRefHoverEnd already dismissed it.
+  async function handleVerseRefHoverStart(ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) {
+    if (!ref.verse) return
+    const seq = ++refHoverSeqRef.current
+    const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: '', loading: true })
+    const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
+    const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
+    if (seq !== refHoverSeqRef.current) return
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: v?.text ?? '', loading: false })
+  }
+
+  async function handleLexiconRefHoverStart(strongsId: string, rect: DOMRect) {
+    const seq = ++refHoverSeqRef.current
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel: strongsId, text: '', loading: true })
+    const entry = await window.lexicon.getEntry(strongsId).catch(() => null)
+    if (seq !== refHoverSeqRef.current) return
+    setRefHoverPreview({
+      x: rect.left, y: rect.bottom + 4, refLabel: strongsId,
+      text: entry ? buildLexiconCopyText(entry).split('\n').slice(1).join(' ') : '',
+      loading: false,
+    })
+  }
+
+  function handleWikilinkHoverStart(title: string, rect: DOMRect) {
+    refCallbacksRef.current.onWikilinkHoverStart?.(title, rect)
+    refHoverSeqRef.current++ // no async fetch of our own — just invalidate any in-flight verse/lexicon one
+    const note = (notesRef.current ?? []).find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+    const snippet = (note?.content || '')
+      .replace(/^---[\s\S]*?---\n?/, '')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/[*_`~]/g, '')
+      .replace(/\[\[([^\]]+)\]\]/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim()
+      .slice(0, 300)
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel: title, text: snippet || 'No content', loading: false })
+  }
+
+  function handleRefHoverEnd() {
+    refCallbacksRef.current.onWikilinkHoverEnd?.()
+    refHoverSeqRef.current++
+    setRefHoverPreview(null)
+  }
+
   function openStrongsEntry(strongsId: string) {
     const store = useAppStore.getState()
     if (store.tabs['lexicon'].length === 0) store.createTab('lexicon')
@@ -702,6 +788,12 @@ export default function NoteEditorPM({
   }
 
   ctxMenuHandlersRef.current = { onVerseRefContextMenu: handleVerseRefContextMenu, onLexiconRefContextMenu: handleLexiconRefContextMenu }
+  hoverHandlersRef.current = {
+    onWikilinkHoverStart: handleWikilinkHoverStart,
+    onVerseRefHoverStart: handleVerseRefHoverStart,
+    onLexiconRefHoverStart: handleLexiconRefHoverStart,
+    onRefHoverEnd: handleRefHoverEnd,
+  }
 
   // Keyboard nav for whichever popup is open — mirrors NoteEditor.tsx's
   // document-level capture-phase keydown listener (arrow keys move the
@@ -833,6 +925,12 @@ export default function NoteEditorPM({
         onOpen={openStrongsEntry}
         onOpenNewTab={openStrongsEntryInNewTab}
       />
+      {refHoverPreview && (
+        <RefHoverPreview
+          x={refHoverPreview.x} y={refHoverPreview.y}
+          refLabel={refHoverPreview.refLabel} text={refHoverPreview.text} loading={refHoverPreview.loading}
+        />
+      )}
     </div>
   )
 }

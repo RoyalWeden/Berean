@@ -11,16 +11,18 @@ import { describe, it, expect, vi, beforeAll } from 'vitest'
 // None of it is exercised by the functions under test; it only needs to not throw on import and
 // (for the `books` table) return a small, fake canonical book list.
 
-interface FakeBookRow { id: string; name: string; short_name: string }
+interface FakeBookRow { id: string; name: string; short_name: string; testament: string }
 const FAKE_BOOKS: FakeBookRow[] = [
-  { id: 'GEN', name: 'Genesis', short_name: 'Gen' },
-  { id: 'JOB', name: 'Job', short_name: 'Job' },
-  { id: 'DAN', name: 'Daniel', short_name: 'Dan' },
-  { id: 'AMO', name: 'Amos', short_name: 'Amos' },
-  { id: 'WIS', name: 'Wisdom', short_name: 'Wis' },
-  { id: 'MAT', name: 'Matthew', short_name: 'Matt' },
-  { id: 'ZEC', name: 'Zechariah', short_name: 'Zech' },
-  { id: 'SNG', name: 'Song of Solomon', short_name: 'Song' },
+  { id: 'GEN', name: 'Genesis', short_name: 'Gen', testament: 'OT' },
+  { id: 'JOB', name: 'Job', short_name: 'Job', testament: 'OT' },
+  { id: 'DAN', name: 'Daniel', short_name: 'Dan', testament: 'OT' },
+  { id: 'AMO', name: 'Amos', short_name: 'Amos', testament: 'OT' },
+  { id: 'ISA', name: 'Isaiah', short_name: 'Isa', testament: 'OT' },
+  { id: 'WIS', name: 'Wisdom', short_name: 'Wis', testament: 'Apocrypha' },
+  { id: 'MAT', name: 'Matthew', short_name: 'Matt', testament: 'NT' },
+  { id: 'ZEC', name: 'Zechariah', short_name: 'Zech', testament: 'OT' },
+  { id: 'SNG', name: 'Song of Solomon', short_name: 'Song', testament: 'OT' },
+  { id: 'ROM', name: 'Romans', short_name: 'Rom', testament: 'NT' },
 ]
 
 vi.mock('../../db/bible', () => ({
@@ -106,5 +108,41 @@ describe('detectFocusTextId / detectBookInQuestion (scope detection)', () => {
 
   it('longest match still wins for a multi-word book name', () => {
     expect(detectBookInQuestion('what does Song of Solomon say about love')).toBe('SNG')
+  })
+})
+
+// Regression tests for the reported bug: "verse about people not hearing the fame of god" found
+// nothing, then "its in the old testament" still returned non-OT verses — detectTestamentInQuestion
+// gives the keyword/semantic pipeline a real book-id scope for these phrases, where previously
+// "testament" had no meaning anywhere in this file at all.
+describe('detectTestamentInQuestion', () => {
+  let detectTestamentInQuestion: typeof import('../aiLookup').detectTestamentInQuestion
+
+  beforeAll(async () => {
+    ;({ detectTestamentInQuestion } = await import('../aiLookup'))
+  })
+
+  it('scopes "old testament" to OT book ids only', () => {
+    const ids = detectTestamentInQuestion('its in the old testament')
+    expect(ids).toEqual(expect.arrayContaining(['GEN', 'JOB', 'DAN', 'AMO', 'ISA', 'ZEC', 'SNG']))
+    expect(ids).not.toContain('MAT')
+    expect(ids).not.toContain('ROM')
+    expect(ids).not.toContain('WIS') // Apocrypha is neither OT nor NT here
+  })
+
+  it('scopes "new testament" to NT book ids only', () => {
+    const ids = detectTestamentInQuestion('try the new testament')
+    expect(ids).toEqual(expect.arrayContaining(['MAT', 'ROM']))
+    expect(ids).not.toContain('GEN')
+  })
+
+  it('recognizes named book groups (Gospels, Paul\'s epistles, the Prophets)', () => {
+    expect(detectTestamentInQuestion('one of the gospels')).toEqual(['MAT', 'MRK', 'LUK', 'JHN'])
+    expect(detectTestamentInQuestion("paul's epistles")).toContain('ROM')
+    expect(detectTestamentInQuestion('the prophets')).toContain('ISA')
+  })
+
+  it('returns null when no testament/group phrase is present', () => {
+    expect(detectTestamentInQuestion('what does John 3:16 say')).toBeNull()
   })
 })

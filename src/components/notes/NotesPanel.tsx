@@ -56,6 +56,17 @@ function headerDisplayTitle(note: Note): string {
   return note.title || 'Untitled'
 }
 
+// A brand-new note previously showed just a blank editor with zero hint text — only idiom notes
+// (below, still handled separately since its body is explicitly optional scratch space) got a
+// real placeholder. Kept short and genuinely useful (a concrete first move, not just "start
+// typing") rather than a generic filler line.
+function noteEditorPlaceholder(note: Note): string | undefined {
+  if (note.type === 'idiom') return undefined // handled by its own dedicated placeholder below
+  if (isDailyNote(note)) return "What happened today? Type a verse reference (e.g. Gen 1:1) to pull it in, or just write…"
+  if (note.verseRef) return 'Your thoughts on this verse…'
+  return "Start writing — type / for blocks, [[ to link another note, or a verse reference (e.g. Rom 8:28) to pull it in…"
+}
+
 export default function NotesPanel({ floating = false }: { floating?: boolean }) {
   const pendingNoteId = useAppStore((s) => s.pendingNoteId)
   const clearPendingNote = useAppStore((s) => s.clearPendingNote)
@@ -1156,6 +1167,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     bumpNoteToken() // so the sidebar/board/other windows pick up the new status
   }
 
+  // Pin/unpin — same optimistic-update-then-persist shape as handleSetStatus above.
+  async function handleTogglePinned(note: Note) {
+    const pinned = !note.pinned
+    setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, pinned } : n)))
+    if (activeNote?.id === note.id) setActiveNote({ ...activeNote, pinned })
+    await window.notes.setNotePinned(note.id, pinned).catch(() => {})
+    bumpNoteToken()
+  }
+
   // Set/clear the active note's page icon (editor header — see the input rendered next to the
   // title below). Saved immediately (not debounced) — icon changes are infrequent, discrete
   // "pick one emoji" actions, not continuous typing, so there's no autosave-style burst to
@@ -1664,7 +1684,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               // gets a real visible placeholder explaining that (rather than sitting
               // blank with no explanation) and loses the persistent formatting toolbar,
               // which was adding a wall of buttons over an area with no stated purpose.
-              placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : undefined}
+              placeholder={activeNote.type === 'idiom' ? 'Additional notes (optional) — anything else about this idiom that doesn\'t fit above…' : noteEditorPlaceholder(activeNote)}
               hideFormattingToolbar={activeNote.type === 'idiom'}
               importSource={
                 activeNote.tags?.includes('biblegateway') ? 'biblegateway'
@@ -1934,6 +1954,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   onOpenInSession={openNoteInSession}
                   onExportPdf={(note) => setPrintNote(note)}
                   onSetStatus={handleSetStatus}
+                  onTogglePinned={handleTogglePinned}
                   sessions={sessions}
                 />
               )}

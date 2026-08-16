@@ -110,6 +110,22 @@ describe('extractRefsFromNote — verse ranges', () => {
     expect(isa!.verse).toBe(4);  expect(isa!.endVerse).toBe(6)
   })
 
+  it('a cross-chapter range ("Isaiah 63:17-64:3") is not silently mis-linked as a bogus same-chapter range', () => {
+    // Regression: the old truncating regex captured only "63:17-64", and the old parseRef
+    // (no cross-chapter grammar) accepted that as a same-chapter range up to verse 64 —
+    // which doesn't exist in Isaiah 63 — so it silently "matched" verses 17 through 64.
+    // Now it must NOT do that: endVerse (3) < verse (17) degrades safely to matching only
+    // the exact start verse (see noteRefs.ts's own comment on why endChapter isn't tracked
+    // here), never a bogus wide same-chapter range.
+    const refs = extractRefsFromNote('See Isaiah 63:17-64:3 for the prayer', 'Note')
+    const isa = refs.find(r => r.bookId === 'ISA')
+    expect(isa).toBeTruthy()
+    expect(isa!.chapter).toBe(63)
+    expect(isa!.verse).toBe(17)
+    expect(refMatchesVerse(isa!, 'ISA', 63, 50)).toBe(false) // must NOT match a bogus wide range
+    expect(refMatchesVerse(isa!, 'ISA', 63, 17)).toBe(true)  // exact start verse still matches
+  })
+
   it('extracts range followed by comma: "John 3:16-17,"', () => {
     const refs = extractRefsFromNote('John 3:16-17, and also Heb 11:1', 'Note')
     const jhn = refs.find(r => r.bookId === 'JHN')

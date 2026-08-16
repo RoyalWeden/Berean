@@ -186,4 +186,24 @@ function underlineRule(state: StateInline, silent: boolean): boolean {
 
 md.inline.ruler.before('emphasis', 'underline', underlineRule)
 
+// ─── Widen the data: image whitelist to include SVG ────────────────────────
+// markdown-it's built-in `validateLink` (used for both links and image `src`)
+// rejects `javascript:`/`vbscript:`/`file:`/`data:` outright, then re-allows
+// `data:` only for a short image-MIME whitelist — gif/png/jpeg/webp. It does
+// NOT include `image/svg+xml`, so any SVG pasted/dropped/inserted through
+// this app's own image-insert path (imageInsert.ts, pastePlugin.ts — both
+// accept any `image/*`) gets its src silently reset to `""` the very next
+// time the note is re-parsed (reopening it, switching tabs, vault export/
+// reimport round trip) — the image just vanishes with no error. This
+// re-implements the same shape (still rejecting the dangerous protocols
+// exactly as strictly as the default), only widening the data-URL image
+// whitelist to also accept `image/svg+xml` and the `image/jpg` alias some
+// tools/OSes emit instead of the canonical `image/jpeg`.
+const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/
+const GOOD_DATA_RE = /^data:image\/(gif|png|jpe?g|webp|svg\+xml);/
+md.validateLink = (url: string): boolean => {
+  const str = url.trim().toLowerCase()
+  return BAD_PROTO_RE.test(str) ? GOOD_DATA_RE.test(str) : true
+}
+
 export { TASK_RE }

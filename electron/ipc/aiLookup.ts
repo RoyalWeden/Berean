@@ -427,6 +427,80 @@ export function detectBookInQuestion(question: string): string | null {
   return best?.id ?? null
 }
 
+// Curated, canon-stable book-id groups for named scope phrases the extraction/keyword pipeline
+// otherwise has no concept of at all (see detectTestamentInQuestion below) — ids match this DB's
+// own `books.id` values exactly (confirmed against kjva.db), so no name resolution is needed.
+const GOSPEL_BOOK_IDS = ['MAT', 'MRK', 'LUK', 'JHN']
+const PAULINE_BOOK_IDS = ['ROM', '1CO', '2CO', 'GAL', 'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT', 'PHM']
+const PROPHETS_BOOK_IDS = ['ISA', 'JER', 'LAM', 'EZK', 'DAN', 'HOS', 'JOL', 'AMO', 'OBA', 'JON', 'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL']
+
+// Per-text OT/NT book-id sets, read from the SAME `books.testament` column the Advanced Scripture
+// Search UI already filters by (ScriptureSearchView.tsx) — built once per textId, same caching
+// reasoning as getBookMaps/getBookDetectPatterns above.
+const _testamentBookIds = new Map<string, { OT: string[]; NT: string[] }>()
+function getTestamentBookIds(textId: string): { OT: string[]; NT: string[] } {
+  let ids = _testamentBookIds.get(textId)
+  if (ids) return ids
+  ids = { OT: [], NT: [] }
+  try {
+    const db = getTextDb(textId)
+    if (db) {
+      const rows = db.prepare("SELECT id, testament FROM books WHERE testament IN ('OT', 'NT')").all() as Array<{ id: string; testament: string }>
+      // Filtered again here, not just in the SQL WHERE clause — defensive against any row this
+      // query wasn't meant to return (e.g. a testament value that's neither 'OT' nor 'NT').
+      for (const r of rows) {
+        if (r.testament === 'OT') ids.OT.push(r.id)
+        else if (r.testament === 'NT') ids.NT.push(r.id)
+      }
+    }
+  } catch { /* leave empty — a testament phrase just won't scope anything for this text */ }
+  _testamentBookIds.set(textId, ids)
+  return ids
+}
+
+/** Scans free text for a named testament or well-known canonical book GROUP (Gospels, Paul's
+ *  epistles, the Prophets) — the same "constrain keyword/semantic search to a book-id list" idea
+ *  detectBookInQuestion already provides for a single named book, extended to these coarser but
+ *  extremely common ways of naming a scope ("its in the old testament", "one of the gospels").
+ *  Returns null when nothing matches; runLookup only applies this when no single book was already
+ *  detected (a specific book is strictly more precise than a whole testament/group). */
+export function detectTestamentInQuestion(question: string): string[] | null {
+  const scoped = stripQuotedSpans(question)
+  if (/\bold\s+testament\b/i.test(scoped)) return getTestamentBookIds(DEFAULT_TEXT_ID).OT
+  if (/\bnew\s+testament\b/i.test(scoped)) return getTestamentBookIds(DEFAULT_TEXT_ID).NT
+  if (/\bgospels?\b/i.test(scoped)) return GOSPEL_BOOK_IDS
+  if (/\b(pauline\s+epistles?|paul'?s\s+(epistles?|letters?)|epistles?\s+of\s+paul)\b/i.test(scoped)) return PAULINE_BOOK_IDS
+  if (/\b(the\s+)?prophets\b|\bprophetic\s+books\b/i.test(scoped)) return PROPHETS_BOOK_IDS
+  return null
+}
+
+// Words stripped out (alongside the matched scope phrase itself) when measuring how much
+// standalone content a scope-refinement follow-up has — see buildEffectiveQuestion below.
+const SCOPE_REFINEMENT_FILLER_RE = /\b(its|it'?s|in|the|try|look|check|search|only|just|maybe|from)\b/gi
+
+/** A short follow-up that's JUST a testament/book-group refinement ("its in the old testament",
+ *  "try the gospels") carries the SCOPE for this turn but no topic of its own — the real subject
+ *  is still whatever the previous turn asked about. Neither the keyword extraction (told to
+ *  answer "the CURRENT question... not [the history]") nor the semantic embedding (which embeds
+ *  the raw question text) recovers that on their own, so a bare refinement like this previously
+ *  re-ran the WHOLE pipeline against next to nothing, silently dropping the actual topic. Folds
+ *  the previous user turn back in whenever the current question, with the matched scope phrase
+ *  and ordinary filler words removed, has fewer than 3 words of its own content left. Only called
+ *  when a testament/book-group phrase was actually detected this turn — an ordinary follow-up
+ *  with no such phrase is left to the existing history-aware extraction prompt as before. */
+function buildEffectiveQuestion(question: string, history: ChatHistoryTurn[]): string {
+  const stripped = question
+    .replace(/\b(old|new)\s+testament\b/i, '')
+    .replace(/\bgospels?\b/i, '')
+    .replace(/\b(pauline\s+epistles?|paul'?s\s+(epistles?|letters?)|epistles?\s+of\s+paul)\b/i, '')
+    .replace(/\b(the\s+)?prophets\b|\bprophetic\s+books\b/i, '')
+    .replace(SCOPE_REFINEMENT_FILLER_RE, '')
+    .trim()
+  if (stripped.split(/\s+/).filter(Boolean).length >= 3) return question // has its own real content
+  const lastUserTurn = [...history].reverse().find((t) => t.role === 'user')
+  return lastUserTurn ? `${lastUserTurn.content} — ${question}` : question
+}
+
 const SPELLED_OUT_NUMBERS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   a: 1, // "give me a place where..." — informal singular
@@ -2449,6 +2523,18 @@ export async function runLookup(
   // narrowing the deliberately-named non-canonical search down further by accident.
   const questionBookId = !focusTextId ? detectBookInQuestion(question) : null
 
+  // A named testament/book-group ("old testament", "the gospels", "Paul's epistles", "the
+  // prophets") scopes canonical keyword/semantic search the same way a single named book does —
+  // only checked when no single (more precise) book was already found, and only for canonical
+  // text (mirrors questionBookId's own reasoning: every non-canonical text is already single-book).
+  const questionTestamentBookIds = !focusTextId && !questionBookId ? detectTestamentInQuestion(question) : null
+
+  // See buildEffectiveQuestion's own comment — recovers the real topic for a bare scope-only
+  // follow-up ("its in the old testament") from the previous turn, used only for extraction/
+  // semantic search below; `question` itself is left untouched everywhere else (labeling, other
+  // detections, etc.).
+  const effectiveQuestion = questionTestamentBookIds ? buildEffectiveQuestion(question, history) : question
+
   // Round 12: the canonical counterpart to the focus-text chapter pin below — see
   // detectExplicitCanonicalChapter's own comment for the bug this fixes. Computed once, up here,
   // so both the notes search (immediately below) and the main verse pipeline further down reuse
@@ -2563,7 +2649,7 @@ export async function runLookup(
 
   let extraction: AiExtraction
   try {
-    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(question, focusWorkName, history, tabContextBlock), model)
+    extraction = await runOllamaJson<AiExtraction>(extractionPrompt(effectiveQuestion, focusWorkName, history, tabContextBlock), model)
   } catch {
     return empty('ollama-request-failed')
   }
@@ -2839,8 +2925,11 @@ export async function runLookup(
       const kwsForText = CANONICAL_TEXT_IDS.has(textId) && focusTextId ? kws : filterGenericKeywords(kws, true)
       // Round 11: a book named in the question scopes canonical search to it — reuses the same
       // book-list scoping searchVerses already supports for the regular scripture-search UI
-      // (electron/ipc/bible.ts), just never threaded through from here before.
-      const bookScope = CANONICAL_TEXT_IDS.has(textId) && questionBookId ? [questionBookId] : undefined
+      // (electron/ipc/bible.ts), just never threaded through from here before. A named testament/
+      // book-group (questionTestamentBookIds) gets the same treatment when no single book won.
+      const bookScope = CANONICAL_TEXT_IDS.has(textId)
+        ? (questionBookId ? [questionBookId] : questionTestamentBookIds ?? undefined)
+        : undefined
       // Round 12: a chapter named alongside that book (see pinnedCanonicalChapter) narrows the
       // FTS keyword search itself down to just that chapter — not just the pinned candidate added
       // separately above — so keyword-sourced results for the SAME question also stay confined to
@@ -2934,7 +3023,10 @@ export async function runLookup(
   // feature already degrades to a no-op by construction whenever the index isn't built or
   // Ollama's embedding endpoint is unavailable (see gatherSemanticCandidates).
   {
-    const semanticRefs = await gatherSemanticCandidates(question, keywordCandidates.map(dedupeKey), seen, { restrictToTextId: focusTextId ?? undefined })
+    const semanticRefs = await gatherSemanticCandidates(effectiveQuestion, keywordCandidates.map(dedupeKey), seen, {
+      restrictToTextId: focusTextId ?? undefined,
+      restrictToBookIds: questionBookId ? [questionBookId] : questionTestamentBookIds ?? undefined,
+    })
     for (const ref of semanticRefs) {
       const key = dedupeKey({ textId: ref.textId, bookId: ref.bookId, chapter: ref.chapter, verse: ref.verseNum })
       if (seen.has(key)) continue
