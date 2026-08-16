@@ -106,14 +106,21 @@ function loadIndex(): LoadedIndex | null {
  *  `restrictToTextId` is set, only that one text's rows — used when a focus text is already known,
  *  e.g. a question that named "Jubilees" by name, to both cut scan time and avoid a semantically-
  *  similar-but-wrong-text false positive). Returns null (not an empty array) when the index isn't
- *  built yet, so callers can distinguish "ran and found nothing" from "unavailable." */
-export function semanticSearch(queryVec: Float32Array, topK: number, restrictToTextId?: string): SemanticHit[] | null {
+ *  built yet, so callers can distinguish "ran and found nothing" from "unavailable."
+ *
+ *  `restrictToBookIds`, when set, additionally drops any row whose `bookId` isn't in the set — the
+ *  same book-list scoping aiLookup.ts's keyword search already supports for a named book/testament
+ *  (e.g. "old testament"), now available on the semantic side too since `bookId` is already stored
+ *  per row here. */
+export function semanticSearch(queryVec: Float32Array, topK: number, restrictToTextId?: string, restrictToBookIds?: string[]): SemanticHit[] | null {
   const index = loadIndex()
   if (!index) return null
   const { textId, bookId, chapter, verseNum, vectors } = index
+  const bookFilter = restrictToBookIds && restrictToBookIds.length > 0 ? new Set(restrictToBookIds) : null
   const scored: SemanticHit[] = []
   for (let i = 0; i < vectors.length; i++) {
     if (restrictToTextId && textId[i] !== restrictToTextId) continue
+    if (bookFilter && !bookFilter.has(bookId[i])) continue
     scored.push({ textId: textId[i], bookId: bookId[i], chapter: chapter[i], verseNum: verseNum[i], score: cosineSimilarity(queryVec, vectors[i]) })
   }
   scored.sort((a, b) => b.score - a.score)

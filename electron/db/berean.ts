@@ -643,6 +643,18 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v24: note_heading_collapse table')
     }
+  },
+  {
+    // Note pinning/favorites (NotesList.tsx) — pinned notes sort to the top of the list. A
+    // plain integer flag, same "0/1 as boolean" convention every other boolean-ish column in
+    // this table already uses (idiom_auto_variants, etc.) rather than a separate table, since
+    // it's a single per-note bit with no metadata of its own (no pinned-at timestamp needed —
+    // relative pin ORDER isn't a stated requirement, just "pinned notes float to the top").
+    version: 25,
+    up(db) {
+      try { db.exec(`ALTER TABLE notes ADD COLUMN pinned INTEGER DEFAULT 0`) } catch {}
+      console.log('[berean-db] v25: pinned column on notes')
+    }
   }
 ]
 

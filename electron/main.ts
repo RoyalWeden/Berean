@@ -823,7 +823,12 @@ app.whenReady().then(async () => {
     win.setPosition(x + dx, y + dy)
   })
   ipcMain.handle('app:openFloatingTab', (_e, type: string, state: Record<string, unknown>) => {
-    createFloatingWindow(type, state ?? {})
+    try {
+      createFloatingWindow(type, state ?? {})
+    } catch (err) {
+      console.error('[main] app:openFloatingTab failed', err)
+      throw err
+    }
   })
   ipcMain.handle('app:openViewerWindow', () => {
     if (viewerWindow && !viewerWindow.isDestroyed()) {
@@ -892,8 +897,72 @@ app.whenReady().then(async () => {
     }
   })
 
+  // Render a note's print HTML to a real PDF buffer in an offscreen window — shared by
+  // app:exportNotePDF (writes it to disk) and app:renderPreviewPDF (hands the bytes straight
+  // to the renderer for a pdf.js preview). Extracted so both use the EXACT same generation
+  // path — the whole point of the preview change this supports is that what's shown on
+  // screen is the literal same PDF bytes that would be saved, not an approximation of it.
+  //
+  // Used by the real Export-PDF/Print buttons: a fresh window + temp file every call (large
+  // notes can exceed data: URL comfort, and correctness of the actually-SAVED file matters
+  // more than shaving latency here), plus a flat 300ms settle delay as a simple, conservative
+  // safety margin for web-font/layout completion before printToPDF snapshots the page.
+  async function renderHtmlToPdfBuffer(html: string, pageSize?: string): Promise<Buffer> {
+    const { writeFile, unlink, mkdtemp } = await import('fs/promises')
+    const { tmpdir } = await import('os')
+    const tmpDir = await mkdtemp(join(tmpdir(), 'berean-pdf-'))
+    const tmpFile = join(tmpDir, 'note.html')
+    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
+    try {
+      await writeFile(tmpFile, html, 'utf8')
+      await win.loadURL(`file://${tmpFile}`)
+      await new Promise<void>((resolve) => setTimeout(resolve, 300))
+      // marginType 'none' — body padding (set per the chosen margin preset) is the sole margin.
+      return await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'none' }, pageSize: (pageSize as any) || 'Letter' })
+    } finally {
+      if (!win.isDestroyed()) win.close()
+      try { await unlink(tmpFile) } catch { /* ignore */ }
+    }
+  }
+
+  // Fast path used ONLY by the on-screen preview (app:renderPreviewPDF below), which
+  // regenerates on nearly every settings tweak while the Print Preview modal is open —
+  // repeated ~1s round trips there read as visible lag ("shows a block for a second").
+  // Two changes from renderHtmlToPdfBuffer, both preview-only (the real Export-PDF/Print
+  // path above is untouched, so output-file correctness never trades away for this):
+  //   1. ONE hidden BrowserWindow is created lazily and reused for every subsequent preview
+  //      generation, instead of a fresh `new BrowserWindow()` + temp-file write/unlink each
+  //      time — window construction and disk I/O were a real, avoidable chunk of the delay.
+  //   2. A `data:` URL instead of a temp file (skips the mkdtemp/writeFile/unlink round trip
+  //      entirely), and `document.fonts.ready` (actual readiness) instead of a blind 300ms
+  //      guess — usually resolves in a few ms once fonts are cached, only falling back to a
+  //      short timeout if something is unexpectedly slow to load.
+  let previewWin: BrowserWindow | null = null
+  function getPreviewWindow(): BrowserWindow {
+    if (previewWin && !previewWin.isDestroyed()) return previewWin
+    previewWin = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
+    previewWin.on('closed', () => { previewWin = null })
+    return previewWin
+  }
+  async function renderPreviewPdfFast(html: string, pageSize?: string): Promise<Buffer> {
+    const win = getPreviewWindow()
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    try {
+      await Promise.race([
+        win.webContents.executeJavaScript('document.fonts.ready.then(() => true)'),
+        new Promise((resolve) => setTimeout(resolve, 400)),
+      ])
+    } catch { /* executeJavaScript failing is not fatal — just skip the wait */ }
+    return win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'none' }, pageSize: (pageSize as any) || 'Letter' })
+  }
+
   // Print a note: load its HTML into an offscreen window and invoke the print dialog.
-  ipcMain.handle('app:printNote', async (_e, html: string) => {
+  // `pageSize` is one of Electron's own accepted strings ('Letter'|'A4'|'Legal'|...) — see
+  // PAPER_SIZE_ELECTRON in src/lib/notePreviewRender.ts. Passed alongside the HTML's own
+  // @page CSS `size` (set to the same paper size) as belt-and-suspenders: the CSS covers
+  // preview-accuracy and any consumer that doesn't go through this handler, this covers the
+  // case where Chromium's print pipeline doesn't infer page size from @page CSS on its own.
+  ipcMain.handle('app:printNote', async (_e, html: string, pageSize?: string) => {
     const { writeFile, unlink, mkdtemp } = await import('fs/promises')
     const { tmpdir } = await import('os')
     // Write to a temp file so large notes work without data-URL size limits
@@ -908,7 +977,7 @@ app.whenReady().then(async () => {
       await new Promise<void>((resolve) => {
         // marginType 'none' — the note's body padding is the single source of margin truth
         // (matches the on-screen preview). The user can still override in the print dialog.
-        win.webContents.print({ silent: false, printBackground: true, margins: { marginType: 'none' } }, () => resolve())
+        win.webContents.print({ silent: false, printBackground: true, margins: { marginType: 'none' }, pageSize: (pageSize as any) || 'Letter' }, () => resolve())
       })
       return { success: true }
     } finally {
@@ -921,37 +990,40 @@ app.whenReady().then(async () => {
   })
 
   // Export a note to PDF: render HTML offscreen, printToPDF, save via dialog.
-  ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string, downloadLocation?: string) => {
-    const { writeFile, unlink, mkdtemp, access } = await import('fs/promises')
-    const { tmpdir } = await import('os')
-    const tmpDir = await mkdtemp(join(tmpdir(), 'berean-pdf-'))
-    const tmpFile = join(tmpDir, 'note.html')
-    const win = new BrowserWindow({ show: false, webPreferences: { sandbox: false } })
-    try {
-      await writeFile(tmpFile, html, 'utf8')
-      await win.loadURL(`file://${tmpFile}`)
-      await new Promise<void>((resolve) => setTimeout(resolve, 300))
-      // marginType 'none' — body padding (set per the chosen margin preset) is the sole margin,
-      // so the exported PDF matches the on-screen preview exactly.
-      const pdf = await win.webContents.printToPDF({ printBackground: true, margins: { marginType: 'none' } })
-      const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-      const safeName = `${(suggestedName || 'note').replace(/[/\\:*?"<>|]/g, '-')}.pdf`
-      // Use the configured download location as the default directory if set and exists
-      let defaultDir = ''
-      if (downloadLocation) {
-        try { await access(downloadLocation); defaultDir = downloadLocation } catch { /* ignore — dir may not exist */ }
-      }
-      const result = await dialog.showSaveDialog(parent!, {
-        defaultPath: defaultDir ? join(defaultDir, safeName) : safeName,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      })
-      if (result.canceled || !result.filePath) return { success: false, canceled: true }
-      await writeFile(result.filePath, pdf)
-      return { success: true }
-    } finally {
-      if (!win.isDestroyed()) win.close()
-      try { await unlink(tmpFile) } catch { /* ignore */ }
+  // `pageSize` — see app:printNote's matching comment just above.
+  ipcMain.handle('app:exportNotePDF', async (_e, html: string, suggestedName: string, downloadLocation?: string, pageSize?: string) => {
+    const { writeFile, access } = await import('fs/promises')
+    const pdf = await renderHtmlToPdfBuffer(html, pageSize)
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+    const safeName = `${(suggestedName || 'note').replace(/[/\\:*?"<>|]/g, '-')}.pdf`
+    // Use the configured download location as the default directory if set and exists
+    let defaultDir = ''
+    if (downloadLocation) {
+      try { await access(downloadLocation); defaultDir = downloadLocation } catch { /* ignore — dir may not exist */ }
     }
+    const result = await dialog.showSaveDialog(parent!, {
+      defaultPath: defaultDir ? join(defaultDir, safeName) : safeName,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (result.canceled || !result.filePath) return { success: false, canceled: true }
+    await writeFile(result.filePath, pdf)
+    return { success: true }
+  })
+
+  // Render a note's print HTML to real PDF bytes for the on-screen preview (PrintPreviewModal
+  // renders these via pdf.js — src/lib/pdfjs.ts, same convention as pdf:readBytes below).
+  //
+  // Regression this replaces: the preview used to be a client-side approximation — one
+  // continuous scaled iframe, sliced into fixed-height "page" windows purely by dividing
+  // pixel height, with no real per-page margin reservation and no awareness of
+  // `page-break-inside: avoid`. That's why margins looked wrong on interior pages and why
+  // content could get visually chopped mid-element at a fake break point that didn't match
+  // where the real PDF actually breaks. Generating and previewing the REAL PDF bytes makes
+  // this a non-issue by construction — the preview IS the exact document that gets saved.
+  ipcMain.handle('app:renderPreviewPDF', async (_e, html: string, pageSize?: string) => {
+    const pdf = await renderPreviewPdfFast(html, pageSize)
+    // Same transferable-ArrayBuffer convention as pdf:readBytes (electron/ipc/pdf.ts).
+    return pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength)
   })
 
   // Cross-window tab sync: one window broadcasts a store state snapshot,

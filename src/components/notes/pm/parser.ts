@@ -55,11 +55,23 @@ const tokens: ConstructorParameters<typeof MarkdownParser>[2] = {
   hr: { node: 'horizontal_rule' },
   image: {
     node: 'image',
-    getAttrs: (tok: Token) => ({
-      src: tok.attrGet('src'),
-      title: tok.attrGet('title') || null,
-      alt: (tok.children?.[0] && tok.children[0].content) || null,
-    }),
+    getAttrs: (tok: Token) => {
+      const rawAlt = (tok.children?.[0] && tok.children[0].content) || ''
+      // A resized image's width round-trips as a `|wNNN` suffix on the alt text (see
+      // serializer.ts's `image` entry for the write side) — kept inside plain `![alt](src)`
+      // CommonMark rather than switching to an HTML `<img width>` tag so the whole image
+      // round-trip stays on the same simple token path every other image already uses,
+      // with no new markdown-it/HTML-token handling needed. A note opened in Obsidian/
+      // Octarine still displays the image fine; the suffix just shows up as part of its alt
+      // text there, a cosmetic-only cross-app tradeoff.
+      const m = /^(.*)\|w(\d+)$/.exec(rawAlt)
+      return {
+        src: tok.attrGet('src'),
+        title: tok.attrGet('title') || null,
+        alt: m ? m[1] || null : rawAlt || null,
+        width: m ? Number(m[2]) : null,
+      }
+    },
   },
   hardbreak: { node: 'hard_break' },
   // markdown-it's `breaks: true` option (see markdownIt.ts) only changes how

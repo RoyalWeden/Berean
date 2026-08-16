@@ -76,7 +76,7 @@ git worktree add ../Berean-feature-name -b feature/feature-name
 | Build tool | Vite | Fast HMR in dev |
 | Styling | Tailwind CSS | Arc-inspired dark/light theme |
 | Panel layout | react-mosaic | Resizable, draggable panels |
-| Notes editor | CodeMirror 6 | Markdown with toggle rendering |
+| Notes editor | ProseMirror | Markdown with toggle rendering |
 | Database | better-sqlite3 | Bible texts, notes index, highlights, settings |
 | Packaging | electron-builder | `.dmg` for Mac, `.exe` for Windows later |
 | Icons | Lucide React | Consistent icon set |
@@ -117,7 +117,7 @@ git worktree add ../Berean-feature-name -b feature/feature-name
 │   │   │   └── CompareView.tsx  ← Multi-version compare layout
 │   │   ├── notes/
 │   │   │   ├── NotesPanel.tsx   ← Notes panel wrapper
-│   │   │   ├── NoteEditor.tsx   ← CodeMirror 6 markdown editor
+│   │   │   ├── NoteEditorPM.tsx ← ProseMirror markdown editor
 │   │   │   ├── NotesList.tsx    ← List of general notes
 │   │   │   ├── VerseNotesList.tsx ← All notes for a verse (popover)
 │   │   │   └── NoteTab.tsx      ← Note opened as a full tab
@@ -363,7 +363,7 @@ CREATE TABLE occurrences (
 
 ### Two Note Types — One Editor
 
-All notes use the same CodeMirror 6 markdown editor. The distinction is in metadata and attachment.
+All notes use the same ProseMirror markdown editor. The distinction is in metadata and attachment.
 
 #### Verse Notes
 - Attached to a specific verse reference (book + chapter + verse)
@@ -397,7 +397,7 @@ All notes use the same CodeMirror 6 markdown editor. The distinction is in metad
 
 ### Note Editor Features
 
-- **CodeMirror 6** with markdown syntax highlighting
+- **ProseMirror** with markdown syntax highlighting
 - **Toggle markdown notation** (`Cmd+Shift+M` or toolbar button):
   - **OFF (rendered mode):** `# Heading` shows as a heading, `**bold**` shows as bold — Typora-style
   - **ON (raw mode):** all markdown syntax visible for editing
@@ -405,6 +405,7 @@ All notes use the same CodeMirror 6 markdown editor. The distinction is in metad
 - Verse references auto-link: clicking `Gen 1:1` in a note navigates the active Bible panel to that verse
 - YouTube timestamp insertion button (when a YouTube tab is active): inserts `[Video Title — 12:34](url)`
 - Standard markdown supported: headings, bold, italic, lists, blockquotes, code blocks, tables, horizontal rules
+- Images: paste from clipboard, drag-and-drop a file, or the toolbar/`/image` slash command (native file picker); drag-resizable via a handle on the selected image. Stored inline as base64 while vault sync is off; extracted to real files under `{vault}/attachments/` (Obsidian's own convention) on vault export
 
 ### Opening Notes
 

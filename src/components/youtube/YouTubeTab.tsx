@@ -20,6 +20,21 @@ import { YOUTUBE_LAYOUTS, getLayoutStyle, needsPanelWrapper, panelSide, suggestL
 import { progressWidth } from '@/lib/progressBar'
 import type { YouTubeLayout, YouTubePanelState, YouTubeTabState } from '@/types'
 
+// Thumbnail 404 fallback chain — see thumbFallback's own comment (below, in the component) for
+// why this is needed at all. Ordered by how universally YouTube guarantees each size exists;
+// `default.jpg` (120x90, YouTube's oldest/most basic thumbnail size) is the last resort since
+// it's generated for essentially every video, unlike the higher-resolution sizes.
+const THUMB_FALLBACK_CHAIN = ['mqdefault', 'default']
+
+/** Returns the URL to try at the given fallback `level` (0 = the original URL, unmodified;
+ *  1.. = swap in THUMB_FALLBACK_CHAIN[level - 1]), or null once the chain is exhausted. */
+function thumbnailUrlAtLevel(originalUrl: string, level: number): string | null {
+  if (level === 0) return originalUrl
+  const quality = THUMB_FALLBACK_CHAIN[level - 1]
+  if (!quality) return null
+  return originalUrl.replace(/\/(?:maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg(\?.*)?$/, `/${quality}.jpg$1`)
+}
+
 interface VideoNoteLink {
   noteId: string
   noteTitle: string
@@ -315,7 +330,13 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // playerSrc is locked in once per video open — never updated by poll — prevents auto-resume bug
   const [playerSrc, setPlayerSrc] = useState<string>('')
   const [videoMaximized, setVideoMaximized] = useState(false)
-  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set())
+  // Fallback level reached per video (0/unset = original URL still being tried). Thumbnail
+  // URLs are constructed by GUESSING `hqdefault.jpg` exists (electron/ipc/youtube.ts) — true for
+  // most normal uploads, but not guaranteed for every video (old uploads, some Shorts, unlisted/
+  // live-only videos can lack hqdefault), hence the observed 404s. On error, step down through
+  // progressively-more-universal thumbnail sizes before giving up — YouTube guarantees
+  // `default.jpg` exists for every video with a thumbnail at all.
+  const [thumbFallback, setThumbFallback] = useState<Map<string, number>>(new Map())
   const [showSortMenu, setShowSortMenu] = useState(false)
   const [showChannelMenu, setShowChannelMenu] = useState(false)
   const [showDurationMenu, setShowDurationMenu] = useState(false)
@@ -1821,7 +1842,24 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                         className="text-left group rounded-lg overflow-hidden bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))/50] transition-all cursor-pointer"
                       >
                         <div className="relative w-full aspect-video bg-[rgb(var(--color-surface-4))]">
-                          <img src={rec.thumbnailUrl} alt={rec.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          {(() => {
+                            const level = thumbFallback.get(rec.videoId) ?? 0
+                            const src = thumbnailUrlAtLevel(rec.thumbnailUrl, level)
+                            // No "No preview" placeholder text needed here (unlike the main
+                            // grid) — this card already has a title/channel-name label below the
+                            // image, so an empty tinted box reads fine on its own; previously
+                            // this had NO onError handling at all, so a 404 rendered a literal
+                            // broken-image icon.
+                            if (!src) return null
+                            return (
+                              <img
+                                src={src}
+                                alt={rec.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                onError={() => setThumbFallback((prev) => new Map(prev).set(rec.videoId, level + 1))}
+                              />
+                            )
+                          })()}
                           {rec.channelHandle === activeVideo?.channelHandle && (
                             <div className="absolute top-1 right-1 text-[8px] font-bold px-1 py-0.5 rounded bg-[rgb(var(--color-accent))] text-white">SAME CH</div>
                           )}
@@ -2529,16 +2567,19 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                   >
                     {/* Thumbnail */}
                     <div className="relative w-full aspect-video bg-[rgb(var(--color-surface-4))] overflow-hidden">
-                      {!failedThumbs.has(video.videoId) ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                          onError={() => setFailedThumbs((prev) => new Set([...prev, video.videoId]))}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[rgb(var(--color-text-muted))] text-xs">No preview</div>
-                      )}
+                      {(() => {
+                        const level = thumbFallback.get(video.videoId) ?? 0
+                        const src = thumbnailUrlAtLevel(video.thumbnailUrl, level)
+                        if (!src) return <div className="w-full h-full flex items-center justify-center text-[rgb(var(--color-text-muted))] text-xs">No preview</div>
+                        return (
+                          <img
+                            src={src}
+                            alt={video.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            onError={() => setThumbFallback((prev) => new Map(prev).set(video.videoId, level + 1))}
+                          />
+                        )
+                      })()}
 
                       {/* Duration + downloaded-transcript badge. The chip marks that THIS app
                           has the transcript stored locally (not YouTube's live captions). */}

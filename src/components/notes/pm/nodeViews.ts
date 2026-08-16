@@ -111,6 +111,99 @@ export function codeBlockNodeView(getPos: () => number | undefined) {
   }
 }
 
+// ─── image NodeView ─────────────────────────────────────────────────────────
+// Adds a drag-to-resize handle, shown only while the image itself is the current selection
+// (a lone atomic inline node is trivially selectable as a NodeSelection — clicking it selects
+// the whole node) — matches the "handle appears on selection" convention most editors with
+// resizable images use, rather than an always-visible handle competing for attention on every
+// image all the time. Only WIDTH is tracked (schema.ts's own comment explains why no separate
+// height attr exists) — CSS `height: auto` (pmEditor.css) keeps the aspect ratio as the width
+// changes, so the drag math here only ever needs the horizontal delta.
+export function imageNodeView(getPos: () => number | undefined) {
+  return (node: PMNode, view: EditorView): NodeView => {
+    const wrap = document.createElement('span')
+    wrap.className = 'pm-image-wrap'
+
+    const img = document.createElement('img')
+    function syncImgAttrs(n: PMNode) {
+      img.src = n.attrs.src
+      if (n.attrs.alt) img.alt = n.attrs.alt; else img.removeAttribute('alt')
+      if (n.attrs.title) img.title = n.attrs.title; else img.removeAttribute('title')
+      if (n.attrs.width) img.style.width = `${n.attrs.width}px`; else img.style.width = ''
+    }
+    syncImgAttrs(node)
+
+    const handle = document.createElement('span')
+    handle.className = 'pm-image-resize-handle'
+    handle.contentEditable = 'false'
+    // A ⤡-style diagonal resize-arrows glyph, not a plain colored square — same reveal-on-
+    // hover/selection behavior as before, purely a visual swap of what's rendered inside.
+    // Rotated 90° via CSS (pmEditor.css) — the path itself draws a NE-SW diagonal, but this
+    // handle sits at the wrap's bottom-right corner with an `nwse-resize` cursor (NW-SE), so
+    // the un-rotated glyph pointed the wrong way relative to the actual drag direction.
+    handle.innerHTML = '<svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 10 L10 2 M5.5 2 H10 V6.5 M6.5 10 H2 V5.5"/></svg>'
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const startX = e.clientX
+      const startWidth = img.getBoundingClientRect().width
+      wrap.classList.add('pm-image-resizing')
+      function onMove(ev: MouseEvent) {
+        const newWidth = Math.max(40, Math.round(startWidth + (ev.clientX - startX)))
+        img.style.width = `${newWidth}px`
+      }
+      function onUp() {
+        wrap.classList.remove('pm-image-resizing')
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+        const pos = getPos()
+        if (pos === undefined) return
+        const finalWidth = Math.round(img.getBoundingClientRect().width)
+        view.dispatch(view.state.tr.setNodeAttribute(pos, 'width', finalWidth))
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    })
+
+    // Delete button — top-right corner, same reveal-on-hover/selection convention as the
+    // resize handle. Removes just this image node from the doc; doesn't touch surrounding text.
+    const deleteBtn = document.createElement('span')
+    deleteBtn.className = 'pm-image-delete-btn'
+    deleteBtn.contentEditable = 'false'
+    deleteBtn.title = 'Delete image'
+    // Trash-can glyph (lucide Trash2 shape, simplified) rather than a plain "×" — reads more
+    // clearly as "delete this image" at a glance than a generic close/dismiss cross would.
+    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+    deleteBtn.addEventListener('mousedown', (e) => {
+      // Prevent this turning into a node selection/drag before the click fires.
+      e.preventDefault()
+      e.stopPropagation()
+    })
+    deleteBtn.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const pos = getPos()
+      if (pos === undefined) return
+      view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize))
+    })
+
+    wrap.appendChild(img)
+    wrap.appendChild(handle)
+    wrap.appendChild(deleteBtn)
+
+    return {
+      dom: wrap,
+      selectNode() { wrap.classList.add('pm-image-selected') },
+      deselectNode() { wrap.classList.remove('pm-image-selected') },
+      update(updatedNode) {
+        if (updatedNode.type.name !== 'image') return false
+        syncImgAttrs(updatedNode)
+        return true
+      },
+    }
+  }
+}
+
 // ─── Callout NodeView ───────────────────────────────────────────────────────
 // Obsidian-style callout: colored left border + tinted background + an
 // icon/label header row that toggles collapse — replacing the earlier,

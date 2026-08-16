@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
+import type { ReactNode } from 'react'
 import TabBar from '../TabBar'
 import { useAppStore } from '@/store'
 import type { Tab } from '@/types'
@@ -129,7 +130,9 @@ describe('TabBar context menu — reported broken actions', () => {
   })
 
   it('Open in floating tab calls window.app.openFloatingTab and closes the docked tab', () => {
-    const openFloatingTab = vi.fn()
+    // Resolves a real Promise — matches the real preload contract (ipcRenderer.invoke always
+    // returns one), which TabBar.tsx's handler now .catch()es for diagnostic logging.
+    const openFloatingTab = vi.fn().mockResolvedValue(undefined)
     const bumpFloatingTabToken = vi.spyOn(useAppStore.getState(), 'bumpFloatingTabToken')
     window.app = { ...window.app, openFloatingTab }
     let closed: Tab | null = null
@@ -154,5 +157,126 @@ describe('TabBar context menu — reported broken actions', () => {
     expect(bumpFloatingTabToken).toHaveBeenCalledTimes(1)
     expect(closed).not.toBeNull()
     expect((closed as unknown as Tab).id).toBe('note-1')
+  })
+})
+
+// ─── ROOT CAUSE, finally found: this is the test the original suite (above) structurally
+// COULDN'T catch, per its own header comment — it renders TabBar in isolation, but the real
+// bug only reproduces when TabBar is nested inside Sidebar.tsx's <aside>, which has its own
+// `onClickCapture` that broadcasts 'berean:closeMenus' on ANY click within it (to close
+// unrelated overlays like Ribbon's archive list / zoom popover / session menu when the user
+// clicks elsewhere in the sidebar). Since TabBar's own context menu is portaled to
+// document.body, React bubbles its synthetic events through the REACT tree (Sidebar → TabBar
+// → portal), not the physical DOM tree — so a click on "Duplicate tab" etc. ALSO reached that
+// ancestor capture handler, firing 'berean:closeMenus' (which usePositionedMenu.ts listens
+// for and closes the menu on) BEFORE the click's own bubble phase reached the button's onClick
+// — unmounting the button out from under its own click. Confirmed via real console tracing in
+// the app (a stack trace at the dispatch call site pointed straight at Sidebar.tsx's handler).
+// The fix is a one-line guard: skip the broadcast when the click originated inside any
+// currently-open context menu (the shared `.context-menu` class every menu in the app uses).
+describe('TabBar context menu — nested inside a Sidebar-like ancestor (the actual bug)', () => {
+  // Mirrors Sidebar.tsx's own onClickCapture handler exactly (guard included) — not a
+  // simplified stand-in, so this test would have failed against the pre-fix version and
+  // guards against the guard itself ever being silently removed/narrowed later.
+  function SidebarLikeWrapper({ children }: { children: ReactNode }) {
+    return (
+      <div
+        data-testid="sidebar-like"
+        onClickCapture={(e) => {
+          if ((e.target as HTMLElement).closest('.context-menu')) return
+          window.dispatchEvent(new Event('berean:closeMenus'))
+        }}
+      >
+        {children}
+      </div>
+    )
+  }
+
+  function renderTabBarInsideSidebarLike() {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const tabs = useAppStore.getState().tabs.notes
+    act(() => {
+      root!.render(
+        <SidebarLikeWrapper>
+          <TabBar
+            tabs={tabs}
+            activeTabId="note-1"
+            onTabClick={() => {}}
+            onTabClose={() => {}}
+            onReorder={() => {}}
+          />
+        </SidebarLikeWrapper>,
+      )
+    })
+  }
+
+  it('Duplicate tab still works when TabBar is nested inside the Sidebar-like ancestor', () => {
+    renderTabBarInsideSidebarLike()
+    rightClickFirstTab()
+    const before = useAppStore.getState().tabs.notes.length
+    clickMenuItem('Duplicate tab')
+    expect(useAppStore.getState().tabs.notes.length).toBe(before + 1)
+  })
+
+  it('does NOT broadcast berean:closeMenus for a click on a context-menu item', () => {
+    const spy = vi.fn()
+    window.addEventListener('berean:closeMenus', spy)
+    try {
+      renderTabBarInsideSidebarLike()
+      rightClickFirstTab()
+      spy.mockClear() // ignore whatever fired during the right-click/open itself
+      clickMenuItem('Duplicate tab')
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('berean:closeMenus', spy)
+    }
+  })
+
+  it('a plain click elsewhere in the ancestor (NOT inside a context menu) still broadcasts berean:closeMenus — the guard is scoped, not a blanket disable', () => {
+    const spy = vi.fn()
+    window.addEventListener('berean:closeMenus', spy)
+    try {
+      renderTabBarInsideSidebarLike()
+      const wrapperEl = container!.querySelector('[data-testid="sidebar-like"]')!
+      act(() => {
+        wrapperEl.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      expect(spy).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('berean:closeMenus', spy)
+    }
+  })
+
+  it('Archive tab and Open in floating tab both still work nested inside the ancestor', () => {
+    const openFloatingTab = vi.fn().mockResolvedValue(undefined)
+    window.app = { ...window.app, openFloatingTab }
+
+    renderTabBarInsideSidebarLike()
+    rightClickFirstTab()
+    clickMenuItem('Archive tab')
+    expect(useAppStore.getState().tabs.notes.find((t) => t.id === 'note-1')).toBeUndefined()
+    expect(useAppStore.getState().archivedGroups.length).toBe(1)
+
+    // Re-seed a fresh tab for the remaining two actions
+    useAppStore.setState({
+      tabs: { ...useAppStore.getState().tabs, notes: [makeTab('note-2')] },
+      activeTabId: { ...useAppStore.getState().activeTabId, notes: 'note-2' },
+    })
+    act(() => { root!.render(
+      <SidebarLikeWrapper>
+        <TabBar
+          tabs={useAppStore.getState().tabs.notes}
+          activeTabId="note-2"
+          onTabClick={() => {}}
+          onTabClose={() => {}}
+          onReorder={() => {}}
+        />
+      </SidebarLikeWrapper>,
+    ) })
+    rightClickFirstTab()
+    clickMenuItem('Open in floating tab')
+    expect(openFloatingTab).toHaveBeenCalledTimes(1)
   })
 })

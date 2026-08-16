@@ -47,7 +47,7 @@ export async function gatherSemanticCandidates(
   question: string,
   keywordRankedKeys: string[],
   alreadySeenKeys: Set<string>,
-  opts: { restrictToTextId?: string | null; topK?: number; resultCap?: number } = {},
+  opts: { restrictToTextId?: string | null; restrictToBookIds?: string[] | null; topK?: number; resultCap?: number } = {},
 ): Promise<SemanticCandidateRef[]> {
   if (!hasEmbeddingIndex()) return []
 
@@ -58,7 +58,7 @@ export async function gatherSemanticCandidates(
     return []
   }
 
-  const hits = semanticSearch(queryVec, opts.topK ?? 20, opts.restrictToTextId ?? undefined)
+  const hits = semanticSearch(queryVec, opts.topK ?? 20, opts.restrictToTextId ?? undefined, opts.restrictToBookIds ?? undefined)
   if (!hits || hits.length === 0) return []
 
   const semanticRankedKeys = hits.map(keyOf)

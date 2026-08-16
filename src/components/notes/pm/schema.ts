@@ -106,11 +106,53 @@ const nodes: Record<string, NodeSpec> = {
 
   image: {
     inline: true,
-    attrs: { src: {}, alt: { default: null }, title: { default: null } },
+    // `width` is nullable pixel width, unset by default — an unsized image renders at its
+    // natural size (capped by the editor's own `max-width: 100%` CSS, pmEditor.css) exactly
+    // like before this attr existed. Deliberately no separate `height` attr: the resize
+    // NodeView (nodeViews.ts) only ever drags width, letting CSS `height: auto` preserve the
+    // image's own aspect ratio — one fewer attr to keep in sync, and no risk of a stretched/
+    // squashed image from width and height attrs drifting out of proportion with each other.
+    attrs: { src: {}, alt: { default: null }, title: { default: null }, width: { default: null } },
     group: 'inline',
     draggable: true,
-    parseDOM: [{ tag: 'img[src]', getAttrs: (dom) => ({ src: (dom as HTMLElement).getAttribute('src'), title: (dom as HTMLElement).getAttribute('title'), alt: (dom as HTMLElement).getAttribute('alt') }) }],
-    toDOM: (node) => ['img', node.attrs],
+    parseDOM: [{
+      tag: 'img[src]',
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement
+        // toDOM (below) now emits width via an inline `style="width:NNNpx;..."` instead of a
+        // literal `width` attribute (see that function's own comment) — fall back to reading
+        // it from the style so pasting a copy of this node's own rendered output (or any HTML
+        // this app itself produced, e.g. from the print/PDF pipeline) back into the editor
+        // still recovers the resized width instead of silently losing it.
+        const widthAttr = el.getAttribute('width') ?? el.style.width.match(/^(\d+)px$/)?.[1] ?? null
+        return {
+          src: el.getAttribute('src'),
+          title: el.getAttribute('title'),
+          alt: el.getAttribute('alt'),
+          width: widthAttr ? Number(widthAttr) || null : null,
+        }
+      },
+    }],
+    // Built explicitly (not a bare `node.attrs` spread) so a null attr (alt/title/width all
+    // default to null) never round-trips into a literal `alt="null"`/`width="null"` DOM
+    // attribute — ProseMirror's DOMOutputSpec does not filter null values out on its own.
+    toDOM: (node) => {
+      const attrs: Record<string, string> = { src: node.attrs.src }
+      if (node.attrs.alt) attrs.alt = node.attrs.alt
+      if (node.attrs.title) attrs.title = node.attrs.title
+      // A literal `width="NNN"` HTML attribute (the previous behavior) has no clamp of its
+      // own — every consumer of this raw toDOM output OTHER than the live editor (which uses
+      // its own imageNodeView + a `.pm-image-wrap` CSS wrapper, ignoring this toDOM entirely)
+      // rendered a resized image at its full literal pixel width with nothing capping it to
+      // the container: print/PDF, version history, the daily continuous-scroll view, and the
+      // Presenter/viewer window (staticRender.ts's domSerializer fallback for the 'image' node
+      // type, and any other raw DOM/clipboard consumer of this schema) could all bleed a
+      // resized image straight off the page/container edge. An inline style carries both the
+      // intended width AND a `max-width:100%` safety net together, so no consumer can render
+      // this node unclamped even if it doesn't define its own width-capping CSS.
+      if (node.attrs.width) attrs.style = `width:${node.attrs.width}px;max-width:100%;height:auto`
+      return ['img', attrs]
+    },
   },
 
   hard_break: {

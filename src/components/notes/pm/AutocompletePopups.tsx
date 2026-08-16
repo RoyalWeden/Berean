@@ -1,8 +1,9 @@
+import { useState, useEffect } from 'react'
 import {
   Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare, Quote, Code, Table2, Minus, Type,
   type LucideIcon,
 } from 'lucide-react'
-import type { Note } from '@/types'
+import type { Note, Book } from '@/types'
 import type { SlashCommand } from './slashCommands'
 import { CALLOUT_META } from '@/lib/noteTextBlocks'
 import { formatDottedVerseRef } from '@/lib/parseRef'
@@ -122,6 +123,115 @@ export function WikilinkPopup({
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+// Hover-preview card for an already-inserted verse or Strong's reference in a note
+// (refDecorations.ts's onVerseRefHoverStart/onLexiconRefHoverStart, 350ms delay) — the one
+// inconsistency wikilinks didn't have: hovering a wikilink already showed a preview
+// (WikilinkPopup above), plain verse/Strong's refs showed nothing at all despite otherwise
+// matching click/right-click treatment. `pointer-events-none` deliberately — this is a passive
+// preview, not an interactive popup (no insert/dismiss buttons like the ones above), so it
+// should never intercept the mouseleave that's meant to dismiss it.
+export function RefHoverPreview({
+  x, y, refLabel, text, loading,
+}: { x: number; y: number; refLabel: string; text: string; loading: boolean }) {
+  return (
+    <div
+      style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
+      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none"
+    >
+      <p className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{refLabel}</p>
+      <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-6">
+        {loading ? 'Loading…' : (text || 'Not found')}
+      </p>
+    </div>
+  )
+}
+
+// Real book → chapter → verse picker for the toolbar's scripture-insert button and the
+// `/verse` slash command — previously both just inserted literal placeholder text
+// ("Book chapter:verse") for the user to type over, relying entirely on the verse-suggest
+// autocomplete catching whatever they typed (Toolbar.tsx's own prior comment called this out
+// explicitly as a known gap: "no full book/chapter/verse picker UI... doesn't exist yet").
+// Cascading selects rather than a free-text search — simpler to get right than a full
+// searchable picker, and the chapter/verse ranges are always in bounds by construction (each
+// select's options are refetched/reclamped when the one above it changes) so there's no
+// "typed an out-of-range verse" case to handle at all.
+export function VersePickerPopup({
+  x, y, textId, onInsert, onDismiss,
+}: { x: number; y: number; textId: string; onInsert: (bookId: string, chapter: number, verse: number) => void; onDismiss: () => void }) {
+  const [books, setBooks] = useState<Book[]>([])
+  const [bookId, setBookId] = useState('')
+  const [chapter, setChapter] = useState(1)
+  const [verse, setVerse] = useState(1)
+  const [verseCount, setVerseCount] = useState(1)
+
+  useEffect(() => {
+    window.bible.getBooks(textId).then((b) => { setBooks(b); if (b[0] && !bookId) setBookId(b[0].id) }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textId])
+
+  const book = books.find((b) => b.id === bookId)
+
+  useEffect(() => {
+    if (!bookId) return
+    window.bible.queryChapter(bookId, chapter, textId).then((verses) => {
+      setVerseCount(Math.max(1, verses.length))
+      setVerse((v) => Math.min(v, Math.max(1, verses.length)))
+    }).catch(() => {})
+  }, [bookId, chapter, textId])
+
+  if (books.length === 0) return null
+
+  return (
+    <div
+      style={{ position: 'fixed', left: x, top: y, zIndex: 9999 }}
+      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px]"
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      <select
+        value={bookId}
+        onChange={(e) => { setBookId(e.target.value); setChapter(1) }}
+        className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
+      >
+        {books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+      <div className="flex items-center gap-1.5">
+        <select
+          value={chapter}
+          onChange={(e) => setChapter(Number(e.target.value))}
+          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
+        >
+          {Array.from({ length: book?.chapters_count ?? 1 }, (_, i) => i + 1).map((c) => (
+            <option key={c} value={c}>Ch {c}</option>
+          ))}
+        </select>
+        <select
+          value={verse}
+          onChange={(e) => setVerse(Number(e.target.value))}
+          className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]"
+        >
+          {Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => (
+            <option key={v} value={v}>Vs {v}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-1.5 justify-end pt-0.5">
+        <button
+          onMouseDown={onDismiss}
+          className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors px-1.5 py-1"
+        >
+          Cancel
+        </button>
+        <button
+          onMouseDown={() => onInsert(bookId, chapter, verse)}
+          className="text-[10px] font-medium text-white bg-[rgb(var(--color-accent))] hover:opacity-90 rounded-md px-2.5 py-1 cursor-pointer transition-opacity"
+        >
+          Insert
+        </button>
+      </div>
     </div>
   )
 }

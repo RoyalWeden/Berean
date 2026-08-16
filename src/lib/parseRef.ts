@@ -227,15 +227,34 @@ function editDistance(a: string, b: string): number {
  * without having to hand-list every short word that happens to prefix-match
  * some book's abbreviation (e.g. "to" -> "tob"/"tobit").
  */
+// Normalises a leading roman-numeral book prefix ("II Kings" → "2 Kings", "III John" →
+// "3 John") to the arabic form every pattern/name in BOOK_MAP is actually keyed on.
+// Without this, "II"/"III" (and "I") were never recognized as the numeral prefix at all —
+// the scan regex captured them as an ordinary book-phrase WORD, resolveBookToken's exact/
+// prefix tiers never matched (no pattern is spelled with roman numerals), and it fell
+// through all the way to the fuzzy-misspelling fallback, which compares "kings" alone
+// (numeral dropped) against every candidate name and — since "kings" is genuinely
+// equidistant from both "1 Kings" and "2 Kings" — silently resolved to whichever book
+// happens to sort first in BOOK_MAP (1 Kings), regardless of which numeral was actually
+// typed. "I " already worked, but only by the same first-match coincidence, not real
+// support. Checked longest-prefix-first (iii before ii before i) so "III" isn't partially
+// consumed as "II" + a stray leftover "i".
+function normalizeRomanBookPrefix(key: string): string {
+  if (/^iii(?=\s)/.test(key)) return '3' + key.slice(3)
+  if (/^ii(?=\s)/.test(key)) return '2' + key.slice(2)
+  if (/^i(?=\s)/.test(key)) return '1' + key.slice(1)
+  return key
+}
+
 export function isExactBookToken(raw: string): boolean {
-  const key = raw.trim().toLowerCase().replace(/\s+/g, ' ')
+  const key = normalizeRomanBookPrefix(raw.trim().toLowerCase().replace(/\s+/g, ' '))
   if (PATTERN_LOOKUP.has(key)) return true
   const noSpace = key.replace(/\s+/g, '')
   return BOOK_MAP.some(({ name }) => name.toLowerCase().replace(/\s+/g, '') === noSpace)
 }
 
 export function resolveBookToken(raw: string): string | null {
-  const key = raw.trim().toLowerCase().replace(/\s+/g, ' ')
+  const key = normalizeRomanBookPrefix(raw.trim().toLowerCase().replace(/\s+/g, ' '))
   const exact = PATTERN_LOOKUP.get(key)
   if (exact) return exact
   const noSpace = key.replace(/\s+/g, '')
@@ -621,24 +640,44 @@ export function parseRef(input: string): ParsedRef | null {
     // Reject chapters beyond the book's known maximum.
     const maxCh = MAX_CHAPTERS[bookId]
     if (maxCh !== undefined && chapter > maxCh) return null
+    if (maxCh !== undefined && endChapter !== undefined && endChapter > maxCh) return null
 
     // Sanity-check verse number (Psalm 119 is the longest chapter at 176 verses).
     if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
+    if (endVerse !== undefined && (isNaN(endVerse) || endVerse < 1 || endVerse > 200)) return null
 
     return { bookId, chapter, verse, endVerse, endChapter }
   }
 
+  // Tail grammar after the chapter number (group 3), one of:
+  //   ":V1"                        → verse only                         (group 4)
+  //   ":V1-C2:V2"                  → cross-chapter verse range           (groups 4, 5, 6)
+  //   ":V1-V2"                     → same-chapter verse range            (groups 4, 7)
+  //   "-C2"                        → chapter-only range, no verse at all (group 8)
+  // Cross-chapter support ("Isaiah 63:17-64:3") was previously missing entirely — the old
+  // regex only offered a same-chapter verse-range branch or a chapter-only-range branch as
+  // mutually exclusive alternatives, so a real cross-chapter reference either failed to match
+  // this regex at all, or (worse, via noteTextBlocks.ts's separate scan regex — see that
+  // file's own fix) got silently truncated and mis-linked as a bogus same-chapter range.
+  // The trailing `\.?` right after the book-token group strips a period-abbreviated book
+  // ("Isa.", "Gen.", "1 Cor.") before it ever reaches resolveBookToken. The book-token
+  // character class itself (`[\w\s,]`) has never allowed a literal '.', by design — a period
+  // sitting in the MIDDLE of the token (chapter:verse's own alternate '.' separator) still
+  // must not be swallowed as part of the book name — so a period-abbreviated book previously
+  // just failed to match this regex at all: "Isa" as the book token left a literal '.'
+  // immediately before the chapter digits with nothing able to consume it.
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s,]*?)(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(\d+))?|\s*[-–]\s*(\d+))?$/i
+    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?|\s*[-–]\s*(\d+))?$/i
   )
   if (m) {
+    const crossChapterEndChapter = m[5] ? parseInt(m[5]) : undefined
     const result = finish(
       m[1].trim().toLowerCase().replace(/\s+/g, ' '),
       m[2] ? parseInt(m[2]) : undefined,
       parseInt(m[3]),
       m[4] ? parseInt(m[4]) : undefined,
-      m[5] ? parseInt(m[5]) : undefined,
-      m[6] ? parseInt(m[6]) : undefined
+      crossChapterEndChapter !== undefined ? (m[6] ? parseInt(m[6]) : undefined) : (m[7] ? parseInt(m[7]) : undefined),
+      crossChapterEndChapter !== undefined ? crossChapterEndChapter : (m[8] ? parseInt(m[8]) : undefined)
     )
     if (result) return result
   }
@@ -650,7 +689,7 @@ export function parseRef(input: string): ParsedRef | null {
   // fails book resolution and falls through to here instead of returning that wrong result).
   // Trying this only as a fallback keeps existing forms unambiguous — e.g. the dash chapter
   // range "Hosea 13-14" always matches the primary regex successfully, so it never reaches here.
-  const mBare = norm.match(/^((?:\d\s*)?\w[\w\s,]*?)\s+(\d+)\s+(\d+)$/i)
+  const mBare = norm.match(/^((?:\d\s*)?\w[\w\s,]*?)\.?\s+(\d+)\s+(\d+)$/i)
   if (mBare) {
     const result = finish(
       mBare[1].trim().toLowerCase().replace(/\s+/g, ' '),

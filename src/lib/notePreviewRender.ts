@@ -105,8 +105,11 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // ("Recognitions, Book 1, 1:3") needs; this one had drifted and had neither at all.
 // Each ordinary book-name word may also carry a trailing comma (Hermas's bookName() label)
 // — see noteTextBlocks.ts's copy of this regex for the full reasoning; kept in sync.
+// The verse-range extension's trailing `(?:[ \t]*[:.][ \t]*\d{1,3})?` lets a genuine
+// cross-chapter range ("Isaiah 63:17-64:3") capture its full span instead of truncating
+// at "63:17-64" — kept in sync with noteTextBlocks.ts's copy of this same fix.
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number      // start offset of the recognised reference within `text`
@@ -541,9 +544,31 @@ export interface PrintExportOptions {
    * being rendered, since markdown-it never treats them as real markup.
    */
   rawHtml?: boolean
+  /** Paper size for the @page CSS box AND the Electron print/PDF `pageSize` option (see
+   *  PrintPreviewModal.tsx's doPrint/doDownload, which pass the Electron-side string
+   *  separately) — previously this was read from settings but never actually threaded into
+   *  buildPrintHTML at all, so changing it in Settings was a complete no-op; output always
+   *  used whatever page size Electron/the OS printer defaulted to. */
+  paperSize?: 'letter' | 'a4' | 'legal'
 }
 
 export const MARGIN_INCHES: Record<string, number> = { none: 0, narrow: 0.5, normal: 1, wide: 1.5 }
+
+/** Page dimensions in inches, portrait. Matches Electron's accepted `pageSize` string values
+ *  (capitalized) 1:1 — see PAPER_SIZE_ELECTRON below. */
+export const PAPER_SIZE_INCHES: Record<'letter' | 'a4' | 'legal', { w: number; h: number }> = {
+  letter: { w: 8.5, h: 11 },
+  a4: { w: 8.27, h: 11.69 },
+  legal: { w: 8.5, h: 14 },
+}
+
+/** Maps the app's internal paperSize id to the exact string Electron's `webContents.print`/
+ *  `printToPDF` `pageSize` option accepts. Exported so main.ts's IPC handlers and
+ *  PrintPreviewModal.tsx's IPC calls share one source of truth instead of each hand-rolling
+ *  the same capitalization. */
+export const PAPER_SIZE_ELECTRON: Record<'letter' | 'a4' | 'legal', string> = {
+  letter: 'Letter', a4: 'A4', legal: 'Legal',
+}
 
 /** Expand a preset margin to per-side inches (used to seed custom margins). */
 export function presetToSides(preset: string): { top: number; right: number; bottom: number; left: number } {
@@ -746,7 +771,9 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
     includeTitle = true,
     colorMode = 'color',
     theme: themeId = 'classic',
+    paperSize = 'letter',
   } = opts
+  const pageInches = PAPER_SIZE_INCHES[paperSize] ?? PAPER_SIZE_INCHES.letter
   const t = PRINT_THEMES[themeId] ?? PRINT_THEMES.classic
   // Resolve body padding: a custom preset uses per-side values; otherwise a uniform preset.
   let bodyPadding: string
@@ -759,10 +786,13 @@ export function buildPrintHTML(title: string, content: string, opts: PrintExport
   const grayscaleFilter = colorMode === 'grayscale' ? 'filter: grayscale(100%);' : ''
   const isDarkTheme = ['night', 'midnight'].includes(themeId)
   const colorAdjust = isDarkTheme ? `print-color-adjust: exact; -webkit-print-color-adjust: exact;` : ''
-  // Margins are controlled ENTIRELY by the body padding (uniform on all four sides),
-  // and @page margin is zeroed. This keeps the iframe preview (where @page has no effect)
+  // Margins are controlled ENTIRELY by the body padding (uniform or per-side), and @page
+  // margin stays zeroed. This keeps the iframe preview (where @page has no pagination effect)
   // identical to the printed PDF. The Electron print/PDF handlers also pass margin:0 so the
   // body padding is the single source of truth. "none" therefore truly means edge-to-edge.
+  // @page size IS set (paperSize, above) — Electron's print/printToPDF calls also pass an
+  // explicit `pageSize` option (see main.ts) as belt-and-suspenders, since honoring @page
+  // CSS `size` for page dimensions isn't guaranteed without `preferCSSPageSize`.
   // Strip internal anchor hrefs (verse-refs, wikilinks, lexicon refs) that would become
   // broken links in PDF. External http(s) links (YouTube etc.) are left untouched.
   const { linkedNotes, rawHtml } = opts
@@ -791,7 +821,7 @@ ${printThemeToCssVars(t)}
   /* Print-specific chrome that pmEditor.css (built for the live in-app
      editor pane) doesn't need to know about: page setup, margins, note
      title, and page-break control around blocks. */
-  @page { margin: 0; }
+  @page { size: ${pageInches.w}in ${pageInches.h}in; margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
   html { background: ${t.bg}; ${colorAdjust} }
   body {
@@ -801,6 +831,17 @@ ${printThemeToCssVars(t)}
     margin: 0; padding: ${bodyPadding};
     ${grayscaleFilter}
     position: relative;
+    /* Without this, CSS box fragmentation (default: slice) only applies body's own padding
+       to the box's FIRST page-fragment (padding-top) and LAST fragment (padding-bottom) — a
+       multi-page note gets a correct top margin on page 1 only, then runs content edge-to-
+       edge on every interior page and the bottom of every page but the last. box-decoration-
+       break: clone makes every page-fragment of this box behave as an independent box, so the full padding (the
+       note's actual margin) repeats correctly on EVERY page. This is the root cause of the
+       reported "print/PDF ignores margins" bug on any note long enough to span multiple pages
+       — invisible in the Settings live preview, which only ever renders a short single-page
+       sample note (see PrintExportSection.tsx's SAMPLE constant). */
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
   h1.note-doc-title {
     font-size: 2em; font-weight: 800; color: ${t.heading};
@@ -821,6 +862,14 @@ ${printThemeToCssVars(t)}
      stack on top of it and produce an asymmetric page (oversized bottom gap,
      content inset further than the chosen margin preset implies). */
   .berean-pm-editor .ProseMirror { padding: 0; }
+  /* Print/PDF/version-history/daily-scroll/Presenter all render images via staticRender.ts's
+     raw domSerializer fallback (schema.ts's own toDOM), not the live editor's imageNodeView —
+     so a resized image's literal pixel width (a real HTML width attribute/inline style set by
+     drag-resizing in the editor) had nothing here capping it to the page's own content-box
+     width, and could bleed straight off the page/past the margin. schema.ts's toDOM now
+     always pairs a width value with an inline max-width:100% safety net, but this rule is a
+     second, independent backstop scoped to print output specifically. */
+  img { max-width: 100% !important; height: auto; }
 </style>
 </head>
 <body>

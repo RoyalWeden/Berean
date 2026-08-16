@@ -1,5 +1,6 @@
 import { Plugin } from 'prosemirror-state'
 import { bereanSchema as schema } from './schema'
+import { insertImageFile } from './imageInsert'
 
 // Port of NoteEditor.tsx's pasteHandler: image clipboard data becomes an
 // inline `![](data:...)` image, a bare pasted URL becomes a markdown link
@@ -8,6 +9,11 @@ import { bereanSchema as schema } from './schema'
 // here either — same rationale as the CM6 version: pasted text must stay
 // plain so copy/paste round-trips losslessly (verse-block styling is a pure
 // live-decoration concern, added in Phase 5).
+//
+// Also handles dropping an image FILE from Finder — same `insertImageFile` path as paste
+// (imageInsert.ts), just triggered by `drop` instead of `paste`. Previously there was no drop
+// handling for external files at all (only ProseMirror's own in-doc block-reorder drag, see
+// blockHandles.ts), so dragging a screenshot in from Finder silently did nothing.
 export const bereanPastePlugin = new Plugin({
   props: {
     handleDOMEvents: {
@@ -19,14 +25,7 @@ export const bereanPastePlugin = new Plugin({
               event.preventDefault()
               const file = item.getAsFile()
               if (!file) return false
-              const reader = new FileReader()
-              reader.onload = () => {
-                const dataUrl = reader.result as string
-                const { from } = view.state.selection
-                const node = schema.nodes.image.create({ src: dataUrl })
-                view.dispatch(view.state.tr.replaceSelectionWith(node).scrollIntoView())
-              }
-              reader.readAsDataURL(file)
+              insertImageFile(view, file)
               return true
             }
           }
@@ -49,6 +48,17 @@ export const bereanPastePlugin = new Plugin({
           return true
         }
         return false
+      },
+      drop(view, event) {
+        const files = event.dataTransfer?.files
+        if (!files || files.length === 0) return false
+        const imageFile = Array.from(files).find((f) => f.type.startsWith('image/'))
+        if (!imageFile) return false // let ProseMirror's own in-doc drag handling (block reorder) run
+        event.preventDefault()
+        const coords = { left: event.clientX, top: event.clientY }
+        const dropPos = view.posAtCoords(coords)?.pos
+        insertImageFile(view, imageFile, dropPos)
+        return true
       },
     },
   },

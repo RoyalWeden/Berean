@@ -165,7 +165,7 @@ export interface AppState {
   // logic depends on internal scroll refs the top bar has no access to.
   presenterPushToken: number
   bumpPresenterPushToken: () => void
-  applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => void
+  applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number }) => void
 
   // Cross-panel lexicon communication
   pendingLexiconEntry: string | null
@@ -749,6 +749,16 @@ const DEFAULT_PANEL_LAYOUT: MosaicNode<MosaicKey> = {
   splitPercentage: 58
 }
 
+
+// Guard for applyExternalTabSync (below) — cross-window tab sync previously applied whatever
+// any other Berean window last broadcast unconditionally, with no ordering check at all. If a
+// second window (e.g. a floating tab, opened via TabBar's "Open in floating tab") broadcasts an
+// older snapshot after this window's own more recent local change, that blind overwrite would
+// silently revert the local change a moment later. Not a reactive/observable value — it only
+// ever needs to gate one function's own logic — so a plain module-level variable, not store
+// state, is enough; keeping it out of the store also means it survives independently of
+// whatever `set()` calls happen to run.
+let lastAppliedTabSyncAt = 0
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -1443,6 +1453,8 @@ export const useAppStore = create<AppState>()(
         const state = get()
         const tab = state.tabs[spaceId].find(t => t.id === tabId)
         if (!tab) return
+        const targetSession = state.sessions.find(s => s.id === targetSessionId)
+        if (!targetSession) return
         // Remove from current session tabs
         const newTabs = { ...state.tabs, [spaceId]: state.tabs[spaceId].filter(t => t.id !== tabId) }
         const newActiveId = state.activeTabId[spaceId] === tabId
@@ -1826,8 +1838,18 @@ export const useAppStore = create<AppState>()(
       clearVerseFilter: () => set({ pendingVerseFilter: null }),
       bumpNoteToken: () => set((s) => ({ noteChangeToken: s.noteChangeToken + 1 })),
       bumpPresenterPushToken: () => set((s) => ({ presenterPushToken: s.presenterPushToken + 1 })),
-      // Apply tab state received from another window (does NOT trigger another broadcast)
-      applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string }) => {
+      // Apply tab state received from another window (does NOT trigger another broadcast).
+      // Guarded by `updatedAt` (see lastAppliedTabSyncAt's own comment above) — an older
+      // broadcast arriving after a newer local change (or a newer broadcast already applied)
+      // is dropped instead of blindly overwriting `tabs`. `updatedAt` is optional only so an
+      // old/mismatched build on the other end of the IPC channel can't wedge sync entirely; a
+      // payload with no timestamp at all is still applied (previous behavior), just not
+      // preferred over one that has it.
+      applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number }) => {
+        if (payload.updatedAt !== undefined) {
+          if (payload.updatedAt <= lastAppliedTabSyncAt) return
+          lastAppliedTabSyncAt = payload.updatedAt
+        }
         const update: Partial<AppState> = { tabs: payload.tabs }
         if (payload.theme !== undefined) update.theme = payload.theme as AppState['theme']
         if (payload.themePreset !== undefined) update.themePreset = payload.themePreset

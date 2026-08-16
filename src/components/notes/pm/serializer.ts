@@ -137,10 +137,23 @@ function paragraph(state: MarkdownSerializerState, node: PMNode) {
   state.closeBlock(node)
 }
 
+// A resized image's width round-trips as a `|wNNN` suffix appended to the alt text — see
+// parser.ts's `image.getAttrs` for the matching read side and why (keeps the whole image
+// round-trip on the plain `![alt](src)` CommonMark path, no new HTML-token handling needed).
+// Otherwise identical to prosemirror-markdown's own default `image` serializer.
+function image(state: MarkdownSerializerState, node: PMNode) {
+  const alt = (node.attrs.alt || '') + (node.attrs.width ? `|w${node.attrs.width}` : '')
+  state.write(
+    '![' + state.esc(alt) + '](' + node.attrs.src.replace(/[()]/g, '\\$&') +
+    (node.attrs.title ? ' "' + node.attrs.title.replace(/"/g, '\\"') + '"' : '') + ')'
+  )
+}
+
 export const bereanMarkdownSerializer = new MarkdownSerializer(
   {
     ...defaultMarkdownSerializer.nodes,
     paragraph,
+    image,
     bullet_list(state, node) {
       const marker = (node.attrs.marker as string) || '-'
       state.renderList(node, '  ', () => `${marker} `)

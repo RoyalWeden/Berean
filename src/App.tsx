@@ -284,7 +284,10 @@ export default function App() {
     // Broadcast our tab state + theme to other windows whenever tabs or theme change
     if (isBroadcastingRef.current) return // skip if we're applying an external update
     const timer = setTimeout(() => {
-      const payload = { tabs: storeTabs, theme, themePreset }
+      // updatedAt — see applyExternalTabSync's own comment (store/index.ts): lets a receiving
+      // window drop a stale broadcast that arrives after a newer local change instead of
+      // blindly overwriting it.
+      const payload = { tabs: storeTabs, theme, themePreset, updatedAt: Date.now() }
       window.app.broadcastTabState?.(payload)
     }, 150) // debounce
     return () => clearTimeout(timer)
@@ -616,7 +619,22 @@ export default function App() {
 
     // 5. Subscribe to store settings changes → debounce-write to SQLite
     const DEBOUNCE = 800
-    let timer: ReturnType<typeof setTimeout>
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // Previously the debounce's ONLY way to end early was `clearTimeout` — on unmount (app
+    // quit, including the auto-updater's quitAndInstall) or the window actually closing, that
+    // just CANCELLED the pending write outright rather than performing it, so a settings change
+    // (e.g. toggling noteScriptureBlock off) made within 800ms of quitting/restarting was
+    // silently lost — the next launch reloaded whatever was persisted BEFORE that change. Now a
+    // pending write is tracked so it can be flushed immediately instead of dropped, both on this
+    // effect's own cleanup and on the window's `beforeunload` (covers a plain quit, which doesn't
+    // necessarily unmount React first).
+    let pendingFlush: (() => void) | null = null
+    function flushPendingSettings() {
+      if (!pendingFlush) return
+      clearTimeout(timer)
+      pendingFlush()
+      pendingFlush = null
+    }
     const unsub = useAppStore.subscribe((state, prev) => {
       const changed =
         state.theme !== prev.theme ||
@@ -642,7 +660,7 @@ export default function App() {
         state.autoEmDash !== prev.autoEmDash
       if (!changed) return
       clearTimeout(timer)
-      timer = setTimeout(() => {
+      const writeNow = () => {
         const s = useAppStore.getState()
         const pairs: [string, unknown][] = [
           ['theme', s.theme], ['themePreset', s.themePreset],
@@ -665,9 +683,17 @@ export default function App() {
           ['autoEmDash', s.autoEmDash],
         ]
         pairs.forEach(([k, v]) => window.settings?.set(k, v).catch(() => {}))
-      }, DEBOUNCE)
+        pendingFlush = null
+      }
+      pendingFlush = writeNow
+      timer = setTimeout(writeNow, DEBOUNCE)
     })
-    return () => { clearTimeout(timer); unsub() }
+    window.addEventListener('beforeunload', flushPendingSettings)
+    return () => {
+      flushPendingSettings()
+      window.removeEventListener('beforeunload', flushPendingSettings)
+      unsub()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cmd+W: close active tab — exactly the same action as clicking the X on a tab.

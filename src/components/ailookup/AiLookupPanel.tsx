@@ -272,6 +272,7 @@ export default function AiLookupPanel() {
   // this component, not LazyOnce, is responsible for hiding itself on later closes.
   const open = useAppStore((s) => s.aiLookupPanelOpen)
   const setOpen = useAppStore((s) => s.setAiLookupPanelOpen)
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
   const commentaryOn = useAppStore((s) => s.aiLookupCommentaryOn)
   const setCommentaryOn = useAppStore((s) => s.setAiLookupCommentaryOn)
   const agenticOn = useAppStore((s) => s.aiLookupAgenticOn)
@@ -596,7 +597,13 @@ export default function AiLookupPanel() {
       // handle — this codebase has hit Electron's OS-level drag-region hit-testing bug before
       // (it ignores paint order/visibility, only screen-space overlap), and a user-resizable,
       // user-draggable panel like this one can end up overlapping the top drag-region strip.
-      className="no-drag fixed z-[600] flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden"
+      //
+      // While Settings is open, drop below its z-50 overlay (which is otherwise well under this
+      // panel's normal z-[600]) instead of sitting on top of the modal — Settings' own backdrop
+      // (bg-black/50 + blur(4px)) then dims/blurs this panel exactly like it already does to the
+      // rest of the app, with no separate dim treatment needed here. Also disabled so nothing
+      // underneath the modal is clickable/scrollable while it's covered.
+      className={`no-drag fixed flex flex-col rounded-shell-lg border border-[rgb(var(--color-surface-4))] backdrop-blur-[1px] shadow-2xl overflow-hidden ${settingsOpen ? 'z-40 pointer-events-none' : 'z-[600]'}`}
       style={{ left: pos.x, top: pos.y, width: size.width, height: size.height, ...PANEL_BG }}
     >
       {/* Header — drag handle */}

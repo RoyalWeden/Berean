@@ -96,6 +96,7 @@ interface NoteRow {
   idiom_auto_variants: number | null
   idiom_data: string | null
   deleted_at: number | null
+  pinned: number | null
 }
 
 function rowToNote(row: NoteRow) {
@@ -129,6 +130,7 @@ function rowToNote(row: NoteRow) {
     idiomAutoVariants: row.idiom_auto_variants === 1 ? true : undefined,
     idiomData:         row.idiom_data ? safeParse(row.idiom_data) : undefined,
     deletedAt:         row.deleted_at ?? undefined,
+    pinned:            row.pinned === 1,
   }
 }
 
@@ -413,6 +415,13 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
   // Assign a note to a user folder (or NULL for root).
   ipcMain.handle('notes:setFolder', (event, noteId: string, folderId: string | null) => {
     getBereanDb().prepare('UPDATE notes SET folder_id = ? WHERE id = ?').run(folderId, noteId)
+    broadcastNotesChanged(event.sender)
+    return { success: true }
+  })
+
+  // Pin/unpin a note — pinned notes sort to the top of NotesList.tsx.
+  ipcMain.handle('notes:setPinned', (event, noteId: string, pinned: boolean) => {
+    getBereanDb().prepare('UPDATE notes SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, noteId)
     broadcastNotesChanged(event.sender)
     return { success: true }
   })

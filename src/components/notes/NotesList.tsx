@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { FileText, Trash2, CheckSquare, Square } from 'lucide-react'
+import { FileText, Trash2, CheckSquare, Square, Pin, PinOff } from 'lucide-react'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
@@ -54,6 +54,7 @@ interface NotesListProps {
   onConvertToIdiom?: (note: Note) => void
   onExportPdf?: (note: Note) => void
   onSetStatus?: (note: Note, status: NoteStatus | null) => void
+  onTogglePinned?: (note: Note) => void
 }
 
 function formatDate(ts: number): string {
@@ -79,8 +80,16 @@ export default function NotesList({
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
   onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf, onSetStatus,
+  onTogglePinned,
 }: NotesListProps) {
   const [contextMenu, setContextMenu] = useState<{ note: Note; x: number; y: number } | null>(null)
+  // Pinned notes float to the top — a stable sort (pinned notes otherwise keep their original
+  // relative order among themselves, same for unpinned) so this doesn't fight whatever sort/
+  // filter order the caller already applied beyond the pin/unpin split itself.
+  const sortedNotes = useMemo(
+    () => notes.length === 0 ? notes : [...notes].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)),
+    [notes],
+  )
   const [renamingNoteId, setRenamingNoteId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -105,7 +114,7 @@ export default function NotesList({
   // this) is what made switching into list view feel like a multi-second stall
   // once a note collection grew into the hundreds.
   const virtualizer = useVirtualizer({
-    count: notes.length,
+    count: sortedNotes.length,
     getScrollElement: () => scrollParentRef.current,
     estimateSize: () => 84,
     overscan: 8,
@@ -129,7 +138,7 @@ export default function NotesList({
     <>
       <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
-          const note = notes[virtualRow.index]
+          const note = sortedNotes[virtualRow.index]
           const rawSnippet = note.type === 'idiom' && note.idiomMeaning
             ? note.idiomMeaning
             : stripMarkdownFormatting(note.content).trim()
@@ -150,7 +159,7 @@ export default function NotesList({
               // by at a glance when not hovering; this restores just enough structure without
               // going back to a full box around every entry. Skipped on the very last note.
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
-                virtualRow.index < notes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
+                virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
               }`}
               style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
@@ -266,6 +275,27 @@ export default function NotesList({
                   </>
                 )}
               </button>
+
+              {/* Pin toggle — a pinned note's icon stays visible always (so pinned status
+                  reads at a glance without hovering); an unpinned note's only shows on hover,
+                  matching the delete button's own reveal-on-hover convention below. Sits left
+                  of delete (right-9 vs right-2) so the two never overlap. */}
+              {onTogglePinned && !selectMode && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onTogglePinned(note) }}
+                  className={`
+                    absolute right-9 top-1/2 -translate-y-1/2
+                    p-1.5 rounded transition-opacity cursor-pointer
+                    ${note.pinned
+                      ? 'text-[rgb(var(--color-accent))] opacity-100'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] opacity-0 group-hover:opacity-100'
+                    }
+                  `}
+                  title={note.pinned ? 'Unpin note' : 'Pin note'}
+                >
+                  {note.pinned ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
+                </button>
+              )}
 
               {/* Delete button — appears on row hover (not in select mode) */}
               {onDelete && !selectMode && (

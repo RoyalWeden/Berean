@@ -69,6 +69,43 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
 
   const isWin = window.__berean_platform === 'win32'
 
+  // Manual click-drag-to-move on blank header space — same pattern as Sidebar.tsx's tabListRef
+  // (see that file's own comment for why: a real CSS `-webkit-app-region: drag` region can
+  // swallow a click meant for something ELSE entirely, at the OS hit-test level, regardless of
+  // an overlapping no-drag element's paint order or z-index). This bar was the last real static
+  // drag region positioned where a context menu opened low in the sidebar's tab list can land
+  // after usePositionedMenu.ts's flip-up logic pushes it upward to stay on-screen.
+  const windowDragRef = useRef<{ lastScreenX: number; lastScreenY: number } | null>(null)
+  function handleHeaderMouseDown(e: React.MouseEvent) {
+    const t = e.target as HTMLElement
+    // Same interactive-element guard global.css's own `.app-drag-region button, a, input, ...`
+    // rule used to provide automatically — reproduced here in JS since this bar is no longer a
+    // real CSS drag region for anything to auto-exclude itself from.
+    if (t.closest('button, a, input, select, textarea, [role="button"], [role="combobox"], [role="listbox"]')) return
+    if (e.button !== 0) return
+    windowDragRef.current = { lastScreenX: e.screenX, lastScreenY: e.screenY }
+    const DRAG_THRESHOLD = 4
+    let moved = false
+    function onMove(ev: MouseEvent) {
+      const drag = windowDragRef.current
+      if (!drag) return
+      const dx = ev.screenX - drag.lastScreenX
+      const dy = ev.screenY - drag.lastScreenY
+      if (!moved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return
+      moved = true
+      drag.lastScreenX = ev.screenX
+      drag.lastScreenY = ev.screenY
+      window.app.moveWindowBy(dx, dy)
+    }
+    function onUp() {
+      windowDragRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   const [navNoteTitles, setNavNoteTitles] = useState<Map<string, string>>(new Map())
   useEffect(() => {
     getAllNotes(noteChangeToken)
@@ -123,11 +160,12 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     <Tooltip.Provider delayDuration={200}>
       <div
         className={`
-          native-buttons ${noteFocusMode ? '' : 'app-drag-region'} flex-shrink-0 border-b border-[rgb(var(--color-surface-4))]
+          native-buttons no-drag flex-shrink-0 border-b border-[rgb(var(--color-surface-4))]
           ${window.__berean_platform === 'darwin' ? 'topbar-vibrant' : 'bg-[rgb(var(--color-surface-2))]'}
           pr-3 rounded-b-shell
           ${!isWin ? 'pl-[76px]' : 'pl-2'}
         `}
+        onMouseDown={noteFocusMode ? undefined : handleHeaderMouseDown}
         // Unconditional on mac (not gated on sidebarCollapsed), and a FULL 76px inset, not the
         // 30px this briefly used — this bar is a single row spanning the entire window width,
         // sitting ABOVE the Ribbon+Sidebar row rather than beside it (App.tsx renders

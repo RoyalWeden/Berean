@@ -269,9 +269,33 @@ describe('callout blocks', () => {
 
 describe('buildPrintHTML — margins', () => {
   // Margins are controlled by body padding (uniform), with @page margin zeroed so the
-  // iframe preview and the printed PDF match exactly.
+  // iframe preview and the printed PDF match exactly. @page DOES set `size` (paper
+  // dimensions) — that's a separate concern from margin and doesn't affect this contract.
   it('@page margin is always 0', () => {
-    expect(buildPrintHTML('T', 'body', { marginPreset: 'wide' })).toContain('@page { margin: 0; }')
+    expect(buildPrintHTML('T', 'body', { marginPreset: 'wide' })).toMatch(/@page\s*\{[^}]*margin:\s*0;/)
+  })
+
+  it('@page size defaults to Letter and reflects the paperSize option', () => {
+    expect(buildPrintHTML('T', 'body', {})).toContain('@page { size: 8.5in 11in; margin: 0; }')
+    expect(buildPrintHTML('T', 'body', { paperSize: 'a4' })).toContain('@page { size: 8.27in 11.69in; margin: 0; }')
+    expect(buildPrintHTML('T', 'body', { paperSize: 'legal' })).toContain('@page { size: 8.5in 14in; margin: 0; }')
+  })
+
+  // Regression: multi-page notes previously lost their margin on every page but the first —
+  // CSS box fragmentation defaults body's padding to only apply on the box's first/last
+  // page-fragment. box-decoration-break: clone makes every page-fragment behave as an
+  // independent box, so the configured margin repeats correctly on every page.
+  it('body has box-decoration-break: clone so margins repeat on every printed page', () => {
+    const out = buildPrintHTML('T', 'body', { marginPreset: 'wide' })
+    expect(out).toMatch(/box-decoration-break:\s*clone/)
+    expect(out).toMatch(/-webkit-box-decoration-break:\s*clone/)
+  })
+
+  // Regression: a resized image's literal pixel width had nothing capping it to the page's
+  // content-box width in the print/PDF/version-history/daily-scroll/Presenter pipeline
+  // (staticRender.ts's raw domSerializer fallback, not the live editor's own NodeView).
+  it('images are capped to the page width regardless of a resized pixel width', () => {
+    expect(buildPrintHTML('T', 'body')).toMatch(/img\s*\{[^}]*max-width:\s*100%[^}]*!important/)
   })
 
   it('none preset → 0in body padding (edge to edge)', () => {

@@ -726,10 +726,34 @@ body {
  * future one, inherits that exclusion from the very first paint of the app,
  * long before any menu is ever inserted. There's no fresh-content race left
  * to lose: the exclusion was already registered before the click that
- * triggers insertion even happens. `.app-drag-region` below still opts
- * specific, STATIC, always-present regions (the sidebar, the header) back
- * INTO drag — those aren't racing anything, since they're present from the
- * very first frame too, so they keep working exactly as before. */
+ * triggers insertion even happens.
+ *
+ * That closed the FRESH-INSERTION race, but not the whole bug: this menu is
+ * `position: fixed` at the raw click coordinates, so its screen rectangle
+ * isn't bounded by any particular ancestor's — for a tab anywhere past the
+ * first few in the list it commonly extends into whatever STATIC
+ * `.app-drag-region` still sits underneath it on screen. And per Sidebar.tsx's
+ * own documented history (its "four failed attempts" comment, same file), an
+ * overlapping no-drag portal does NOT reliably suppress Electron's hit-test
+ * over a real drag-region ancestor elsewhere on screen, "regardless of
+ * listener type or capture phase" — that's an overlap problem, not a timing
+ * one, and pre-registering `body` as no-drag doesn't touch it. The actual fix
+ * for the sidebar specifically was to stop opting it INTO `.app-drag-region`
+ * at all (see Sidebar.tsx's `<aside>`) rather than trying to out-race or
+ * out-stack it — the same approach `tabListRef` already used.
+ *
+ * ShellHeader.tsx's top bar got the identical treatment for the same reason:
+ * usePositionedMenu.ts's flip-up logic (opening a menu upward instead of
+ * downward when it would otherwise overflow the bottom of the viewport) can
+ * push a menu opened low in a long tab list far enough up the screen to reach
+ * that bar's band at the very top of the window. Ribbon.tsx was ALSO already
+ * converted (it moved inside FloatingRail.tsx, both `no-drag` — see that
+ * file's own comment) in an earlier round, so a prior version of this comment
+ * claiming "header, ribbon" were still real drag regions was stale by the
+ * time it was written — neither is anymore. Every remaining real
+ * `.app-drag-region` in the app now lives only inside the main panel column
+ * (PanelHeader.tsx, PDFViewer.tsx's floating toolbar) — right of the sidebar,
+ * not a plausible overlap for a tab-bar menu specifically, so left alone. */
 body {
   -webkit-app-region: no-drag;
 }

@@ -169,6 +169,48 @@ describe('markdown round-trip (parseMarkdown -> serializeToMarkdown)', () => {
     expect(roundtrips(md)).toBe(md)
   })
 
+  // Regression coverage for the resize feature (schema.ts's `width` attr, nodeViews.ts's
+  // imageNodeView drag handle) — previously images had zero test coverage at all. A resized
+  // image's width round-trips as a `|wNNN` suffix on the alt text (parser.ts/serializer.ts's
+  // `image` entries) rather than a separate markdown construct, so this also doubles as
+  // confirmation that convention parses back into the right node attrs, not just that the
+  // TEXT comes back unchanged.
+  it('image with a resized width (|wNNN alt suffix convention)', () => {
+    const md = '![a screenshot|w320](https://example.com/shot.png "t")'
+    expect(roundtrips(md)).toBe(md)
+    const doc = parseMarkdown(md)
+    let imageNode: ReturnType<typeof schema.node> | null = null
+    doc.descendants((node) => { if (node.type.name === 'image') imageNode = node })
+    expect(imageNode).not.toBeNull()
+    expect(imageNode!.attrs.alt).toBe('a screenshot')
+    expect(imageNode!.attrs.width).toBe(320)
+  })
+
+  it('image with no width has a null width attr and no |w suffix', () => {
+    const md = '![plain alt](https://example.com/x.png)'
+    expect(roundtrips(md)).toBe(md)
+    const doc = parseMarkdown(md)
+    let imageNode: ReturnType<typeof schema.node> | null = null
+    doc.descendants((node) => { if (node.type.name === 'image') imageNode = node })
+    expect(imageNode!.attrs.width).toBeNull()
+    expect(imageNode!.attrs.alt).toBe('plain alt')
+  })
+
+  // Regression coverage for the SVG-images-disappear bug: markdown-it's default
+  // `validateLink` only whitelists data:image/(gif|png|jpeg|webp) — svg+xml wasn't on that
+  // list, so an SVG image's src got silently reset to "" the moment the note was re-parsed
+  // (see markdownIt.ts's `md.validateLink` override).
+  it('image with a data:image/svg+xml URL survives round trip', () => {
+    const svgB64 = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>').toString('base64')
+    const md = `![diagram](data:image/svg+xml;base64,${svgB64})`
+    expect(roundtrips(md)).toBe(md)
+    const doc = parseMarkdown(md)
+    let imageNode: ReturnType<typeof schema.node> | null = null
+    doc.descendants((node) => { if (node.type.name === 'image') imageNode = node })
+    expect(imageNode).not.toBeNull()
+    expect(imageNode!.attrs.src).toBe(`data:image/svg+xml;base64,${svgB64}`)
+  })
+
   it('code block (fenced)', () => {
     const md = '```js\nconst x = 1;\n```'
     expect(roundtrips(md)).toBe(md)

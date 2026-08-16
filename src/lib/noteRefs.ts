@@ -48,7 +48,12 @@ function makeVerseRefRe() {
   // it, "Recognitions Book 10 41:8" (no comma) matched "Recognitions Book" as the book
   // phrase and silently dropped "41:8" (comma-separated form worked by accident, since a
   // comma isn't part of the ordinary word-repeat's \s+ separator).
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3})?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  // The trailing `(?:\s*[:.]\s*\d{1,3})?` on the verse-range suffix lets a genuine
+  // cross-chapter range ("Isaiah 63:17-64:3") capture its full span — without it this
+  // truncated at "63:17-64", silently dropping the trailing ":3" (parseRef, given only
+  // the truncated text, then happily accepted it as a bogus same-chapter range instead of
+  // failing to match at all — see parseRef.ts's own matching cross-chapter grammar fix).
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {
@@ -103,6 +108,16 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
         if (!hasColon && !isCapitalised) continue
       }
     }
+    // NoteVerseRef has no endChapter field — a genuine cross-chapter range ("Isaiah
+    // 63:17-64:3") is still correctly PARSED by parseRef (chapter 63, endChapter 64,
+    // endVerse 3), but is deliberately NOT widened into a same-chapter 17-3 "range" here
+    // (endVerse < verse fails refMatchesVerse's range check, so it safely degrades to
+    // matching only the exact start verse, 63:17, rather than silently matching every
+    // verse from 17 to 3 in chapter 63 — which is what the OLD truncated-regex bug did).
+    // This cross-ref side panel/hover-tooltip feature doesn't need full cross-chapter
+    // range matching to be correct on the more important path — the note editor's own
+    // inline ref detection/pills (noteTextBlocks.ts, used by the ProseMirror parser and
+    // decorations) DOES carry endChapter through end-to-end.
     const isChapter = parsed.verse == null
     const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : parsed.verse}${parsed.endVerse != null ? `-${parsed.endVerse}` : ''}`
     if (seen.has(key)) continue

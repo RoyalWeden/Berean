@@ -131,6 +131,16 @@ export interface RefClickCallbacks {
   // fires the "hide" callback on mouseleave.
   onWikilinkHoverStart?: (title: string, rect: DOMRect) => void
   onWikilinkHoverEnd?: () => void
+  // Same 350ms-delay/anchor-rect pattern as the wikilink hover above, extended to verse and
+  // Strong's references — previously the ONE inconsistency between how wikilinks and verse/
+  // Strong's refs behaved in a note (wikilinks got a hover preview, verse/Strong's refs didn't,
+  // despite otherwise matching visual/click treatment). `onRefHoverEnd` is shared across all
+  // hover-preview kinds (wikilink included) rather than each kind getting its own "end" callback
+  // — only ever one preview is showing at a time, so there's nothing kind-specific to know on
+  // dismiss.
+  onVerseRefHoverStart?: (ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) => void
+  onLexiconRefHoverStart?: (strongsId: string, rect: DOMRect) => void
+  onRefHoverEnd?: () => void
 }
 
 export const refDecorationsKey = new PluginKey('berean-ref-decorations')
@@ -203,19 +213,53 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
     props: {
       handleDOMEvents: {
         mouseover(_view, event) {
-          const el = (event.target as HTMLElement).closest('.pm-wikilink') as HTMLElement | null
-          if (!el) return false
-          clearHoverTimer()
-          hoverTimer = setTimeout(() => {
-            callbacks.onWikilinkHoverStart?.(el.textContent?.trim() ?? '', el.getBoundingClientRect())
-          }, 350)
+          const target = event.target as HTMLElement
+
+          const wikiEl = target.closest('.pm-wikilink') as HTMLElement | null
+          if (wikiEl) {
+            clearHoverTimer()
+            hoverTimer = setTimeout(() => {
+              callbacks.onWikilinkHoverStart?.(wikiEl.textContent?.trim() ?? '', wikiEl.getBoundingClientRect())
+            }, 350)
+            return false
+          }
+
+          // Verse/lxx refs (plain or a block's own reference line) — same delay, same rect-
+          // anchored callback shape as the wikilink case above, just resolving a ParsedRef
+          // instead of a note title.
+          const verseEl = target.closest('.pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref') as HTMLElement | null
+          if (verseEl) {
+            clearHoverTimer()
+            hoverTimer = setTimeout(() => {
+              const raw = (verseEl.getAttribute('data-ref') || verseEl.textContent || '').trim()
+              const isLxx = verseEl.getAttribute('data-lxx') === 'true' || verseEl.classList.contains('pm-lxx-ref')
+              const bare = isLxx ? raw.replace(/^(?:lxx|LXX):/i, '').replace(/\s+LXX$/i, '').trim() : raw
+              const parsed = parseRef(bare)
+              if (parsed) callbacks.onVerseRefHoverStart?.(isLxx ? { ...parsed, forcedTranslation: 'LXX' } : parsed, verseEl.getBoundingClientRect())
+            }, 350)
+            return false
+          }
+
+          const lexEl = target.closest('.pm-lexicon-ref, .pm-lexicon-block-ref') as HTMLElement | null
+          if (lexEl) {
+            clearHoverTimer()
+            hoverTimer = setTimeout(() => {
+              const strongsId = (lexEl.getAttribute('data-strongs-id') || lexEl.textContent || '').trim().toUpperCase()
+              callbacks.onLexiconRefHoverStart?.(strongsId, lexEl.getBoundingClientRect())
+            }, 350)
+            return false
+          }
+
           return false
         },
         mouseout(_view, event) {
-          const el = (event.target as HTMLElement).closest('.pm-wikilink')
+          const el = (event.target as HTMLElement).closest(
+            '.pm-wikilink, .pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref, .pm-lexicon-ref, .pm-lexicon-block-ref',
+          )
           if (!el) return false
           clearHoverTimer()
           callbacks.onWikilinkHoverEnd?.()
+          callbacks.onRefHoverEnd?.()
           return false
         },
         click(_view, event) {

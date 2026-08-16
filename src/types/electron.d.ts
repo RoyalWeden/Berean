@@ -29,6 +29,7 @@ interface NotesAPI {
   getChapterCounts: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, number>>
   searchNotes: (query: string, limit?: number, mode?: 'all' | 'any' | 'phrase') => Promise<Note[]>
   setNoteFolder: (noteId: string, folderId: string | null) => Promise<{ success: boolean }>
+  setNotePinned: (noteId: string, pinned: boolean) => Promise<{ success: boolean }>
   createNoteVersion: (noteId: string, title: string, content: string, kind?: string) => Promise<{ success: boolean; id?: string; skipped?: boolean }>
   getNoteVersions: (noteId: string) => Promise<NoteVersion[]>
   restoreNoteVersion: (noteId: string, versionId: string) => Promise<{ success: boolean; content?: string; error?: string }>
@@ -200,8 +201,9 @@ interface AppAPI {
   newWindow: () => Promise<void>
   moveWindowBy: (dx: number, dy: number) => void
   openFloatingTab: (type: string, state: unknown) => Promise<void>
-  printNote: (html: string) => Promise<{ success: boolean }>
-  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string) => Promise<{ success: boolean; canceled?: boolean }>
+  printNote: (html: string, pageSize?: string) => Promise<{ success: boolean }>
+  exportNotePDF: (html: string, suggestedName: string, downloadLocation?: string, pageSize?: string) => Promise<{ success: boolean; canceled?: boolean }>
+  renderPreviewPDF: (html: string, pageSize?: string) => Promise<ArrayBuffer>
   broadcastTabState: (payload: unknown) => void
   onTabStateUpdate: (cb: (payload: unknown) => void) => void
   broadcastAudioState: (payload: unknown) => void

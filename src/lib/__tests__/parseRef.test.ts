@@ -86,6 +86,45 @@ describe('parseRef', () => {
   it('rejects a bare-space "verse" form with an invalid book token', () => {
     expect(parseRef('nosuchbook 1 15')).toBeNull()
   })
+
+  it('parses cross-chapter verse ranges ("Isaiah 63:17-64:3")', () => {
+    expect(parseRef('Isaiah 63:17-64:3')).toMatchObject({ bookId: 'ISA', chapter: 63, verse: 17, endChapter: 64, endVerse: 3 })
+    expect(parseRef('Rev 1:1-2:5')).toMatchObject({ bookId: 'REV', chapter: 1, verse: 1, endChapter: 2, endVerse: 5 })
+  })
+
+  it('still parses a same-chapter verse range, not confused with the cross-chapter form', () => {
+    const r = parseRef('Isaiah 63:17-19')
+    expect(r).toMatchObject({ bookId: 'ISA', chapter: 63, verse: 17, endVerse: 19 })
+    expect(r?.endChapter).toBeUndefined()
+  })
+
+  it('still parses a bare chapter range, not confused with the cross-chapter verse form', () => {
+    const r = parseRef('Hosea 13-14')
+    expect(r).toMatchObject({ bookId: 'HOS', chapter: 13, endChapter: 14 })
+    expect(r?.verse).toBeUndefined()
+    expect(r?.endVerse).toBeUndefined()
+  })
+
+  it('rejects a cross-chapter range whose end chapter is out of the book\'s range', () => {
+    expect(parseRef('Isaiah 65:1-99:3')).toBeNull()
+  })
+
+  it('parses period-abbreviated book tokens ("Isa.", "Gen.", "1 Cor.")', () => {
+    expect(parseRef('Isa. 40:1')).toMatchObject({ bookId: 'ISA', chapter: 40, verse: 1 })
+    expect(parseRef('Gen. 1:1')).toMatchObject({ bookId: 'GEN', chapter: 1, verse: 1 })
+    expect(parseRef('1 Cor. 13:4')).toMatchObject({ bookId: '1CO', chapter: 13, verse: 4 })
+    // a period used as the chapter:verse separator (not a book abbreviation) still works
+    expect(parseRef('Gen 1.1')).toMatchObject({ bookId: 'GEN', chapter: 1, verse: 1 })
+  })
+
+  it('resolves "II"/"III" roman-numeral book prefixes to the correct arabic book, not the wrong one', () => {
+    // Regression: these previously dropped the numeral entirely and fuzzy-matched
+    // "Kings"/"John" alone, which is equidistant between 1/2 Kings and always resolved
+    // to whichever sorts first (1 Kings) — silently wrong, not a failure to match.
+    expect(parseRef('II Kings 5:1')).toMatchObject({ bookId: '2KI', chapter: 5, verse: 1 })
+    expect(parseRef('III John 1:2')).toMatchObject({ bookId: '3JN', chapter: 1, verse: 2 })
+    expect(parseRef('I Samuel 3:1')).toMatchObject({ bookId: '1SA', chapter: 3, verse: 1 })
+  })
 })
 
 // ─── getTranslationForBook ────────────────────────────────────────────────────
@@ -250,6 +289,23 @@ describe('isExactBookToken', () => {
   it('is false for fuzzy-only misspelling matches', () => {
     expect(resolveBookToken('Genesys')).toBe('GEN')
     expect(isExactBookToken('Genesys')).toBe(false)
+  })
+})
+
+// ─── resolveBookToken (roman-numeral prefix) ──────────────────────────────────
+
+describe('resolveBookToken roman-numeral prefix', () => {
+  it('resolves "II"/"III" prefixes to the same book as their arabic equivalent', () => {
+    expect(resolveBookToken('II Kings')).toBe(resolveBookToken('2 Kings'))
+    expect(resolveBookToken('III John')).toBe(resolveBookToken('3 John'))
+    expect(resolveBookToken('I Samuel')).toBe(resolveBookToken('1 Samuel'))
+  })
+
+  it('does not misfire on a single word merely starting with "i"', () => {
+    // The lookahead requires the leading "I"/"II"/"III" to be its own whitespace-
+    // terminated token, not just a prefix of a longer word — "isaiah" must still
+    // resolve normally, not get its leading "i" stripped into "1saiah".
+    expect(resolveBookToken('isaiah')).toBe('ISA')
   })
 })
 
