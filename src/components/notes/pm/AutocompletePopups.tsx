@@ -15,6 +15,14 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 // backlinkInfo popups (NoteEditor.tsx:3944-4036) — small floating cards for
 // the block-suggest popups, a two-pane list+preview for the wikilink
 // autocomplete popup.
+//
+// Every popup in this file carries `.animate-radix-popup-in` (global.css: 140ms
+// opacity+scale ease-out). Each one used to appear as a hard pop while every other
+// floating surface in the app — tooltips, Radix dropdowns, HintTooltip — fades in;
+// reusing the existing keyframes rather than inventing a second timing keeps them
+// identical. Deliberately NOT applied to SelectionToolbar's bubble: that one measures
+// its own rendered size with getBoundingClientRect to clamp itself inside the viewport,
+// and an in-flight `scale()` would feed a wrong width/height into that measurement.
 
 export function StrongsSuggestPopup({
   num, x, y, onInsert, onDismiss,
@@ -22,7 +30,7 @@ export function StrongsSuggestPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{num}</span>
@@ -50,7 +58,7 @@ export function VerseSuggestPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{refText}</span>
@@ -80,7 +88,7 @@ export function WikilinkPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden"
+      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="w-56 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-1))] py-1 flex-shrink-0">
@@ -136,7 +144,7 @@ export function RefHoverPreview({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none"
+      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none animate-radix-popup-in"
     >
       <p className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{refLabel}</p>
       <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-6">
@@ -184,7 +192,7 @@ export function VersePickerPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 9999 }}
-      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px]"
+      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <select
@@ -245,7 +253,7 @@ export function SlashCommandPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1"
+      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1 animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       {groups.map(({ group, items }) => (
