@@ -584,8 +584,20 @@ export interface ParsedRef {
   verse?: number
   endVerse?: number
   endChapter?: number  // for chapter ranges like "Hosea 13-14"
+  /** Set to 'LXX' when the input carried a trailing " LXX" translation suffix
+   *  ("Isaiah 66:3 LXX"). Callers already treat this as "show this ref in that text instead of
+   *  the default" — see NotesPanel.tsx / BibleRightPanel.tsx's `ref.forcedTranslation ?? ...`.
+   *  Deliberately LXX-only for now: adding another suffix (Enoch, Jubilees, …) means extending
+   *  TRANSLATION_SUFFIX_RE below and mapping the matched token to a textId here. */
   forcedTranslation?: string
 }
+
+/** Trailing translation suffixes parseRef accepts, mapped to the `forcedTranslation` value they
+ *  produce. LXX-only by design — this map plus the `(?:\s+(LXX)\b)?` group in the regexes below
+ *  is the whole extension point if Enoch/Jubilees/etc. ever want the same treatment.
+ *  The leading "lxx:" PREFIX form is deliberately NOT handled here; that stays with
+ *  stripLxxMarker() in noteTextBlocks.ts / notePreviewRender.ts. */
+const TRANSLATION_SUFFIXES: Record<string, string> = { LXX: 'LXX' }
 
 export function parseRef(input: string): ParsedRef | null {
   const s = input.trim()
@@ -619,7 +631,7 @@ export function parseRef(input: string): ParsedRef | null {
   // copy-verse output now puts a comma before the chapter:verse for those too ("Hermas,
   // Similitudes, 35:1"), so the book-token group needs to tolerate an embedded comma or the
   // whole match fails past the book name instead of just treating it as part of the name.
-  function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined): ParsedRef | null {
+  function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined, suffixRaw?: string): ParsedRef | null {
     if (isNaN(chapter) || chapter < 1) return null
 
     let bookId = resolveBookToken(bookRawIn)
@@ -646,7 +658,8 @@ export function parseRef(input: string): ParsedRef | null {
     if (verse !== undefined && (isNaN(verse) || verse < 1 || verse > 200)) return null
     if (endVerse !== undefined && (isNaN(endVerse) || endVerse < 1 || endVerse > 200)) return null
 
-    return { bookId, chapter, verse, endVerse, endChapter }
+    const forcedTranslation = suffixRaw ? TRANSLATION_SUFFIXES[suffixRaw.toUpperCase()] : undefined
+    return { bookId, chapter, verse, endVerse, endChapter, forcedTranslation }
   }
 
   // Tail grammar after the chapter number (group 3), one of:
@@ -666,8 +679,13 @@ export function parseRef(input: string): ParsedRef | null {
   // must not be swallowed as part of the book name — so a period-abbreviated book previously
   // just failed to match this regex at all: "Isa" as the book token left a literal '.'
   // immediately before the chapter digits with nothing able to consume it.
+  // The optional trailing `(?:\s+(LXX)\b)?` (group 9, appended AFTER every existing group so
+  // none of them renumber) makes "Isaiah 66:3 LXX" parse natively instead of returning null.
+  // Before this, LXX-awareness lived only in stripLxxMarker() pre-cleaning at a couple of note
+  // surfaces, so every direct parseRef() caller (floating search, scripture search, history)
+  // simply failed to resolve an LXX-suffixed reference. See TRANSLATION_SUFFIXES above.
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?|\s*[-–]\s*(\d+))?$/i
+    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?|\s*[-–]\s*(\d+))?(?:\s+(LXX)\b)?$/i
   )
   if (m) {
     const crossChapterEndChapter = m[5] ? parseInt(m[5]) : undefined
@@ -677,7 +695,8 @@ export function parseRef(input: string): ParsedRef | null {
       parseInt(m[3]),
       m[4] ? parseInt(m[4]) : undefined,
       crossChapterEndChapter !== undefined ? (m[6] ? parseInt(m[6]) : undefined) : (m[7] ? parseInt(m[7]) : undefined),
-      crossChapterEndChapter !== undefined ? crossChapterEndChapter : (m[8] ? parseInt(m[8]) : undefined)
+      crossChapterEndChapter !== undefined ? crossChapterEndChapter : (m[8] ? parseInt(m[8]) : undefined),
+      m[9]
     )
     if (result) return result
   }
@@ -689,7 +708,7 @@ export function parseRef(input: string): ParsedRef | null {
   // fails book resolution and falls through to here instead of returning that wrong result).
   // Trying this only as a fallback keeps existing forms unambiguous — e.g. the dash chapter
   // range "Hosea 13-14" always matches the primary regex successfully, so it never reaches here.
-  const mBare = norm.match(/^((?:\d\s*)?\w[\w\s,]*?)\.?\s+(\d+)\s+(\d+)$/i)
+  const mBare = norm.match(/^((?:\d\s*)?\w[\w\s,]*?)\.?\s+(\d+)\s+(\d+)(?:\s+(LXX)\b)?$/i)
   if (mBare) {
     const result = finish(
       mBare[1].trim().toLowerCase().replace(/\s+/g, ' '),
@@ -697,7 +716,8 @@ export function parseRef(input: string): ParsedRef | null {
       parseInt(mBare[2]),
       parseInt(mBare[3]),
       undefined,
-      undefined
+      undefined,
+      mBare[4]
     )
     if (result) return result
   }

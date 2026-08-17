@@ -418,10 +418,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     if (mode !== 'crossref') { setVersePreview(null); return }
     const parsed = parseRef(query.trim())
     if (!parsed || !parsed.verse) { setVersePreview(null); return }
-    window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, 'kjva')
+    // "Isaiah 66:3 LXX" — parseRef reports the trailing translation suffix as forcedTranslation;
+    // preview the verse from that text rather than always KJVA.
+    const previewTextId = parsed.forcedTranslation?.toLowerCase() ?? 'kjva'
+    const refSuffix = parsed.forcedTranslation ? ` ${parsed.forcedTranslation}` : ''
+    window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, previewTextId)
       .then((v) => {
         if (v) {
-          setVersePreview({ ref: `${bookName(parsed.bookId)} ${parsed.chapter}:${parsed.verse}`, text: v.text })
+          setVersePreview({ ref: `${bookName(parsed.bookId)} ${parsed.chapter}:${parsed.verse}${refSuffix}`, text: v.text })
         } else {
           setVersePreview(null)
         }

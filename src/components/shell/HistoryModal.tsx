@@ -244,7 +244,16 @@ const HistoryItem = memo(function HistoryItem({
                 onClick={(e) => {
                   e.stopPropagation()
                   const parsed = parseRef(entry.verseRef!)
-                  if (parsed) onNavigate({ ...entry, type: 'bible', bookId: parsed.bookId, chapter: parsed.chapter })
+                  // A note's stored verseRef can carry a trailing " LXX" ("Isaiah 66:3 LXX").
+                  // parseRef now both accepts that (it used to return null, so the jump did
+                  // nothing at all) and reports it, so the jump lands in the LXX.
+                  if (parsed) onNavigate({
+                    ...entry,
+                    type: 'bible',
+                    bookId: parsed.bookId,
+                    chapter: parsed.chapter,
+                    translation: parsed.forcedTranslation?.toLowerCase() ?? entry.translation,
+                  })
                 }}
                 title={`Jump to ${entry.verseRef}`}
                 className="text-[9px] text-[rgb(var(--color-accent))] hover:underline flex-shrink-0 cursor-pointer"
