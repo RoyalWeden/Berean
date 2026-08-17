@@ -193,6 +193,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'h1', label: 'Heading 1', description: 'Large section heading', keywords: ['h1', 'title'], group: 'Basic blocks', run: toHeading(1) },
   { id: 'h2', label: 'Heading 2', description: 'Medium section heading', keywords: ['h2', 'subtitle'], group: 'Basic blocks', run: toHeading(2) },
   { id: 'h3', label: 'Heading 3', description: 'Small section heading', keywords: ['h3'], group: 'Basic blocks', run: toHeading(3) },
+  // H4-H6 were already reachable from both toolbars' text-type dropdowns but from
+  // neither this menu nor the block menu — every surface now offers the same heading
+  // range (see src/lib/blockTypeIcons.ts, the shared icon/label set they all read).
+  { id: 'h4', label: 'Heading 4', description: 'Sub-heading', keywords: ['h4'], group: 'Basic blocks', run: toHeading(4) },
+  { id: 'h5', label: 'Heading 5', description: 'Minor sub-heading', keywords: ['h5'], group: 'Basic blocks', run: toHeading(5) },
+  { id: 'h6', label: 'Heading 6', description: 'Smallest sub-heading', keywords: ['h6'], group: 'Basic blocks', run: toHeading(6) },
   { id: 'bullet', label: 'Bulleted list', description: 'Simple bullet list', keywords: ['ul', 'unordered', 'bullet', 'dash'], group: 'Basic blocks', run: toBulletList('*') },
   { id: 'numbered', label: 'Numbered list', description: 'List with numbers', keywords: ['ol', 'ordered', 'numbered'], group: 'Basic blocks', run: toOrderedList },
   { id: 'task', label: 'Task list', description: 'Checkboxes to track to-dos', keywords: ['todo', 'checkbox', 'checklist', 'task'], group: 'Basic blocks', run: toTaskList },

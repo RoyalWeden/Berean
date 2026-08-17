@@ -85,6 +85,17 @@ export function createEditorCommands(view: EditorView) {
     else run(setBlockType(schema.nodes.heading, { level }))
   }
 
+  // Toggle, not one-way set: a second click on the toolbar's code-block button returns
+  // the block to a plain paragraph, matching how the blockquote button below behaves.
+  // (The /code slash command stays one-way — it converts whatever you typed the command
+  // in, so there's never an existing code block to toggle back out of.)
+  function toggleCodeBlock() {
+    run((state, dispatch) => {
+      const inCodeBlock = state.selection.$from.parent.type === schema.nodes.code_block
+      return setBlockType(inCodeBlock ? schema.nodes.paragraph : schema.nodes.code_block)(state, dispatch)
+    })
+  }
+
   function toggleBlockquote() {
     run((state, dispatch) => lift(state, dispatch) || wrapIn(schema.nodes.blockquote)(state, dispatch))
   }
@@ -110,6 +121,6 @@ export function createEditorCommands(view: EditorView) {
 
   return {
     isMarkActive, run, applyHighlight, removeHighlight, applyLink, currentLinkHref, toggleTaskList,
-    setHeading, toggleBlockquote, outdent, indent, setBulletList, setOrderedList,
+    setHeading, toggleBlockquote, toggleCodeBlock, outdent, indent, setBulletList, setOrderedList,
   }
 }

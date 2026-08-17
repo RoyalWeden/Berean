@@ -1,19 +1,15 @@
 import { useState, useEffect } from 'react'
-import {
-  Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare, Quote, Code, Table2, Minus, Type,
-  type LucideIcon,
-} from 'lucide-react'
 import type { Note, Book } from '@/types'
 import type { SlashCommand } from './slashCommands'
-import { CALLOUT_META } from '@/lib/noteTextBlocks'
+import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 
-const SLASH_ICONS: Record<string, LucideIcon> = {
-  text: Type, h1: Heading1, h2: Heading2, h3: Heading3,
-  bullet: List, numbered: ListOrdered, task: CheckSquare, quote: Quote,
-  code: Code, table: Table2, divider: Minus,
-}
+// Slash-command icons come straight from the shared block-type config, which is keyed
+// by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
+// date any more. This replaced a hand-maintained SLASH_ICONS map that was missing
+// `verse`, `image` and `columns` entirely (those three commands rendered with an empty
+// icon square) and stopped at h3.
 
 // Same visual treatment as NoteEditor.tsx's strongsSuggest/verseSuggest/
 // backlinkInfo popups (NoteEditor.tsx:3944-4036) — small floating cards for
@@ -256,8 +252,7 @@ export function SlashCommandPopup({
         <div key={group}>
           <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{group}</div>
           {items.map(({ cmd, idx }) => {
-            const Icon = SLASH_ICONS[cmd.id]
-            const calloutEmoji = cmd.id.startsWith('callout-') ? CALLOUT_META[cmd.id.replace('callout-', '').toUpperCase()]?.icon : null
+            const Icon = BLOCK_TYPE_META[cmd.id]?.icon
             return (
               <button
                 key={cmd.id}
@@ -270,7 +265,7 @@ export function SlashCommandPopup({
                 }`}
               >
                 <span className="w-6 h-6 flex-shrink-0 rounded flex items-center justify-center bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))]">
-                  {Icon ? <Icon size={13} /> : <span className="text-xs">{calloutEmoji}</span>}
+                  {Icon && <Icon size={13} />}
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block truncate font-medium text-[rgb(var(--color-text-primary))]">{cmd.label}</span>

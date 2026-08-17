@@ -10,6 +10,7 @@ import { marked } from 'marked'
 import pmEditorCss from '@/components/notes/pm/pmEditor.css?raw'
 import { renderMarkdownToHTML } from '@/components/notes/pm/staticRender'
 import { parseRef, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
+import { CALLOUT_META } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
 // Configure marked for safe HTML output — gfm:true enables GitHub-Flavored Markdown tables
@@ -261,14 +262,11 @@ export function addVerseLinksToHtml(html: string): string {
   })
 }
 
-// Callout metadata for > [!TYPE] blocks
-export const CALLOUT_META: Record<string, { icon: string; label: string; bg: string; border: string; color: string }> = {
-  NOTE:      { icon: 'ℹ', label: 'Note',      bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.6)',  color: '#60a5fa' },
-  TIP:       { icon: '💡', label: 'Tip',       bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.6)',   color: '#4ade80' },
-  WARNING:   { icon: '⚠', label: 'Warning',   bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.6)',  color: '#fbbf24' },
-  IMPORTANT: { icon: '★', label: 'Important', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.6)',  color: '#c084fc' },
-  CAUTION:   { icon: '✕', label: 'Caution',   bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.6)',   color: '#f87171' },
-}
+// Callout metadata for > [!TYPE] blocks. This used to be a byte-for-byte duplicate of
+// noteTextBlocks.ts's own CALLOUT_META — two copies that had to be edited in lockstep
+// for the print/PDF output to keep matching the editor. Re-exported from the one
+// definition instead, so the icon/colour set can only ever be changed in one place.
+export { CALLOUT_META }
 
 // Escape HTML special chars for safe inclusion in generated markup.
 function escapeHtmlBasic(s: string): string {
@@ -475,7 +473,7 @@ export function renderPreviewContent(content: string): string {
         `<div style="border-left:3px solid ${meta.border};background:${meta.bg};border-radius:0 6px 6px 0;` +
         `padding:10px 14px;margin:12px 0">` +
         `<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;` +
-        `color:${meta.color};margin-bottom:5px;display:flex;align-items:center;gap:5px">${meta.icon} ${title}</div>` +
+        `color:${meta.color};margin-bottom:5px;display:flex;align-items:center;gap:5px">${meta.iconSvg}${title}</div>` +
         `<div style="font-size:0.875rem">${bodyHtml}</div>` +
         `</div>`
       return stash(calloutHtml)

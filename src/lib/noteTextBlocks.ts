@@ -27,12 +27,37 @@ export const BULLET_STYLE_DEFS: Record<string, { label: string; symbols: string[
 }
 
 // ─── Callouts ───────────────────────────────────────────────────────────────
-export const CALLOUT_META: Record<string, { icon: string; label: string; bg: string; border: string; color: string }> = {
-  NOTE:      { icon: 'ℹ', label: 'Note',      bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.6)',  color: '#60a5fa' },
-  TIP:       { icon: '💡', label: 'Tip',       bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.6)',   color: '#4ade80' },
-  WARNING:   { icon: '⚠', label: 'Warning',   bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.6)',  color: '#fbbf24' },
-  IMPORTANT: { icon: '★', label: 'Important', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.6)',  color: '#c084fc' },
-  CAUTION:   { icon: '✕', label: 'Caution',   bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.6)',   color: '#f87171' },
+// `iconSvg` replaced the emoji glyphs these used to carry (ℹ 💡 ⚠ ★ ✕) so a callout
+// looks the same everywhere it appears. The React menus read their Lucide components
+// from src/lib/blockTypeIcons.ts; this module can't import that (it's deliberately
+// framework-free — see the file header — and lucide-react is a React package), and its
+// consumers here are raw-DOM/HTML renderers (pm/nodeViews.ts, pm/staticRender.ts) that
+// need markup, not a component. So the same five Lucide glyphs are inlined below as
+// plain SVG path data, copied verbatim from lucide-react 0.376's own icon modules
+// (Info, Lightbulb, AlertTriangle, Star, XCircle). KEEP THESE IN SYNC with
+// blockTypeIcons.ts's `callout-*` entries if either side ever changes icon.
+function lucideSvg(inner: string): string {
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" ' +
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0">' + inner + '</svg>'
+  )
+}
+
+export const CALLOUT_ICON_SVG: Record<string, string> = {
+  NOTE:      lucideSvg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+  TIP:       lucideSvg('<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>'),
+  WARNING:   lucideSvg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  IMPORTANT: lucideSvg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
+  CAUTION:   lucideSvg('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+}
+
+export const CALLOUT_META: Record<string, { iconSvg: string; label: string; bg: string; border: string; color: string }> = {
+  NOTE:      { iconSvg: CALLOUT_ICON_SVG.NOTE,      label: 'Note',      bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.6)',  color: '#60a5fa' },
+  TIP:       { iconSvg: CALLOUT_ICON_SVG.TIP,       label: 'Tip',       bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.6)',   color: '#4ade80' },
+  WARNING:   { iconSvg: CALLOUT_ICON_SVG.WARNING,   label: 'Warning',   bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.6)',  color: '#fbbf24' },
+  IMPORTANT: { iconSvg: CALLOUT_ICON_SVG.IMPORTANT, label: 'Important', bg: 'rgba(168,85,247,0.08)',  border: 'rgba(168,85,247,0.6)',  color: '#c084fc' },
+  CAUTION:   { iconSvg: CALLOUT_ICON_SVG.CAUTION,   label: 'Caution',   bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.6)',   color: '#f87171' },
 }
 
 // ─── Verse blocks ───────────────────────────────────────────────────────────
