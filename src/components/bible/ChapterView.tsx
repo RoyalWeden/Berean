@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
+import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
@@ -1021,7 +1022,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Copy verses
             </span>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono">⌘C</span>
+            <ShortcutKeys keys="⌘C" className="flex-shrink-0" />
           </button>
           <button
             onClick={copyText}
@@ -1031,7 +1032,10 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               <Copy size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Copy selection
             </span>
-            <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono">⇧⌘C</span>
+            {/* "⌘⇧C", not "⇧⌘C" — this was the app's one place spelling a Shift+Command
+                combo with the modifiers in the opposite order from every other surface
+                (and from CLAUDE.md §14's own shortcut table, which puts Cmd first). */}
+            <ShortcutKeys keys="⌘⇧C" className="flex-shrink-0" />
           </button>
           <div className="h-px bg-[rgb(var(--color-surface-4))]" />
           <button

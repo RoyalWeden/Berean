@@ -18,7 +18,10 @@
 import SFIcon from './SFIcon'
 import { SF_ICONS } from '@/assets/icons/sf'
 
-const KEY_TOKEN_RE = /[⌘⇧⌥⌃↵↑↓←→]|[A-Za-z0-9,./–]+/g
+// The backtick is in the punctuation class because the notes editor's inline-code mark
+// binds ⌘` — without it that shortcut tokenized to a lone ⌘ keycap and the actual key
+// silently vanished from the hint.
+const KEY_TOKEN_RE = /[⌘⇧⌥⌃↵↑↓←→]|[A-Za-z0-9,./`–]+/g
 
 const KEY_ICON_MAP: Record<string, keyof typeof SF_ICONS> = {
   '⌘': 'command',

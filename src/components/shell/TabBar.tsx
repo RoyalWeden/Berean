@@ -6,6 +6,7 @@ import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { bookChapterHoverLabel } from '@/lib/parseRef'
+import ShortcutKeys from './ShortcutKeys'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
@@ -737,6 +738,10 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
           >
             <Trash2 size={12} />
             Close tab
+            {/* The one item in this menu with a real keybinding (⌘W, per Settings →
+                Shortcuts) — carries the same styled keycap chip dropdown menus already
+                use (HeaderOverflowMenu.tsx) instead of leaving it undiscoverable. */}
+            <ShortcutKeys keys="⌘W" className="ml-auto flex-shrink-0" />
           </button>
           {otherSessions.length > 0 && (
             <>

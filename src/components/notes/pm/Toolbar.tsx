@@ -22,6 +22,17 @@ import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styl
 import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 import { computeWordStats, type WordStats } from '@/lib/wordCount'
+import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS } from '@/lib/blockTypeIcons'
+// Same styled-keycap hover hint the rest of the app uses (ShellHeader, Ribbon, Settings…)
+// — this toolbar was one of the last places still on plain native `title="Bold (⌘B)"`
+// tooltips, which render in the OS's own delayed grey box with the shortcut as run-together
+// parenthesised text instead of real keycaps.
+import { HintTooltip } from '@/components/shell/HintTooltip'
+
+// The "Text type" dropdown trigger and the code-block button both take their glyph from
+// the shared block-type config rather than picking one locally (see blockTypeIcons.ts).
+const PilcrowIcon = BLOCK_TYPE_META.text.icon
+const CodeBlockIcon = BLOCK_TYPE_META.code.icon
 
 // Debounce window for the word-count/reading-time footer below — deliberately the same 500ms
 // autosave uses (NotesPanel.tsx's handleContentChange/handleTitleChange saveTimer) so the
@@ -271,47 +282,75 @@ export default function Toolbar({
       )}
 
       {/* Text type */}
-      <button
-        title="Text type"
-        onMouseDown={(e) => openDropdownAt('type', e)}
-        className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 font-mono text-xs px-2`}
-      >
-        ¶ <ChevronDown size={10} />
-      </button>
+      <HintTooltip label="Text type">
+        <button
+          onMouseDown={(e) => openDropdownAt('type', e)}
+          className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 px-2`}
+        >
+          <PilcrowIcon size={14} /> <ChevronDown size={10} />
+        </button>
+      </HintTooltip>
       {sep}
 
-      <button title="Bold (⌘B)" onMouseDown={() => run(toggleMark(schema.marks.strong))} className={cls(isMarkActive('strong'))}><Bold size={14} /></button>
-      <button title="Italic (⌘I)" onMouseDown={() => run(toggleMark(schema.marks.em))} className={cls(isMarkActive('em'))}><Italic size={14} /></button>
-      <button title="Underline (⌘U)" onMouseDown={() => run(toggleMark(schema.marks.underline))} className={cls(isMarkActive('underline'))}><Underline size={14} /></button>
-      <button title="Strikethrough" onMouseDown={() => run(toggleMark(schema.marks.strike))} className={cls(isMarkActive('strike'))}><Strikethrough size={14} /></button>
-      <button title="Code (⌘`)" onMouseDown={() => run(toggleMark(schema.marks.code))} className={cls(isMarkActive('code'))}><Code size={14} /></button>
+      <HintTooltip label="Bold" shortcut="⌘B">
+        <button onMouseDown={() => run(toggleMark(schema.marks.strong))} className={cls(isMarkActive('strong'))}><Bold size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Italic" shortcut="⌘I">
+        <button onMouseDown={() => run(toggleMark(schema.marks.em))} className={cls(isMarkActive('em'))}><Italic size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Underline" shortcut="⌘U">
+        <button onMouseDown={() => run(toggleMark(schema.marks.underline))} className={cls(isMarkActive('underline'))}><Underline size={14} /></button>
+      </HintTooltip>
+      {/* No shortcut prop — strikethrough has no binding in keymap.ts, unlike the four
+          marks around it, so it gets a label-only hint rather than an invented combo. */}
+      <HintTooltip label="Strikethrough">
+        <button onMouseDown={() => run(toggleMark(schema.marks.strike))} className={cls(isMarkActive('strike'))}><Strikethrough size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Code" shortcut="⌘`">
+        <button onMouseDown={() => run(toggleMark(schema.marks.code))} className={cls(isMarkActive('code'))}><Code size={14} /></button>
+      </HintTooltip>
 
-      <button
-        title="Highlight"
-        onMouseDown={(e) => openDropdownAt('highlight', e)}
-        className={cls(openDropdown === 'highlight' || isMarkActive('highlight'))}
-      >
-        <Highlighter size={14} />
-      </button>
+      <HintTooltip label="Highlight" shortcut="⌘⇧H">
+        <button
+          onMouseDown={(e) => openDropdownAt('highlight', e)}
+          className={cls(openDropdown === 'highlight' || isMarkActive('highlight'))}
+        >
+          <Highlighter size={14} />
+        </button>
+      </HintTooltip>
 
       {sep}
-      <button
-        title="Link"
-        onMouseDown={openLinkDropdownAt}
-        className={cls(openDropdown === 'link' || isMarkActive('link'))}
-      ><Link2 size={14} /></button>
+      <HintTooltip label="Link">
+        <button
+          onMouseDown={openLinkDropdownAt}
+          className={cls(openDropdown === 'link' || isMarkActive('link'))}
+        ><Link2 size={14} /></button>
+      </HintTooltip>
       {sep}
 
-      <button
-        title="List type"
-        onMouseDown={(e) => openDropdownAt('list', e)}
-        className={`${iconBtn} ${openDropdown === 'list' ? active : inactive}`}
-      >
-        <List size={14} />
-      </button>
-      <button title="Blockquote" onMouseDown={cmds.toggleBlockquote} className={cls(false)}><Quote size={14} /></button>
-      <button title="Outdent (⇧Tab)" onMouseDown={cmds.outdent} className={cls(false)}><IndentDecrease size={14} /></button>
-      <button title="Indent (Tab)" onMouseDown={cmds.indent} className={cls(false)}><IndentIncrease size={14} /></button>
+      <HintTooltip label="List type">
+        <button
+          onMouseDown={(e) => openDropdownAt('list', e)}
+          className={`${iconBtn} ${openDropdown === 'list' ? active : inactive}`}
+        >
+          <List size={14} />
+        </button>
+      </HintTooltip>
+      <HintTooltip label="Blockquote">
+        <button onMouseDown={cmds.toggleBlockquote} className={cls(false)}><Quote size={14} /></button>
+      </HintTooltip>
+      {/* Code blocks had no button on either toolbar — the only way to make one was the
+          /code slash command, which isn't discoverable from the toolbar the rest of the
+          block types live on. */}
+      <HintTooltip label="Code block">
+        <button onMouseDown={cmds.toggleCodeBlock} className={cls(false)}><CodeBlockIcon size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Outdent" shortcut="⇧Tab">
+        <button onMouseDown={cmds.outdent} className={cls(false)}><IndentDecrease size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Indent" shortcut="Tab">
+        <button onMouseDown={cmds.indent} className={cls(false)}><IndentIncrease size={14} /></button>
+      </HintTooltip>
 
       {sep}
       {/* Insert table: reuses insertBlockNode (slashCommands.ts) rather than the raw
@@ -319,40 +358,47 @@ export default function Toolbar({
           enclosing paragraph the way a block-level table needs, so inserting mid-paragraph
           silently produced a malformed/uneditable result. insertBlockNode already handles
           this correctly (same helper the working /table slash command uses). */}
-      <button
-        title="Table"
-        onMouseDown={() => {
-          const { from, to } = editorView.state.selection
-          insertBlockNode(editorView, from, to, buildEmptyTable())
-        }}
-        className={cls(false)}
-      ><Table2 size={14} /></button>
+      <HintTooltip label="Table">
+        <button
+          onMouseDown={() => {
+            const { from, to } = editorView.state.selection
+            insertBlockNode(editorView, from, to, buildEmptyTable())
+          }}
+          className={cls(false)}
+        ><Table2 size={14} /></button>
+      </HintTooltip>
       {/* Table row/column management — only shown with the cursor inside an existing table;
           addRowAfter/deleteRow/deleteColumn/deleteTable are all real no-ops outside one, but
           a button doing nothing reads as broken, so it's hidden rather than left enabled. */}
       {inTable && (
-        <button
-          title="Table row/column"
-          onMouseDown={(e) => openDropdownAt('table', e)}
-          className={`${iconBtn} ${openDropdown === 'table' ? active : inactive}`}
-        >
-          <Rows3 size={14} />
-        </button>
+        <HintTooltip label="Table row/column">
+          <button
+            onMouseDown={(e) => openDropdownAt('table', e)}
+            className={`${iconBtn} ${openDropdown === 'table' ? active : inactive}`}
+          >
+            <Rows3 size={14} />
+          </button>
+        </HintTooltip>
       )}
-      <button
-        title="Divider"
-        onMouseDown={() => {
-          const { from, to } = editorView.state.selection
-          insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
-        }}
-        className={cls(false)}
-      ><Minus size={14} /></button>
+      <HintTooltip label="Divider">
+        <button
+          onMouseDown={() => {
+            const { from, to } = editorView.state.selection
+            insertBlockNode(editorView, from, to, schema.nodes.horizontal_rule.create())
+          }}
+          className={cls(false)}
+        ><Minus size={14} /></button>
+      </HintTooltip>
       {/* Verse blocks are plain paragraph text auto-detected by blockDecorations.ts, not a
           node this toolbar inserts directly (see slashCommands.ts's startVerseBlock — same
           reasoning) — this button just makes sure the detection setting is on and focuses
           the editor so the user can type a reference. */}
-      <button title="Insert a scripture verse" onMouseDown={(e) => openDropdownAt('verse', e)} className={cls(openDropdown === 'verse')}><BookOpen size={14} /></button>
-      <button title="Insert image" onMouseDown={() => pickAndInsertImage(editorView)} className={cls(false)}><ImageIcon size={14} /></button>
+      <HintTooltip label="Insert a scripture verse">
+        <button onMouseDown={(e) => openDropdownAt('verse', e)} className={cls(openDropdown === 'verse')}><BookOpen size={14} /></button>
+      </HintTooltip>
+      <HintTooltip label="Insert image">
+        <button onMouseDown={() => pickAndInsertImage(editorView)} className={cls(false)}><ImageIcon size={14} /></button>
+      </HintTooltip>
 
       {sep}
       {/* `isolate` + `willChange` give this button its own compositing layer —
@@ -360,17 +406,18 @@ export default function Toolbar({
           `backdrop-blur-md` background triggers a Chromium repaint glitch where
           a stray solid-color box flashes at the blurred container's corner
           during the transform. */}
-      <motion.button
-        title={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}
-        onMouseDown={() => toggleFocusMode()}
-        whileHover={{ rotate: 90, scale: 1.12 }}
-        whileTap={{ scale: 0.8, rotate: 90 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-        className={`${cls(focusMode)} isolate`}
-        style={{ willChange: 'transform' }}
-      >
-        <FocusIcon size={14} />
-      </motion.button>
+      <HintTooltip label={focusMode ? 'Exit Focus mode' : 'Focus mode — hide sidebar and chrome while writing'}>
+        <motion.button
+          onMouseDown={() => toggleFocusMode()}
+          whileHover={{ rotate: 90, scale: 1.12 }}
+          whileTap={{ scale: 0.8, rotate: 90 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          className={`${cls(focusMode)} isolate`}
+          style={{ willChange: 'transform' }}
+        >
+          <FocusIcon size={14} />
+        </motion.button>
+      </HintTooltip>
 
       {/* Windows: standard convention is minimize/maximize/close on the RIGHT, styled
           like the frameless title bar's own WindowControls.tsx (Fluent-ish hover, red
@@ -402,17 +449,22 @@ export default function Toolbar({
         >
           {openDropdown === 'type' && (
             <div className="pm-toolbar-solid rounded-lg shadow-2xl p-1 flex items-center gap-0.5">
-              {[
-                { label: '¶', level: 0 }, { label: 'H1', level: 1 }, { label: 'H2', level: 2 }, { label: 'H3', level: 3 }, { label: 'H4', level: 4 }, { label: 'H5', level: 5 }, { label: 'H6', level: 6 },
-              ].map(({ label, level }) => (
-                <button
-                  key={label}
-                  onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
-                  className={`${iconBtn} ${inactive} text-xs font-mono px-2.5 py-1`}
-                >
-                  {label}
-                </button>
-              ))}
+              {/* Icons + labels from the shared block-type config (src/lib/blockTypeIcons.ts)
+                  — these were plain-text "H1".."H6"/"¶" labels, a third icon vocabulary on
+                  top of the block menu's and slash menu's Lucide glyphs for the same levels. */}
+              {TEXT_TYPE_LEVELS.map(({ level, meta }) => {
+                const Icon = meta.icon
+                return (
+                  <button
+                    key={level}
+                    title={meta.label}
+                    onMouseDown={() => { cmds.setHeading(level); setOpenDropdown('none') }}
+                    className={`${iconBtn} ${inactive} px-2 py-1`}
+                  >
+                    <Icon size={14} />
+                  </button>
+                )
+              })}
             </div>
           )}
 

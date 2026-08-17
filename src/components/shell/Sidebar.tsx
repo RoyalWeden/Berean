@@ -5,6 +5,7 @@ import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, P
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
+import ShortcutKeys from './ShortcutKeys'
 import type { SpaceId, TabType } from '@/types'
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
@@ -592,7 +593,8 @@ export default function Sidebar() {
                   onClick={() => { createSession(); setSessionPopoverOpen(false) }}
                 >
                   <Plus size={12} />
-                  New session <span className="ml-auto opacity-50">⌘⇧0</span>
+                  {/* Was a bare "⌘⇧0" text span — now the app's standard keycap chip. */}
+                  New session <ShortcutKeys keys="⌘⇧0" className="ml-auto flex-shrink-0" />
                 </button>
                 <button
                   className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
