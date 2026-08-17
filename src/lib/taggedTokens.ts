@@ -69,3 +69,22 @@ export function parseTaggedTokens(tagged: string): TaggedToken[] {
   }
   return tokens
 }
+
+/**
+ * True when a token contributes NO characters to the verse's plain text (`verse.text`) and is
+ * therefore never spoken, never rendered as visible text, and must not advance a char position.
+ *
+ * Three cases, all of which reduce to "there is no English word here":
+ *  - `isParenthetical` — `~{H853}` grammatical particles
+ *  - `isStrongsBracket` — the visible `(` / `)` half of a sup>-wrapped alignment bracket
+ *  - `word === ''`      — the INVISIBLE halves of that same alignment-bracket sequence. KJVA
+ *    encodes a supplied-phrase bracket as four tokens: `sup>({}` `/sup>{Gxxxx}` `sup>){}`
+ *    `/sup>{}`. The 2nd and 4th have an empty word, but `isStrongsBracket` is false for them
+ *    (the 2nd carries a Strong's number, the 4th's empty word fails the bracket-char regex).
+ *    Callers that keyed only off `isParenthetical || isStrongsBracket` therefore counted them as
+ *    real words and advanced charPos by 1 for each, drifting every highlight, Strong's chip and
+ *    Read-Aloud tint by +2 for the rest of the verse (confirmed on John 7:41 and 19 other verses).
+ */
+export function tokenHasNoPlainText(token: Pick<TaggedToken, 'word' | 'isParenthetical' | 'isStrongsBracket'>): boolean {
+  return token.isParenthetical || token.isStrongsBracket || token.word === ''
+}
