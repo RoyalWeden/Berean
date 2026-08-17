@@ -18,6 +18,7 @@ import { getTranslationForBook } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
 import { YOUTUBE_LAYOUTS, getLayoutStyle, needsPanelWrapper, panelSide, suggestLayout, type LayoutDef } from '@/lib/youtubeLayouts'
 import { progressWidth } from '@/lib/progressBar'
+import { YOUTUBE_LOADING_TITLE, rememberYouTubeTitles, youtubeTitleFor } from '@/lib/youtubeTitle'
 import type { YouTubeLayout, YouTubePanelState, YouTubeTabState } from '@/types'
 
 // Thumbnail 404 fallback chain — see thumbFallback's own comment (below, in the component) for
@@ -603,12 +604,18 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingYouTubeVideo, clearPendingYouTubeVideo])
 
-  // Rename the YouTube tab to the video title once it's known
+  // Share loaded titles with the store/history dropdown, which only ever have a
+  // video id to work with (see lib/youtubeTitle.ts).
+  useEffect(() => { rememberYouTubeTitles(videos) }, [videos])
+
+  // Rename the YouTube tab to the video title once it's known. When the video
+  // isn't in `videos` yet (freshly opened, list still loading) show a loading
+  // placeholder rather than leaving the PREVIOUS video's title in place — this
+  // effect re-runs on `videos` and corrects it as soon as metadata lands.
   useEffect(() => {
     if (!activeVideoId || !ytTabId) return
     const video = videos.find((v) => v.videoId === activeVideoId)
-    if (!video) return
-    renameTab('youtube', ytTabId, video.title)
+    renameTab('youtube', ytTabId, video ? video.title : (youtubeTitleFor(activeVideoId) ?? YOUTUBE_LOADING_TITLE))
   }, [activeVideoId, videos, ytTabId, renameTab])
 
   // ─── Player lifecycle ────────────────────────────────────────────────────────

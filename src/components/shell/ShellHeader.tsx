@@ -9,6 +9,8 @@ import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import { getAllNotes } from '@/lib/notesCache'
+import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
+import { cachedLexiconTitle } from '@/lib/lexiconTitle'
 import ActionPillGroup from './ActionPillGroup'
 import ShortcutKeys from './ShortcutKeys'
 import WindowControls from './WindowControls'
@@ -122,9 +124,35 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
   const canReturnToOrigin = !canNavBack && !!originTab
   const canGoBack = canNavBack || canReturnToOrigin
   const [navDropdown, setNavDropdown] = useState<{ x: number; y: number; mode: 'back' | 'forward' | 'all' } | null>(null)
+  // Same live-title trick as navNoteTitles above, for YouTube: nav-stack entries
+  // are pushed before the new video's metadata is known, so the stored title can
+  // be a placeholder. Loaded lazily — only once a history dropdown is actually
+  // opened on a stack that contains YouTube entries.
+  const [navVideoTitles, setNavVideoTitles] = useState<Map<string, string>>(new Map())
   const navDropdownRef   = useRef<HTMLDivElement>(null)
   const navOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Titles stored on a nav entry are a snapshot from push time and can be stale
+  // (note renamed since) or a placeholder (video/lexicon metadata not loaded yet),
+  // so prefer a live lookup wherever one is available.
+  function navEntryTitle(entry: TabNavEntry): string {
+    if (entry.type === 'note' && entry.noteId) return navNoteTitles.get(entry.noteId) ?? entry.title
+    if (entry.type === 'youtube' && entry.videoId) return navVideoTitles.get(entry.videoId) ?? entry.title
+    if (entry.type === 'lexicon' && entry.strongsNum) return cachedLexiconTitle(entry.strongsNum) ?? entry.title
+    return entry.title
+  }
+
+  useEffect(() => {
+    if (!navDropdown) return
+    const stack = currentTabNav?.stack ?? []
+    if (!stack.some((e) => e.type === 'youtube' && e.videoId)) return
+    let cancelled = false
+    ensureYouTubeTitles()
+      .then((titles) => { if (!cancelled) setNavVideoTitles(titles) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [navDropdown, currentTabNav])
 
   function openNavDropdown(mode: 'back' | 'forward' | 'all', rect: DOMRect) {
     if (navCloseTimer.current) { clearTimeout(navCloseTimer.current); navCloseTimer.current = null }
@@ -475,7 +503,7 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                       }`}
                     >
                       <TypeIcon size={12} className={`flex-shrink-0 ${isCurrent ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`} />
-                      <span className="truncate">{entry.type === 'note' && entry.noteId ? (navNoteTitles.get(entry.noteId) ?? entry.title) : entry.title}</span>
+                      <span className="truncate">{navEntryTitle(entry)}</span>
                       {isCurrent && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[rgb(var(--color-accent))] flex-shrink-0" />}
                     </button>
                   )
