@@ -417,7 +417,17 @@ export function verseTextAccepted(
     versePendingByRef.set(refText, { key, candidate, callbacks: [onResolved] })
   }
 
+  // Debounce only actually needs to coalesce a BURST of calls for the same refText (the
+  // rapid-fire re-triggers a user's own typing produces, one per keystroke inside a verse
+  // block's body). The first call for a refText — overwhelmingly the case when a note is
+  // simply opened/switched to, not edited — has nothing yet to coalesce against, so paying
+  // the full 300ms before even starting the DB round-trip only adds visible delay to the
+  // "note just opened, verse blocks are still plain text" flash. Firing that first request
+  // on the next tick (0ms) instead of after a full debounce window is what "note opens
+  // instantly formatted" actually needs; a genuine typing burst still resets to the full
+  // window on every subsequent keystroke via the existingTimer branch below, unchanged.
   const existingTimer = verseDebounceTimers.get(refText)
+  const delay = existingTimer ? VERSE_LOOKUP_DEBOUNCE_MS : 0
   if (existingTimer) clearTimeout(existingTimer)
   verseDebounceTimers.set(refText, setTimeout(() => {
     verseDebounceTimers.delete(refText)
@@ -443,7 +453,7 @@ export function verseTextAccepted(
         cacheVerseRatio(pending.key, 0)
         pending.callbacks.forEach((cb) => cb())
       })
-  }, VERSE_LOOKUP_DEBOUNCE_MS))
+  }, delay))
 
   return null
 }

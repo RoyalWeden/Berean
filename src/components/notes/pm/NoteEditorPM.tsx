@@ -732,12 +732,29 @@ export default function NoteEditorPM({
   async function handleVerseRefHoverStart(ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) {
     if (!ref.verse) return
     const seq = ++refHoverSeqRef.current
-    const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+    // A range ref ("Deuteronomy 18:15-19") carries endVerse — fold it into both the label
+    // ("18:15-19", not just "18:15") and the fetched text (every verse in the range, not
+    // only the start verse), same-chapter ranges only (endChapter ranges aren't produced by
+    // the hover-trigger regex here).
+    const endVerse = ref.endVerse != null && ref.endVerse > ref.verse ? ref.endVerse : undefined
+    const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${endVerse ? `-${endVerse}` : ''}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
     setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: '', loading: true })
     const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
-    const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
+    let text = ''
+    if (endVerse) {
+      const verses = await window.bible.queryChapter(ref.bookId, ref.chapter, tid).catch(() => null)
+      if (Array.isArray(verses)) {
+        text = verses
+          .filter((v) => v.verse_num >= ref.verse! && v.verse_num <= endVerse)
+          .map((v) => v.text)
+          .join(' ')
+      }
+    } else {
+      const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
+      text = v?.text ?? ''
+    }
     if (seq !== refHoverSeqRef.current) return
-    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: v?.text ?? '', loading: false })
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text, loading: false })
   }
 
   async function handleLexiconRefHoverStart(strongsId: string, rect: DOMRect) {
