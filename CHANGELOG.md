@@ -122,6 +122,15 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.27] - 2026-08-17
+
+Window
+
+- Fixed the window not being draggable by the top bar over the middle and
+  right side of the header (the scripture, lexicon, notes, and YouTube tab
+  controls) — dragging previously only worked over the left-hand nav
+  cluster. The whole bar is draggable from any blank space now.
+
 ## [0.4.26] - 2026-08-17
 
 Highlights & Read Aloud
