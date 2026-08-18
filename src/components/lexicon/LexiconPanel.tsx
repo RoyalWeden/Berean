@@ -10,6 +10,7 @@ import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMen
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
+import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -1314,8 +1315,8 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     if (!lexiconTabId) return
     if (entryRestorePending) return // avoid a flash of "Lexicon" while the saved entry is still loading
     if (tabSwitchInFlightRef.current) return // same-tick race guard — see its comment above
-    renameTab('lexicon', lexiconTabId, activeEntry ? activeEntry.strongsNum : 'Lexicon')
-  }, [activeEntry?.strongsNum, lexiconTabId, entryRestorePending, renameTab])
+    renameTab('lexicon', lexiconTabId, activeEntry ? rememberLexiconTitle(activeEntry) : 'Lexicon')
+  }, [activeEntry, lexiconTabId, entryRestorePending, renameTab])
 
   function navToEntry(strongsNum: string, newTab: boolean) {
     if (newTab) {
@@ -1328,8 +1329,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       .then((entry) => {
         if (!entry) return
         setActiveEntry(entry)
-        addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
-        if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum, title: strongsNum })
+        const title = rememberLexiconTitle(entry)
+        addHistoryEntry({ type: 'lexicon', title, strongsNum })
+        if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum, title })
       })
       .catch(() => {})
   }
@@ -1413,8 +1415,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
           key={searchRemountToken}
           onSelect={(entry) => {
             setActiveEntry(entry)
-            addHistoryEntry({ type: 'lexicon', title: entry.strongsNum, strongsNum: entry.strongsNum })
-            if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum: entry.strongsNum, title: entry.strongsNum })
+            const title = rememberLexiconTitle(entry)
+            addHistoryEntry({ type: 'lexicon', title, strongsNum: entry.strongsNum })
+            if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum: entry.strongsNum, title })
           }}
           onOpenNewTab={(entry) => navToEntry(entry.strongsNum, true)}
           onSearchStateChange={(s) => {

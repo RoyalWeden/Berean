@@ -136,6 +136,14 @@ Search & Notes
   previously it only worked from inside a note — and jumps straight to
   that verse in the Septuagint.
 
+Tabs
+- Lexicon tabs and their back/forward history now show the word alongside
+  the Strong's number, instead of just the bare number.
+- Opening a YouTube video no longer briefly shows the wrong tab title,
+  and navigating YouTube back/forward history now always shows the
+  correct video's title instead of sometimes carrying over the previous
+  one.
+
 ## [0.4.25] - 2026-08-16
 
 Tabs

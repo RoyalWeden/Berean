@@ -8,6 +8,8 @@ import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/
 import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
 import { debouncedLocalStorage } from '@/lib/debouncedStorage'
+import { lexiconTitleFor } from '@/lib/lexiconTitle'
+import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
 export interface WordReplacerRule {
   id: string
@@ -1537,6 +1539,12 @@ export const useAppStore = create<AppState>()(
       },
 
       renameTab: (spaceId, tabId, title) => {
+        // No-op guard: callers are effects that re-run on unrelated state changes
+        // (e.g. the YouTube tab's rename effect re-runs whenever the video list
+        // object changes), and an unconditional set() would rebuild the whole
+        // tabs map — and re-render every tab subscriber — for an identical title.
+        const existing = get().tabs[spaceId]?.find((t) => t.id === tabId)
+        if (!existing || existing.title === title) return
         set((s) => ({
           tabs: {
             ...s.tabs,
@@ -1789,11 +1797,15 @@ export const useAppStore = create<AppState>()(
               }
             } else if (currentTab.type === 'lexicon') {
               if ('strongsNum' in ns && ns.strongsNum && ns.strongsNum !== cur.strongsNum) {
-                get().pushTabNav(tabId, { type: 'lexicon', title: ns.strongsNum as string, strongsNum: ns.strongsNum as string })
+                get().pushTabNav(tabId, { type: 'lexicon', title: lexiconTitleFor(ns.strongsNum as string), strongsNum: ns.strongsNum as string })
               }
             } else if (currentTab.type === 'youtube') {
               if ('videoId' in ns && ns.videoId && ns.videoId !== cur.videoId) {
-                get().pushTabNav(tabId, { type: 'youtube', title: currentTab.title, videoId: ns.videoId as string })
+                // Must NOT reuse currentTab.title — that's still the PREVIOUS video's
+                // title at this point. ShellHeader also live-looks-up the title when it
+                // renders history rows, so a cache miss here self-corrects there.
+                const vid = ns.videoId as string
+                get().pushTabNav(tabId, { type: 'youtube', title: youtubeTitleFor(vid) ?? YOUTUBE_LOADING_TITLE, videoId: vid })
               }
             }
           }
@@ -1881,10 +1893,13 @@ export const useAppStore = create<AppState>()(
       }),
 
       openLexiconEntry: (strongsNum, fromNote) => {
-        get().addHistoryEntry({ type: 'lexicon', title: strongsNum, strongsNum })
+        // Fuller "G26 — ἀγάπη" title when this entry has been loaded before this
+        // session; falls back to the bare number otherwise (see lexiconTitle.ts).
+        const lexTitle = lexiconTitleFor(strongsNum)
+        get().addHistoryEntry({ type: 'lexicon', title: lexTitle, strongsNum })
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
-          if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: strongsNum })
+          if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })
         }
         set({ pendingLexiconEntry: strongsNum, lexiconNoteBack: fromNote ?? null })
       },
@@ -1928,13 +1943,16 @@ export const useAppStore = create<AppState>()(
       clearSearchQuery: () => set({ pendingSearchQuery: null }),
 
       openYouTubeVideo: (videoId, startTime = 0, fromNote) => {
-        get().addHistoryEntry({ type: 'youtube', title: videoId ?? 'YouTube', videoId: videoId ?? undefined })
+        // Raw video ids are meaningless as titles — prefer the cached real title,
+        // otherwise a loading placeholder that YouTubeTab corrects once metadata lands.
+        const ytTitle = videoId ? (youtubeTitleFor(videoId) ?? YOUTUBE_LOADING_TITLE) : 'YouTube'
+        get().addHistoryEntry({ type: 'youtube', title: ytTitle, videoId: videoId ?? undefined })
         const state = get()
         if (state.tabs['youtube'].length === 0) get().createTab('youtube')
         const fresh = get()
         const ytTabId = fresh.tabs['youtube'][0]?.id ?? null
         if (!get().isNavJumping && videoId && ytTabId) {
-          get().pushTabNav(ytTabId, { type: 'youtube', title: videoId, videoId })
+          get().pushTabNav(ytTabId, { type: 'youtube', title: ytTitle, videoId })
         }
         set({
           pendingYouTubeVideo: { videoId, startTime },
@@ -1944,7 +1962,11 @@ export const useAppStore = create<AppState>()(
         })
       },
       openYouTubeVideoInNewTab: (videoId, startTime = 0) => {
-        get().addHistoryEntry({ type: 'youtube', title: videoId ?? 'YouTube', videoId: videoId ?? undefined })
+        get().addHistoryEntry({
+          type: 'youtube',
+          title: videoId ? (youtubeTitleFor(videoId) ?? YOUTUBE_LOADING_TITLE) : 'YouTube',
+          videoId: videoId ?? undefined,
+        })
         get().createTab('youtube') // creates + activates a fresh youtube tab
         set({ pendingYouTubeVideo: { videoId, startTime }, activeSpace: 'youtube' })
       },

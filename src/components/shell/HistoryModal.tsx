@@ -5,6 +5,8 @@ import { useAppStore } from '@/store'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
+import { ensureYouTubeTitles } from '@/lib/youtubeTitle'
+import { cachedLexiconTitle } from '@/lib/lexiconTitle'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -195,6 +197,7 @@ const HistoryItem = memo(function HistoryItem({
   onNavigate,
   onDelete,
   noteTitles,
+  videoTitles,
 }: {
   visits: HistoryEntry[]   // 1+ visits to the same target; visits[0] is the most recent
   dayLabelText?: string    // set only on the first row of a new day — lightweight divider, not a collapsible group
@@ -202,13 +205,19 @@ const HistoryItem = memo(function HistoryItem({
   onDelete: (id: string) => void
   /** Current note id → title, so renamed notes don't show the stale title snapshotted at push time. */
   noteTitles: Map<string, string>
+  /** Current video id → title, same reasoning as noteTitles. */
+  videoTitles: Map<string, string>
 }) {
   const [open, setOpen] = useState(false)
   const entry = visits[0]
   const repeated = visits.length > 1
   // Note entries resolve their title live from noteId so a rename is reflected immediately —
   // entry.title stays as a fallback for entries whose note has since been deleted.
-  const displayTitle = entry.type === 'note' && entry.noteId ? (noteTitles.get(entry.noteId) ?? entry.title) : entry.title
+  const displayTitle =
+    entry.type === 'note' && entry.noteId ? (noteTitles.get(entry.noteId) ?? entry.title)
+    : entry.type === 'youtube' && entry.videoId ? (videoTitles.get(entry.videoId) ?? entry.title)
+    : entry.type === 'lexicon' && entry.strongsNum ? (cachedLexiconTitle(entry.strongsNum) ?? entry.title)
+    : entry.title
   return (
     <div className="group relative">
       {dayLabelText && (
@@ -344,6 +353,18 @@ export default function HistoryModal() {
       })
       .catch(() => {})
   }, [historyOpen, noteChangeToken])
+
+  // Same idea for YouTube: an entry's title is snapshotted when the video is opened,
+  // which can be before its metadata has loaded (a "Loading…" placeholder).
+  const [videoTitles, setVideoTitles] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!historyOpen) return
+    let cancelled = false
+    ensureYouTubeTitles()
+      .then((titles) => { if (!cancelled) setVideoTitles(titles) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [historyOpen])
 
   // Bible chapter text and lexicon definitions caches (populated further below, once
   // deferredSearch is declared — see the effect after it) so "deep search" can match
@@ -754,6 +775,7 @@ export default function HistoryModal() {
                   onNavigate={navigate}
                   onDelete={deleteEntry}
                   noteTitles={noteTitles}
+                  videoTitles={videoTitles}
                 />
               ))}
               {hiddenCount > 0 && (
