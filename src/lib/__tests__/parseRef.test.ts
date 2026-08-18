@@ -72,6 +72,24 @@ describe('parseRef', () => {
     expect(r?.forcedTranslation).toBeUndefined()
   })
 
+  // Trailing " LXX" used to make parseRef return null outright, so every direct caller
+  // (floating search, scripture search, history) simply failed to resolve the reference.
+  it('parses a trailing LXX suffix and reports it as forcedTranslation', () => {
+    expect(parseRef('Isaiah 66:3 LXX')).toMatchObject({ bookId: 'ISA', chapter: 66, verse: 3, forcedTranslation: 'LXX' })
+    expect(parseRef('isaiah 66:3 lxx')).toMatchObject({ bookId: 'ISA', chapter: 66, verse: 3, forcedTranslation: 'LXX' })
+    expect(parseRef('Gen 1 LXX')).toMatchObject({ bookId: 'GEN', chapter: 1, forcedTranslation: 'LXX' })
+    expect(parseRef('Isa 53:1-5 LXX')).toMatchObject({ bookId: 'ISA', chapter: 53, verse: 1, endVerse: 5, forcedTranslation: 'LXX' })
+    expect(parseRef('Hosea 13-14 LXX')).toMatchObject({ bookId: 'HOS', chapter: 13, endChapter: 14, forcedTranslation: 'LXX' })
+    expect(parseRef('Isaiah 63:17-64:3 LXX')).toMatchObject({ bookId: 'ISA', chapter: 63, verse: 17, endChapter: 64, endVerse: 3, forcedTranslation: 'LXX' })
+    // bare-space form
+    expect(parseRef('psalm 95 1 lxx')).toMatchObject({ bookId: 'PSA', chapter: 95, verse: 1, forcedTranslation: 'LXX' })
+  })
+
+  it('only treats LXX as a suffix, not any trailing word', () => {
+    expect(parseRef('Isaiah 66:3 KJV')).toBeNull()
+    expect(parseRef('Isaiah 66:3 LXXX')).toBeNull()
+  })
+
   it('parses "book chapter verse" with a bare space instead of ":"/"." ', () => {
     expect(parseRef('james 1 15')).toMatchObject({ bookId: 'JAS', chapter: 1, verse: 15 })
     expect(parseRef('gen 1 1')).toMatchObject({ bookId: 'GEN', chapter: 1, verse: 1 })

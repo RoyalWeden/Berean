@@ -17,7 +17,7 @@ import type { Verse, HighlightColor, Note } from '@/types'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
-import { parseTaggedTokens, type TaggedToken } from '@/lib/taggedTokens'
+import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -864,8 +864,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       const tokensWithCharPos = tokens.map(t => {
         const charStart = charPos
         const origLen = t.word.length // length in verse.text, before any word-replacer substitution
-        // Parenthetical (~{}) and Strong's-bracket (sup>() sup>)) tokens have no plain-text word
-        const hasSpokenWord = !t.isParenthetical && !t.isStrongsBracket
+        // Parenthetical (~{}), Strong's-bracket (sup>( / sup>)) and empty-word alignment tokens
+        // all contribute nothing to verse.text — see tokenHasNoPlainText()'s doc comment.
+        const hasSpokenWord = !tokenHasNoPlainText(t)
         if (hasSpokenWord) charPos += t.word.length + 1 // word + trailing space
         const spokenIndex = hasSpokenWord ? spokenPos++ : -1
         return { ...t, charStart, origLen, spokenIndex }
@@ -900,13 +901,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         const activeStrongsRules = wordReplacerRules.filter(r => r.enabled && r.strongsNum)
         if (activeStrongsRules.length > 0) {
           displayTokens.forEach((t, i) => {
-            if (t.isParenthetical || t.isStrongsBracket || !t.strongsNum) return
+            if (tokenHasNoPlainText(t) || !t.strongsNum) return
             const nums = Array.isArray(t.strongsNum) ? t.strongsNum : [t.strongsNum]
             if (!activeStrongsRules.some(r => nums.includes(r.strongsNum!))) return
-            // Walk backwards past brackets/parentheticals to find the nearest real token
+            // Walk backwards past brackets/parentheticals/empty tokens to the nearest real word
             for (let j = i - 1; j >= 0; j--) {
               const prev = displayTokens[j]
-              if (prev.isParenthetical || prev.isStrongsBracket) continue
+              if (tokenHasNoPlainText(prev)) continue
               // Strip trailing punctuation then check for definite article
               if (prev.word.replace(/[,;:.!?]+$/, '').toLowerCase() === 'the') {
                 suppressedIndices.add(j)
@@ -965,8 +966,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         )
       }
 
-      // Plain text (no Strong's): skip parenthetical, bracket, and "the"-before-divine-name tokens
-      const plainTokens = displayTokens.filter((t, i) => !t.isParenthetical && !t.isStrongsBracket && !suppressedIndices.has(i))
+      // Plain text (no Strong's): skip no-plain-text tokens (parenthetical, alignment brackets and
+      // their empty-word halves — the latter would otherwise render as a stray extra space) and
+      // "the"-before-divine-name tokens.
+      const plainTokens = displayTokens.filter((t, i) => !tokenHasNoPlainText(t) && !suppressedIndices.has(i))
       return (
         <span>
           {plainTokens.map((token, i) => {

@@ -621,8 +621,13 @@ export default function FloatingSearch() {
     const refName = bookName(parsedRef.bookId)
     const refSep = /Book \d+$/.test(refName) ? ', ' : ' '
     const label = `${refName}${refSep}${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
-    const subLabel = detected
-      ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${detected.textId.toUpperCase()}`
+    // A trailing " LXX" suffix now parses inside parseRef itself (as `forcedTranslation`), so
+    // detectTranslationPrefix's own trailing-qualifier branch no longer sees it — read the
+    // target text from either source. This is also what makes the suffix actually NAVIGATE to
+    // the LXX: `detected` only ever fed this label, never the navigate() call below.
+    const refTextId = parsedRef.forcedTranslation ?? detected?.textId
+    const subLabel = refTextId
+      ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
       : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
     results.push({
       type: 'ref',
@@ -635,7 +640,9 @@ export default function FloatingSearch() {
           parsedRef.chapter,
           parsedRef.verse,
           parsedRef.endVerse,
-          getTranslationForBook(parsedRef.bookId) ?? undefined,
+          // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
+          // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
+          parsedRef.forcedTranslation ?? getTranslationForBook(parsedRef.bookId) ?? undefined,
           parsedRef.endChapter,
         )
       },

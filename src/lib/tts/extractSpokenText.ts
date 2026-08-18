@@ -9,7 +9,7 @@
  * (Strong's-only alignment markers / parenthetical grammatical particles with no English word)
  * are excluded, mirroring VerseRow.tsx's own isParenthetical/isStrongsBracket handling.
  */
-import { parseTaggedTokens } from '@/lib/taggedTokens'
+import { parseTaggedTokens, tokenHasNoPlainText } from '@/lib/taggedTokens'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { prepareWordForSpeech } from './textPrep'
 import type { Verse } from '@/types'
@@ -55,8 +55,7 @@ export function buildSpokenWords(
     const activeStrongsRules = wordReplacerRules.filter(r => r.enabled && r.strongsNum)
     const replaced: Array<{ word: string; isStrongsReplaced: boolean }> = []
     for (const t of tokens) {
-      if (t.isParenthetical || t.isStrongsBracket) continue // no English word — not spoken
-      if (!t.word) continue
+      if (tokenHasNoPlainText(t)) continue // no English word — not spoken, no charPos contribution
       let spokenWord = wordReplacerRules.length > 0 ? applyWordReplacer(t.word, wordReplacerRules) : t.word
       spokenWord = applyStrongsWordReplacer(spokenWord, t.strongsNum, wordReplacerRules)
       // Number/abbreviation/punctuation text prep runs LAST, after divine-name substitution —
