@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, Trash2, Link2, Pilcrow, Heading1, Heading2, Heading3, List, ListOrdered, Quote, MessageSquareQuote } from 'lucide-react'
+import { Copy, Trash2, Link2 } from 'lucide-react'
+import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS } from '@/lib/blockTypeIcons'
 import { NodeSelection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
@@ -131,6 +132,13 @@ function buildContainer(target: 'blockquote' | 'callout', source: PMNode): PMNod
     : schema.nodes.callout.create({ calloutType: 'NOTE' }, content)
 }
 
+// Non-heading "Turn into" targets, pulled from the shared config (src/lib/blockTypeIcons.ts)
+// so this menu, both toolbars and the slash menu can't drift apart on which glyph means what.
+const BulletListIcon = BLOCK_TYPE_META.bullet.icon
+const OrderedListIcon = BLOCK_TYPE_META.numbered.icon
+const QuoteIcon = BLOCK_TYPE_META.quote.icon
+const CalloutIcon = BLOCK_TYPE_META['callout-note'].icon
+
 const ITEM = 'w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
 const HEADER = 'px-3 pt-1.5 pb-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider'
 const SEP = <div className="mx-2 my-1 h-px bg-[rgb(var(--color-surface-4))]" />
@@ -252,29 +260,38 @@ export default function BlockMenu({
         <>
           {SEP}
           <div className={HEADER}>Turn into</div>
-          <button className={ITEM} onClick={() => turnInto((n) => buildTextblock('paragraph', undefined, n))}>
-            <Pilcrow size={13} className="flex-shrink-0" /> Text
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildTextblock('heading', 1, n))}>
-            <Heading1 size={13} className="flex-shrink-0" /> Heading 1
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildTextblock('heading', 2, n))}>
-            <Heading2 size={13} className="flex-shrink-0" /> Heading 2
-          </button>
-          <button className={ITEM} onClick={() => turnInto((n) => buildTextblock('heading', 3, n))}>
-            <Heading3 size={13} className="flex-shrink-0" /> Heading 3
-          </button>
+          {/* Paragraph + the FULL H1-H6 range — this menu used to stop at H3 while both
+              toolbars offered all six, so three heading levels were unreachable from a
+              block's own menu. Icons/labels come from the shared config so all four
+              surfaces show the same glyph for the same level. */}
+          {TEXT_TYPE_LEVELS.map(({ level, meta }) => {
+            const Icon = meta.icon
+            return (
+              <button
+                key={level}
+                className={ITEM}
+                onClick={() => turnInto((n) => (level === 0
+                  ? buildTextblock('paragraph', undefined, n)
+                  : buildTextblock('heading', level, n)))}
+              >
+                <Icon size={13} className="flex-shrink-0" /> {meta.label}
+              </button>
+            )
+          })}
           <button className={ITEM} onClick={() => turnInto((n) => buildList('bullet_list', n))}>
-            <List size={13} className="flex-shrink-0" /> Bulleted list
+            <BulletListIcon size={13} className="flex-shrink-0" /> Bulleted list
           </button>
           <button className={ITEM} onClick={() => turnInto((n) => buildList('ordered_list', n))}>
-            <ListOrdered size={13} className="flex-shrink-0" /> Numbered list
+            <OrderedListIcon size={13} className="flex-shrink-0" /> Numbered list
           </button>
           <button className={ITEM} onClick={() => turnInto((n) => buildContainer('blockquote', n))}>
-            <Quote size={13} className="flex-shrink-0" /> Quote
+            <QuoteIcon size={13} className="flex-shrink-0" /> Quote
           </button>
+          {/* buildContainer always produces a NOTE callout (its calloutType attr is
+              hardcoded), so this shows the NOTE variant's own icon rather than a generic
+              "some kind of callout" glyph — what you pick is exactly what you get. */}
           <button className={ITEM} onClick={() => turnInto((n) => buildContainer('callout', n))}>
-            <MessageSquareQuote size={13} className="flex-shrink-0" /> Callout
+            <CalloutIcon size={13} className="flex-shrink-0" /> Callout
           </button>
         </>
       )}

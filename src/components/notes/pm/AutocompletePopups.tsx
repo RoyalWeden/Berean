@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react'
-import {
-  Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare, Quote, Code, Table2, Minus, Type,
-  type LucideIcon,
-} from 'lucide-react'
 import type { Note, Book } from '@/types'
 import type { SlashCommand } from './slashCommands'
-import { CALLOUT_META } from '@/lib/noteTextBlocks'
+import { BLOCK_TYPE_META } from '@/lib/blockTypeIcons'
 import { formatDottedVerseRef } from '@/lib/parseRef'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 
-const SLASH_ICONS: Record<string, LucideIcon> = {
-  text: Type, h1: Heading1, h2: Heading2, h3: Heading3,
-  bullet: List, numbered: ListOrdered, task: CheckSquare, quote: Quote,
-  code: Code, table: Table2, divider: Minus,
-}
+// Slash-command icons come straight from the shared block-type config, which is keyed
+// by the same ids SLASH_COMMANDS uses — so there is no local icon map to fall out of
+// date any more. This replaced a hand-maintained SLASH_ICONS map that was missing
+// `verse`, `image` and `columns` entirely (those three commands rendered with an empty
+// icon square) and stopped at h3.
 
 // Same visual treatment as NoteEditor.tsx's strongsSuggest/verseSuggest/
 // backlinkInfo popups (NoteEditor.tsx:3944-4036) — small floating cards for
 // the block-suggest popups, a two-pane list+preview for the wikilink
 // autocomplete popup.
+//
+// Every popup in this file carries `.animate-radix-popup-in` (global.css: 140ms
+// opacity+scale ease-out). Each one used to appear as a hard pop while every other
+// floating surface in the app — tooltips, Radix dropdowns, HintTooltip — fades in;
+// reusing the existing keyframes rather than inventing a second timing keeps them
+// identical. Deliberately NOT applied to SelectionToolbar's bubble: that one measures
+// its own rendered size with getBoundingClientRect to clamp itself inside the viewport,
+// and an in-flight `scale()` would feed a wrong width/height into that measurement.
 
 export function StrongsSuggestPopup({
   num, x, y, onInsert, onDismiss,
@@ -26,7 +30,7 @@ export function StrongsSuggestPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{num}</span>
@@ -54,7 +58,7 @@ export function VerseSuggestPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      className="flex items-center gap-2 px-2.5 py-1.5 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <span className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))]">{refText}</span>
@@ -84,7 +88,7 @@ export function WikilinkPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden"
+      className="flex shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg overflow-hidden animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="w-56 max-h-64 overflow-y-auto bg-[rgb(var(--color-surface-1))] py-1 flex-shrink-0">
@@ -140,7 +144,7 @@ export function RefHoverPreview({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none"
+      className="max-w-xs px-3 py-2 shadow-xl rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] pointer-events-none animate-radix-popup-in"
     >
       <p className="text-[10px] font-mono font-semibold text-[rgb(var(--color-accent))] mb-1">{refLabel}</p>
       <p className="text-[11px] text-[rgb(var(--color-text-secondary))] leading-relaxed line-clamp-6">
@@ -188,7 +192,7 @@ export function VersePickerPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 9999 }}
-      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px]"
+      className="pm-toolbar-solid rounded-lg shadow-2xl p-2 flex flex-col gap-1.5 w-[220px] animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       <select
@@ -249,15 +253,14 @@ export function SlashCommandPopup({
   return (
     <div
       style={{ position: 'fixed', left: x, top: y, zIndex: 60 }}
-      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1"
+      className="w-64 max-h-80 overflow-y-auto shadow-2xl border border-[rgb(var(--color-surface-4))] rounded-lg bg-[rgb(var(--color-surface-1))] py-1 animate-radix-popup-in"
       onMouseDown={(e) => e.preventDefault()}
     >
       {groups.map(({ group, items }) => (
         <div key={group}>
           <div className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">{group}</div>
           {items.map(({ cmd, idx }) => {
-            const Icon = SLASH_ICONS[cmd.id]
-            const calloutEmoji = cmd.id.startsWith('callout-') ? CALLOUT_META[cmd.id.replace('callout-', '').toUpperCase()]?.icon : null
+            const Icon = BLOCK_TYPE_META[cmd.id]?.icon
             return (
               <button
                 key={cmd.id}
@@ -270,7 +273,7 @@ export function SlashCommandPopup({
                 }`}
               >
                 <span className="w-6 h-6 flex-shrink-0 rounded flex items-center justify-center bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))]">
-                  {Icon ? <Icon size={13} /> : <span className="text-xs">{calloutEmoji}</span>}
+                  {Icon && <Icon size={13} />}
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block truncate font-medium text-[rgb(var(--color-text-primary))]">{cmd.label}</span>

@@ -239,8 +239,16 @@ export function calloutNodeView(node: PMNode): NodeView {
   header.style.cursor = 'pointer'
   header.contentEditable = 'false'
 
+  // Icon and label are separate children (rather than one interpolated string) now
+  // that the icon is inline SVG markup rather than an emoji character — the header
+  // row is already display:flex with a 0.35em gap, so they lay out identically.
+  const iconEl = document.createElement('span')
+  iconEl.style.display = 'inline-flex'
+  iconEl.innerHTML = meta.iconSvg
+  header.appendChild(iconEl)
+
   const label = document.createElement('span')
-  label.textContent = `${meta.icon} ${meta.label}`
+  label.textContent = meta.label
   header.appendChild(label)
 
   const chevron = document.createElement('span')

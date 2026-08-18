@@ -169,7 +169,15 @@ function renderCallout(node: PMNode, pos: number, decos: Decos): HTMLElement {
   header.style.display = 'flex'
   header.style.alignItems = 'center'
   header.style.gap = '0.35em'
-  header.textContent = `${meta.icon} ${meta.label}`
+  // Inline SVG icon + text label as two children — mirrors calloutNodeView's header
+  // (nodeViews.ts) exactly, minus the collapse chevron (this is a read-only render).
+  const iconEl = document.createElement('span')
+  iconEl.style.display = 'inline-flex'
+  iconEl.innerHTML = meta.iconSvg
+  header.appendChild(iconEl)
+  const labelEl = document.createElement('span')
+  labelEl.textContent = meta.label
+  header.appendChild(labelEl)
   dom.appendChild(header)
 
   const content = document.createElement('div')

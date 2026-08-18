@@ -144,6 +144,21 @@ Tabs
   correct video's title instead of sometimes carrying over the previous
   one.
 
+Notes editor
+- Every heading level (H1–H6) and block type now shows the same icon no
+  matter which menu you use to pick it — the toolbar dropdown, the
+  selection menu, the block "Turn into" menu, and the `/` slash menu all
+  draw from one shared set. Callout icons now match between the editor
+  and printed/exported notes.
+- The `/verse`, `/image`, and `/columns` slash commands now show an icon
+  (they previously had none), and a code-block button was added to the
+  toolbar (code blocks were previously only reachable via `/code`).
+- Keyboard-shortcut hints in the notes toolbars, selection menu, and
+  context menus now use the same styled keycap look as the rest of the
+  app instead of plain browser tooltips.
+- The slash menu, autocomplete popups, verse picker, and reference
+  hover-preview now fade in smoothly instead of popping in abruptly.
+
 ## [0.4.25] - 2026-08-16
 
 Tabs

@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { renderPreviewContent } from '@/lib/notePreviewRender'
+import { CALLOUT_ICON_SVG } from '@/lib/noteTextBlocks'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -339,10 +340,10 @@ describe('callout boxes > [!TYPE]', () => {
     it(`[!${type}] icon is present`, () => {
       const html = renderPreviewContent(`> [!${type}]\n> text`)
       expect(html).toBeTruthy()
-      // All types have some icon/symbol
-      const hasIcon = html.includes('ℹ') || html.includes('💡') || html.includes('⚠') ||
-                      html.includes('★') || html.includes('✕')
-      expect(hasIcon).toBe(true)
+      // Every type renders its own icon in the header. These used to be emoji glyphs and
+      // are now inline Lucide SVGs (noteTextBlocks.ts's CALLOUT_ICON_SVG), so the
+      // print/preview output matches the editor's own callout header exactly.
+      expect(html).toContain(CALLOUT_ICON_SVG[type])
     })
 
     it(`[!${type}] lowercase works too`, () => {

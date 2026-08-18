@@ -28,7 +28,9 @@ describe('filterSlashCommands', () => {
   })
   it('filters by label substring', () => {
     const results = filterSlashCommands('head')
-    expect(results.map((c) => c.id)).toEqual(['h1', 'h2', 'h3'])
+    // H4-H6 joined the list so the slash menu offers the same heading range as both
+    // toolbars and the block menu (see src/lib/blockTypeIcons.ts).
+    expect(results.map((c) => c.id)).toEqual(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
   })
   it('filters by keyword', () => {
     const results = filterSlashCommands('todo')
