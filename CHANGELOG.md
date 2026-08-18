@@ -122,6 +122,20 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.26] - 2026-08-17
+
+Highlights & Read Aloud
+- Fixed highlights, Strong's number chips, and Read Aloud word tracking
+  drifting out of alignment partway through a verse — most noticeable in
+  the New Testament, where a supplied-word alignment marker was being
+  miscounted as an extra word.
+
+Search & Notes
+- Typing or searching a reference with a trailing "LXX" (e.g. "Isaiah
+  66:3 LXX") is now recognized everywhere a reference can be entered —
+  previously it only worked from inside a note — and jumps straight to
+  that verse in the Septuagint.
+
 ## [0.4.25] - 2026-08-16
 
 Tabs
