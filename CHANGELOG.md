@@ -122,6 +122,43 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.26] - 2026-08-17
+
+Highlights & Read Aloud
+- Fixed highlights, Strong's number chips, and Read Aloud word tracking
+  drifting out of alignment partway through a verse — most noticeable in
+  the New Testament, where a supplied-word alignment marker was being
+  miscounted as an extra word.
+
+Search & Notes
+- Typing or searching a reference with a trailing "LXX" (e.g. "Isaiah
+  66:3 LXX") is now recognized everywhere a reference can be entered —
+  previously it only worked from inside a note — and jumps straight to
+  that verse in the Septuagint.
+
+Tabs
+- Lexicon tabs and their back/forward history now show the word alongside
+  the Strong's number, instead of just the bare number.
+- Opening a YouTube video no longer briefly shows the wrong tab title,
+  and navigating YouTube back/forward history now always shows the
+  correct video's title instead of sometimes carrying over the previous
+  one.
+
+Notes editor
+- Every heading level (H1–H6) and block type now shows the same icon no
+  matter which menu you use to pick it — the toolbar dropdown, the
+  selection menu, the block "Turn into" menu, and the `/` slash menu all
+  draw from one shared set. Callout icons now match between the editor
+  and printed/exported notes.
+- The `/verse`, `/image`, and `/columns` slash commands now show an icon
+  (they previously had none), and a code-block button was added to the
+  toolbar (code blocks were previously only reachable via `/code`).
+- Keyboard-shortcut hints in the notes toolbars, selection menu, and
+  context menus now use the same styled keycap look as the rest of the
+  app instead of plain browser tooltips.
+- The slash menu, autocomplete popups, verse picker, and reference
+  hover-preview now fade in smoothly instead of popping in abruptly.
+
 ## [0.4.25] - 2026-08-16
 
 Tabs
