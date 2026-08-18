@@ -122,6 +122,18 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.28] - 2026-08-18
+
+Notes
+
+- Hovering a verse range reference in a note (e.g. Deuteronomy 18:15-19) now
+  shows the full range and its complete text, instead of just the first verse.
+- Notes with a pasted scripture block now format instantly when opened,
+  instead of briefly showing as plain unstyled text.
+- Fixed a verse reference on its own line (after a line break) sometimes
+  having its underline/color styling cut off one character short, dropping
+  the reference's last digit.
+
 ## [0.4.27] - 2026-08-17
 
 Window

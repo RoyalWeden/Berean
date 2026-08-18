@@ -62,4 +62,29 @@ describe('buildRefDecorationsForDoc — exclusions', () => {
       expect(classes).toContain('pm-lexicon-ref')
     })
   })
+
+  // Regression: a verse ref sitting on its own line after a soft return ("hosea 6;\njubilees
+  // 4:30") is parsed into ONE paragraph with a hard_break between the two text runs (not two
+  // separate paragraphs) — see blockDecorations.ts's own comment on "hard_break lines within
+  // one paragraph". node.textContent flattens that hard_break to ZERO characters even though
+  // it still occupies one real document position, so match indices computed against the
+  // flattened string landed one position too early once mapped back via `base + index` —
+  // truncating the decoration's END by exactly one character (dropping the ref's last digit,
+  // reported as "Jubilees 4:30" only underlining as far as "4:3"). Confirmed against the exact
+  // real-world note content that triggered the report.
+  it('a verse ref after a hard line break is decorated for its FULL span, not truncated by one char', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, [
+        schema.text('hosea 6; '),
+        schema.node('hard_break'),
+        schema.text('jubilees 4:30'),
+      ]),
+    ])
+    const decos = buildRefDecorationsForDoc(doc)
+      .find(0, doc.content.size)
+      .filter((d) => (d as unknown as { type: { attrs?: { class?: string } } }).type.attrs?.class === 'pm-verse-ref')
+    const jubDeco = decos.find((d) => doc.textBetween(d.from, d.to).toLowerCase().startsWith('jubilees'))
+    expect(jubDeco).toBeDefined()
+    expect(doc.textBetween(jubDeco!.from, jubDeco!.to)).toBe('jubilees 4:30')
+  })
 })

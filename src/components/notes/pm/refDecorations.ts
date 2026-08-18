@@ -58,7 +58,24 @@ export function buildRefDecorationsForDoc(
     if (!node.isTextblock) return true
     if (node.type.spec.code) return false
 
-    const text = node.textContent
+    // node.textContent flattens ALL inline children to their text, including non-text
+    // leaf children (hard_break, image) — which contribute ZERO characters to textContent
+    // even though each still occupies real document position space (nodeSize 1). Regex
+    // match indices computed against that flattened string were then off by however many
+    // such leaf nodes preceded the match, so `base + match.index` pointed too early and
+    // `base + match.index + match.length` landed one position short of the reference's
+    // true end — the reported bug: a verse ref written on its own line after a hard line
+    // break ("hosea 6;\njubilees 4:30") had its underline/color decoration silently
+    // truncated by exactly one character (dropping the ref's last digit) because the
+    // hard_break between the two lines "disappeared" from the string but not from the
+    // document's coordinate space. Building the string by hand — inserting one placeholder
+    // space per position a non-text leaf child actually occupies — keeps every string
+    // index in 1:1 correspondence with a real document position, so `base + index` is
+    // always correct regardless of how many hard_breaks/images sit earlier in the block.
+    let text = ''
+    node.forEach((child) => {
+      text += child.isText ? (child.text ?? '') : ' '.repeat(child.nodeSize)
+    })
     const base = pos + 1
 
     // Wikilink-marked ranges within this textblock, computed once by
