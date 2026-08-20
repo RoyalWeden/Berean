@@ -122,6 +122,47 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.29] - 2026-08-19
+
+Read Aloud
+
+- Fixed changing speed mid-playback slurring words or skipping them — speed
+  is now applied the way YouTube and podcast apps do it, so words stay clear
+  at any speed and pitch no longer rises or drops.
+- Fixed seeking to a verse sometimes playing the wrong audio (often
+  restarting from verse 1, or repeating the first verse of a chapter twice).
+- Fixed the play/pause button flipping to "playing" on its own after
+  dragging the seek slider while paused, which then made the next press do
+  nothing.
+- Speed changes now take effect immediately, even right before seeking to
+  another verse.
+
+Scripture & floating windows
+
+- Pop Out Tab windows now have a lighter, floating look: the header bar
+  itself is transparent, with each button/control as its own small floating
+  chip instead of one solid bar.
+- Scripture's floating window now lets verse text show through behind the
+  header instead of being pushed down below it.
+- The Home button on a Scripture tab is now always disabled, since there
+  isn't a real "home" view to return to for it.
+- Switching into a Scripture or Lexicon tab now settles in one paint instead
+  of note dots, highlights, and cross-references popping in a moment after
+  the text.
+- The word count / reading time under a note now updates instantly when you
+  switch notes, instead of waiting a beat.
+
+Notes
+
+- Fixed Raycast (and similar) text-snippet expansion occasionally deleting
+  the character right before the snippet.
+
+YouTube
+
+- Fixed wrong dates on livestream videos, which were showing when the
+  stream was scheduled rather than when it actually aired. Already-synced
+  videos with wrong dates are corrected automatically on your next refresh.
+
 ## [0.4.28] - 2026-08-18
 
 Notes
