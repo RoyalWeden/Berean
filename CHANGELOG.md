@@ -122,6 +122,16 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.4.30] - 2026-08-19
+
+Scripture reading
+
+- Fixed highlights landing on the wrong word in verses without Strong's data
+  (e.g. Sirach) once the word replacer had already substituted a word
+  earlier in the same verse — the substituted word (like "Jesus" showing as
+  "Yeshua") would also silently revert to its original wording the moment
+  any highlight was added to that verse.
+
 ## [0.4.29] - 2026-08-19
 
 Read Aloud
