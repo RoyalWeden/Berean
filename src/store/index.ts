@@ -1270,6 +1270,16 @@ export const useAppStore = create<AppState>()(
       ttsAutoAdvanceEnabled: true,
       ttsAutoAdvancePauseSec: 2,
       setTTSVoiceURI: (v) => { ttsEngine.setVoice(v); set({ ttsVoiceURI: v }) },
+      // No debounce (an earlier version of this had one): that existed back when
+      // ttsEngine.setRate() restarted the active audio from a verse boundary on every call, so
+      // the rate slider's onChange firing on every step crossed during a drag meant several
+      // audible restarts back to back. kokoroBackend.ts's setRate() no longer restarts anything
+      // at all (see its own doc comment) — it's a live `HTMLAudioElement.playbackRate` retune on
+      // whatever's already playing, cheap and side-effect-free — so there's nothing left to
+      // debounce against, and debouncing it only left a window where a rate change made mid-drag
+      // and a verse seek made moments later could race: the seek would build its new chunk using
+      // the ENGINE's still-stale `this.rate` (the debounced call hadn't reached it yet), briefly
+      // reading at the OLD speed until the debounce timer finally caught up.
       setTTSRate: (v) => { ttsEngine.setRate(v); set({ ttsRate: v }) },
       setTTSHighlightWordsEnabled: (v) => set({ ttsHighlightWordsEnabled: v }),
       setTTSAutoAdvanceEnabled: (v) => set({ ttsAutoAdvanceEnabled: v }),

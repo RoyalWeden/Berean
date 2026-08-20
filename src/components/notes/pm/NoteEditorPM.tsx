@@ -446,25 +446,44 @@ export default function NoteEditorPM({
       },
       handleDOMEvents: {
         // OS-level text-replacement tools (macOS text substitution, Raycast snippet
-        // expansion, etc.) fire a synthetic "insertReplacementText" beforeinput event
-        // rather than discrete keystrokes — reported as occasionally consuming/replacing
-        // an extra trailing character too. ProseMirror's default handling infers the
-        // changed range from its DOM-mutation observer (readDOMChange), which can
-        // miscompute the range by one character when two of these synthetic mutations
-        // land in the same observer flush. getTargetRanges() is the DOM's own
-        // authoritative signal for exactly which range the OS intends to replace —
-        // applying that directly as one explicit transaction sidesteps the diffing
-        // ambiguity instead of inferring it after the fact.
+        // expansion, etc.) can eat an extra character next to what they're actually
+        // replacing/erasing. ProseMirror's default handling infers the changed range from its
+        // DOM-mutation observer (readDOMChange), which can miscompute the range by one
+        // character when multiple synthetic mutations land in the same observer flush — these
+        // tools fire their edits far faster than a real user's keystrokes ever would.
+        // getTargetRanges() is the DOM's own authoritative signal for exactly which range a
+        // given beforeinput event affects, computed synchronously at dispatch time rather than
+        // inferred after the fact by diffing — so applying it directly as one explicit
+        // transaction sidesteps the ambiguity entirely, regardless of how many other synthetic
+        // events are queued up around it.
+        //
+        // Originally only covered `insertReplacementText` (macOS text substitution's own single
+        // "replace this range" event). Raycast doesn't use that — it expands a snippet by
+        // simulating discrete OS-level keystrokes instead: some number of `deleteContentBackward`
+        // events erasing the trigger text, then `insertText` events typing the replacement —
+        // which the original condition let fall straight through to the same diffing path,
+        // reported as deleting the character BEFORE the trigger during that backspace burst.
+        // `deleteContentBackward`/`deleteContentForward` are now handled too, but ONLY when
+        // `getTargetRanges()` reports a deletion fully within a single text node — i.e. never a
+        // delete that would join/merge across a node or block boundary (backspacing an empty
+        // paragraph into the one above, outdenting a list item, etc.), which needs PM's own
+        // structural Backspace command from baseKeymap, not a blind range delete. Erasing a
+        // plain-text snippet trigger is always an intra-text-node deletion, so this still covers
+        // the actual failure mode without touching structural backspace behavior at all.
         beforeinput(view, event) {
           const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
-          if (ie.inputType !== 'insertReplacementText') return false
+          const isReplacement = ie.inputType === 'insertReplacementText'
+          const isDelete = ie.inputType === 'deleteContentBackward' || ie.inputType === 'deleteContentForward'
+          if (!isReplacement && !isDelete) return false
           const ranges = ie.getTargetRanges?.()
           if (!ranges || ranges.length !== 1) return false
           const [range] = ranges
+          if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) return false
           const from = view.posAtDOM(range.startContainer, range.startOffset)
           const to = view.posAtDOM(range.endContainer, range.endOffset)
           if (from < 0 || to < 0 || from > to) return false
-          view.dispatch(view.state.tr.insertText(ie.data ?? '', from, to))
+          if (isDelete && from === to) return false // nothing to delete — let default handling run
+          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
           event.preventDefault()
           return true
         },

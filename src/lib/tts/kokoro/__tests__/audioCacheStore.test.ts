@@ -5,14 +5,10 @@ import {
 } from '../audioCacheStore'
 
 describe('cacheKeyFor', () => {
-  const base = { backendId: 'kokoro', textId: 'kjva', bookId: 'GEN', chapter: 1, voiceURI: 'af_heart', rate: 1, contentHash: 'abc' }
+  const base = { backendId: 'kokoro', textId: 'kjva', bookId: 'GEN', chapter: 1, voiceURI: 'af_heart', contentHash: 'abc' }
 
   it('is deterministic for identical inputs', () => {
     expect(cacheKeyFor(base)).toBe(cacheKeyFor({ ...base }))
-  })
-
-  it('rounds rate to 2 decimal places so near-identical rates collapse to the same key', () => {
-    expect(cacheKeyFor({ ...base, rate: 1.0 })).toBe(cacheKeyFor({ ...base, rate: 1.001 }))
   })
 
   it('differs when any meaningful field differs', () => {
@@ -20,7 +16,6 @@ describe('cacheKeyFor', () => {
     expect(cacheKeyFor({ ...base, bookId: 'EXO' })).not.toBe(k)
     expect(cacheKeyFor({ ...base, chapter: 2 })).not.toBe(k)
     expect(cacheKeyFor({ ...base, voiceURI: 'af_bella' })).not.toBe(k)
-    expect(cacheKeyFor({ ...base, rate: 1.5 })).not.toBe(k)
     expect(cacheKeyFor({ ...base, contentHash: 'xyz' })).not.toBe(k)
   })
 

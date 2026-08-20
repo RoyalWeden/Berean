@@ -969,6 +969,66 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
 
+/* ── Floating panel header buttons (Pop Out Tab window) ──────────────────────
+   PanelHeader.tsx's `floating` row itself has NO background at all — no shared
+   bar for buttons to sit flush inside. Instead, only the row's actual CONTROLS
+   (plain buttons/links, and ActionPillGroup's segmented clusters, tagged via
+   its own `.action-pill-group` marker class) get a small frosted chip each —
+   deliberately NOT every direct child indiscriminately (an earlier version of
+   this rule used `> *`, which also painted a background behind plain text/
+   spacer elements that aren't controls at all — e.g. a `flex-1` spacer between
+   button groups — hiding the transparency the point of this whole treatment
+   was to show, and covering text that should have read directly against the
+   panel's own content). Anything that isn't a `button`/`a`/`[role="button"]`/
+   `.action-pill-group` stays fully transparent, so the header reads as a loose
+   cluster of floating controls with visible gaps between them, not a bar.
+   `border-radius` IS forced here (unlike the first pass) — most of these are
+   plain small icon buttons with no radius of their own at all, so a background
+   with no matching radius rendered as a sharp-cornered box behind a round
+   icon ("looked clipped"); forcing a full pill radius on plain controls (a
+   `button`/`a`/`[role=button]` selector has strictly higher specificity than
+   a single Tailwind utility class, so this correctly wins over whatever
+   `rounded-*` a given button happened to declare for the DOCKED context,
+   giving every floating chip one consistent radius language) while leaving
+   `.action-pill-group` to its own already-correct `rounded-shell` — forcing a
+   full pill radius on a WIDE multi-segment group would look wrong, not a
+   plain small square icon button. Tailwind's own `hover:bg-*` utilities on
+   these same elements still win on hover — a `button`/`a`/`[role=button]`/
+   `.action-pill-group` selector's specificity is still lower than a single
+   hover pseudo-class utility, so the frosted chip background is exactly the
+   RESTING state, not a competing coat of paint.
+
+   Also reaches ONE level through a plain `<div>` (`> div > button` etc.) — several trigger
+   components (BookChapterPicker.tsx's own `<div className={wrapperClassName ?? 'relative'}>`
+   is the one that surfaced this: a positioning wrapper around its real `<button>`, needed so
+   its dropdown panel can anchor to it) render their actual control one level deeper than the
+   header row itself, so the plain direct-child selectors above never reached them, leaving
+   those specific buttons with no chip ("some of the buttons... look like floating tabs" but
+   not these). Popover/dropdown PANEL content doesn't defeat this: every menu in this codebase
+   portals its open panel straight to `document.body` (see HeaderOverflowMenu.tsx and
+   YouTubeTab.tsx's own comment on why), so it's never actually a DOM descendant of the header
+   to begin with — only the trigger button sitting inside its wrapper div is. */
+.floating-header-buttons > button,
+.floating-header-buttons > a,
+.floating-header-buttons > [role="button"],
+.floating-header-buttons > div > button,
+.floating-header-buttons > div > a,
+.floating-header-buttons > div > [role="button"],
+.floating-header-buttons > .action-pill-group {
+  background: rgb(var(--color-surface-2) / 0.72);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.35) inset, 0 3px 10px -5px rgb(0 0 0 / 0.35);
+}
+.floating-header-buttons > button,
+.floating-header-buttons > a,
+.floating-header-buttons > [role="button"],
+.floating-header-buttons > div > button,
+.floating-header-buttons > div > a,
+.floating-header-buttons > div > [role="button"] {
+  border-radius: 9999px;
+}
+
 /* ── Glass panel, modal variant ───────────────────────────────────────────────
    For large, primary-content modals (Settings, the Cmd+K search palette,
    Print/export preview) rather than small transient popovers — .glass-panel's

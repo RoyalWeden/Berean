@@ -282,17 +282,18 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                    holds its position and greys out is far easier to aim at than one that
                    disappears. ── */}
               {(() => {
-                // Bible tabs have no synthetic -1 "nothing open" state (see goToTabHome's own
-                // comment) — their home is idx 0, the earliest tracked chapter, so the
-                // already-at-home check differs from the other three types' idx < 0 check.
+                // Scripture deliberately excluded: there's no real "home page" for it, just
+                // "the earliest chapter you happened to visit in this tab" — treating that as a
+                // home destination (as an earlier version of this button did, jumping to
+                // `currentTabNav.idx 0`) was misleading, not a real "go home" action. The
+                // dropdown a few dozen lines below (`supportsHome`) already excludes 'bible' for
+                // the same reason — this button now matches it, always greyed out for Scripture.
                 const homeSupported = navStackType === 'note' || navStackType === 'lexicon'
-                  || navStackType === 'youtube' || navStackType === 'bible'
-                const canGoHome = !!currentTabNav && homeSupported &&
-                  (navStackType === 'bible' ? currentTabNav.idx > 0 : currentTabNav.idx >= 0)
+                  || navStackType === 'youtube'
+                const canGoHome = !!currentTabNav && homeSupported && currentTabNav.idx >= 0
                 const homeLabel = navStackType === 'note' ? 'Notes list'
                   : navStackType === 'lexicon' ? 'Lexicon search'
                   : navStackType === 'youtube' ? 'YouTube browse'
-                  : navStackType === 'bible' ? 'Scripture browse'
                   : 'Home'
                 return (
                   <button

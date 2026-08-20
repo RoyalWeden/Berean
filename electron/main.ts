@@ -89,6 +89,15 @@ import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsMo
 // app is ready (see ttsModelProtocol.ts's file header for why this scheme exists at all).
 registerTTSModelScheme()
 
+// Chromium's default autoplay policy requires a recent-enough user gesture before it'll play
+// audible media — normally a sane default for a public web page, but wrong for a packaged
+// desktop app with no ads/background tabs to guard against. Read Aloud (kokoroBackend.ts) plays
+// each chapter's sentence chunks back-to-back via individual `<audio>` elements, most of them
+// created and started many `await`s (and therefore well outside any single click handler's call
+// stack) after the ORIGINAL "Read Aloud" button click — exactly the case Electron's own docs
+// call out this switch for. Must also run before app.whenReady().
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 // Separate dev userData from prod — macOS HFS+/APFS is case-insensitive so
 // 'berean' and 'Berean' resolve to the same directory without this.
 if (!app.isPackaged) {

@@ -483,19 +483,23 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     onVersesLoadedRef.current?.()
   }, [loading, verses.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva')
-      .then((data) => setNoteCounts((prev) => mergeStableRecord(prev, data)))
-      .catch(() => {})
-  }, [bookId, chapter, textId, noteChangeToken])
-
-  // Cross-ref indicator: flag verses that participate in a note-based cross-ref,
-  // in BOTH directions —
-  //   forward:  a note on verse A references another verse  → flag A
-  //   backward: a note on another verse references verse B   → flag B (reciprocal)
+  // Note-count dots, cross-ref flags, and highlights used to be three fully independent
+  // effects, each committing its own state the moment its own IPC call resolved. All three are
+  // fast local SQLite queries that land within a few ms of each other, but "each commits the
+  // instant it resolves" still means three separate renders — reported as the chapter "loading
+  // weird," verse text appearing first and note dots/highlights visibly popping in a beat later
+  // on top of it, instead of the whole chapter appearing settled in one paint. Combined into one
+  // effect that fires all three fetches in parallel and commits their results together via a
+  // single `Promise.all` — same individual fetch logic as before, just one batched commit
+  // instead of three staggered ones. Trade-off: any one of the three triggers (a note edit, a
+  // highlight edit, or the verse list itself changing) now re-fetches all three instead of just
+  // the one that actually needs it — harmless (all three are idempotent, cheap local queries),
+  // and far simpler than threading through which trigger fired.
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const noteCountsP = window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva').catch(() => ({}))
+    const highlightsP = window.highlights.getChapter(bookId, chapter, textId ?? 'kjva').catch(() => ({}))
+    const crossRefP = (async () => {
       const flags: Record<number, boolean> = {}
 
       // Forward: a verse note here references some other verse/chapter
@@ -519,27 +523,28 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       // chapter → flag the referenced verse so its reciprocal cross-ref shows.
       // Uses the parsed cross-ref index, so it catches every ref form (abbreviations,
       // ranges, whole-chapter refs), not just exact-name text matches.
+      let chapterSourcesResult: ReturnType<typeof chapterCrossRefSources> = []
       try {
         const sources = await getCrossRefSources(noteChangeToken)
         const verseNums = versesRef.current.map((v) => v.verse_num)
-        // excludeChapterRefs=true: chapter-level refs go to the banner, not per-verse GitFork
+        // excludeChapterRefs=true: chapter-level refs go to the banner, not per-verse
         flagReciprocalVerses(sources, bookId, chapter, verseNums, flags, true)
-        if (!cancelled) setChapterSources(chapterCrossRefSources(sources, bookId, chapter))
+        chapterSourcesResult = chapterCrossRefSources(sources, bookId, chapter)
       } catch { /* best-effort */ }
 
-      if (!cancelled) {
-        setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, flags))
-        setNoteColorsMap((prev) => mergeStableRecord(prev, colorMap))
-      }
+      return { flags, colorMap, chapterSourcesResult }
     })()
-    return () => { cancelled = true }
-  }, [bookId, chapter, textId, noteChangeToken, verses.length])
 
-  useEffect(() => {
-    window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
-      .then((data) => setHighlights((prev) => mergeStableRecord(prev, data)))
-      .catch(() => {})
-  }, [bookId, chapter, textId, highlightChangeToken])
+    Promise.all([noteCountsP, highlightsP, crossRefP]).then(([noteCountsData, highlightsData, crossRef]) => {
+      if (cancelled) return
+      setNoteCounts((prev) => mergeStableRecord(prev, noteCountsData))
+      setHighlights((prev) => mergeStableRecord(prev, highlightsData))
+      setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, crossRef.flags))
+      setNoteColorsMap((prev) => mergeStableRecord(prev, crossRef.colorMap))
+      setChapterSources(crossRef.chapterSourcesResult)
+    })
+    return () => { cancelled = true }
+  }, [bookId, chapter, textId, noteChangeToken, highlightChangeToken, verses.length])
 
   useEffect(() => {
     if (!targetVerse || !containerRef.current || verses.length === 0) return

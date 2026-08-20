@@ -1895,11 +1895,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   return (
     <div
       ref={panelRootRef}
-      className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]"
+      className="relative flex flex-col h-full bg-[rgb(var(--color-surface-3))]"
       onMouseDown={() => setActivePanelId('bible')}
     >
-      {/* Reference bar */}
-      <TabHeaderPortal floating={floating}>
+      {/* Reference bar. Floating only: pulled OUT of normal flex flow (`absolute`, layered via
+          z-20) instead of sitting in its own row above the content — a "Pop Out Tab" window has
+          no shared canvas competing for space, so the header can overlay the scripture text
+          scrolling behind/under it (same idea as the presenter/viewer window, where the display
+          has no chrome blocking its own content at all) rather than pushing that text down into
+          a smaller area below a bar. `renderContentArea()` below needs no matching change: with
+          the header removed from flow, it's the flex-col's only remaining child, so it already
+          stretches to fill the FULL height on its own — this is safe in docked mode too (adding
+          `relative` to the root is a no-op there since TabHeaderPortal doesn't render PanelHeader
+          at all when not floating, portaling into ShellHeader's slot elsewhere instead — see
+          TabHeaderPortal.tsx). */}
+      <TabHeaderPortal floating={floating} className={floating ? 'absolute top-0 left-0 right-0 z-20' : ''}>
         {/* The "← Proverbs 25" / "← Search: ..." pills (tabState.scriptureBack /
             tabState.searchBack) that used to render here were removed —
             redundant with the global TopBar nav pill (Cmd+[/Cmd+]) and the

@@ -142,14 +142,29 @@ export default function Toolbar({
   // identity: ProseMirror gives every transaction a fresh immutable doc, so this effect
   // re-arms its timer on every keystroke and only commits once typing pauses, same cadence as
   // autosave (see WORD_COUNT_DEBOUNCE_MS above).
+  //
+  // The debounce is right for "user is actively typing," but it was also firing on the FIRST
+  // doc this effect ever sees for a given `view` — i.e. every time the toolbar attaches to a
+  // newly-opened note/tab, since that's a `view.state.doc` identity change same as any
+  // keystroke is. That made the count visibly pop in ~500ms after switching notes, with
+  // nothing to actually debounce against (no typing burst in progress). `prevViewRef` tells
+  // the two cases apart: a NEW `view` (switched note/tab) computes immediately; the SAME
+  // `view` getting a new `doc` (typing within it) still debounces as before.
   const [wordStats, setWordStats] = useState<WordStats>({ words: 0, minutes: 0 })
+  const prevViewRef = useRef<EditorView | null>(null)
   useEffect(() => {
     if (!view) return
-    const timer = setTimeout(() => {
+    const compute = () => {
       const doc = view.state.doc
       const text = doc.textBetween(0, doc.content.size, '\n', '\n')
       setWordStats(computeWordStats(text))
-    }, WORD_COUNT_DEBOUNCE_MS)
+    }
+    if (prevViewRef.current !== view) {
+      prevViewRef.current = view
+      compute()
+      return
+    }
+    const timer = setTimeout(compute, WORD_COUNT_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [view, view?.state.doc])
 
