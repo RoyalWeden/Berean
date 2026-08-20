@@ -793,10 +793,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     }
     // Remove/split overlapping highlights, then apply new color
     await removeOverlappingHighlights(sc, ec)
-    await window.highlights.toggle({
-      bookId: verse.book_id, chapter: verse.chapter, verseNum: verse.verse_num, color, textId,
-      startChar: sc, endChar: ec,
-    }).catch(() => {})
+    try {
+      await window.highlights.toggle({
+        bookId: verse.book_id, chapter: verse.chapter, verseNum: verse.verse_num, color, textId,
+        startChar: sc, endChar: ec,
+      })
+    } catch (err) {
+      // Previously a silently-swallowed .catch(() => {}) — surface it so a real IPC/SQL
+      // failure doesn't look like "nothing happened" (see the highlight-not-applying investigation).
+      console.error('[Berean] Failed to save highlight', err)
+    }
     bumpHighlightToken()
   }
 
@@ -1018,9 +1024,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     }
 
     // ── Generic paths (non-kjva, or kjva with char highlights) ─────────────────
-    // When hiding annotations, render the stripped text. Highlights are stored against
-    // verse.text, so map their ranges onto the stripped display text before painting.
-    if (hasHidden) {
+    // When hiding annotations OR the word replacer is substituting words (e.g. Jesus→Yeshua),
+    // render the display text. Highlights are stored against verse.text, so map their ranges
+    // onto the display text before painting — this must cover shouldReplace too, not just
+    // hasHidden: a replaced word changes text length exactly like a stripped annotation does,
+    // and skipping this branch left the plain `verse.text.slice()` fallback below rendering raw
+    // (unreplaced) text while highlight offsets and the selection-toolbar's char mapping both
+    // assumed the word-replaced display text was on screen — every highlight after a replaced
+    // word then drifted by the replacement's length delta (e.g. "Jesus"→"Yeshua" is +1 char).
+    if (hasHidden || shouldReplace) {
       if (charHighlights.length === 0) {
         return <span>{isFindMatch ? applyFindHighlight(verseForDisplay.text, findQuery, findWordMode) : verseForDisplay.text}</span>
       }
