@@ -409,9 +409,10 @@ async function fetchPlaylistPage(
   return { items: data.items ?? [], nextPageToken: data.nextPageToken }
 }
 
-// Returns type, live status, duration, and description for each video ID via videos.list in batches of 50.
-async function fetchVideoDetails(videoIds: string[]): Promise<Map<string, { type: VideoEntry['type']; isLiveNow: boolean; durationSeconds: number; description: string }>> {
-  const result = new Map<string, { type: VideoEntry['type']; isLiveNow: boolean; durationSeconds: number; description: string }>()
+// Returns type, live status, duration, description, and (for live/was-live videos) the actual
+// air date for each video ID via videos.list in batches of 50.
+async function fetchVideoDetails(videoIds: string[]): Promise<Map<string, { type: VideoEntry['type']; isLiveNow: boolean; durationSeconds: number; description: string; liveDate: string | null }>> {
+  const result = new Map<string, { type: VideoEntry['type']; isLiveNow: boolean; durationSeconds: number; description: string; liveDate: string | null }>()
   if (videoIds.length === 0) return result
 
   for (let i = 0; i < videoIds.length; i += 50) {
@@ -437,7 +438,17 @@ async function fetchVideoDetails(videoIds: string[]): Promise<Map<string, { type
         const isShort       = !isLiveNow && !isPastLive && durationSeconds > 0 && durationSeconds <= 60
         const type: VideoEntry['type'] = (isLiveNow || isPastLive) ? 'live' : isShort ? 'short' : 'video'
         const description: string = item.snippet?.description ?? ''
-        result.set(item.id as string, { type, isLiveNow, durationSeconds, description })
+        // `snippet.publishedAt` (what `published` below falls back to) is when the video ENTRY
+        // was created — for a live/was-live video that's typically when it was SCHEDULED, not
+        // when it actually aired, which can be hours/days off. `liveStreamingDetails` carries
+        // the real air time instead: `actualStartTime` once the stream has actually started
+        // (live or ended), `scheduledStartTime` as a fallback for a stream that's scheduled but
+        // hasn't started yet. Only meaningful for live/was-live videos — null otherwise so the
+        // caller's normal `publishedAt` fallback chain is untouched for ordinary uploads.
+        const liveDate: string | null = (isLiveNow || isPastLive)
+          ? (item.liveStreamingDetails?.actualStartTime ?? item.liveStreamingDetails?.scheduledStartTime ?? null)
+          : null
+        result.set(item.id as string, { type, isLiveNow, durationSeconds, description, liveDate })
       }
     } catch { /* skip batch */ }
   }
@@ -688,7 +699,12 @@ async function fullSync(sender: WebContents): Promise<{ added: number }> {
         if (!videoId) return []
         const details = detailsMap.get(videoId)
         const title = decodeXml(item.snippet?.title ?? videoId)
+        // For a live/was-live video, `details.liveDate` (liveStreamingDetails.actualStartTime,
+        // falling back to scheduledStartTime) is the real air time — `videoPublishedAt`/
+        // `publishedAt` reflect entry-creation/scheduling time instead, which for a stream can
+        // be well off from when it actually aired. See fetchVideoDetails's liveDate comment.
         const published =
+          details?.liveDate ??
           item.contentDetails?.videoPublishedAt ??
           item.snippet?.publishedAt ??
           new Date(0).toISOString()
@@ -804,28 +820,58 @@ async function refresh(sender: WebContents): Promise<{ added: number; liveUpdate
       }
 
       // Browse Videos + Shorts + Live tabs via InnerTube (free, 2 pages each)
+      const liveDateCorrections: VideoEntry[] = []
       await Promise.all(
         (['video', 'short', 'live'] as const).map(async (type) => {
-          try { addNew(await browseTab(channelId, handle, type, 2)) }
-          catch { /* tab absent */ }
+          try {
+            const entries = await browseTab(channelId, handle, type, 2)
+            addNew(entries)
+            // Live videos already IN the DB are normally never revisited by `refresh()` — only
+            // new ones flow through `addNew`. But an already-stored live video can be carrying a
+            // WRONG date from before this correction existed (Full Sync/fetchVideoDetails's
+            // liveStreamingDetails fix and the RSS-upgrade skip a few lines below only stop the
+            // wrong date from being written going forward — neither one, nor the app-update
+            // seed-merge in mergeYouTubeSeed.ts (an `INSERT OR IGNORE`, so it never touches an
+            // existing row), corrects a date that's already wrong in a user's local DB). This is
+            // the one path available to EVERY user (no API key/quota needed, unlike Full Sync)
+            // that can self-heal it: InnerTube's live-tab relative text is based on the stream's
+            // actual air time (see fetchVideoDetails's liveDate comment), so it's a legitimate
+            // correction source, not just a duplicate of the same wrong value.
+            if (type === 'live') {
+              for (const v of entries) if (existingIds.has(v.videoId)) liveDateCorrections.push(v)
+            }
+          } catch { /* tab absent */ }
         }),
       )
+      if (liveDateCorrections.length > 0) {
+        const db = getBereanDb()
+        const updateLiveDate = db.prepare("UPDATE youtube_videos SET published = ? WHERE video_id = ? AND type = 'live' AND published != ?")
+        db.transaction((rows: VideoEntry[]) => {
+          for (const v of rows) updateLiveDate.run(v.published, v.videoId, v.published)
+        })(liveDateCorrections)
+      }
 
-      // Upgrade approximate dates → exact ISO dates for 15 most recent via RSS
+      // Upgrade approximate dates → exact ISO dates for 15 most recent via RSS.
+      // RSS's <published> is only trustworthy for ordinary uploads — for a live/was-live video
+      // it reflects the SAME entry-creation/scheduling-time quirk as snippet.publishedAt (see
+      // fetchVideoDetails's liveDate comment), so "upgrading" a live video's date from it would
+      // just reintroduce the wrong date over whatever InnerTube's own (already closer to
+      // correct — YouTube's live-tab relative text is based on actual stream time) date was.
       try {
         for (const rv of await fetchRssVideos(channelId, handle)) {
           const existing = newVideos.find((v) => v.videoId === rv.videoId)
           if (existing) {
-            existing.published = rv.published
+            if (existing.type !== 'live') existing.published = rv.published
             if (existing.type === 'video') existing.channelName = rv.channelName
           } else if (!existingIds.has(rv.videoId)) {
             // RSS entry not yet in DB and not captured by InnerTube
             seenIds.add(rv.videoId)
             newVideos.push(rv)
           } else {
-            // Already in DB — update its published date to the exact one from RSS
+            // Already in DB — update its published date to the exact one from RSS, except for
+            // live videos (see comment above).
             const db = getBereanDb()
-            db.prepare('UPDATE youtube_videos SET published = ? WHERE video_id = ? AND published < ?')
+            db.prepare("UPDATE youtube_videos SET published = ? WHERE video_id = ? AND published < ? AND type != 'live'")
               .run(rv.published, rv.videoId, new Date(Date.now() - 60_000).toISOString())
           }
         }

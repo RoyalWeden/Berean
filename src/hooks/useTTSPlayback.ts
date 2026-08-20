@@ -83,8 +83,17 @@ export function useTTSPlayback() {
         rate: s.ttsRate,
         voiceURI: s.ttsVoiceURI,
         onVerseStart: (_idx, verse) => {
+          // `isPaused` reads the ENGINE's own live state rather than hardcoding false. This
+          // callback fires eagerly for a chunk's first verse even while genuinely paused (e.g.
+          // dragging the progress-bar slider mid-pause triggers `skipToVerse` → a new chunk
+          // whose first-verse event fires before `waitIfPaused()` actually lets it play — see
+          // kokoroBackend.ts's `playChunkBuffer`) — hardcoding false there falsely told the
+          // store playback had resumed when it hadn't, which then made the NEXT press of the
+          // play/pause button call `pause()` (a no-op — the engine already thought it was
+          // paused) instead of the `resume()` the user actually needed, so nothing ever
+          // audibly continued.
           useAppStore.getState().setAudioPlayback({
-            isPlaying: true, isPaused: false, textId: ap.textId,
+            isPlaying: true, isPaused: ttsEngine.isPaused, textId: ap.textId,
             bookId: verse.bookId, chapter: verse.chapter, verse: verse.verseNum,
             wordIndex: null, finished: false,
           })

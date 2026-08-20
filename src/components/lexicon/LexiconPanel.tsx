@@ -364,14 +364,13 @@ function EntryView({
   const verseCopy = useVerseCopyMenu()
   const strongsCtx = useStrongsContextMenu()
 
-  useEffect(() => {
-    try {
-      window.lexicon.getRelated(entry.strongsNum).then(setRelated).catch(() => setRelated([]))
-    } catch {
-      setRelated([])
-    }
-  }, [entry.strongsNum])
-
+  // Related words and occurrences used to be two independent fetches, each committing the
+  // moment its own IPC call resolved — "Related words" has no loading indicator at all, so it
+  // would silently pop in and shift the layout a beat after the rest of the entry (definition,
+  // occurrences) had already settled, reported as the lexicon entry "loading weird." Combined
+  // into one effect so both land in a single commit instead of staggering — occurrences keeps
+  // its own explicit loading state (still a real, announced load for what can be a large
+  // dataset), just gated on BOTH fetches now instead of only its own.
   useEffect(() => {
     setOccurrences([])
     setShowAllOccurrences(false)
@@ -379,9 +378,17 @@ function EntryView({
     setOccSort('canon')
     setOccBookFilter('all')
     setOccurrencesLoading(true)
-    window.lexicon.getOccurrences(entry.strongsNum)
-      .then((rows) => { setOccurrences(rows); setOccurrencesLoading(false) })
-      .catch(() => { setOccurrencesLoading(false) })
+    let cancelled = false
+    Promise.all([
+      window.lexicon.getRelated(entry.strongsNum).catch(() => []),
+      window.lexicon.getOccurrences(entry.strongsNum).catch(() => []),
+    ]).then(([relatedRows, occRows]) => {
+      if (cancelled) return
+      setRelated(relatedRows)
+      setOccurrences(occRows)
+      setOccurrencesLoading(false)
+    })
+    return () => { cancelled = true }
   }, [entry.strongsNum])
 
   // Load more occurrence rows as the user scrolls near the bottom of the entry panel

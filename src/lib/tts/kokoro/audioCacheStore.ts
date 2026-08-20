@@ -6,21 +6,21 @@
  * without spinning up Electron at all.
  */
 
-/** One cached chunk of synthesized audio: a chapter+voice+rate+backend combination, keyed by
- *  `cacheKeyFor` below. Kokoro's neural voices actually produce different audio for the same
- *  text at different rates (unlike Web Speech, which we never cache), so rate is part of the
- *  key — same for voice and text (chapter/textId), and the backend id itself so a future
- *  second neural backend can't collide with Kokoro's own cache entries. */
+/** One cached chunk of synthesized audio: a chapter+voice+backend combination, keyed by
+ *  `cacheKeyFor` below — same for text (chapter/textId), and the backend id itself so a future
+ *  second neural backend can't collide with Kokoro's own cache entries.
+ *
+ *  Deliberately has NO rate field. Kokoro always synthesizes at its own best (1x) quality —
+ *  user-facing playback speed is applied afterward via `HTMLAudioElement.playbackRate` +
+ *  `preservesPitch`, not baked into synthesis (see kokoroBackend.ts's file header for why) — so
+ *  the SAME cached audio is correct at every rate; a rate dimension here would only fragment the
+ *  cache with duplicate, byte-identical entries. */
 export interface AudioCacheKeyParts {
   backendId: string
   textId: string
   bookId: string
   chapter: number
   voiceURI: string
-  /** Rounded before hashing (see cacheKeyFor) — a user dragging the rate slider by 0.01
-   *  shouldn't fragment the cache into near-duplicate entries that are effectively the same
-   *  audio. */
-  rate: number
   /** A cheap (non-cryptographic) hash of the actual spoken text — see `hashText`. Included so
    *  changing a word-replacer rule (e.g. "LORD" → "Yehovah") naturally invalidates any
    *  previously-cached audio for that chapter instead of silently serving stale narration that
@@ -38,12 +38,9 @@ export function hashText(s: string): string {
   return (h >>> 0).toString(36)
 }
 
-/** Deterministic, filesystem-safe cache key. Rate is rounded to 2 decimal places (the store's
- *  own rate slider steps in 0.25 increments, so 2dp is already far finer than any real rate
- *  change) and voice/text ids are lowercased+sanitized so the key is safe to use directly as a
- *  filename component on every OS Berean ships for. */
+/** Deterministic, filesystem-safe cache key. Voice/text ids are lowercased+sanitized so the key
+ *  is safe to use directly as a filename component on every OS Berean ships for. */
 export function cacheKeyFor(parts: AudioCacheKeyParts): string {
-  const rateKey = parts.rate.toFixed(2)
   const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '_')
   return [
     safe(parts.backendId),
@@ -51,7 +48,6 @@ export function cacheKeyFor(parts: AudioCacheKeyParts): string {
     safe(parts.bookId),
     String(parts.chapter),
     safe(parts.voiceURI),
-    rateKey,
     safe(parts.contentHash),
   ].join('__')
 }

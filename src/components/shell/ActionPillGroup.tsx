@@ -20,7 +20,10 @@ interface Props {
 export default function ActionPillGroup({ children, className = '', align = 'center' }: Props) {
   return (
     <div
-      className={`no-drag flex ${align === 'stretch' ? 'items-stretch' : 'items-center'} rounded-shell border border-[rgb(var(--color-surface-4))] overflow-hidden flex-shrink-0 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-[rgb(var(--color-surface-4))] ${className}`}
+      // action-pill-group: a stable marker PanelHeader.tsx's floating-header CSS (global.css)
+      // targets directly, rather than guessing at this component's Tailwind utility classes —
+      // see that rule's own comment for why it needs to single this component out specifically.
+      className={`action-pill-group no-drag flex ${align === 'stretch' ? 'items-stretch' : 'items-center'} rounded-shell border border-[rgb(var(--color-surface-4))] overflow-hidden flex-shrink-0 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:border-[rgb(var(--color-surface-4))] ${className}`}
     >
       {children}
     </div>
