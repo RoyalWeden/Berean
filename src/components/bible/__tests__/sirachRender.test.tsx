@@ -97,4 +97,30 @@ describe('Sirach 1:1 render (KJVA plain-text path) — find which config eats th
     const html = renderToString(createElement(VerseRow as never, { verse, showStrongs: false, textId: 'kjva' } as never))
     expect(visibleText(html)).toBe(EXPECTED)
   })
+
+  // Regression (the actual Sirach 0:1 bug report): once a verse carries ANY char highlight,
+  // the plain-text (non-tagged) render used to fall back to raw verse.text for the WHOLE verse
+  // unless `hasHidden` was also set — silently undoing the word replacer (the default-on
+  // "Jesus"→"Yeshua" rule rendered as "Jesus" again the moment any highlight existed) and,
+  // worse, desyncing VerseRow's selection-toolbar char-offset math (which always assumes the
+  // word-replaced display text is what's on screen) from the actual DOM. A highlight placed
+  // AFTER a length-changing replacement ("Jesus"→"Yeshua" is +1 char) then painted on the wrong
+  // characters — reported live as highlighting "Son" landing on "on " instead.
+  //
+  // Uses the real default word-replacer rules (wordReplacerEnabled defaults to true, and
+  // "jesus"→"Yeshua" ships as a default rule) rather than a custom rule set via
+  // useAppStore.setState(): VerseRow's zustand hook resolves through React's SSR
+  // getServerSnapshot, which reflects the store's state AT MODULE INIT, not a later setState()
+  // call — a renderToString-only quirk (the real Electron renderer isn't SSR'd and doesn't have
+  // this problem), but it means only rules already present at store creation are observable here.
+  it('word replacer + char highlight: replacement still renders, and the highlight lands on the right word', () => {
+    const verse = { ...SIR_1_1, text: 'Wisdom of Jesus the Son of Sirach.' }
+    // "Son" starts at original-text offset 20 — after "Jesus" (offset 10-15), so it only lands
+    // correctly in the display text if the highlight boundary is remapped past the +1 char delta.
+    const hl = [{ id: 'h', color: 'yellow', startWord: null, endWord: null, startChar: 20, endChar: 23 }]
+    const html = renderToString(createElement(VerseRow as never, { verse, showStrongs: false, textId: 'kjva', highlights: hl } as never))
+    expect(visibleText(html)).toBe('Wisdom of Yeshua the Son of Sirach.')
+    const m = html.match(/background-color:[^"]*"[^>]*>([^<]*)</)
+    expect(m?.[1]).toBe('Son')
+  })
 })

@@ -498,7 +498,14 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   useEffect(() => {
     let cancelled = false
     const noteCountsP = window.notes.getChapterCounts(bookId, chapter, textId ?? 'kjva').catch(() => ({}))
-    const highlightsP = window.highlights.getChapter(bookId, chapter, textId ?? 'kjva').catch(() => ({}))
+    const highlightsP = window.highlights.getChapter(bookId, chapter, textId ?? 'kjva')
+      .catch((err) => {
+        // Surface this rather than silently falling back to {} — an empty result here wipes
+        // every highlight in the chapter via mergeStableRecord, which used to look like
+        // "highlights just disappeared" with no trace of why.
+        console.error('[Berean] Failed to load chapter highlights', err)
+        return {}
+      })
     const crossRefP = (async () => {
       const flags: Record<number, boolean> = {}
 
