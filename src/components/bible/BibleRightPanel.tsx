@@ -316,7 +316,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        <div data-panel-scroll-root className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {activeEntry.lemma && (
             <div className="text-xl font-medium text-[rgb(var(--color-text-primary))]" style={{ fontFamily: 'serif' }}>
               <span dir="rtl">{activeEntry.lemma}</span>
@@ -514,7 +514,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div data-panel-scroll-root className="flex-1 overflow-y-auto">
         {loading && <div className="px-3 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">Searching…</div>}
         {!loading && results.length === 0 && query.trim().length >= 2 && (
           <div className="px-3 py-6 text-center text-xs text-[rgb(var(--color-text-muted))]">No results for "{query}"</div>
@@ -1236,7 +1236,7 @@ function CrossRefsTab({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div data-panel-scroll-root className="flex-1 overflow-y-auto">
         {crossRefSource === 'tske' && <TSKeChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
         {crossRefSource === 'classic' && <ClassicChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} />}
         {crossRefSource === 'notes' && <UserNotesChapterView bookId={bookId} chapter={chapter} activeVerseNum={activeVerseNum} onNoteClick={onNoteClick} />}
@@ -1273,6 +1273,11 @@ interface Props {
   forcedTab?: PanelTab
   /** Called with 0–1 scroll percentage whenever any inner scroll container scrolls */
   onScrollPercent?: (pct: number) => void
+  /** Raw scrollTop of whichever sub-tab's list/detail view was active when the panel was last
+   *  left — restored into that same container on mount so reopening the tab (or restarting the
+   *  app) doesn't reset the side panel back to the top. */
+  initialScrollTop?: number
+  onScrollTopChange?: (top: number) => void
   /** Which of the two independent side-panel slots this instance renders — namespaces the
    *  tab-strip's sliding-pill layoutId (see the tab strip below) and identifies this instance
    *  in the pop-out/merge/drag-and-drop context menu. */
@@ -1310,6 +1315,8 @@ export default function BibleRightPanel({
   expandAllNotes, onExpandAllNotesChange,
   forcedTab,
   onScrollPercent,
+  initialScrollTop,
+  onScrollTopChange,
   slotId = 'A',
   onMoveTab,
   canPopOut,
@@ -1321,6 +1328,26 @@ export default function BibleRightPanel({
   // uses the value saved before this tab was switched away (not a live-updating prop).
   const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
   const visibleTab = forcedTab ?? activeTab
+  const panelRootRef = useRef<HTMLDivElement>(null)
+  const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastScrollTopRef = useRef<number>(initialScrollTop ?? 0)
+  // Restore scroll into whichever sub-tab's container is initially mounted (only the active
+  // visibleTab is rendered at mount, per mountedTabs above, so this selector is unambiguous).
+  useEffect(() => {
+    if (initialScrollTop == null) return
+    requestAnimationFrame(() => {
+      const el = panelRootRef.current?.querySelector('[data-panel-scroll-root]') as HTMLElement | null
+      if (el) el.scrollTop = initialScrollTop
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Flush the latest scroll position on unmount — the debounced save below can otherwise lose
+  // the last stretch of scrolling if the panel unmounts within the debounce window.
+  useEffect(() => {
+    return () => {
+      if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+      onScrollTopChange?.(lastScrollTopRef.current)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Which panel types have been shown at least once in THIS slot — once true, that tab's
   // subtree stays mounted (display:none'd, never unmounted) instead of unmounting on
   // switch-away, so its own local state (Lexicon's query/results/history/scroll position,
@@ -1711,6 +1738,7 @@ export default function BibleRightPanel({
 
   return (
     <div
+      ref={panelRootRef}
       className="native-buttons flex flex-col h-full"
       // Scroll events don't bubble — use the capture phase so a scroll in ANY inner scroller
       // (note editor, cross-ref list, lexicon) is caught and mirrored to the presenter.
@@ -1718,6 +1746,11 @@ export default function BibleRightPanel({
         const el = e.target as HTMLElement
         const max = el.scrollHeight - el.clientHeight
         if (max > 0 && onScrollPercent) onScrollPercent(el.scrollTop / max)
+        if (el.hasAttribute('data-panel-scroll-root')) {
+          lastScrollTopRef.current = el.scrollTop
+          if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+          scrollSaveTimerRef.current = setTimeout(() => onScrollTopChange?.(el.scrollTop), 150)
+        }
       }}
     >
       {/* Tab strip — hidden when a tab is forced externally. Real tab shapes (top-rounded
@@ -1992,7 +2025,7 @@ export default function BibleRightPanel({
           )}
 
           {/* Notes list */}
-          <div className="flex-1 overflow-y-auto">
+          <div data-panel-scroll-root className="flex-1 overflow-y-auto">
             {filtered.length === 0 && referencingNotes.length === 0 && chapterMentionNotes.length === 0 ? (
               <div className="px-4 py-8 text-center text-xs text-[rgb(var(--color-text-muted))]">
                 No notes{verseFilter ? ' for this verse' : scope === 'chapter' ? ' for this chapter' : ''}

@@ -34,7 +34,7 @@ export function registerHistoryHandlers(ipcMain: IpcMain): void {
     sessionId?: string; sessionName?: string; bookId?: string; chapter?: number; verse?: number
     noteId?: string; strongsNum?: string; videoId?: string; query?: string; parentId?: string
     importSource?: string; importCount?: number
-  }) => {
+  }, maxEntries?: number) => {
     const db = getBereanDb()
     db.prepare(`
       INSERT OR REPLACE INTO history (
@@ -48,7 +48,16 @@ export function registerHistoryHandlers(ipcMain: IpcMain): void {
       entry.strongsNum ?? null, entry.videoId ?? null, entry.query ?? null,
       entry.parentId ?? null, entry.importSource ?? null, entry.importCount ?? null
     )
-    // History is unbounded (no cap) — entries are small and lazy-loaded in pages.
+    // Prune down to the caller's configured cap (Settings → History → "Max entries"), matching
+    // what the UI already claims it does. Runs on every insert but is cheap — it's an indexed
+    // ORDER BY timestamp DESC LIMIT scan, not a full table scan.
+    if (maxEntries && maxEntries > 0) {
+      db.prepare(`
+        DELETE FROM history WHERE id NOT IN (
+          SELECT id FROM history ORDER BY timestamp DESC LIMIT ?
+        )
+      `).run(maxEntries)
+    }
     return { success: true }
   })
 

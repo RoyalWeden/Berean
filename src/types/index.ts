@@ -65,6 +65,13 @@ export interface BibleTabState {
   // collapsed every time.
   rightPanelExpandAll?: boolean
   rightPanelExpandAllB?: boolean
+  // Scroll position of whichever sub-tab (notes/lexicon/crossrefs) is currently active in the
+  // side panel — restored on remount (tab reopen, app restart). While the panel stays mounted
+  // (see BibleRightPanel's mountedTabs), each sub-tab's own scroller keeps its DOM scrollTop for
+  // free when switching between sub-tabs, so this only needs to capture "the active one" rather
+  // than one value per sub-tab.
+  rightPanelScrollTop?: number
+  rightPanelScrollTopB?: number
   // Second side-panel slot — popped out via right-click/drag from slot A (see BiblePanel.tsx's
   // moveTab/closeSlotB). null/undefined = slot B not shown. Slot B is a fully independent
   // BibleRightPanel instance, so it needs its own copy of every "which X is open" field above,

@@ -655,6 +655,38 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       try { db.exec(`ALTER TABLE notes ADD COLUMN pinned INTEGER DEFAULT 0`) } catch {}
       console.log('[berean-db] v25: pinned column on notes')
     }
+  },
+  {
+    // Audio (Read Aloud) playlists — a freeform, saveable, reorderable queue of chapters/verse
+    // ranges to play back to back, replacing the single-chapter-only assumption useTTSPlayback.ts
+    // had before. playlist_items.position is a plain integer (not a linked list or fractional
+    // index) since reordering always rewrites the whole list in one transaction (small lists,
+    // no concurrent editors) — same tradeoff workspaces/notes tables already make elsewhere in
+    // this schema. end_verse is nullable: null means "play the whole chapter," matching how
+    // startPlaybackFrom's own verseNum already works for a plain chapter play.
+    version: 26,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS playlists (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS playlist_items (
+          id          TEXT PRIMARY KEY,
+          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          position    INTEGER NOT NULL,
+          book_id     TEXT NOT NULL,
+          chapter     INTEGER NOT NULL,
+          start_verse INTEGER NOT NULL DEFAULT 1,
+          end_verse   INTEGER,
+          text_id     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist ON playlist_items(playlist_id, position);
+      `)
+      console.log('[berean-db] v26: playlists + playlist_items tables')
+    }
   }
 ]
 

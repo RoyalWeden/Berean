@@ -214,6 +214,10 @@ export default function SettingsModal() {
   const settingsOpen = useAppStore((s) => s.settingsOpen)
   const closeSettings = useAppStore((s) => s.closeSettings)
   const settingsInitialSection = useAppStore((s) => s.settingsInitialSection)
+  const lastSettingsSection = useAppStore((s) => s.lastSettingsSection)
+  const setLastSettingsSection = useAppStore((s) => s.setLastSettingsSection)
+  const settingsSectionScrollTop = useAppStore((s) => s.settingsSectionScrollTop)
+  const setSettingsSectionScrollTop = useAppStore((s) => s.setSettingsSectionScrollTop)
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const themePreset = useAppStore((s) => s.themePreset)
@@ -300,7 +304,7 @@ export default function SettingsModal() {
   const viewerTheme = useAppStore((s) => s.viewerTheme)
   const setViewerTheme = useAppStore((s) => s.setViewerTheme)
 
-  const [section, setSection] = useState<Section>('appearance')
+  const [section, setSection] = useState<Section>(() => (lastSettingsSection as Section) || 'appearance')
   const [settingsSearch, setSettingsSearch] = useState('')
   // previewVariant: which palette to show in the preset swatches
   // follows base theme (dark/light) and can be toggled independently
@@ -308,12 +312,47 @@ export default function SettingsModal() {
     theme === 'light' ? 'light' : 'dark'
   )
 
-  // When settings opens, jump to the requested initial section (e.g. 'import')
+  // Scroll position within the content pane, saved per-section so switching sections (or
+  // reopening Settings entirely) restores where the user was instead of resetting to the top.
+  //
+  // Deliberately NOT debounced (an earlier version of this debounced the store write 150ms,
+  // matching the flush-on-unmount pattern used elsewhere for scroll persistence — e.g.
+  // SearchTab.tsx/ScriptureSearchView.tsx). That pattern relies on a real component unmount to
+  // flush the last pending write, which works there because switching tabs actually unmounts
+  // those components. Settings is different: Dialog.Content (Radix) has no forceMount/exit
+  // animation, so it unmounts SYNCHRONOUSLY the instant settingsOpen flips false — by the time
+  // any effect cleanup could run to flush a pending debounce, settingsContentRef.current may
+  // already be null. Closing Settings can also be triggered from entirely different code paths
+  // that never touch this component's local state at all (⌘, in App.tsx, a button in
+  // AboutSection.tsx), so a locally-scoped "flush on close" handler can't cover every case
+  // either. Writing straight through on every scroll event sidesteps the whole problem: this
+  // only touches an in-memory zustand slice (cheap — the actually-expensive localStorage write
+  // is separately debounced by debouncedLocalStorage, see src/lib/debouncedStorage.ts), so
+  // there's no real cost to keeping it always current instead of batched.
+  const settingsContentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!settingsOpen) return
+    const el = settingsContentRef.current
+    if (!el) return
+    requestAnimationFrame(() => { el.scrollTop = settingsSectionScrollTop[section] ?? 0 })
+  }, [settingsOpen, section]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Manual navigation (sidebar click, search jump) — unlike the deep-link effect below, this
+  // also remembers the section so the next generic "open Settings" (gear icon, ⌘,) reopens here.
+  function changeSection(next: Section) {
+    setSection(next)
+    setLastSettingsSection(next)
+  }
+
+  // When settings opens, jump to the requested initial section (e.g. 'import'). Also covers the
+  // generic-open case: openSettings() sets settingsInitialSection to lastSettingsSection itself,
+  // so this effect is what actually lands there on every open, not just deep links.
   useEffect(() => {
     if (settingsOpen && settingsInitialSection) {
       setSection(settingsInitialSection as Section)
+      setLastSettingsSection(settingsInitialSection)
     }
-  }, [settingsOpen, settingsInitialSection])
+  }, [settingsOpen, settingsInitialSection]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep previewVariant in sync when base theme changes (not system)
   useEffect(() => {
@@ -506,7 +545,7 @@ export default function SettingsModal() {
                           (n.keywords ?? []).some((k) => k.toLowerCase().includes(q))
                         )
                         if (matches.length === 1) {
-                          setSection(matches[0].id)
+                          changeSection(matches[0].id)
                           useAppStore.getState().bumpSettingsNavToken()
                         }
                       }
@@ -527,7 +566,7 @@ export default function SettingsModal() {
                 : filteredNav.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => { setSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
+                  onClick={() => { changeSection(n.id); useAppStore.getState().bumpSettingsNavToken(); setSettingsSearch('') }}
                   className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-shell text-xs transition-colors cursor-pointer ${
                     section === n.id
                       ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
@@ -542,7 +581,13 @@ export default function SettingsModal() {
             </div>
 
             {/* Content */}
-            <div className="settings-content flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            <div
+              ref={settingsContentRef}
+              // Written straight through, no debounce/throttle — see the comment on
+              // settingsContentRef above for why anything deferred risks never landing at all.
+              onScroll={(e) => setSettingsSectionScrollTop(section, e.currentTarget.scrollTop)}
+              className="settings-content flex-1 overflow-y-auto px-6 py-6 space-y-6"
+            >
               {section === 'appearance' && (
                 <>
                   {/* Color mode: Dark / Light / System — controls all themes including presets */}

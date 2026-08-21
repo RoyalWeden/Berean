@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import ChapterView from './ChapterView'
 import { bookName } from '@/lib/parseRef'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_START } from '@/lib/scrollToVerse'
+import { useAppStore } from '@/store'
 
 interface ContinuousChapterScrollProps {
   bookId: string
@@ -60,6 +61,10 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     // Chapter that is "most visible" (the one the header bar reflects)
     const [visibleCh, setVisibleCh] = useState(chapter)
     const scrollRef = useRef<HTMLDivElement>(null)
+    // Reserve extra bottom scroll room while the floating Read Aloud player is showing, same
+    // fix as BiblePanel.tsx's own chapterViewRef container — without it the player's card sits
+    // on top of the last verse with no way to scroll past it.
+    const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
     const headingRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     // ── Height-preserving placeholders for evicted chapters ──────────────────────────────
     // Chapters outside [firstCh, lastCh] used to be fully absent from the DOM with nothing
@@ -245,7 +250,7 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     for (let ch = lastCh + 1; ch <= totalChapters; ch++) afterHeight += measuredHeights.get(ch) ?? avgMeasuredHeight
 
     return (
-      <div ref={scrollRef} className="flex-1 overflow-y-auto relative" onScroll={handleScroll}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : ''}`} onScroll={handleScroll}>
         {/* Presenter visible-region band */}
         {presenterBand && (
           <div

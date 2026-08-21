@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
-import { Play, Pause, SkipBack, SkipForward, X, ArrowDownToLine, ArrowUpToLine, Gauge, AudioLines, CheckCircle2, Download } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, X, ArrowDownToLine, BookHeadphones, Gauge, AudioLines, CheckCircle2, Download, ListMusic } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { getVoices } from '@/lib/tts/ttsEngine'
@@ -8,6 +8,7 @@ import { useChapterProgress } from '@/hooks/useChapterProgress'
 import VoicePicker from '@/components/audio/VoicePicker'
 import ChapterProgressBar from '@/components/audio/ChapterProgressBar'
 import CircularPlayButton from '@/components/audio/CircularPlayButton'
+import AudioQueuePopover from '@/components/audio/AudioQueuePopover'
 import type { BibleTabState } from '@/types'
 
 // Debounced-collapse delay — mirrors Ribbon.tsx's hover-open/close popover convention (350ms
@@ -74,6 +75,10 @@ export default function AudioPlayer() {
   const openSettingsToAudio = useAppStore((s) => s.openSettingsToAudio)
 
   const [expanded, setExpanded] = useState(false)
+  const [queuePopoverOpen, setQueuePopoverOpen] = useState(false)
+  const queuePopoverOpenRef = useRef(false)
+  useEffect(() => { queuePopoverOpenRef.current = queuePopoverOpen }, [queuePopoverOpen])
+  const playbackQueue = useAppStore((s) => s.playbackQueue)
   // Debounced-collapse + pointer-interaction guard (see COLLAPSE_DELAY_MS doc comment above and
   // the click-race fix described in the file-level doc comment).
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -89,8 +94,11 @@ export default function AudioPlayer() {
       // A pointer is actively down inside the pill (e.g. mid-drag on the progress bar, or the
       // instant after a click lands) — don't collapse out from under it. Re-check shortly
       // instead of just bailing outright, so the collapse still eventually happens once the
-      // interaction ends even if the mouse never re-enters.
-      if (isInteractingRef.current) { scheduleCollapse(); return }
+      // interaction ends even if the mouse never re-enters. Same treatment for the queue
+      // popover: it's portaled to document.body (outside this wrapper's DOM subtree), so
+      // hovering it doesn't naturally count as "still hovering the player" — without this check
+      // the pill would collapse out from under an open, actively-being-used popover.
+      if (isInteractingRef.current || queuePopoverOpenRef.current) { scheduleCollapse(); return }
       setExpanded(false)
     }, COLLAPSE_DELAY_MS)
   }
@@ -116,6 +124,7 @@ export default function AudioPlayer() {
   // its fetch when bookId is falsy.
   const { fraction: idleFraction } = useChapterProgress(
     audioPlayback?.bookId ?? '', audioPlayback?.chapter ?? 1, audioPlayback?.textId ?? '', audioPlayback?.verse ?? 1,
+    audioPlayback?.endVerse,
   )
 
   if (!audioPlayback) return null
@@ -181,7 +190,7 @@ export default function AudioPlayer() {
           // this is what makes the circle-to-capsule morph one coherent shape animation instead
           // of two independently-configured pieces.
           style={{ borderRadius: expanded ? 26 : 20 }}
-          className="flex flex-col-reverse items-stretch shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur overflow-hidden"
+          className="relative flex flex-col-reverse items-stretch shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur overflow-hidden"
         >
           {/* Collapsed section — first in DOM order + flex-col-reverse pins it to the card's
               visual bottom, so it never shifts as the card above it grows/shrinks. The idle
@@ -218,6 +227,7 @@ export default function AudioPlayer() {
                       chapter={audioPlayback.chapter}
                       textId={audioPlayback.textId}
                       currentVerseNum={audioPlayback.verse}
+                      endVerseNum={audioPlayback.endVerse}
                       onSeek={seekToVerse}
                       // The bar only mounts once the WHOLE pill is already expanded — passing
                       // that down (rather than making the bar re-derive its own hover state from
@@ -230,16 +240,41 @@ export default function AudioPlayer() {
                   )}
                   {/* Reference label gets its own centered row, out of the button row entirely
                       — it was the main thing weighing down the RIGHT side of the button row
-                      below, working against keeping play/pause centered. */}
-                  <div className="flex items-center justify-center gap-1.5 pt-0.5 select-none">
+                      below, working against keeping play/pause centered. When the visible tab
+                      isn't showing what's actually playing, the WHOLE label becomes the "jump to
+                      what's playing" button (previously a separate icon squeezed into the
+                      transport row below) — clicking anywhere on "2 Peter 3:3" jumps there, with
+                      "read this chapter instead" (retarget playback to what's on screen) sitting
+                      right beside it instead of buried in the speed/voice row underneath. */}
+                  <div className="flex items-center justify-center gap-1 pt-0.5 select-none">
                     {audioPlayback.finished ? (
-                      <CheckCircle2 size={12} className="text-[rgb(var(--color-accent))]" />
+                      <CheckCircle2 size={12} className="text-[rgb(var(--color-accent))] flex-shrink-0" />
                     ) : (
-                      <AudioLines size={12} className={`text-[rgb(var(--color-accent))] ${audioPlayback.isPaused ? '' : 'animate-pulse'}`} />
+                      <AudioLines size={12} className={`text-[rgb(var(--color-accent))] flex-shrink-0 ${audioPlayback.isPaused ? '' : 'animate-pulse'}`} />
                     )}
-                    <span className="text-[11px] font-medium text-[rgb(var(--color-text-primary))] whitespace-nowrap">
-                      {audioPlayback.finished ? 'Finished' : label}
-                    </span>
+                    {showSyncRow ? (
+                      <button
+                        onClick={jumpToPlaying}
+                        className="flex items-center gap-1 px-1 py-0.5 -my-0.5 rounded text-[11px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/12] cursor-pointer transition-colors whitespace-nowrap"
+                        title="Jump to what's playing"
+                      >
+                        {label}
+                        <ArrowDownToLine size={11} />
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-medium text-[rgb(var(--color-text-primary))] whitespace-nowrap">
+                        {audioPlayback.finished ? 'Finished' : label}
+                      </span>
+                    )}
+                    {showSyncRow && (
+                      <button
+                        onClick={playThisChapterInstead}
+                        className="flex items-center justify-center w-5 h-5 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors flex-shrink-0"
+                        title="Read this chapter instead — retarget Read Aloud to what you're viewing"
+                      >
+                        <BookHeadphones size={12} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Three-column grid, not a flex row — play/pause sits in the fixed-width
@@ -263,15 +298,6 @@ export default function AudioPlayer() {
                       >
                         <SkipBack size={13} />
                       </button>
-                      {showSyncRow && (
-                        <button
-                          onClick={jumpToPlaying}
-                          className="flex items-center justify-center w-7 h-7 rounded-full text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/12] cursor-pointer transition-colors"
-                          title="Jump to what's playing"
-                        >
-                          <ArrowDownToLine size={13} />
-                        </button>
-                      )}
                     </div>
 
                     <button
@@ -290,12 +316,20 @@ export default function AudioPlayer() {
                       >
                         <SkipForward size={13} />
                       </button>
+                      {/* Was the Stop (X) button — that moved to the card's top-right corner
+                          (always in the same spot regardless of expand state) so it reads as
+                          "close this player," freeing this spot for the queue button. */}
                       <button
-                        onClick={stopPlayback}
-                        className="flex items-center justify-center w-7 h-7 rounded-full text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
-                        title="Stop"
+                        onClick={() => setQueuePopoverOpen((v) => !v)}
+                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/12]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+                        title="Playlist queue"
                       >
-                        <X size={14} />
+                        <ListMusic size={13} />
+                        {playbackQueue.length > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[rgb(var(--color-accent))] text-white text-[8px] font-medium leading-3 text-center">
+                            {playbackQueue.length}
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -326,7 +360,9 @@ export default function AudioPlayer() {
                     speed + voice side by side (no separate icon-labeled row each), nudge/sync
                     reduced to small icon buttons with a tooltip instead of full-width text rows.
                     "Fluid, not too many unnecessary details" — the icons are self-explanatory
-                    (gauge = speed, mic = voice) and every control fits on one line. */}
+                    (gauge = speed, mic = voice) and every control fits on one line. The queue
+                    button and "read this chapter instead" both moved out of this row (to the
+                    transport row and the label row respectively) — this is now just speed + voice. */}
                 <div className="w-[260px] px-2.5 py-2 flex items-center gap-1.5 border-b border-[rgb(var(--color-surface-3))]">
                   <Gauge size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                   <input
@@ -341,25 +377,32 @@ export default function AudioPlayer() {
                   {voices.length > 0 && (
                     // No auto-preview here (unlike Settings → Audio) — this picker can be used
                     // mid-playback, and previewing would collide with the actual chapter audio on
-                    // speechSynthesis' single queue.
-                    <VoicePicker voices={voices} value={ttsVoiceURI} onChange={setTTSVoiceURI} compact />
-                  )}
-
-                  {showSyncRow && (
-                    <button
-                      onClick={playThisChapterInstead}
-                      className="flex items-center justify-center w-6 h-6 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors flex-shrink-0"
-                      title="Read this chapter instead — retarget Read Aloud to what you're viewing"
-                    >
-                      <ArrowUpToLine size={13} />
-                    </button>
+                    // speechSynthesis' single queue. iconOnly: a compact button that opens the
+                    // same picker, rather than a wide dropdown-style display crowding this row.
+                    <VoicePicker voices={voices} value={ttsVoiceURI} onChange={setTTSVoiceURI} compact iconOnly />
                   )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Stop/close — fixed at the card's top-right corner regardless of what else is going
+              on in the transport row beneath it (previously lived in the transport row itself,
+              at the same height as skip/play — that spot now belongs to the queue button). Only
+              shown expanded: the collapsed circle has no room for it and IS itself the
+              play/pause target. */}
+          {expanded && (
+            <button
+              onClick={stopPlayback}
+              className="absolute top-1.5 right-1.5 z-10 flex items-center justify-center w-6 h-6 rounded-full text-[rgb(var(--color-text-muted))] hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+              title="Stop"
+            >
+              <X size={14} />
+            </button>
+          )}
         </motion.div>
       </div>
+      {queuePopoverOpen && <AudioQueuePopover onClose={() => setQueuePopoverOpen(false)} />}
     </MotionConfig>
   )
 }

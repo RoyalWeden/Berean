@@ -179,6 +179,13 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     setQuery(pendingSearchQuery)
     runSearch(pendingSearchQuery, textId)
     inputRef.current?.focus()
+    // This is a one-shot external push (e.g. from FloatingSearch), not live typing, so rename
+    // immediately rather than going through handleInput's 150ms debounce — that debounce exists
+    // to smooth out per-keystroke renames, which doesn't apply here.
+    if (searchTab) {
+      const trimmed = pendingSearchQuery.trim()
+      useAppStore.getState().renameTab('search', searchTab.id, trimmed ? `"${trimmed}"` : 'Search')
+    }
   }, [pendingSearchQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const wordReplacerEnabled = useAppStore.getState().wordReplacerEnabled

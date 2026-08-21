@@ -66,6 +66,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const tabs = useAppStore((s) => s.tabs.scripture)
   const activeTabId = useAppStore((s) => s.activeTabId.scripture)
   const pdfFeatureEnabled = useAppStore((s) => s.pdfFeatureEnabled)
+  // Whether the floating Read Aloud player is currently showing (it's global — shown for ANY
+  // playing chapter, not just this tab's) — used to reserve extra bottom scroll room so the
+  // player's card doesn't sit on top of the last verse with no way to scroll past it.
+  const audioPlaybackActive = useAppStore((s) => s.audioPlayback != null)
   const updateTabState = useAppStore((s) => s.updateTabState)
   const renameTab = useAppStore((s) => s.renameTab)
   const pendingRightPanelNoteId = useAppStore((s) => s.pendingRightPanelNoteId)
@@ -1781,6 +1785,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return (
       <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
         <ScriptureSearchView
+          // BiblePanel itself is a single persistent instance shared across every 'bible' tab
+          // (no key on <BiblePanel/> in ActivePanel.tsx — it resets its OWN state manually on
+          // tab switch instead of remounting). ScriptureSearchView doesn't do that: its query/
+          // filters/sort are plain useState seeded from initialQuery/persistedState only once,
+          // at mount. Without a key here, switching from one Advanced Search tab to ANOTHER
+          // (both searchMode tabs, so this branch stays rendered the whole time) never remounts
+          // it — it just keeps showing whichever tab's query happened to be there first. Keying
+          // on the tab id forces a real remount on tab switch, so each Advanced Search tab
+          // starts from its own persisted state again.
+          key={activeTab?.id}
           floating={floating}
           initialQuery={tabState.scriptureSearchQuery}
           persistedState={{
@@ -2415,7 +2429,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     ) : (
       <div
         ref={chapterViewRef}
-        className="flex-1 overflow-y-auto relative"
+        className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : ''}`}
         onWheel={(e) => {
           // When the chapter fits entirely (nothing to scroll), the wheel can't move the main
           // panel — so translate it into a virtual scroll that drives the presenter, which may
@@ -2648,6 +2662,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           canPopOut={slot === 'A' && !forcedTab && (ALL_PANEL_TABS.length - rightPanelSlotBTabs.length) > 1}
           onCloseSlotB={slot === 'B' ? closeSlotB : undefined}
           onCloseSlotA={slot === 'A' ? closeSlotA : undefined}
+          initialScrollTop={slot === 'A' ? tabState.rightPanelScrollTop : tabState.rightPanelScrollTopB}
+          onScrollTopChange={(top) => {
+            if (activeTab) updateTabState('scripture', activeTab.id, slot === 'A' ? { rightPanelScrollTop: top } : { rightPanelScrollTopB: top })
+          }}
           onScrollPercent={slot === 'A' ? (pct) => {
             const st = useAppStore.getState()
             if (!st.viewerWindowOpen || st.viewerPaused) return

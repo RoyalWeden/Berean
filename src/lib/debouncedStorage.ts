@@ -42,6 +42,12 @@ function flush(): void {
 // the app process exits, so this covers both app quit and manual reload.
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flush)
+  // Backstop for the case beforeunload never fires — a hard crash, `kill`, or the OS force-
+  // quitting the app. Those skip the normal close path entirely, so a change made within the
+  // 500ms debounce window right before one would otherwise be silently lost. Cheap: flush() is a
+  // no-op when nothing is pending, so this just re-checks periodically rather than adding real
+  // write traffic.
+  setInterval(flush, 5000)
 }
 
 export const debouncedLocalStorage = {

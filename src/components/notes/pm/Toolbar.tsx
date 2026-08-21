@@ -150,13 +150,20 @@ export default function Toolbar({
   // nothing to actually debounce against (no typing burst in progress). `prevViewRef` tells
   // the two cases apart: a NEW `view` (switched note/tab) computes immediately; the SAME
   // `view` getting a new `doc` (typing within it) still debounces as before.
-  const [wordStats, setWordStats] = useState<WordStats>({ words: 0, minutes: 0 })
+  const [wordStats, setWordStats] = useState<WordStats>({ words: 0, minutes: 0, characters: 0 })
+  // True whenever the footer above is reporting the SELECTION's stats rather than the whole
+  // note's — drives the "42 words selected" vs. "42 words" label below.
+  const [statsAreSelection, setStatsAreSelection] = useState(false)
   const prevViewRef = useRef<EditorView | null>(null)
   useEffect(() => {
     if (!view) return
     const compute = () => {
-      const doc = view.state.doc
-      const text = doc.textBetween(0, doc.content.size, '\n', '\n')
+      const { doc, selection } = view.state
+      const hasSelection = !selection.empty
+      const text = hasSelection
+        ? doc.textBetween(selection.from, selection.to, '\n', '\n')
+        : doc.textBetween(0, doc.content.size, '\n', '\n')
+      setStatsAreSelection(hasSelection)
       setWordStats(computeWordStats(text))
     }
     if (prevViewRef.current !== view) {
@@ -166,7 +173,9 @@ export default function Toolbar({
     }
     const timer = setTimeout(compute, WORD_COUNT_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [view, view?.state.doc])
+    // view.state.selection is included so a pure selection change (no doc edit) retriggers this
+    // too — previously only view.state.doc was watched, so selecting text never updated the count.
+  }, [view, view?.state.doc, view?.state.selection])
 
   // Fluid-feel polish #2.3: "Saved" confirmation, shown briefly whenever `lastSavedAt`
   // actually changes — which only happens when NotesPanel's autosave IPC call resolves
@@ -597,8 +606,10 @@ export default function Toolbar({
       )}
       <div className="text-[11px] text-[rgb(var(--color-text-muted))]">
         {wordStats.words === 0
-          ? '0 words'
-          : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
+          ? (statsAreSelection ? '0 words selected' : '0 words')
+          : statsAreSelection
+            ? `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} selected`
+            : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
       </div>
     </div>
     </>
