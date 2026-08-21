@@ -210,16 +210,18 @@ export function normalizePunctuation(token: string): string {
 const PRONUNCIATION_RESPELLINGS: Record<string, string> = {
   yehovah: 'Yehovuh',
   yehovahs: "Yehovuh's",
-  // Default espeak phonemization reads this as three beats ("yeh-SHOO-ah"); the requested sound
-  // is a tighter two-beat "Ye-shua" ("YESH-wuh"), collapsing the "-oo-ah" tail into one syllable
-  // rather than stretching it into two. Same rule as Yehovah above applies (no hyphens — espeak
-  // treats those as word boundaries), so this is a same-word respelling, not a hyphenated one.
-  // FIRST ATTEMPT, UNTESTED BY EAR — unlike Yehovah's respelling (already tuned/confirmed), this
-  // one hasn't been listened to yet. If it doesn't land right, the lever to adjust is the ending
-  // ("-wuh" → "-wa"/"-uh") rather than re-adding the "oo" back in, which reintroduces the
-  // three-beat sound this is meant to collapse.
-  yeshua: 'Yeshwuh',
-  yeshuas: "Yeshwuh's",
+  // Second iteration — first attempt ("Yeshwuh", collapsing the tail to a schwa) was rejected:
+  // "should say Yeshua as yesh-uwa" — the "oo"/"u" needs to stay audible, and the ending wants
+  // an open "-wah" (like Yehovah's REJECTED "-vah" ending, ironically — that ending is exactly
+  // right here, just wrong for Yehovah), not the reduced schwa "-wuh" the first attempt used.
+  // "Yeshuwa" keeps the "u" and lets the trailing "a" read as the open "ah" espeak already gives
+  // plain word-final "a" (see the Yehovah comment above noting "-vah" rhymes with "spa" — that
+  // was unwanted THERE, but is the wanted sound here).
+  // UNTESTED BY EAR — same caveat as before. If it's still off, the lever is which vowel spelling
+  // sits between "sh" and "w" (try "Yeshoowa" for a more emphatic "oo", or "Yeshuwah" if the
+  // trailing "a" reduces to a schwa instead of staying open).
+  yeshua: 'Yeshuwa',
+  yeshuas: "Yeshuwa's",
 }
 
 const RESPELL_TOKEN_RE = /^([([{"'‘“]*)([A-Za-z]+)(?:('s|’s))?([)\]}"'’”,;:.!?]*)$/

@@ -4,7 +4,7 @@
  * the window uses hiddenInset so traffic lights are inset at (12,14).
  * A transparent absolute drag overlay lets the window be dragged.
  */
-import { useMemo, useEffect, lazy, Suspense } from 'react'
+import { useMemo, useEffect, useState, lazy, Suspense } from 'react'
 import { PanelLeftOpen } from 'lucide-react'
 import BiblePanel from '@/components/bible/BiblePanel'
 import NotesPanel from '@/components/notes/NotesPanel'
@@ -12,6 +12,7 @@ import LexiconPanel from '@/components/lexicon/LexiconPanel'
 import SearchTab from '@/components/search/SearchTab'
 import PDFViewer from '@/components/pdf/PDFViewer'
 import { useAppStore } from '@/store'
+import { applyThemeToDocument } from '@/lib/applyTheme'
 
 // Lazy so the heavy YouTube webview code isn't pulled into the initial bundle
 // via this floating-window entry point (see ActivePanel.tsx for the same split).
@@ -37,63 +38,14 @@ function readFloatParams(): FloatParams {
   return params
 }
 
-// Same preset/dark logic as App.tsx — must be kept in sync.
-const NATURALLY_DARK_PRESETS = new Set([
-  'theme-neon','theme-midnight','theme-obsidian','theme-forest',
-  'theme-royal','theme-ember','theme-ocean','theme-slate','theme-terminal',
-])
-const ALL_PRESET_CLASSES = [
-  'theme-neon','theme-midnight','theme-bible','theme-forest','theme-royal',
-  'theme-ember','theme-ocean','theme-slate','theme-rose','theme-terminal','theme-sand','theme-obsidian',
-  'theme-ivory','theme-arctic','theme-dawn',
-  'theme-neon-light','theme-midnight-light','theme-obsidian-light','theme-forest-light',
-  'theme-royal-light','theme-ember-light','theme-ocean-light','theme-slate-light','theme-terminal-light',
-  'theme-bible-dark','theme-sand-dark','theme-rose-dark','theme-ivory-dark','theme-arctic-dark','theme-dawn-dark',
-]
-
-function applyThemeToHtml(theme: string, themePreset: string): (() => void) | void {
-  const html = document.documentElement
-  ALL_PRESET_CLASSES.forEach((cls) => html.classList.remove(cls))
-
-  if (themePreset) {
-    const baseId = themePreset.replace(/-(?:dark|light)$/, '')
-    const applyPreset = (isDark: boolean) => {
-      html.classList.remove('dark', 'light')
-      const cls = NATURALLY_DARK_PRESETS.has(baseId)
-        ? (isDark ? baseId : `${baseId}-light`)
-        : (isDark ? `${baseId}-dark` : baseId)
-      html.classList.add(cls)
-    }
-    if (theme === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      applyPreset(mq.matches)
-      const handler = (e: MediaQueryListEvent) => applyPreset(e.matches)
-      mq.addEventListener('change', handler)
-      return () => mq.removeEventListener('change', handler)
-    } else {
-      applyPreset(theme === 'dark')
-    }
-  } else {
-    const applyTheme = (isDark: boolean) => {
-      html.classList.toggle('dark', isDark)
-      html.classList.toggle('light', !isDark)
-    }
-    if (theme === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      applyTheme(mq.matches)
-      const handler = (e: MediaQueryListEvent) => applyTheme(e.matches)
-      mq.addEventListener('change', handler)
-      return () => mq.removeEventListener('change', handler)
-    } else {
-      applyTheme(theme === 'dark')
-    }
-  }
-}
-
 export default function FloatingShell() {
   const params = useMemo(readFloatParams, [])
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const systemAccentColor = useAppStore((s) => s.systemAccentColor)
+  const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
+  const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
 
   // ── On mount: apply the right-clicked tab's params to the active scripture tab ──
@@ -145,26 +97,43 @@ export default function FloatingShell() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Theme: apply the full preset + dark/light logic (same as App.tsx) ────────
-  // Also listen for cross-window broadcasts so theme changes in the main window
-  // propagate here (only the theme portion — we ignore tab changes).
+  // ── Theme: apply the full preset + dark/light + animation logic (same shared
+  //    applyThemeToDocument App.tsx and ViewerApp.tsx use) ──────────────────────
+  // Also listen for cross-window broadcasts so theme/animation changes in the main window
+  // propagate here (only that portion — we ignore tab changes, see below).
+  const [systemIsDark, setSystemIsDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+  )
   useEffect(() => {
-    return applyThemeToHtml(theme, themePreset)
-  }, [theme, themePreset])
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemIsDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  useEffect(() => {
+    applyThemeToDocument({
+      theme, themePreset, systemIsDark, systemAccentColor,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+    })
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   useEffect(() => {
     // Listen for theme broadcasts from the main window.
-    // IMPORTANT: only update theme/themePreset — never overwrite tabs, because the
+    // IMPORTANT: only update theme/themePreset/animation — never overwrite tabs, because the
     // broadcast contains the main window's tab list which would clobber the float's
     // own scripture state (the tab state override applied on mount).
     window.app.onTabStateUpdate?.((payload) => {
-      const p = payload as { theme?: string; themePreset?: string }
-      if (p.theme !== undefined) {
-        useAppStore.setState({ theme: p.theme as 'light' | 'dark' | 'system' })
+      const p = payload as {
+        theme?: string; themePreset?: string
+        backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: string; backgroundAnimationIntensity?: string
       }
-      if (p.themePreset !== undefined) {
-        useAppStore.setState({ themePreset: p.themePreset })
-      }
+      const update: Record<string, unknown> = {}
+      if (p.theme !== undefined) update.theme = p.theme
+      if (p.themePreset !== undefined) update.themePreset = p.themePreset
+      if (p.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = p.backgroundAnimationEnabled
+      if (p.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = p.backgroundAnimationStyle
+      if (p.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = p.backgroundAnimationIntensity
+      if (Object.keys(update).length) useAppStore.setState(update)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

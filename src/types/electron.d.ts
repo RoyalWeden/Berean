@@ -59,7 +59,7 @@ interface HighlightsAPI {
 
 interface LexiconAPI {
   getEntry: (strongsNum: string) => Promise<LexiconEntry | null>
-  getOccurrences: (strongsNum: string) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices: number[] }[]>
+  getOccurrences: (strongsNum: string, quickLimit?: number) => Promise<{ book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices: number[] }[]>
   getRelated: (strongsNum: string) => Promise<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>
   search: (query: string, lang: 'H' | 'G' | 'all') => Promise<LexiconEntry[]>
 }

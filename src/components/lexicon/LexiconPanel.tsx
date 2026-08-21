@@ -371,6 +371,16 @@ function EntryView({
   // into one effect so both land in a single commit instead of staggering — occurrences keeps
   // its own explicit loading state (still a real, announced load for what can be a large
   // dataset), just gated on BOTH fetches now instead of only its own.
+  // Two-phase occurrence load. getLexiconOccurrences scans EVERY verse's text_tagged with a
+  // synchronous LIKE '%...%' full-table scan, then runs an extra per-row query + regex parse
+  // for each match — genuinely slow for a common word (hundreds of matches), and since
+  // better-sqlite3 is synchronous, it blocks the WHOLE main process (every window's IPC) for
+  // as long as it takes. Reported: "occurrence stuff should show immediately and [the rest]
+  // after a second" — phase 1 asks for a small quickLimit so the panel renders almost
+  // instantly (LIMIT lets the scan short-circuit far sooner for common words; rare words have
+  // few total rows anyway so they're already fast); phase 2 fires right behind it for the
+  // COMPLETE set (no visible loading state — it just quietly replaces the quick batch once
+  // ready, which is what "Show all"/infinite-scroll need data for beyond the first ~20).
   useEffect(() => {
     setOccurrences([])
     setShowAllOccurrences(false)
@@ -381,12 +391,17 @@ function EntryView({
     let cancelled = false
     Promise.all([
       window.lexicon.getRelated(entry.strongsNum).catch(() => []),
-      window.lexicon.getOccurrences(entry.strongsNum).catch(() => []),
-    ]).then(([relatedRows, occRows]) => {
+      window.lexicon.getOccurrences(entry.strongsNum, 20).catch(() => []),
+    ]).then(([relatedRows, quickRows]) => {
       if (cancelled) return
       setRelated(relatedRows)
-      setOccurrences(occRows)
+      setOccurrences(quickRows)
       setOccurrencesLoading(false)
+      // Phase 2: the full set, in the background — replaces the quick batch once it lands.
+      window.lexicon.getOccurrences(entry.strongsNum).then((fullRows) => {
+        if (cancelled) return
+        setOccurrences(fullRows)
+      }).catch(() => {})
     })
     return () => { cancelled = true }
   }, [entry.strongsNum])

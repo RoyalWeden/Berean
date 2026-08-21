@@ -67,8 +67,8 @@ contextBridge.exposeInMainWorld('notes', {
 
 contextBridge.exposeInMainWorld('lexicon', {
   getEntry: (strongsNum: string) => ipcRenderer.invoke('lexicon:getEntry', strongsNum),
-  getOccurrences: (strongsNum: string) =>
-    ipcRenderer.invoke('lexicon:getOccurrences', strongsNum),
+  getOccurrences: (strongsNum: string, quickLimit?: number) =>
+    ipcRenderer.invoke('lexicon:getOccurrences', strongsNum, quickLimit),
   getRelated: (strongsNum: string) => ipcRenderer.invoke('lexicon:getRelated', strongsNum),
   search: (query: string, lang: 'H' | 'G' | 'all') =>
     ipcRenderer.invoke('lexicon:search', query, lang)

@@ -24,6 +24,8 @@ import AboutSection from './sections/AboutSection'
 import DangerSection from './sections/DangerSection'
 import ExperimentalSection from './sections/ExperimentalSection'
 import { NOTE_STATUSES } from '@/lib/noteStatus'
+import { THEME_PRESETS } from '@/lib/themePresets'
+import ThemePicker from './ThemePicker'
 
 function MarkdownRefButton({ onClose }: { onClose: () => void }) {
   const open = useAppStore((s) => s.openMarkdownReference)
@@ -122,76 +124,8 @@ const DEFAULT_TRANSLATIONS = [
   { id: '2baruch',       label: '2 Baruch — R.H. Charles-based' },
 ]
 
-// Theme preset data — bg/accent/text are "r g b" strings matching global.css vars
-// natural: which mode this preset was designed for ('dark' | 'light')
-// dark/light: color values for swatch preview in each mode
-interface ThemePresetDef {
-  id: string
-  label: string
-  natural: 'dark' | 'light'
-  dark: { bg: string; accent: string; text: string }
-  light: { bg: string; accent: string; text: string }
-}
-
-const THEME_PRESETS: ThemePresetDef[] = [
-  { id: '',               label: 'Default',  natural: 'dark',
-    dark:  { bg: '17 17 20',    accent: '100 120 220', text: '230 230 238' },
-    light: { bg: '245 245 248', accent: '80 100 200',  text: '20 20 28'   } },
-  { id: 'theme-neon',     label: 'Neon',     natural: 'dark',
-    dark:  { bg: '8 8 14',     accent: '255 0 180',   text: '240 240 255' },
-    light: { bg: '250 248 255', accent: '200 0 145',   text: '18 5 35'    } },
-  { id: 'theme-midnight', label: 'Midnight', natural: 'dark',
-    dark:  { bg: '6 8 22',     accent: '120 160 255', text: '210 220 255' },
-    light: { bg: '238 242 255', accent: '70 105 215',  text: '12 18 55'   } },
-  { id: 'theme-obsidian', label: 'Obsidian', natural: 'dark',
-    dark:  { bg: '12 10 14',   accent: '140 100 220', text: '230 225 240' },
-    light: { bg: '248 246 252', accent: '108 72 188',  text: '22 16 35'   } },
-  { id: 'theme-forest',   label: 'Forest',   natural: 'dark',
-    dark:  { bg: '8 14 10',    accent: '80 195 110',  text: '210 240 215' },
-    light: { bg: '238 252 240', accent: '38 145 62',   text: '6 28 10'    } },
-  { id: 'theme-royal',    label: 'Royal',    natural: 'dark',
-    dark:  { bg: '12 8 22',    accent: '218 170 50',  text: '240 228 200' },
-    light: { bg: '252 248 235', accent: '165 115 15',  text: '28 18 52'   } },
-  { id: 'theme-ember',    label: 'Ember',    natural: 'dark',
-    dark:  { bg: '16 10 6',    accent: '240 140 30',  text: '248 230 200' },
-    light: { bg: '255 248 238', accent: '195 92 8',    text: '48 22 6'    } },
-  { id: 'theme-ocean',    label: 'Ocean',    natural: 'dark',
-    dark:  { bg: '6 14 22',    accent: '30 200 190',  text: '200 235 240' },
-    light: { bg: '232 248 252', accent: '12 148 142',  text: '6 28 42'    } },
-  { id: 'theme-slate',    label: 'Slate',    natural: 'dark',
-    dark:  { bg: '14 16 18',   accent: '100 180 230', text: '220 228 235' },
-    light: { bg: '238 242 246', accent: '52 132 182',  text: '16 26 36'   } },
-  { id: 'theme-terminal', label: 'Terminal', natural: 'dark',
-    dark:  { bg: '4 10 4',     accent: '0 220 80',    text: '0 255 100'   },
-    light: { bg: '238 252 238', accent: '0 155 50',    text: '4 22 4'     } },
-  { id: 'theme-bible',    label: 'Bible',    natural: 'light',
-    dark:  { bg: '26 18 8',    accent: '195 132 52',  text: '228 212 182' },
-    light: { bg: '240 232 210', accent: '130 80 30',   text: '55 35 15'   } },
-  { id: 'theme-sand',     label: 'Sand',     natural: 'light',
-    dark:  { bg: '30 22 10',   accent: '205 142 48',  text: '232 218 192' },
-    light: { bg: '238 228 210', accent: '190 110 30',  text: '60 40 20'   } },
-  { id: 'theme-rose',     label: 'Rose',     natural: 'light',
-    dark:  { bg: '26 10 18',   accent: '215 88 128',  text: '248 215 230' },
-    light: { bg: '252 240 244', accent: '180 60 100',  text: '55 20 35'   } },
-  { id: 'theme-ivory',    label: 'Ivory',    natural: 'light',
-    dark:  { bg: '18 16 28',   accent: '148 118 208', text: '232 228 245' },
-    light: { bg: '250 248 245', accent: '110 85 175',  text: '35 30 45'   } },
-  { id: 'theme-arctic',   label: 'Arctic',   natural: 'light',
-    dark:  { bg: '8 20 30',    accent: '28 175 198',  text: '200 228 242' },
-    light: { bg: '234 242 248', accent: '20 160 180',  text: '15 35 50'   } },
-  { id: 'theme-dawn',     label: 'Dawn',     natural: 'light',
-    dark:  { bg: '24 12 5',    accent: '228 118 48',  text: '250 225 205' },
-    light: { bg: '255 245 238', accent: '200 95 40',   text: '55 30 15'   } },
-]
-
-// Derive the CSS class to apply for a given preset + variant
-function resolvePresetClass(preset: ThemePresetDef, variant: 'dark' | 'light'): string {
-  if (!preset.id) return '' // Default: clear preset
-  // If requesting the preset's natural mode, use the base class (backward compat)
-  if (variant === preset.natural) return preset.id
-  // Otherwise append -dark or -light
-  return `${preset.id}-${variant}`
-}
+// Theme preset data now lives in src/lib/themePresets.ts — shared with App.tsx (which applies
+// the resulting class to <html>) and ThemePicker.tsx (the dedicated full picker overlay below).
 
 const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
@@ -223,6 +157,12 @@ export default function SettingsModal() {
   const themePreset = useAppStore((s) => s.themePreset)
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   const setThemePreset = useAppStore((s) => s.setThemePreset)
+  const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const setBackgroundAnimationEnabled = useAppStore((s) => s.setBackgroundAnimationEnabled)
+  const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
+  const setBackgroundAnimationStyle = useAppStore((s) => s.setBackgroundAnimationStyle)
+  const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const setBackgroundAnimationIntensity = useAppStore((s) => s.setBackgroundAnimationIntensity)
   const scriptureFontFamily = useAppStore((s) => s.scriptureFontFamily)
   const notesFontFamily = useAppStore((s) => s.notesFontFamily)
   const uiFontFamily = useAppStore((s) => s.uiFontFamily)
@@ -308,6 +248,7 @@ export default function SettingsModal() {
   const [settingsSearch, setSettingsSearch] = useState('')
   // previewVariant: which palette to show in the preset swatches
   // follows base theme (dark/light) and can be toggled independently
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
   const [previewVariant, setPreviewVariant] = useState<'dark' | 'light'>(
     theme === 'light' ? 'light' : 'dark'
   )
@@ -500,12 +441,38 @@ export default function SettingsModal() {
       })
     : NAV
 
+  // The currently-active preset object — used by both the Theme summary card and the ambient-
+  // animation section below (to detect when the active theme carries its own curated
+  // `animationStyle`, which locks that section's toggle on).
+  const activePreset = THEME_PRESETS.find((p) =>
+    themePreset === p.id || themePreset === `${p.id}-dark` || themePreset === `${p.id}-light`
+  ) ?? THEME_PRESETS[0]
+  const curatedAnimationActive = !!activePreset.animationStyle
+
   return (
-    <Dialog.Root open={settingsOpen} onOpenChange={(open) => !open && closeSettings()}>
+    // modal={false} while ThemePicker is open: Radix's modal Dialog installs a scroll-lock
+    // (react-remove-scroll) plus an aria-hidden/inert sweep (the `aria-hidden` package's
+    // hideOthers, which uses a MutationObserver so it also catches nodes appended AFTER the
+    // dialog opens) over every OTHER top-level document.body child — which is exactly what
+    // ThemePicker is, since it has to portal straight to document.body itself (nesting inside
+    // Dialog.Content would break its own position:fixed full-viewport coverage, as
+    // Dialog.Content is translate()'d for centering). That combination is what made the
+    // picker's own scroll wheel silently do nothing even after ThemePicker.tsx's onWheel
+    // workaround — inert also blocks the wheel event from ever reaching that handler, not
+    // just the browser's native scroll. Dropping `modal` for exactly this window disables both
+    // mechanisms; ThemePicker is a full-screen backdrop-blurred overlay on top regardless, so
+    // there's no visible difference in the modal behavior Settings loses in the meantime.
+    <Dialog.Root open={settingsOpen} onOpenChange={(open) => !open && closeSettings()} modal={!themePickerOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" style={{ backdropFilter: 'blur(4px)' }} />
         <Dialog.Content
           aria-describedby={undefined}
+          // While ThemePicker is open, every click inside it is technically "outside"
+          // Dialog.Content (it's a separate document.body portal, not a Radix Portal) — Radix's
+          // default outside-interaction handling would otherwise read that as a request to
+          // close Settings itself out from under the picker. Suppressed only for this window.
+          onPointerDownOutside={(e) => { if (themePickerOpen) e.preventDefault() }}
+          onInteractOutside={(e) => { if (themePickerOpen) e.preventDefault() }}
           className="
             glass-panel-modal
             fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
@@ -615,158 +582,123 @@ export default function SettingsModal() {
                     </div>
                   </div>
 
-                  {/* Preset themes */}
+                  {/* Preset themes — the full 37-theme picker is its own dedicated overlay
+                      (ThemePicker.tsx), opened from the "Browse all themes" button below. This
+                      section just shows what's currently active plus quick access, rather than
+                      cramming every swatch into the Settings modal itself. `activePreset` is
+                      reused below by the ambient-animation section too, to detect when the
+                      active theme carries its own curated animation. */}
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Preset themes</p>
-                        <p className="s-desc text-xs text-[rgb(var(--color-text-muted))]">
-                          {theme === 'system' ? 'Previews show dark/light split — system picks automatically' : `Showing ${previewVariant} variants`}
-                        </p>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Theme</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                      {theme === 'system' ? 'Previews show dark/light split — system picks automatically' : `Showing ${previewVariant} variants`}
+                    </p>
+                    {(() => {
+                      const isSystemAccent = themePreset === 'system-accent'
+                      const accent = isSystemAccent ? (systemAccentColor ?? THEME_PRESETS[0].dark.accent) : null
+                      const swatchColors = theme === 'system' ? null : (previewVariant === 'dark' ? activePreset.dark : activePreset.light)
+                      const bg = swatchColors?.bg ?? activePreset.dark.bg
+                      const label = isSystemAccent ? 'System' : activePreset.label
+                      return (
+                        <button
+                          onClick={() => setThemePickerOpen(true)}
+                          className="w-full flex items-center gap-3 p-3 rounded-lg border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer text-left"
+                        >
+                          <div className="w-14 h-10 rounded-md overflow-hidden relative flex-shrink-0 border border-[rgb(var(--color-surface-4))]">
+                            {theme === 'system' && !isSystemAccent ? (
+                              <div className="absolute inset-0" style={{
+                                background: `linear-gradient(135deg, rgb(${activePreset.dark.bg}) 50%, rgb(${activePreset.light.bg}) 50%)`
+                              }} />
+                            ) : (
+                              <div className="absolute inset-0" style={{ background: `rgb(${bg})` }} />
+                            )}
+                            <div className="absolute inset-y-0 left-0 w-2.5" style={{ background: `rgb(${accent ?? swatchColors?.accent ?? activePreset.dark.accent})` }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">{label}</p>
+                            <p className="text-xs text-[rgb(var(--color-text-muted))]">37 themes — click to browse &amp; preview</p>
+                          </div>
+                          <Palette size={16} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                        </button>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Ambient background animation — a handful of themes (see ThemePicker.tsx's
+                      "Animated" filter) carry their own curated animation always; this is the
+                      separate "any theme" switch. Style "Auto" defers to that theme's own
+                      curated style where it has one (else Drift); picking a specific style here
+                      also overrides a curated theme's own style, so an explicit choice always
+                      wins. Intensity is 3 named presets, not a raw slider — every style is kept
+                      non-distracting at every tier, they just differ in HOW non-distracting.
+                      While the active theme is one with its own curated animation, the switch
+                      shows ON and is locked — that theme is animating regardless of this
+                      setting, so an interactive-but-ineffective toggle would be misleading (and
+                      turning it "off" here can't actually stop that theme's own animation
+                      anyway). It unlocks again the moment a different theme is selected, back to
+                      whatever this was set to before — nothing here gets overwritten by the
+                      lock, only visually overridden while it's in effect. */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Ambient background animation</p>
+                      <Switch
+                        checked={backgroundAnimationEnabled || curatedAnimationActive}
+                        onCheckedChange={() => setBackgroundAnimationEnabled(!backgroundAnimationEnabled)}
+                        disabled={curatedAnimationActive}
+                      />
+                    </div>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
+                      {curatedAnimationActive
+                        ? `${activePreset.label} has its own animation, so this is on and locked — switch to a different theme to change it.`
+                        : 'A few themes always have one; this lets any theme get a subtle motion effect using its own accent color.'}
+                    </p>
+                    {(backgroundAnimationEnabled || curatedAnimationActive) && (
+                      <div className="space-y-3 pl-0.5">
+                        <div>
+                          <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-1.5">Style</p>
+                          {/* Locked to Auto while the active theme has its own curated style — that
+                              style is its signature look and isn't swappable (App.tsx's effective-
+                              style computation ignores this setting entirely in that case, so an
+                              interactive-but-ineffective button here would be misleading). */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {(['auto', 'drift', 'pulse', 'shimmer', 'particles', 'flicker'] as const).map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => !curatedAnimationActive && setBackgroundAnimationStyle(s)}
+                                disabled={curatedAnimationActive}
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
+                                  curatedAnimationActive ? 'cursor-default opacity-40' : 'cursor-pointer'
+                                } ${
+                                  (curatedAnimationActive ? s === 'auto' : backgroundAnimationStyle === s)
+                                    ? 'bg-[rgb(var(--color-accent))] text-white'
+                                    : 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
+                                }`}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[rgb(var(--color-text-secondary))] mb-1.5">Intensity</p>
+                          <div className="flex gap-1.5">
+                            {(['subtle', 'noticeable', 'bold'] as const).map((i) => (
+                              <button
+                                key={i}
+                                onClick={() => setBackgroundAnimationIntensity(i)}
+                                className={`flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium capitalize cursor-pointer transition-colors border ${
+                                  backgroundAnimationIntensity === i
+                                    ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+                                    : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))]'
+                                }`}
+                              >
+                                {i}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2">
-                      {THEME_PRESETS.map((preset) => {
-                        const { id, label, dark: darkColors, light: lightColors } = preset
-                        // A preset is "active" if themePreset matches the base id or either variant
-                        const isActive = themePreset === id ||
-                          themePreset === `${id}-dark` ||
-                          themePreset === `${id}-light`
-
-                        // Determine click action
-                        const handlePresetClick = () => {
-                          if (!id) {
-                            // Default: clear preset
-                            setThemePreset('')
-                          } else if (theme === 'system') {
-                            setThemePreset(id)
-                          } else {
-                            setThemePreset(resolvePresetClass(preset, previewVariant))
-                          }
-                        }
-
-                        // Colors to use for the swatch preview
-                        const swatchColors = theme === 'system' ? null : (previewVariant === 'dark' ? darkColors : lightColors)
-                        const checkmarkAccent = swatchColors?.accent ?? darkColors.accent
-
-                        return (
-                          <button
-                            key={id}
-                            onClick={handlePresetClick}
-                            title={label}
-                            className={`
-                              rounded-lg p-1.5 border transition-all cursor-pointer text-left
-                              ${isActive
-                                ? 'border-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/60]'
-                                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))]'
-                              }
-                            `}
-                          >
-                            {/* Mini color preview */}
-                            <div className="h-9 rounded-md overflow-hidden mb-1.5 relative">
-                              {theme === 'system' ? (
-                                /* Diagonal split: top-left = dark, bottom-right = light */
-                                <>
-                                  <div
-                                    className="absolute inset-0"
-                                    style={{
-                                      background: `linear-gradient(135deg, rgb(${darkColors.bg}) 50%, rgb(${lightColors.bg}) 50%)`
-                                    }}
-                                  />
-                                  {/* Accent stripes: dark half (top) + light half (bottom) */}
-                                  <div className="absolute inset-y-0 left-0 w-2" style={{
-                                    background: `linear-gradient(to bottom, rgb(${darkColors.accent}) 50%, rgb(${lightColors.accent}) 50%)`
-                                  }} />
-                                  {/* Diagonal divider line */}
-                                  <div className="absolute inset-0" style={{
-                                    background: 'linear-gradient(135deg, transparent calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% + 0.75px), transparent calc(50% + 0.75px))'
-                                  }} />
-                                </>
-                              ) : (
-                                /* Single-mode swatch */
-                                <>
-                                  <div className="absolute inset-0" style={{ background: `rgb(${swatchColors!.bg})` }} />
-                                  <div className="absolute inset-y-0 left-0 w-2" style={{ background: `rgb(${swatchColors!.accent})` }} />
-                                  <div className="absolute inset-0 flex flex-col justify-center pl-3.5 pr-1.5 gap-1">
-                                    <div className="h-1 rounded-full" style={{ background: `rgb(${swatchColors!.text})`, opacity: 0.65, width: '85%' }} />
-                                    <div className="h-1 rounded-full" style={{ background: `rgb(${swatchColors!.text})`, opacity: 0.4, width: '55%' }} />
-                                  </div>
-                                </>
-                              )}
-                              {/* Active checkmark */}
-                              {isActive && (
-                                <div className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-white/90 flex items-center justify-center">
-                                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                                    <path d="M1.5 4L3 5.5L6.5 2" stroke={`rgb(${checkmarkAccent})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                            <span className={`text-[10px] font-medium leading-none ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
-                              {label}
-                            </span>
-                          </button>
-                        )
-                      })}
-
-                      {/* "System" preset — Default's bg/text with a live macOS accent color
-                          instead of a fixed one. Not part of THEME_PRESETS since its accent
-                          is a runtime value, not a static swatch color like the others. */}
-                      {(() => {
-                        const isActive = themePreset === 'system-accent'
-                        const accent = systemAccentColor ?? THEME_PRESETS[0].dark.accent
-                        const defaultColors = theme === 'system'
-                          ? null
-                          : (previewVariant === 'dark' ? THEME_PRESETS[0].dark : THEME_PRESETS[0].light)
-                        return (
-                          <button
-                            onClick={() => setThemePreset(isActive ? '' : 'system-accent')}
-                            title="System — matches your macOS accent color"
-                            className={`
-                              rounded-lg p-1.5 border transition-all cursor-pointer text-left
-                              ${isActive
-                                ? 'border-[rgb(var(--color-accent))] ring-1 ring-[rgb(var(--color-accent))/60]'
-                                : 'border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-text-muted))]'
-                              }
-                            `}
-                          >
-                            <div className="h-9 rounded-md overflow-hidden mb-1.5 relative">
-                              {defaultColors === null ? (
-                                <>
-                                  <div className="absolute inset-0" style={{
-                                    background: `linear-gradient(135deg, rgb(${THEME_PRESETS[0].dark.bg}) 50%, rgb(${THEME_PRESETS[0].light.bg}) 50%)`
-                                  }} />
-                                  <div className="absolute inset-y-0 left-0 w-2" style={{ background: `rgb(${accent})` }} />
-                                  <div className="absolute inset-0" style={{
-                                    background: 'linear-gradient(135deg, transparent calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% - 0.75px), rgba(140,140,140,0.45) calc(50% + 0.75px), transparent calc(50% + 0.75px))'
-                                  }} />
-                                </>
-                              ) : (
-                                <>
-                                  <div className="absolute inset-0" style={{ background: `rgb(${defaultColors.bg})` }} />
-                                  <div className="absolute inset-y-0 left-0 w-2" style={{ background: `rgb(${accent})` }} />
-                                  <div className="absolute inset-0 flex flex-col justify-center pl-3.5 pr-1.5 gap-1">
-                                    <div className="h-1 rounded-full" style={{ background: `rgb(${defaultColors.text})`, opacity: 0.65, width: '85%' }} />
-                                    <div className="h-1 rounded-full" style={{ background: `rgb(${defaultColors.text})`, opacity: 0.4, width: '55%' }} />
-                                  </div>
-                                </>
-                              )}
-                              {isActive && (
-                                <div className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-white/90 flex items-center justify-center">
-                                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                                    <path d="M1.5 4L3 5.5L6.5 2" stroke={`rgb(${accent})`} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                            <span className={`text-[10px] font-medium leading-none ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-secondary))]'}`}>
-                              System
-                            </span>
-                          </button>
-                        )
-                      })()}
-                    </div>
+                    )}
                   </div>
 
                   {/* Font family per section */}
@@ -1943,6 +1875,14 @@ export default function SettingsModal() {
           </div>
         </Dialog.Content>
       </Dialog.Portal>
+      {themePickerOpen && (
+        <ThemePicker
+          onClose={() => setThemePickerOpen(false)}
+          theme={theme}
+          previewVariant={previewVariant}
+          setPreviewVariant={setPreviewVariant}
+        />
+      )}
     </Dialog.Root>
   )
 }

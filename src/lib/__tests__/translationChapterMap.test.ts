@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapChapterOnTranslationSwitch, isLxxTranslation, isKjvTranslation,
-  toCanonicalChapters, equivalentChapters,
+  toCanonicalChapters, equivalentChapters, versificationNote, STRUCTURAL_NOTES,
 } from '../translationChapterMap'
 
 const k2l = (book: string, ch: number) => mapChapterOnTranslationSwitch(book, ch, 'kjva', 'lxx')
@@ -220,5 +220,57 @@ describe('equivalentChapters (bidirectional chapter mapping between two textIds)
     for (const lxxCh of lxxHalves) {
       expect(equivalentChapters('PSA', lxxCh, 'lxx', 'kjva')).toEqual([116])
     }
+  })
+})
+
+describe('versificationNote', () => {
+  it('reports the original bug: LXX Psalm 10 is really MT/KJV Psalm 11', () => {
+    // versificationNote itself doesn't restate the target chapter for a plain offset (that's
+    // shown by the mapped chapter number in the UI, not repeated in the note) — but the
+    // underlying mapping this note is built from must resolve correctly, which is the actual
+    // bug: LXX Psalm 10 has to map to KJV 11, not display as if it were KJV Psalm 10.
+    expect(mapChapterOnTranslationSwitch('PSA', 10, 'lxx', 'kjva')).toBe(11)
+  })
+
+  it('explains the Psalm 9/10 merge', () => {
+    expect(versificationNote('PSA', 9, 'lxx')).toMatch(/combines.*Psalms 9 and 10/)
+  })
+
+  it('explains the Psalm 116 and 147 splits', () => {
+    expect(versificationNote('PSA', 114, 'lxx')).toMatch(/Psalm 116/)
+    expect(versificationNote('PSA', 115, 'lxx')).toMatch(/Psalm 116/)
+    expect(versificationNote('PSA', 146, 'lxx')).toMatch(/Psalm 147/)
+    expect(versificationNote('PSA', 147, 'lxx')).toMatch(/Psalm 147/)
+  })
+
+  it('explains Psalm 151 has no KJV counterpart', () => {
+    expect(versificationNote('PSA', 151, 'lxx')).toMatch(/no Masoretic\/KJV counterpart/)
+  })
+
+  it('no note for an identity chapter (LXX Psalm 1)', () => {
+    expect(versificationNote('PSA', 1, 'lxx')).toBeNull()
+  })
+
+  it('no note when not viewing LXX', () => {
+    expect(versificationNote('PSA', 9, 'kjva')).toBeNull()
+  })
+
+  it('explains Joel and Malachi split chapters', () => {
+    expect(versificationNote('JOL', 3, 'lxx')).toMatch(/Joel 2:28-32/)
+    expect(versificationNote('MAL', 3, 'lxx')).toMatch(/Malachi 3.*Malachi 4/)
+  })
+
+  it('explains a reordered Jeremiah chapter, no note for an identity one', () => {
+    expect(versificationNote('JER', 33, 'lxx')).toMatch(/Jeremiah 33.*Jeremiah 26/)
+    expect(versificationNote('JER', 1, 'lxx')).toBeNull()
+  })
+
+  it('structural-note books get their note only when viewing LXX', () => {
+    expect(versificationNote('EZR', 15, 'lxx')).toBe(STRUCTURAL_NOTES.EZR)
+    expect(versificationNote('EZR', 15, 'kjva')).toBeNull()
+  })
+
+  it('no note for an unmapped book', () => {
+    expect(versificationNote('GEN', 5, 'lxx')).toBeNull()
   })
 })

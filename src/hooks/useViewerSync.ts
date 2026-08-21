@@ -122,6 +122,9 @@ function collectViewerSettings() {
     idiomCache: s.idiomCache,
     theme: s.theme,
     themePreset: s.themePreset,
+    backgroundAnimationEnabled: s.backgroundAnimationEnabled,
+    backgroundAnimationStyle: s.backgroundAnimationStyle,
+    backgroundAnimationIntensity: s.backgroundAnimationIntensity,
     crossRefSource: s.crossRefSource,
     viewerSidePanelEnabled: s.viewerSidePanelEnabled,
     // Data-change tokens — bumped when notes/highlights change so the viewer refetches.
@@ -176,6 +179,9 @@ export function useViewerSync() {
   const idiomCache = useAppStore((s) => s.idiomCache)
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
+  const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
   const crossRefSource = useAppStore((s) => s.crossRefSource)
   const viewerSidePanelEnabled = useAppStore((s) => s.viewerSidePanelEnabled)
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
@@ -195,7 +201,8 @@ export function useViewerSync() {
     if (!viewerWindowOpen) return
     pushViewerSettingsToViewer()
   }, [viewerWindowOpen, wordReplacerEnabled, wordReplacerRules, noteScriptureBlock,
-      noteScriptureBlockThreshold, idiomHighlightEnabled, idiomCache, theme, themePreset, crossRefSource,
+      noteScriptureBlockThreshold, idiomHighlightEnabled, idiomCache, theme, themePreset,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity, crossRefSource,
       viewerSidePanelEnabled, noteChangeToken, highlightChangeToken])
 
   // Listen for viewer window closed

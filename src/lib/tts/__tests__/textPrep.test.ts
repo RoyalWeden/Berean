@@ -173,9 +173,9 @@ describe('applyPronunciation — divine-name respelling (spoken output only)', (
     expect(applyPronunciation("Yehovah's")).toBe("Yehovuh's")
   })
 
-  it('respells Yeshua to a tighter two-beat "Ye-shua" sound', () => {
-    expect(applyPronunciation('Yeshua')).toBe('Yeshwuh')
-    expect(applyPronunciation("Yeshua's")).toBe("Yeshwuh's")
+  it('respells Yeshua to keep the "u" audible with an open "-wa" ending', () => {
+    expect(applyPronunciation('Yeshua')).toBe('Yeshuwa')
+    expect(applyPronunciation("Yeshua's")).toBe("Yeshuwa's")
   })
 
   it('leaves ordinary words untouched', () => {

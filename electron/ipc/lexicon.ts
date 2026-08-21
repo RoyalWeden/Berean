@@ -66,7 +66,18 @@ export interface LexiconOccurrence {
  *  substituting the first N alphabetically (which could be a different book entirely, or none
  *  at all if the number simply doesn't occur there — see aiLookup.ts's callers for the "not
  *  found" handling this makes possible). */
-export function getLexiconOccurrences(strongsNum: string, bookId?: string): LexiconOccurrence[] {
+/** `quickLimit` (optional): caps how many rows are scanned per source, instead of the normal
+ *  500 (Greek)/1000 (Hebrew) — used for a fast first pass (see the `lexicon:getOccurrences`
+ *  handler below) so the panel can render an initial batch immediately instead of blocking on
+ *  the full scan-and-match-index-compute pass for a common word, which is genuinely slow (a
+ *  synchronous LIKE '%...%' full-table scan across every verse, with one extra per-row query
+ *  and a regex parse for each match) and — since better-sqlite3 is synchronous — blocks the
+ *  ENTIRE main process, every other window's IPC included, for as long as it takes. Reported:
+ *  "when I open a lexicon tab, the occurrence stuff should show immediately and [the rest]
+ *  after a second" — this two-phase split (quick pass first, full pass right behind it) is
+ *  that: LexiconPanel.tsx calls this once with a small quickLimit for the instant render, then
+ *  again with no limit for the complete set once the panel is already showing something. */
+export function getLexiconOccurrences(strongsNum: string, bookId?: string, quickLimit?: number): LexiconOccurrence[] {
   const num = strongsNum.trim().toUpperCase()
   try {
       const lexDb = num.startsWith('H') ? getHebrewDb() : num.startsWith('G') ? getGreekDb() : null
@@ -116,10 +127,13 @@ export function getLexiconOccurrences(strongsNum: string, bookId?: string): Lexi
       const bookScope = bookId ? bookId.toUpperCase() : undefined
 
       // Fetch up to 500 per source so both KJVA and LXX are represented even for
-      // frequently-occurring G-numbers. H-numbers are KJVA-only.
+      // frequently-occurring G-numbers. H-numbers are KJVA-only. `quickLimit`, when given,
+      // caps this lower for the fast first pass — see this function's own comment.
+      const greekLimit = quickLimit ?? 500
+      const hebrewLimit = quickLimit ?? 1000
       const rawRows: RawRow[] = isGreek
-        ? [...scanTaggedOccurrences(kjva, 'kjva', 500, bookScope), ...scanTaggedOccurrences(lxxDb, 'lxx', 500, bookScope)]
-        : scanTaggedOccurrences(kjva, 'kjva', 1000, bookScope)
+        ? [...scanTaggedOccurrences(kjva, 'kjva', greekLimit, bookScope), ...scanTaggedOccurrences(lxxDb, 'lxx', greekLimit, bookScope)]
+        : scanTaggedOccurrences(kjva, 'kjva', hebrewLimit, bookScope)
 
       if (!rawRows.length) return []
 
@@ -365,7 +379,7 @@ export function findByNormalizedTransliteration(
 export function registerLexiconHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('lexicon:getEntry', (_e, strongsNum: string) => getLexiconEntry(strongsNum))
 
-  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string) => getLexiconOccurrences(strongsNum))
+  ipcMain.handle('lexicon:getOccurrences', (_e, strongsNum: string, quickLimit?: number) => getLexiconOccurrences(strongsNum, undefined, quickLimit))
 
   ipcMain.handle('lexicon:getRelated', (_e, strongsNum: string) => {
     const num = strongsNum.trim().toUpperCase()

@@ -10,19 +10,8 @@ import type { ViewerHighlight } from './ViewerBiblePage'
 import ViewerCrossRefs from './ViewerCrossRefs'
 import ViewerCompare from './ViewerCompare'
 import { renderMarkdownToHTML } from '@/components/notes/pm/staticRender'
-
-const ALL_PRESETS = [
-  'theme-neon','theme-midnight','theme-bible','theme-forest','theme-royal',
-  'theme-ember','theme-ocean','theme-slate','theme-rose','theme-terminal','theme-sand','theme-obsidian',
-  'theme-ivory','theme-arctic','theme-dawn',
-  'theme-neon-light','theme-midnight-light','theme-obsidian-light','theme-forest-light',
-  'theme-royal-light','theme-ember-light','theme-ocean-light','theme-slate-light','theme-terminal-light',
-  'theme-bible-dark','theme-sand-dark','theme-rose-dark','theme-ivory-dark','theme-arctic-dark','theme-dawn-dark',
-]
-const NATURALLY_DARK = new Set([
-  'theme-neon','theme-midnight','theme-obsidian','theme-forest',
-  'theme-royal','theme-ember','theme-ocean','theme-slate','theme-terminal',
-])
+import { ALL_PRESET_CLASSES } from '@/lib/themePresets'
+import { applyThemeToDocument } from '@/lib/applyTheme'
 
 // Fetch a note for displaying in the side panel or standalone
 function useNote(noteId: string | undefined) {
@@ -137,6 +126,10 @@ export default function ViewerApp() {
   const viewerTheme = useAppStore((s) => s.viewerTheme)
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const systemAccentColor = useAppStore((s) => s.systemAccentColor)
+  const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
+  const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
   const [localScale, setLocalScale] = useState(storeScale)
 
   const [systemIsDark, setSystemIsDark] = useState(
@@ -152,25 +145,33 @@ export default function ViewerApp() {
   // Sync local scale when store changes from outside
   useEffect(() => { setLocalScale(storeScale) }, [storeScale])
 
-  // Apply theme classes to <html>
+  // Apply theme classes to <html>. "Follow app" (viewerTheme === 'system', labeled that way in
+  // Settings → Presenter) uses the same shared applyThemeToDocument App.tsx/FloatingShell.tsx
+  // use, so the presenter window gets the exact same preset/animation/accent-color as the main
+  // window — this used to be its own third hand-maintained copy of the preset class list (stuck
+  // at the original 15 themes, plus a `system-accent` mishandling bug the shared version already
+  // fixed), so anything added there since silently didn't apply here. A forced Light/Dark
+  // override (the OTHER two viewerTheme options) deliberately still ignores the preset/animation
+  // — that's for presenting on a projector with plain, predictable contrast regardless of
+  // whatever colorful theme the main window happens to be on, not a bug to fix here.
   useEffect(() => {
-    const html = document.documentElement
-    ALL_PRESETS.forEach((cls) => html.classList.remove(cls))
-    const baseIsDark = theme === 'system' ? systemIsDark : theme === 'dark'
-    const effectiveDark = viewerTheme === 'system' ? baseIsDark : viewerTheme === 'dark'
-    if (viewerTheme === 'system' && themePreset) {
-      const baseId = themePreset.replace(/-(?:dark|light)$/, '')
-      html.classList.remove('dark', 'light')
-      const isNatDark = NATURALLY_DARK.has(baseId)
-      html.classList.add(isNatDark
-        ? (effectiveDark ? baseId : `${baseId}-light`)
-        : (effectiveDark ? `${baseId}-dark` : baseId)
-      )
-    } else {
-      html.classList.toggle('dark', effectiveDark)
-      html.classList.toggle('light', !effectiveDark)
+    if (viewerTheme === 'system') {
+      applyThemeToDocument({
+        theme, themePreset, systemIsDark, systemAccentColor,
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      })
+      return
     }
-  }, [viewerTheme, theme, themePreset, systemIsDark])
+    const html = document.documentElement
+    ALL_PRESET_CLASSES.forEach((cls) => html.classList.remove(cls))
+    html.classList.remove('theme-anim-bg')
+    delete html.dataset.animStyle
+    delete html.dataset.animIntensity
+    html.style.removeProperty('--color-accent')
+    const effectiveDark = viewerTheme === 'dark'
+    html.classList.toggle('dark', effectiveDark)
+    html.classList.toggle('light', !effectiveDark)
+  }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   const handleContent = useCallback((raw: unknown) => {
     setPayload(raw as ViewerPayload)

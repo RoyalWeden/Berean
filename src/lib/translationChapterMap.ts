@@ -219,3 +219,54 @@ export function equivalentChapters(
 
   return [mapChapterOnTranslationSwitch(bookId, chapter, fromTextId, toTextId)]
 }
+
+// ── Books with a divergent LXX chapter count for a more fundamental reason than the simple
+// merge/split/offset renumbering above (verified via `sqlite3 data/kjva.db`/
+// `data/lxx_brenton.db`: `SELECT book_id, COUNT(DISTINCT chapter) ...` against this app's own
+// data) — a different book split, Greek-only additions, or reordered material, not something a
+// chapter-number FUNCTION can express. These get a one-line reader note only, never a claimed
+// chapter mapping. ──
+export const STRUCTURAL_NOTES: Record<string, string> = {
+  EZR: "The Septuagint's Ezra (23 chapters) corresponds to the KJV's Ezra (10 chapters) AND Nehemiah (13 chapters) combined into one continuous book — the Greek tradition never separated them.",
+  ESG: 'Esther in the Septuagint interleaves several whole passages ("Additions to Esther") that don\'t exist in the Hebrew/KJV text at all, so chapter numbers here don\'t line up with the KJV.',
+  BAR: "The KJV Apocrypha's Baruch has 6 chapters, with the Epistle of Jeremiah appended as chapter 6. The Septuagint keeps Baruch and the Epistle of Jeremiah as two separate books, so LXX Baruch chapter 6 doesn't exist — see the Epistle of Jeremiah (LJE) instead.",
+  PRO: 'The Septuagint reorders and renumbers a block of chapters in the second half of Proverbs (roughly chapters 24-31) differently from the KJV — chapter numbers there are not a simple one-to-one match.',
+  SIR: 'Sirach (Ecclesiasticus) has a long-standing double versification tradition (Greek vs. later editorial numbering) — chapter/verse numbers past the earlier chapters commonly run one behind the KJV Apocrypha edition.',
+}
+
+/**
+ * Human-readable note for a reader banner, when the current book/chapter/translation is one
+ * `mapChapterOnTranslationSwitch` remaps (Psalms/Jeremiah/Joel/Malachi in LXX) or one of
+ * STRUCTURAL_NOTES' books — or null when nothing about this reference needs explaining.
+ */
+export function versificationNote(bookId: string, chapter: number, textId: string): string | null {
+  const book = bookId.toUpperCase()
+  if (STRUCTURAL_NOTES[book] && isLxxTranslation(textId)) return STRUCTURAL_NOTES[book]
+  if (!isLxxTranslation(textId)) return null
+  if (book !== 'PSA' && book !== 'JER' && book !== 'JOL' && book !== 'MAL') return null
+  const kjvChapter = mapChapterOnTranslationSwitch(book, chapter, textId, 'kjva')
+  // MAL chapter 3 is a special case checked below even though it chapter-maps to itself (3→3)
+  // — it's the identity range for MOST of the chapter, but verses 19+ are actually KJV
+  // Malachi 4, so it still needs its own note despite `kjvChapter === chapter`.
+  if (kjvChapter === chapter && book !== 'PSA' && !(book === 'MAL' && chapter === 3)) return null
+  if (book === 'PSA') {
+    if (chapter === 9) return 'This LXX chapter combines MT/KJV Psalms 9 and 10.'
+    if (chapter === 113) return 'This LXX chapter combines MT/KJV Psalms 114 and 115.'
+    if (chapter === 114 || chapter === 115) return `This LXX chapter is part of MT/KJV Psalm 116 (${chapter === 114 ? 'verses 1-9' : 'verses 10-19'}).`
+    if (chapter === 146 || chapter === 147) return `This LXX chapter is part of MT/KJV Psalm 147 (${chapter === 146 ? 'verses 1-11' : 'verses 12-20'}).`
+    if (chapter === 151) return 'Psalm 151 has no Masoretic/KJV counterpart — it survives only in the Septuagint and among the Dead Sea Scrolls.'
+    if (kjvChapter === chapter) return null
+    return `LXX Psalm ${chapter} = MT/KJV Psalm ${kjvChapter}.`
+  }
+  if (book === 'JOL') {
+    if (chapter === 3) return 'This LXX chapter is MT/KJV Joel 2:28-32.'
+    if (kjvChapter === chapter) return null
+    return `LXX Joel ${chapter} = MT/KJV Joel ${kjvChapter}.`
+  }
+  if (book === 'MAL') {
+    if (chapter === 3) return 'This LXX chapter includes MT/KJV Malachi 3 and, from verse 19, Malachi 4.'
+    return null
+  }
+  if (kjvChapter === chapter) return null
+  return `LXX Jeremiah ${chapter} = MT/KJV Jeremiah ${kjvChapter} — the Septuagint reorders the second half of Jeremiah.`
+}

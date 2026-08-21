@@ -363,14 +363,18 @@ export default function AudioPlayer() {
                     (gauge = speed, mic = voice) and every control fits on one line. The queue
                     button and "read this chapter instead" both moved out of this row (to the
                     transport row and the label row respectively) — this is now just speed + voice. */}
-                <div className="w-[260px] px-2.5 py-2 flex items-center gap-1.5 border-b border-[rgb(var(--color-surface-3))]">
+                {/* Speed slider widened (w-11 → w-28, panel 260px → 300px to fit) — reported too
+                    cramped to comfortably drag at w-11's 44px; the 0.25 step across a 0.25-3
+                    range now has real room per notch instead of being squeezed into a couple
+                    dozen pixels total. */}
+                <div className="w-[300px] px-2.5 py-2 flex items-center gap-1.5 border-b border-[rgb(var(--color-surface-3))]">
                   <Gauge size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                   <input
                     type="range" min={0.25} max={3} step={0.25}
                     value={ttsRate}
                     onChange={(e) => setTTSRate(parseFloat(e.target.value))}
                     title={`${ttsRate.toFixed(2)}x`}
-                    className="w-11 accent-[rgb(var(--color-accent))] flex-shrink-0"
+                    className="w-28 accent-[rgb(var(--color-accent))] flex-shrink-0"
                   />
                   <span className="text-[10px] font-medium text-[rgb(var(--color-text-secondary))] w-7 flex-shrink-0 tabular-nums">{ttsRate.toFixed(2)}x</span>
 

@@ -122,7 +122,62 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.5.0] - 2026-08-20
+## [0.5.2] - 2026-08-21
+
+Themes
+
+- 22 new muted/pastel themes (Sage, Lavender, Blush, Fog, Linen, Mist,
+  Dune, Powder, Clay Dust, Willow, Periwinkle, Oat, Thistle, Seafoam,
+  Chalk, Apricot, Wisteria, Slate Dust, Moth, Dusk Rose, Heather, Ash
+  Sage), bringing the total to 37.
+- The theme picker is now its own dedicated full-screen overlay (opened
+  from Settings → Appearance) with a mock-up preview per theme — a small
+  non-clickable replica of the app's own sidebar, tab bar, header, and
+  reading area in that theme's colors — instead of a flat color swatch.
+- Six themes (Mist, Powder, Periwinkle, Seafoam, Dusk Rose, Ash Sage) carry
+  their own signature ambient background animation — a very slow, subtle
+  drift/pulse/shimmer/particle/flicker effect matched to that theme's mood.
+  A new Settings → Appearance toggle lets any of the 37 themes get a
+  similar effect, with a choice of style and three intensity presets
+  (Subtle/Noticeable/Bold). A theme with its own animation keeps that
+  toggle on and its style locked to Auto while it's active.
+- Fixed the floating "Pop Out Tab" window and the presenter/viewer window
+  silently falling back to no theme at all for any theme added after the
+  main window's own copy of the theme list — both now share the exact
+  same theme logic as the main window, including live updates.
+
+Search
+
+- Fixed noticeable input lag while typing in the floating search bar,
+  especially with a long results list already showing.
+- Typing a Psalm/Jeremiah/Joel/Malachi reference together with "LXX" (or
+  while an LXX search is active) now jumps to the correct Septuagint
+  chapter — the Septuagint renumbers these books relative to the KJV, and
+  the search bar wasn't accounting for it, so e.g. "Psalm 10 LXX" used to
+  land on the wrong chapter with no explanation. The Bible reader (and
+  Compare view) now also shows a short note when you're viewing a chapter
+  affected by this, in Psalms, Jeremiah, Joel, Malachi, Ezra, Esther,
+  Baruch, Proverbs, or Sirach.
+
+Read Aloud
+
+- Tuned the pronunciation of "Yeshua" again.
+- The speed slider in the floating player is noticeably wider and easier
+  to drag precisely.
+- The playlist queue popover is now draggable (via its header) and sized
+  taller than it is wide by default, instead of a fixed centered popover.
+
+Fixed
+
+- Window dragging (and the "starts selecting text instead" issue) is now
+  more reliable, including across multiple monitors.
+- Fixed a visual glitch where switching away from the YouTube tab briefly
+  still showed part of the YouTube content on top of the new tab.
+- Opening a lexicon entry now shows an initial batch of verse occurrences
+  immediately, with the complete list following shortly after, instead of
+  the whole panel waiting on the full (and, for common words, slow) query.
+
+## [0.5.1] - 2026-08-20
 
 History & search
 

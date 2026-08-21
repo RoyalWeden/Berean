@@ -47,11 +47,21 @@ export default function ActivePanel() {
 
   return (
     <div className="h-full w-full relative">
-      {/* YouTube panel stays mounted at all times — hidden via CSS when not active */}
+      {/* YouTube panel stays mounted at all times — hidden via CSS when not active.
+          `hidden` (display:none), not `invisible` (visibility:hidden): the embedded <webview>
+          renders through its own native/GPU-composited surface, which is independent of normal
+          DOM paint order — toggling visibility on an ancestor doesn't always tell that surface
+          to stop compositing in the same frame the DOM style change lands. Reported: switching
+          FROM YouTube to another tab (Lexicon specifically, but this applied to any target)
+          briefly still showed the outgoing YouTube content on top for about a second. display:
+          none actually removes the layer from the render tree instead of just painting it
+          transparent, which Electron handles reliably — same fix as the standard Electron
+          <webview>-flicker workaround. Doesn't affect the always-mounted/PiP-continuity
+          behavior above: the element is a sibling that's just not rendered, never unmounted. */}
       {ytTab && (
         <div
           key={ytTab.id}
-          className={`absolute inset-0 ${isYouTubeActive ? 'z-10' : 'invisible pointer-events-none'}`}
+          className={`absolute inset-0 ${isYouTubeActive ? 'z-10' : 'hidden pointer-events-none'}`}
         >
           <ErrorBoundary label="YouTube error">
             <Suspense fallback={null}>

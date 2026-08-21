@@ -19,6 +19,7 @@ import BgImportProgress from '@/components/shell/BgImportProgress'
 import PresenterControls from '@/components/shell/PresenterControls'
 import AudioPlayer from '@/components/audio/AudioPlayer'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
+import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { SpaceId, Tab } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
@@ -51,6 +52,9 @@ export default function App() {
   useTTSPlayback()
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
+  const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
+  const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
+  const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
   const hermasTranslation = useAppStore((s) => s.hermasTranslation)
   // Keep the module-level Hermas prefs (used by getTranslationForBook + hermasMap,
   // which are pure and called from many places) in sync with the chosen translation.
@@ -287,11 +291,14 @@ export default function App() {
       // updatedAt — see applyExternalTabSync's own comment (store/index.ts): lets a receiving
       // window drop a stale broadcast that arrives after a newer local change instead of
       // blindly overwriting it.
-      const payload = { tabs: storeTabs, theme, themePreset, updatedAt: Date.now() }
+      const payload = {
+        tabs: storeTabs, theme, themePreset, updatedAt: Date.now(),
+        backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+      }
       window.app.broadcastTabState?.(payload)
     }, 150) // debounce
     return () => clearTimeout(timer)
-  }, [storeTabs, theme, themePreset])
+  }, [storeTabs, theme, themePreset, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   // Only one overlay (find bar, "More" menu, Settings) open at a time — the
   // Bible find bar is global store state, so it closes here on the shared
@@ -464,74 +471,19 @@ export default function App() {
     window.app?.onResourceModeChanged?.((mode) => setResourceMode(mode))
   }, [setResourceMode])
 
-  // Sync theme class on <html>; 'system' follows the OS preference
-  useEffect(() => {
-    const html = document.documentElement
-    // Remove any existing preset theme classes
-    const allPresets = [
-      'theme-neon','theme-midnight','theme-bible','theme-forest','theme-royal',
-      'theme-ember','theme-ocean','theme-slate','theme-rose','theme-terminal','theme-sand','theme-obsidian',
-      'theme-ivory','theme-arctic','theme-dawn',
-      // Light variants of naturally-dark themes
-      'theme-neon-light','theme-midnight-light','theme-obsidian-light','theme-forest-light',
-      'theme-royal-light','theme-ember-light','theme-ocean-light','theme-slate-light','theme-terminal-light',
-      // Dark variants of naturally-light themes
-      'theme-bible-dark','theme-sand-dark','theme-rose-dark','theme-ivory-dark','theme-arctic-dark','theme-dawn-dark',
-    ]
-    allPresets.forEach((cls) => html.classList.remove(cls))
-
-    // Naturally-dark presets: base class = dark variant; -light suffix = light variant
-    // Naturally-light presets: base class = light variant; -dark suffix = dark variant
-    const NATURALLY_DARK = new Set([
-      'theme-neon','theme-midnight','theme-obsidian','theme-forest',
-      'theme-royal','theme-ember','theme-ocean','theme-slate','theme-terminal',
-    ])
-
-    if (themePreset && themePreset !== 'system-accent') {
-      // Extract the base preset ID (strip any -dark / -light suffix)
-      const baseId = themePreset.replace(/-(?:dark|light)$/, '')
-
-      // Apply the correct variant for the given isDark boolean
-      const applyPreset = (isDark: boolean) => {
-        html.classList.remove('dark', 'light')
-        let cls: string
-        if (NATURALLY_DARK.has(baseId)) {
-          // dark natural → base = dark, base-light = light
-          cls = isDark ? baseId : `${baseId}-light`
-        } else {
-          // light natural → base = light, base-dark = dark
-          cls = isDark ? `${baseId}-dark` : baseId
-        }
-        html.classList.add(cls)
-      }
-
-      if (theme === 'system') {
-        applyPreset(systemIsDark)
-      } else {
-        applyPreset(theme === 'dark')
-      }
-    } else {
-      // 'system-accent' behaves like Default (no .theme-* class) for bg/text — only the
-      // accent channel is overridden, further down, from the live macOS accent color.
-      const applyTheme = (isDark: boolean) => {
-        html.classList.toggle('dark', isDark)
-        html.classList.toggle('light', !isDark)
-      }
-      applyTheme(theme === 'system' ? systemIsDark : theme === 'dark')
-    }
-  }, [theme, themePreset, systemIsDark])
-
-  // 'system-accent' preset: override just --color-accent with the live macOS accent
-  // color; clear the override the moment a different preset (or Default) is selected.
+  // Sync theme class (+ preset, animation, system-accent) on <html>; 'system' follows the OS
+  // preference. Delegates to applyTheme.ts's shared applyThemeToDocument — the same function
+  // FloatingShell.tsx and ViewerApp.tsx use, so all three windows stay in sync with a single
+  // implementation instead of three hand-maintained copies (see that file's own comment for why
+  // that mattered: a "Pop Out Tab" window or the presenter window used to silently fall back to
+  // no preset at all for any theme added after their own copy was last updated).
   const systemAccentColor = useAppStore((s) => s.systemAccentColor)
   useEffect(() => {
-    const html = document.documentElement
-    if (themePreset === 'system-accent' && systemAccentColor) {
-      html.style.setProperty('--color-accent', systemAccentColor)
-    } else {
-      html.style.removeProperty('--color-accent')
-    }
-  }, [themePreset, systemAccentColor])
+    applyThemeToDocument({
+      theme, themePreset, systemIsDark, systemAccentColor,
+      backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity,
+    })
+  }, [theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   // Sync per-section font families
   useEffect(() => {
