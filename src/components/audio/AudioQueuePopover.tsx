@@ -1,11 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ListMusic, Plus, X, ChevronUp, ChevronDown, Play, Save, FolderOpen, Trash2, CornerDownLeft } from 'lucide-react'
+import { ListMusic, Plus, X, ChevronUp, ChevronDown, Play, Save, FolderOpen, Trash2, CornerDownLeft, GripHorizontal } from 'lucide-react'
 import { useAppStore, type PlaybackQueueItem } from '@/store'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { parseQueueRefInput } from '@/lib/audioQueueRef'
 import type { BibleTabState } from '@/types'
 import type { SavedPlaylist } from '@/types/electron'
+
+// Deliberately taller than it is wide by default (per the original ask) — a queue reads
+// naturally as a vertical list. Draggable via the header, same pointer-capture + clamp pattern
+// AiLookupPanel.tsx uses, so it can't be dragged off-screen (including off a monitor edge when
+// the window itself later moves between displays).
+const MARGIN = 12
+const DEFAULT_WIDTH = 288
+const DEFAULT_HEIGHT = 460
+
+function clampPos(pos: { x: number; y: number }, width: number, height: number) {
+  const maxX = Math.max(MARGIN, window.innerWidth - width - MARGIN)
+  const maxY = Math.max(MARGIN, window.innerHeight - height - MARGIN)
+  return { x: Math.min(Math.max(MARGIN, pos.x), maxX), y: Math.min(Math.max(MARGIN, pos.y), maxY) }
+}
+
+function defaultPos() {
+  return clampPos(
+    { x: window.innerWidth / 2 - DEFAULT_WIDTH / 2, y: window.innerHeight - DEFAULT_HEIGHT - 96 },
+    DEFAULT_WIDTH,
+    DEFAULT_HEIGHT
+  )
+}
 
 /**
  * "Read Aloud playlists" popover — anchored off the floating player's expanded panel (see the
@@ -39,6 +61,8 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
   const [showLoadList, setShowLoadList] = useState(false)
   const [refInput, setRefInput] = useState('')
   const [refError, setRefError] = useState(false)
+  const [pos, setPos] = useState(defaultPos)
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
 
   useEffect(() => {
     window.playlists?.list().then(setSavedPlaylists).catch(() => {})
@@ -51,6 +75,28 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [onClose])
+
+  // Re-clamp on window resize (e.g. dragging the app window itself to a smaller display)
+  // so the popover never ends up stranded off-screen.
+  useEffect(() => {
+    function onResize() { setPos((p) => clampPos(p, DEFAULT_WIDTH, DEFAULT_HEIGHT)) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  function onDragStart(e: React.PointerEvent) {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  function onDragMove(e: React.PointerEvent) {
+    if (!dragRef.current) return
+    const dx = e.clientX - dragRef.current.startX
+    const dy = e.clientY - dragRef.current.startY
+    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, DEFAULT_WIDTH, DEFAULT_HEIGHT))
+  }
+  function onDragEnd() {
+    dragRef.current = null
+  }
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const activeState = activeTab?.state as BibleTabState | undefined
@@ -123,16 +169,28 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
   return createPortal(
     <div
       ref={popoverRef}
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-72 max-h-[70vh] overflow-y-auto rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] p-2.5"
+      // no-drag: portaled to document.body, so without this it can land on top of a real
+      // Electron `-webkit-app-region: drag` region elsewhere on screen and eat window-drag
+      // clicks (see the no-drag comments in global.css / ShellHeader.tsx / Sidebar.tsx).
+      className="no-drag fixed z-50 flex flex-col overflow-hidden rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))]"
+      style={{ left: pos.x, top: pos.y, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }}
     >
-      <div className="flex items-center justify-between px-1 pb-1.5 mb-1.5 border-b border-[rgb(var(--color-surface-3))]">
+      <div
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        className="no-drag flex items-center justify-between px-2.5 py-2 border-b border-[rgb(var(--color-surface-3))] cursor-grab active:cursor-grabbing select-none flex-shrink-0"
+      >
         <div className="flex items-center gap-1.5 text-xs font-medium text-[rgb(var(--color-text-primary))]">
+          <GripHorizontal size={12} className="text-[rgb(var(--color-text-muted))]" />
           <ListMusic size={13} /> Playlist queue
         </div>
         <button onClick={onClose} className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer">
           <X size={13} />
         </button>
       </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-2.5">
 
       {/* Type-a-reference-and-press-Enter — same reference grammar as everywhere else in the app
           ("Luke 15", "Luke 16:1-5", "Luke 13-15", "Luke 15:10-16:3"; see parseRef.ts). A single
@@ -280,6 +338,7 @@ export default function AudioQueuePopover({ onClose }: { onClose: () => void }) 
           ))}
         </div>
       )}
+      </div>
     </div>,
     document.body
   )

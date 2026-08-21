@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -11,6 +11,7 @@ import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordRepl
 import { parseMultiStrongsQuery, searchMultiStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
+import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
 import type { Book, LexiconEntry, Note } from '@/types'
 
@@ -252,14 +253,19 @@ export default function FloatingSearch() {
     }
   }, [searchOpen, searchTextId])
 
-  // Derived from query: strip trailing/leading translation qualifier. Memoized (keyed only on
-  // `query`) because parseRef/resolveBookToken aren't free — resolveBookToken's misspelling
-  // fallback runs a Levenshtein comparison against every book name — and this used to get
-  // recomputed from scratch up to 3 times per keystroke (once here in the render body, once
-  // more in the cross-ref effect below, and again inside handleInput), compounding into
-  // noticeable input lag on some keystrokes.
-  const detected = useMemo(() => (query.trim() ? detectTranslationPrefix(query) : null), [query])
-  const cleanQuery = detected ? detected.cleanQuery : query
+  // Everything downstream of the raw keystroke (parseRef/resolveBookToken's Levenshtein
+  // fallback, and — more expensively — rebuilding the whole `results` list every render,
+  // including a makeSnippet()+word-replacer pass over every verse/note row) is deferred a
+  // low-priority tick behind the actual typed character via useDeferredValue. `query` itself
+  // (bound to the `<input>` below) is NEVER deferred, so the character you just typed always
+  // paints immediately — only the results panel below it is allowed to lag a frame behind on
+  // a fast keystroke, then catch up, instead of the keystroke itself waiting on that work.
+  // (Memoizing `detected`/`cleanQuery` alone used to be the fix here, but that only capped
+  // the cost per keystroke — it didn't stop that cost from being paid synchronously, inside
+  // the SAME render the character needed to appear in, which is what actually reads as lag.)
+  const deferredQuery = useDeferredValue(query)
+  const detected = useMemo(() => (deferredQuery.trim() ? detectTranslationPrefix(deferredQuery) : null), [deferredQuery])
+  const cleanQuery = detected ? detected.cleanQuery : deferredQuery
   // Recognitions of Clement / Shepherd of Hermas get their own richer grammar first
   // (book-numbered/section-numbered addressing parseRef's own regex can't express —
   // see multiBookSearch.ts) — falls through to the general-purpose parseRef for
@@ -626,9 +632,31 @@ export default function FloatingSearch() {
     // target text from either source. This is also what makes the suffix actually NAVIGATE to
     // the LXX: `detected` only ever fed this label, never the navigate() call below.
     const refTextId = parsedRef.forcedTranslation ?? detected?.textId
-    const subLabel = refTextId
-      ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
-      : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
+    // Smart LXX redirect: a typed reference is always in MT/KJV numbering (parseRef's BOOK_MAP
+    // is KJV-keyed), but the Septuagint renumbers Psalms 9 onward, reorders the back half of
+    // Jeremiah, and splits one chapter each in Joel and Malachi — see translationChapterMap.ts
+    // (already used by the KJV/LXX toggle button and Compare view; this was the one place that
+    // typed a KJV reference and then navigated WITHOUT going through it). "Psalm 10 LXX shows
+    // as Psalm 11" was the actual bug report: LXX Psalm 10 really is MT/KJV Psalm 11, so typing
+    // "Psalm 10 LXX" landed on the wrong chapter's content with no indication why. Only applied
+    // to a single chapter target, not a chapter RANGE query — remapping just the range's start
+    // would leave the end chapter inconsistent for the rarer merge/split-crossing case.
+    const mappedChapter = !parsedRef.endChapter && refTextId
+      ? mapChapterOnTranslationSwitch(parsedRef.bookId, parsedRef.chapter, 'kjva', refTextId)
+      : parsedRef.chapter
+    const chapterRemapped = mappedChapter !== parsedRef.chapter
+    const navChapter = mappedChapter
+    // A remapped LXX chapter can merge two KJV chapters into one (Ps 9, Ps 113) or only cover
+    // part of a split KJV chapter (Ps 116, Ps 147; Joel 2; Malachi 3) — a KJV verse number
+    // doesn't carry over to the right place in either case, so land at the chapter's start
+    // instead of a wrong verse (same "chapter-level only" scope translationChapterMap.ts
+    // documents for its other two call sites).
+    const navVerse = chapterRemapped ? undefined : parsedRef.verse
+    const subLabel = chapterRemapped
+      ? `Go to ${refTextId!.toUpperCase()} ${bookName(parsedRef.bookId)} ${navChapter} — Septuagint numbering differs from KJV here`
+      : refTextId
+        ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
+        : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
     results.push({
       type: 'ref',
       label,
@@ -637,9 +665,9 @@ export default function FloatingSearch() {
         addRecentSearchQuery(query.trim())
         navigate(
           parsedRef.bookId,
-          parsedRef.chapter,
-          parsedRef.verse,
-          parsedRef.endVerse,
+          navChapter,
+          navVerse,
+          chapterRemapped ? undefined : parsedRef.endVerse,
           // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
           // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
           parsedRef.forcedTranslation ?? getTranslationForBook(parsedRef.bookId) ?? undefined,

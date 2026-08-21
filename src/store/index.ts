@@ -167,7 +167,11 @@ export interface AppState {
   // logic depends on internal scroll refs the top bar has no access to.
   presenterPushToken: number
   bumpPresenterPushToken: () => void
-  applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number }) => void
+  applyExternalTabSync: (payload: {
+    tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number
+    backgroundAnimationEnabled?: boolean; backgroundAnimationStyle?: AppState['backgroundAnimationStyle']
+    backgroundAnimationIntensity?: AppState['backgroundAnimationIntensity']
+  }) => void
 
   // Cross-panel lexicon communication
   pendingLexiconEntry: string | null
@@ -464,6 +468,19 @@ export interface AppState {
   theme: 'dark' | 'light' | 'system'
   themePreset: string  // '' = default, 'system-accent', or one of the preset class names
   setThemePreset: (preset: string) => void
+
+  // Ambient background animation — see src/lib/themePresets.ts's AnimationStyle/AnimationIntensity
+  // comments and ThemePicker.tsx for how these combine with a preset's own curated
+  // `animationStyle`. Off by default: a handful of presets carry their own signature animation
+  // regardless of this toggle (see ANIMATED_PRESET_IDS) — this is the separate "apply one to ANY
+  // theme" switch.
+  backgroundAnimationEnabled: boolean
+  setBackgroundAnimationEnabled: (v: boolean) => void
+  // 'auto' = use the active preset's own curated style if it has one, else 'drift'.
+  backgroundAnimationStyle: 'auto' | import('@/lib/themePresets').AnimationStyle
+  setBackgroundAnimationStyle: (v: AppState['backgroundAnimationStyle']) => void
+  backgroundAnimationIntensity: import('@/lib/themePresets').AnimationIntensity
+  setBackgroundAnimationIntensity: (v: AppState['backgroundAnimationIntensity']) => void
   // Live macOS accent color ("r g b" string, matching the other palette fields) — runtime
   // only, not persisted; populated from systemPreferences.getAccentColor() via IPC and kept
   // live via the 'accent-color-changed' event. Backs the 'system-accent' theme preset.
@@ -894,6 +911,12 @@ export const useAppStore = create<AppState>()(
       theme: 'system' as const,
       themePreset: '',
       setThemePreset: (preset) => set({ themePreset: preset }),
+      backgroundAnimationEnabled: false,
+      setBackgroundAnimationEnabled: (v) => set({ backgroundAnimationEnabled: v }),
+      backgroundAnimationStyle: 'auto',
+      setBackgroundAnimationStyle: (v) => set({ backgroundAnimationStyle: v }),
+      backgroundAnimationIntensity: 'noticeable',
+      setBackgroundAnimationIntensity: (v) => set({ backgroundAnimationIntensity: v }),
       systemAccentColor: null,
       setSystemAccentColor: (v) => set({ systemAccentColor: v }),
 
@@ -1976,7 +1999,7 @@ export const useAppStore = create<AppState>()(
       // old/mismatched build on the other end of the IPC channel can't wedge sync entirely; a
       // payload with no timestamp at all is still applied (previous behavior), just not
       // preferred over one that has it.
-      applyExternalTabSync: (payload: { tabs: AppState['tabs']; theme?: string; themePreset?: string; updatedAt?: number }) => {
+      applyExternalTabSync: (payload) => {
         if (payload.updatedAt !== undefined) {
           if (payload.updatedAt <= lastAppliedTabSyncAt) return
           lastAppliedTabSyncAt = payload.updatedAt
@@ -1984,6 +2007,9 @@ export const useAppStore = create<AppState>()(
         const update: Partial<AppState> = { tabs: payload.tabs }
         if (payload.theme !== undefined) update.theme = payload.theme as AppState['theme']
         if (payload.themePreset !== undefined) update.themePreset = payload.themePreset
+        if (payload.backgroundAnimationEnabled !== undefined) update.backgroundAnimationEnabled = payload.backgroundAnimationEnabled
+        if (payload.backgroundAnimationStyle !== undefined) update.backgroundAnimationStyle = payload.backgroundAnimationStyle
+        if (payload.backgroundAnimationIntensity !== undefined) update.backgroundAnimationIntensity = payload.backgroundAnimationIntensity
         set(update)
       },
 
@@ -2423,6 +2449,9 @@ export const useAppStore = create<AppState>()(
         noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
         autoEmDash: state.autoEmDash,
         themePreset: state.themePreset,
+        backgroundAnimationEnabled: state.backgroundAnimationEnabled,
+        backgroundAnimationStyle: state.backgroundAnimationStyle,
+        backgroundAnimationIntensity: state.backgroundAnimationIntensity,
         scriptureFontFamily: state.scriptureFontFamily,
         notesFontFamily: state.notesFontFamily,
         noteTypingLook: state.noteTypingLook,

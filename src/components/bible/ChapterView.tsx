@@ -7,6 +7,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
+import { versificationNote } from '@/lib/translationChapterMap'
 import { isHermasBook } from '@/lib/hermasMap'
 import { extractRefsFromNote } from '@/lib/noteRefs'
 import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from '@/lib/crossRefIndex'
@@ -263,6 +264,29 @@ function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRef
           {sources.map((s, i) => <ChapterRefChip key={i} source={s} />)}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Shown above the verse list whenever this book/chapter/translation is one the Septuagint
+ * renumbers relative to the KJV (Psalms/Jeremiah/Joel/Malachi) or restructures more
+ * fundamentally (Ezra, Esther-Greek, Baruch, Proverbs, Sirach) — see translationChapterMap.ts's
+ * versificationNote(). Reported: "I can't find the Septuagint version of Psalm 10... Psalm 10
+ * LXX shows as Psalm 11" — that's genuine, historically accurate Brenton-edition numbering, not
+ * a bug (confirmed against the actual verse text — LXX Ps 10 really is MT/KJV Ps 11), so this
+ * surfaces the "why" right on the page instead of leaving it silently unexplained. Always
+ * visible (not collapsed behind a toggle like ChapterCrossRefBanner above) since it's one short
+ * line and, unlike a note-citation list, is exactly the kind of thing someone lands on this
+ * chapter specifically wondering about.
+ */
+function VersificationBanner({ bookId, chapter, textId }: { bookId: string; chapter: number; textId?: string }) {
+  const note = textId ? versificationNote(bookId, chapter, textId) : null
+  if (!note) return null
+  return (
+    <div className="mb-4 flex items-start gap-1.5 text-[11px] text-[rgb(var(--color-text-muted))] opacity-80">
+      <BookOpen size={11} strokeWidth={1.8} className="flex-shrink-0 mt-[1px]" />
+      <span>{note}</span>
     </div>
   )
 }
@@ -898,6 +922,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
           Loading…
         </div>
       )}
+
+      <VersificationBanner bookId={bookId} chapter={chapter} textId={textId} />
 
       {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
       {chapterSources.length > 0 && (

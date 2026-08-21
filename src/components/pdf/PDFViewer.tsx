@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { loadPdfFromBytes, type PDFDocumentProxy } from '@/lib/pdfjs'
 import { useAppStore } from '@/store'
+import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 import PdfPage, { hlColor } from './PdfPage'
 import PdfPicker from './PdfPicker'
 import type { PdfTabState, PdfHighlight } from '@/types'
@@ -34,6 +35,7 @@ interface Bookmark { page: number; label: string; createdAt: number }
 interface RawOutlineNode { title: string; dest: string | unknown[] | null; items?: RawOutlineNode[] }
 
 export default function PDFViewer({ floating = false }: { floating?: boolean }) {
+  const windowDragMouseDown = useWindowDrag(isInteractiveDragTarget)
   const activeTabId = useAppStore((s) => s.activeTabId.scripture)
   // Narrowed to this panel's own space — see BiblePanel.tsx's identical comment for why.
   const tabs = useAppStore((s) => s.tabs.scripture)
@@ -434,8 +436,13 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
 
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
-      {/* Toolbar */}
-      <div className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] app-drag-region ${floating ? 'pl-[76px] pr-3' : 'px-3'}`}>
+      {/* Toolbar — window-drag via useWindowDrag (manual JS-tracked drag), not a real
+          `-webkit-app-region: drag` region; see that hook's comment (same fix as
+          PanelHeader.tsx, for the same reported "drag doesn't work"/text-selection bug). */}
+      <div
+        onMouseDown={windowDragMouseDown}
+        className={`flex items-center gap-2 py-2 border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] flex-shrink-0 min-h-[40px] no-drag select-none ${floating ? 'pl-[76px] pr-3' : 'px-3'}`}
+      >
         {/* Title doubles as the PDF switcher / library button */}
         <button
           onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPdfSwitcher({ x: r.left, y: r.bottom + 4 }) }}

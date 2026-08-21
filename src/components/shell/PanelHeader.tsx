@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useWindowDrag, isInteractiveDragTarget } from '@/lib/useWindowDrag'
 
 /**
  * Shared header chrome for every tab-panel type (Bible, Notes, Lexicon,
@@ -28,6 +29,12 @@ import type { ReactNode } from 'react'
  * scrolling under the header) rather than `.topbar-vibrant`'s OS-level
  * vibrancy, which needs window transparency to have anything behind it to
  * blur and would just be a flat tint here.
+ *
+ * Window-drag on this bar uses the manual JS-tracked `useWindowDrag` hook, not a real
+ * `-webkit-app-region: drag` CSS region (this used to be `app-drag-region`) — see that hook's
+ * own comment for why: reported "drag doesn't work" / "starts selecting text instead" and
+ * flaky multi-monitor dragging both trace back to Electron's native drag-region hit-testing,
+ * which this sidesteps entirely.
  */
 export default function PanelHeader({
   floating = false,
@@ -38,9 +45,11 @@ export default function PanelHeader({
   children: ReactNode
   className?: string
 }) {
+  const onMouseDown = useWindowDrag(isInteractiveDragTarget)
   return (
     <div
-      className={`flex items-center gap-2 h-11 flex-shrink-0 app-drag-region ${
+      onMouseDown={onMouseDown}
+      className={`flex items-center gap-2 h-11 flex-shrink-0 no-drag select-none ${
         floating
           ? 'floating-header-buttons pl-[76px] pr-4'
           : 'border-b border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-2))] px-4'
