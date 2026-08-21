@@ -323,7 +323,7 @@ contextBridge.exposeInMainWorld('vault', {
 })
 
 contextBridge.exposeInMainWorld('appHistory', {
-  add: (entry: unknown) => ipcRenderer.invoke('history:add', entry),
+  add: (entry: unknown, maxEntries?: number) => ipcRenderer.invoke('history:add', entry, maxEntries),
   getAll: (limit?: number) => ipcRenderer.invoke('history:getAll', limit),
   getPage: (beforeTs: number, limit?: number) => ipcRenderer.invoke('history:getPage', beforeTs, limit),
   delete: (id: string) => ipcRenderer.invoke('history:delete', id),
@@ -337,6 +337,14 @@ contextBridge.exposeInMainWorld('workspaces', {
   load: (id: string) => ipcRenderer.invoke('workspaces:load', id),
   delete: (id: string) => ipcRenderer.invoke('workspaces:delete', id),
   rename: (id: string, name: string) => ipcRenderer.invoke('workspaces:rename', id, name),
+})
+
+contextBridge.exposeInMainWorld('playlists', {
+  list: () => ipcRenderer.invoke('playlists:list'),
+  save: (name: string, items: unknown[], existingId?: string) =>
+    ipcRenderer.invoke('playlists:save', name, items, existingId),
+  rename: (id: string, name: string) => ipcRenderer.invoke('playlists:rename', id, name),
+  delete: (id: string) => ipcRenderer.invoke('playlists:delete', id),
 })
 
 contextBridge.exposeInMainWorld('eSwordImport', {

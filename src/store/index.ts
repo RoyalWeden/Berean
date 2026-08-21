@@ -618,6 +618,17 @@ export interface AppState {
   openImportESword: () => void
   closeImportModal: () => void
   settingsInitialSection: string
+  // The section the user last manually navigated to inside Settings (as opposed to
+  // settingsInitialSection, which is a one-shot override for deep links like "Get more natural
+  // voices…" → Audio). Generic open entry points (gear icon, ⌘,) reopen here instead of always
+  // resetting to Appearance. Persisted so it also survives an app restart.
+  lastSettingsSection: string
+  setLastSettingsSection: (section: string) => void
+  // Scroll position within each Settings section's content pane, keyed by section id — restored
+  // on reopen/section-switch so revisiting a section (or reopening Settings entirely) doesn't
+  // reset it to the top.
+  settingsSectionScrollTop: Record<string, number>
+  setSettingsSectionScrollTop: (section: string, top: number) => void
 
   // BibleGateway import progress (non-persisted — runtime only)
   bgImportPhase: 'idle' | 'login' | 'fetching' | 'review' | 'saving' | 'done' | 'error'
@@ -674,7 +685,7 @@ export interface AppState {
   // (not audioPlayback itself, which it also writes to) to know when a NEW playback request
   // came in vs. its own state mirroring writes.
   audioPlaybackRequestToken: number
-  startPlaybackFrom: (bookId: string, chapter: number, verseNum: number, textId: string) => void
+  startPlaybackFrom: (bookId: string, chapter: number, verseNum: number, textId: string, endVerse?: number | null) => void
   stopPlayback: () => void
   togglePlayPause: () => void
   skipVerseToken: number
@@ -684,6 +695,24 @@ export interface AppState {
   seekToken: number
   seekTargetVerseNum: number | null
   seekToVerse: (verseNum: number) => void
+
+  // ── Read Aloud playlists / queue ────────────────────────────────────────
+  // A freeform, reorderable queue of chapters to play back to back — replaces the old
+  // "chapter-end always advances to the next chapter of the same book" as the ONLY option.
+  // Live/runtime, not persisted directly (the queue itself is ephemeral; SAVING it as a named
+  // playlist goes through window.playlists, which IS durable — see AudioQueuePopover.tsx).
+  // Empty queue = ordinary single-chapter playback, unchanged from before this feature.
+  playbackQueue: PlaybackQueueItem[]
+  playbackQueueIndex: number          // index of the currently-playing item, -1 = no queue active
+  playbackQueueSourcePlaylistId: string | null   // set when this queue was loaded FROM a saved playlist, so "Save" can overwrite it instead of always forking a new one
+  playbackQueueSourcePlaylistName: string | null
+  setPlaybackQueue: (items: PlaybackQueueItem[], sourcePlaylistId?: string | null, sourcePlaylistName?: string | null) => void
+  addToPlaybackQueue: (item: PlaybackQueueItem) => void
+  removeFromPlaybackQueue: (index: number) => void
+  reorderPlaybackQueue: (fromIndex: number, toIndex: number) => void
+  clearPlaybackQueue: () => void
+  /** Starts (or resumes) playback at queue[index] and marks it current. */
+  playQueueIndex: (index: number) => void
 
   // Read Aloud preferences — persisted like other display settings.
   ttsVoiceURI: string | null
@@ -719,6 +748,28 @@ export interface AudioPlaybackState {
   verse: number
   wordIndex: number | null
   finished: boolean
+  // Null = play to the end of the chapter (the default, unchanged behavior). When set, playback
+  // stops after this verse instead of continuing through the rest of the chapter — see
+  // useTTSPlayback.ts, which truncates the spoken queue to this verse before handing it to
+  // ttsEngine, so "chapter end" (auto-advance, onChapterEnd) fires right after it rather than
+  // needing the engine itself to understand verse ranges.
+  endVerse: number | null
+}
+
+/** One entry in the Read Aloud playback queue (see "Read Aloud playlists / queue" below) — a
+ *  chapter, or a verse range within/across chapters, to speak as part of a freeform playlist.
+ *  playQueueIndex passes startVerse/endVerse straight through to startPlaybackFrom, which
+ *  useTTSPlayback.ts uses to truncate the spoken queue right after endVerse (null = play to the
+ *  end of the chapter, same as plain single-chapter playback). */
+export interface PlaybackQueueItem {
+  bookId: string
+  chapter: number
+  startVerse: number
+  endVerse: number | null
+  textId: string
+  /** Display label (e.g. "Genesis 1", "Psalm 23") — computed once when added to the queue so the
+   *  popover doesn't need book-name lookups for a list that mostly just sits there. */
+  label: string
 }
 
 const DEFAULT_TABS: Record<SpaceId, Tab[]> = {
@@ -899,9 +950,15 @@ export const useAppStore = create<AppState>()(
         }
         set((s) => {
           const prev = s.history
-          // Skip if the very last entry is identical (prevents duplicates from re-renders)
+          // Skip if the very last entry is identical AND recent (prevents duplicates from
+          // re-renders/restores within the same visit). Without the time bound, revisiting the
+          // same reference after a long gap (e.g. the app restoring the last-viewed chapter on a
+          // fresh launch days later) would be silently dropped, leaving that day missing from
+          // history entirely.
+          const HISTORY_DEDUP_WINDOW_MS = 5 * 60 * 1000
           const last = prev[0]
           if (last &&
+            newEntry.timestamp - last.timestamp < HISTORY_DEDUP_WINDOW_MS &&
             last.type === newEntry.type &&
             last.bookId === newEntry.bookId &&
             last.chapter === newEntry.chapter &&
@@ -921,8 +978,8 @@ export const useAppStore = create<AppState>()(
           const next = [newEntry, ...prev]
           return { history: next.length > HISTORY_MEMORY_CAP ? next.slice(0, HISTORY_MEMORY_CAP) : next }
         })
-        // Persist to SQLite (non-blocking)
-        window.appHistory?.add(newEntry).catch(() => {})
+        // Persist to SQLite (non-blocking), pruning to the user's configured cap
+        window.appHistory?.add(newEntry, get().historyMaxEntries).catch(() => {})
       },
       setHistory: (entries) => set({ history: entries, historyLoaded: true, historyHasMore: entries.length >= HISTORY_PAGE_SIZE }),
       loadMoreHistory: async () => {
@@ -1006,6 +1063,10 @@ export const useAppStore = create<AppState>()(
       openImportESword: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'import', importInitialTab: 'esword' }) },
       closeImportModal: () => set({ importModalOpen: false }),
       settingsInitialSection: 'appearance',
+      lastSettingsSection: 'appearance',
+      setLastSettingsSection: (section) => set({ lastSettingsSection: section }),
+      settingsSectionScrollTop: {},
+      setSettingsSectionScrollTop: (section, top) => set((s) => ({ settingsSectionScrollTop: { ...s.settingsSectionScrollTop, [section]: top } })),
 
       bgImportPhase: 'idle' as const,
       bgImportDone: 0,
@@ -1233,13 +1294,20 @@ export const useAppStore = create<AppState>()(
         audioPlayback: state === null
           ? null
           : { ...(s.audioPlayback ?? {
-              isPlaying: false, isPaused: false, textId: 'kjva', bookId: 'GEN', chapter: 1, verse: 1, wordIndex: null, finished: false,
+              isPlaying: false, isPaused: false, textId: 'kjva', bookId: 'GEN', chapter: 1, verse: 1, wordIndex: null, finished: false, endVerse: null,
             }), ...state },
       })),
       audioPlaybackRequestToken: 0,
-      startPlaybackFrom: (bookId, chapter, verseNum, textId) => set((s) => ({
-        audioPlayback: { isPlaying: true, isPaused: false, textId, bookId, chapter, verse: verseNum, wordIndex: null, finished: false },
+      startPlaybackFrom: (bookId, chapter, verseNum, textId, endVerse = null) => set((s) => ({
+        audioPlayback: { isPlaying: true, isPaused: false, textId, bookId, chapter, verse: verseNum, wordIndex: null, finished: false, endVerse },
         audioPlaybackRequestToken: s.audioPlaybackRequestToken + 1,
+        // Any DIRECT call to startPlaybackFrom (verse-row "play from here," the player's own
+        // controls, etc.) means the user started an ordinary single-chapter play, not a queue
+        // advance — clear queue position so handleChapterEnd's auto-advance falls back to plain
+        // "next chapter in book" instead of treating a stale queue as still active. playQueueIndex
+        // (below) re-asserts the real index right after calling this, so queue playback itself is
+        // unaffected.
+        playbackQueueIndex: -1,
       })),
       stopPlayback: () => {
         ttsEngine.stop()
@@ -1263,6 +1331,47 @@ export const useAppStore = create<AppState>()(
       seekToken: 0,
       seekTargetVerseNum: null,
       seekToVerse: (verseNum) => set((s) => ({ seekToken: s.seekToken + 1, seekTargetVerseNum: verseNum })),
+
+      playbackQueue: [],
+      playbackQueueIndex: -1,
+      playbackQueueSourcePlaylistId: null,
+      playbackQueueSourcePlaylistName: null,
+      setPlaybackQueue: (items, sourcePlaylistId = null, sourcePlaylistName = null) => set({
+        playbackQueue: items, playbackQueueIndex: items.length > 0 ? 0 : -1,
+        playbackQueueSourcePlaylistId: sourcePlaylistId, playbackQueueSourcePlaylistName: sourcePlaylistName,
+      }),
+      addToPlaybackQueue: (item) => set((s) => ({ playbackQueue: [...s.playbackQueue, item] })),
+      removeFromPlaybackQueue: (index) => set((s) => {
+        const next = s.playbackQueue.filter((_, i) => i !== index)
+        // Keep pointing at the same logical item when possible; if the removed item was the one
+        // currently playing (or before it), shift the index down so it doesn't skip ahead.
+        let nextIndex = s.playbackQueueIndex
+        if (index < s.playbackQueueIndex) nextIndex -= 1
+        else if (index === s.playbackQueueIndex) nextIndex = Math.min(nextIndex, next.length - 1)
+        return { playbackQueue: next, playbackQueueIndex: next.length === 0 ? -1 : nextIndex }
+      }),
+      reorderPlaybackQueue: (fromIndex, toIndex) => set((s) => {
+        const next = [...s.playbackQueue]
+        const [moved] = next.splice(fromIndex, 1)
+        if (!moved) return {}
+        next.splice(toIndex, 0, moved)
+        // Keep the "currently playing" pointer on the same actual item as it moves around.
+        let nextIndex = s.playbackQueueIndex
+        if (s.playbackQueueIndex === fromIndex) nextIndex = toIndex
+        else if (fromIndex < s.playbackQueueIndex && toIndex >= s.playbackQueueIndex) nextIndex -= 1
+        else if (fromIndex > s.playbackQueueIndex && toIndex <= s.playbackQueueIndex) nextIndex += 1
+        return { playbackQueue: next, playbackQueueIndex: nextIndex }
+      }),
+      clearPlaybackQueue: () => set({ playbackQueue: [], playbackQueueIndex: -1, playbackQueueSourcePlaylistId: null, playbackQueueSourcePlaylistName: null }),
+      playQueueIndex: (index) => {
+        const s = get()
+        const item = s.playbackQueue[index]
+        if (!item) return
+        s.startPlaybackFrom(item.bookId, item.chapter, item.startVerse, item.textId, item.endVerse)
+        // startPlaybackFrom above resets playbackQueueIndex to -1 (see its own comment) — reassert
+        // the real index now that the request has gone through.
+        set({ playbackQueueIndex: index })
+      },
 
       ttsVoiceURI: null,
       ttsRate: 1,
@@ -1878,13 +1987,13 @@ export const useAppStore = create<AppState>()(
         set(update)
       },
 
-      // Explicitly resets settingsInitialSection back to 'appearance' —
-      // without this, the generic "open Settings" entry points (gear icon,
-      // ⌘,) would keep landing on whatever section a PREVIOUS targeted
-      // open (openImportModal, openSettingsToSessions, etc.) last set,
-      // since that field is plain persistent store state, never cleared on
-      // its own.
-      openSettings: () => { window.dispatchEvent(new Event('berean:closeMenus')); set({ settingsOpen: true, settingsInitialSection: 'appearance' }) },
+      // Reopens to lastSettingsSection (wherever the user last manually navigated inside
+      // Settings) rather than a hardcoded 'appearance' — without explicitly setting
+      // settingsInitialSection here at all, the generic "open Settings" entry points (gear icon,
+      // ⌘,) would keep landing on whatever section a PREVIOUS targeted open (openImportModal,
+      // openSettingsToSessions, etc.) last set, since that field is plain persistent store state,
+      // never cleared on its own.
+      openSettings: () => { window.dispatchEvent(new Event('berean:closeMenus')); set((s) => ({ settingsOpen: true, settingsInitialSection: s.lastSettingsSection })) },
       // "Manage sessions…" (Sidebar.tsx) used to call plain openSettings(),
       // landing on the default Appearance tab instead of the "Manage your
       // data" hub where Sessions/Archived-tabs actually live (SessionsSection.tsx).
@@ -1948,7 +2057,14 @@ export const useAppStore = create<AppState>()(
         get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         if (get().tabs['search'].length === 0) get().createTab('search')
         const fresh = get()
-        set({ pendingSearchQuery: query, activeSpace: 'search', activeTabId: { ...fresh.activeTabId, search: fresh.tabs['search'][0]?.id ?? null } })
+        // Prefer the currently active search tab (if it still exists) over always reusing the
+        // first one in the array — otherwise a query pushed in while a *different* search tab is
+        // active would silently redirect into the wrong tab.
+        const activeSearchId = fresh.activeTabId['search']
+        const targetId = fresh.tabs['search'].some((t) => t.id === activeSearchId)
+          ? activeSearchId
+          : fresh.tabs['search'][0]?.id ?? null
+        set({ pendingSearchQuery: query, activeSpace: 'search', activeTabId: { ...fresh.activeTabId, search: targetId } })
       },
       clearSearchQuery: () => set({ pendingSearchQuery: null }),
 
@@ -2046,11 +2162,17 @@ export const useAppStore = create<AppState>()(
             scriptureSearchQuery: query ?? '',
           },
         }
+        // Same placement rule as createTab/addTab (see computeInsertOrder) — without this the
+        // new tab is appended only to tabs.scripture, never added to sessionDisplayOrders, so
+        // the sidebar's orderedTabs falls back to bucketing it at the very end of the tab bar
+        // regardless of which tab was active.
+        const newOrder = computeInsertOrder(state, id, 'after-active')
         set({
           tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
           activeTabId: { ...state.activeTabId, scripture: id },
           activeSpace: 'scripture',
           tabMRUList: updateMRU(state.tabMRUList, 'scripture', id),
+          sessionDisplayOrders: { ...state.sessionDisplayOrders, [state.currentSessionId]: newOrder },
         })
       },
 
@@ -2193,6 +2315,18 @@ export const useAppStore = create<AppState>()(
     {
       name: 'berean-app-state',
       version: 8,
+      // Without this, bumping `version` (as every schema change here has) makes zustand's persist
+      // middleware discard ALL persisted state on the next load instead of carrying it forward —
+      // it only calls migrate() when the on-disk version differs from `version` above, and with
+      // no migrate function it just console.errors and falls back to fresh defaults (see
+      // zustand/middleware.js: "State loaded from storage couldn't be migrated since no migrate
+      // function was provided"). That reset then gets written straight back to disk, permanently
+      // losing whatever the user had. This is almost certainly why some settings have appeared to
+      // "not save" across an app update. A version bump here should still be reserved for actual
+      // breaking shape changes that need a real transform — this default just prevents an
+      // accidental wipe on ordinary additive changes (new fields, as most of this store's history
+      // has been).
+      migrate: (persistedState) => persistedState as Partial<AppState>,
       storage: createJSONStorage(() => debouncedLocalStorage),
       onRehydrateStorage: () => (state) => {
         // Read Aloud (TTS) — the ACTUAL backend activation constructs a Worker, a runtime side
@@ -2266,6 +2400,8 @@ export const useAppStore = create<AppState>()(
         activeTabId: state.activeTabId,
         panelLayout: state.panelLayout,
         sidebarCollapsed: state.sidebarCollapsed,
+        lastSettingsSection: state.lastSettingsSection,
+        settingsSectionScrollTop: state.settingsSectionScrollTop,
         sidebarWidth: state.sidebarWidth,
         theme: state.theme,
         bibleFontSize: state.bibleFontSize,

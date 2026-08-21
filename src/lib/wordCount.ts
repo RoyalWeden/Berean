@@ -3,6 +3,7 @@ import { stripMarkdownFormatting } from './notePreviewText'
 export interface WordStats {
   words: number
   minutes: number
+  characters: number
 }
 
 // Word count + reading time for the note editor's persistent toolbar (Toolbar.tsx). `text` is
@@ -15,8 +16,8 @@ export interface WordStats {
 // 0 words / 0 minutes, not "1 min read".
 export function computeWordStats(text: string): WordStats {
   const stripped = stripMarkdownFormatting(text).replace(/\s+/g, ' ').trim()
-  if (!stripped) return { words: 0, minutes: 0 }
+  if (!stripped) return { words: 0, minutes: 0, characters: 0 }
   const words = stripped.split(' ').length
   const minutes = Math.max(1, Math.ceil(words / 200))
-  return { words, minutes }
+  return { words, minutes, characters: stripped.length }
 }

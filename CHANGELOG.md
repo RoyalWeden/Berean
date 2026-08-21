@@ -122,6 +122,65 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.0] - 2026-08-20
+
+History & search
+
+- Fixed history entries silently going missing on days you revisited the
+  same chapter you'd left off on — a stale de-duplication check was
+  dropping them instead of recording the visit.
+- The "max entries kept" setting under History now actually prunes old
+  entries, as it always claimed to.
+- Advanced Search tabs no longer show each other's search query — opening
+  a second Advanced Search tab used to display whatever the first one was
+  searching for until you typed something new.
+- New Advanced Search tabs now open directly below the tab you were on,
+  instead of always landing at the very end of the tab bar. Its scroll
+  position, and the Bible side panel's (notes/lexicon/cross-refs), are now
+  remembered too.
+
+Settings
+
+- Settings now reopens to whichever section and scroll position you last
+  had open, instead of always resetting to Appearance and the top.
+- Fixed a real bug where certain app updates could silently reset your
+  saved settings back to their defaults.
+
+Sessions
+
+- Hovering the currently active session (in the session switcher, and in
+  Settings → Sessions) now highlights it like every other row.
+
+Notes
+
+- The word/character count in the editor footer now reflects your current
+  text selection, not just the whole note, and now includes a character
+  count alongside the word count.
+- The note icon button now shows a "+" instead of a smiley face when no
+  icon has been set yet, to read more clearly as "add an icon."
+
+Read Aloud
+
+- The currently-playing verse now scrolls to the vertical center of the
+  screen as it plays, and the visible chapter now follows along
+  automatically when playback advances to the next chapter.
+- Tuned the pronunciation of "Yeshua."
+- New: Read Aloud playlists. Build a queue of chapters or verse ranges by
+  typing a reference (e.g. "Luke 15", "Luke 16:1-5", "Luke 13-15", "Luke
+  15:10-16:3") and pressing Enter, reorder or remove entries, and save the
+  queue as a named playlist to reload later — all from a queue button on
+  the player itself.
+- Playback of a verse range (from either a playlist queue item or a typed
+  reference) now correctly stops at the requested end verse instead of
+  continuing to the end of the chapter; the progress bar reflects the
+  same boundary.
+- Reworked the floating player's controls: the stop button now sits
+  fixed at the top-right corner, "jump to what's playing" is now the
+  verse label itself, "read this chapter instead" has a clearer icon,
+  the voice picker is now a compact button, every control highlights on
+  hover, and the reading pane now leaves enough room at the bottom so the
+  player never covers the last verse.
+
 ## [0.4.30] - 2026-08-19
 
 Scripture reading

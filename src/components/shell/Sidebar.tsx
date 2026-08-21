@@ -573,9 +573,9 @@ export default function Sidebar() {
                   return (
                     <button
                       key={session.id}
-                      className={`no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
+                      className={`no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left transition-colors
                         ${session.id === currentSessionId
-                          ? 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]'
+                          ? 'bg-[rgb(var(--color-accent))/15] hover:bg-[rgb(var(--color-accent))/22] text-[rgb(var(--color-accent))]'
                           : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
                         }`}
                       onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}

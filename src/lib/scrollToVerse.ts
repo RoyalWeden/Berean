@@ -36,12 +36,15 @@ export const VERSE_JUMP_ANIMATED_CENTER: ScrollIntoViewOptions = { behavior: 'sm
 export const VERSE_JUMP_ANIMATED_START: ScrollIntoViewOptions = { behavior: 'smooth', block: 'start' }
 
 /** Read Aloud auto-follow, scrolling DOWN to keep the currently-spoken verse in view as
- *  playback advances past the bottom of the visible area. */
-export const VERSE_FOLLOW_DOWN: ScrollIntoViewOptions = { behavior: 'smooth', block: 'end' }
+ *  playback advances past the bottom of the visible area. Centered (not edge-aligned) so the
+ *  active verse settles nearer the vertical middle of the screen — easier to keep eyes on
+ *  during playback than a verse parked right at the bottom edge. */
+export const VERSE_FOLLOW_DOWN: ScrollIntoViewOptions = { behavior: 'smooth', block: 'center' }
 
 /** Read Aloud auto-follow, scrolling UP (the spoken verse moved above the visible area — e.g.
- *  the user manually scrolled ahead then played backward, or skipped to an earlier verse). */
-export const VERSE_FOLLOW_UP: ScrollIntoViewOptions = { behavior: 'smooth', block: 'start' }
+ *  the user manually scrolled ahead then played backward, or skipped to an earlier verse).
+ *  Centered, same reasoning as VERSE_FOLLOW_DOWN above. */
+export const VERSE_FOLLOW_UP: ScrollIntoViewOptions = { behavior: 'smooth', block: 'center' }
 
 /** Thin wrapper so call sites read as "scroll this verse into view, using this named preset"
  *  rather than a bare `el?.scrollIntoView(...)` — purely for readability/searchability, no

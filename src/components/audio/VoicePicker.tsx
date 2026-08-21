@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { Search, Check, ChevronDown } from 'lucide-react'
+import { Search, Check, ChevronDown, Mic2 } from 'lucide-react'
 import type { TTSVoiceOption } from '@/lib/tts/ttsBackend'
 
 interface VoicePickerProps {
@@ -9,6 +9,11 @@ interface VoicePickerProps {
   onChange: (voiceURI: string | null) => void
   /** Smaller trigger/text sizing for the floating player's inline picker. */
   compact?: boolean
+  /** Collapses the trigger to a small icon-only button (current voice name shown as a tooltip
+   *  instead of inline text) — the floating player's transport row is tight on space and
+   *  showing the voice name there read as a dropdown/select display crowding the row rather
+   *  than a simple button; the picker it opens is unchanged either way. */
+  iconOnly?: boolean
 }
 
 function localeLabel(lang: string): string {
@@ -37,7 +42,7 @@ function TierBadge({ tier }: { tier: 'Premium' | 'Enhanced' | null }) {
  * and there's no way to tell tiers apart at a glance). Shared between AudioSection.tsx
  * (Settings → Audio) and AudioPlayer.tsx's inline picker.
  */
-export default function VoicePicker({ voices, value, onChange, compact }: VoicePickerProps) {
+export default function VoicePicker({ voices, value, onChange, compact, iconOnly }: VoicePickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -69,20 +74,29 @@ export default function VoicePicker({ voices, value, onChange, compact }: VoiceP
   return (
     <Popover.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery('') }}>
       <Popover.Trigger asChild>
-        <button
-          className={`flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors ${compact ? 'text-[11px] px-2 py-1.5' : 'text-sm px-3 py-1.5'}`}
-        >
-          <span className="truncate flex items-center gap-1.5 min-w-0">
-            {/* The tier badge (Premium/Enhanced) is dropped here in compact mode — it was
-                squeezing the actual voice NAME down to nothing in the player's tight inline row
-                (a fixed-width badge chip surviving while flex-1 text truncated to empty is
-                exactly "it just shows Premium, not the voice"). Still shown in the dropdown list
-                below, where there's room for both. */}
-            <span className="truncate">{selected ? selected.name : 'Choose a voice'}</span>
-            {selected && !compact && <TierBadge tier={selected.tier ?? null} />}
-          </span>
-          <ChevronDown size={compact ? 12 : 14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
-        </button>
+        {iconOnly ? (
+          <button
+            title={selected ? `Voice: ${selected.name}` : 'Choose a voice'}
+            className="flex items-center justify-center w-6 h-6 rounded-full text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors flex-shrink-0"
+          >
+            <Mic2 size={13} />
+          </button>
+        ) : (
+          <button
+            className={`flex-1 min-w-0 flex items-center justify-between gap-1.5 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none cursor-pointer hover:bg-[rgb(var(--color-surface-4))] transition-colors ${compact ? 'text-[11px] px-2 py-1.5' : 'text-sm px-3 py-1.5'}`}
+          >
+            <span className="truncate flex items-center gap-1.5 min-w-0">
+              {/* The tier badge (Premium/Enhanced) is dropped here in compact mode — it was
+                  squeezing the actual voice NAME down to nothing in the player's tight inline row
+                  (a fixed-width badge chip surviving while flex-1 text truncated to empty is
+                  exactly "it just shows Premium, not the voice"). Still shown in the dropdown list
+                  below, where there's room for both. */}
+              <span className="truncate">{selected ? selected.name : 'Choose a voice'}</span>
+              {selected && !compact && <TierBadge tier={selected.tier ?? null} />}
+            </span>
+            <ChevronDown size={compact ? 12 : 14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+          </button>
+        )}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content

@@ -81,6 +81,7 @@ import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
 import { registerHistoryHandlers } from './ipc/history'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
+import { registerPlaylistsHandlers } from './ipc/playlists'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
 import { registerTTSAudioCacheHandlers } from './ipc/ttsAudioCache'
 import { registerTTSModelScheme, registerTTSModelProtocolHandler } from './ttsModelProtocol'
@@ -793,6 +794,7 @@ app.whenReady().then(async () => {
   registerESwordImportHandlers(ipcMain, () => mainWindow)
   registerHistoryHandlers(ipcMain)
   registerWorkspacesHandlers(ipcMain)
+  registerPlaylistsHandlers(ipcMain)
 
   // Core app IPC
   // Diagnostic: renderer can call this to verify handler registration at runtime

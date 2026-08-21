@@ -31,6 +31,23 @@ export function useTTSPlayback() {
       s.setAudioPlayback({ isPlaying: false, isPaused: false, finished: true })
       return
     }
+    // Playing from a queue (Read Aloud playlist) — advance to the next queued item instead of
+    // "next chapter in the same book," and stop (rather than fall back to book-chapter advance)
+    // once the queue is exhausted, since the queue's whole point is playing a specific, freeform
+    // set of chapters rather than continuing to read straight through a book.
+    if (s.playbackQueue.length > 0 && s.playbackQueueIndex >= 0) {
+      const nextIndex = s.playbackQueueIndex + 1
+      const nextItem = s.playbackQueue[nextIndex]
+      if (!nextItem) {
+        s.setAudioPlayback({ isPlaying: false, isPaused: false, finished: true })
+        return
+      }
+      const pauseMs = Math.max(0, useAppStore.getState().ttsAutoAdvancePauseSec) * 1000
+      advanceTimerRef.current = setTimeout(() => {
+        useAppStore.getState().playQueueIndex(nextIndex)
+      }, pauseMs)
+      return
+    }
     try {
       const books = await window.bible.getBooks(textId)
       const book = books.find((b) => b.id === bookId)
@@ -42,7 +59,23 @@ export function useTTSPlayback() {
       }
       const pauseMs = Math.max(0, useAppStore.getState().ttsAutoAdvancePauseSec) * 1000
       advanceTimerRef.current = setTimeout(() => {
-        useAppStore.getState().startPlaybackFrom(ref.bookId, ref.chapter, 1, textId)
+        const st = useAppStore.getState()
+        // Auto-follow the on-screen scripture tab to the next chapter — but only if it was
+        // already showing the chapter that just finished. Without this the audio itself already
+        // advances (see above), but the visible reading pane doesn't, leaving the user to
+        // manually hit "jump to playing" (AudioPlayer.tsx) every chapter. Restricting it to
+        // "was already watching" means a user who deliberately navigated elsewhere mid-playback
+        // (to read ahead, or something unrelated, while listening) doesn't get yanked back.
+        const activeTab = st.tabs.scripture.find((t) => t.id === st.activeTabId.scripture)
+        const activeState = activeTab?.state as import('@/types').BibleTabState | undefined
+        const wasViewingEndedChapter = activeState?.bookId === bookId && activeState?.chapter === chapter
+        if (wasViewingEndedChapter && activeTab) {
+          st.updateTabState('scripture', activeTab.id, {
+            bookId: ref.bookId, chapter: ref.chapter, translation: textId.toUpperCase(),
+            targetVerse: 1, scrollPosition: 0,
+          })
+        }
+        st.startPlaybackFrom(ref.bookId, ref.chapter, 1, textId)
       }, pauseMs)
     } catch {
       s.setAudioPlayback({ isPlaying: false, isPaused: false, finished: true })
@@ -73,7 +106,17 @@ export function useTTSPlayback() {
       // ORIGINAL word regardless of what was actually displayed/configured.
       const wrState = useAppStore.getState()
       const rules = wrState.wordReplacerEnabled ? wrState.wordReplacerRules : []
-      const queue = buildChapterSpokenQueue(verses, ap.bookId, ap.chapter, rules)
+      let queue = buildChapterSpokenQueue(verses, ap.bookId, ap.chapter, rules)
+      // Verse-range playback (a queue item like "Luke 16:1-5", or any direct startPlaybackFrom
+      // call with an endVerse): truncate the queue right after the requested end verse so
+      // ttsEngine's own onChapterEnd fires there — same "chapter end" pipeline every other
+      // playback path already goes through (auto-advance to the next queue item, or stop),
+      // just reached earlier. Falls back to the full chapter if endVerse doesn't land inside it
+      // (e.g. a stale/out-of-range value) rather than silently playing nothing.
+      if (ap.endVerse != null) {
+        const endIdx = queue.findIndex((v) => v.verseNum === ap.endVerse)
+        if (endIdx >= 0) queue = queue.slice(0, endIdx + 1)
+      }
       queueRef.current = queue
       queueKeyRef.current = `${ap.bookId}:${ap.chapter}:${ap.textId}`
       const startIdx = queue.findIndex((v) => v.verseNum === ap.verse)
@@ -170,7 +213,10 @@ export function useTTSPlayback() {
     // audio happens to be running: it bumps `requestToken`, which the start/restart effect above
     // consumes to rebuild the queue and begin at `ap.verse` — the value just written above.
     if (ttsEngine.isActive) ttsEngine.skipToVerse(targetIdx)
-    else s.startPlaybackFrom(ap.bookId, ap.chapter, targetVerseNum, ap.textId)
+    // Carries ap.endVerse through — otherwise seeking while paused/stopped on a verse-range
+    // playback (e.g. a "Luke 16:1-5" queue item) would silently drop the range boundary and
+    // resume playing to the end of the whole chapter instead of stopping back at verse 5.
+    else s.startPlaybackFrom(ap.bookId, ap.chapter, targetVerseNum, ap.textId, ap.endVerse)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seekToken])
 

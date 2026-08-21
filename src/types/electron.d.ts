@@ -155,7 +155,7 @@ interface VaultAPI {
 }
 
 interface AppHistoryAPI {
-  add: (entry: import('./index').HistoryEntry) => Promise<{ success: boolean }>
+  add: (entry: import('./index').HistoryEntry, maxEntries?: number) => Promise<{ success: boolean }>
   getAll: (limit?: number) => Promise<import('./index').HistoryEntry[]>
   getPage: (beforeTs: number, limit?: number) => Promise<import('./index').HistoryEntry[]>
   delete: (id: string) => Promise<{ success: boolean }>
@@ -174,6 +174,39 @@ interface WorkspacesAPI {
   load: (id: string) => Promise<(SavedWorkspace & { layout_json: string; state_json: string | null }) | null>
   delete: (id: string) => Promise<{ success: boolean }>
   rename: (id: string, name: string) => Promise<{ success: boolean }>
+}
+
+export interface PlaylistItem {
+  id: string
+  position: number
+  bookId: string
+  chapter: number
+  startVerse: number
+  endVerse: number | null
+  textId: string
+}
+
+export interface SavedPlaylist {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  items: PlaylistItem[]
+}
+
+export interface PlaylistItemInput {
+  bookId: string
+  chapter: number
+  startVerse?: number
+  endVerse?: number | null
+  textId: string
+}
+
+interface PlaylistsAPI {
+  list: () => Promise<SavedPlaylist[]>
+  save: (name: string, items: PlaylistItemInput[], existingId?: string) => Promise<SavedPlaylist>
+  rename: (id: string, name: string) => Promise<{ success: boolean }>
+  delete: (id: string) => Promise<{ success: boolean }>
 }
 
 export type UpdateStatusType = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'error' | 'mas'
@@ -626,6 +659,7 @@ declare global {
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
     workspaces: WorkspacesAPI
+    playlists: PlaylistsAPI
     ttsModel: TTSModelAPI
     ttsAudioCache: TTSAudioCacheAPI
     viewer: {

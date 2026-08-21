@@ -8,6 +8,9 @@ interface ChapterProgressBarProps {
   chapter: number
   textId: string
   currentVerseNum: number
+  /** Verse-range playback (see AudioPlaybackState.endVerse) — when set, the bar (and its seek
+   *  range) ends here instead of at the end of the whole chapter. */
+  endVerseNum?: number | null
   onSeek: (verseNum: number) => void
   /** Whether the parent pill is already hovered/expanded. Drives the bar's thicker/interactive
    *  look directly, instead of the bar re-deriving its own hover state — see the doc comment on
@@ -39,8 +42,8 @@ interface ChapterProgressBarProps {
  * fill edge, self-corrects on every relevant change instead of relying on one-shot event
  * coordinates, and needs no manual "seed the position on enter" workaround.
  */
-export default function ChapterProgressBar({ bookId, chapter, textId, currentVerseNum, onSeek, active = false }: ChapterProgressBarProps) {
-  const { verses, currentIdx, fraction: currentFraction } = useChapterProgress(bookId, chapter, textId, currentVerseNum)
+export default function ChapterProgressBar({ bookId, chapter, textId, currentVerseNum, endVerseNum, onSeek, active = false }: ChapterProgressBarProps) {
+  const { verses, currentIdx, fraction: currentFraction } = useChapterProgress(bookId, chapter, textId, currentVerseNum, endVerseNum)
   const [hovering, setHovering] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [previewIdx, setPreviewIdx] = useState<number | null>(null)

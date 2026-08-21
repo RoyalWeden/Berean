@@ -1334,7 +1334,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               title="Page icon — click to choose an emoji"
               className="no-drag flex-shrink-0 w-6 h-6 flex items-center justify-center text-center text-sm rounded-md bg-transparent hover:bg-[rgb(var(--color-surface-4))] outline-none text-[rgb(var(--color-text-primary))] transition-colors"
             >
-              {activeNote.icon || <span className="text-[rgb(var(--color-text-muted))]/50">🙂</span>}
+              {activeNote.icon || <Plus size={14} className="text-[rgb(var(--color-text-muted))]/50" />}
             </button>
             {iconPicker.menu && (
               <NoteIconPicker

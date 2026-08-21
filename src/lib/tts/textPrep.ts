@@ -210,8 +210,16 @@ export function normalizePunctuation(token: string): string {
 const PRONUNCIATION_RESPELLINGS: Record<string, string> = {
   yehovah: 'Yehovuh',
   yehovahs: "Yehovuh's",
-  // Yeshua already phonemizes correctly (yeh-SHOO-ah) and is deliberately NOT respelled — this
-  // table is for names espeak gets WRONG, not for every name of importance.
+  // Default espeak phonemization reads this as three beats ("yeh-SHOO-ah"); the requested sound
+  // is a tighter two-beat "Ye-shua" ("YESH-wuh"), collapsing the "-oo-ah" tail into one syllable
+  // rather than stretching it into two. Same rule as Yehovah above applies (no hyphens — espeak
+  // treats those as word boundaries), so this is a same-word respelling, not a hyphenated one.
+  // FIRST ATTEMPT, UNTESTED BY EAR — unlike Yehovah's respelling (already tuned/confirmed), this
+  // one hasn't been listened to yet. If it doesn't land right, the lever to adjust is the ending
+  // ("-wuh" → "-wa"/"-uh") rather than re-adding the "oo" back in, which reintroduces the
+  // three-beat sound this is meant to collapse.
+  yeshua: 'Yeshwuh',
+  yeshuas: "Yeshwuh's",
 }
 
 const RESPELL_TOKEN_RE = /^([([{"'‘“]*)([A-Za-z]+)(?:('s|’s))?([)\]}"'’”,;:.!?]*)$/

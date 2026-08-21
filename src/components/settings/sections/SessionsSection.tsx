@@ -55,7 +55,7 @@ export default function SessionsSection() {
           {sessions.map((session) => {
             const SessionIcon = (SESSION_ICONS.find((i) => i.name === session.icon) ?? SESSION_ICONS[0]).Icon
             return (
-              <div key={session.id} className="relative flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+              <div key={session.id} className="relative flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
                 <button
                   onClick={() => setIconPickerFor(iconPickerFor === session.id ? null : session.id)}
                   title="Change icon"
@@ -148,7 +148,7 @@ export default function SessionsSection() {
             )}
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
               {filteredArchives.map((group) => (
-                <div key={group.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
+                <div key={group.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-4))] transition-colors">
                   <ArchiveIcon size={12} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                   <span className="flex-1 text-xs text-[rgb(var(--color-text-primary))] truncate">{group.label}</span>
                   <span className="text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0">{group.tabs.length} tab{group.tabs.length === 1 ? '' : 's'}</span>
