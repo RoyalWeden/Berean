@@ -4,7 +4,7 @@ import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
-import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName } from '@/lib/parseRef'
+import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName, type ParsedRef } from '@/lib/parseRef'
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
 import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
@@ -590,6 +590,72 @@ export default function FloatingSearch() {
     closeSearch()
   }
 
+  // Builds the "ref" result row + its navigate() action for a parsed reference. Factored out
+  // of the render-time results-list building below so handleKeyDown's Enter-immediately path
+  // can build the exact same action from a freshly (synchronously) parsed reference, rather
+  // than trusting the deferred `parsedRef` — see the immediateRef comment in handleKeyDown.
+  function refResultFor(ref: ParsedRef, detectedTextId: string | undefined) {
+    const chapterDisplay = ref.endChapter && ref.endChapter > ref.chapter
+      ? `${ref.chapter}–${ref.endChapter}`
+      : ref.chapter
+    // Always the full canonical name (bookName(), from parseRef.ts's own book table) rather
+    // than the DB-fetched `books` list's `.name` field — that fetch can still be in flight
+    // when the user starts typing, or (for non-canonical/Pseudepigrapha books) might not be
+    // in `books` at all depending on which text is currently selected, both of which
+    // previously fell back to showing the bare 3-letter bookId ("GEN") instead of a name.
+    const refName = bookName(ref.bookId)
+    const refSep = /Book \d+$/.test(refName) ? ', ' : ' '
+    const label = `${refName}${refSep}${chapterDisplay}${ref.verse ? `:${ref.verse}` : ''}`
+    // A trailing " LXX" suffix now parses inside parseRef itself (as `forcedTranslation`), so
+    // detectTranslationPrefix's own trailing-qualifier branch no longer sees it — read the
+    // target text from either source. This is also what makes the suffix actually NAVIGATE to
+    // the LXX: `detected` only ever fed this label, never the navigate() call below.
+    const refTextId = ref.forcedTranslation ?? detectedTextId
+    // Smart LXX redirect: a typed reference is always in MT/KJV numbering (parseRef's BOOK_MAP
+    // is KJV-keyed), but the Septuagint renumbers Psalms 9 onward, reorders the back half of
+    // Jeremiah, and splits one chapter each in Joel and Malachi — see translationChapterMap.ts
+    // (already used by the KJV/LXX toggle button and Compare view; this was the one place that
+    // typed a KJV reference and then navigated WITHOUT going through it). "Psalm 10 LXX shows
+    // as Psalm 11" was the actual bug report: LXX Psalm 10 really is MT/KJV Psalm 11, so typing
+    // "Psalm 10 LXX" landed on the wrong chapter's content with no indication why. Only applied
+    // to a single chapter target, not a chapter RANGE query — remapping just the range's start
+    // would leave the end chapter inconsistent for the rarer merge/split-crossing case.
+    const mappedChapter = !ref.endChapter && refTextId
+      ? mapChapterOnTranslationSwitch(ref.bookId, ref.chapter, 'kjva', refTextId)
+      : ref.chapter
+    const chapterRemapped = mappedChapter !== ref.chapter
+    const navChapter = mappedChapter
+    // A remapped LXX chapter can merge two KJV chapters into one (Ps 9, Ps 113) or only cover
+    // part of a split KJV chapter (Ps 116, Ps 147; Joel 2; Malachi 3) — a KJV verse number
+    // doesn't carry over to the right place in either case, so land at the chapter's start
+    // instead of a wrong verse (same "chapter-level only" scope translationChapterMap.ts
+    // documents for its other two call sites).
+    const navVerse = chapterRemapped ? undefined : ref.verse
+    const subLabel = chapterRemapped
+      ? `Go to ${refTextId!.toUpperCase()} ${bookName(ref.bookId)} ${navChapter} — Septuagint numbering differs from KJV here`
+      : refTextId
+        ? `${ref.verse ? `Go to verse ${ref.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
+        : ref.verse ? `Go to verse ${ref.verse}` : 'Go to chapter'
+    return {
+      type: 'ref' as const,
+      label,
+      sub: subLabel,
+      action: () => {
+        addRecentSearchQuery(query.trim())
+        navigate(
+          ref.bookId,
+          navChapter,
+          navVerse,
+          chapterRemapped ? undefined : ref.endVerse,
+          // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
+          // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
+          ref.forcedTranslation ?? getTranslationForBook(ref.bookId) ?? undefined,
+          ref.endChapter,
+        )
+      },
+    }
+  }
+
   // Build result list for keyboard nav
   const results: Array<{
     type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command'
@@ -616,65 +682,7 @@ export default function FloatingSearch() {
   }
 
   if (!isCommandMode && parsedRef) {
-    const chapterDisplay = parsedRef.endChapter && parsedRef.endChapter > parsedRef.chapter
-      ? `${parsedRef.chapter}–${parsedRef.endChapter}`
-      : parsedRef.chapter
-    // Always the full canonical name (bookName(), from parseRef.ts's own book table) rather
-    // than the DB-fetched `books` list's `.name` field — that fetch can still be in flight
-    // when the user starts typing, or (for non-canonical/Pseudepigrapha books) might not be
-    // in `books` at all depending on which text is currently selected, both of which
-    // previously fell back to showing the bare 3-letter bookId ("GEN") instead of a name.
-    const refName = bookName(parsedRef.bookId)
-    const refSep = /Book \d+$/.test(refName) ? ', ' : ' '
-    const label = `${refName}${refSep}${chapterDisplay}${parsedRef.verse ? `:${parsedRef.verse}` : ''}`
-    // A trailing " LXX" suffix now parses inside parseRef itself (as `forcedTranslation`), so
-    // detectTranslationPrefix's own trailing-qualifier branch no longer sees it — read the
-    // target text from either source. This is also what makes the suffix actually NAVIGATE to
-    // the LXX: `detected` only ever fed this label, never the navigate() call below.
-    const refTextId = parsedRef.forcedTranslation ?? detected?.textId
-    // Smart LXX redirect: a typed reference is always in MT/KJV numbering (parseRef's BOOK_MAP
-    // is KJV-keyed), but the Septuagint renumbers Psalms 9 onward, reorders the back half of
-    // Jeremiah, and splits one chapter each in Joel and Malachi — see translationChapterMap.ts
-    // (already used by the KJV/LXX toggle button and Compare view; this was the one place that
-    // typed a KJV reference and then navigated WITHOUT going through it). "Psalm 10 LXX shows
-    // as Psalm 11" was the actual bug report: LXX Psalm 10 really is MT/KJV Psalm 11, so typing
-    // "Psalm 10 LXX" landed on the wrong chapter's content with no indication why. Only applied
-    // to a single chapter target, not a chapter RANGE query — remapping just the range's start
-    // would leave the end chapter inconsistent for the rarer merge/split-crossing case.
-    const mappedChapter = !parsedRef.endChapter && refTextId
-      ? mapChapterOnTranslationSwitch(parsedRef.bookId, parsedRef.chapter, 'kjva', refTextId)
-      : parsedRef.chapter
-    const chapterRemapped = mappedChapter !== parsedRef.chapter
-    const navChapter = mappedChapter
-    // A remapped LXX chapter can merge two KJV chapters into one (Ps 9, Ps 113) or only cover
-    // part of a split KJV chapter (Ps 116, Ps 147; Joel 2; Malachi 3) — a KJV verse number
-    // doesn't carry over to the right place in either case, so land at the chapter's start
-    // instead of a wrong verse (same "chapter-level only" scope translationChapterMap.ts
-    // documents for its other two call sites).
-    const navVerse = chapterRemapped ? undefined : parsedRef.verse
-    const subLabel = chapterRemapped
-      ? `Go to ${refTextId!.toUpperCase()} ${bookName(parsedRef.bookId)} ${navChapter} — Septuagint numbering differs from KJV here`
-      : refTextId
-        ? `${parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'} in ${refTextId.toUpperCase()}`
-        : parsedRef.verse ? `Go to verse ${parsedRef.verse}` : 'Go to chapter'
-    results.push({
-      type: 'ref',
-      label,
-      sub: subLabel,
-      action: () => {
-        addRecentSearchQuery(query.trim())
-        navigate(
-          parsedRef.bookId,
-          navChapter,
-          navVerse,
-          chapterRemapped ? undefined : parsedRef.endVerse,
-          // forcedTranslation ("Isaiah 66:3 LXX") outranks the book's own required
-          // translation — same precedence NotesPanel.tsx uses for verse-ref clicks.
-          parsedRef.forcedTranslation ?? getTranslationForBook(parsedRef.bookId) ?? undefined,
-          parsedRef.endChapter,
-        )
-      },
-    })
+    results.push(refResultFor(parsedRef, detected?.textId))
   } else if (!isCommandMode && cleanQuery.trim()) {
     // Bare book name, no chapter/verse ("Genesis", "Romans", "1 Kings") — parseRef's own
     // regex requires a trailing chapter number to match at all, so a plain book name never
@@ -823,7 +831,26 @@ export default function FloatingSearch() {
     })
   }
 
+  // `parsedRef` (used to build `results` above) is derived from `deferredQuery`, which
+  // intentionally lags a tick behind the raw keystroke (see the useDeferredValue comment near
+  // its declaration). That's fine for the rendered results list, but pressing Enter immediately
+  // after typing a reference ("dan12", "1ki11") could fire before the deferred value catches up,
+  // so `parsedRef` was still null/stale at that moment — falling through to `predictedSpace`
+  // routing or a stale `results[0]` (e.g. a note match) instead of the just-typed reference.
+  // Reparsing synchronously off the raw `query` here is cheap (a regex + table lookup) and
+  // guarantees Enter always sees exactly what's on screen, regardless of the deferred value's
+  // catch-up timing.
+  function getImmediateRef(): { ref: ParsedRef; textId: string | undefined } | null {
+    const trimmed = query.trim()
+    if (!trimmed) return null
+    const det = detectTranslationPrefix(trimmed)
+    const clean = det ? det.cleanQuery : trimmed
+    const ref = clean.trim() ? (parseMultiBookQuery(clean) ?? parseRef(clean)) : null
+    return ref ? { ref, textId: det?.textId } : null
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
+    const immediateRef = e.key === 'Enter' ? getImmediateRef() : null
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIdx((i) => {
@@ -843,6 +870,10 @@ export default function FloatingSearch() {
       e.preventDefault()
       closeSearch()
       openScriptureSearchTab(query.trim())
+    } else if (e.key === 'Enter' && selectedIdx < 0 && immediateRef) {
+      e.preventDefault()
+      // navigate() (called inside .action()) already closes the search overlay itself.
+      refResultFor(immediateRef.ref, immediateRef.textId).action()
     } else if (e.key === 'Enter' && selectedIdx < 0 && predictedSpace) {
       // Enter with nothing selected (no arrowing, no mouse hover) — jump straight to
       // the predicted destination's own search tab with the current query, rather

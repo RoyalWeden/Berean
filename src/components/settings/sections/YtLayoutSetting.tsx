@@ -12,7 +12,7 @@ export default function YtLayoutSetting() {
           onClick={() => set(def.id)}
           className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg text-left border transition-all cursor-pointer text-xs
             ${layout === def.id
-              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))]'
+              ? 'border-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/10] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/20]'
               : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]'
             }`}
         >

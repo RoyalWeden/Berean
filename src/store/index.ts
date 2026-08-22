@@ -71,13 +71,16 @@ export function updateMRU(
  *  active tab, addTab always appended at the end, regardless of the calling gesture's actual
  *  intent — e.g. the SAME double-click-empty-space/Cmd+T entry point produced different
  *  placement for a verse result vs. a lexicon result, purely because of which function each
- *  branch called). 'after-active': Cmd+T, any "+" button, "open in new tab" from within content.
- *  'end': double-click empty tab-bar space only. Computes the new sessionDisplayOrders array —
- *  callers still separately append the tab itself to tabs[spaceId] and set it active. */
+ *  branch called). 'top': Cmd+T, any "+" button, "open in new tab" from within content — the
+ *  default, so a fresh tab is always easy to find at the top of the (single, cross-space) list.
+ *  'after-active' is kept for call sites that explicitly want the old adjacent-to-active
+ *  placement. 'end': double-click empty tab-bar space only. Computes the new
+ *  sessionDisplayOrders array — callers still separately append the tab itself to
+ *  tabs[spaceId] and set it active. */
 export function computeInsertOrder(
   state: { tabs: Record<SpaceId, Tab[]>; sessionDisplayOrders: Record<string, string[]>; currentSessionId: string; activeTabId: Record<SpaceId, string | null>; activeSpace: SpaceId },
   newId: string,
-  position: 'after-active' | 'end' = 'after-active',
+  position: 'top' | 'after-active' | 'end' = 'top',
 ): string[] {
   const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
   const allTabsBefore = allSpaces.flatMap((sp) => state.tabs[sp] ?? [])
@@ -87,7 +90,9 @@ export function computeInsertOrder(
     ...allTabsBefore.filter((t) => !stored.includes(t.id)).map((t) => t.id),
   ]
   let insertAt: number
-  if (position === 'end') {
+  if (position === 'top') {
+    insertAt = 0
+  } else if (position === 'end') {
     insertAt = liveOrder.length
   } else {
     const activeTabIdOverall = state.activeTabId[state.activeSpace]
@@ -142,10 +147,10 @@ export interface AppState {
   searchMode: 'current' | 'new'
   // Universal new-tab placement rule (see computeInsertOrder) for whatever tab the floating
   // search's 'new' mode ends up creating (navigate()/goToLexicon() in FloatingSearch.tsx read
-  // this) — 'after-active' for Cmd+T/the search "+" button, 'end' only when opened via
+  // this) — 'top' for Cmd+T/the search "+" button, 'end' only when opened via
   // double-clicking empty tab-bar space. Both currently funnel through this same openSearch
   // call, so this is how they're told apart on the other end.
-  searchNewTabPosition: 'after-active' | 'end'
+  searchNewTabPosition: 'top' | 'after-active' | 'end'
   // 'verses' = the floating search only shows scripture/verse results (no notes/
   // lexicon/YouTube sections) — used by the Scripture tab's "Search scripture"
   // button so it reads as a lightweight version of Advanced Search rather than
@@ -531,8 +536,8 @@ export interface AppState {
   setActiveSpace: (space: SpaceId) => void
   /** `position` defaults to 'after-active' (Cmd+T/"+"/"open in new tab" from content) —
    *  pass 'end' only for the double-click-empty-tab-bar-space case. */
-  addTab: (tab: Tab, position?: 'after-active' | 'end') => void
-  createTab: (type: TabType, position?: 'after-active' | 'end') => void
+  addTab: (tab: Tab, position?: 'top' | 'after-active' | 'end') => void
+  createTab: (type: TabType, position?: 'top' | 'after-active' | 'end') => void
   ensureTab: (type: TabType) => void
   closeTab: (spaceId: SpaceId, tabId: string) => void
   closeActiveTab: () => void
@@ -544,7 +549,7 @@ export interface AppState {
   updatePanelLayout: (layout: MosaicNode<MosaicKey> | null) => void
   toggleSidebar: () => void
   setSidebarWidth: (width: number) => void
-  openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses', newTabPosition?: 'after-active' | 'end') => void
+  openSearch: (mode?: 'current' | 'new', scope?: 'all' | 'verses', newTabPosition?: 'top' | 'after-active' | 'end') => void
   closeSearch: () => void
 
   // Recent search queries (persisted, max 10)
@@ -724,6 +729,12 @@ export interface AppState {
   playbackQueueSourcePlaylistId: string | null   // set when this queue was loaded FROM a saved playlist, so "Save" can overwrite it instead of always forking a new one
   playbackQueueSourcePlaylistName: string | null
   setPlaybackQueue: (items: PlaybackQueueItem[], sourcePlaylistId?: string | null, sourcePlaylistName?: string | null) => void
+  /** Links the CURRENT queue (items/index untouched) to a saved playlist — used right after a
+   *  manual "Save as playlist" so subsequent edits autosave (see useQueueAutosave.ts) without
+   *  requiring the queue to be reloaded first. setPlaybackQueue itself isn't reused for this
+   *  because it also resets playbackQueueIndex, which would jump an in-progress playback
+   *  position back to the start. */
+  linkPlaybackQueueToPlaylist: (id: string, name: string) => void
   addToPlaybackQueue: (item: PlaybackQueueItem) => void
   removeFromPlaybackQueue: (index: number) => void
   reorderPlaybackQueue: (fromIndex: number, toIndex: number) => void
@@ -731,17 +742,32 @@ export interface AppState {
   /** Starts (or resumes) playback at queue[index] and marks it current. */
   playQueueIndex: (index: number) => void
 
+  // Whether the "Playlist queue" popover (AudioQueuePopover.tsx) is open, and where it's
+  // currently positioned on screen — persisted (unlike the queue contents themselves) so
+  // closing/reopening it, or restarting the app, doesn't reset it back to its default spot
+  // every time.
+  queuePopoverOpen: boolean
+  queuePopoverPos: { x: number; y: number } | null
+  setQueuePopoverOpen: (v: boolean) => void
+  setQueuePopoverPos: (pos: { x: number; y: number }) => void
+
   // Read Aloud preferences — persisted like other display settings.
   ttsVoiceURI: string | null
   ttsRate: number
   ttsHighlightWordsEnabled: boolean
   ttsAutoAdvanceEnabled: boolean
   ttsAutoAdvancePauseSec: number
+  // Whether starting playback while the floating player is CLOSED (audioPlayback === null)
+  // immediately plays audio, or just opens the player at the target position, paused — see
+  // startPlaybackFrom's own comment. Doesn't affect resuming/continuing an already-open player
+  // (explicit play/pause clicks, auto-advance) — only the "cold open" case.
+  ttsAutoplayOnOpen: boolean
   setTTSVoiceURI: (v: string | null) => void
   setTTSRate: (v: number) => void
   setTTSHighlightWordsEnabled: (v: boolean) => void
   setTTSAutoAdvanceEnabled: (v: boolean) => void
   setTTSAutoAdvancePauseSec: (v: number) => void
+  setTTSAutoplayOnOpen: (v: boolean) => void
 
   // Whether the Kokoro voice pack is present and the real backend is live. NOT persisted — it's
   // re-checked via IPC on every launch, since the model files can be deleted externally (or by
@@ -843,7 +869,7 @@ export const useAppStore = create<AppState>()(
       sidebarWidth: 240,
       searchOpen: false,
       searchMode: 'current' as const,
-      searchNewTabPosition: 'after-active' as const,
+      searchNewTabPosition: 'top' as const,
       searchScope: 'all' as const,
       settingsOpen: false,
       pendingNoteId: null,
@@ -1322,7 +1348,15 @@ export const useAppStore = create<AppState>()(
       })),
       audioPlaybackRequestToken: 0,
       startPlaybackFrom: (bookId, chapter, verseNum, textId, endVerse = null) => set((s) => ({
-        audioPlayback: { isPlaying: true, isPaused: false, textId, bookId, chapter, verse: verseNum, wordIndex: null, finished: false, endVerse },
+        // "Autoplay when player opens" (ttsAutoplayOnOpen) only withholds playback when the
+        // floating player is currently closed (audioPlayback === null) — i.e. THIS call is what
+        // would open it. If the player is already open (already playing/paused, or mid
+        // auto-advance from useTTSPlayback.ts), this is a continuation of an already-open
+        // session, not an "open" event, so it always plays regardless of the setting.
+        audioPlayback: {
+          isPlaying: s.audioPlayback !== null || s.ttsAutoplayOnOpen,
+          isPaused: false, textId, bookId, chapter, verse: verseNum, wordIndex: null, finished: false, endVerse,
+        },
         audioPlaybackRequestToken: s.audioPlaybackRequestToken + 1,
         // Any DIRECT call to startPlaybackFrom (verse-row "play from here," the player's own
         // controls, etc.) means the user started an ordinary single-chapter play, not a queue
@@ -1363,6 +1397,7 @@ export const useAppStore = create<AppState>()(
         playbackQueue: items, playbackQueueIndex: items.length > 0 ? 0 : -1,
         playbackQueueSourcePlaylistId: sourcePlaylistId, playbackQueueSourcePlaylistName: sourcePlaylistName,
       }),
+      linkPlaybackQueueToPlaylist: (id, name) => set({ playbackQueueSourcePlaylistId: id, playbackQueueSourcePlaylistName: name }),
       addToPlaybackQueue: (item) => set((s) => ({ playbackQueue: [...s.playbackQueue, item] })),
       removeFromPlaybackQueue: (index) => set((s) => {
         const next = s.playbackQueue.filter((_, i) => i !== index)
@@ -1396,11 +1431,17 @@ export const useAppStore = create<AppState>()(
         set({ playbackQueueIndex: index })
       },
 
+      queuePopoverOpen: false,
+      queuePopoverPos: null,
+      setQueuePopoverOpen: (v) => set({ queuePopoverOpen: v }),
+      setQueuePopoverPos: (pos) => set({ queuePopoverPos: pos }),
+
       ttsVoiceURI: null,
       ttsRate: 1,
       ttsHighlightWordsEnabled: true,
       ttsAutoAdvanceEnabled: true,
       ttsAutoAdvancePauseSec: 2,
+      ttsAutoplayOnOpen: true,
       setTTSVoiceURI: (v) => { ttsEngine.setVoice(v); set({ ttsVoiceURI: v }) },
       // No debounce (an earlier version of this had one): that existed back when
       // ttsEngine.setRate() restarted the active audio from a verse boundary on every call, so
@@ -1416,6 +1457,7 @@ export const useAppStore = create<AppState>()(
       setTTSHighlightWordsEnabled: (v) => set({ ttsHighlightWordsEnabled: v }),
       setTTSAutoAdvanceEnabled: (v) => set({ ttsAutoAdvanceEnabled: v }),
       setTTSAutoAdvancePauseSec: (v) => set({ ttsAutoAdvancePauseSec: Math.max(0, Math.min(30, v)) }),
+      setTTSAutoplayOnOpen: (v) => set({ ttsAutoplayOnOpen: v }),
 
       kokoroModelReady: false,
       setKokoroModelReady: (v) => {
@@ -1615,7 +1657,7 @@ export const useAppStore = create<AppState>()(
 
       setActiveSpace: (space) => set({ activeSpace: space }),
 
-      createTab: (type, position = 'after-active') => {
+      createTab: (type, position = 'top') => {
         const spaceId = TYPE_TO_SPACE[type]
         const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         let tab: Tab
@@ -1705,7 +1747,7 @@ export const useAppStore = create<AppState>()(
         })
       },
 
-      addTab: (tab, position = 'after-active') => {
+      addTab: (tab, position = 'top') => {
         const state = get()
         const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
         if (existing) {
@@ -1975,7 +2017,7 @@ export const useAppStore = create<AppState>()(
         }))
       },
 
-      openSearch: (mode = 'current', scope = 'all', newTabPosition = 'after-active') => {
+      openSearch: (mode = 'current', scope = 'all', newTabPosition = 'top') => {
         window.dispatchEvent(new Event('berean:closeMenus'))
         set({ searchOpen: true, searchMode: mode, searchScope: scope, searchNewTabPosition: newTabPosition, findBarOpen: false, findBarQuery: '', findBarAutoOpen: false, settingsOpen: false })
       },
@@ -2192,7 +2234,7 @@ export const useAppStore = create<AppState>()(
         // new tab is appended only to tabs.scripture, never added to sessionDisplayOrders, so
         // the sidebar's orderedTabs falls back to bucketing it at the very end of the tab bar
         // regardless of which tab was active.
-        const newOrder = computeInsertOrder(state, id, 'after-active')
+        const newOrder = computeInsertOrder(state, id, 'top')
         set({
           tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
           activeTabId: { ...state.activeTabId, scripture: id },
@@ -2504,6 +2546,12 @@ export const useAppStore = create<AppState>()(
         ttsHighlightWordsEnabled: state.ttsHighlightWordsEnabled,
         ttsAutoAdvanceEnabled: state.ttsAutoAdvanceEnabled,
         ttsAutoAdvancePauseSec: state.ttsAutoAdvancePauseSec,
+        ttsAutoplayOnOpen: state.ttsAutoplayOnOpen,
+        // Queue popover's open/closed state and on-screen position — see their own doc
+        // comments above. Unlike audioPlayback/playbackQueue, this is small, harmless UI
+        // chrome state, safe (and expected, per the original ask) to survive a restart.
+        queuePopoverOpen: state.queuePopoverOpen,
+        queuePopoverPos: state.queuePopoverPos,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

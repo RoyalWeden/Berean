@@ -20,6 +20,8 @@ export default function AudioSection() {
   const setTTSAutoAdvanceEnabled = useAppStore((s) => s.setTTSAutoAdvanceEnabled)
   const ttsAutoAdvancePauseSec = useAppStore((s) => s.ttsAutoAdvancePauseSec)
   const setTTSAutoAdvancePauseSec = useAppStore((s) => s.setTTSAutoAdvancePauseSec)
+  const ttsAutoplayOnOpen = useAppStore((s) => s.ttsAutoplayOnOpen)
+  const setTTSAutoplayOnOpen = useAppStore((s) => s.setTTSAutoplayOnOpen)
 
   const kokoroModelReady = useAppStore((s) => s.kokoroModelReady)
   const kokoroDownload = useKokoroModelDownload()
@@ -196,6 +198,20 @@ export default function AudioSection() {
             Speeds above ~2x may sound distorted, depending on the voice.
           </p>
         )}
+      </div>
+
+      {/* Autoplay when player opens */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Autoplay when player opens</p>
+          <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+            When off, opening the Read Aloud player (from a "play" action while it's closed)
+            loads it at the right spot but waits, paused, for you to press play — it doesn't
+            start speaking right away. Doesn't affect resuming or advancing while it's already
+            open.
+          </p>
+        </div>
+        <Switch checked={ttsAutoplayOnOpen} onCheckedChange={() => setTTSAutoplayOnOpen(!ttsAutoplayOnOpen)} />
       </div>
 
       {/* Highlight words while speaking */}
