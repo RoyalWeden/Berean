@@ -607,7 +607,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                 {isActive && !isCrossSpaceTarget && (
                   <motion.div
                     layoutId="active-tab-pill"
-                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))]"
+                    // group-hover here is what actually gives an ALREADY-active tab hover
+                    // feedback — without it, hovering an active tab (whose own row has no
+                    // hover: classes, since its highlight comes entirely from this pill) showed
+                    // nothing at all. A distinct accent tint (matching the isCrossSpaceTarget
+                    // treatment above) rather than another neutral surface shade, since
+                    // surface-3 vs surface-4 don't reliably order the same way across themes.
+                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))] group-hover:bg-[rgb(var(--color-accent))/15]"
                     transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                   />
                 )}

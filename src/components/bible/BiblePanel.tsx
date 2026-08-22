@@ -951,15 +951,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     strongsAnchorRef.current = null
     const container = getScrollEl()
     if (!container) return
-    // Use double-RAF to ensure the layout (new chip heights) has settled.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      const el = container.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
-      if (!el) return
-      const containerTop = container.getBoundingClientRect().top
-      const elTop = el.getBoundingClientRect().top
-      container.scrollTop += elTop - containerTop - anchor.offsetPx
-      setFlashAnchor({ verse: anchor.verseNum, nonce: Date.now() })
-    }))
+    const el = container.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
+    if (!el) return
+    const containerTop = container.getBoundingClientRect().top
+    const elTop = el.getBoundingClientRect().top
+    container.scrollTop += elTop - containerTop - anchor.offsetPx
+    setFlashAnchor({ verse: anchor.verseNum, nonce: Date.now() })
   }
 
   // Toggling Strong's swaps the verse rows to/from an entirely different DOM structure
@@ -1007,8 +1004,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:toggleStrongs', onToggleStrongs)
   }, [updateTabState]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore scroll anchor after the Strong's layout reflow settles
-  useEffect(() => {
+  // Restore scroll anchor after the Strong's layout reflow settles. useLayoutEffect (not
+  // useEffect) so this runs synchronously right after the DOM update, before the browser
+  // paints — a plain useEffect runs post-paint, which meant the reflowed (un-anchored) layout
+  // was visible for one real frame before the double-rAF correction landed on top of it,
+  // reading as a "lost my place" jump on every toggle that wasn't scrolled to the very top
+  // (the only case that gets a View Transition crossfade instead — see toggleStrongsForTab).
+  // A layout effect's DOM reads are already post-layout, so no rAF wait is needed here either.
+  useLayoutEffect(() => {
     restoreStrongsAnchor()
   }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 

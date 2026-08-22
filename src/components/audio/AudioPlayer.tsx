@@ -75,7 +75,10 @@ export default function AudioPlayer() {
   const openSettingsToAudio = useAppStore((s) => s.openSettingsToAudio)
 
   const [expanded, setExpanded] = useState(false)
-  const [queuePopoverOpen, setQueuePopoverOpen] = useState(false)
+  // Open/closed state lives in the store (persisted) rather than local useState, so closing and
+  // reopening the queue — or restarting the app — doesn't forget it was open.
+  const queuePopoverOpen = useAppStore((s) => s.queuePopoverOpen)
+  const setQueuePopoverOpen = useAppStore((s) => s.setQueuePopoverOpen)
   const queuePopoverOpenRef = useRef(false)
   useEffect(() => { queuePopoverOpenRef.current = queuePopoverOpen }, [queuePopoverOpen])
   const playbackQueue = useAppStore((s) => s.playbackQueue)
@@ -320,8 +323,8 @@ export default function AudioPlayer() {
                           (always in the same spot regardless of expand state) so it reads as
                           "close this player," freeing this spot for the queue button. */}
                       <button
-                        onClick={() => setQueuePopoverOpen((v) => !v)}
-                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/12]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
+                        onClick={() => setQueuePopoverOpen(!queuePopoverOpen)}
+                        className={`relative flex items-center justify-center w-7 h-7 rounded-full cursor-pointer transition-colors ${queuePopoverOpen ? 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))/12] hover:bg-[rgb(var(--color-accent))/20]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))]'}`}
                         title="Playlist queue"
                       >
                         <ListMusic size={13} />

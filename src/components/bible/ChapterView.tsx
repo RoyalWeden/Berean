@@ -875,7 +875,17 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   // mount, paint, then immediately get replaced, which is only visible depending on exact
   // query/paint timing (hence "doesn't always happen"). Keeping the previous verses on screen
   // until the new ones are ready avoids the flash entirely.
-  if (loading && verses.length === 0) {
+  //
+  // Also gated on `showSlowLoadIndicator` (the same 200ms-debounced flag set by the
+  // `slowTimer` above) rather than firing the instant `loading` flips true — a COLD first
+  // visit to a chapter this session still hits this branch (no cached verses at all), and
+  // the typical local-SQLite fetch resolves within a frame or two, so the skeleton would
+  // mount, paint, and get replaced almost immediately: exactly the "briefly looks different"
+  // flash reported on switching to the Scripture tab. Waiting the same 200ms means the
+  // common fast case renders straight to real content with no skeleton at all; only a
+  // genuinely slow load (the same threshold already used for the small loading spinner
+  // below) shows it.
+  if (loading && verses.length === 0 && showSlowLoadIndicator) {
     return (
       <div className="px-8 py-6 space-y-3">
         {Array.from({ length: 8 }).map((_, i) => (
@@ -891,12 +901,23 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     )
   }
 
-  if (verses.length === 0) {
+  // Guarded on `!loading` too — without it, a cold-load's brief pre-200ms window (skeleton
+  // withheld above, see the comment there) fell through to here and showed "No verses found"
+  // for a fraction of a second before the real content arrived, which is a worse flash than
+  // the skeleton it replaced.
+  if (verses.length === 0 && !loading) {
     return (
       <div className="px-8 py-12 text-center text-[rgb(var(--color-text-muted))]">
         No verses found for {bookId} {chapter}.
       </div>
     )
+  }
+
+  if (verses.length === 0) {
+    // Still loading, still inside the pre-200ms grace window — render nothing rather than
+    // either the skeleton or the "not found" message; real content replaces this almost
+    // immediately for the common fast (local SQLite) case.
+    return null
   }
 
   return (

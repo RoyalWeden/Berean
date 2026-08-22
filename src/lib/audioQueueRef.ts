@@ -51,10 +51,22 @@ export function parseQueueRefInput(input: string, textId: string): PlaybackQueue
 
   // Same-chapter verse range ("Luke 16:1-5") or a single verse/whole chapter ("Luke 15").
   const startVerse = verse ?? 1
-  const label = verse !== undefined
-    ? endVerse !== undefined
-      ? `${bookChapterVerseLabel(bookId, chapter)}:${verse}-${endVerse}`
-      : bookChapterVerseLabel(bookId, chapter, verse)
-    : bookChapterVerseLabel(bookId, chapter)
-  return [{ bookId, chapter, startVerse, endVerse: endVerse ?? null, textId, label }]
+  return [{ bookId, chapter, startVerse, endVerse: endVerse ?? null, textId, label: labelForQueueItem(bookId, chapter, startVerse, endVerse ?? null) }]
+}
+
+/**
+ * Builds the same range-aware display label parseQueueRefInput computes at add-time
+ * ("Luke 16:1-5", "Luke 15" for a whole chapter), from a queue/playlist item's own
+ * bookId/chapter/startVerse/endVerse fields directly — for anywhere a `PlaybackQueueItem`
+ * needs a label WITHOUT having gone through parseQueueRefInput itself, e.g. hydrating queue
+ * items back from a saved playlist's `start_verse`/`end_verse` columns (electron/ipc/playlists.ts),
+ * where the label can't just be trusted/reused as stored (a chapter-only `bookChapterVerseLabel`
+ * call there silently dropped any verse range on reload — see AudioQueuePopover.tsx's loadPlaylist).
+ * Only handles a single-chapter span (matches PlaybackQueueItem's own shape — no endChapter).
+ */
+export function labelForQueueItem(bookId: string, chapter: number, startVerse: number, endVerse: number | null): string {
+  if (startVerse <= 1 && endVerse === null) return bookChapterVerseLabel(bookId, chapter)
+  return endVerse !== null
+    ? `${bookChapterVerseLabel(bookId, chapter)}:${startVerse}-${endVerse}`
+    : bookChapterVerseLabel(bookId, chapter, startVerse)
 }

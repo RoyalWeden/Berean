@@ -288,7 +288,7 @@ export default function TabSwitcher({ tabs, selectedIndex, onHoverIndex, onSelec
                   onClick={() => onSelectTab(tab.spaceId, tab.tabId)}
                   onMouseEnter={() => handleHover(i)}
                   className={`flex items-center gap-2 px-2 py-1 rounded-shell text-left cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-4))]/50'
+                    isSelected ? 'bg-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-accent))/15]' : 'hover:bg-[rgb(var(--color-surface-4))]/50'
                   }`}
                 >
                   <div

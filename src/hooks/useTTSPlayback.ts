@@ -148,6 +148,14 @@ export function useTTSPlayback() {
         onChapterEnd: () => handleChapterEnd(ap.bookId, ap.chapter, ap.textId),
         onError: () => useAppStore.getState().stopPlayback(),
       })
+      // "Autoplay when player opens" (ttsAutoplayOnOpen): startPlaybackFrom already decided
+      // whether this particular request should audibly play — `ap.isPlaying` (captured above,
+      // BEFORE this chapter's real onVerseStart callback overwrites it) is false exactly when
+      // the player was closed and the setting is off. Pausing immediately, in the same tick as
+      // speakChapter(), lands before the engine's `waitIfPaused()` gate on the first chunk (see
+      // kokoroBackend.ts), so nothing is audible — the session is fully loaded and positioned,
+      // just paused, ready for an explicit play-button press (togglePlayPause → resume()).
+      if (!ap.isPlaying) ttsEngine.pause()
     }).catch(() => {
       if (!cancelled) useAppStore.getState().stopPlayback()
     })

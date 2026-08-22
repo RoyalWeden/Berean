@@ -19,6 +19,7 @@ import BgImportProgress from '@/components/shell/BgImportProgress'
 import PresenterControls from '@/components/shell/PresenterControls'
 import AudioPlayer from '@/components/audio/AudioPlayer'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
+import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { SpaceId, Tab } from '@/types'
 
@@ -50,6 +51,7 @@ export default function App() {
   // by the active tab panel via useTopBarSlot() to portal its own controls in.
   const [topBarSlot, setTopBarSlot] = useState<HTMLDivElement | null>(null)
   useTTSPlayback()
+  useQueueAutosave()
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
