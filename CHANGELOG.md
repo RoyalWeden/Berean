@@ -122,6 +122,43 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.3] - 2026-08-21
+
+Read Aloud
+
+- The playlist queue popover now remembers its open/closed state and where
+  you last positioned it, instead of resetting every time.
+- A queue entry loaded back from a saved playlist now shows its verse
+  range again (e.g. "Luke 16:1-5") instead of collapsing to the whole
+  chapter.
+- New Settings → Audio toggle, "Autoplay when player opens" (on by
+  default) — turn it off and starting playback while the player is closed
+  opens it paused at the right spot instead of speaking right away.
+  Resuming or auto-advancing an already-open player is unaffected.
+- The playlist queue popover has been redesigned with a Spotify-style
+  Queue/Playlists switcher. Playlists you've loaded or saved now stay
+  linked to the live queue and autosave as you edit it — no more manually
+  re-saving every change. Queue items can also be dragged to reorder them
+  (like tabs), and the reorder/delete controls only show on hover.
+
+Search
+
+- Fixed the floating search bar sometimes opening a note or advanced
+  search instead of the reference you typed (e.g. "dan12", "1ki11") when
+  Enter was pressed immediately after typing.
+
+Fixed
+
+- Fixed several buttons and tabs showing no hover feedback while already
+  active or selected (the tab bar's active tab, the audio player's queue
+  button, the tab switcher, the YouTube layout picker).
+- Fixed a brief flash when switching to the Scripture tab on a chapter
+  you haven't visited yet this session.
+- Fixed a visible jump when toggling Strong's numbers partway down a
+  chapter — the reading position is now restored before the reflow ever
+  paints, instead of a frame after.
+- New tabs now open at the top of the tab list by default.
+
 ## [0.5.2] - 2026-08-21
 
 Themes
