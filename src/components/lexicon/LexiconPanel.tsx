@@ -353,7 +353,9 @@ function EntryView({
   // requiring an explicit "Show all" click to see anything past the first page.
   const [visibleOccCount, setVisibleOccCount] = useState(10)
   const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
-  const [occBookFilter, setOccBookFilter] = useState<string | 'all'>('all')
+  // Empty set = show every book (the "All" chip). Multi-select, not a single dropdown pick,
+  // so e.g. Genesis + Exodus can be shown together.
+  const [occBookFilter, setOccBookFilter] = useState<Set<string>>(new Set())
   const [occTextFilter, setOccTextFilter] = useState('')
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
@@ -387,7 +389,8 @@ function EntryView({
     setShowAllOccurrences(false)
     setVisibleOccCount(10)
     setOccSort('canon')
-    setOccBookFilter('all')
+    setOccBookFilter(new Set())
+    setOccTextFilter('')
     setOccurrencesLoading(true)
     let cancelled = false
     Promise.all([
@@ -603,12 +606,12 @@ function EntryView({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               {occurrences.length > 0 && (
                 <button
                   onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
                   title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                  className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                 >
                   <ScanSearch size={11} />
                   Open all in a tab
@@ -617,7 +620,7 @@ function EntryView({
               {occurrences.length > 10 && (
                 <button
                   onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
-                  className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                 >
                   {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
                 </button>
@@ -626,9 +629,9 @@ function EntryView({
           </div>
 
           {/* Sort + book filter — occurrences previously had no way to narrow a long list down
-              to one book, or to bring the most-repeated verses to the top. Editions filter only
-              appears when the data actually mixes KJVA/LXX rows (most entries are one or the
-              other). */}
+              to one book, or to bring the most-repeated verses to the top. Book filter is a
+              row of toggle chips (multi-select — e.g. Genesis + Exodus together) instead of a
+              native <select>, matching the app's own control style rather than the OS's. */}
           {!occurrencesLoading && occurrences.length > 5 && (() => {
             const bookCounts = new Map<string, number>()
             for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
@@ -636,48 +639,65 @@ function EntryView({
               .sort((a, b) => b[1] - a[1])
               .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
             const hasMultipleBooks = bookOptions.length > 1
+            function toggleBook(id: string) {
+              setOccBookFilter((prev) => {
+                const next = new Set(prev)
+                if (next.has(id)) next.delete(id)
+                else next.add(id)
+                return next
+              })
+            }
             return (
-              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
-                  {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
-                    <button
-                      key={m}
-                      onClick={() => setOccSort(m)}
-                      className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+              <div className="mb-2 space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
+                    {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
+                      <button
+                        key={m}
+                        onClick={() => setOccSort(m)}
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="relative flex-1 min-w-[110px]">
+                    <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] pointer-events-none" />
+                    <input
+                      value={occTextFilter}
+                      onChange={(e) => setOccTextFilter(e.target.value)}
+                      placeholder="Filter occurrences…"
+                      className="w-full text-[9.5px] pl-5 pr-5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] outline-none focus:border-[rgb(var(--color-accent))]"
+                    />
+                    {occTextFilter && (
+                      <button
+                        onClick={() => setOccTextFilter('')}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {hasMultipleBooks && (
-                  <select
-                    value={occBookFilter}
-                    onChange={(e) => setOccBookFilter(e.target.value)}
-                    className="text-[9.5px] px-1.5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] cursor-pointer outline-none"
-                  >
-                    <option value="all">All books ({occurrences.length})</option>
-                    {bookOptions.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.count})</option>
-                    ))}
-                  </select>
-                )}
-                <div className="relative flex-1 min-w-[110px]">
-                  <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] pointer-events-none" />
-                  <input
-                    value={occTextFilter}
-                    onChange={(e) => setOccTextFilter(e.target.value)}
-                    placeholder="Filter occurrences…"
-                    className="w-full text-[9.5px] pl-5 pr-5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] outline-none focus:border-[rgb(var(--color-accent))]"
-                  />
-                  {occTextFilter && (
+                  <div className="flex items-center gap-1 flex-wrap">
                     <button
-                      onClick={() => setOccTextFilter('')}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
+                      onClick={() => setOccBookFilter(new Set())}
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occBookFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                     >
-                      <X size={10} />
+                      All ({occurrences.length})
                     </button>
-                  )}
-                </div>
+                    {bookOptions.map((b) => (
+                      <button
+                        key={b.id}
+                        onClick={() => toggleBook(b.id)}
+                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occBookFilter.has(b.id) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      >
+                        {b.name} ({b.count})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })()}
@@ -689,7 +709,7 @@ function EntryView({
             <p className="text-xs text-[rgb(var(--color-text-muted))]">No occurrence data available.</p>
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
-            let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
+            let visible = occBookFilter.size === 0 ? occurrences : occurrences.filter((o) => occBookFilter.has(o.book_id))
             const q = occTextFilter.trim().toLowerCase()
             if (q) visible = visible.filter((o) => (o.text ?? '').toLowerCase().includes(q))
             if (occSort === 'matches') {
@@ -708,7 +728,7 @@ function EntryView({
                   <button
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
-                    onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: occ.text ?? '' })}
+                    onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
                     className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                   >
                     <div className="flex items-baseline gap-2 flex-wrap">

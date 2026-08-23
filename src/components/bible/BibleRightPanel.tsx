@@ -1327,6 +1327,8 @@ export default function BibleRightPanel({
   // Captured once when the side-panel note editor first mounts, so cursor restoration
   // uses the value saved before this tab was switched away (not a live-updating prop).
   const initialNoteCursorRef = useRef<number>(initialNoteCursor ?? 0)
+  const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
+  const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const visibleTab = forcedTab ?? activeTab
   const panelRootRef = useRef<HTMLDivElement>(null)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2250,7 +2252,9 @@ export default function BibleRightPanel({
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   closeSideCtxMenu()
                   const v = await window.bible.queryVerse(bId, ch, vs).catch(() => null)
-                  copyVerse(bId, ch, vs, v?.text ?? '')
+                  let text = v?.text ?? ''
+                  if (wordReplacerEnabled && wordReplacerRules.length > 0) text = applyWordReplacer(text, wordReplacerRules)
+                  copyVerse(bId, ch, vs, text)
                 }}
               >
                 <Copy size={12} />
