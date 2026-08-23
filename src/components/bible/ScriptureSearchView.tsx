@@ -10,9 +10,10 @@ import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordRepl
 import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
-import { normalizeBookQuery, getWordWindow } from '@/lib/verseUtils'
+import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
@@ -111,6 +112,7 @@ interface RawResult {
   chapter: number
   verse_num: number
   text: string
+  text_tagged?: string
   _textId?: string
 }
 
@@ -172,6 +174,46 @@ function highlight(text: string, query: string, wordMode: WordMode = 'all'): Rea
       )}
     </>
   )
+}
+
+/**
+ * Like {@link highlight}, but also paints KJV-italic / red-letter (Yeshua's words) spans
+ * from `ranges` (see getAnnotationRanges in verseUtils.ts). `text` must be the SAME string
+ * `ranges` was computed against (unwindowed r.text) — callers that snippet/truncate the
+ * verse first fall back to plain `highlight()` instead of passing ranges here, since the
+ * char offsets would no longer line up with the truncated string.
+ */
+function highlightWithAnnotations(text: string, ranges: AnnotationRange[], query: string, wordMode: WordMode = 'all'): React.ReactNode {
+  if (ranges.length === 0) return highlight(text, query, wordMode)
+  const pattern = query.trim() ? buildHighlightPattern(query, wordMode) : ''
+  const matchRanges: Array<[number, number]> = []
+  if (pattern) {
+    const re = new RegExp(pattern, 'gi')
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      if (m[0].length === 0) { re.lastIndex++; continue }
+      matchRanges.push([m.index, m.index + m[0].length])
+      re.lastIndex = m.index + m[0].length
+    }
+  }
+  const breakpoints = new Set<number>([0, text.length])
+  for (const r of ranges) { breakpoints.add(Math.max(0, Math.min(r.start, text.length))); breakpoints.add(Math.max(0, Math.min(r.end, text.length))) }
+  for (const [s, e] of matchRanges) { breakpoints.add(s); breakpoints.add(e) }
+  const sorted = [...breakpoints].sort((a, b) => a - b)
+  const nodes: React.ReactNode[] = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i + 1]
+    if (s >= e) continue
+    const slice = text.slice(s, e)
+    const ann = ranges.find((r) => r.start <= s && r.end >= e)
+    const isMatch = matchRanges.some(([ms, me]) => ms <= s && me >= e)
+    let node: React.ReactNode = slice
+    if (isMatch) node = <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{node}</mark>
+    if (ann?.isRedLetter) node = <span className={RED_LETTER_CLASS}>{node}</span>
+    else if (ann?.isItalic) node = <span className="italic opacity-70">{node}</span>
+    nodes.push(<span key={i}>{node}</span>)
+  }
+  return <>{nodes}</>
 }
 
 interface PersistedState {
@@ -1517,14 +1559,18 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               {contextRows.map((v) => {
                                 const isMatch = v.verse_num === r.verse_num
                                 const vText = wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(v.text, wordReplacerRules) : v.text
+                                // Ranges are computed against v.text (pre-replacer) — see
+                                // highlightWithAnnotations' doc comment for why this is an
+                                // approximation, not exact, when the word replacer is on.
+                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId)
                                 return (
                                   <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
                                     <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
                                     {isMatch && effectiveMode(query) === 'strongs'
                                       ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
                                       : isMatch
-                                        ? highlight(vText, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
-                                        : vText}
+                                        ? highlightWithAnnotations(vText, vAnnRanges, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
+                                        : highlightWithAnnotations(vText, vAnnRanges, '', wordMode)}
                                   </span>
                                 )
                               })}
@@ -1582,7 +1628,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
                                 ? applyWordReplacer(query, wordReplacerRules)
                                 : query
-                              return highlight(displayText, highlightQuery, wordMode)
+                              // Annotation ranges are only valid against the FULL (unwindowed) rawText —
+                              // once buildAllWordsSnippet trims/shifts the string its char offsets no
+                              // longer line up, so fall back to plain highlight() for that case.
+                              if (displayText !== rawText) return highlight(displayText, highlightQuery, wordMode)
+                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId)
+                              return highlightWithAnnotations(displayText, annRanges, highlightQuery, wordMode)
                             })()}
                           </span>
                         )}

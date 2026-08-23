@@ -92,7 +92,7 @@ export function computeViewerPayload(): ViewerPayload {
     const verse = bs.verse ?? bs.targetVerse ?? (lastVerseChapterKey === chapterKey ? lastBibleVerse : undefined)
     if (bs.verse !== undefined) setLastBibleVerse(bs.verse, chapterKey)
     else if (bs.targetVerse !== undefined) setLastBibleVerse(bs.targetVerse, chapterKey)
-    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse, textId, sidePanel, scrollPercent }
+    return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse, textId, hiddenAnnotations: bs.hiddenAnnotations, sidePanel, scrollPercent }
   }
 
   if (tab.type === 'note') {

@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest'
-import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay, buildVerseDisplayText } from '../verseUtils'
+import { getWordWindow, normalizeBookQuery, extractGlossWords, findMatchWordIndices, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay, buildVerseDisplayText, getAnnotationRanges } from '../verseUtils'
+
+// ─── getAnnotationRanges ───────────────────────────────────────────────────────
+
+describe('getAnnotationRanges', () => {
+  it('returns [] when there is no tagged text or the text is not kjva/lxx', () => {
+    expect(getAnnotationRanges(undefined, 'kjva')).toEqual([])
+    expect(getAnnotationRanges('word{}', 'enoch')).toEqual([])
+  })
+
+  it('marks red-letter (Yeshua\'s words) tokens with correct char ranges', () => {
+    // Luke 22:8 — "Go and prepare..." onward is red-letter (Yeshua speaking)
+    const text = 'And he sent Peter and John, saying, Go and prepare us the passover, that we may eat.'
+    const tagged = 'And{G2532} he{} sent{G649} Peter{G4074} and{G2532} John,{G2491} saying,{G2036} !Go{G4198} !and{} !prepare{G2090} !us{G2254} !the{G3588} !passover,{G3957} !that{G2443} !we{} !may{G5315} !eat.{G5315}'
+    const ranges = getAnnotationRanges(tagged, 'kjva')
+    const redLetterRanges = ranges.filter((r) => r.isRedLetter)
+    expect(redLetterRanges.length).toBeGreaterThan(0)
+    const goStart = text.indexOf('Go')
+    const goRange = redLetterRanges.find((r) => r.start === goStart)
+    expect(goRange).toBeDefined()
+    expect(text.slice(goRange!.start, goRange!.end)).toBe('Go')
+  })
+
+  it('marks italic (KJV translator-supplied) tokens with correct char ranges', () => {
+    const text = 'God is a Spirit'
+    const tagged = 'God{H430} is{} *a{} Spirit{H4151}'
+    const ranges = getAnnotationRanges(tagged, 'kjva')
+    const italicRanges = ranges.filter((r) => r.isItalic)
+    expect(italicRanges).toHaveLength(1)
+    expect(text.slice(italicRanges[0].start, italicRanges[0].end)).toBe('a')
+  })
+})
 
 // ─── getWordWindow ─────────────────────────────────────────────────────────────
 

@@ -10,6 +10,9 @@ export type ViewerPayload =
       chapter: number
       verse?: number
       textId: string
+      /** Annotation categories currently hidden in the main window (e.g. 'kjva_italics',
+       *  'lxx_supply') — mirrored so toggling them there hides them in the presenter too. */
+      hiddenAnnotations?: string[]
       sidePanel?: ViewerSidePanel
       /** 0–1 proportional scroll position of the chapter (set during scroll sync; absent on navigation) */
       scrollPercent?: number

@@ -18,6 +18,7 @@ import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
+import { stripAnnotations } from '@/lib/annotationFilters'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -129,53 +130,27 @@ function splitWordByHighlights(
   })
 }
 
-function cleanPunctuation(s: string): string {
-  return s
-    .replace(/,\s*,/g, ',')
-    .replace(/\s+([,;:.!?])/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// stripAnnotations moved to '@/lib/annotationFilters' so ViewerBiblePage.tsx (presenter
+// window) can share the exact same regex logic instead of carrying no equivalent at all.
 
-// A.M. date pattern: [1307 A.M.] or [1307-1320 A.M.] or [1307 Anno Mundi]
-const JUB_DATE_RE = /\s*\[[\d][\d\s\-,]*\s*(?:A\.M\.|Anno\s+Mundi)\s*\]/gi
-// Non-date square brackets: [text] — excludes the A.M. date form
-const JUB_BRACKET_RE = /\s*\[(?![\d][\d\s\-,]*\s*(?:A\.M\.|Anno\s+Mundi))[^\]]*\]/g
-// Angle brackets: <text>
-const JUB_RESTORED_RE = /\s*<([^>]*)>/g
-// Single-letter stanza markers: (b) (c) (d)
-const JUB_STANZA_RE = /\s*\([a-z]\)\s*/g
-// Parenthetical supply: (word) — but NOT single letters (those are stanza markers)
-const JUB_SUPPLY_RE = /\s*\((?![a-z]\))([^)]*)\)/g
-
-function stripAnnotations(text: string, textId: string, hiddenAnnotations: string[]): string {
-  if (hiddenAnnotations.length === 0) return text
-  let result = text
-  switch (textId) {
-    case 'lxx':
-      if (hiddenAnnotations.includes('lxx_supply')) result = result.replace(/\s*\[([^\]]*)\]/g, '')
-      return cleanPunctuation(result)
-    case 'enoch':
-      if (hiddenAnnotations.includes('enoch_supply'))    result = result.replace(/\s*\(([^)]*)\)/g, '')
-      if (hiddenAnnotations.includes('enoch_uncertain')) result = result.replace(/\s*\[([^\]]*)\]/g, '')
-      if (hiddenAnnotations.includes('enoch_restored'))  result = result.replace(/\s*〈([^〉]*)〉/g, '')
-      return cleanPunctuation(result)
-    case 'jubilees':
-      // Strip in a specific order so regexes don't interfere with each other
-      if (hiddenAnnotations.includes('jubilees_date'))     result = result.replace(JUB_DATE_RE, '')
-      if (hiddenAnnotations.includes('jubilees_bracket'))  result = result.replace(JUB_BRACKET_RE, '')
-      if (hiddenAnnotations.includes('jubilees_restored')) result = result.replace(JUB_RESTORED_RE, '')
-      if (hiddenAnnotations.includes('jubilees_stanza'))   result = result.replace(JUB_STANZA_RE, ' ')
-      if (hiddenAnnotations.includes('jubilees_supply'))   result = result.replace(JUB_SUPPLY_RE, '')
-      return cleanPunctuation(result)
-    default:
-      return text
-  }
-}
-
+// StrongsInline (showStrongs mode) renders each word with an extra sibling text node for its
+// Strong's-number chip (data-strongs-chip, e.g. "G4074") or, for words with no chip, an
+// invisible aria-hidden placeholder ("·") that keeps chip-row heights aligned — see
+// StrongsInline.tsx. Neither exists in verse.text/the display string this offset is meant to
+// align with, but the plain TreeWalker below used to count them anyway, inflating every
+// selection's char offset by however many chips/placeholders preceded it. That's what made
+// selecting "Peter and John" in Luke 22:8 (showStrongs on) actually highlight a few characters
+// to the left ("t Peter and ") — the char offset drifted more with every prior word.
 function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement): number {
   let pos = 0
-  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
+  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      const el = (n as Text).parentElement
+      return el?.closest('[data-strongs-chip], [aria-hidden]')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+    },
+  })
   let curr: Text | null
   while ((curr = walker.nextNode() as Text) !== null) {
     if (curr === node) return pos + offset

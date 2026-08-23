@@ -354,6 +354,7 @@ function EntryView({
   const [visibleOccCount, setVisibleOccCount] = useState(10)
   const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
   const [occBookFilter, setOccBookFilter] = useState<string | 'all'>('all')
+  const [occTextFilter, setOccTextFilter] = useState('')
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
   // full entry" and the user explicitly asked for them back. "Show less"
@@ -660,6 +661,23 @@ function EntryView({
                     ))}
                   </select>
                 )}
+                <div className="relative flex-1 min-w-[110px]">
+                  <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] pointer-events-none" />
+                  <input
+                    value={occTextFilter}
+                    onChange={(e) => setOccTextFilter(e.target.value)}
+                    placeholder="Filter occurrences…"
+                    className="w-full text-[9.5px] pl-5 pr-5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] outline-none focus:border-[rgb(var(--color-accent))]"
+                  />
+                  {occTextFilter && (
+                    <button
+                      onClick={() => setOccTextFilter('')}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })()}
@@ -672,8 +690,13 @@ function EntryView({
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
             let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
+            const q = occTextFilter.trim().toLowerCase()
+            if (q) visible = visible.filter((o) => (o.text ?? '').toLowerCase().includes(q))
             if (occSort === 'matches') {
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
+            }
+            if (visible.length === 0) {
+              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match "{occTextFilter}".</p>
             }
             return (
             <div className="space-y-1">
