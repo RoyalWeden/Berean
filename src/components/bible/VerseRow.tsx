@@ -1625,14 +1625,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           {indicatorMenu.type === 'note' ? (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeIndicatorMenu(); openNoteInBiblePanel(indicatorMenu.note.id) }}
               >
                 <StickyNote size={12} />
                 Open in panel
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   useAppStore.getState().requestOpenNote(indicatorMenu.note.id)
@@ -1643,7 +1643,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   window.app.openFloatingTab('notes', { noteId: indicatorMenu.note.id })
@@ -1657,7 +1657,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1679,7 +1679,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Open verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1699,7 +1699,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1714,7 +1714,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               </button>
               <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={async () => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1726,7 +1726,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Copy verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref

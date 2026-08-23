@@ -1758,7 +1758,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               closeCtxMenu()
             }}
           >
-            <ChevronRight size={12} />
+            <ChevronRight size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Open here
           </button>
           <button
@@ -1772,14 +1772,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               copyVerse(bId, ch, vs, text, tid === 'lxx')
             }}
           >
-            <Copy size={12} />
+            <Copy size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Copy verse
           </button>
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
             onClick={() => { copyVerseRef(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId === 'lxx'); closeCtxMenu() }}
           >
-            <Hash size={12} />
+            <Hash size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Copy reference
           </button>
           {onOpenInNewTab && (
@@ -1787,7 +1787,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
               onClick={() => { onOpenInNewTab(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
             >
-              <BookOpen size={12} />
+              <BookOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Open in new tab
             </button>
           )}
@@ -1796,7 +1796,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
               onClick={() => { onOpenInFloating(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse); closeCtxMenu() }}
             >
-              <ExternalLink size={12} />
+              <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Open in floating tab
             </button>
           )}

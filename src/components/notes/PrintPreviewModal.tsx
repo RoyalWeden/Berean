@@ -529,10 +529,15 @@ export default function PrintPreviewModal({ title, content, notes, idiomEntries,
                       ['includeCompare',     'Compare to'],
                       ['includeReferences',  'Scripture references'],
                     ] as [keyof IdiomsExportOptions, string][]).map(([key, label]) => (
-                      <label key={key} className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-primary))] cursor-pointer">
-                        <input type="checkbox" checked={Boolean(idiomOpts[key])} onChange={(e) => setIdiomOpts((o) => ({ ...o, [key]: e.target.checked }))} />
-                        {label}
-                      </label>
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="text-xs text-[rgb(var(--color-text-primary))]">{label}</span>
+                        <button
+                          onClick={() => setIdiomOpts((o) => ({ ...o, [key]: !o[key] }))}
+                          className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors cursor-pointer ${idiomOpts[key] ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${idiomOpts[key] ? 'translate-x-4' : ''}`} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                   {([

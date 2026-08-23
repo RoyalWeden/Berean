@@ -66,6 +66,7 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
 
   if (!target) return null
   const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
+  const ICON = 'flex-shrink-0 text-[rgb(var(--color-text-muted))]'
 
   function openVerse() {
     const store = useAppStore.getState()
@@ -110,24 +111,24 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[10000] min-w-[150px] rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl py-1"
+      className="fixed z-[10000] min-w-[150px] rounded-shell context-menu overflow-hidden py-1"
       style={{ left: target.x, top: target.y }}
       onClick={(e) => e.stopPropagation()}
     >
       <button className={ITEM} onClick={() => { openVerse(); onClose() }}>
-        <BookOpen size={13} className="flex-shrink-0" /> Open verse
+        <BookOpen size={12} className={ICON} /> Open verse
       </button>
       <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}>
-        <Copy size={13} className="flex-shrink-0" /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
+        <Copy size={12} className={ICON} /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
       </button>
       <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }}>
-        <Hash size={13} className="flex-shrink-0" /> Copy reference
+        <Hash size={12} className={ICON} /> Copy reference
       </button>
       <button className={ITEM} onClick={() => { openInNewTab(); onClose() }}>
-        <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
+        <ExternalLink size={12} className={ICON} /> Open in new tab
       </button>
       <button className={ITEM} onClick={() => { openInFloatingTab(); onClose() }}>
-        <ExternalLink size={13} className="flex-shrink-0" /> Open in floating tab
+        <ExternalLink size={12} className={ICON} /> Open in floating tab
       </button>
     </div>,
     document.body,
