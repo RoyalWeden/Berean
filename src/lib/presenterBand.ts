@@ -40,6 +40,40 @@ export function measureContentHeight(scrollHeight: number, contentBottom: number
   return contentBottom > 0 ? Math.min(scrollHeight, contentBottom + CONTENT_HEIGHT_PADDING_PX) : scrollHeight
 }
 
+/**
+ * Flat fallback sensitivity (in scroll-percent per px) used when the presenter's own
+ * geometry isn't known yet (no viewer window, or it hasn't reported a visible region).
+ * Matches the constant the wheel-driven virtual-scroll path always fell back to.
+ */
+export const FALLBACK_SCROLL_SENSITIVITY = 0.0012
+
+/**
+ * Convert a physical scroll amount (px — either a wheel event's `deltaY`, or a delta of the
+ * main panel's own `scrollTop` between two scroll events) into a change in the shared
+ * proportional scroll percentage `p`, scaled by the PRESENTER's own scrollable range rather
+ * than the main panel's.
+ *
+ * This is the fix for "outline scrolls too fast/jumpy on a chapter that barely overflows the
+ * main viewport": naively deriving `p` as `mainScrollTop / mainScrollableRangePx` makes the
+ * felt speed in the presenter equal to `presenterScrollableRangePx / mainScrollableRangePx` —
+ * which blows up whenever the main panel's own range is small, since the same physical wheel/
+ * scroll input always produces a roughly constant number of scrollTop px regardless of how
+ * little (or how much) the chapter actually overflows. Deriving sensitivity from the
+ * presenter's OWN clientHeight/visibleFraction instead reproduces the same math a real
+ * scrollbar uses (percent = deltaPx / scrollableRangePx, where scrollableRangePx =
+ * clientHeight * (1-f)/f) — so a given physical scroll amount covers roughly the same
+ * felt distance in the presenter no matter how much room the main panel itself has to scroll.
+ *
+ * Floored so a chapter that barely overflows in the PRESENTER (f→1) doesn't produce a
+ * near-infinite (instant-jump-to-end) sensitivity — the floor still lets a deliberate scroll
+ * move it, just not on a single wheel tick / scroll event.
+ */
+export function presenterScrollSensitivity(clientHeight: number | undefined, visibleFraction: number | undefined): number {
+  if (!clientHeight || !visibleFraction || visibleFraction <= 0 || visibleFraction >= 1) return FALLBACK_SCROLL_SENSITIVITY
+  const scrollableRangePx = Math.max(40, clientHeight * (1 - visibleFraction) / visibleFraction)
+  return 1 / scrollableRangePx
+}
+
 /** Sort a verseFracs map into ascending-by-fraction entries. */
 export function sortVerseFracs(verseFracs: Record<number, number>): PresenterVerseEntry[] {
   return Object.keys(verseFracs)

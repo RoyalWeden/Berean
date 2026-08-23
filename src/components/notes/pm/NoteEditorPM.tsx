@@ -18,6 +18,8 @@ import {
 } from './autocomplete'
 import { calloutNodeView, listItemNodeView, codeBlockNodeView, imageNodeView } from './nodeViews'
 import { createHeadingCollapsePlugin, headingNodeView, computeHeadingKey, headingPositionsForKeys, setCollapsedHeadingPositions } from './headingCollapse'
+import { createThreadCollapsePlugin, threadIdsPresentInDoc, setCollapsedThreadIds } from './threadCollapse'
+import { threadNodeView, threadEntryNodeView } from './threadNodeView'
 import { createBlockDecorationsPlugin } from './blockDecorations'
 import { createCodeBlockHighlightPlugin } from './codeBlockHighlight'
 import { createBlockHandlesPlugin, blockGripSelectMeta, type BlockMenuTarget } from './blockHandles'
@@ -28,6 +30,7 @@ import { createSuppressRangesPlugin, suppressRangesKeymap } from './suppressRang
 import { createFindHighlightPlugin, setFindQuery } from './findHighlight'
 import { createSelectionToolbarPlugin, type SelectionToolbarState } from './selectionToolbarPlugin'
 import { createTableStatusPlugin } from './tableStatusPlugin'
+import { createThreadSelectionPlugin } from './threadSelectionPlugin'
 import SelectionToolbar from './SelectionToolbar'
 import Toolbar from './Toolbar'
 import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup, RefHoverPreview } from './AutocompletePopups'
@@ -319,6 +322,26 @@ export default function NoteEditorPM({
     }).catch(() => {})
   }
 
+  // Thread-collapse counterpart of persistHeadingCollapse above — fired by threadNodeView on a
+  // real user click, never by the hydration path below. Fire-and-forget for the same reason.
+  function persistThreadCollapse(view: EditorView, threadId: string, collapsed: boolean) {
+    const noteId = noteIdRef.current
+    if (!noteId || !window.notes?.setThreadCollapsed) return
+    window.notes.setThreadCollapsed(noteId, threadId, collapsed).catch(() => {})
+  }
+
+  // Thread-collapse counterpart of loadCollapsedHeadings above. threadIdsPresentInDoc is the
+  // simpler analogue of headingPositionsForKeys here — a thread's id is its own stable attr
+  // (schema.ts), not a key that has to be resolved back to a live position.
+  function loadCollapsedThreads(view: EditorView, noteId: string | undefined) {
+    if (!noteId || !window.notes?.getCollapsedThreads) return
+    window.notes.getCollapsedThreads(noteId).then((ids) => {
+      if (viewRef.current !== view || ids.length === 0) return
+      const present = threadIdsPresentInDoc(view.state.doc, ids)
+      if (present.length > 0) setCollapsedThreadIds(view, present)
+    }).catch(() => {})
+  }
+
   // Restores a saved scroll position as an instant jump, bypassing the `scroll-behavior:
   // smooth` #2.1 sets on .berean-pm-editor (pmEditor.css) for the caret-follow nudge —
   // opening a note or switching notes should land you exactly where you left off
@@ -392,6 +415,7 @@ export default function NoteEditorPM({
           enableVerseSuggest: () => (isSidePanel ? useAppStore.getState().sidePanelScriptureBlock : useAppStore.getState().noteVerseBlockSuggest) !== false,
         }),
         createHeadingCollapsePlugin(),
+        createThreadCollapsePlugin(),
         createBlockHandlesPlugin(
           (target) => {
             dispatchCloseContextMenus()
@@ -407,6 +431,7 @@ export default function NoteEditorPM({
         createFindHighlightPlugin(),
         createSelectionToolbarPlugin(setSelectionToolbar),
         createTableStatusPlugin(setInTable),
+        createThreadSelectionPlugin(),
       ],
     })
 
@@ -420,6 +445,8 @@ export default function NoteEditorPM({
         heading: (node, editorView, getPos) => headingNodeView(getPos, persistHeadingCollapse)(node, editorView),
         code_block: (node, editorView, getPos) => codeBlockNodeView(getPos)(node, editorView),
         image: (node, editorView, getPos) => imageNodeView(getPos)(node, editorView),
+        thread: (node, editorView, getPos) => threadNodeView(getPos, persistThreadCollapse)(node, editorView),
+        thread_entry: (node) => threadEntryNodeView(node),
       },
       dispatchTransaction(tr) {
         const newState = view.state.apply(tr)
@@ -487,11 +514,41 @@ export default function NoteEditorPM({
           event.preventDefault()
           return true
         },
+        // Clicking in the empty space below the note's actual content (very common — a short
+        // note leaves most of `.ProseMirror`'s own `min-height: 100%` box empty) needs to place
+        // the cursor at the end and, when the last block is something other than a plain
+        // textblock (an image, or a thread/callout/table/column_list container), append a fresh
+        // empty paragraph to land in — reported as "click below a thread and it keeps scrolling
+        // up." Root cause: for a plain trailing paragraph, PM's own default
+        // coordsAtPos-based click resolution already lands close to where the user actually
+        // clicked, so nothing here needs to run. For a non-textblock last node (an image is a
+        // leaf atom; a thread's own chrome is contentEditable=false DOM that doesn't map 1:1 to
+        // real cursor positions), that same default resolution can land the selection somewhere
+        // visually far from the click — often near the TOP of that node — and
+        // dispatchTransaction's scrollCaretIntoComfortableView() above then "corrects" the
+        // scroll position toward that wrongly-resolved caret, which is what actually produces
+        // the scroll-up jump. Only firing when `event.target === view.dom` (the empty
+        // `.ProseMirror` background itself, not any real child node) keeps this from ever
+        // intercepting a legitimate click on real content.
+        mousedown(view, event) {
+          if (event.target !== view.dom || mode !== 'edit') return false
+          const { doc } = view.state
+          const last = doc.lastChild
+          if (last && last.isTextblock) return false // default resolution already lands correctly here
+          event.preventDefault()
+          const endPos = doc.content.size
+          const tr = view.state.tr.insert(endPos, schema.nodes.paragraph.create())
+          tr.setSelection(TextSelection.near(tr.doc.resolve(endPos + 1)))
+          view.dispatch(tr)
+          view.focus()
+          return true
+        },
       },
     })
     viewRef.current = view
     setViewReady(true)
     loadCollapsedHeadings(view, noteIdRef.current)
+    loadCollapsedThreads(view, noteIdRef.current)
 
     if (typeof initialCursorPos === 'number') {
       // Persisted cursor positions are PM document positions (see the
@@ -596,6 +653,7 @@ export default function NoteEditorPM({
     view.updateState(newState)
     if (isDifferentNote) {
       loadCollapsedHeadings(view, noteId)
+      loadCollapsedThreads(view, noteId)
       if (autoFocusRef.current) view.focus()
       if (typeof initialScrollTopRef.current === 'number') {
         const top = initialScrollTopRef.current

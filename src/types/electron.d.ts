@@ -44,6 +44,10 @@ interface NotesAPI {
   // computeHeadingKey for how headingKey is derived.
   getCollapsedHeadings: (noteId: string) => Promise<string[]>
   setHeadingCollapsed: (noteId: string, headingKey: string, collapsed: boolean) => Promise<{ success: boolean }>
+  // Thread collapse persistence — see threadCollapse.ts's createThreadCollapsePlugin comment
+  // for why this is keyed directly by a thread's own `threadId` attr, unlike headings above.
+  getCollapsedThreads: (noteId: string) => Promise<string[]>
+  setThreadCollapsed: (noteId: string, threadId: string, collapsed: boolean) => Promise<{ success: boolean }>
   onChanged: (cb: () => void) => void
 }
 

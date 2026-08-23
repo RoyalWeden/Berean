@@ -129,6 +129,21 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
   pdf: 'scripture',   // PDFs open as tabs within the Scripture space
 }
 
+// createTab() below always seeds a brand-new Bible tab's state with a hardcoded GEN/1 default —
+// never a position the user actually visited. updateTabState()'s Bible-tab branch used to treat
+// that placeholder as a legitimate "origin"
+// to seed into tabNavStacks whenever the tab's stack was still empty — which it always is right
+// after creation — so a single click that both (a) creates a brand-new Bible tab (via
+// ensureTab('bible'), e.g. from a Lexicon occurrence link) AND (b) immediately navigates it
+// somewhere real produced TWO history entries instead of one: the fabricated Genesis-1 default,
+// then the real destination. Back/forward then walked between those two instead of the tab
+// actually having a one-entry history that could return you to wherever you came from. Plain
+// module-scoped Set, not reactive/persisted store state — this only ever needs to answer "has
+// THIS tab id had a real navigation yet," and deliberately resets to empty on every app start
+// (a restored/persisted tab's id was never added here this session, so it's never treated as
+// fresh — exactly right, since a restored tab's state IS a real prior position).
+const freshlyCreatedBibleTabIds = new Set<string>()
+
 export interface AppState {
   // Navigation
   activeSpace: SpaceId
@@ -1664,6 +1679,10 @@ export const useAppStore = create<AppState>()(
         if (type === 'bible') {
           const defTranslation = get().defaultBibleTranslation.toUpperCase()
           tab = { id, spaceId, type, title: 'Genesis 1', state: { bookId: 'GEN', chapter: 1, translation: defTranslation, showStrongs: false, scrollPosition: 0 } }
+          // See freshlyCreatedBibleTabIds' own comment above — the GEN/1 state just above is a
+          // placeholder, not a real visited position, so updateTabState must not seed it into
+          // this tab's nav history as an "origin" the first time this tab is actually navigated.
+          freshlyCreatedBibleTabIds.add(id)
         } else if (type === 'lexicon') {
           tab = { id, spaceId, type, title: 'Lexicon', state: { strongsNum: null } }
         } else if (type === 'note') {
@@ -1925,17 +1944,27 @@ export const useAppStore = create<AppState>()(
             const ns = newState as unknown as Record<string, unknown>
             const cur = currentTab.state as unknown as Record<string, unknown>
             if (currentTab.type === 'bible') {
+              // A PEEK, not a consume — a scrollPosition-only tick (very common right after a
+              // tab is created, e.g. a target-verse scroll effect) must not burn this tab's
+              // "fresh" status before the real book/chapter navigation call actually arrives.
+              // Only the two branches below that actually USE this for a seed decision also
+              // delete it, and only from inside their own `if`, so it's consumed exactly once,
+              // on whichever call turns out to be the real first navigation — never on an
+              // unrelated update in between. See freshlyCreatedBibleTabIds' own header comment.
+              const isFreshlyCreated = freshlyCreatedBibleTabIds.has(tabId)
               const newBookId = ('bookId' in ns ? ns.bookId : cur.bookId) as string | undefined
               const newChapter = ('chapter' in ns ? ns.chapter : cur.chapter) as number | undefined
               // Book or chapter navigation — seed origin then push destination
               if (newBookId && newChapter && (newBookId !== cur.bookId || newChapter !== cur.chapter)) {
                 const newTranslation = (('translation' in ns ? ns.translation : cur.translation) as string | undefined) ?? 'KJVA'
-                // Seed stack with current position if empty
+                // Seed stack with current position if empty — but only when that current
+                // position is real (not this tab's just-created GEN/1 placeholder), otherwise
+                // this fabricates a phantom history stop nobody ever actually visited.
                 const existing = get().tabNavStacks[tabId]
                 if (!existing || existing.stack.length === 0) {
                   const originBookId = cur.bookId as string | undefined
                   const originChapter = cur.chapter as number | undefined
-                  if (originBookId && originChapter) {
+                  if (originBookId && originChapter && !isFreshlyCreated) {
                     get().pushTabNav(tabId, {
                       type: 'bible', title: `${bookName(originBookId)} ${originChapter}`,
                       bookId: originBookId, chapter: originChapter,
@@ -1943,6 +1972,7 @@ export const useAppStore = create<AppState>()(
                     })
                   }
                 }
+                freshlyCreatedBibleTabIds.delete(tabId)
                 get().pushTabNav(tabId, {
                   type: 'bible', title: `${bookName(newBookId)} ${newChapter}`,
                   bookId: newBookId, chapter: newChapter, translation: newTranslation,
@@ -1953,13 +1983,14 @@ export const useAppStore = create<AppState>()(
                 const ch = cur.chapter as number | undefined
                 const existing2 = get().tabNavStacks[tabId]
                 if (!existing2 || existing2.stack.length === 0) {
-                  if (bId && ch) {
+                  if (bId && ch && !isFreshlyCreated) {
                     get().pushTabNav(tabId, {
                       type: 'bible', title: `${bookName(bId)} ${ch}`,
                       bookId: bId, chapter: ch, translation: (cur.translation as string) ?? 'KJVA',
                     })
                   }
                 }
+                freshlyCreatedBibleTabIds.delete(tabId)
                 get().pushTabNav(tabId, {
                   type: 'bible', title: `${bookName(bId ?? 'GEN')} ${ch ?? 1}`,
                   bookId: bId, chapter: ch, translation: ns.translation as string,

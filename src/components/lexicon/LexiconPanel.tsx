@@ -333,7 +333,7 @@ function EntryView({
   noteBack?: { noteId: string; title: string } | null
   onNoteBack?: () => void
   findQuery?: string
-  onNavigateToVerse?: (bookId: string, chapter: number, verse: number) => void
+  onNavigateToVerse?: (bookId: string, chapter: number, verse: number, textId?: string) => void
   scrollRef?: React.Ref<HTMLDivElement>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   floating?: boolean
@@ -684,7 +684,7 @@ function EntryView({
                 return (
                   <button
                     key={i}
-                    onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num)}
+                    onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
                     onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: occ.text ?? '' })}
                     className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                   >
@@ -1358,17 +1358,25 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
       .catch(() => {})
   }
 
-  const navToVerse = useCallback((bookId: string, chapter: number, verse: number) => {
+  const navToVerse = useCallback((bookId: string, chapter: number, verse: number, textId?: string) => {
     const store = useAppStore.getState()
     store.ensureTab('bible')
     const fresh = useAppStore.getState()
     const scriptureTabId = fresh.activeTabId['scripture']
     if (!scriptureTabId) return
+    // The occurrence being clicked already tells us which text it actually came from
+    // (getLexiconOccurrences in electron/ipc/lexicon.ts only ever returns 'kjva' or 'lxx') — a
+    // Greek Strong's occurrence in the LXX list (the "LXX" badge next to it, ~line 695 above)
+    // must land the tab on the LXX translation, not whatever translation the tab happened to be
+    // showing before. Left undefined (not defaulted to KJVA) for any other/unknown text_id so
+    // this never overrides an already-correct translation on a guess.
+    const translation = textId === 'lxx' ? 'LXX' : textId === 'kjva' ? 'KJVA' : undefined
     fresh.updateTabState('scripture', scriptureTabId, {
       bookId,
       chapter,
       targetVerse: verse,
       scrollPosition: 0,
+      ...(translation ? { translation } : {}),
     })
     store.setActiveSpace('scripture')
   }, [])

@@ -166,6 +166,24 @@ function insertColumns(view: EditorView, from: number, to: number) {
   insertBlockNode(view, from, to, buildColumnList(2))
 }
 
+// Threads — a collapsible, growing timestamped log living inside a note (see schema.ts's
+// thread/thread_entry comment). Same "slash command is the entry point" pattern as columns
+// above: a brand-new thread gets a fresh threadId (crypto.randomUUID — this app has no separate
+// id-gen helper for note-editor-local ids like this; electron/ipc/notes.ts's own `randomUUID`
+// import is main-process-only, unreachable from the renderer) and exactly one initial empty
+// entry, ready to type into immediately.
+export function buildThread(): PMNode {
+  const entry = schema.nodes.thread_entry.create(
+    { entryId: crypto.randomUUID(), createdAt: new Date().toISOString() },
+    schema.nodes.paragraph.create(),
+  )
+  return schema.nodes.thread.create({ threadId: crypto.randomUUID(), title: null }, entry)
+}
+
+function insertThread(view: EditorView, from: number, to: number) {
+  insertBlockNode(view, from, to, buildThread())
+}
+
 // Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're
 // plain paragraph text that blockDecorations.ts recognizes and boxes once it matches a real
 // verse in the DB (async-verified). This command doesn't insert a verse itself; it clears the
@@ -207,6 +225,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'table', label: 'Table', description: '2×2 table to start from', keywords: ['grid', 'spreadsheet'], group: 'Basic blocks', run: insertTable },
   { id: 'image', label: 'Image', description: 'Insert a picture from a file', keywords: ['picture', 'photo', 'img', 'screenshot'], group: 'Basic blocks', run: insertImage },
   { id: 'columns', label: 'Columns', description: '2-column side-by-side layout', keywords: ['column', 'layout', 'side-by-side', 'split'], group: 'Basic blocks', run: insertColumns },
+  { id: 'thread', label: 'Thread', description: 'Collapsible, timestamped log you keep adding entries to', keywords: ['thread', 'log', 'journal', 'chat', 'collapsible'], group: 'Basic blocks', run: insertThread },
   { id: 'divider', label: 'Divider', description: 'Horizontal rule', keywords: ['hr', 'rule', 'separator', 'line'], group: 'Basic blocks', run: insertHorizontalRule },
   { id: 'callout-note', label: 'Note', description: 'Blue callout for general notes', keywords: ['callout', 'info', 'blue'], group: 'Callouts', run: toCallout('NOTE') },
   { id: 'callout-tip', label: 'Tip', description: 'Green callout for helpful tips', keywords: ['callout', 'green', 'hint'], group: 'Callouts', run: toCallout('TIP') },

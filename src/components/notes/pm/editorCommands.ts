@@ -119,8 +119,35 @@ export function createEditorCommands(view: EditorView) {
     run(wrapInList(schema.nodes.ordered_list))
   }
 
+  // Wraps the selection's containing block range in a new thread (one entry holding that
+  // content, timestamped the same as threadNodeView.ts's "+ Add entry" control) — the
+  // TextSelection-driven counterpart to BlockMenu.tsx's buildThreadFromNode, which does the
+  // same reshape from a NodeSelection instead. $from.blockRange($to) is null for a selection
+  // that can't be lifted to one consistent block range (e.g. spanning list items of different
+  // parents), and thread_entry.validContent guards against wrapping content thread_entry
+  // can't actually hold (its own spec is `block+`, so this mostly only rejects malformed
+  // slices) — both cases simply no-op rather than leaving a broken document.
+  function wrapInThread() {
+    run((state, dispatch) => {
+      const { $from, $to } = state.selection
+      const range = $from.blockRange($to)
+      if (!range) return false
+      const content = state.doc.slice(range.start, range.end).content
+      if (!schema.nodes.thread_entry.validContent(content)) return false
+      if (!dispatch) return true
+      const entry = schema.nodes.thread_entry.create(
+        { entryId: crypto.randomUUID(), createdAt: new Date().toISOString() },
+        content,
+      )
+      const thread = schema.nodes.thread.create({ threadId: crypto.randomUUID(), title: null }, entry)
+      dispatch(state.tr.replaceRangeWith(range.start, range.end, thread))
+      return true
+    })
+  }
+
   return {
     isMarkActive, run, applyHighlight, removeHighlight, applyLink, currentLinkHref, toggleTaskList,
     setHeading, toggleBlockquote, toggleCodeBlock, outdent, indent, setBulletList, setOrderedList,
+    wrapInThread,
   }
 }

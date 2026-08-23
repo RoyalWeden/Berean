@@ -259,6 +259,12 @@ function extractColumnBlocks(source: string): { text: string; columnLists: Map<n
       i++
       continue
     }
+    // A thread nested inside a column (`<!-- berean:columns -->` wrapping a `<!-- berean:thread
+    // -->` somewhere inside one of its columns) must NOT be extracted here at the outer level —
+    // see skipOpaqueForeignBlock's own doc comment (below the "Threads" section) for why that
+    // would orphan the thread's placeholder once THIS pass later carves out the same span as
+    // part of that column's own raw text, to be independently re-parsed from scratch.
+    if (THREAD_OPEN_RE.test(line)) { i = skipOpaqueForeignBlock(lines, i, THREAD_OPEN_RE, THREAD_CLOSE_RE, out); continue }
     if (COLUMNS_OPEN_RE.test(line)) {
       const blockLines: string[] = []
       i++
@@ -299,14 +305,186 @@ function extractColumnBlocks(source: string): { text: string; columnLists: Map<n
   return { text: out.join('\n'), columnLists }
 }
 
+// ─── Threads ────────────────────────────────────────────────────────────────
+// `<!-- berean:thread id="..." title="..." -->` / `<!-- berean:thread-entry
+// id="..." created="..." -->` / closing counterparts — see schema.ts's thread/
+// thread_entry node comment for the full round-trip design. This is the exact
+// same placeholder-swap + depth-tracked extraction strategy as the "Side-by-
+// side columns" section above (extractColumnBlocks/splitColumns), just with
+// two differences: (1) the outer `thread` marker carries attributes (`id`,
+// optional `title`) that have to be parsed off the open-tag line itself, and
+// (2) a thread needs only 1+ entries (a brand-new thread starts with exactly
+// one empty entry), not columns' 2+.
+
+const THREAD_OPEN_RE = /^<!--\s*berean:thread((?:\s+\w+="[^"]*")*)\s*-->\s*$/
+const THREAD_CLOSE_RE = /^<!--\s*\/berean:thread\s*-->\s*$/
+const ENTRY_OPEN_RE = /^<!--\s*berean:thread-entry((?:\s+\w+="[^"]*")*)\s*-->\s*$/
+const ENTRY_CLOSE_RE = /^<!--\s*\/berean:thread-entry\s*-->\s*$/
+
+// `title="a &quot;quoted&quot; word"` -> `a "quoted" word` — the matching escape happens in
+// serializer.ts's `thread()` handler; `&quot;` is the only entity either direction needs since
+// `"` is the only character that would otherwise break out of the attribute's own quoting.
+function unescapeAttr(value: string): string {
+  return value.replace(/&quot;/g, '"')
+}
+
+function parseMarkerAttrs(attrStr: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  const re = /(\w+)="([^"]*)"/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(attrStr))) out[m[1]] = unescapeAttr(m[2])
+  return out
+}
+
+/** Copies a foreign container's entire span — its own open marker line through its matching
+ * close marker line, fence- and same-type-depth aware — verbatim into `out`, returning the
+ * index just past it. Used by both extractColumnBlocks and extractThreadBlocks to skip over
+ * EACH OTHER's blocks wholesale at the outer scan level rather than reaching into them. Without
+ * this, a thread nested inside a column (or a column nested inside a thread entry) would get
+ * extracted at the wrong (outer) level, leaving its placeholder impossible to resolve once the
+ * OTHER extraction later carves out that very span as part of ITS OWN container's raw text for
+ * independent recursive re-parsing — that recursive `parseMarkdown` call runs a fresh copy of
+ * BOTH extractions from scratch, and so can only ever resolve markers still literally present
+ * as text, never ones a sibling top-level pass already swapped out for a placeholder token. */
+function skipOpaqueForeignBlock(lines: string[], startIndex: number, openRe: RegExp, closeRe: RegExp, out: string[]): number {
+  let i = startIndex
+  out.push(lines[i])
+  i++
+  let inFence = false
+  let fenceMarker = ''
+  let depth = 1
+  while (i < lines.length && depth > 0) {
+    const l = lines[i]
+    if (!inFence && FENCE_LINE_RE.test(l.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(l.trim())![1] }
+    else if (inFence && l.trim().startsWith(fenceMarker)) inFence = false
+    if (!inFence && openRe.test(l)) depth++
+    else if (!inFence && closeRe.test(l)) depth--
+    out.push(l)
+    i++
+  }
+  return i
+}
+
+interface ThreadEntryRaw { id: string; created: string; md: string }
+interface ThreadBlockRaw { id: string; title: string | null; entries: ThreadEntryRaw[] }
+
+/** Splits `blockLines` (the raw lines strictly between a `<!-- berean:thread ... -->` /
+ * `<!-- /berean:thread -->` pair) into each entry's own {id, created, markdown}, honoring
+ * fenced code blocks and marker depth exactly as splitColumns does above. Returns null on any
+ * structural mismatch (a stray line outside an entry pair, an entry missing its id/created
+ * attrs, or zero entries found) — the caller falls back to leaving the whole block as literal
+ * text rather than guessing. */
+function splitThreadEntries(blockLines: string[]): ThreadEntryRaw[] | null {
+  const entries: ThreadEntryRaw[] = []
+  let i = 0
+  while (i < blockLines.length) {
+    const line = blockLines[i]
+    if (line.trim() === '') { i++; continue }
+    const openMatch = ENTRY_OPEN_RE.exec(line)
+    if (!openMatch) return null // stray non-blank content outside an entry pair
+    const attrs = parseMarkerAttrs(openMatch[1])
+    if (!attrs.id || !attrs.created) return null
+    i++
+    const entryLines: string[] = []
+    let inFence = false
+    let fenceMarker = ''
+    let depth = 1
+    let closed = false
+    while (i < blockLines.length) {
+      const l = blockLines[i]
+      if (!inFence && FENCE_LINE_RE.test(l.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(l.trim())![1] }
+      else if (inFence && l.trim().startsWith(fenceMarker)) inFence = false
+      if (!inFence && ENTRY_OPEN_RE.test(l)) depth++
+      else if (!inFence && ENTRY_CLOSE_RE.test(l)) {
+        depth--
+        if (depth === 0) { i++; closed = true; break }
+      }
+      entryLines.push(l)
+      i++
+    }
+    if (!closed) return null // unterminated <!-- berean:thread-entry -->
+    entries.push({ id: attrs.id, created: attrs.created, md: entryLines.join('\n') })
+  }
+  return entries.length >= 1 ? entries : null
+}
+
+// U+2062 INVISIBLE TIMES bookends — distinct sentinel from columnsPlaceholder's U+2063 so the
+// two placeholder kinds can never collide inside the same intermediate document.
+function threadPlaceholder(id: number): string {
+  return `⁢berean-thread-${id}⁢`
+}
+const THREAD_PLACEHOLDER_RE = /^⁢berean-thread-(\d+)⁢$/
+
+/** Same scan/replace strategy as extractColumnBlocks above, for `<!-- berean:thread -->`
+ * regions instead of `<!-- berean:columns -->` ones. */
+function extractThreadBlocks(source: string): { text: string; threads: Map<number, ThreadBlockRaw> } {
+  const threads = new Map<number, ThreadBlockRaw>()
+  const lines = source.split('\n')
+  const out: string[] = []
+  let counter = 0
+  let i = 0
+  let inFence = false
+  let fenceMarker = ''
+  while (i < lines.length) {
+    const line = lines[i]
+    if (!inFence && FENCE_LINE_RE.test(line.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(line.trim())![1]; out.push(line); i++; continue }
+    if (inFence) {
+      if (line.trim().startsWith(fenceMarker)) inFence = false
+      out.push(line)
+      i++
+      continue
+    }
+    // Symmetric case to extractColumnBlocks' own THREAD_OPEN_RE skip above — a column nested
+    // inside a thread entry must not be extracted at this outer level either.
+    if (COLUMNS_OPEN_RE.test(line)) { i = skipOpaqueForeignBlock(lines, i, COLUMNS_OPEN_RE, COLUMNS_CLOSE_RE, out); continue }
+    const openMatch = THREAD_OPEN_RE.exec(line)
+    if (openMatch) {
+      const attrs = parseMarkerAttrs(openMatch[1])
+      const blockLines: string[] = []
+      i++
+      let innerFence = false
+      let innerFenceMarker = ''
+      let depth = 1
+      let closed = false
+      while (i < lines.length) {
+        const l = lines[i]
+        if (!innerFence && FENCE_LINE_RE.test(l.trim())) { innerFence = true; innerFenceMarker = FENCE_LINE_RE.exec(l.trim())![1] }
+        else if (innerFence && l.trim().startsWith(innerFenceMarker)) innerFence = false
+        if (!innerFence && THREAD_OPEN_RE.test(l)) depth++
+        else if (!innerFence && THREAD_CLOSE_RE.test(l)) {
+          depth--
+          if (depth === 0) { i++; closed = true; break }
+        }
+        blockLines.push(l)
+        i++
+      }
+      const entries = closed && attrs.id ? splitThreadEntries(blockLines) : null
+      if (entries) {
+        const id = counter++
+        threads.set(id, { id: attrs.id, title: attrs.title ?? null, entries })
+        out.push(threadPlaceholder(id))
+      } else {
+        // Malformed — restore verbatim (readable plain text, not data loss).
+        out.push('<!-- berean:thread' + openMatch[1] + ' -->', ...blockLines)
+        if (closed) out.push('<!-- /berean:thread -->')
+      }
+      continue
+    }
+    out.push(line)
+    i++
+  }
+  return { text: out.join('\n'), threads }
+}
+
 /**
  * Parse markdown source into a ProseMirror document, then run structural
  * post-processing that isn't expressible as a token→node ParseSpec mapping:
  * callout detection, i.e. a `blockquote` whose first paragraph starts with
  * `[!TYPE]` becomes a `callout` node with that leading marker stripped;
  * extra-blank-line marker paragraphs becoming genuinely empty paragraphs;
- * and columns-placeholder paragraphs becoming real column_list nodes (see
- * the "Side-by-side columns" section above).
+ * columns-placeholder paragraphs becoming real column_list nodes (see the
+ * "Side-by-side columns" section above); and thread-placeholder paragraphs
+ * becoming real thread nodes (see the "Threads" section above).
  * (Verse/lexicon blocks are deliberately NOT handled here — see schema.ts;
  * they stay plain paragraphs and are decorated live in Phase 5.)
  */
@@ -317,25 +495,26 @@ export function parseMarkdown(source: string): PMNode {
   // hand this a null/undefined value — coercing here means the EditorView
   // never fails to construct over it (which otherwise silently leaves the
   // note completely non-editable, with no visible error at all).
-  const { text: columnsStripped, columnLists } = extractColumnBlocks(source ?? '')
+  const { text: threadsStripped, threads } = extractThreadBlocks(source ?? '')
+  const { text: columnsStripped, columnLists } = extractColumnBlocks(threadsStripped)
   const preprocessed = expandExtraBlankLines(columnsStripped)
-  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode, columnLists)
+  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode, columnLists, threads)
 }
 
 const CALLOUT_RE = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]\s?/i
 
-function convertCallouts(doc: PMNode, columnLists: Map<number, string[]>): PMNode {
-  return mapBlockChildren(doc, columnLists)
+function convertCallouts(doc: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
+  return mapBlockChildren(doc, columnLists, threads)
 }
 
-function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>): PMNode {
+function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
   if (!node.isBlock || node.content.size === 0) return node
   const mapped: PMNode[] = []
-  node.forEach((child) => mapped.push(maybeConvertNode(child, columnLists)))
+  node.forEach((child) => mapped.push(maybeConvertNode(child, columnLists, threads)))
   return node.copy(Fragment.fromArray(mapped))
 }
 
-function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>): PMNode {
+function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
   // Extra-blank-line marker paragraph (see expandExtraBlankLines above) —
   // a paragraph whose sole content is the zero-width-space marker becomes
   // a genuinely empty paragraph, which serializer.ts's custom paragraph
@@ -358,17 +537,30 @@ function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>): PMN
           return schema.nodes.column_list.create(null, columnNodes)
         }
       }
+      // Thread placeholder paragraph (see extractThreadBlocks above) — becomes a real thread
+      // node, each entry's raw markdown parsed independently through THIS SAME parseMarkdown
+      // function (recursive — also transparently handles an entry that itself contains a
+      // nested <!-- berean:thread --> or <!-- berean:columns --> block).
+      const tm = THREAD_PLACEHOLDER_RE.exec(only.text || '')
+      if (tm) {
+        const raw = threads.get(Number(tm[1]))
+        if (raw) {
+          const entryNodes = raw.entries.map((e) =>
+            schema.nodes.thread_entry.create({ entryId: e.id, createdAt: e.created }, parseMarkdown(e.md).content))
+          return schema.nodes.thread.create({ threadId: raw.id, title: raw.title }, entryNodes)
+        }
+      }
     }
   }
-  if (node.type.name !== 'blockquote') return mapBlockChildren(node, columnLists)
+  if (node.type.name !== 'blockquote') return mapBlockChildren(node, columnLists, threads)
 
   const firstPara = node.firstChild
   const firstText = firstPara && firstPara.type.name === 'paragraph' ? firstPara.firstChild : null
   const m = firstText && firstText.isText ? CALLOUT_RE.exec(firstText.text || '') : null
-  if (!m) return mapBlockChildren(node, columnLists)
+  if (!m) return mapBlockChildren(node, columnLists, threads)
 
   const calloutType = m[1].toUpperCase()
-  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node, columnLists)
+  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node, columnLists, threads)
 
   // Strip the "[!TYPE] " marker from the start of the first paragraph's text.
   const strippedFirstPara = firstPara!.cut(m[0].length)
@@ -383,5 +575,5 @@ function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>): PMN
   if (restChildren.length === 0) restChildren.push(schema.nodes.paragraph.create())
 
   const converted = schema.nodes.callout.create({ calloutType }, Fragment.fromArray(restChildren))
-  return mapBlockChildren(converted, columnLists)
+  return mapBlockChildren(converted, columnLists, threads)
 }

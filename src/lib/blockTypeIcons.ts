@@ -20,6 +20,7 @@ import {
   Pilcrow, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6,
   Quote, List, ListOrdered, CheckSquare, Table2, Minus, SquareCode, BookOpen,
   Image as ImageIcon, Columns3, Info, Lightbulb, AlertTriangle, Star, XCircle,
+  MessagesSquare,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -56,6 +57,7 @@ export const BLOCK_TYPE_META: Record<string, BlockTypeMeta> = {
   verse:     { icon: BookOpen,    label: 'Scripture verse' },
   image:     { icon: ImageIcon,   label: 'Image' },
   columns:   { icon: Columns3,    label: 'Columns' },
+  thread:    { icon: MessagesSquare, label: 'Thread' },
   // Callout variants — Lucide equivalents of CALLOUT_META's former emoji glyphs,
   // matched semantically: ℹ→Info, 💡→Lightbulb, ⚠→AlertTriangle, ★→Star, ✕→XCircle.
   'callout-note':      { icon: Info,          label: 'Note' },

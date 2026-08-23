@@ -562,7 +562,7 @@ export default function SettingsModal() {
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Color mode</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls dark or light for all themes and preset palettes</p>
                     <div className="flex gap-2">
-                      {([['dark', Moon, 'Dark'], ['light', Sun, 'Light'], ['system', Monitor, 'System']] as const).map(([t, Icon, label]) => (
+                      {([['system', Monitor, 'System'], ['dark', Moon, 'Dark'], ['light', Sun, 'Light']] as const).map(([t, Icon, label]) => (
                         <button
                           key={t}
                           onClick={() => setTheme(t)}

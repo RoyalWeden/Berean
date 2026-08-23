@@ -57,6 +57,10 @@ contextBridge.exposeInMainWorld('notes', {
   getCollapsedHeadings: (noteId: string) => ipcRenderer.invoke('notes:getCollapsedHeadings', noteId),
   setHeadingCollapsed: (noteId: string, headingKey: string, collapsed: boolean) =>
     ipcRenderer.invoke('notes:setHeadingCollapsed', noteId, headingKey, collapsed),
+  // Thread collapse persistence
+  getCollapsedThreads: (noteId: string) => ipcRenderer.invoke('notes:getCollapsedThreads', noteId),
+  setThreadCollapsed: (noteId: string, threadId: string, collapsed: boolean) =>
+    ipcRenderer.invoke('notes:setThreadCollapsed', noteId, threadId, collapsed),
   // Cross-window sync: main process broadcasts this to every OTHER window whenever
   // any note mutation succeeds, so each renderer's own noteChangeToken can bump.
   onChanged: (cb: () => void) => {

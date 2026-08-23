@@ -64,6 +64,61 @@ const nodes: Record<string, NodeSpec> = {
     toDOM: () => ['div', { 'data-column': 'true', class: 'pm-column' }, 0],
   },
 
+  // Threads — a collapsible container living INSIDE a note (verse or general), holding a
+  // growing, timestamped log of entries (journal/chat-log shape), not a new note type or a
+  // per-verse concept. Modeled directly on column_list/column just above: `thread` is a
+  // `block`-group member (insertable at the top level of a note, or nested inside a column/
+  // blockquote/etc, same as callout/column_list), `thread_entry` is deliberately NOT a `block`
+  // group member so it can only ever appear as a direct child of `thread` — same "narrowly-
+  // scoped node" shape `column` itself uses. Markdown round-trip is HTML-comment-delimited
+  // (parser.ts/serializer.ts), reusing column_list's own placeholder-swap + depth-tracked
+  // extraction algorithm verbatim rather than inventing new parsing logic.
+  //
+  // `threadId` is a caller-generated uuid stamped once at insertion time (Toolbar.tsx/
+  // slashCommands.ts) — this is the thread's stable identity for collapse-state persistence
+  // (threadCollapse.ts), deliberately NOT a derived-from-content key the way headingCollapse.ts's
+  // computeHeadingKey has to be for headings (headings have no attr slot to carry an id in);
+  // threads do, so there's no need for that fallback machinery at all here.
+  // `title` is user-set (editable in threadNodeView.ts's header); null means "no title yet" —
+  // the collapsed/expanded header then falls back to a truncated preview of the first entry's
+  // own text instead (threadNodeView.ts's firstLinePreview), never a literal empty string.
+  thread: {
+    content: 'thread_entry+',
+    group: 'block',
+    attrs: { threadId: { default: null }, title: { default: null } },
+    parseDOM: [{ tag: 'div[data-thread]', getAttrs: (dom) => ({
+      threadId: (dom as HTMLElement).getAttribute('data-thread-id'),
+      title: (dom as HTMLElement).getAttribute('data-thread-title') || null,
+    }) }],
+    toDOM: (node) => ['div', {
+      'data-thread': 'true',
+      'data-thread-id': node.attrs.threadId,
+      ...(node.attrs.title ? { 'data-thread-title': node.attrs.title } : {}),
+      class: 'pm-thread',
+    }, 0],
+  },
+
+  // One entry in a thread's log. `entryId` is a caller-generated uuid (parallel role to
+  // `threadId` above, though nothing currently keys persisted state off it — reserved for a
+  // future per-entry feature, and cheap to carry now rather than retrofit later). `createdAt`
+  // is an ISO-8601 timestamp string stamped once when the entry is created (threadNodeView.ts's
+  // "+ Add entry" control) and never edited afterward — it's the entry's permanent timestamp
+  // badge, not a "last modified" time.
+  thread_entry: {
+    content: 'block+',
+    attrs: { entryId: { default: null }, createdAt: { default: null } },
+    parseDOM: [{ tag: 'div[data-thread-entry]', getAttrs: (dom) => ({
+      entryId: (dom as HTMLElement).getAttribute('data-entry-id'),
+      createdAt: (dom as HTMLElement).getAttribute('data-created'),
+    }) }],
+    toDOM: (node) => ['div', {
+      'data-thread-entry': 'true',
+      'data-entry-id': node.attrs.entryId,
+      'data-created': node.attrs.createdAt,
+      class: 'pm-thread-entry',
+    }, 0],
+  },
+
   // NOTE: verse blocks and lexicon blocks are intentionally NOT modeled as
   // schema nodes. In the original CM6 editor, detection of these is
   // data-dependent (verse text is verified against the real Bible DB via an
