@@ -1822,6 +1822,18 @@ html.theme-anim-bg body::before {
   inset: 0;
   z-index: 40;
   pointer-events: none;
+  /* Reported: the animation "looks kind of off near the left." Root cause — on mac, Sidebar and
+     ShellHeader use `.sidebar-vibrant`/`.topbar-vibrant`, which sit inside a genuinely
+     transparent Electron window (`transparent: true, vibrancy: 'sidebar'`, electron/main.ts),
+     not just a translucent CSS color. This layer is a normal opaque-DOM-content paint, so
+     wherever it sits BEHIND one of those two real vibrant surfaces, its color visibly tints
+     what's supposed to be neutral OS-blurred desktop vibrancy — worst at the window's top-left
+     corner where the sidebar and header overlap, and along the whole left edge where the
+     (usually widest) sidebar sits. `--berean-sidebar-w`/`--berean-header-h` are kept live by
+     Sidebar.tsx's and ShellHeader.tsx's own effects; clip-path excludes exactly those two real,
+     currently-rendered rects (0px when collapsed / not yet measured) rather than a static guess,
+     so this stays correct across sidebar resizes/collapse and any header height change. */
+  clip-path: inset(var(--berean-header-h, 0px) 0 0 var(--berean-sidebar-w, 0px));
 }
 
 /* Reported: subtle was near-invisible, and noticeable/bold both needed to read as clearly

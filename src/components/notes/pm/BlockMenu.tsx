@@ -132,12 +132,26 @@ function buildContainer(target: 'blockquote' | 'callout', source: PMNode): PMNod
     : schema.nodes.callout.create({ calloutType: 'NOTE' }, content)
 }
 
+// Thread target — same extractBlocks reduction as buildContainer above, just wrapped one level
+// deeper: the source's content becomes the thread's first (and only) entry, timestamped like
+// any other entry created through threadNodeView.ts's "+ Add entry" control.
+function buildThreadFromNode(source: PMNode): PMNode {
+  const blocks = extractBlocks(source)
+  const content = blocks.length ? blocks : [schema.nodes.paragraph.create()]
+  const entry = schema.nodes.thread_entry.create(
+    { entryId: crypto.randomUUID(), createdAt: new Date().toISOString() },
+    content,
+  )
+  return schema.nodes.thread.create({ threadId: crypto.randomUUID(), title: null }, entry)
+}
+
 // Non-heading "Turn into" targets, pulled from the shared config (src/lib/blockTypeIcons.ts)
 // so this menu, both toolbars and the slash menu can't drift apart on which glyph means what.
 const BulletListIcon = BLOCK_TYPE_META.bullet.icon
 const OrderedListIcon = BLOCK_TYPE_META.numbered.icon
 const QuoteIcon = BLOCK_TYPE_META.quote.icon
 const CalloutIcon = BLOCK_TYPE_META['callout-note'].icon
+const ThreadIcon = BLOCK_TYPE_META.thread.icon
 
 const ITEM = 'w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
 const HEADER = 'px-3 pt-1.5 pb-1 text-[10px] font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider'
@@ -292,6 +306,9 @@ export default function BlockMenu({
               "some kind of callout" glyph — what you pick is exactly what you get. */}
           <button className={ITEM} onClick={() => turnInto((n) => buildContainer('callout', n))}>
             <CalloutIcon size={13} className="flex-shrink-0" /> Callout
+          </button>
+          <button className={ITEM} onClick={() => turnInto((n) => buildThreadFromNode(n))}>
+            <ThreadIcon size={13} className="flex-shrink-0" /> Thread
           </button>
         </>
       )}

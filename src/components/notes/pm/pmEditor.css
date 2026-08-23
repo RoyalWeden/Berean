@@ -856,6 +856,148 @@
   color: rgb(var(--color-text-primary));
 }
 
+/* ── Threads (threadNodeView.ts / threadCollapse.ts) ─────────────────────────
+   Styled as a quiet bordered container, same visual register as .pm-callout above but neutral
+   (no per-type color) since a thread has no "type" to color-code — just left/top/bottom border
+   plus a subtle surface tint distinguishing it from plain paragraph flow. */
+.berean-pm-editor .ProseMirror .pm-thread {
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 6px;
+  margin: 0.6em 0;
+  background: rgb(var(--color-surface-1));
+}
+.berean-pm-editor .ProseMirror .pm-thread-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.45em 0.7em;
+  cursor: default;
+}
+.pm-thread-collapse-arrow {
+  color: rgb(var(--color-text-muted));
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.pm-thread-collapse-arrow:hover { color: rgb(var(--color-text-primary)); }
+.berean-pm-editor .ProseMirror .pm-thread-title {
+  font-weight: 600;
+  font-size: 0.92em;
+  outline: none;
+  border-radius: 4px;
+  padding: 0 0.2em;
+  min-width: 2em;
+}
+.berean-pm-editor .ProseMirror .pm-thread-title:hover,
+.berean-pm-editor .ProseMirror .pm-thread-title:focus {
+  background: rgb(0 0 0 / 0.04);
+}
+.pm-thread-title-placeholder {
+  font-weight: 400;
+  font-style: italic;
+  color: rgb(var(--color-text-muted));
+}
+.pm-thread-meta {
+  margin-left: auto;
+  font-size: 0.72em;
+  color: rgb(var(--color-text-muted));
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-left: 0.6em;
+}
+.berean-pm-editor .ProseMirror .pm-thread-body {
+  border-top: 1px solid rgb(var(--color-surface-4));
+  padding: 0.2em 0.7em 0.3em;
+}
+.berean-pm-editor .ProseMirror .pm-thread-entry {
+  padding: 0.35em 0;
+  border-bottom: 1px dashed rgb(var(--color-surface-4));
+}
+.berean-pm-editor .ProseMirror .pm-thread-entry:last-child { border-bottom: none; }
+.pm-thread-entry-badge {
+  font-size: 0.68em;
+  color: rgb(var(--color-text-muted));
+  margin-bottom: 0.15em;
+}
+.berean-pm-editor .ProseMirror .pm-thread-entry-content > *:first-child { margin-top: 0; }
+.berean-pm-editor .ProseMirror .pm-thread-entry-content > *:last-child { margin-bottom: 0; }
+.pm-thread-footer {
+  padding: 0.3em 0.7em 0.55em;
+}
+.pm-thread-add-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 5px;
+  background: rgb(var(--color-surface-2));
+  color: rgb(var(--color-text-muted));
+  font-size: 0.72em;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.pm-thread-add-entry:hover {
+  background-color: rgb(var(--color-surface-3));
+  color: rgb(var(--color-text-primary));
+}
+.pm-thread-add-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  margin-left: 0.4em;
+  border: 1px solid rgb(var(--color-surface-4));
+  border-radius: 5px;
+  background: rgb(var(--color-surface-2));
+  color: rgb(var(--color-text-muted));
+  font-size: 0.72em;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.pm-thread-add-sub:hover {
+  background-color: rgb(var(--color-surface-3));
+  color: rgb(var(--color-text-primary));
+}
+/* Breadcrumb back to the main thread — only present on a sub-thread (threadNodeView.ts hides
+   it via display:none when the ancestor chain is empty). Sits above the collapse header, not
+   inside it, so it's still visible while the thread body itself is collapsed. */
+.berean-pm-editor .ProseMirror .pm-thread-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.3em 0.7em 0;
+  font-size: 0.68em;
+  color: rgb(var(--color-text-muted));
+}
+.pm-thread-breadcrumb-seg {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: color 0.12s ease, text-decoration-color 0.12s ease;
+}
+.pm-thread-breadcrumb-seg:hover {
+  color: rgb(var(--color-accent));
+  text-decoration-color: currentColor;
+}
+.pm-thread-breadcrumb-sep {
+  opacity: 0.6;
+}
+/* Brief highlight when a breadcrumb click scrolls an ancestor thread's header into view —
+   see threadNodeView.ts's flashThreadAt(). */
+.berean-pm-editor .ProseMirror .pm-thread-header-flash {
+  animation: pm-thread-header-flash 0.9s ease;
+}
+@keyframes pm-thread-header-flash {
+  0%, 100% { background-color: transparent; }
+  25% { background-color: rgb(var(--color-accent) / 0.16); }
+}
+
 /* ── Typing "looks" — curated font/line-height/spacing presets, quick-picked
    from the dropdown next to the Edit/View toggle (NotesPanel.tsx). Separate
    from (and layered on top of) the fuller font-family picker in Settings —

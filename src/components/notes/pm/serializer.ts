@@ -92,6 +92,34 @@ function columnList(state: MarkdownSerializerState, node: PMNode) {
   state.closeBlock(node)
 }
 
+// ─── Threads ────────────────────────────────────────────────────────────────
+// See schema.ts's thread/thread_entry comment and parser.ts's matching "Threads" section for
+// the full round-trip design. Same recursive-`serializeToMarkdown`-per-child strategy as
+// columnList() above, just with an attribute-bearing open marker: `id` is always present
+// (schema.ts's thread.attrs.threadId is only ever null for a not-yet-inserted node, which never
+// reaches the serializer), `title` is omitted entirely rather than written as `title=""` when
+// unset (per the task brief) so a title-less thread's markdown stays minimal and later edits
+// that add a title don't leave a stale empty attribute behind.
+function escapeAttr(value: string): string {
+  return value.replace(/"/g, '&quot;')
+}
+
+function thread(state: MarkdownSerializerState, node: PMNode) {
+  const titleAttr = node.attrs.title ? ` title="${escapeAttr(node.attrs.title)}"` : ''
+  const lines: string[] = [`<!-- berean:thread id="${node.attrs.threadId}"${titleAttr} -->`]
+  node.forEach((entry) => {
+    const entryDoc = schema.nodes.doc.create(null, entry.content)
+    lines.push(
+      `<!-- berean:thread-entry id="${entry.attrs.entryId}" created="${entry.attrs.createdAt}" -->`,
+      serializeToMarkdown(entryDoc),
+      '<!-- /berean:thread-entry -->',
+    )
+  })
+  lines.push('<!-- /berean:thread -->')
+  state.write(lines.join('\n'))
+  state.closeBlock(node)
+}
+
 // ─── Callouts ───────────────────────────────────────────────────────────────
 // Reconstructs the `> [!TYPE] ...` blockquote form: prepend the marker to
 // the callout's first paragraph, then reuse blockquote's own wrapBlock
@@ -170,6 +198,10 @@ export const bereanMarkdownSerializer = new MarkdownSerializer(
     // "satisfies strict:true's per-type-handler check, never actually invoked" role as the
     // table_row/table_header/table_cell noops above.
     column: noop,
+    thread,
+    // thread_entry is only ever rendered manually from inside thread() above — same
+    // never-invoked-through-normal-dispatch role as column/table_row/etc. above.
+    thread_entry: noop,
   },
   {
     ...defaultMarkdownSerializer.marks,

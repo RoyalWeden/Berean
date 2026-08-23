@@ -79,6 +79,19 @@ export default function Sidebar() {
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
+
+  // Publishes this sidebar's real width as a CSS var so global.css's ambient
+  // background-animation layer (html.theme-anim-bg body::before) can clip itself out from
+  // behind it — on mac this sidebar is `.sidebar-vibrant` over a genuinely transparent Electron
+  // window (`transparent: true, vibrancy: 'sidebar'` in electron/main.ts), not just a
+  // translucent-looking CSS color, so the animated blob painting behind it visibly tinted what's
+  // supposed to be neutral OS-blurred vibrancy — most noticeably along the whole left edge,
+  // where this panel sits (see ShellHeader.tsx's matching `--berean-header-h` effect for the
+  // other half of the same fix at the top-left corner, where the two overlap). Zero when
+  // collapsed, matching the animated `width` this <aside> collapses to below.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--berean-sidebar-w', sidebarCollapsed ? '0px' : `${sidebarWidth}px`)
+  }, [sidebarCollapsed, sidebarWidth])
   // Bounds mirrored from the store's own setSidebarWidth clamp (kept here too since the drag
   // handler reads/writes the live value directly on every move, not through the setter's own
   // clamp on every tick — clamping locally avoids a store round-trip per rAF frame).
@@ -500,7 +513,7 @@ export default function Sidebar() {
         // clicking blank sidebar chrome outside the tab list" is given up here, same tradeoff
         // already made for the tab-list area itself via the manual moveWindowBy() drag below.
         className={`
-          native-buttons no-drag flex flex-col flex-shrink-0 h-full
+          native-buttons no-drag select-none flex flex-col flex-shrink-0 h-full
           ${window.__berean_platform === 'darwin' ? 'sidebar-vibrant' : "bg-[rgb(var(--color-surface-2))] shadow-[inset_0_1px_0_0_rgb(var(--color-surface-4)/0.35),1px_0_12px_-4px_rgb(0_0_0/0.25)]"}
           border-r border-[rgb(var(--color-surface-4))]
         `}

@@ -302,6 +302,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     if (!row || row.deleted_at == null) return { success: false, error: 'Note is not in trash' }
     db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
     db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ?').run(id)
+    db.prepare('DELETE FROM note_thread_collapse WHERE note_id = ?').run(id)
     db.prepare('DELETE FROM notes WHERE id = ?').run(id)
     purgeNoteFromVaultTrash(id)
     broadcastNotesChanged(event.sender)
@@ -315,6 +316,7 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       for (const id of ids) {
         db.prepare('DELETE FROM note_versions WHERE note_id = ?').run(id)
         db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ?').run(id)
+        db.prepare('DELETE FROM note_thread_collapse WHERE note_id = ?').run(id)
         db.prepare('DELETE FROM notes WHERE id = ?').run(id)
       }
     })
@@ -728,6 +730,29 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
       // heading, keeping this table's steady-state size proportional to "how much is
       // actually collapsed right now," not "how many headings have ever existed."
       db.prepare('DELETE FROM note_heading_collapse WHERE note_id = ? AND heading_key = ?').run(noteId, headingKey)
+    }
+    return { success: true }
+  })
+
+  // ── Thread collapse persistence (notes editor threads feature) ────────────
+  // Thread-node counterpart of the heading-collapse handlers just above — see berean.ts's v27
+  // migration comment for why `threadKey` here is simply the thread's own `threadId` attr
+  // rather than a derived key. Same per-note_id scoping, same "un-collapsing deletes the row"
+  // steady-state-size rationale.
+  ipcMain.handle('notes:getCollapsedThreads', (_event, noteId: string) => {
+    const rows = getBereanDb()
+      .prepare('SELECT thread_key FROM note_thread_collapse WHERE note_id = ? AND collapsed = 1')
+      .all(noteId) as Array<{ thread_key: string }>
+    return rows.map((r) => r.thread_key)
+  })
+
+  ipcMain.handle('notes:setThreadCollapsed', (_event, noteId: string, threadKey: string, collapsed: boolean) => {
+    const db = getBereanDb()
+    if (collapsed) {
+      db.prepare('INSERT OR REPLACE INTO note_thread_collapse (note_id, thread_key, collapsed) VALUES (?, ?, 1)')
+        .run(noteId, threadKey)
+    } else {
+      db.prepare('DELETE FROM note_thread_collapse WHERE note_id = ? AND thread_key = ?').run(noteId, threadKey)
     }
     return { success: true }
   })

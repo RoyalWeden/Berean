@@ -6,14 +6,33 @@ import {
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
 } from 'lucide-react'
 import { bereanSchema as schema } from './schema'
-import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS } from '@/lib/blockTypeIcons'
+import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
 // Styled-keycap hover hints, same as the persistent Toolbar and the rest of the app —
 // replacing native `title="Bold (⌘B)"` attributes (see Toolbar.tsx's import comment).
 import { HintTooltip } from '@/components/shell/HintTooltip'
 
-// The "Text type" dropdown's own trigger glyph — the shared config's paragraph icon,
-// replacing a literal "¶" character (the fourth spelling of "paragraph" in this editor).
-const PilcrowIcon = BLOCK_TYPE_META.text.icon
+const ThreadIcon = BLOCK_TYPE_META.thread.icon
+
+// The "Text type" dropdown trigger's icon — same "reflect the cursor's actual containing
+// block, not a hardcoded paragraph glyph" fix as Toolbar.tsx's own currentBlockTypeMeta (kept
+// as a separate local copy rather than a shared import, matching how BLOCK_TYPE_META lookups
+// are already duplicated per-file here rather than centralized). This component only renders
+// while there's a live non-empty selection (selectionToolbarPlugin.ts only calls its onChange
+// with a non-null state then), so — unlike the persistent Toolbar — this one reliably
+// re-renders on every relevant selection change already.
+function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
+  const $from = view.state.selection.$from
+  for (let d = $from.depth; d >= 0; d--) {
+    const node = $from.node(d)
+    if (node.type.name === 'thread') return BLOCK_TYPE_META.thread
+    if (node.type.name === 'heading') return headingMeta(node.attrs.level as number)
+    if (node.type.name === 'callout') {
+      const key = `callout-${(node.attrs.calloutType as string || 'NOTE').toLowerCase()}`
+      return BLOCK_TYPE_META[key] ?? BLOCK_TYPE_META['callout-note']
+    }
+  }
+  return BLOCK_TYPE_META.text
+}
 import { toggleSuppressCommand } from './suppressRanges'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import type { SelectionToolbarState } from './selectionToolbarPlugin'
@@ -153,8 +172,15 @@ export default function SelectionToolbar({
             onMouseDown={() => setOpenDropdown((v) => (v === 'type' ? 'none' : 'type'))}
             className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 px-2`}
           >
-            <PilcrowIcon size={14} /> <ChevronDown size={10} />
+            {(() => { const Icon = currentBlockTypeMeta(view).icon; return <Icon size={14} /> })()}
+            <ChevronDown size={10} />
           </button>
+        </HintTooltip>
+
+        {/* Thread — its own standalone button, not a "Text type" dropdown entry (same
+            reasoning as the persistent Toolbar.tsx's identical button). */}
+        <HintTooltip label="Thread" side="top">
+          <button onMouseDown={() => cmds.wrapInThread()} className={cls(false)}><ThreadIcon size={14} /></button>
         </HintTooltip>
         {sep}
 
@@ -253,6 +279,17 @@ export default function SelectionToolbar({
                 </button>
               )
             })}
+            <div className="w-px h-4 mx-0.5 bg-[rgb(var(--color-surface-4))]" />
+            {/* Wraps the selected text's containing block(s) in a new thread — same
+                editorCommands.ts wrapInThread() the persistent Toolbar's own "Thread" option
+                uses. */}
+            <button
+              title="Thread"
+              onMouseDown={() => { cmds.wrapInThread(); setOpenDropdown('none') }}
+              className={`${iconBtn} ${inactive} px-2 py-1`}
+            >
+              <ThreadIcon size={14} />
+            </button>
           </div>
         )}
 

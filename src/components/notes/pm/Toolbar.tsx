@@ -22,17 +22,42 @@ import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styl
 import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
 import { computeWordStats, type WordStats } from '@/lib/wordCount'
-import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS } from '@/lib/blockTypeIcons'
+import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
 // Same styled-keycap hover hint the rest of the app uses (ShellHeader, Ribbon, Settings…)
 // — this toolbar was one of the last places still on plain native `title="Bold (⌘B)"`
 // tooltips, which render in the OS's own delayed grey box with the shortcut as run-together
 // parenthesised text instead of real keycaps.
 import { HintTooltip } from '@/components/shell/HintTooltip'
 
-// The "Text type" dropdown trigger and the code-block button both take their glyph from
-// the shared block-type config rather than picking one locally (see blockTypeIcons.ts).
-const PilcrowIcon = BLOCK_TYPE_META.text.icon
+// The code-block button takes its glyph from the shared block-type config rather than picking
+// one locally (see blockTypeIcons.ts). The "Text type" dropdown TRIGGER used to do the same
+// (a hardcoded PilcrowIcon) — see currentBlockTypeMeta below for why that's now dynamic instead.
 const CodeBlockIcon = BLOCK_TYPE_META.code.icon
+const ThreadIcon = BLOCK_TYPE_META.thread.icon
+
+// Reported: "I still don't see the thread icon in the top formatting bar" — the "Text type"
+// trigger button's icon used to be hardcoded to the plain-text glyph regardless of where the
+// cursor actually sat (true for every block type, not just threads — headings/callouts never
+// updated it either). Walks from the cursor's innermost containing node outward and returns the
+// glyph for the first one that actually has a distinct identity worth showing; falls through to
+// plain "Text" for a bare paragraph, list item, etc. Recomputed fresh on every Toolbar render —
+// good enough in practice since a meaningful selection/doc change already re-renders this
+// component via the sibling selectionToolbarPlugin/tableStatusPlugin state (see their own
+// `set...` calls elsewhere in this file's effects), the same reactivity every other "active"
+// button state here (Bold, Italic, …) already relies on.
+function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
+  const $from = view.state.selection.$from
+  for (let d = $from.depth; d >= 0; d--) {
+    const node = $from.node(d)
+    if (node.type.name === 'thread') return BLOCK_TYPE_META.thread
+    if (node.type.name === 'heading') return headingMeta(node.attrs.level as number)
+    if (node.type.name === 'callout') {
+      const key = `callout-${(node.attrs.calloutType as string || 'NOTE').toLowerCase()}`
+      return BLOCK_TYPE_META[key] ?? BLOCK_TYPE_META['callout-note']
+    }
+  }
+  return BLOCK_TYPE_META.text
+}
 
 // Debounce window for the word-count/reading-time footer below — deliberately the same 500ms
 // autosave uses (NotesPanel.tsx's handleContentChange/handleTitleChange saveTimer) so the
@@ -311,7 +336,19 @@ export default function Toolbar({
           onMouseDown={(e) => openDropdownAt('type', e)}
           className={`${iconBtn} ${openDropdown === 'type' ? active : inactive} flex items-center gap-0.5 px-2`}
         >
-          <PilcrowIcon size={14} /> <ChevronDown size={10} />
+          {(() => { const Icon = currentBlockTypeMeta(editorView).icon; return <Icon size={14} /> })()}
+          <ChevronDown size={10} />
+        </button>
+      </HintTooltip>
+
+      {/* Thread — its own standalone button, not a "Text type" dropdown entry: a thread isn't
+          a text-type variant the way a heading level is (it's a whole collapsible container
+          with entries of its own), so it reads better as a distinct insert action, the same
+          way Table/Image/Divider each get their own button below rather than living inside
+          that dropdown. */}
+      <HintTooltip label="Thread">
+        <button onMouseDown={() => cmds.wrapInThread()} className={`${iconBtn} ${inactive}`}>
+          <ThreadIcon size={14} />
         </button>
       </HintTooltip>
       {sep}

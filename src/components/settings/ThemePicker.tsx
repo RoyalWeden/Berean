@@ -164,17 +164,9 @@ export default function ThemePicker({
             handler — see that file's own comment on `modal={!themePickerOpen}`. */}
         <div className="flex-1 min-h-0 overflow-y-auto p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visible.map((preset) => (
-              <ThemeCard
-                key={preset.id || 'default'}
-                preset={preset}
-                previewVariant={previewVariant}
-                active={isActive(preset)}
-                onSelect={() => selectPreset(preset)}
-              />
-            ))}
-
-            {/* "System" preset — live macOS accent color, not a static swatch */}
+            {/* "System" preset — live macOS accent color, not a static swatch. Rendered first
+                (matching the Color mode picker's Dark/Light/System ordering in
+                SettingsModal.tsx) rather than after every other preset. */}
             {activeFamily === 'All' && (
               <ThemeCard
                 preset={THEME_PRESETS[0]}
@@ -185,6 +177,16 @@ export default function ThemePicker({
                 onSelect={() => setThemePreset(isSystemAccentActive ? '' : 'system-accent')}
               />
             )}
+
+            {visible.map((preset) => (
+              <ThemeCard
+                key={preset.id || 'default'}
+                preset={preset}
+                previewVariant={previewVariant}
+                active={isActive(preset)}
+                onSelect={() => selectPreset(preset)}
+              />
+            ))}
           </div>
         </div>
       </div>

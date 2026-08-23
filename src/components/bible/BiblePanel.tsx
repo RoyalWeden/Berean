@@ -19,7 +19,7 @@ import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
-import { computePresenterBand as computeBandGeometry, measureContentHeight, shallowEqualNumberRecord } from '@/lib/presenterBand'
+import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord } from '@/lib/presenterBand'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
@@ -122,9 +122,18 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // presenter is mirroring the main panel proportionally). While set, the outline band is
   // computed from this verse's centered position instead of the main panel's scroll percent.
   const findCenterVerseRef = useRef<number | null>(null)
-  // Virtual scroll percent for driving the presenter via the wheel when the main panel's
-  // content fits entirely (so there's no real scroll to mirror).
+  // Virtual scroll percent driving the presenter — either purely from the wheel, when the
+  // main panel's content fits entirely (no real scroll to mirror), or normalized from the
+  // main panel's OWN scrollTop deltas otherwise (see handleBibleScroll below). In both cases
+  // this is the single "shared p" value actually applied to the presenter and used to draw
+  // the outline band, so the two can never disagree about where the presenter is scrolled to.
   const virtualScrollPctRef = useRef(0)
+  // The main panel's own scrollTop as of the last handleBibleScroll event, used to derive a
+  // physical px delta each event rather than a fresh ratio-to-own-range every time (see
+  // handleBibleScroll). Kept in sync with virtualScrollPctRef by every place that resets or
+  // jumps that percent (chapter change, scroll-position restore, presenter push) so a
+  // discontinuous jump never gets treated as a continuous scroll delta.
+  const lastMainScrollTopRef = useRef(0)
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -346,6 +355,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     findCenterVerseRef.current = null
     findScrollSuppressRef.current = 0
     virtualScrollPctRef.current = 0
+    lastMainScrollTopRef.current = 0
   }
 
   useEffect(() => {
@@ -418,6 +428,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
     }
     virtualScrollPctRef.current = 0
+    lastMainScrollTopRef.current = 0
     pendingScrollRef.current = null
     // A pending targetVerse owns scrolling for this load (see the scroll-to-verse effect in
     // ChapterView.tsx) — restoring the old saved scrollPosition here would fight it. Some
@@ -535,11 +546,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // drift from ViewerBiblePage.tsx's own copy of the same measurement.
     const mainH = measureContentHeight(c.scrollHeight, contentBottom)
 
-    const fits = c.scrollHeight - c.clientHeight <= 0
+    // virtualScrollPctRef is now the single source of truth for the shared scroll percent in
+    // every case (wheel-driven virtual scroll when the chapter fits, and the sensitivity-
+    // normalized value from handleBibleScroll otherwise) — using it unconditionally here (not
+    // just when `fits`) keeps the band's geometry agreeing with wherever the outline actually
+    // scrolled to, rather than the raw (un-normalized) mainScrollTop/denom ratio that
+    // computeBandGeometry would otherwise fall back to.
+    let scrollPercentOverride: number | undefined = virtualScrollPctRef.current
     // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
     // mirroring the main panel proportionally — so derive the scroll percent from where that
     // verse sits, centered, in the presenter's content (otherwise the band lands mid-verse).
-    let scrollPercentOverride = fits ? virtualScrollPctRef.current : undefined
     const fv = findCenterVerseRef.current
     if (fv != null && f < 1) {
       const vf = region.verseFracs[fv]
@@ -583,7 +599,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = getScrollEl()
     if (container) {
       const max = container.scrollHeight - container.clientHeight
-      setMainBibleScrollPercent(max > 0 ? container.scrollTop / max : 0, `${tabState.bookId}:${tabState.chapter}`)
+      const percent = max > 0 ? container.scrollTop / max : 0
+      setMainBibleScrollPercent(percent, `${tabState.bookId}:${tabState.chapter}`)
+      // This is an explicit absolute re-sync (not a physical scroll gesture), so resync the
+      // handleBibleScroll accumulator straight to this accurate ratio too — otherwise the
+      // next real scroll would resume its sensitivity-normalized delta from a stale baseline.
+      virtualScrollPctRef.current = percent
+      lastMainScrollTopRef.current = container.scrollTop
     }
     const payload = computeViewerPayload()
     window.app.pushViewerContent?.(payload)
@@ -1483,6 +1505,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const elTop = el.getBoundingClientRect().top
         container.scrollTop += elTop - containerTop - verseAnchor.offsetPx
         setFlashAnchor({ verse: verseAnchor.verseNum, nonce: Date.now() })
+        // This is a discontinuous jump, not a physical scroll gesture — resync
+        // handleBibleScroll's sensitivity-based accumulator straight to the accurate ratio at
+        // this new position so the next real scroll doesn't smooth its delta in from a stale
+        // pre-jump baseline (see handleBibleScroll's own comment on this pattern).
+        const newMax = container.scrollHeight - container.clientHeight
+        virtualScrollPctRef.current = newMax > 0 ? container.scrollTop / newMax : 0
+        lastMainScrollTopRef.current = container.scrollTop
       }
       return
     }
@@ -1499,6 +1528,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const el = getScrollEl()
     if (el) {
       el.scrollTop = pos
+      // Same resync as the verse-anchor branch above — this is a saved-position restore,
+      // not a physical scroll gesture.
+      const newMax = el.scrollHeight - el.clientHeight
+      virtualScrollPctRef.current = newMax > 0 ? pos / newMax : 0
+      lastMainScrollTopRef.current = pos
     }
   }, []) // refs never change identity — getScrollEl reads refs directly
 
@@ -1749,16 +1783,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
     }, 150)
     const max = container.scrollHeight - container.clientHeight
-    const scrollPercent = max > 0 ? scrollTop / max : 0
     const st = useAppStore.getState()
+    let scrollPercent: number
     if (Date.now() < findScrollSuppressRef.current) {
       // A verse-jump (find bar or targetVerse navigation) just scrolled this container
       // programmatically — this scroll event is that jump's own side effect, not a real user
-      // scroll. Don't record it as the "last known" percent either: caching it here would
-      // leave the presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned
-      // value for this chapter that a later, unrelated push could pick up and wrongly reuse.
+      // scroll. Resync the accumulator straight to the accurate ratio (bypassing the
+      // sensitivity-based delta smoothing below, which is only meant for genuine physical
+      // scroll gestures) so a later real scroll resumes from wherever the main panel actually
+      // sits, not from wherever the jump's own scroll events happened to accumulate to.
+      // Don't record it as the "last known" percent either: caching it here would leave the
+      // presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned value for
+      // this chapter that a later, unrelated push could pick up and wrongly reuse.
+      scrollPercent = max > 0 ? scrollTop / max : 0
+      virtualScrollPctRef.current = scrollPercent
+      lastMainScrollTopRef.current = scrollTop
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
     } else {
+      // Normalize the physical scrollTop delta against the PRESENTER's own scrollable range
+      // (not this panel's own, often tiny, range) — see presenterScrollSensitivity's doc
+      // comment for the full derivation. This is the same math the zero-scroll-room wheel
+      // handler further below already uses to drive a "virtual" scroll, generalized here to
+      // real (nonzero) native scroll events, so the outline's felt scroll speed no longer
+      // swings wildly depending on how little a chapter happens to overflow this panel.
+      // Snapped to the exact extremes at the true top/bottom of THIS panel's own scroll range
+      // so reaching either end here always means reaching the corresponding end of the
+      // presenter's outline — the normalization only smooths the speed of the motion between
+      // those two endpoints, it never stops the outline from actually reaching them.
+      const region = viewerVisibleRegion
+      const sensitivity = presenterScrollSensitivity(region?.clientHeight, region?.visibleFraction)
+      const deltaPx = scrollTop - lastMainScrollTopRef.current
+      lastMainScrollTopRef.current = scrollTop
+      if (max <= 0 || scrollTop <= 0) scrollPercent = 0
+      else if (scrollTop >= max) scrollPercent = 1
+      else scrollPercent = Math.max(0, Math.min(1, virtualScrollPctRef.current + deltaPx * sensitivity))
+      virtualScrollPctRef.current = scrollPercent
       setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     }
     if (Date.now() >= findScrollSuppressRef.current && st.viewerWindowOpen && !st.viewerPaused) {
@@ -2441,25 +2500,16 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           if (!c || c.scrollHeight - c.clientHeight > 0) return
           const st = useAppStore.getState()
           if (!st.viewerWindowOpen || st.viewerPaused || st.viewerBlank) return
-          // Sensitivity derived from the presenter's OWN real overflow (its
-          // clientHeight and how much of its content is hidden, f), not a
-          // flat magic constant — a flat rate felt wildly different (often
-          // far too fast) depending on how zoomed in the presenter was /
-          // how little of a short chapter actually overflowed, since a
-          // fixed px-per-wheel-tick has no relationship to how much
-          // scrollable range there actually is to cover. This reproduces
-          // the same math a real scrollbar uses: percent = deltaPx /
-          // scrollableRangePx, where scrollableRangePx = clientHeight *
-          // (1-f)/f. Floored so a chapter that barely overflows (f→1)
-          // doesn't produce a near-infinite (instant-jump-to-end)
-          // sensitivity — small floor still lets a deliberate scroll move
-          // it, just not on a single wheel tick.
+          // Sensitivity derived from the presenter's OWN real overflow (its clientHeight and
+          // how much of its content is hidden) — see presenterScrollSensitivity's doc comment
+          // for the full derivation (a flat magic constant felt wildly different depending on
+          // how zoomed in the presenter was / how little of a short chapter overflowed, since
+          // a fixed px-per-wheel-tick has no relationship to how much scrollable range there
+          // actually is to cover). Shared with handleBibleScroll's own normalization above,
+          // which applies the identical math to real (nonzero) native scroll deltas instead
+          // of wheel deltas.
           const region = viewerVisibleRegion
-          let sensitivity = 0.0012
-          if (region && region.clientHeight && region.visibleFraction > 0 && region.visibleFraction < 1) {
-            const scrollableRangePx = Math.max(40, region.clientHeight * (1 - region.visibleFraction) / region.visibleFraction)
-            sensitivity = 1 / scrollableRangePx
-          }
+          const sensitivity = presenterScrollSensitivity(region?.clientHeight, region?.visibleFraction)
           const next = Math.max(0, Math.min(1, virtualScrollPctRef.current + e.deltaY * sensitivity))
           if (next === virtualScrollPctRef.current) return
           virtualScrollPctRef.current = next

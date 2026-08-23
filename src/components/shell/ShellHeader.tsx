@@ -130,6 +130,27 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
     return () => headerEl.removeEventListener('mousedown', handleHeaderMouseDown)
   }, [])
 
+  // Publishes this header's real rendered height as a CSS var so global.css's ambient
+  // background-animation layer (html.theme-anim-bg body::before) can clip itself below it —
+  // on mac this header is `.topbar-vibrant` (a genuinely transparent Electron window with
+  // vibrancy, not just a translucent-looking CSS color: electron/main.ts sets
+  // `transparent: true, vibrancy: 'sidebar'`), so the animated blob painting behind it was
+  // visibly tinting what's supposed to be neutral OS-blurred vibrancy — worst right at the
+  // window's top-left corner, where this header's vibrancy and Sidebar.tsx's own (see its
+  // matching effect for `--berean-sidebar-w`) overlap. A ResizeObserver (not a one-time
+  // measurement) because `appZoom` and window-width-driven wrapping can change this bar's real
+  // height after mount.
+  useEffect(() => {
+    const headerEl = headerRef.current
+    if (!headerEl) return
+    const root = document.documentElement
+    const ro = new ResizeObserver(() => {
+      root.style.setProperty('--berean-header-h', `${headerEl.getBoundingClientRect().height}px`)
+    })
+    ro.observe(headerEl)
+    return () => ro.disconnect()
+  }, [])
+
   const [navNoteTitles, setNavNoteTitles] = useState<Map<string, string>>(new Map())
   useEffect(() => {
     getAllNotes(noteChangeToken)

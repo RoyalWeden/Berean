@@ -687,6 +687,34 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v26: playlists + playlist_items tables')
     }
+  },
+  {
+    // Persisted thread-collapse state (notes editor threads feature) — the thread-node
+    // counterpart of v24's note_heading_collapse table just above; same "keep it OUT of the
+    // note's own markdown content" rationale (a note's serialized markdown must stay a lossless
+    // round-trip for Obsidian/Octarine — see NoteEditorPM.tsx's dispatchTransaction, which
+    // re-serializes on every keystroke and writes straight to the vault). The one structural
+    // difference from note_heading_collapse: `thread_key` here is simply the thread's own
+    // `threadId` attr (schema.ts) — a real, caller-generated uuid stamped once at insertion —
+    // not a derived-from-content key. Headings have no id attr slot to carry one in, so
+    // headingCollapse.ts's computeHeadingKey has to approximate stable identity from
+    // level+text+ordinal instead; threads don't need that approximation. No foreign key to
+    // `notes`, same reasoning as v24: a row whose note (or whose thread) no longer exists simply
+    // never matches back to a live thread at load time (electron/ipc/notes.ts's
+    // notes:getCollapsedThreads / NoteEditorPM.tsx's threadIdsPresentInDoc filter) — "degrade
+    // silently," not something enforced here.
+    version: 27,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS note_thread_collapse (
+          note_id    TEXT NOT NULL,
+          thread_key TEXT NOT NULL,
+          collapsed  INTEGER NOT NULL DEFAULT 1,
+          PRIMARY KEY (note_id, thread_key)
+        );
+      `)
+      console.log('[berean-db] v27: note_thread_collapse table')
+    }
   }
 ]
 

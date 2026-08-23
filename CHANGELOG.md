@@ -122,6 +122,54 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.4] - 2026-08-22
+
+Notes
+
+- New: Threads — a collapsible container you can insert into any note
+  (`/thread` or the toolbar's Thread button) to keep a running, timestamped
+  log of entries instead of one static block of text. Each thread shows a
+  live word/character count, an editable title (or a preview of its first
+  line when untitled), and can be collapsed to just that summary. Threads
+  can be nested inside one another to any depth — add a sub-thread from
+  any thread's footer, and a breadcrumb trail lets you jump back out to
+  the main thread from deep inside a nested one. Threads sync to your
+  vault as plain, readable markdown.
+- Selecting an entire thread (or sub-thread) as a block now highlights it
+  as one unit instead of selecting the text inside it piecemeal — matching
+  how images already behave.
+- Fixed clicking in the empty space below a thread or image sometimes
+  jumping the whole note's scroll position upward instead of just placing
+  the cursor at the end.
+- The "Thread" insert/convert option now shows its own icon, both in the
+  slash menu and as its own button in the formatting toolbars (rather than
+  only living inside the paragraph/heading dropdown).
+
+Settings
+
+- The theme picker's "System" option (both the light/dark/system toggle
+  and the System accent color card) now appears first in the list instead
+  of last.
+- Fixed the ambient background animation tinting the sidebar and top bar
+  with color near the left edge of the window instead of staying confined
+  to the main reading area.
+
+Presenter
+
+- Fixed the presenter outline scrolling far too fast on a chapter that
+  only barely overflows the main reading window — scroll speed now feels
+  consistent regardless of how much of a chapter fits on screen.
+
+Reading
+
+- Selecting scripture text and dragging into the sidebar no longer
+  highlights the sidebar's own text (the daily calendar, tab titles, etc).
+- Fixed clicking a Lexicon occurrence sometimes landing on the wrong verse
+  and scrambling the tab's back/forward history when it opened a new
+  Scripture tab to navigate to — it now goes straight to the right verse
+  (and the right translation, matching the occurrence's own text) with a
+  clean, single history entry.
+
 ## [0.5.3] - 2026-08-21
 
 Read Aloud
