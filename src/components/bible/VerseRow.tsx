@@ -397,6 +397,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverPanelRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
   const selToolbarRef = useRef<HTMLDivElement>(null)
   const words = verseForDisplay.text.split(' ')
@@ -695,6 +696,29 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       setSelToolbar(prev => prev ? { ...prev, x, y } : null)
     }
   }, [selToolbar])
+
+  // After the verse-number popover renders, measure its ACTUAL size and re-clamp — the
+  // click-position clamp in openPopover() only guesses the height (MENU_H = 240px), but the
+  // real panel (6 action rows + a divider + 3 rows of highlight swatches) renders taller than
+  // that, so a click near the bottom of the viewport still let it run off-screen. Same
+  // measure-then-clamp pattern as the selection toolbar above.
+  useLayoutEffect(() => {
+    if (!popoverOpen || !popoverPanelRef.current) return
+    const el = popoverPanelRef.current
+    const r = el.getBoundingClientRect()
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let x = popoverPos.x
+    let y = popoverPos.y
+    if (r.right  > vw - pad) x = vw - r.width  - pad
+    if (x < pad)             x = pad
+    if (r.bottom > vh - pad) y = vh - r.height - pad
+    if (y < pad)             y = pad
+    if (x !== popoverPos.x || y !== popoverPos.y) {
+      setPopoverPos({ x, y })
+    }
+  }, [popoverOpen, popoverPos])
 
   // Dismiss selection toolbar when clicking away — skip dismissal if click is inside toolbar
   useEffect(() => {
@@ -1207,6 +1231,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
             // menu) needed the opposite nudge (was too transparent, not enough contrast
             // against selected/highlighted text) — so each gets its own explicit background
             // opacity rather than sharing one value that can't satisfy both at once.
+            ref={popoverPanelRef}
             className="fixed z-[100] min-w-[160px] rounded-shell context-menu overflow-hidden py-1"
             style={{ left: popoverPos.x, top: popoverPos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.94)' }}
           >
