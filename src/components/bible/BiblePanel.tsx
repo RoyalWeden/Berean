@@ -120,6 +120,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // While a find-bar jump is in flight, suppress proportional scroll sync so the explicit
   // "center this verse" command drives the presenter cleanly (no tug-of-war).
   const findScrollSuppressRef = useRef(0)
+  // Fires ~180ms after the LAST scroll event, regardless of suppression state — the fix for a
+  // confirmed bug (found via a dedicated investigation of "presenter shows a stale verse range
+  // after a targetVerse jump + manual scroll"): findScrollSuppressRef.current re-extends itself
+  // on EVERY scroll tick that lands while still suppressed (see the "else" branch below), so a
+  // continuous scroll gesture right after a jump — normal reading behavior — can push the
+  // suppression deadline forward every tick and never let it expire while still moving. The
+  // tick where the user actually STOPS (their true final resting scrollTop) is then itself
+  // swallowed by the still-active suppression window, and since no further scroll event ever
+  // fires, that true final position is NEVER cached or pushed — leaving the presenter/outline
+  // permanently mirroring a stale mid-jump position. This timer independently detects "scrolling
+  // has settled" and forces one authoritative sync from the real current DOM state, bypassing
+  // suppression entirely, so the true final position always eventually gets through.
+  const scrollSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The verse the presenter is currently centered on via a find-bar jump (null when the
   // presenter is mirroring the main panel proportionally). While set, the outline band is
   // computed from this verse's centered position instead of the main panel's scroll percent.
@@ -1965,6 +1978,50 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // clearing a stale band.
       computePresenterBand()
     }
+    // Schedule (or re-schedule) the "scroll has settled" fallback — see scrollSettleTimerRef's
+    // own doc comment for the bug this closes. Every scroll tick pushes the deadline out; only
+    // once ticks actually stop arriving does this fire, at which point it forces one final,
+    // UNSUPPRESSED sync from the live DOM's true current position.
+    if (scrollSettleTimerRef.current) clearTimeout(scrollSettleTimerRef.current)
+    scrollSettleTimerRef.current = setTimeout(() => {
+      scrollSettleTimerRef.current = null
+      const el = getScrollEl()
+      if (!el) return
+      const settledScrollTop = el.scrollTop
+      const settledHeadingEl = continuousChapterScroll
+        ? (el.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null)
+        : null
+      const settledWrapperEl = (settledHeadingEl?.parentElement as HTMLElement | null) ?? (continuousChapterScroll ? null : el)
+      let settledEff = settledScrollTop
+      let settledMax = el.scrollHeight - el.clientHeight
+      if (continuousChapterScroll && settledWrapperEl) {
+        const cRect = el.getBoundingClientRect()
+        const wRect = settledWrapperEl.getBoundingClientRect()
+        const chapterTop = wRect.top - cRect.top + settledScrollTop
+        settledEff = Math.max(0, settledScrollTop - chapterTop)
+        settledMax = settledWrapperEl.offsetHeight - el.clientHeight
+      }
+      const settledPercent = settledMax <= 0 ? 0 : settledEff <= 0 ? 0 : settledEff >= settledMax ? 1 : settledEff / settledMax
+      virtualScrollPctRef.current = settledPercent
+      lastMainScrollTopRef.current = settledScrollTop
+      // Force-expire any lingering suppression — this settle sync IS the authoritative final
+      // word on where the panel actually rests, superseding whatever jump/find-bar centering
+      // was suppressing proportional pushes until now.
+      findScrollSuppressRef.current = 0
+      setMainBibleScrollPercent(settledPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+      if (window.__bereanPresenterDebug) {
+        console.log('[PD scroll-settled]', {
+          bookId: tabStateRef.current.bookId, chapter: tabStateRef.current.chapter,
+          settledScrollTop, settledEff, settledMax, settledPercent,
+        })
+      }
+      const st2 = useAppStore.getState()
+      if (!st2.viewerWindowOpen || st2.viewerPaused) return
+      findCenterVerseRef.current = null
+      const base = computeViewerPayload()
+      if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: settledPercent })
+      computePresenterBand()
+    }, 180)
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────
