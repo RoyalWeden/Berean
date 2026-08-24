@@ -1,0 +1,63 @@
+import { createElement } from 'react'
+import { usePositionedMenu } from '@/lib/usePositionedMenu'
+import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
+import { bookName } from '@/lib/parseRef'
+
+// Shared right-click menu for every chapter/Strong's label in the Study Trail window —
+// "Open in new tab" / "Open in floating tab", the same pair VerseRow.tsx and
+// BibleRightPanel.tsx already offer for a cross-ref (see those files' indicatorMenu /
+// sideCtxMenu popovers), rebuilt here with this window's own inline-style convention since
+// those components are tightly coupled to their host's own popover state machine and aren't
+// meant to be imported across windows.
+export function useTrailRefMenu() {
+  return usePositionedMenu<{ ref: TrailRef }>()
+}
+
+export function openTrailRefMenu(
+  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void,
+  ref: TrailRef,
+  e: React.MouseEvent,
+) {
+  e.preventDefault()
+  e.stopPropagation()
+  openMenu({ ref, x: e.clientX, y: e.clientY })
+}
+
+export function TrailRefContextMenu({
+  menu, menuRef, onClose,
+}: {
+  menu: ({ ref: TrailRef } & { x: number; y: number }) | null
+  menuRef: React.RefObject<HTMLDivElement>
+  onClose: () => void
+}) {
+  if (!menu) return null
+  const label = trailRefLabel(menu.ref, bookName)
+  return createElement('div', {
+    ref: menuRef,
+    style: {
+      position: 'fixed', top: menu.y, left: menu.x, zIndex: 10001, minWidth: 170,
+      background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+      borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
+    },
+  },
+    createElement('div', { style: { fontSize: 10.5, color: 'rgb(var(--color-text-muted))', padding: '3px 8px 5px' } }, label),
+    createElement('button', {
+      onClick: () => { navigateTrailRef(menu.ref, false); onClose() },
+      style: menuBtnStyle,
+    }, 'Open in current tab'),
+    createElement('button', {
+      onClick: () => { navigateTrailRef(menu.ref, true); onClose() },
+      style: menuBtnStyle,
+    }, 'Open in new tab'),
+    createElement('button', {
+      onClick: () => { trailRefOpenFloating(menu.ref); onClose() },
+      style: menuBtnStyle,
+    }, 'Open in floating tab'),
+  )
+}
+
+const menuBtnStyle: React.CSSProperties = {
+  display: 'block', width: '100%', textAlign: 'left', fontSize: 12, padding: '6px 8px',
+  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+  color: 'rgb(var(--color-text-primary))',
+}

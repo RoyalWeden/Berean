@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailSession, TrailSessionDetail, TrailConnectionWithSession } from '@/types/studyTrail'
 import { buildRecap } from './recapText'
+import { trailRefClick, type TrailRef } from './trailNav'
 
 // The Review tab: search across every session's connections, plus each session collapsed into
 // an editable prose recap paragraph. Search is currently substring-only server-side
@@ -97,10 +98,20 @@ function SearchResultRow({ r }: { r: TrailConnectionWithSession }) {
   const label = r.toKind === 'lexicon'
     ? `Strong's ${r.toStrongsNum}`
     : `${r.toBookId ? bookName(r.toBookId) : ''} ${r.toChapter ?? ''}${r.toVerse ? `:${r.toVerse}` : ''}`
+  const ref: TrailRef | null = r.toKind === 'lexicon' && r.toStrongsNum
+    ? { kind: 'lexicon', strongsNum: r.toStrongsNum }
+    : (r.toKind === 'chapter' || r.toKind === 'compare') && r.toBookId && r.toChapter != null
+      ? { kind: 'chapter', bookId: r.toBookId, chapter: r.toChapter, verse: r.toVerse }
+      : null
   return (
     <div style={{ padding: '6px 0', borderBottom: '1px solid rgb(var(--color-surface-4))' }}>
       <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-primary))' }}>
-        {label} <span style={{ color: 'rgb(var(--color-text-muted))' }}>· {r.sessionName}</span>
+        <span
+          onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
+          style={{ cursor: ref ? 'pointer' : undefined }}
+          onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+        >{label}</span> <span style={{ color: 'rgb(var(--color-text-muted))' }}>· {r.sessionName}</span>
       </div>
       {r.reasonText && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic', marginTop: 1 }}>{r.reasonText}</div>}
     </div>

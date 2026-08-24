@@ -907,6 +907,19 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('app:isStudyTrailWindowOpen', () => !!studyTrailWindow && !studyTrailWindow.isDestroyed())
   ipcMain.handle('app:closeStudyTrailWindow', () => { studyTrailWindow?.close(); return true })
+  // Study Trail (and any other secondary window) has its own independent renderer store — a
+  // click on a chapter/Strong's label there can't just call the main window's own tab-state
+  // setters directly, since those would only mutate THIS window's store. This focuses the real
+  // main window and hands it the ref; App.tsx's onNavigateToRef listener does the actual
+  // navigateToVerse/addTab/openLexiconEntry call against the main window's own live state.
+  ipcMain.handle('app:navigateMainToRef', (_e, payload: unknown) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('app:navigateToRef', payload)
+    return true
+  })
   // Broadcasts the live-session id/status to every open window (main + Study Trail) —
   // see preload.ts's broadcastStudyTrailState comment for why this exists at all: each
   // window's useStudyTrailStore is a separate in-memory instance, so this is the only way

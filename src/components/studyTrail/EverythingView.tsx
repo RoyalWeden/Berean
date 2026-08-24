@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
+import TrailHoverCard from './TrailHoverCard'
+import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
+import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
+import { trailRefClick, type TrailRef } from './trailNav'
+
+function connRef(conn: TrailConnection): TrailRef | null {
+  if (conn.toKind === 'lexicon' && conn.toStrongsNum) return { kind: 'lexicon', strongsNum: conn.toStrongsNum }
+  if ((conn.toKind === 'chapter' || conn.toKind === 'compare') && conn.toBookId && conn.toChapter != null) {
+    return { kind: 'chapter', bookId: conn.toBookId, chapter: conn.toChapter, verse: conn.toVerse }
+  }
+  return null
+}
 
 // The default landing view — everything recorded across EVERY session, with no session
 // selected. Answers "I'm not in any particular session right now, just show me what's been
@@ -22,7 +34,10 @@ function LineSwatch({ weight, tier, clustered }: { weight: string; tier: number;
   )
 }
 
-function ConnectionRow({ conn, onOpenPrompt }: { conn: TrailConnection; onOpenPrompt: (c: TrailConnection) => void }) {
+function ConnectionRow({ conn, onOpenPrompt, openMenu }: {
+  conn: TrailConnection; onOpenPrompt: (c: TrailConnection) => void
+  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+}) {
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
   const label = isLexicon
@@ -31,7 +46,9 @@ function ConnectionRow({ conn, onOpenPrompt }: { conn: TrailConnection; onOpenPr
     : conn.toKind === 'note' ? 'note'
     : conn.toKind === 'video' ? 'video'
     : `${bookName(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
+  const ref = connRef(conn)
   return (
+    <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
       <LineSwatch weight={conn.weight} tier={conn.clarityTier} clustered={!!conn.clusterId} />
       <span style={{
@@ -40,7 +57,11 @@ function ConnectionRow({ conn, onOpenPrompt }: { conn: TrailConnection; onOpenPr
         background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
         opacity: conn.weight === 'glance' ? 0.5 : 1,
       }} />
-      <span style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1 }}>{label}</span>
+      <span
+        onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
+        onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e) : undefined}
+        style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1, cursor: ref ? 'pointer' : undefined }}
+      >{label}</span>
       {conn.reasonText ? (
         <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {conn.reasonText}</span>
       ) : needsInput ? (
@@ -56,10 +77,14 @@ function ConnectionRow({ conn, onOpenPrompt }: { conn: TrailConnection; onOpenPr
       ) : null}
       {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
     </div>
+    </TrailHoverCard>
   )
 }
 
-function SessionBlock({ detail, onOpenPrompt }: { detail: TrailSessionDetail; onOpenPrompt: (c: TrailConnection) => void }) {
+function SessionBlock({ detail, onOpenPrompt, openMenu }: {
+  detail: TrailSessionDetail; onOpenPrompt: (c: TrailConnection) => void
+  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+}) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -75,11 +100,17 @@ function SessionBlock({ detail, onOpenPrompt }: { detail: TrailSessionDetail; on
       ) : (
         detail.nodes.map((n: TrailNode) => (
           <div key={n.id} style={{ paddingLeft: 11, marginBottom: 6 }}>
-            <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
-              {bookName(n.bookId)} {n.chapter}
-            </div>
+            <TrailHoverCard content={<TrailNodeHoverContent node={n} />}>
+              <div
+                onClick={(e) => trailRefClick({ kind: 'chapter', bookId: n.bookId, chapter: n.chapter }, e)}
+                onContextMenu={(e) => openTrailRefMenu(openMenu, { kind: 'chapter', bookId: n.bookId, chapter: n.chapter }, e)}
+                style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer', display: 'inline-block' }}
+              >
+                {bookName(n.bookId)} {n.chapter}
+              </div>
+            </TrailHoverCard>
             {detail.connections.filter((c) => c.fromNodeId === n.id).map((c) => (
-              <ConnectionRow key={c.id} conn={c} onOpenPrompt={onOpenPrompt} />
+              <ConnectionRow key={c.id} conn={c} onOpenPrompt={onOpenPrompt} openMenu={openMenu} />
             ))}
           </div>
         ))
@@ -92,6 +123,7 @@ export default function EverythingView({ sessions }: { sessions: TrailSession[] 
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
+  const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
 
   async function loadAll() {
     setLoading(true)
@@ -115,7 +147,7 @@ export default function EverythingView({ sessions }: { sessions: TrailSession[] 
       {details.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
-        details.map((d) => <SessionBlock key={d.session.id} detail={d} onOpenPrompt={setPromptConn} />)
+        details.map((d) => <SessionBlock key={d.session.id} detail={d} onOpenPrompt={setPromptConn} openMenu={openMenu} />)
       )}
       {promptConn && (
         <ReasonPromptPopover
@@ -124,6 +156,7 @@ export default function EverythingView({ sessions }: { sessions: TrailSession[] 
           onSaved={() => { setPromptConn(null); loadAll() }}
         />
       )}
+      <TrailRefContextMenu menu={menu} menuRef={menuRef} onClose={closeMenu} />
     </div>
   )
 }

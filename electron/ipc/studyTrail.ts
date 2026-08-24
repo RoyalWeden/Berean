@@ -120,6 +120,55 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
+  // Marks a session 'ended' and computes possiblyAccidental for real, rather than leaving the
+  // column permanently at its DEFAULT 0 (there was previously no code path that ever wrote
+  // 'ended' or touched this column at all). "Accidental" = a session with at most one node,
+  // zero connections, and under 30s between creation and this call — i.e. the user opened a
+  // session and immediately closed it without actually studying anything.
+  ipcMain.handle('studyTrail:endSession', (_e, trailSessionId: string) => {
+    const db = getBereanDb()
+    const now = Date.now()
+    prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE trail_session_id = ? AND anchor_ended_at IS NULL`)
+      .run(now, trailSessionId)
+    const session = prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(trailSessionId) as TrailSessionRow | undefined
+    const nodeCount = (prep(db, 'SELECT COUNT(*) as n FROM trail_nodes WHERE trail_session_id = ?').get(trailSessionId) as { n: number }).n
+    const connCount = (prep(db, 'SELECT COUNT(*) as n FROM trail_connections WHERE trail_session_id = ?').get(trailSessionId) as { n: number }).n
+    const accidental = !!session && nodeCount <= 1 && connCount === 0 && (now - session.created_at) < 30_000
+    prep(db, `UPDATE trail_sessions SET status = 'ended', possibly_accidental = ?, updated_at = ? WHERE id = ?`)
+      .run(accidental ? 1 : 0, now, trailSessionId)
+    return rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(trailSessionId) as TrailSessionRow)
+  })
+
+  // Deletes one session and every row that references it — no FK cascade is declared on these
+  // tables (see the CREATE TABLE statements in electron/db/berean.ts), so each dependent table
+  // is cleared explicitly, same shape as notes.ts's notes:permanentDelete.
+  ipcMain.handle('studyTrail:deleteSession', (_e, trailSessionId: string) => {
+    const db = getBereanDb()
+    const del = db.transaction((id: string) => {
+      prep(db, 'DELETE FROM trail_connections WHERE trail_session_id = ?').run(id)
+      prep(db, 'DELETE FROM trail_nodes WHERE trail_session_id = ?').run(id)
+      prep(db, 'DELETE FROM trail_paused_intervals WHERE trail_session_id = ?').run(id)
+      prep(db, 'DELETE FROM trail_sessions WHERE id = ?').run(id)
+    })
+    del(trailSessionId)
+    return { success: true }
+  })
+
+  // Bulk variant, one transaction for the whole batch (mirrors notes.ts's notes:emptyTrash).
+  ipcMain.handle('studyTrail:deleteSessions', (_e, trailSessionIds: string[]) => {
+    const db = getBereanDb()
+    const delAll = db.transaction((ids: string[]) => {
+      for (const id of ids) {
+        prep(db, 'DELETE FROM trail_connections WHERE trail_session_id = ?').run(id)
+        prep(db, 'DELETE FROM trail_nodes WHERE trail_session_id = ?').run(id)
+        prep(db, 'DELETE FROM trail_paused_intervals WHERE trail_session_id = ?').run(id)
+        prep(db, 'DELETE FROM trail_sessions WHERE id = ?').run(id)
+      }
+    })
+    delAll(trailSessionIds)
+    return { success: true }
+  })
+
   ipcMain.handle('studyTrail:listSessions', () => {
     const rows = getBereanDb().prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC').all() as TrailSessionRow[]
     return rows.map(rowToSession)
@@ -131,7 +180,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (!session) return null
     const nodes = db.prepare('SELECT * FROM trail_nodes WHERE trail_session_id = ? ORDER BY order_index').all(trailSessionId) as TrailNodeRow[]
     const connections = db.prepare('SELECT * FROM trail_connections WHERE trail_session_id = ? ORDER BY created_at').all(trailSessionId) as TrailConnectionRow[]
-    return { session: rowToSession(session), nodes: nodes.map(rowToNode), connections: connections.map(rowToConnection) }
+    // Paused intervals — returned alongside nodes/connections so the Map view can subtract
+    // real pause time out of a gap's displayed duration (a 20-minute pause between two
+    // chapters shouldn't visually read as "20 minutes of thinking about it").
+    const pausedRows = db.prepare('SELECT paused_at, resumed_at FROM trail_paused_intervals WHERE trail_session_id = ? ORDER BY paused_at')
+      .all(trailSessionId) as Array<{ paused_at: number; resumed_at: number | null }>
+    const pausedIntervals = pausedRows.map((r) => ({ pausedAt: r.paused_at, resumedAt: r.resumed_at ?? undefined }))
+    return { session: rowToSession(session), nodes: nodes.map(rowToNode), connections: connections.map(rowToConnection), pausedIntervals }
   })
 
   ipcMain.handle('studyTrail:addNode', (_e, node: {
@@ -157,6 +212,32 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode inserted', result)
+    return result
+  })
+
+  // Reopens an EXISTING node instead of creating a new one — the fix for "spine drift": before
+  // this, returning to an already-visited chapter (e.g. clicking a Strong's occurrence that
+  // lands back on a chapter you'd already read) always called addNode, permanently dragging
+  // the trail's anchor through the detour with no way back. The renderer (studyTrailSlice.ts)
+  // now checks its own in-memory session-node index first and calls THIS instead of addNode
+  // whenever the destination book/chapter already has a node in the session — same
+  // "close whatever's currently open" step as addNode, but re-activates the existing row
+  // (order_index — and so its position in the spine — never changes) rather than inserting a
+  // duplicate. Note: anchor_started_at is deliberately left untouched on reopen, so a node's
+  // total displayed dwell time after a round trip includes the detour time in between — a
+  // known simplification (tracking disjoint open/close intervals per node would need its own
+  // child table) rather than a bug; see MapView's round-trip rendering, which is what actually
+  // needs this to exist and not the interval accounting.
+  ipcMain.handle('studyTrail:reopenNode', (_e, nodeId: string) => {
+    const db = getBereanDb()
+    const now = Date.now()
+    const node = prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow | undefined
+    if (!node) return null
+    prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE trail_session_id = ? AND anchor_ended_at IS NULL AND id != ?`)
+      .run(now, node.trail_session_id, nodeId)
+    prep(db, `UPDATE trail_nodes SET anchor_ended_at = NULL WHERE id = ?`).run(nodeId)
+    const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow)
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:reopenNode reopened', result)
     return result
   })
 

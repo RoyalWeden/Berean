@@ -20,12 +20,21 @@ interface StudyTrailState {
   currentAnchorBookId: string | null
   currentAnchorChapter: number | null
   currentAnchorVerseCount: number
+  // `${bookId}:${chapter}` → nodeId, for every chapter that already has a node in THIS
+  // session. The spine-drift fix: before recording a fresh chapter navigation as a brand-new
+  // node, the recorder checks this index — a match means "already visited," so the existing
+  // node is reopened (studyTrail:reopenNode) instead of a duplicate being created, which is
+  // what lets a lexicon/search detour that lands back on an already-read chapter resume the
+  // real spine instead of permanently dragging the anchor through the detour.
+  sessionNodeIndex: Record<string, string>
 
   startTrailSession: (name: string) => Promise<void>
   pauseTrailSession: () => Promise<void>
   resumeTrailSession: () => Promise<void>
   renameTrailSession: (name: string) => Promise<void>
-  endTrailSession: () => void
+  endTrailSession: () => Promise<void>
+  deleteTrailSession: (trailSessionId: string) => Promise<void>
+  deleteTrailSessions: (trailSessionIds: string[]) => Promise<void>
 }
 
 /** cross-ref/search/etc. → clarity tier, per the plan's clarity-tier rules. Kept here (not on
@@ -68,12 +77,13 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentAnchorBookId: null,
   currentAnchorChapter: null,
   currentAnchorVerseCount: 0,
+  sessionNodeIndex: {},
 
   startTrailSession: async (name: string) => {
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startTrailSession() called', { name })
     const session = await window.studyTrail.startSession(name)
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startSession IPC resolved', session)
-    set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null })
+    set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, sessionNodeIndex: {} })
     // Tell every other open window (main window, if this was started from the Study Trail
     // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
     // necessary at all.
@@ -103,8 +113,29 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (!id) return
     await window.studyTrail.renameSession(id, name)
   },
-  endTrailSession: () => {
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0 })
+  endTrailSession: async () => {
+    const id = get().currentTrailSessionId
+    if (id) await window.studyTrail.endSession(id)
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session end', { id })
+    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+  },
+  // Thin wrappers so UI (session rail / Everything view) has one place to call for deletion —
+  // if the session being deleted is the one currently live/paused in THIS window, also clears
+  // local anchor state so nothing keeps trying to record against a row that no longer exists.
+  deleteTrailSession: async (trailSessionId: string) => {
+    await window.studyTrail.deleteSession(trailSessionId)
+    if (get().currentTrailSessionId === trailSessionId) {
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+      window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+    }
+  },
+  deleteTrailSessions: async (trailSessionIds: string[]) => {
+    await window.studyTrail.deleteSessions(trailSessionIds)
+    if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+      window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+    }
   },
 }))
 
@@ -163,13 +194,20 @@ export function installStudyTrailStateSync(): void {
   // rather than relying solely on a fresh broadcast, which only fires on the NEXT start/pause/
   // resume action — without this, a session already live before this window/tab finished
   // mounting would silently look ended to it until something else happened to re-broadcast.
-  window.studyTrail.listSessions().then((rows) => {
+  window.studyTrail.listSessions().then(async (rows) => {
     const active = rows.find((r) => r.status === 'live' || r.status === 'paused')
     if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions', { rows, adopting: active?.id ?? null })
     if (!active) return
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId) return // already knows about a session — don't clobber it
-    useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status })
+    // Seed sessionNodeIndex from whatever this session already has (a page reload, or this
+    // window mounting after the session was started elsewhere) — without this, every already-
+    // visited chapter would look "new" to THIS window's recorder until it independently
+    // rediscovers each one, defeating the reopen-instead-of-duplicate logic below.
+    const detail = await window.studyTrail.getSession(active.id).catch(() => null)
+    const sessionNodeIndex: Record<string, string> = {}
+    if (detail) for (const n of detail.nodes) sessionNodeIndex[`${n.bookId}:${n.chapter}`] = n.id
+    useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status, sessionNodeIndex })
   }).catch((err) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions FAILED', err) })
 
   window.app.onStudyTrailStateChanged?.((raw) => {
@@ -185,7 +223,7 @@ export function installStudyTrailStateSync(): void {
       // reducer does, so the next navigation creates a fresh first anchor for the new session
       // instead of wrongly hanging a connection off the previous one.
       ...(cur.currentTrailSessionId !== incoming.currentTrailSessionId
-        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0 }
+        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} }
         : {}),
     })
   })
@@ -256,13 +294,34 @@ export function installStudyTrailRecorder(): void {
     }
 
     // A genuinely different chapter — this earns a connection FROM the current anchor (if
-    // any), and becomes the new anchor itself.
-    window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+    // any). If this exact chapter already has a node in the session (the spine-drift fix:
+    // an occurrence/search/wikilink detour landing back on an already-read chapter, or any
+    // plain revisit), REOPEN that existing node instead of creating a duplicate — the spine
+    // then reads as a real round trip (this connection's destination matches an earlier node)
+    // rather than the anchor permanently dragging forward through the detour.
+    const key = `${to.bookId}:${to.chapter}`
+    const existingNodeId = s.sessionNodeIndex[key]
+    const nodePromise = existingNodeId
+      ? window.studyTrail.reopenNode(existingNodeId)
+      : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] resolving node for chapter', { key, existingNodeId, willReopen: !!existingNodeId })
+
+    nodePromise
       .then(async (node) => {
-        if (window.__bereanTrailDebug) console.log('[TrailDebug] addNode SUCCEEDED — new anchor', node)
-        useStudyTrailStore.setState({ currentAnchorNodeId: node.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1 })
+        if (!node) { // reopenNode found nothing (stale index entry) — fall back to a fresh node
+          node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+        }
+        if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
+        useStudyTrailStore.setState((st) => ({
+          currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
+          sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
+        }))
         if (!prevNodeId) {
           if (window.__bereanTrailDebug) console.log('[TrailDebug] no prevNodeId (first anchor of session) — nothing to connect FROM')
+          return
+        }
+        if (prevNodeId === node!.id) {
+          if (window.__bereanTrailDebug) console.log('[TrailDebug] reopened the SAME node we were already on — nothing to connect')
           return
         }
         const conn = await window.studyTrail.addConnection({
@@ -281,7 +340,7 @@ export function installStudyTrailRecorder(): void {
           }
         }
       })
-      .catch((err) => console.error('[TrailDebug] addNode or its follow-up addConnection FAILED — this was previously silently swallowed', err))
+      .catch((err) => console.error('[TrailDebug] node resolution or its follow-up addConnection FAILED — this was previously silently swallowed', err))
 
     // If THIS navigation is itself the "bounce back" a previous connection was waiting on,
     // mark that one a glance instead of a full connection.

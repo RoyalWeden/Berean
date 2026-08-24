@@ -6,6 +6,8 @@ import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
 import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
+import { navigateToVerse } from '@/lib/verseNavigation'
+import { bookChapterVerseLabel, getTranslationForBook } from '@/lib/parseRef'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
@@ -57,6 +59,40 @@ export default function App() {
   // call site needing to know Study Trail exists (see src/lib/verseNavigation.ts's injected
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
+  // The receiving half of Study Trail's (or any secondary window's) "navigate the main
+  // window" request — see electron/main.ts's app:navigateMainToRef comment for why this has
+  // to round-trip through the main process instead of a direct cross-window store call.
+  useEffect(() => {
+    window.app.onNavigateToRef?.((payload) => {
+      const s = useAppStore.getState()
+      if (payload.kind === 'lexicon') {
+        if (payload.newTab) {
+          s.createTab('lexicon')
+          s.openLexiconEntry(payload.strongsNum)
+          s.setActiveSpace('lexicon')
+        } else {
+          s.ensureTab('lexicon')
+          s.setActiveSpace('lexicon')
+          s.openLexiconEntry(payload.strongsNum)
+        }
+        return
+      }
+      if (payload.newTab) {
+        const dedicatedTarget = getTranslationForBook(payload.bookId)
+        const translation = (dedicatedTarget ?? 'kjva').toUpperCase()
+        const title = bookChapterVerseLabel(payload.bookId, payload.chapter)
+        const originTabId = s.activeTabId[s.activeSpace] ?? undefined
+        s.addTab({
+          id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
+          state: { bookId: payload.bookId, chapter: payload.chapter, targetVerse: payload.verse, translation, showStrongs: false, scrollPosition: 0 },
+          ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
+        })
+        s.setActiveSpace('scripture')
+      } else {
+        navigateToVerse({ bookId: payload.bookId, chapter: payload.chapter, verse: payload.verse, origin: { kind: 'other', label: 'study-trail' } })
+      }
+    })
+  }, [])
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)

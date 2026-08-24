@@ -55,12 +55,25 @@ export interface TrailConnection {
   createdAt: number
 }
 
+export interface TrailPausedInterval {
+  pausedAt: number
+  resumedAt?: number
+}
+
 export interface TrailSessionDetail {
   session: TrailSession
   nodes: TrailNode[]
   connections: TrailConnection[]
+  pausedIntervals: TrailPausedInterval[]
 }
 
 export interface TrailConnectionWithSession extends TrailConnection {
   sessionName: string
 }
+
+/** Cross-window "please navigate to this" payload — sent from the Study Trail window (or any
+ *  secondary window) to the main window via window.app.navigateMainToRef, and received there
+ *  by onNavigateToRef. Either a chapter ref or a Strong's number, never both. */
+export type TrailNavRefPayload =
+  | { kind: 'chapter'; bookId: string; chapter: number; verse?: number; newTab: boolean }
+  | { kind: 'lexicon'; strongsNum: string; newTab: boolean }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { applyThemeToDocument } from '@/lib/applyTheme'
@@ -24,6 +24,19 @@ export default function StudyTrailApp() {
   const startTrailSession = useStudyTrailStore((s) => s.startTrailSession)
   const pauseTrailSession = useStudyTrailStore((s) => s.pauseTrailSession)
   const resumeTrailSession = useStudyTrailStore((s) => s.resumeTrailSession)
+  const endTrailSession = useStudyTrailStore((s) => s.endTrailSession)
+  const deleteTrailSession = useStudyTrailStore((s) => s.deleteTrailSession)
+  const deleteTrailSessions = useStudyTrailStore((s) => s.deleteTrailSessions)
+
+  // Delete/clear UI — three modes, per how Michael asked for this: (1) a per-row × that needs
+  // a second confirming click within a few seconds (no modal — a plain inline "Delete? Yes /
+  // Cancel" swap, auto-reverts if ignored), (2) a "Select" toggle that turns each row into a
+  // checkbox for a batch delete, (3) accidental/empty sessions get a one-click "Dismiss" with
+  // no confirm step at all, since there's nothing real in them to lose.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const confirmRevertTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Follow the main window's theme — same shared applyThemeToDocument ViewerApp.tsx/App.tsx/
   // FloatingShell.tsx all use. This window is a separate renderer/document, so even though
@@ -85,6 +98,50 @@ export default function StudyTrailApp() {
     setSelectedId(useStudyTrailStore.getState().currentTrailSessionId)
   }
 
+  function requestDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    if (confirmRevertTimer.current) clearTimeout(confirmRevertTimer.current)
+    setConfirmDeleteId(id)
+    confirmRevertTimer.current = setTimeout(() => setConfirmDeleteId(null), 4000)
+  }
+  async function confirmDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    if (confirmRevertTimer.current) clearTimeout(confirmRevertTimer.current)
+    setConfirmDeleteId(null)
+    await deleteTrailSession(id)
+    if (selectedId === id) { setSelectedId(null); setDetail(null) }
+    setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n })
+    await refresh()
+  }
+  function cancelDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (confirmRevertTimer.current) clearTimeout(confirmRevertTimer.current)
+    setConfirmDeleteId(null)
+  }
+  async function dismissAccidental(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    await deleteTrailSession(id)
+    if (selectedId === id) { setSelectedId(null); setDetail(null) }
+    await refresh()
+  }
+  function toggleSelected(e: React.ChangeEvent<HTMLInputElement> | React.MouseEvent, id: string) {
+    e.stopPropagation()
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    await deleteTrailSessions(ids)
+    if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setDetail(null) }
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    await refresh()
+  }
+
   const selectedSession = sessions.find((s) => s.id === selectedId) ?? null
 
   return (
@@ -121,21 +178,51 @@ export default function StudyTrailApp() {
         </div>
         <div style={{ flex: 1 }} />
         {selectedSession && selectedSession.id === currentTrailSessionId && (
-          <button
-            onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
-            style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '4px 10px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 11, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          >
-            {trailSessionStatus === 'live' ? '⏸ Pause' : '▶ Resume'}
-          </button>
+          <>
+            <button
+              onClick={() => (trailSessionStatus === 'live' ? pauseTrailSession() : resumeTrailSession())}
+              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '4px 10px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 11, WebkitAppRegion: 'no-drag', marginRight: 6 } as React.CSSProperties}
+            >
+              {trailSessionStatus === 'live' ? '⏸ Pause' : '▶ Resume'}
+            </button>
+            <button
+              onClick={async () => { await endTrailSession(); await refresh() }}
+              title="End this session — it stops recording and moves to 'ended'"
+              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '4px 10px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', fontSize: 11, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            >
+              ■ End
+            </button>
+          </>
         )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Session rail */}
         <div style={{ width: 220, borderRight: '1px solid rgb(var(--color-surface-4))', padding: 14, overflowY: 'auto', flexShrink: 0 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
-            Sessions
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', flex: 1 }}>
+              Sessions
+            </div>
+            {sessions.length > 0 && (
+              <button
+                onClick={() => { setSelectMode((v) => !v); setSelectedIds(new Set()) }}
+                title={selectMode ? 'Cancel selecting' : 'Select multiple to delete'}
+                style={{
+                  fontSize: 10, fontWeight: 600, background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: selectMode ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))', padding: '2px 4px',
+                }}
+              >{selectMode ? 'Cancel' : 'Select'}</button>
+            )}
           </div>
+          {selectMode && selectedIds.size > 0 && (
+            <button
+              onClick={bulkDelete}
+              style={{
+                width: '100%', marginBottom: 8, fontSize: 11, fontWeight: 600, padding: '6px 8px', cursor: 'pointer',
+                background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 7, color: '#e08468',
+              }}
+            >Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}</button>
+          )}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             <input
               value={newName}
@@ -167,21 +254,61 @@ export default function StudyTrailApp() {
           {sessions.map((s) => (
             <div
               key={s.id}
-              onClick={() => { setSelectedId(s.id); setMainTab('map') }}
+              className="group"
+              onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
               style={{
-                padding: '9px 10px', borderRadius: 9, cursor: 'pointer', marginBottom: 2,
-                background: selectedId === s.id && mainTab === 'map' ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+                padding: '9px 10px', borderRadius: 9, cursor: 'pointer', marginBottom: 2, display: 'flex', alignItems: 'flex-start', gap: 7,
+                background: selectedId === s.id && mainTab === 'map' && !selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
               }}
             >
-              <div style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: '50%', display: 'inline-block',
-                  background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
-                }} />
-                {s.name}
-                {s.possiblyAccidental && <span style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))', fontWeight: 400 }}> (possibly accidental)</span>}
+              {selectMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(s.id)}
+                  onChange={(e) => toggleSelected(e, s.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ marginTop: 3, flexShrink: 0 }}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{
+                    width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                    background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
+                  }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{s.status}</span>
+                  {s.possiblyAccidental && (
+                    <button
+                      onClick={(e) => dismissAccidental(e, s.id)}
+                      title="Empty/accidental session — dismiss without confirming"
+                      style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
+                    >dismiss</button>
+                  )}
+                </div>
               </div>
-              <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>{s.status}</div>
+              {!selectMode && (
+                confirmDeleteId === s.id ? (
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button
+                      onClick={(e) => confirmDelete(e, s.id)}
+                      style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
+                    >Delete</button>
+                    <button
+                      onClick={cancelDelete}
+                      style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
+                    >Cancel</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => requestDelete(e, s.id)}
+                    title="Delete this session"
+                    style={{ fontSize: 13, lineHeight: 1, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                  >×</button>
+                )
+              )}
             </div>
           ))}
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}

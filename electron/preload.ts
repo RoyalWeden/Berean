@@ -149,6 +149,14 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('studyTrail:focusSession')
     ipcRenderer.on('studyTrail:focusSession', (_e, id: string) => cb(id))
   },
+  // Study Trail (or any secondary window) → main window navigation. See main.ts's
+  // app:navigateMainToRef handler comment for why this round-trips through the main process
+  // instead of a direct store call.
+  navigateMainToRef: (payload: unknown) => ipcRenderer.invoke('app:navigateMainToRef', payload),
+  onNavigateToRef: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('app:navigateToRef')
+    ipcRenderer.on('app:navigateToRef', (_e, payload) => cb(payload))
+  },
   // The main window and the Study Trail window are separate renderer processes, each with its
   // OWN in-memory useStudyTrailStore instance — starting/pausing/resuming a session in one
   // window's UI never reached the other's local store, so the main window's recorder always
@@ -357,9 +365,13 @@ contextBridge.exposeInMainWorld('studyTrail', {
   pauseSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:pauseSession', trailSessionId),
   resumeSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:resumeSession', trailSessionId),
   renameSession: (trailSessionId: string, name: string) => ipcRenderer.invoke('studyTrail:renameSession', trailSessionId, name),
+  endSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:endSession', trailSessionId),
+  deleteSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:deleteSession', trailSessionId),
+  deleteSessions: (trailSessionIds: string[]) => ipcRenderer.invoke('studyTrail:deleteSessions', trailSessionIds),
   listSessions: () => ipcRenderer.invoke('studyTrail:listSessions'),
   getSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:getSession', trailSessionId),
   addNode: (node: unknown) => ipcRenderer.invoke('studyTrail:addNode', node),
+  reopenNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:reopenNode', nodeId),
   updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
   addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
   markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),

@@ -171,9 +171,13 @@ interface StudyTrailAPI {
   pauseSession: (trailSessionId: string) => Promise<{ success: boolean }>
   resumeSession: (trailSessionId: string) => Promise<{ success: boolean }>
   renameSession: (trailSessionId: string, name: string) => Promise<{ success: boolean }>
+  endSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSession>
+  deleteSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  deleteSessions: (trailSessionIds: string[]) => Promise<{ success: boolean }>
   listSessions: () => Promise<import('./studyTrail').TrailSession[]>
   getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
   addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string }) => Promise<import('./studyTrail').TrailNode>
+  reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>
   updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
   addConnection: (conn: {
     trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind
@@ -289,6 +293,8 @@ interface AppAPI {
   closeStudyTrailWindow: () => Promise<boolean>
   isStudyTrailWindowOpen: () => Promise<boolean>
   onFocusTrailSession: (cb: (trailSessionId: string) => void) => void
+  navigateMainToRef: (payload: import('./studyTrail').TrailNavRefPayload) => Promise<boolean>
+  onNavigateToRef: (cb: (payload: import('./studyTrail').TrailNavRefPayload) => void) => void
   broadcastStudyTrailState: (state: unknown) => void
   onStudyTrailStateChanged: (cb: (state: unknown) => void) => void
   pushViewerContent: (payload: unknown) => void
