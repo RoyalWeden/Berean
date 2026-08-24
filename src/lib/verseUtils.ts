@@ -1,5 +1,6 @@
 import { applyWordReplacer, applyStrongsWordReplacer } from './wordReplacer'
 import type { WordReplacerRule } from '@/store'
+import { parseTaggedTokens, tokenHasNoPlainText } from './taggedTokens'
 
 // ── Internal token type (for copy/export — no rendering concerns) ──────────────
 type SimpleToken = {
@@ -172,6 +173,30 @@ export function buildVerseDisplayTokens(
   return processed
     .filter((t, i) => !t.isParenthetical && !t.isStrongsBracket && !suppressedIndices.has(i) && t.word !== '')
     .map(t => ({ word: t.word, isRedLetter: t.isRedLetter, isItalic: t.isItalic }))
+}
+
+export interface AnnotationRange { start: number; end: number; isRedLetter: boolean; isItalic: boolean }
+
+/**
+ * Char ranges (against the plain `verse.text`) for KJV-italic / red-letter (Yeshua's words)
+ * tokens in `text_tagged`, for renderers that don't otherwise parse tagged text — e.g.
+ * Advanced Scripture Search result rows, which show plain verse.text with query-match
+ * marks but previously had no italics/red-letter markup at all (VerseRow's reader view
+ * gets these via its own text_tagged rendering path, unrelated to this helper).
+ */
+export function getAnnotationRanges(textTagged: string | null | undefined, textId: string): AnnotationRange[] {
+  if (!textTagged || (textId !== 'kjva' && textId !== 'lxx')) return []
+  const tokens = parseTaggedTokens(textTagged)
+  const ranges: AnnotationRange[] = []
+  let charPos = 0
+  for (const t of tokens) {
+    if (tokenHasNoPlainText(t)) continue
+    const start = charPos
+    const end = charPos + t.word.length
+    if (t.isRedLetter || t.isItalic) ranges.push({ start, end, isRedLetter: t.isRedLetter, isItalic: t.isItalic })
+    charPos = end + 1 // word + trailing space, mirrors VerseRow's charPos accounting
+  }
+  return ranges
 }
 
 // ── Display ⇄ original text offset alignment ──────────────────────────────────

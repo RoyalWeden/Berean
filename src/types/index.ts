@@ -335,6 +335,7 @@ export interface SearchResult {
   chapter: number
   verseNum: number
   text: string
+  text_tagged?: string
   matchStart: number
   matchEnd: number
 }

@@ -460,7 +460,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             onClick={() => setTestamentFilter(f)}
             className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
               testamentFilter === f
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
+                ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
                 : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
             }`}
           >

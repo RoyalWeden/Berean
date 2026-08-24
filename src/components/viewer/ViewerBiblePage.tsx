@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
+import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
@@ -136,13 +137,17 @@ interface Props {
   textId: string
   fontScale: number
   scrollPercent?: number
+  /** Annotation categories hidden in the main window (kjva_italics, lxx_supply,
+   *  enoch_supply/uncertain/restored, jubilees_date/bracket/etc.) — mirrored here so the
+   *  presenter matches. */
+  hiddenAnnotations?: string[]
   // Viewer-only highlights for THIS chapter, owned by ViewerApp so they survive chapter switches.
   viewerHighlights: Record<number, ViewerHighlight[]>
   onAddViewerHighlight: (verseNum: number, hl: ViewerHighlight) => void
   onRemoveViewerHighlight: (verseNum: number, startChar: number, endChar: number) => void
 }
 
-export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
+export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
   const [verses, setVerses] = useState<Verse[]>([])
   const [loading, setLoading] = useState(true)
   const [dbHighlights, setDbHighlights] = useState<Record<number, DBHighlight[]>>({})
@@ -163,8 +168,14 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const wrEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wrRules = useAppStore((s) => s.wordReplacerRules)
   // Display tokens carry red-letter / italic flags so Yeshua's words render in red.
-  const displayTokens = (v: Verse) =>
-    buildVerseDisplayTokens(v.text, v.text_tagged, textId, wrEnabled, wrRules)
+  // Bracket/parenthetical annotations (LXX supply, Enoch, Jubilees) are stripped from the
+  // plain text first, same as VerseRow's stripAnnotations; KJV italics come through as
+  // per-token flags on text_tagged instead, so those are filtered out after the fact.
+  const displayTokens = (v: Verse) => {
+    const strippedText = hiddenAnnotations.length ? stripAnnotations(v.text, textId, hiddenAnnotations) : v.text
+    const tokens = buildVerseDisplayTokens(strippedText, v.text_tagged, textId, wrEnabled, wrRules)
+    return hiddenAnnotations.includes('kjva_italics') ? tokens.filter((t) => !t.isItalic) : tokens
+  }
 
   // Report the fraction of the chapter visible in the presenter. The main window combines
   // this with its own live scroll position to draw the outline band — so the band tracks
@@ -258,7 +269,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   // until the next chapter navigation.
   useEffect(() => {
     if (!loading) reportVisible()
-  }, [loading, verses, fontScale, wrEnabled, wrRules, reportVisible])
+  }, [loading, verses, fontScale, wrEnabled, wrRules, hiddenAnnotations, reportVisible])
   useEffect(() => {
     const onResize = () => reportVisible()
     window.addEventListener('resize', onResize)

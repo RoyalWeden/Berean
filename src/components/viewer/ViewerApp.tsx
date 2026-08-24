@@ -324,6 +324,7 @@ export default function ViewerApp() {
                 textId={payload.textId}
                 fontScale={localScale}
                 scrollPercent={payload.scrollPercent}
+                hiddenAnnotations={payload.hiddenAnnotations}
                 viewerHighlights={viewerHls[hlKey] ?? {}}
                 onAddViewerHighlight={(verseNum, hl) => setViewerHls(prev => {
                   const chap = prev[hlKey] ?? {}

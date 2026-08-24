@@ -998,9 +998,9 @@ export default function FloatingSearch() {
                   <button
                     key={s}
                     onClick={() => setScopeFilter(s)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
                       scopeFilter === s
-                        ? 'bg-[rgb(var(--color-accent))]/20 border-[rgb(var(--color-accent))] text-[rgb(var(--color-accent))]'
+                        ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
                         : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
                     }`}
                   >

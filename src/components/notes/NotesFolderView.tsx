@@ -1270,15 +1270,15 @@ export default function NotesFolderView({
             <p className="text-xs text-[rgb(var(--color-text-muted))] mb-4">
               This will permanently delete the folder and all notes inside it. This cannot be undone.
             </p>
-            <label className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))] mb-4 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={skipConfirmChecked}
-                onChange={(e) => setSkipConfirmChecked(e.target.checked)}
-                className="accent-[rgb(var(--color-accent))]"
-              />
+            <button
+              onClick={() => setSkipConfirmChecked((v) => !v)}
+              className="flex items-center gap-2 text-xs text-[rgb(var(--color-text-secondary))] mb-4 cursor-pointer select-none"
+            >
+              <span className={`relative flex-shrink-0 w-8 h-4 rounded-full transition-colors ${skipConfirmChecked ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${skipConfirmChecked ? 'translate-x-4' : ''}`} />
+              </span>
               Don&rsquo;t ask again
-            </label>
+            </button>
             <div className="flex gap-2 justify-end">
               <button
                 className="px-3 py-1.5 text-xs rounded-lg border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"

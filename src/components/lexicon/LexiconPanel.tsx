@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
@@ -17,6 +18,17 @@ import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
+type RelatedWord = { strongsNum: string; lemma: string; transliteration: string; gloss: string }
+
+// Module-level caches, keyed by Strong's number — entries/occurrences/related words never
+// change at runtime, so once fetched they're reused for the life of the app. Switching back
+// to a Lexicon tab you'd already viewed re-runs the same restore/fetch effects (this panel is
+// reused across tabs, not one instance per tab), and without a cache that meant a visible
+// reload flash (blank entry, "Loading…" occurrences) every single time, not just on first
+// visit. A cache hit lets those effects seed state synchronously instead of waiting on an
+// IPC round trip; the real fetch still runs behind it to catch up if the cache was ever wrong.
+const lexiconEntryCache = new Map<string, LexiconEntry>()
+const lexiconOccurrenceCache = new Map<string, { related: RelatedWord[]; occurrences: OccurrenceRow[] }>()
 
 /**
  * Strip BDB/scholarly bracket notation from lexicon text.
@@ -343,6 +355,21 @@ function EntryView({
 }) {
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
+  // Which actual English word(s) this occurrence's matched Strong's-tagged position(s)
+  // rendered as (e.g. H2617 chesed → "mercy" here, "kindness" there) — powers the
+  // "Shown as:" word-form filter chips below. Uses the word-replacer-applied text so the
+  // chip label matches what the occurrence list actually displays.
+  function extractMatchedWords(o: OccurrenceRow): string[] {
+    if (!o.matchWordIndices?.length) return []
+    const words = wr(o.text ?? '').split(' ')
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const i of o.matchWordIndices) {
+      const cleaned = (words[i] ?? '').replace(/[^a-zA-Z'À-ɏ]/g, '')
+      if (cleaned && !seen.has(cleaned.toLowerCase())) { seen.add(cleaned.toLowerCase()); out.push(cleaned) }
+    }
+    return out
+  }
   const lexiconZoom = useAppStore((s) => s.appZoom)
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
@@ -355,7 +382,18 @@ function EntryView({
   // requiring an explicit "Show all" click to see anything past the first page.
   const [visibleOccCount, setVisibleOccCount] = useState(10)
   const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
-  const [occBookFilter, setOccBookFilter] = useState<string | 'all'>('all')
+  // Single-select book filter — a custom dropdown (not a native <select>), see the
+  // trigger+portal popover below. 'all' = every book.
+  const [occBookFilter, setOccBookFilter] = useState<string>('all')
+  const [occBookMenuOpen, setOccBookMenuOpen] = useState(false)
+  const [occBookMenuPos, setOccBookMenuPos] = useState<{ left: number; top: number } | null>(null)
+  const occBookTriggerRef = useRef<HTMLButtonElement>(null)
+  const occBookMenuRef = useRef<HTMLDivElement>(null)
+  // Which actual rendered word-form(s) (e.g. H2617 chesed showing as "mercy" in one verse,
+  // "kindness" in another) to show occurrences for — empty set = show every form. This is
+  // the "which occurrences to show" chip filter; the book filter above is a separate,
+  // single-select dropdown.
+  const [occWordFilter, setOccWordFilter] = useState<Set<string>>(new Set())
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
   // full entry" and the user explicitly asked for them back. "Show less"
@@ -384,12 +422,22 @@ function EntryView({
   // COMPLETE set (no visible loading state — it just quietly replaces the quick batch once
   // ready, which is what "Show all"/infinite-scroll need data for beyond the first ~20).
   useEffect(() => {
-    setOccurrences([])
+    const cached = lexiconOccurrenceCache.get(entry.strongsNum)
     setShowAllOccurrences(false)
     setVisibleOccCount(10)
     setOccSort('canon')
     setOccBookFilter('all')
-    setOccurrencesLoading(true)
+    setOccWordFilter(new Set())
+    if (cached) {
+      // Cache hit (this entry was viewed before) — render instantly, no loading flash. A
+      // fresh fetch still runs behind it to catch up if the data was ever stale.
+      setRelated(cached.related)
+      setOccurrences(cached.occurrences)
+      setOccurrencesLoading(false)
+    } else {
+      setOccurrences([])
+      setOccurrencesLoading(true)
+    }
     let cancelled = false
     Promise.all([
       window.lexicon.getRelated(entry.strongsNum).catch(() => []),
@@ -397,12 +445,15 @@ function EntryView({
     ]).then(([relatedRows, quickRows]) => {
       if (cancelled) return
       setRelated(relatedRows)
-      setOccurrences(quickRows)
+      // Don't regress a cached full set down to the 20-row quick batch — only apply it when
+      // there was nothing cached to show yet.
+      if (!cached) setOccurrences(quickRows)
       setOccurrencesLoading(false)
       // Phase 2: the full set, in the background — replaces the quick batch once it lands.
       window.lexicon.getOccurrences(entry.strongsNum).then((fullRows) => {
         if (cancelled) return
         setOccurrences(fullRows)
+        lexiconOccurrenceCache.set(entry.strongsNum, { related: relatedRows, occurrences: fullRows })
       }).catch(() => {})
     })
     return () => { cancelled = true }
@@ -423,6 +474,18 @@ function EntryView({
     el.addEventListener('scroll', onScroll)
     return () => el.removeEventListener('scroll', onScroll)
   }, [occurrences.length, scrollRef])
+
+  // Close the book-filter dropdown on an outside click.
+  useEffect(() => {
+    if (!occBookMenuOpen) return
+    function onDown(e: MouseEvent) {
+      if (occBookMenuRef.current?.contains(e.target as Node)) return
+      if (occBookTriggerRef.current?.contains(e.target as Node)) return
+      setOccBookMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [occBookMenuOpen])
 
   useEffect(() => {
     const num = entry.strongsNum
@@ -604,12 +667,12 @@ function EntryView({
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))]">
               Occurrences{occurrences.length > 0 ? ` (${occurrences.length}${occurrences.length >= 1000 ? '+' : ''})` : ''}
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               {occurrences.length > 0 && (
                 <button
                   onClick={() => useAppStore.getState().openScriptureSearchTab(entry.strongsNum)}
                   title={`Open all ${entry.strongsNum} occurrences in a search tab, with the words highlighted`}
-                  className="flex items-center gap-1 text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                 >
                   <ScanSearch size={11} />
                   Open all in a tab
@@ -618,7 +681,7 @@ function EntryView({
               {occurrences.length > 10 && (
                 <button
                   onClick={() => { setShowAllOccurrences((v) => !v); setVisibleOccCount(10) }}
-                  className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer"
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/45 hover:bg-[rgb(var(--color-accent))]/12 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer"
                 >
                   {showAllOccurrences ? 'Show fewer' : `Show all ${occurrences.length}`}
                 </button>
@@ -626,10 +689,14 @@ function EntryView({
             </div>
           </div>
 
-          {/* Sort + book filter — occurrences previously had no way to narrow a long list down
-              to one book, or to bring the most-repeated verses to the top. Editions filter only
-              appears when the data actually mixes KJVA/LXX rows (most entries are one or the
-              other). */}
+          {/* Sort + book filter (dropdown) + word-form filter (chips). Occurrences previously
+              had no way to narrow a long list down to one book, bring the most-repeated
+              verses to the top, or isolate which actual English rendering of this word to
+              look at (the same Strong's number often renders as several different English
+              words — e.g. H2617 chesed as "mercy" in one verse and "kindness" in another).
+              Book stays single-select via a custom dropdown (not a native <select> — the app
+              never uses OS-chrome controls); word-form is the multi-select chip row, since
+              several renderings can be shown together. */}
           {!occurrencesLoading && occurrences.length > 5 && (() => {
             const bookCounts = new Map<string, number>()
             for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
@@ -637,30 +704,110 @@ function EntryView({
               .sort((a, b) => b[1] - a[1])
               .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
             const hasMultipleBooks = bookOptions.length > 1
+            const selectedBookLabel = occBookFilter === 'all'
+              ? `All books (${occurrences.length})`
+              : bookOptions.find((b) => b.id === occBookFilter)?.name ?? occBookFilter
+
+            // Word-form chips: which actual word(s) this Strong's number was rendered as,
+            // in the (word-replacer-applied) occurrence text, at the matched word index(es).
+            const wordCounts = new Map<string, { display: string; count: number }>()
+            for (const o of occurrences) {
+              for (const w of extractMatchedWords(o)) {
+                const key = w.toLowerCase()
+                const existing = wordCounts.get(key)
+                if (existing) existing.count++
+                else wordCounts.set(key, { display: w, count: 1 })
+              }
+            }
+            const wordOptions = Array.from(wordCounts.entries())
+              .sort((a, b) => b[1].count - a[1].count)
+              .map(([key, v]) => ({ key, ...v }))
+            const hasMultipleWordForms = wordOptions.length > 1
+            function toggleWord(key: string) {
+              setOccWordFilter((prev) => {
+                const next = new Set(prev)
+                if (next.has(key)) next.delete(key)
+                else next.add(key)
+                return next
+              })
+            }
+
             return (
-              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
-                  {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
-                    <button
-                      key={m}
-                      onClick={() => setOccSort(m)}
-                      className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {hasMultipleBooks && (
-                  <select
-                    value={occBookFilter}
-                    onChange={(e) => setOccBookFilter(e.target.value)}
-                    className="text-[9.5px] px-1.5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] cursor-pointer outline-none"
-                  >
-                    <option value="all">All books ({occurrences.length})</option>
-                    {bookOptions.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.count})</option>
+              <div className="mb-2 space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5">
+                    {([['canon', 'Canon order'], ['matches', 'Most matches']] as [typeof occSort, string][]).map(([m, label]) => (
+                      <button
+                        key={m}
+                        onClick={() => setOccSort(m)}
+                        className={`text-[9.5px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${occSort === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      >
+                        {label}
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                  {hasMultipleBooks && (
+                    <button
+                      ref={occBookTriggerRef}
+                      onClick={() => {
+                        if (!occBookMenuOpen) {
+                          const r = occBookTriggerRef.current?.getBoundingClientRect()
+                          if (r) setOccBookMenuPos({ left: r.left, top: r.bottom + 4 })
+                        }
+                        setOccBookMenuOpen((v) => !v)
+                      }}
+                      className="flex items-center gap-1 text-[9.5px] px-2 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[140px]"
+                    >
+                      <span className="truncate">{selectedBookLabel}</span>
+                      <ChevronDown size={10} className={`flex-shrink-0 transition-transform ${occBookMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                  {occBookMenuOpen && occBookMenuPos && createPortal(
+                    <div
+                      ref={occBookMenuRef}
+                      style={{ position: 'fixed', left: occBookMenuPos.left, top: occBookMenuPos.top, zIndex: 9999 }}
+                      className="min-w-[160px] max-h-64 overflow-y-auto rounded-shell context-menu py-1"
+                    >
+                      <button
+                        onClick={() => { setOccBookFilter('all'); setOccBookMenuOpen(false) }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                      >
+                        <span className="flex-1">All books ({occurrences.length})</span>
+                        {occBookFilter === 'all' && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                      </button>
+                      {bookOptions.map((b) => (
+                        <button
+                          key={b.id}
+                          onClick={() => { setOccBookFilter(b.id); setOccBookMenuOpen(false) }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                        >
+                          <span className="flex-1 truncate">{b.name} ({b.count})</span>
+                          {occBookFilter === b.id && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                        </button>
+                      ))}
+                    </div>,
+                    document.body
+                  )}
+                </div>
+                {hasMultipleWordForms && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide mr-0.5">Shown as:</span>
+                    <button
+                      onClick={() => setOccWordFilter(new Set())}
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                    >
+                      All
+                    </button>
+                    {wordOptions.map((w) => (
+                      <button
+                        key={w.key}
+                        onClick={() => toggleWord(w.key)}
+                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      >
+                        {w.display} ({w.count})
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             )
@@ -674,8 +821,14 @@ function EntryView({
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
             let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
+            if (occWordFilter.size > 0) {
+              visible = visible.filter((o) => extractMatchedWords(o).some((w) => occWordFilter.has(w.toLowerCase())))
+            }
             if (occSort === 'matches') {
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
+            }
+            if (visible.length === 0) {
+              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match the current filters.</p>
             }
             return (
             <div className="space-y-1">
@@ -687,7 +840,7 @@ function EntryView({
                   <button
                     key={i}
                     onClick={() => onNavigateToVerse?.(occ.book_id, occ.chapter, occ.verse_num, occ.text_id)}
-                    onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: occ.text ?? '' })}
+                    onContextMenu={(e) => verseCopy.open(e, { bookId: occ.book_id, chapter: occ.chapter, verse: occ.verse_num, text: wr(occ.text ?? '') })}
                     className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors group"
                   >
                     <div className="flex items-baseline gap-2 flex-wrap">
@@ -1249,25 +1402,43 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     }
 
     if (!savedNum) { setActiveEntry(null); setEntryRestorePending(false); deferClear(); return }
+
+    // A fixed setTimeout(80) here raced the actual render: the entry committed and painted
+    // at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll once the
+    // timer fired — reading as "shows for a second without scroll then it jumps." Matches
+    // NoteEditorPM.tsx's own scroll-restore double-rAF: the first rAF runs before the
+    // browser has painted this render's DOM changes, the second (nested) rAF then fires
+    // after that paint's layout is actually settled, so the scrollTop assignment lands
+    // before the user ever sees the unscrolled frame.
+    function restoreScroll() {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
+          entryScrollRef.current.scrollTop = savedScroll
+        }
+      }))
+    }
+
+    // Cache hit (this Strong's number was already viewed this session) — render instantly
+    // instead of waiting on another IPC round trip. Switching Lexicon tabs reuses this same
+    // panel/effect rather than mounting fresh (see lexiconEntryCache's own comment), so
+    // without this every switch back to an already-seen entry re-showed a brief blank/
+    // restoring state purely from re-awaiting a fetch whose answer never changes.
+    const cachedEntry = lexiconEntryCache.get(savedNum)
+    if (cachedEntry) {
+      setActiveEntry(cachedEntry)
+      setEntryRestorePending(false)
+      restoreScroll()
+    }
+
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
         // A newer restore request (another tab switch, or StrictMode's dev-only double-invoke
         // of this same effect on a fresh mount) has started since — don't let this stale one's
         // scroll-restore clobber whatever the user's done since. See entryOpenSeqRef's comment.
         if (entry && entryOpenSeqRef.current === seq) {
+          lexiconEntryCache.set(savedNum, entry)
           setActiveEntry(entry)
-          // A fixed setTimeout(80) here raced the actual render: the entry committed and
-          // painted at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll
-          // once the timer fired — reading as "shows for a second without scroll then it
-          // jumps." Matches NoteEditorPM.tsx's own scroll-restore double-rAF: the first
-          // rAF runs before the browser has painted this render's DOM changes, the second
-          // (nested) rAF then fires after that paint's layout is actually settled, so the
-          // scrollTop assignment lands before the user ever sees the unscrolled frame.
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
-              entryScrollRef.current.scrollTop = savedScroll
-            }
-          }))
+          if (!cachedEntry) restoreScroll()
         }
       })
       .catch(() => {})
