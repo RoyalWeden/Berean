@@ -120,6 +120,19 @@ function thread(state: MarkdownSerializerState, node: PMNode) {
   state.closeBlock(node)
 }
 
+// ─── Study Trail embed ──────────────────────────────────────────────────────
+// See schema.ts's study_trail_embed comment and parser.ts's matching "Study Trail embed"
+// section. A single self-closing line — unlike thread() above, there's no nested content to
+// recurse into, so this is just one `state.write` + `closeBlock`.
+function studyTrailEmbed(state: MarkdownSerializerState, node: PMNode) {
+  const titleAttr = node.attrs.title ? ` title="${escapeAttr(node.attrs.title)}"` : ''
+  state.write(
+    `<!-- berean:study-trail id="${node.attrs.trailSessionId}"${titleAttr} ` +
+    `connections="${node.attrs.connectionCount}" needsInput="${node.attrs.needsInputCount}" -->`,
+  )
+  state.closeBlock(node)
+}
+
 // ─── Callouts ───────────────────────────────────────────────────────────────
 // Reconstructs the `> [!TYPE] ...` blockquote form: prepend the marker to
 // the callout's first paragraph, then reuse blockquote's own wrapBlock
@@ -202,6 +215,7 @@ export const bereanMarkdownSerializer = new MarkdownSerializer(
     // thread_entry is only ever rendered manually from inside thread() above — same
     // never-invoked-through-normal-dispatch role as column/table_row/etc. above.
     thread_entry: noop,
+    study_trail_embed: studyTrailEmbed,
   },
   {
     ...defaultMarkdownSerializer.marks,

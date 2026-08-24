@@ -422,3 +422,80 @@ export function listItemNodeView(getPos: () => number | undefined) {
     return { dom: li, contentDOM }
   }
 }
+
+// ─── study_trail_embed NodeView ─────────────────────────────────────────────
+// A leaf card, no contentDOM (schema.ts's study_trail_embed has no `content`) — clicking it
+// opens the singleton Study Trail window focused on this session (window.app.openStudyTrail
+// Window), never expands inline, same "click → open elsewhere" behavior as a Strong's chip
+// opening a lexicon tab. The connection/needs-input counts shown are refreshed on a short
+// poll while this card is mounted (no studyTrail:newEvent push channel exists yet — see the
+// plan's Phase 2 note on that) purely as a DOM-text update, deliberately NOT dispatched back
+// into the document as a node-attr change: doing that on every poll tick would spam the
+// editor's undo history for a value that's explicitly cached/display-only (schema.ts's own
+// comment on these attrs). The node's stored attrs still update normally the next time the
+// note is genuinely re-saved with fresh values from wherever the embed gets (re)inserted.
+export function studyTrailEmbedNodeView(node: PMNode): NodeView {
+  const dom = document.createElement('div')
+  dom.className = 'pm-study-trail-embed'
+  dom.contentEditable = 'false'
+  dom.style.display = 'flex'
+  dom.style.alignItems = 'center'
+  dom.style.gap = '8px'
+  dom.style.padding = '8px 12px'
+  dom.style.margin = '0.6em 0'
+  dom.style.border = '1px solid rgb(var(--color-surface-4))'
+  dom.style.borderRadius = '10px'
+  dom.style.background = 'rgb(var(--color-surface-2))'
+  dom.style.cursor = 'pointer'
+  dom.style.userSelect = 'none'
+
+  const icon = document.createElement('span')
+  icon.textContent = '🔀'
+  icon.style.fontSize = '14px'
+  dom.appendChild(icon)
+
+  const label = document.createElement('span')
+  label.style.fontSize = '0.85em'
+  label.style.fontWeight = '600'
+  label.style.color = 'rgb(var(--color-text-primary))'
+  label.textContent = node.attrs.title || 'Study Trail'
+  dom.appendChild(label)
+
+  const stats = document.createElement('span')
+  stats.style.fontSize = '0.78em'
+  stats.style.color = 'rgb(var(--color-text-muted))'
+  dom.appendChild(stats)
+
+  const needsInputBadge = document.createElement('span')
+  needsInputBadge.style.fontSize = '0.72em'
+  needsInputBadge.style.fontWeight = '700'
+  needsInputBadge.style.color = '#e08468'
+  needsInputBadge.style.background = 'rgba(224,132,104,0.14)'
+  needsInputBadge.style.borderRadius = '999px'
+  needsInputBadge.style.padding = '1px 7px'
+  needsInputBadge.style.display = 'none'
+  dom.appendChild(needsInputBadge)
+
+  function paint(connectionCount: number, needsInputCount: number) {
+    stats.textContent = `${connectionCount} connection${connectionCount === 1 ? '' : 's'}`
+    needsInputBadge.style.display = needsInputCount > 0 ? '' : 'none'
+    needsInputBadge.textContent = `${needsInputCount} needs input`
+  }
+  paint(node.attrs.connectionCount, node.attrs.needsInputCount)
+
+  const trailSessionId = node.attrs.trailSessionId
+  const interval = trailSessionId ? setInterval(() => {
+    window.studyTrail?.getSession(trailSessionId).then((detail) => {
+      if (!detail) return
+      const needsInput = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
+      paint(detail.connections.length, needsInput)
+    }).catch(() => {})
+  }, 5000) : null
+
+  dom.addEventListener('mousedown', (e) => e.preventDefault())
+  dom.addEventListener('click', () => {
+    if (trailSessionId) window.app.openStudyTrailWindow?.(trailSessionId)
+  })
+
+  return { dom, destroy: () => { if (interval) clearInterval(interval) } }
+}

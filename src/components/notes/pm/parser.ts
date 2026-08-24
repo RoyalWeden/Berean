@@ -476,6 +476,62 @@ function extractThreadBlocks(source: string): { text: string; threads: Map<numbe
   return { text: out.join('\n'), threads }
 }
 
+// ─── Study Trail embed ──────────────────────────────────────────────────────
+// `<!-- berean:study-trail id="..." title="..." connections="N" needsInput="N" -->`
+// — a single self-closing line (unlike thread/columns, this node never has nested
+// markdown content), so no open/close depth-tracking is needed: one regex match per
+// line is enough. Still needs the same placeholder-swap trick as the block types
+// above though, since prosemirror-markdown's MarkdownParser has no `html_block`
+// token mapping and would otherwise throw trying to parse the raw HTML comment.
+const STUDY_TRAIL_RE = /^<!--\s*berean:study-trail((?:\s+\w+="[^"]*")*)\s*-->\s*$/
+// U+2064 INVISIBLE PLUS — a third sentinel, distinct from columns' U+2063 and
+// threads' U+2062, so none of the three placeholder kinds can ever collide.
+function studyTrailPlaceholder(id: number): string {
+  return `⁤berean-study-trail-${id}⁤`
+}
+const STUDY_TRAIL_PLACEHOLDER_RE = /^⁤berean-study-trail-(\d+)⁤$/
+
+interface StudyTrailEmbedRaw {
+  trailSessionId: string
+  title: string
+  connectionCount: number
+  needsInputCount: number
+}
+
+function extractStudyTrailEmbeds(source: string): { text: string; embeds: Map<number, StudyTrailEmbedRaw> } {
+  const embeds = new Map<number, StudyTrailEmbedRaw>()
+  const lines = source.split('\n')
+  const out: string[] = []
+  let counter = 0
+  let inFence = false
+  let fenceMarker = ''
+  for (const line of lines) {
+    if (!inFence && FENCE_LINE_RE.test(line.trim())) { inFence = true; fenceMarker = FENCE_LINE_RE.exec(line.trim())![1]; out.push(line); continue }
+    if (inFence) {
+      if (line.trim().startsWith(fenceMarker)) inFence = false
+      out.push(line)
+      continue
+    }
+    const m = STUDY_TRAIL_RE.exec(line)
+    if (m) {
+      const attrs = parseMarkerAttrs(m[1])
+      if (attrs.id) {
+        const id = counter++
+        embeds.set(id, {
+          trailSessionId: attrs.id,
+          title: unescapeAttr(attrs.title ?? ''),
+          connectionCount: Number(attrs.connections) || 0,
+          needsInputCount: Number(attrs.needsInput) || 0,
+        })
+        out.push(studyTrailPlaceholder(id))
+        continue
+      }
+    }
+    out.push(line)
+  }
+  return { text: out.join('\n'), embeds }
+}
+
 /**
  * Parse markdown source into a ProseMirror document, then run structural
  * post-processing that isn't expressible as a token→node ParseSpec mapping:
@@ -483,8 +539,10 @@ function extractThreadBlocks(source: string): { text: string; threads: Map<numbe
  * `[!TYPE]` becomes a `callout` node with that leading marker stripped;
  * extra-blank-line marker paragraphs becoming genuinely empty paragraphs;
  * columns-placeholder paragraphs becoming real column_list nodes (see the
- * "Side-by-side columns" section above); and thread-placeholder paragraphs
- * becoming real thread nodes (see the "Threads" section above).
+ * "Side-by-side columns" section above); thread-placeholder paragraphs
+ * becoming real thread nodes (see the "Threads" section above); and
+ * study-trail-placeholder paragraphs becoming real study_trail_embed nodes
+ * (see the "Study Trail embed" section above).
  * (Verse/lexicon blocks are deliberately NOT handled here — see schema.ts;
  * they stay plain paragraphs and are decorated live in Phase 5.)
  */
@@ -497,24 +555,25 @@ export function parseMarkdown(source: string): PMNode {
   // note completely non-editable, with no visible error at all).
   const { text: threadsStripped, threads } = extractThreadBlocks(source ?? '')
   const { text: columnsStripped, columnLists } = extractColumnBlocks(threadsStripped)
-  const preprocessed = expandExtraBlankLines(columnsStripped)
-  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode, columnLists, threads)
+  const { text: embedsStripped, embeds } = extractStudyTrailEmbeds(columnsStripped)
+  const preprocessed = expandExtraBlankLines(embedsStripped)
+  return convertCallouts(bereanMarkdownParser.parse(preprocessed) as PMNode, columnLists, threads, embeds)
 }
 
 const CALLOUT_RE = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]\s?/i
 
-function convertCallouts(doc: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
-  return mapBlockChildren(doc, columnLists, threads)
+function convertCallouts(doc: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>, embeds: Map<number, StudyTrailEmbedRaw>): PMNode {
+  return mapBlockChildren(doc, columnLists, threads, embeds)
 }
 
-function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
+function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>, embeds: Map<number, StudyTrailEmbedRaw>): PMNode {
   if (!node.isBlock || node.content.size === 0) return node
   const mapped: PMNode[] = []
-  node.forEach((child) => mapped.push(maybeConvertNode(child, columnLists, threads)))
+  node.forEach((child) => mapped.push(maybeConvertNode(child, columnLists, threads, embeds)))
   return node.copy(Fragment.fromArray(mapped))
 }
 
-function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>): PMNode {
+function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>, embeds: Map<number, StudyTrailEmbedRaw>): PMNode {
   // Extra-blank-line marker paragraph (see expandExtraBlankLines above) —
   // a paragraph whose sole content is the zero-width-space marker becomes
   // a genuinely empty paragraph, which serializer.ts's custom paragraph
@@ -537,6 +596,18 @@ function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, thre
           return schema.nodes.column_list.create(null, columnNodes)
         }
       }
+      // Study Trail embed placeholder (see extractStudyTrailEmbeds above) — a leaf node, no
+      // recursive parse needed.
+      const sm = STUDY_TRAIL_PLACEHOLDER_RE.exec(only.text || '')
+      if (sm) {
+        const raw = embeds.get(Number(sm[1]))
+        if (raw) {
+          return schema.nodes.study_trail_embed.create({
+            trailSessionId: raw.trailSessionId, title: raw.title,
+            connectionCount: raw.connectionCount, needsInputCount: raw.needsInputCount,
+          })
+        }
+      }
       // Thread placeholder paragraph (see extractThreadBlocks above) — becomes a real thread
       // node, each entry's raw markdown parsed independently through THIS SAME parseMarkdown
       // function (recursive — also transparently handles an entry that itself contains a
@@ -552,15 +623,15 @@ function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, thre
       }
     }
   }
-  if (node.type.name !== 'blockquote') return mapBlockChildren(node, columnLists, threads)
+  if (node.type.name !== 'blockquote') return mapBlockChildren(node, columnLists, threads, embeds)
 
   const firstPara = node.firstChild
   const firstText = firstPara && firstPara.type.name === 'paragraph' ? firstPara.firstChild : null
   const m = firstText && firstText.isText ? CALLOUT_RE.exec(firstText.text || '') : null
-  if (!m) return mapBlockChildren(node, columnLists, threads)
+  if (!m) return mapBlockChildren(node, columnLists, threads, embeds)
 
   const calloutType = m[1].toUpperCase()
-  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node, columnLists, threads)
+  if (!CALLOUT_META[calloutType]) return mapBlockChildren(node, columnLists, threads, embeds)
 
   // Strip the "[!TYPE] " marker from the start of the first paragraph's text.
   const strippedFirstPara = firstPara!.cut(m[0].length)
@@ -575,5 +646,5 @@ function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, thre
   if (restChildren.length === 0) restChildren.push(schema.nodes.paragraph.create())
 
   const converted = schema.nodes.callout.create({ calloutType }, Fragment.fromArray(restChildren))
-  return mapBlockChildren(converted, columnLists, threads)
+  return mapBlockChildren(converted, columnLists, threads, embeds)
 }

@@ -137,6 +137,46 @@ const nodes: Record<string, NodeSpec> = {
     toDOM: () => ['hr'],
   },
 
+  // A leaf embed pointing at a Study Trail session — modeled on horizontal_rule just above
+  // (a leaf block with no `content`), not on `thread` (that's a real editable container with
+  // its own child nodes, wrong shape for something that's just a live-updating link/summary
+  // card) or `noteScriptureBlock`-style decorations (decoration-only over plain text, no real
+  // node identity — this needs a stable trailSessionId to survive edits). The count attrs are
+  // a CACHED display snapshot, refreshed by studyTrailEmbedNodeView's own subscription — never
+  // treated as live truth by anything reading the doc (e.g. markdown export just serializes
+  // whatever was last cached, same as an image's width attr).
+  study_trail_embed: {
+    group: 'block',
+    attrs: {
+      trailSessionId: {},
+      title: { default: '' },
+      connectionCount: { default: 0 },
+      needsInputCount: { default: 0 },
+    },
+    parseDOM: [{ tag: 'div[data-study-trail-embed]', getAttrs: (dom) => {
+      const el = dom as HTMLElement
+      return {
+        trailSessionId: el.getAttribute('data-trail-session-id') || '',
+        title: el.getAttribute('data-title') || '',
+        connectionCount: Number(el.getAttribute('data-connection-count')) || 0,
+        needsInputCount: Number(el.getAttribute('data-needs-input-count')) || 0,
+      }
+    } }],
+    // Includes real visible text (not just data-* attrs) so the DOMSerializer fallback used
+    // everywhere this node is rendered WITHOUT the live studyTrailEmbedNodeView — print/PDF
+    // export, version history, the daily scroll, Presenter (staticRender.ts's renderNodeAt
+    // falls through to plain domSerializer.serializeNode for any node type it has no explicit
+    // case for) — still shows something readable instead of an empty div.
+    toDOM: (node) => ['div', {
+      'data-study-trail-embed': 'true',
+      'data-trail-session-id': node.attrs.trailSessionId,
+      'data-title': node.attrs.title,
+      'data-connection-count': String(node.attrs.connectionCount),
+      'data-needs-input-count': String(node.attrs.needsInputCount),
+      class: 'pm-study-trail-embed',
+    }, `🔀 ${node.attrs.title || 'Study Trail'} — ${node.attrs.connectionCount} connection${node.attrs.connectionCount === 1 ? '' : 's'}`],
+  },
+
   heading: {
     attrs: { level: { default: 1 } },
     content: 'inline*',

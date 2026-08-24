@@ -16,7 +16,7 @@ import {
   createAutocompletePlugin, replaceRangeWithText, replaceRangeWithBlock, replaceRangeWithWikilink,
   type WikilinkTrigger, type StrongsTrigger, type VerseSuggestTrigger, type SlashCommandTrigger,
 } from './autocomplete'
-import { calloutNodeView, listItemNodeView, codeBlockNodeView, imageNodeView } from './nodeViews'
+import { calloutNodeView, listItemNodeView, codeBlockNodeView, imageNodeView, studyTrailEmbedNodeView } from './nodeViews'
 import { createHeadingCollapsePlugin, headingNodeView, computeHeadingKey, headingPositionsForKeys, setCollapsedHeadingPositions } from './headingCollapse'
 import { createThreadCollapsePlugin, threadIdsPresentInDoc, setCollapsedThreadIds } from './threadCollapse'
 import { threadNodeView, threadEntryNodeView } from './threadNodeView'
@@ -447,6 +447,7 @@ export default function NoteEditorPM({
         image: (node, editorView, getPos) => imageNodeView(getPos)(node, editorView),
         thread: (node, editorView, getPos) => threadNodeView(getPos, persistThreadCollapse)(node, editorView),
         thread_entry: (node) => threadEntryNodeView(node),
+        study_trail_embed: (node) => studyTrailEmbedNodeView(node),
       },
       dispatchTransaction(tr) {
         const newState = view.state.apply(tr)

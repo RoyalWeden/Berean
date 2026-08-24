@@ -6,6 +6,7 @@ import { wrapInList } from 'prosemirror-schema-list'
 import { bereanSchema as schema } from './schema'
 import { pickAndInsertImage } from './imageInsert'
 import { useAppStore } from '@/store'
+import { useStudyTrailStore } from '@/store/studyTrailSlice'
 
 // ─── Slash-command menu ─────────────────────────────────────────────────────
 // Typing "/" (at the start of a line, OR right after existing text on that
@@ -184,6 +185,30 @@ function insertThread(view: EditorView, from: number, to: number) {
   insertBlockNode(view, from, to, buildThread())
 }
 
+// Study Trail embed — see schema.ts's study_trail_embed comment. Unlike thread's "always
+// create a brand-new one", there's nothing to create here: a Study Trail session only exists
+// via the Study Trail window's own +New session flow, so this embeds whichever session is
+// CURRENTLY live (there's at most one at a time — useStudyTrailStore.currentTrailSessionId).
+// No live session → insert a plain explanatory line rather than silently doing nothing;
+// there's no toast/notification primitive in this codebase to surface that otherwise.
+// Deliberate-insertion only, per the plan — never auto-suggested.
+export function buildStudyTrailEmbed(trailSessionId: string, title: string, connectionCount: number, needsInputCount: number): PMNode {
+  return schema.nodes.study_trail_embed.create({ trailSessionId, title, connectionCount, needsInputCount })
+}
+
+async function insertStudyTrailEmbed(view: EditorView, from: number, to: number) {
+  const id = useStudyTrailStore.getState().currentTrailSessionId
+  if (!id) {
+    const msg = '(No live Study Trail session right now — start one from the 🔀 button in the sidebar, then try this again.)'
+    view.dispatch(view.state.tr.insertText(msg, from, to))
+    return
+  }
+  const detail = await window.studyTrail.getSession(id)
+  if (!detail) return
+  const needsInput = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
+  insertBlockNode(view, from, to, buildStudyTrailEmbed(id, detail.session.name, detail.connections.length, needsInput))
+}
+
 // Verse blocks are deliberately NOT a schema node (see schema.ts's NOTE comment) — they're
 // plain paragraph text that blockDecorations.ts recognizes and boxes once it matches a real
 // verse in the DB (async-verified). This command doesn't insert a verse itself; it clears the
@@ -226,6 +251,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'image', label: 'Image', description: 'Insert a picture from a file', keywords: ['picture', 'photo', 'img', 'screenshot'], group: 'Basic blocks', run: insertImage },
   { id: 'columns', label: 'Columns', description: '2-column side-by-side layout', keywords: ['column', 'layout', 'side-by-side', 'split'], group: 'Basic blocks', run: insertColumns },
   { id: 'thread', label: 'Thread', description: 'Collapsible, timestamped log you keep adding entries to', keywords: ['thread', 'log', 'journal', 'chat', 'collapsible'], group: 'Basic blocks', run: insertThread },
+  { id: 'study-trail', label: 'Study Trail', description: 'Embed the current live Study Trail session', keywords: ['study', 'trail', 'session', 'map'], group: 'Basic blocks', run: insertStudyTrailEmbed },
   { id: 'divider', label: 'Divider', description: 'Horizontal rule', keywords: ['hr', 'rule', 'separator', 'line'], group: 'Basic blocks', run: insertHorizontalRule },
   { id: 'callout-note', label: 'Note', description: 'Blue callout for general notes', keywords: ['callout', 'info', 'blue'], group: 'Callouts', run: toCallout('NOTE') },
   { id: 'callout-tip', label: 'Tip', description: 'Green callout for helpful tips', keywords: ['callout', 'green', 'hint'], group: 'Callouts', run: toCallout('TIP') },
