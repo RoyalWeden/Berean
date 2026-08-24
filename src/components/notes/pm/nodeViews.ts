@@ -136,12 +136,11 @@ export function imageNodeView(getPos: () => number | undefined) {
     const handle = document.createElement('span')
     handle.className = 'pm-image-resize-handle'
     handle.contentEditable = 'false'
-    // A ⤡-style diagonal resize-arrows glyph, not a plain colored square — same reveal-on-
-    // hover/selection behavior as before, purely a visual swap of what's rendered inside.
-    // Rotated 90° via CSS (pmEditor.css) — the path itself draws a NE-SW diagonal, but this
-    // handle sits at the wrap's bottom-right corner with an `nwse-resize` cursor (NW-SE), so
-    // the un-rotated glyph pointed the wrong way relative to the actual drag direction.
-    handle.innerHTML = '<svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 10 L10 2 M5.5 2 H10 V6.5 M6.5 10 H2 V5.5"/></svg>'
+    // Same glyph lucide-react ships as MoveDiagonal2 — used verbatim (not a hand-drawn
+    // approximation) so this matches every other icon in the app pixel-for-pixel. Its two
+    // corner brackets already point NW/SE, which reads correctly at this handle's bottom-right
+    // position with its `nwse-resize` cursor, so no extra CSS rotation is needed.
+    handle.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 11 5 5 11 5"/><polyline points="19 13 19 19 13 19"/><line x1="5" y1="5" x2="19" y2="19"/></svg>'
     handle.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
@@ -171,9 +170,10 @@ export function imageNodeView(getPos: () => number | undefined) {
     deleteBtn.className = 'pm-image-delete-btn'
     deleteBtn.contentEditable = 'false'
     deleteBtn.title = 'Delete image'
-    // Trash-can glyph (lucide Trash2 shape, simplified) rather than a plain "×" — reads more
-    // clearly as "delete this image" at a glance than a generic close/dismiss cross would.
-    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+    // Exact lucide-react Trash2 glyph (same paths the rest of the app renders via <Trash2 />)
+    // rather than a hand-drawn approximation — reads more clearly as "delete this image" at a
+    // glance than a generic close/dismiss cross would, and now matches pixel-for-pixel.
+    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
     deleteBtn.addEventListener('mousedown', (e) => {
       // Prevent this turning into a node selection/drag before the click fires.
       e.preventDefault()

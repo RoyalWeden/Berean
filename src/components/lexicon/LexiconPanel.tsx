@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { BookMarked, Search, X, ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ScanSearch, Info, Copy, Check as CheckIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
@@ -341,6 +342,21 @@ function EntryView({
 }) {
   // Helper: apply word replacer if rules are present
   const wr = (t: string) => wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
+  // Which actual English word(s) this occurrence's matched Strong's-tagged position(s)
+  // rendered as (e.g. H2617 chesed → "mercy" here, "kindness" there) — powers the
+  // "Shown as:" word-form filter chips below. Uses the word-replacer-applied text so the
+  // chip label matches what the occurrence list actually displays.
+  function extractMatchedWords(o: OccurrenceRow): string[] {
+    if (!o.matchWordIndices?.length) return []
+    const words = wr(o.text ?? '').split(' ')
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const i of o.matchWordIndices) {
+      const cleaned = (words[i] ?? '').replace(/[^a-zA-Z'À-ɏ]/g, '')
+      if (cleaned && !seen.has(cleaned.toLowerCase())) { seen.add(cleaned.toLowerCase()); out.push(cleaned) }
+    }
+    return out
+  }
   const lexiconZoom = useAppStore((s) => s.appZoom)
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
@@ -353,9 +369,18 @@ function EntryView({
   // requiring an explicit "Show all" click to see anything past the first page.
   const [visibleOccCount, setVisibleOccCount] = useState(10)
   const [occSort, setOccSort] = useState<'canon' | 'matches'>('canon')
-  // Empty set = show every book (the "All" chip). Multi-select, not a single dropdown pick,
-  // so e.g. Genesis + Exodus can be shown together.
-  const [occBookFilter, setOccBookFilter] = useState<Set<string>>(new Set())
+  // Single-select book filter — a custom dropdown (not a native <select>), see the
+  // trigger+portal popover below. 'all' = every book.
+  const [occBookFilter, setOccBookFilter] = useState<string>('all')
+  const [occBookMenuOpen, setOccBookMenuOpen] = useState(false)
+  const [occBookMenuPos, setOccBookMenuPos] = useState<{ left: number; top: number } | null>(null)
+  const occBookTriggerRef = useRef<HTMLButtonElement>(null)
+  const occBookMenuRef = useRef<HTMLDivElement>(null)
+  // Which actual rendered word-form(s) (e.g. H2617 chesed showing as "mercy" in one verse,
+  // "kindness" in another) to show occurrences for — empty set = show every form. This is
+  // the "which occurrences to show" chip filter; the book filter above is a separate,
+  // single-select dropdown.
+  const [occWordFilter, setOccWordFilter] = useState<Set<string>>(new Set())
   const [occTextFilter, setOccTextFilter] = useState('')
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
@@ -389,7 +414,8 @@ function EntryView({
     setShowAllOccurrences(false)
     setVisibleOccCount(10)
     setOccSort('canon')
-    setOccBookFilter(new Set())
+    setOccBookFilter('all')
+    setOccWordFilter(new Set())
     setOccTextFilter('')
     setOccurrencesLoading(true)
     let cancelled = false
@@ -425,6 +451,18 @@ function EntryView({
     el.addEventListener('scroll', onScroll)
     return () => el.removeEventListener('scroll', onScroll)
   }, [occurrences.length, scrollRef])
+
+  // Close the book-filter dropdown on an outside click.
+  useEffect(() => {
+    if (!occBookMenuOpen) return
+    function onDown(e: MouseEvent) {
+      if (occBookMenuRef.current?.contains(e.target as Node)) return
+      if (occBookTriggerRef.current?.contains(e.target as Node)) return
+      setOccBookMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [occBookMenuOpen])
 
   useEffect(() => {
     const num = entry.strongsNum
@@ -628,10 +666,14 @@ function EntryView({
             </div>
           </div>
 
-          {/* Sort + book filter — occurrences previously had no way to narrow a long list down
-              to one book, or to bring the most-repeated verses to the top. Book filter is a
-              row of toggle chips (multi-select — e.g. Genesis + Exodus together) instead of a
-              native <select>, matching the app's own control style rather than the OS's. */}
+          {/* Sort + book filter (dropdown) + word-form filter (chips). Occurrences previously
+              had no way to narrow a long list down to one book, bring the most-repeated
+              verses to the top, or isolate which actual English rendering of this word to
+              look at (the same Strong's number often renders as several different English
+              words — e.g. H2617 chesed as "mercy" in one verse and "kindness" in another).
+              Book stays single-select via a custom dropdown (not a native <select> — the app
+              never uses OS-chrome controls); word-form is the multi-select chip row, since
+              several renderings can be shown together. */}
           {!occurrencesLoading && occurrences.length > 5 && (() => {
             const bookCounts = new Map<string, number>()
             for (const o of occurrences) bookCounts.set(o.book_id, (bookCounts.get(o.book_id) ?? 0) + 1)
@@ -639,14 +681,34 @@ function EntryView({
               .sort((a, b) => b[1] - a[1])
               .map(([id, count]) => ({ id, count, name: (() => { try { return bookName(id) } catch { return id } })() }))
             const hasMultipleBooks = bookOptions.length > 1
-            function toggleBook(id: string) {
-              setOccBookFilter((prev) => {
+            const selectedBookLabel = occBookFilter === 'all'
+              ? `All books (${occurrences.length})`
+              : bookOptions.find((b) => b.id === occBookFilter)?.name ?? occBookFilter
+
+            // Word-form chips: which actual word(s) this Strong's number was rendered as,
+            // in the (word-replacer-applied) occurrence text, at the matched word index(es).
+            const wordCounts = new Map<string, { display: string; count: number }>()
+            for (const o of occurrences) {
+              for (const w of extractMatchedWords(o)) {
+                const key = w.toLowerCase()
+                const existing = wordCounts.get(key)
+                if (existing) existing.count++
+                else wordCounts.set(key, { display: w, count: 1 })
+              }
+            }
+            const wordOptions = Array.from(wordCounts.entries())
+              .sort((a, b) => b[1].count - a[1].count)
+              .map(([key, v]) => ({ key, ...v }))
+            const hasMultipleWordForms = wordOptions.length > 1
+            function toggleWord(key: string) {
+              setOccWordFilter((prev) => {
                 const next = new Set(prev)
-                if (next.has(id)) next.delete(id)
-                else next.add(id)
+                if (next.has(key)) next.delete(key)
+                else next.add(key)
                 return next
               })
             }
+
             return (
               <div className="mb-2 space-y-1.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -661,6 +723,48 @@ function EntryView({
                       </button>
                     ))}
                   </div>
+                  {hasMultipleBooks && (
+                    <button
+                      ref={occBookTriggerRef}
+                      onClick={() => {
+                        if (!occBookMenuOpen) {
+                          const r = occBookTriggerRef.current?.getBoundingClientRect()
+                          if (r) setOccBookMenuPos({ left: r.left, top: r.bottom + 4 })
+                        }
+                        setOccBookMenuOpen((v) => !v)
+                      }}
+                      className="flex items-center gap-1 text-[9.5px] px-2 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[140px]"
+                    >
+                      <span className="truncate">{selectedBookLabel}</span>
+                      <ChevronDown size={10} className={`flex-shrink-0 transition-transform ${occBookMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                  {occBookMenuOpen && occBookMenuPos && createPortal(
+                    <div
+                      ref={occBookMenuRef}
+                      style={{ position: 'fixed', left: occBookMenuPos.left, top: occBookMenuPos.top, zIndex: 9999 }}
+                      className="min-w-[160px] max-h-64 overflow-y-auto rounded-shell context-menu py-1"
+                    >
+                      <button
+                        onClick={() => { setOccBookFilter('all'); setOccBookMenuOpen(false) }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                      >
+                        <span className="flex-1">All books ({occurrences.length})</span>
+                        {occBookFilter === 'all' && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                      </button>
+                      {bookOptions.map((b) => (
+                        <button
+                          key={b.id}
+                          onClick={() => { setOccBookFilter(b.id); setOccBookMenuOpen(false) }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
+                        >
+                          <span className="flex-1 truncate">{b.name} ({b.count})</span>
+                          {occBookFilter === b.id && <CheckIcon size={12} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />}
+                        </button>
+                      ))}
+                    </div>,
+                    document.body
+                  )}
                   <div className="relative flex-1 min-w-[110px]">
                     <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] pointer-events-none" />
                     <input
@@ -679,21 +783,22 @@ function EntryView({
                     )}
                   </div>
                 </div>
-                {hasMultipleBooks && (
+                {hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[9px] text-[rgb(var(--color-text-muted))] uppercase tracking-wide mr-0.5">Shown as:</span>
                     <button
-                      onClick={() => setOccBookFilter(new Set())}
-                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occBookFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                      onClick={() => setOccWordFilter(new Set())}
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.size === 0 ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                     >
-                      All ({occurrences.length})
+                      All
                     </button>
-                    {bookOptions.map((b) => (
+                    {wordOptions.map((w) => (
                       <button
-                        key={b.id}
-                        onClick={() => toggleBook(b.id)}
-                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occBookFilter.has(b.id) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                        key={w.key}
+                        onClick={() => toggleWord(w.key)}
+                        className={`text-[9.5px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${occWordFilter.has(w.key) ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                       >
-                        {b.name} ({b.count})
+                        {w.display} ({w.count})
                       </button>
                     ))}
                   </div>
@@ -709,14 +814,21 @@ function EntryView({
             <p className="text-xs text-[rgb(var(--color-text-muted))]">No occurrence data available.</p>
           )}
           {!occurrencesLoading && occurrences.length > 0 && (() => {
-            let visible = occBookFilter.size === 0 ? occurrences : occurrences.filter((o) => occBookFilter.has(o.book_id))
+            let visible = occBookFilter === 'all' ? occurrences : occurrences.filter((o) => o.book_id === occBookFilter)
+            if (occWordFilter.size > 0) {
+              visible = visible.filter((o) => extractMatchedWords(o).some((w) => occWordFilter.has(w.toLowerCase())))
+            }
             const q = occTextFilter.trim().toLowerCase()
             if (q) visible = visible.filter((o) => (o.text ?? '').toLowerCase().includes(q))
             if (occSort === 'matches') {
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
             }
             if (visible.length === 0) {
-              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match "{occTextFilter}".</p>
+              return (
+                <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">
+                  {q ? `No occurrences match "${occTextFilter}".` : 'No occurrences match the current filters.'}
+                </p>
+              )
             }
             return (
             <div className="space-y-1">
