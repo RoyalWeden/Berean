@@ -1,3 +1,4 @@
+import { bookName } from '@/lib/parseRef'
 import type { TrailSessionDetail } from '@/types/studyTrail'
 
 // Templated prose recap, built client-side from a session's nodes/connections. Only used as a
@@ -7,7 +8,7 @@ import type { TrailSessionDetail } from '@/types/studyTrail'
 export function buildRecap(detail: TrailSessionDetail): string {
   const { nodes, connections } = detail
   if (nodes.length === 0) return 'Nothing recorded yet in this session.'
-  const chapterLabel = (n: { bookId: string; chapter: number }) => `${n.bookId} ${n.chapter}`
+  const chapterLabel = (n: { bookId: string; chapter: number }) => `${bookName(n.bookId)} ${n.chapter}`
 
   const parts: string[] = [`Started at ${chapterLabel(nodes[0])}.`]
   for (let i = 1; i < nodes.length; i++) {

@@ -1932,27 +1932,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       lastMainScrollTopRef.current = scrollTop
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
     } else {
-      // Normalize the physical scrollTop delta against the PRESENTER's own scrollable range
-      // (not this panel's own, often tiny, range) — see presenterScrollSensitivity's doc
-      // comment for the full derivation. This is the same math the zero-scroll-room wheel
-      // handler further below already uses to drive a "virtual" scroll, generalized here to
-      // real (nonzero) native scroll events, so the outline's felt scroll speed no longer
-      // swings wildly depending on how little a chapter happens to overflow this panel.
-      // Snapped to the exact extremes at the true top/bottom of THIS panel's own scroll range
-      // so reaching either end here always means reaching the corresponding end of the
-      // presenter's outline — the normalization only smooths the speed of the motion between
-      // those two endpoints, it never stops the outline from actually reaching them.
-      const region = viewerVisibleRegion
-      const sensitivity = presenterScrollSensitivity(region?.clientHeight, region?.visibleFraction)
-      // deltaPx is measured against the RAW scrollTop (not the chapter-relative effScrollTop)
-      // — a physical scroll tick's delta is the same magnitude either way except right at a
-      // chapter boundary crossing, and lastMainScrollTopRef needs to track ONE consistent
-      // coordinate space across calls.
-      const deltaPx = scrollTop - lastMainScrollTopRef.current
+      // THE actual percent pushed to the presenter — this used to run the physical scrollTop
+      // delta through a "sensitivity" normalization against the PRESENTER's own (often
+      // different) scrollable range, accumulating onto virtualScrollPctRef tick by tick instead
+      // of just reading the true position. That accumulation DRIFTS: confirmed via logging
+      // (see the [PD SUSPICIOUS JUMP at settle] investigation) that after continuous scrolling
+      // through a single chapter, the accumulated value can end up roughly HALF the true
+      // scrollTop/max ratio at the exact same physical position — nothing except hitting an
+      // exact 0/1 endpoint, or the scroll-settle timer, ever re-anchored it to reality in
+      // between. Since computePresenterBand (the outline drawn in THIS window) already uses the
+      // panel's own true ratio directly, that drift is exactly why the outline tracked
+      // correctly while the actual presenter window (fed this now-wrong value) didn't — "the
+      // presenter isn't aligned with the outline" was two different numbers being computed for
+      // the same physical scroll position. Fixed: always use the true ratio directly, the same
+      // math the endpoint-snapping already used at 0/1, extended to every point in between —
+      // matching computePresenterBand and the scroll-settle timer's math exactly, so there's
+      // only ever ONE definition of "where this panel is scrolled to."
       lastMainScrollTopRef.current = scrollTop
-      if (max <= 0 || effScrollTop <= 0) scrollPercent = 0
-      else if (effScrollTop >= max) scrollPercent = 1
-      else scrollPercent = Math.max(0, Math.min(1, virtualScrollPctRef.current + deltaPx * sensitivity))
+      scrollPercent = max <= 0 ? 0 : Math.max(0, Math.min(1, effScrollTop / max))
       virtualScrollPctRef.current = scrollPercent
       setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     }

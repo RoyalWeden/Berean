@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 
@@ -26,10 +27,10 @@ function ConnectionRow({ conn, onOpenPrompt }: { conn: TrailConnection; onOpenPr
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
   const label = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
-    : conn.toKind === 'compare' ? `compare · ${conn.toBookId} ${conn.toChapter}`
+    : conn.toKind === 'compare' ? `compare · ${bookName(conn.toBookId ?? '')} ${conn.toChapter}`
     : conn.toKind === 'note' ? 'note'
     : conn.toKind === 'video' ? 'video'
-    : `${conn.toBookId} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
+    : `${bookName(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
       <LineSwatch weight={conn.weight} tier={conn.clarityTier} clustered={!!conn.clusterId} />
@@ -75,7 +76,7 @@ function SessionBlock({ detail, onOpenPrompt }: { detail: TrailSessionDetail; on
         detail.nodes.map((n: TrailNode) => (
           <div key={n.id} style={{ paddingLeft: 11, marginBottom: 6 }}>
             <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
-              {n.bookId} {n.chapter}
+              {bookName(n.bookId)} {n.chapter}
             </div>
             {detail.connections.filter((c) => c.fromNodeId === n.id).map((c) => (
               <ConnectionRow key={c.id} conn={c} onOpenPrompt={onOpenPrompt} />

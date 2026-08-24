@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { bookName } from '@/lib/parseRef'
 import type { TrailSession, TrailSessionDetail, TrailConnectionWithSession } from '@/types/studyTrail'
 import { buildRecap } from './recapText'
 
@@ -29,7 +30,7 @@ function SessionCard({ session }: { session: TrailSession }) {
         window.studyTrail.getBacklinks(last.bookId, last.chapter, session.id).then((rows) => {
           if (cancelled) return
           const others = new Set(rows.map((r) => r.sessionName))
-          setBacklink(others.size > 0 ? `Also visited ${last.bookId} ${last.chapter} in: ${[...others].join(', ')}` : null)
+          setBacklink(others.size > 0 ? `Also visited ${bookName(last.bookId)} ${last.chapter} in: ${[...others].join(', ')}` : null)
         }).catch(() => {})
       }
     }).catch(() => {})
@@ -95,7 +96,7 @@ function SessionCard({ session }: { session: TrailSession }) {
 function SearchResultRow({ r }: { r: TrailConnectionWithSession }) {
   const label = r.toKind === 'lexicon'
     ? `Strong's ${r.toStrongsNum}`
-    : `${r.toBookId ?? ''} ${r.toChapter ?? ''}${r.toVerse ? `:${r.toVerse}` : ''}`
+    : `${r.toBookId ? bookName(r.toBookId) : ''} ${r.toChapter ?? ''}${r.toVerse ? `:${r.toVerse}` : ''}`
   return (
     <div style={{ padding: '6px 0', borderBottom: '1px solid rgb(var(--color-surface-4))' }}>
       <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-primary))' }}>

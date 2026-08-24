@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 
@@ -13,10 +14,12 @@ import ReasonPromptPopover from './ReasonPromptPopover'
 
 const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 
+// bookName() is the same synchronous, no-DB-lookup helper the rest of the app already uses for
+// this (parseRef.ts's own ID_TO_NAME table) — trail rows only ever carry a bookId, but that
+// table doesn't need a DB round-trip, so there's no reason this window should ever have shown
+// raw ids ("JHN 17") instead of full names ("John 17").
 function bookLabel(bookId: string): string {
-  // Best-effort readable label — the window doesn't have the full books table loaded, and
-  // trail rows only carry bookId. Capitalize/space a raw id as a reasonable fallback.
-  return bookId
+  return bookName(bookId)
 }
 
 function LineSwatch({ weight, tier, clustered }: { weight: string; tier: number; clustered: boolean }) {
