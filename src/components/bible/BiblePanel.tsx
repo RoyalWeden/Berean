@@ -19,7 +19,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
-import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent } from '@/hooks/useViewerSync'
+import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord } from '@/lib/presenterBand'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
@@ -427,7 +427,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // percent/chapterKey stale here makes computeViewerPayload() report `undefined` for
     // this chapter, so the viewer centers on `verse` instead — see useViewerSync.ts.
     if (!hasTargetVerse) {
-      setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
+      const freshChapterKey = `${tabState.bookId}:${tabState.chapter}`
+      setMainBibleScrollPercent(0, freshChapterKey)
+      clearLastBibleVerse(freshChapterKey)
     }
     virtualScrollPctRef.current = 0
     lastMainScrollTopRef.current = 0
@@ -456,7 +458,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeSpace !== 'scripture') return
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
-    if (savedPos === 0) return
+    if (savedPos === 0) {
+      // Landing on this tab already at (or with no saved) scroll position — unlike the
+      // non-continuous reset effect above, this path never fires a native scroll event to
+      // refresh useViewerSync.ts's lastBibleScrollPercent/lastScrollChapterKey cache, so it can
+      // stay stale for whatever chapter was last ACTIVELY scrolled elsewhere. computeViewerPayload
+      // then reports scrollPercent as undefined for this (legitimately top-of-chapter) tab, and
+      // the presenter falls back to centering on a stale bs.verse/lastBibleVerse instead —
+      // confirmed root cause of "main shows top of chapter, presenter shows mid-chapter verses".
+      const freshChapterKey = `${tabState.bookId}:${tabState.chapter}`
+      setMainBibleScrollPercent(0, freshChapterKey)
+      clearLastBibleVerse(freshChapterKey)
+      virtualScrollPctRef.current = 0
+      return
+    }
     pendingScrollRef.current = savedPos
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSpace, activeTabId, continuousChapterScroll])
@@ -626,7 +641,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (floating) return
     const container = getScrollEl()
     if (container) {
-      const max = container.scrollHeight - container.clientHeight
+      // measureContentHeight (content-bottom-clamped), not raw scrollHeight — matches every
+      // other place that measures this panel's scrollable range (computePresenterBand,
+      // ViewerBiblePage.tsx's own reportVisible). Using raw scrollHeight here made this one
+      // explicit "send to view" push compute a systematically smaller percent than the rest of
+      // the pipeline for a short chapter with trailing empty space below the last verse.
+      const cTop = container.getBoundingClientRect().top
+      let contentBottom = 0
+      for (const node of Array.from(container.querySelectorAll('[data-verse]'))) {
+        const r = (node as HTMLElement).getBoundingClientRect()
+        const bottom = r.bottom - cTop + container.scrollTop
+        if (bottom > contentBottom) contentBottom = bottom
+      }
+      const contentHeight = measureContentHeight(container.scrollHeight, contentBottom)
+      const max = contentHeight - container.clientHeight
       const percent = max > 0 ? container.scrollTop / max : 0
       setMainBibleScrollPercent(percent, `${tabState.bookId}:${tabState.chapter}`)
       // This is an explicit absolute re-sync (not a physical scroll gesture), so resync the
@@ -2040,6 +2068,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               searchBack: savedQuery ? { query: savedQuery } : null,
             })
             renameTab('scripture', activeTab.id, title)
+            // This is Advanced Scripture Search's own "click a result" action (distinct from
+            // FloatingSearch/SearchTab, already wired) — was never recorded at all.
+            recordNavigation(
+              { bookId: tabState.bookId, chapter: tabState.chapter },
+              { bookId, chapter, verse },
+              { kind: 'search-result', query: savedQuery },
+            )
           }}
           onOpenInNewTab={(bookId, chapter, verse, tid) => {
             const book = books.find((b) => b.id === bookId)
@@ -2048,9 +2083,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
             addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
+            recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}
           onOpenInFloating={(bookId, chapter, verse) => {
             window.app.openFloatingTab('bible', { bookId, chapter: String(chapter), targetVerse: String(verse) })
+            recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}
           onClose={() => {
             if (isDedicatedSearchTab && activeTab) {

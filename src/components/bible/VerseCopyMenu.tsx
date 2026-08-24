@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Copy, Hash, BookOpen, ExternalLink } from 'lucide-react'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 
@@ -98,9 +99,15 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
       ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
     })
     store.setActiveSpace('scripture')
+    // This context menu doesn't carry "where the user right-clicked FROM" (it's shared across
+    // several hosts — search results, chapter view, etc.) — an empty `from` is the honest
+    // signal (recordNavigation/tierForOrigin handle it fine), still worth recording the
+    // destination and origin kind rather than silently bypassing entirely.
+    recordNavigation({}, { bookId: target!.bookId, chapter: target!.chapter, verse: target!.verse }, { kind: 'other', label: 'verse-copy-menu' })
   }
 
   function openInFloatingTab() {
+    recordNavigation({}, { bookId: target!.bookId, chapter: target!.chapter, verse: target!.verse }, { kind: 'other', label: 'verse-copy-menu' })
     window.app.openFloatingTab('bible', {
       bookId: target!.bookId, chapter: String(target!.chapter), targetVerse: String(target!.verse),
       ...(target!.endVerse ? { endVerse: String(target!.endVerse) } : {}),

@@ -9,7 +9,7 @@ import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
-import { navigateToVerse, type NavOrigin } from '@/lib/verseNavigation'
+import { navigateToVerse, recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -2254,6 +2254,7 @@ export default function BibleRightPanel({
                     ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
                   })
                   setActiveSpace('scripture')
+                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'cross-ref', source: 'notes' })
                 }}
               >
                 <ExternalLink size={12} />
@@ -2266,6 +2267,7 @@ export default function BibleRightPanel({
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   window.app.openFloatingTab('bible', { bookId: bId, chapter: String(ch), targetVerse: String(vs) })
                   bumpFloatingTabToken()
+                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'cross-ref', source: 'notes' })
                 }}
               >
                 <ExternalLink size={12} />

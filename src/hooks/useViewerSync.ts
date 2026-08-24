@@ -52,6 +52,18 @@ export function setLastBibleVerse(v: number | undefined, chapterKey = '') {
   lastVerseChapterKey = chapterKey
 }
 
+/** Belt-and-suspenders companion to clearMainBibleScrollPercent — called from the same
+ *  chapter-load-reset points so a stale lastBibleVerse from an EARLIER visit to this exact
+ *  chapter (e.g. a search/cross-ref jump to verse 15 last time you were here) can never leak
+ *  into this fresh visit's verse-centering fallback once scrollPercent is correctly zeroed. */
+export function clearLastBibleVerse(chapterKey: string) {
+  const matched = lastVerseChapterKey === chapterKey
+  if (window.__bereanPresenterDebug) {
+    console.log('[PD cache-write] clearLastBibleVerse', { chapterKey, lastVerseChapterKey, matched })
+  }
+  if (matched) { lastBibleVerse = undefined; lastVerseChapterKey = '' }
+}
+
 /** Compute what the viewer should show based on current app state. */
 export function computeViewerPayload(): ViewerPayload {
   const s = useAppStore.getState()

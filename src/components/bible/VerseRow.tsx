@@ -7,7 +7,7 @@ import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } 
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
-import { navigateToVerse } from '@/lib/verseNavigation'
+import { navigateToVerse, recordNavigation } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
 import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -1685,6 +1685,17 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                     state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
                     ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                   })
+                  // Same origin as "Open verse" above — this menu's other cross-ref jump, just
+                  // opened in a new tab instead of in-place. Previously bypassed recording
+                  // entirely (only "Open verse" was wired), which per investigation was the
+                  // dominant reason a real testing session recorded almost nothing: exploring
+                  // cross-refs via "new tab" is a very natural habit and every one of those
+                  // clicks was silently lost.
+                  recordNavigation(
+                    { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
+                    { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
+                    { kind: 'cross-ref', source: 'notes' },
+                  )
                 }}
               >
                 <BookOpen size={12} />
@@ -1699,6 +1710,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   s.ensureTab('bible')
                   window.app.openFloatingTab('bible', { bookId: r.bookId, chapter: String(r.chapter), targetVerse: String(r.verse) })
                   s.bumpFloatingTabToken()
+                  // Recording is a main-window concept (Study Trail's whole recorder lives
+                  // there) — the verse itself opens in a separate floating window, but the
+                  // navigational tangent the user took is still real and worth recording from
+                  // here, same as "Open in new tab" above.
+                  recordNavigation(
+                    { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
+                    { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
+                    { kind: 'cross-ref', source: 'notes' },
+                  )
                 }}
               >
                 <ExternalLink size={12} />
