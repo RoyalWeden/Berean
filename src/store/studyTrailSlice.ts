@@ -146,14 +146,16 @@ export function installStudyTrailStateSync(): void {
   // mounting would silently look ended to it until something else happened to re-broadcast.
   window.studyTrail.listSessions().then((rows) => {
     const active = rows.find((r) => r.status === 'live' || r.status === 'paused')
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions', { rows, adopting: active?.id ?? null })
     if (!active) return
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId) return // already knows about a session — don't clobber it
     useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status })
-  }).catch(() => {})
+  }).catch((err) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions FAILED', err) })
 
   window.app.onStudyTrailStateChanged?.((raw) => {
     const incoming = raw as { currentTrailSessionId: string | null; trailSessionStatus: TrailSessionStatus | null }
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] received broadcast', incoming)
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId === incoming.currentTrailSessionId && cur.trailSessionStatus === incoming.trailSessionStatus) return
     useStudyTrailStore.setState({
@@ -181,8 +183,20 @@ let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter:
 export function installStudyTrailRecorder(): void {
   setNavRecorder((from, to, origin) => {
     const s = useStudyTrailStore.getState()
-    if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') return
-    if (!to.bookId || to.chapter == null) return
+    if (window.__bereanTrailDebug) {
+      console.log('[TrailDebug] recorder callback entry', {
+        currentTrailSessionId: s.currentTrailSessionId, trailSessionStatus: s.trailSessionStatus,
+        currentAnchorNodeId: s.currentAnchorNodeId, from, to, origin,
+      })
+    }
+    if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') {
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] recorder: no live session in THIS window\'s store — nothing recorded')
+      return
+    }
+    if (!to.bookId || to.chapter == null) {
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] recorder: missing to.bookId/chapter — nothing recorded', to)
+      return
+    }
 
     const sameChapter = s.currentAnchorBookId === to.bookId && s.currentAnchorChapter === to.chapter
     if (sameChapter && s.currentAnchorNodeId) {

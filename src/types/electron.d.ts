@@ -684,6 +684,15 @@ declare global {
     // then copy the [PresenterDebug ...] lines from both. Not surfaced in any UI (devtools-only,
     // for live debugging), and false/undefined by default so it never logs in normal use.
     __bereanPresenterDebug?: boolean
+    // Opt-in console logging for diagnosing "Study Trail isn't recording anything" — set
+    // `window.__bereanTrailDebug = true` in the MAIN window's devtools console (the recorder
+    // lives there — the Study Trail window itself never navigates verses, so its console
+    // won't show much beyond the bootstrap/broadcast lines), then start a session and
+    // navigate. [TrailDebug] lines show whether navigateToVerse/recordNavigation actually
+    // fired, whether a recorder is installed, and — critically — whether THIS window's local
+    // useStudyTrailStore believes a session is live at the moment of each navigation (the
+    // actual gate every recording decision is made against).
+    __bereanTrailDebug?: boolean
     bible: BibleAPI
     notes: NotesAPI
     highlights: HighlightsAPI

@@ -1813,7 +1813,36 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     scrollSaveTimerRef.current = setTimeout(() => {
       if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
     }, 150)
-    const max = container.scrollHeight - container.clientHeight
+    // In Continuous Chapter Scroll mode, `container` is the WHOLE multi-chapter scroll region
+    // (loaded chapters + height-preserving placeholder spacers for evicted ones spanning the
+    // entire book) — using its raw scrollHeight/scrollTop here computed "how far scrolled
+    // through the ENTIRE BOOK", not "how far through the CURRENT chapter" the presenter is
+    // actually showing. Since there's almost always much more book left below the current
+    // chapter, that percent stayed pinned near 0 for every chapter except the literal last one
+    // in the book — reported as "the presenter doesn't get to the bottom of the scripture."
+    // Fix: measure against the CURRENT chapter's own wrapper element (data-chapter, set by
+    // ContinuousChapterScroll.tsx) instead of the shared container when it's found, falling
+    // back to the container's own bounds otherwise (the plain non-continuous single-chapter
+    // div, where container IS the chapter).
+    let effScrollTop = scrollTop
+    let max = container.scrollHeight - container.clientHeight
+    if (continuousChapterScroll) {
+      const heading = container.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null
+      const wrapper = heading?.parentElement as HTMLElement | null
+      if (wrapper) {
+        const cRect = container.getBoundingClientRect()
+        const wRect = wrapper.getBoundingClientRect()
+        const chapterTop = wRect.top - cRect.top + scrollTop
+        effScrollTop = Math.max(0, scrollTop - chapterTop)
+        max = wrapper.offsetHeight - container.clientHeight
+        if (window.__bereanPresenterDebug) {
+          console.log('[PresenterDebug continuous-chapter-bounds]', {
+            chapter: tabStateRef.current.chapter, chapterTop, chapterHeight: wrapper.offsetHeight,
+            rawScrollTop: scrollTop, effScrollTop, max,
+          })
+        }
+      }
+    }
     const st = useAppStore.getState()
     let scrollPercent: number
     if (Date.now() < findScrollSuppressRef.current) {
@@ -1826,7 +1855,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // Don't record it as the "last known" percent either: caching it here would leave the
       // presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned value for
       // this chapter that a later, unrelated push could pick up and wrongly reuse.
-      scrollPercent = max > 0 ? scrollTop / max : 0
+      scrollPercent = max > 0 ? effScrollTop / max : 0
       virtualScrollPctRef.current = scrollPercent
       lastMainScrollTopRef.current = scrollTop
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
@@ -1843,10 +1872,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // those two endpoints, it never stops the outline from actually reaching them.
       const region = viewerVisibleRegion
       const sensitivity = presenterScrollSensitivity(region?.clientHeight, region?.visibleFraction)
+      // deltaPx is measured against the RAW scrollTop (not the chapter-relative effScrollTop)
+      // — a physical scroll tick's delta is the same magnitude either way except right at a
+      // chapter boundary crossing, and lastMainScrollTopRef needs to track ONE consistent
+      // coordinate space across calls.
       const deltaPx = scrollTop - lastMainScrollTopRef.current
       lastMainScrollTopRef.current = scrollTop
-      if (max <= 0 || scrollTop <= 0) scrollPercent = 0
-      else if (scrollTop >= max) scrollPercent = 1
+      if (max <= 0 || effScrollTop <= 0) scrollPercent = 0
+      else if (effScrollTop >= max) scrollPercent = 1
       else scrollPercent = Math.max(0, Math.min(1, virtualScrollPctRef.current + deltaPx * sensitivity))
       virtualScrollPctRef.current = scrollPercent
       setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)

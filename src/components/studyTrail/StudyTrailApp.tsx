@@ -5,6 +5,7 @@ import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import MapView from './MapView'
 import ReviewView from './ReviewView'
+import EverythingView from './EverythingView'
 
 type MainTab = 'map' | 'review'
 
@@ -147,6 +148,22 @@ export default function StudyTrailApp() {
               +
             </button>
           </div>
+          {/* "Everything" — the default (selectedId starts null): not in any particular
+              session, just show what's been tracked across all of them. Pinned above the
+              individual session list, same idea as the plan's "Sessions/Everything toggle". */}
+          <div
+            onClick={() => { setSelectedId(null); setMainTab('map') }}
+            style={{
+              padding: '9px 10px', borderRadius: 9, cursor: 'pointer', marginBottom: 6,
+              background: selectedId === null && mainTab === 'map' ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+              border: '1px dashed rgb(var(--color-surface-4))',
+            }}
+          >
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: selectedId === null ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))' }}>
+              Everything
+            </div>
+            <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
+          </div>
           {sessions.map((s) => (
             <div
               key={s.id}
@@ -174,8 +191,10 @@ export default function StudyTrailApp() {
         <div style={{ flex: 1, padding: 20, overflowY: 'auto', minWidth: 0 }}>
           {mainTab === 'review' ? (
             <ReviewView sessions={sessions} />
+          ) : selectedId === null ? (
+            <EverythingView sessions={sessions} />
           ) : !detail ? (
-            <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Select a session to view its trail.</div>
+            <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
             <>
               <h2 style={{ margin: '0 0 4px', fontSize: 17 }}>{detail.session.name}</h2>
