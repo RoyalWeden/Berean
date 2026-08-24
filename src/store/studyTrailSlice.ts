@@ -69,25 +69,32 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentAnchorVerseCount: 0,
 
   startTrailSession: async (name: string) => {
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] startTrailSession() called', { name })
     const session = await window.studyTrail.startSession(name)
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] startSession IPC resolved', session)
     set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null })
     // Tell every other open window (main window, if this was started from the Study Trail
     // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
     // necessary at all.
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session start', { currentTrailSessionId: session.id, trailSessionStatus: 'live' })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: session.id, trailSessionStatus: 'live' })
   },
   pauseTrailSession: async () => {
     const id = get().currentTrailSessionId
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] pauseTrailSession() called', { id })
     if (!id) return
     await window.studyTrail.pauseSession(id)
     set({ trailSessionStatus: 'paused' })
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session pause', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: id, trailSessionStatus: 'paused' })
   },
   resumeTrailSession: async () => {
     const id = get().currentTrailSessionId
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] resumeTrailSession() called', { id })
     if (!id) return
     await window.studyTrail.resumeSession(id)
     set({ trailSessionStatus: 'live' })
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session resume', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: id, trailSessionStatus: 'live' })
   },
   renameTrailSession: async (name: string) => {
@@ -113,7 +120,16 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
  */
 export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'occurrences' | 'related' = 'click'): void {
   const s = useStudyTrailStore.getState()
-  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live' || !s.currentAnchorNodeId) return
+  if (window.__bereanTrailDebug) {
+    console.log('[TrailDebug] recordLexiconConnection() called', {
+      strongsNum, depth, currentTrailSessionId: s.currentTrailSessionId,
+      trailSessionStatus: s.trailSessionStatus, currentAnchorNodeId: s.currentAnchorNodeId,
+    })
+  }
+  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live' || !s.currentAnchorNodeId) {
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] recordLexiconConnection: gate failed — nothing recorded')
+    return
+  }
   window.studyTrail.addConnection({
     trailSessionId: s.currentTrailSessionId,
     fromNodeId: s.currentAnchorNodeId,
@@ -124,7 +140,9 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
     reasonTags: ['lexicon'],
     weight: 'full',
     strongsDepth: depth,
-  }).catch(() => {})
+  })
+    .then((conn) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (lexicon) SUCCEEDED', conn) })
+    .catch((err) => console.error('[TrailDebug] addConnection (lexicon) FAILED — this was previously silently swallowed', err))
 }
 
 /**
@@ -203,7 +221,9 @@ export function installStudyTrailRecorder(): void {
       // Still reading the same chapter — update the subnote, no new connection.
       const count = s.currentAnchorVerseCount + 1
       useStudyTrailStore.setState({ currentAnchorVerseCount: count })
-      window.studyTrail.updateNodeSubnote(s.currentAnchorNodeId, `read ${count} verse${count === 1 ? '' : 's'} in this chapter`).catch(() => {})
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] same chapter — updating subnote only, no connection', { nodeId: s.currentAnchorNodeId, count })
+      window.studyTrail.updateNodeSubnote(s.currentAnchorNodeId, `read ${count} verse${count === 1 ? '' : 's'} in this chapter`)
+        .catch((err) => console.error('[TrailDebug] updateNodeSubnote FAILED', err))
       return
     }
 
@@ -211,6 +231,9 @@ export function installStudyTrailRecorder(): void {
     const prevNodeId = s.currentAnchorNodeId
     const { text, tags } = reasonForOrigin(origin)
     const tier = tierForOrigin(origin)
+    if (window.__bereanTrailDebug) {
+      console.log('[TrailDebug] different chapter — recording', { trailSessionId, prevNodeId, to, tier, text, tags, originKind: origin.kind })
+    }
 
     // A compare-view column change is its own connection kind, not a chapter tangent — the
     // user is still anchored on whatever they were reading, just glancing at a second
@@ -222,7 +245,11 @@ export function installStudyTrailRecorder(): void {
           trailSessionId, fromNodeId: prevNodeId, toKind: 'compare',
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
           clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
-        }).catch(() => {})
+        })
+          .then((conn) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (compare) SUCCEEDED', conn) })
+          .catch((err) => console.error('[TrailDebug] addConnection (compare) FAILED', err))
+      } else if (window.__bereanTrailDebug) {
+        console.log('[TrailDebug] compare-column but no prevNodeId — nothing to connect FROM, skipped')
       }
       return
     }
@@ -231,13 +258,18 @@ export function installStudyTrailRecorder(): void {
     // any), and becomes the new anchor itself.
     window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
       .then(async (node) => {
+        if (window.__bereanTrailDebug) console.log('[TrailDebug] addNode SUCCEEDED — new anchor', node)
         useStudyTrailStore.setState({ currentAnchorNodeId: node.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1 })
-        if (!prevNodeId) return // first anchor of the session — nothing to connect FROM yet
+        if (!prevNodeId) {
+          if (window.__bereanTrailDebug) console.log('[TrailDebug] no prevNodeId (first anchor of session) — nothing to connect FROM')
+          return
+        }
         const conn = await window.studyTrail.addConnection({
           trailSessionId, fromNodeId: prevNodeId, toKind: 'chapter',
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
           clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
         })
+        if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
         // Arm the glance check: if the user bounces straight back to where they came from
         // within the window, this connection gets re-weighted down to a glance.
         if (pendingGlanceCheck) clearTimeout(pendingGlanceCheck.timer)
@@ -248,13 +280,17 @@ export function installStudyTrailRecorder(): void {
           }
         }
       })
-      .catch(() => {})
+      .catch((err) => console.error('[TrailDebug] addNode or its follow-up addConnection FAILED — this was previously silently swallowed', err))
 
     // If THIS navigation is itself the "bounce back" a previous connection was waiting on,
     // mark that one a glance instead of a full connection.
     if (pendingGlanceCheck && pendingGlanceCheck.fromBookId === to.bookId && pendingGlanceCheck.fromChapter === to.chapter) {
       clearTimeout(pendingGlanceCheck.timer)
-      window.studyTrail.markGlance(pendingGlanceCheck.connectionId).catch(() => {})
+      const glanceConnId = pendingGlanceCheck.connectionId
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] bounce-back detected — marking glance', pendingGlanceCheck)
+      window.studyTrail.markGlance(glanceConnId)
+        .then(() => { if (window.__bereanTrailDebug) console.log('[TrailDebug] markGlance SUCCEEDED', { connectionId: glanceConnId }) })
+        .catch((err) => console.error('[TrailDebug] markGlance FAILED', err))
       pendingGlanceCheck = null
     }
   })

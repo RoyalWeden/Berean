@@ -264,11 +264,26 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       .catch(() => {})
   }, [bookId, chapter, textId, highlightChangeToken])
 
-  // Scroll to active verse — only when no proportional scroll position is supplied.
+  // Scroll to active verse — only when no proportional scroll position is supplied. THIS is
+  // the fallback path most likely to diverge from the main window: `verse` can be stale (a
+  // leftover targetVerse/lastBibleVerse from an earlier navigation — see useViewerSync.ts's
+  // computeViewerPayload doc comment) and centering on it has NOTHING to do with wherever the
+  // main window's own native scroll position actually is right now.
   useEffect(() => {
-    if (scrollPercent !== undefined && scrollPercent !== null) return
+    if (scrollPercent !== undefined && scrollPercent !== null) {
+      if (window.__bereanPresenterDebug) console.log('[PD viewer-center-effect] SKIPPED — scrollPercent is defined', { scrollPercent })
+      return
+    }
     if (verse && activeRef.current) {
+      if (window.__bereanPresenterDebug) {
+        const r = activeRef.current.getBoundingClientRect()
+        console.log('[PD viewer-center-effect] CENTERING on verse (scrollPercent undefined)', {
+          bookId, chapter, verse, activeRefRectTop: r.top, activeRefRectBottom: r.bottom,
+        })
+      }
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (window.__bereanPresenterDebug) {
+      console.log('[PD viewer-center-effect] scrollPercent undefined but nothing to center on', { verse, hasActiveRef: !!activeRef.current })
     }
   }, [verse, verses, scrollPercent])
 
@@ -278,11 +293,21 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     if (scrollPercentRAFRef.current) cancelAnimationFrame(scrollPercentRAFRef.current)
     scrollPercentRAFRef.current = requestAnimationFrame(() => {
       scrollPercentRAFRef.current = null
-      if (Date.now() < scrollLockUntilRef.current) return // a find-bar centering is in progress
+      if (Date.now() < scrollLockUntilRef.current) {
+        if (window.__bereanPresenterDebug) console.log('[PD viewer-percent-effect] SKIPPED — find-bar scroll lock active')
+        return
+      }
       const el = containerRef.current
       if (!el) return
       const max = el.scrollHeight - el.clientHeight
+      const appliedScrollTop = max > 0 ? scrollPercent * max : el.scrollTop
       if (max > 0) el.scrollTop = scrollPercent * max
+      if (window.__bereanPresenterDebug) {
+        console.log('[PD viewer-percent-effect] APPLIED', {
+          bookId, chapter, scrollPercent, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+          max, appliedScrollTop, actualScrollTopAfter: el.scrollTop,
+        })
+      }
     })
   }, [scrollPercent, verses])
 

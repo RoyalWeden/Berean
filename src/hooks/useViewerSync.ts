@@ -11,6 +11,9 @@ let lastScrollChapterKey = ''
 /** Record the main panel's scroll percent, tagged with the chapter it belongs to, so a stale
  *  value is never applied to a different chapter (which caused a jump-to-bottom on tab switch). */
 export function setMainBibleScrollPercent(p: number, chapterKey = '') {
+  if (typeof window !== 'undefined' && window.__bereanPresenterDebug) {
+    console.log('[PD cache-write] setMainBibleScrollPercent', { p, chapterKey, prevChapterKey: lastScrollChapterKey })
+  }
   lastBibleScrollPercent = p
   lastScrollChapterKey = chapterKey
 }
@@ -23,7 +26,11 @@ export function setMainBibleScrollPercent(p: number, chapterKey = '') {
  *  would never scroll to the newly jumped-to verse. Forcing chapterKey to a value that can't
  *  match makes computeViewerPayload() fall back to verse-centering via `verse` instead. */
 export function clearMainBibleScrollPercent(chapterKey: string) {
-  if (lastScrollChapterKey === chapterKey) lastScrollChapterKey = ''
+  const matched = lastScrollChapterKey === chapterKey
+  if (window.__bereanPresenterDebug) {
+    console.log('[PD cache-write] clearMainBibleScrollPercent', { chapterKey, lastScrollChapterKey, matched })
+  }
+  if (matched) lastScrollChapterKey = ''
 }
 
 // Last verse the main panel actually centered on for a given chapter. A one-shot targetVerse
@@ -38,6 +45,9 @@ let lastBibleVerse: number | undefined
 let lastVerseChapterKey = ''
 export function setLastBibleVerse(v: number | undefined, chapterKey = '') {
   if (v === undefined) return
+  if (window.__bereanPresenterDebug) {
+    console.log('[PD cache-write] setLastBibleVerse', { v, chapterKey, prevV: lastBibleVerse, prevChapterKey: lastVerseChapterKey })
+  }
   lastBibleVerse = v
   lastVerseChapterKey = chapterKey
 }
@@ -79,6 +89,9 @@ export function computeViewerPayload(): ViewerPayload {
     // would carry the pre-jump percent and the presenter would never center on the new verse at
     // all (ViewerBiblePage.tsx only centers on `verse` when scrollPercent is undefined).
     const chapterKey = `${bs.bookId}:${bs.chapter}`
+    const scrollPercentSource = bs.targetVerse !== undefined
+      ? 'undefined (targetVerse pending)'
+      : (lastScrollChapterKey === chapterKey ? 'cache hit' : 'undefined (cache miss/different chapter)')
     const scrollPercent = bs.targetVerse !== undefined
       ? undefined
       : (lastScrollChapterKey === chapterKey ? lastBibleScrollPercent : undefined)
@@ -89,9 +102,26 @@ export function computeViewerPayload(): ViewerPayload {
     // Further fall back to lastBibleVerse for this same chapter if BOTH verse and targetVerse
     // are undefined — covers the moment right after ChapterView consumes and clears a one-shot
     // targetVerse jump (see lastBibleVerse's own comment above).
+    const verseSource = bs.verse !== undefined ? 'bs.verse'
+      : bs.targetVerse !== undefined ? 'bs.targetVerse'
+      : (lastVerseChapterKey === chapterKey ? 'lastBibleVerse cache' : 'undefined (no source)')
     const verse = bs.verse ?? bs.targetVerse ?? (lastVerseChapterKey === chapterKey ? lastBibleVerse : undefined)
     if (bs.verse !== undefined) setLastBibleVerse(bs.verse, chapterKey)
     else if (bs.targetVerse !== undefined) setLastBibleVerse(bs.targetVerse, chapterKey)
+    // THE critical diagnostic line for "presenter shows a different verse range than the main
+    // window" — when scrollPercent ends up undefined, the presenter falls back to centering on
+    // `verse`, which may be STALE (a leftover targetVerse/lastBibleVerse from an earlier
+    // navigation that doesn't reflect where the user has since scrolled to by hand — native
+    // scrolling never touches bs.verse/bs.targetVerse at all, only lastBibleScrollPercent via
+    // setMainBibleScrollPercent). Logs every raw input this decision is based on.
+    if (window.__bereanPresenterDebug) {
+      console.log('[PD payload] computeViewerPayload (bible)', {
+        chapterKey, 'bs.verse': bs.verse, 'bs.targetVerse': bs.targetVerse,
+        lastScrollChapterKey, lastBibleScrollPercent, lastVerseChapterKey, lastBibleVerse,
+        DECIDED_scrollPercent: scrollPercent, scrollPercentSource,
+        DECIDED_verse: verse, verseSource,
+      })
+    }
     return { kind: 'bible', bookId: bs.bookId, chapter: bs.chapter, verse, textId, hiddenAnnotations: bs.hiddenAnnotations, sidePanel, scrollPercent }
   }
 
@@ -158,6 +188,7 @@ export function pushCurrentToViewer() {
   // compare payload (we can't build it from store state here).
   if (activeBible?.compareMode) { window.dispatchEvent(new CustomEvent('berean:requestComparePush')); return }
   const payload = computeViewerPayload()
+  if (window.__bereanPresenterDebug) console.log('[PD push] pushCurrentToViewer → pushViewerContent', payload)
   window.app.pushViewerContent?.(payload)
 }
 
@@ -216,7 +247,11 @@ export function useViewerSync() {
   // crossRefSource is included so switching the cross-ref tab (TSKe / Classic / My Notes)
   // re-pushes the side-panel payload to the presenter.
   useEffect(() => {
-    if (!viewerWindowOpen || viewerPaused) return
+    if (!viewerWindowOpen || viewerPaused) {
+      if (window.__bereanPresenterDebug) console.log('[PD push] auto-sync effect SKIPPED', { viewerWindowOpen, viewerPaused })
+      return
+    }
+    if (window.__bereanPresenterDebug) console.log('[PD push] auto-sync effect firing (tab/space state changed)')
     pushCurrentToViewer()
   // Deliberately broad dep list — any tab state change should trigger a sync check
   }, [viewerWindowOpen, viewerPaused, viewerBlank, storeTabs, activeTabId, activeSpace, crossRefSource])

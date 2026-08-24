@@ -1,6 +1,13 @@
 import type { IpcMain } from 'electron'
 import { randomUUID } from 'crypto'
+import { is } from '@electron-toolkit/utils'
 import { getBereanDb } from '../db/berean'
+
+// Terminal-visible (not devtools) logging for the "Study Trail records nothing" investigation —
+// dev-only (mirrors youtube.ts's is.dev gating), always-on in dev rather than requiring a
+// separate opt-in flag: main-process console output only reaches the terminal running
+// `npm run dev`, which is far less noisy than devtools, so there's little cost to leaving it on.
+const DEBUG = is.dev
 
 // Prepared-statement cache, mirroring highlights.ts's pattern — every navigation potentially
 // writes a connection, so this is a hot path worth not re-preparing SQL on every call.
@@ -73,13 +80,17 @@ const CLUSTER_WINDOW_MS = 5 * 60 * 1000
 const CLUSTER_MIN_COUNT = 2
 
 export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
+  if (DEBUG) console.log('[TrailDebug:main] registerStudyTrailHandlers() called — registering all studyTrail:* IPC handlers')
   ipcMain.handle('studyTrail:startSession', (_e, name: string) => {
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:startSession called', { name })
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
     prep(db, `INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, ?, 'live', ?, ?)`)
       .run(id, name, now, now)
-    return rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(id) as TrailSessionRow)
+    const result = rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(id) as TrailSessionRow)
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:startSession inserted', result)
+    return result
   })
 
   ipcMain.handle('studyTrail:pauseSession', (_e, trailSessionId: string) => {
@@ -126,6 +137,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('studyTrail:addNode', (_e, node: {
     trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string
   }) => {
+    // Prints to the TERMINAL running `npm run dev` (this is the Electron MAIN process — not
+    // devtools console), gated the same as the renderer-side [TrailDebug] logs via a global
+    // this process reads once at startup — see the module-level DEBUG const below. Deliberately
+    // NOT wrapped in try/catch: a thrown error here (e.g. a constraint violation) should
+    // propagate back through ipcMain.handle's rejected promise to the renderer's own
+    // .catch((err) => console.error(...)) rather than being swallowed at either end.
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode called', node)
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
@@ -137,7 +155,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, origin_label)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null)
-    return rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
+    const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode inserted', result)
+    return result
   })
 
   ipcMain.handle('studyTrail:updateNodeSubnote', (_e, nodeId: string, subnote: string) => {
@@ -152,6 +172,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     clarityTier: 1 | 2 | 3; reasonText?: string; reasonTags?: string[]
     weight?: 'full' | 'glance'; strongsDepth?: string
   }) => {
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection called', conn)
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
@@ -186,7 +207,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
       conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, now
     )
-    return rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
+    const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)
+    return result
   })
 
   ipcMain.handle('studyTrail:markGlance', (_e, connectionId: string) => {

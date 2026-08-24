@@ -174,6 +174,7 @@ export default function ViewerApp() {
   }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   const handleContent = useCallback((raw: unknown) => {
+    if (window.__bereanPresenterDebug) console.log('[PD viewer-receive] onContent payload', raw)
     setPayload(raw as ViewerPayload)
   }, [])
 

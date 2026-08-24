@@ -1824,24 +1824,50 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // ContinuousChapterScroll.tsx) instead of the shared container when it's found, falling
     // back to the container's own bounds otherwise (the plain non-continuous single-chapter
     // div, where container IS the chapter).
+    const chapterHeadingEl = continuousChapterScroll
+      ? (container.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null)
+      : null
+    const chapterWrapperEl = (chapterHeadingEl?.parentElement as HTMLElement | null) ?? (continuousChapterScroll ? null : container)
     let effScrollTop = scrollTop
     let max = container.scrollHeight - container.clientHeight
-    if (continuousChapterScroll) {
-      const heading = container.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null
-      const wrapper = heading?.parentElement as HTMLElement | null
-      if (wrapper) {
-        const cRect = container.getBoundingClientRect()
-        const wRect = wrapper.getBoundingClientRect()
-        const chapterTop = wRect.top - cRect.top + scrollTop
-        effScrollTop = Math.max(0, scrollTop - chapterTop)
-        max = wrapper.offsetHeight - container.clientHeight
-        if (window.__bereanPresenterDebug) {
-          console.log('[PresenterDebug continuous-chapter-bounds]', {
-            chapter: tabStateRef.current.chapter, chapterTop, chapterHeight: wrapper.offsetHeight,
-            rawScrollTop: scrollTop, effScrollTop, max,
-          })
+    if (continuousChapterScroll && chapterWrapperEl) {
+      const cRect = container.getBoundingClientRect()
+      const wRect = chapterWrapperEl.getBoundingClientRect()
+      const chapterTop = wRect.top - cRect.top + scrollTop
+      effScrollTop = Math.max(0, scrollTop - chapterTop)
+      max = chapterWrapperEl.offsetHeight - container.clientHeight
+      if (window.__bereanPresenterDebug) {
+        console.log('[PresenterDebug continuous-chapter-bounds]', {
+          chapter: tabStateRef.current.chapter, chapterTop, chapterHeight: chapterWrapperEl.offsetHeight,
+          rawScrollTop: scrollTop, effScrollTop, max,
+        })
+      }
+    }
+    // Ground truth: what verses are ACTUALLY on-screen in the MAIN window right now, measured
+    // directly from the viewport (not derived from any percent/fraction math) — the single most
+    // useful line for comparing against the presenter's own [PD ...] logs at the same moment.
+    // Scoped to chapterWrapperEl (this chapter's own subtree) in continuous mode so a verse
+    // number collision with an adjacent, partially-visible chapter can't pollute the range.
+    if (window.__bereanPresenterDebug) {
+      const scope = chapterWrapperEl ?? container
+      const cRectForVerses = container.getBoundingClientRect()
+      let onScreenFirst: number | null = null, onScreenLast: number | null = null
+      for (const node of Array.from(scope.querySelectorAll('[data-verse]'))) {
+        const elx = node as HTMLElement
+        const n = Number(elx.dataset.verse)
+        if (!Number.isFinite(n)) continue
+        const r = elx.getBoundingClientRect()
+        const top = r.top - cRectForVerses.top, bottom = r.bottom - cRectForVerses.top
+        if (bottom > 0 && top < container.clientHeight) {
+          if (onScreenFirst === null || n < onScreenFirst) onScreenFirst = n
+          if (onScreenLast === null || n > onScreenLast) onScreenLast = n
         }
       }
+      console.log('[PD main GROUND TRUTH]', {
+        bookId: tabStateRef.current.bookId, chapter: tabStateRef.current.chapter,
+        rawScrollTop: scrollTop, scrollHeight: container.scrollHeight, clientHeight: container.clientHeight,
+        onScreenVerses: [onScreenFirst, onScreenLast], continuousChapterScroll,
+      })
     }
     const st = useAppStore.getState()
     let scrollPercent: number
@@ -1890,7 +1916,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       viewerScrollRAFRef.current = requestAnimationFrame(() => {
         viewerScrollRAFRef.current = null
         const base = computeViewerPayload()
-        if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
+        if (base.kind === 'bible') {
+          if (window.__bereanPresenterDebug) {
+            console.log('[PD main scroll→push]', {
+              rawScrollTop: scrollTop, effScrollTop, max, DECIDED_scrollPercent: scrollPercent,
+              baseVerseFromPayload: base.verse, baseBookId: base.bookId, baseChapter: base.chapter,
+            })
+          }
+          window.app.pushViewerContent?.({ ...base, scrollPercent })
+        }
         // Coalesced into the same rAF as the push above (was previously unthrottled,
         // running its own getBoundingClientRect() pass over every verse on every raw
         // scroll event even when the push right above it was already rAF-throttled).
