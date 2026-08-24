@@ -10,6 +10,7 @@ import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMen
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { navigateToVerse } from '@/lib/verseNavigation'
+import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import type { LexiconEntry, LexiconTabState } from '@/types'
@@ -1344,7 +1345,7 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   function navToEntry(strongsNum: string, newTab: boolean) {
     if (newTab) {
       createTab('lexicon')
-      openLexiconEntry(strongsNum)
+      openLexiconEntry(strongsNum) // already records a 'click'-depth connection
       setActiveSpace('lexicon')
       return
     }
@@ -1355,6 +1356,12 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
         const title = rememberLexiconTitle(entry)
         addHistoryEntry({ type: 'lexicon', title, strongsNum })
         if (lexiconTabId) pushTabNav(lexiconTabId, { type: 'lexicon', strongsNum, title })
+        // In-tab navigation here means the user went deeper from an already-open entry
+        // (a derivation link, a related/derived term, or prev/next adjacent) rather than a
+        // fresh click from scripture — the plan's "related" depth tier, its own new
+        // connection row rather than a flag bump on the first one. This bypasses
+        // openLexiconEntry entirely (no new tab created), so nothing else records it.
+        recordLexiconConnection(strongsNum, 'related')
       })
       .catch(() => {})
   }
