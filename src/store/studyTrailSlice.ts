@@ -144,13 +144,28 @@ export function installStudyTrailRecorder(): void {
       return
     }
 
-    // A genuinely different chapter — this earns a connection FROM the current anchor (if
-    // any), and becomes the new anchor itself.
     const trailSessionId = s.currentTrailSessionId
     const prevNodeId = s.currentAnchorNodeId
     const { text, tags } = reasonForOrigin(origin)
     const tier = tierForOrigin(origin)
 
+    // A compare-view column change is its own connection kind, not a chapter tangent — the
+    // user is still anchored on whatever they were reading, just glancing at a second
+    // translation alongside it. Record the connection without moving the anchor or creating
+    // a new node for it.
+    if (origin.kind === 'compare-column') {
+      if (prevNodeId) {
+        window.studyTrail.addConnection({
+          trailSessionId, fromNodeId: prevNodeId, toKind: 'compare',
+          toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
+          clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
+        }).catch(() => {})
+      }
+      return
+    }
+
+    // A genuinely different chapter — this earns a connection FROM the current anchor (if
+    // any), and becomes the new anchor itself.
     window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
       .then(async (node) => {
         useStudyTrailStore.setState({ currentAnchorNodeId: node.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1 })
