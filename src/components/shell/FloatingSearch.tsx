@@ -4,6 +4,7 @@ import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName, type ParsedRef } from '@/lib/parseRef'
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
@@ -574,6 +575,20 @@ export default function FloatingSearch() {
         title,
         state: { bookId, chapter, endChapter, translation, showStrongs: false, scrollPosition: 0, targetVerse, endVerse },
       }, searchNewTabPosition)
+    }
+
+    // Study Trail: a plain typed reference (no query text at all) is book-chapter-picker
+    // ambiguous; a real keyword/reference-with-text search is a search-result with the typed
+    // query as its own reason.
+    {
+      const priorTab = targetTab ?? tabs.find((t) => t.type === 'bible' && t.id === useAppStore.getState().activeTabId.scripture)
+      const priorState = priorTab?.state as { bookId?: string; chapter?: number; targetVerse?: number } | undefined
+      const q = query.trim()
+      recordNavigation(
+        { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
+        { bookId, chapter, verse: targetVerse },
+        q ? { kind: 'search-result', query: q } : { kind: 'book-chapter-picker' },
+      )
     }
     setActiveSpace('scripture')
     closeSearch()

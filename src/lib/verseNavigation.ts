@@ -19,6 +19,7 @@ export type NavOrigin =
   | { kind: 'compare-column' }                                           // CompareView column change
   | { kind: 'book-chapter-picker' }                                      // manual chapter/book picker — ambiguous
   | { kind: 'history-revisit' }                                          // HistoryModal reopen
+  | { kind: 'sequential-nav' }                                           // plain prev/next-chapter arrow — the reading "spine", not a tangent
   | { kind: 'other'; label?: string }
 
 export interface NavigateToVerseArgs {
@@ -84,6 +85,22 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   // Kept as an injected callback (not a direct import) so this module has zero dependency
   // on Study Trail's IPC/store wiring; verseNavigation.ts works standalone either way.
   navRecorder?.({ bookId: cur?.bookId, chapter: cur?.chapter, verse: cur?.targetVerse }, { bookId, chapter, verse }, origin)
+}
+
+/**
+ * Records a navigation with Study Trail WITHOUT performing any tab/state changes — for call
+ * sites whose own tab-targeting logic (FloatingSearch's new/current/in-tab modes, Compare
+ * view's per-column navigation, History's reopen) differs enough from navigateToVerse's
+ * single-active-scripture-tab model that forcing them through it would risk regressing that
+ * behavior. Those sites still perform their own navigation as before; this is just the
+ * Study-Trail side effect navigateToVerse would otherwise have run for them.
+ */
+export function recordNavigation(
+  from: { bookId?: string; chapter?: number; verse?: number },
+  to: { bookId: string; chapter: number; verse?: number },
+  origin: NavOrigin,
+): void {
+  navRecorder?.(from, to, origin)
 }
 
 type NavRecorder = (

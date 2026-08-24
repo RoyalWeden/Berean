@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
+import { recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
 import ChapterView from './ChapterView'
 import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
 import CompareView from './CompareView'
@@ -1290,7 +1291,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           : singular(chapter)
   }
 
-  function navigate(bookId: string, chapter: number, endChapter?: number) {
+  function navigate(bookId: string, chapter: number, endChapter?: number, origin: NavOrigin = { kind: 'book-chapter-picker' }) {
     if (!activeTab) return
     const title = makeTitle(bookId, chapter, endChapter)
     // Clear any verse-specific right-panel filter left over from before this
@@ -1299,11 +1300,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // `!verseFilter` guard on every later chapter the user paged to, since nothing
     // else ever reset it on plain chapter navigation.
     setRightPanelVerseFilter(null)
+    const priorBookId = tabState.bookId, priorChapter = tabState.chapter, priorVerse = tabState.targetVerse
     updateTabState('scripture', activeTab.id, {
       bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
       rightPanelVerseFilter: null,
     })
     renameTab('scripture', activeTab.id, title)
+    recordNavigation({ bookId: priorBookId, chapter: priorChapter, verse: priorVerse }, { bookId, chapter }, origin)
   }
 
   // Header for the "add comparison panel" picker's popover — names every panel
@@ -1333,7 +1336,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     const ref = getPrevChapterRef(books, tabState.bookId, tabState.chapter, textId, { endChapter: tabState.endChapter })
-    if (ref) navigate(ref.bookId, ref.chapter)
+    if (ref) navigate(ref.bookId, ref.chapter, undefined, { kind: 'sequential-nav' })
   }
 
   function nextChapter() {
@@ -1344,7 +1347,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     const ref = getNextChapterRef(books, tabState.bookId, tabState.chapter, chapterCount, textId, { endChapter: tabState.endChapter })
-    if (ref) navigate(ref.bookId, ref.chapter)
+    if (ref) navigate(ref.bookId, ref.chapter, undefined, { kind: 'sequential-nav' })
   }
 
   function toggleRightPanel() {
@@ -2489,8 +2492,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // Same reset as navigate() — continuous scroll changes tabState.chapter
           // through this callback instead, so it needs the same verse-filter clear.
           setRightPanelVerseFilter(null)
+          const priorChapter = tabState.chapter
           updateTabState('scripture', activeTab.id, { chapter: ch, rightPanelVerseFilter: null })
           renameTab('scripture', activeTab.id, chTitle)
+          recordNavigation({ bookId: tabState.bookId, chapter: priorChapter }, { bookId: tabState.bookId, chapter: ch }, { kind: 'sequential-nav' })
         }}
         onVersesLoaded={onVersesLoaded}
         onTargetVerseConsumed={clearTargetVerse}

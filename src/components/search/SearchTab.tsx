@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
+import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
@@ -280,6 +281,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     const translation = tid.toUpperCase()
 
     const activeScripture = scriptureSpaceTabs.find((t) => t.id === useAppStore.getState().activeTabId.scripture)
+    const priorState = activeScripture?.state as { bookId?: string; chapter?: number; targetVerse?: number } | undefined
     if (activeScripture) {
       updateTabState('scripture', activeScripture.id, { bookId, chapter, targetVerse: verseNum, scrollPosition: 0, translation, endVerse: undefined })
       renameTab('scripture', activeScripture.id, title)
@@ -292,6 +294,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       })
     }
     setActiveSpace('scripture')
+    recordNavigation(
+      { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
+      { bookId, chapter, verse: verseNum },
+      { kind: 'search-result', query: query.trim() },
+    )
   }
 
   // Build grouped results

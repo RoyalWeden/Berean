@@ -11,6 +11,7 @@ import { zoomedFontSize } from '@/lib/zoom'
 import { computePresenterBand as computeBandGeometry } from '@/lib/presenterBand'
 import { encodeScrollPosition, decodeScrollPosition, type ScrollPosition } from '@/lib/verseScrollSync'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import type { Verse, Book } from '@/types'
 import type { ViewerVisibleRegion } from '@/types/electron'
 
@@ -441,6 +442,13 @@ export default function CompareView({ bookId, chapter, sourceTextId = 'kjva', ta
     setColumns(prev => {
       const col = prev.find(c => c.id === colId)
       if (!col) return prev
+      // Tier 1 — a distinct connection kind (not a chapter tangent): the user deliberately
+      // changed one panel of a side-by-side comparison, not "went somewhere else."
+      recordNavigation(
+        { bookId: col.bookId, chapter: col.chapter },
+        { bookId: newBookId, chapter: newChapter },
+        { kind: 'compare-column' },
+      )
       if (!syncScrollEnabled) {
         return prev.map(c => c.id === colId ? { ...c, bookId: newBookId, chapter: newChapter, verses: [], loading: true } : c)
       }
