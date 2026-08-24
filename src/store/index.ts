@@ -9,6 +9,7 @@ import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
 import { debouncedLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
+import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
 export interface WordReplacerRule {
@@ -2115,6 +2116,7 @@ export const useAppStore = create<AppState>()(
         // session; falls back to the bare number otherwise (see lexiconTitle.ts).
         const lexTitle = lexiconTitleFor(strongsNum)
         get().addHistoryEntry({ type: 'lexicon', title: lexTitle, strongsNum })
+        recordLexiconConnection(strongsNum)
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
           if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })

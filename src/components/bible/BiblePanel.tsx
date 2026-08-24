@@ -4,6 +4,7 @@ import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
+import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import ChapterView from './ChapterView'
 import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
 import CompareView from './CompareView'
@@ -1602,6 +1603,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
+    recordLexiconConnection(strongsNum)
   }, [floating, memoTabId, updateTabState])
 
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current
