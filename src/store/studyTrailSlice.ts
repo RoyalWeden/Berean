@@ -43,6 +43,7 @@ export function tierForOrigin(origin: NavOrigin): ClarityTier {
     case 'compare-column': return 1
     case 'history-revisit': return 2
     case 'sequential-nav': return 1
+    case 'tab-switch': return 2
     case 'other': return 3
   }
 }

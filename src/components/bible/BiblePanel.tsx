@@ -143,6 +143,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // this is the single "shared p" value actually applied to the presenter and used to draw
   // the outline band, so the two can never disagree about where the presenter is scrolled to.
   const virtualScrollPctRef = useRef(0)
+  // Debug-only: remembers the last pushed (percent, chapterKey) pair so handleBibleScroll can
+  // flag a suspiciously large jump between consecutive pushes for the SAME chapter — the
+  // "jumping near the beginning/end of a chapter" symptom should show up here as a
+  // [PD SUSPICIOUS JUMP] line with the exact before/after values and what triggered the push.
+  const lastPushedDebugRef = useRef<{ percent: number; chapterKey: string } | null>(null)
   // The main panel's own scrollTop as of the last handleBibleScroll event, used to derive a
   // physical px delta each event rather than a fresh ratio-to-own-range every time (see
   // handleBibleScroll). Kept in sync with virtualScrollPctRef by every place that resets or
@@ -1958,12 +1963,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         viewerScrollRAFRef.current = null
         const base = computeViewerPayload()
         if (base.kind === 'bible') {
+          const pushChapterKey = `${base.bookId}:${base.chapter}`
           if (window.__bereanPresenterDebug) {
+            const prev = lastPushedDebugRef.current
+            const isJump = prev && prev.chapterKey === pushChapterKey && Math.abs(scrollPercent - prev.percent) > 0.15
             console.log('[PD main scroll→push]', {
               rawScrollTop: scrollTop, effScrollTop, max, DECIDED_scrollPercent: scrollPercent,
               baseVerseFromPayload: base.verse, baseBookId: base.bookId, baseChapter: base.chapter,
+              prevPushedPercent: prev?.percent, prevPushedChapterKey: prev?.chapterKey,
             })
+            if (isJump) {
+              console.warn('[PD SUSPICIOUS JUMP]', {
+                from: prev!.percent, to: scrollPercent, chapterKey: pushChapterKey,
+                suppressed: Date.now() < findScrollSuppressRef.current, continuousChapterScroll,
+              })
+            }
           }
+          lastPushedDebugRef.current = { percent: scrollPercent, chapterKey: pushChapterKey }
           window.app.pushViewerContent?.({ ...base, scrollPercent })
         }
         // Coalesced into the same rAF as the push above (was previously unthrottled,
@@ -1981,7 +1997,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // Schedule (or re-schedule) the "scroll has settled" fallback — see scrollSettleTimerRef's
     // own doc comment for the bug this closes. Every scroll tick pushes the deadline out; only
     // once ticks actually stop arriving does this fire, at which point it forces one final,
-    // UNSUPPRESSED sync from the live DOM's true current position.
+    // UNSUPPRESSED sync from the live DOM's true current position. 450ms, not a shorter value —
+    // trackpad momentum/inertial scrolling naturally decelerates into gaps between events that
+    // can exceed 150-200ms well before the motion has actually stopped; firing this "final,
+    // authoritative" sync mid-momentum (reported as a NEW jump right after the original settle
+    // fix shipped) forces a real but not-yet-final position, which a moment later gets
+    // corrected by the next momentum tick — two real but different positions applied close
+    // together reads as a visible jump on the presenter. 450ms comfortably clears normal
+    // momentum-scroll gaps while still being far shorter than a person deliberately scrolling
+    // again.
     if (scrollSettleTimerRef.current) clearTimeout(scrollSettleTimerRef.current)
     scrollSettleTimerRef.current = setTimeout(() => {
       scrollSettleTimerRef.current = null
@@ -2009,19 +2033,27 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // was suppressing proportional pushes until now.
       findScrollSuppressRef.current = 0
       setMainBibleScrollPercent(settledPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+      const settledChapterKey = `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
       if (window.__bereanPresenterDebug) {
+        const prev = lastPushedDebugRef.current
+        const isJump = prev && prev.chapterKey === settledChapterKey && Math.abs(settledPercent - prev.percent) > 0.15
         console.log('[PD scroll-settled]', {
           bookId: tabStateRef.current.bookId, chapter: tabStateRef.current.chapter,
           settledScrollTop, settledEff, settledMax, settledPercent,
+          prevPushedPercent: prev?.percent, prevPushedChapterKey: prev?.chapterKey,
         })
+        if (isJump) {
+          console.warn('[PD SUSPICIOUS JUMP at settle]', { from: prev!.percent, to: settledPercent, chapterKey: settledChapterKey })
+        }
       }
+      lastPushedDebugRef.current = { percent: settledPercent, chapterKey: settledChapterKey }
       const st2 = useAppStore.getState()
       if (!st2.viewerWindowOpen || st2.viewerPaused) return
       findCenterVerseRef.current = null
       const base = computeViewerPayload()
       if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: settledPercent })
       computePresenterBand()
-    }, 180)
+    }, 450)
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────

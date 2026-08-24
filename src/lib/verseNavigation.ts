@@ -20,6 +20,7 @@ export type NavOrigin =
   | { kind: 'book-chapter-picker' }                                      // manual chapter/book picker — ambiguous
   | { kind: 'history-revisit' }                                          // HistoryModal reopen
   | { kind: 'sequential-nav' }                                           // plain prev/next-chapter arrow — the reading "spine", not a tangent
+  | { kind: 'tab-switch' }                                               // clicking an ALREADY-OPEN scripture tab in the sidebar
   | { kind: 'other'; label?: string }
 
 export interface NavigateToVerseArgs {

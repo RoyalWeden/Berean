@@ -10,6 +10,7 @@ import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
 import { debouncedLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
 export interface WordReplacerRule {
@@ -1720,6 +1721,29 @@ export const useAppStore = create<AppState>()(
       },
 
       activateTab: (tab) => {
+        // Clicking an ALREADY-OPEN scripture tab in the sidebar is real navigation — you moved
+        // your attention to a different chapter, same as any other jump — but it never went
+        // through navigateToVerse()/recordNavigation() at all, since this is the ONE choke
+        // point every tab-switch (sidebar click, keyboard tab-cycling, etc.) funnels through
+        // regardless of tab type. Only fires for a genuine SPACE-appropriate switch (scripture
+        // space, bible-type tab, actually switching TO a different tab than what was already
+        // active) — switching within notes/lexicon/youtube/search isn't a scripture connection.
+        if (tab.spaceId === 'scripture' && tab.type === 'bible') {
+          const prevState = get()
+          const prevTabId = prevState.activeTabId.scripture
+          if (prevTabId !== tab.id) {
+            const prevTab = prevState.tabs.scripture.find((t) => t.id === prevTabId)
+            const prevBs = prevTab?.state as BibleTabState | undefined
+            const bs = tab.state as BibleTabState
+            if (bs.bookId) {
+              recordNavigation(
+                { bookId: prevBs?.bookId, chapter: prevBs?.chapter, verse: prevBs?.verse ?? prevBs?.targetVerse },
+                { bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse ?? bs.targetVerse },
+                { kind: 'tab-switch' },
+              )
+            }
+          }
+        }
         set((s) => ({
           activeTabId: { ...s.activeTabId, [tab.spaceId]: tab.id },
           activeSpace: tab.spaceId,

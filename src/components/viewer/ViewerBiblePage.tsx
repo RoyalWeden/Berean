@@ -160,6 +160,10 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const activeRef = useRef<HTMLDivElement>(null)
   const scrollPercentRAFRef = useRef<number | null>(null)
   const reportRAFRef = useRef<number | null>(null)
+  // Debug-only: last scrollTop this window actually applied, so a visible "jump" (a large
+  // sudden change in the PRESENTER'S OWN on-screen position, not just in the percent it was
+  // told) can be flagged directly at the point the user would actually see it.
+  const lastAppliedScrollTopDebugRef = useRef<{ scrollTop: number; chapterKey: string } | null>(null)
   // Find-bar "scroll to verse" support: briefly ignore proportional sync so the centering sticks.
   const scrollLockUntilRef = useRef(0)
   const lastScrollToNonceRef = useRef(0)
@@ -301,11 +305,27 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       if (!el) return
       const max = el.scrollHeight - el.clientHeight
       const appliedScrollTop = max > 0 ? scrollPercent * max : el.scrollTop
+      const chapterKey = `${bookId}:${chapter}`
+      if (window.__bereanPresenterDebug) {
+        const prev = lastAppliedScrollTopDebugRef.current
+        // Threshold scaled to viewport height — a jump of more than ~40% of one screenful in a
+        // single application, within the SAME chapter, is not a smooth proportional glide.
+        const isJump = prev && prev.chapterKey === chapterKey && Math.abs(appliedScrollTop - prev.scrollTop) > el.clientHeight * 0.4
+        console.log('[PD viewer-percent-effect] APPLYING', {
+          bookId, chapter, scrollPercent, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+          max, appliedScrollTop, prevAppliedScrollTop: prev?.scrollTop, prevChapterKey: prev?.chapterKey,
+        })
+        if (isJump) {
+          console.warn('[PD VISIBLE JUMP on presenter]', {
+            from: prev!.scrollTop, to: appliedScrollTop, chapterKey, clientHeight: el.clientHeight,
+          })
+        }
+      }
+      lastAppliedScrollTopDebugRef.current = { scrollTop: appliedScrollTop, chapterKey }
       if (max > 0) el.scrollTop = scrollPercent * max
       if (window.__bereanPresenterDebug) {
         console.log('[PD viewer-percent-effect] APPLIED', {
-          bookId, chapter, scrollPercent, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
-          max, appliedScrollTop, actualScrollTopAfter: el.scrollTop,
+          bookId, chapter, scrollPercent, actualScrollTopAfter: el.scrollTop,
         })
       }
     })
