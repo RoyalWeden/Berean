@@ -16,6 +16,17 @@ import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
 type OccurrenceRow = { book_id: string; chapter: number; verse_num: number; text: string; text_id?: string; matchWordIndices?: number[] }
+type RelatedWord = { strongsNum: string; lemma: string; transliteration: string; gloss: string }
+
+// Module-level caches, keyed by Strong's number — entries/occurrences/related words never
+// change at runtime, so once fetched they're reused for the life of the app. Switching back
+// to a Lexicon tab you'd already viewed re-runs the same restore/fetch effects (this panel is
+// reused across tabs, not one instance per tab), and without a cache that meant a visible
+// reload flash (blank entry, "Loading…" occurrences) every single time, not just on first
+// visit. A cache hit lets those effects seed state synchronously instead of waiting on an
+// IPC round trip; the real fetch still runs behind it to catch up if the cache was ever wrong.
+const lexiconEntryCache = new Map<string, LexiconEntry>()
+const lexiconOccurrenceCache = new Map<string, { related: RelatedWord[]; occurrences: OccurrenceRow[] }>()
 
 /**
  * Strip BDB/scholarly bracket notation from lexicon text.
@@ -381,7 +392,6 @@ function EntryView({
   // the "which occurrences to show" chip filter; the book filter above is a separate,
   // single-select dropdown.
   const [occWordFilter, setOccWordFilter] = useState<Set<string>>(new Set())
-  const [occTextFilter, setOccTextFilter] = useState('')
   // Full entry (definition, derivation, related terms, occurrences) shows by
   // default — an earlier collapsed-by-default pass hid these behind "Show
   // full entry" and the user explicitly asked for them back. "Show less"
@@ -410,14 +420,22 @@ function EntryView({
   // COMPLETE set (no visible loading state — it just quietly replaces the quick batch once
   // ready, which is what "Show all"/infinite-scroll need data for beyond the first ~20).
   useEffect(() => {
-    setOccurrences([])
+    const cached = lexiconOccurrenceCache.get(entry.strongsNum)
     setShowAllOccurrences(false)
     setVisibleOccCount(10)
     setOccSort('canon')
     setOccBookFilter('all')
     setOccWordFilter(new Set())
-    setOccTextFilter('')
-    setOccurrencesLoading(true)
+    if (cached) {
+      // Cache hit (this entry was viewed before) — render instantly, no loading flash. A
+      // fresh fetch still runs behind it to catch up if the data was ever stale.
+      setRelated(cached.related)
+      setOccurrences(cached.occurrences)
+      setOccurrencesLoading(false)
+    } else {
+      setOccurrences([])
+      setOccurrencesLoading(true)
+    }
     let cancelled = false
     Promise.all([
       window.lexicon.getRelated(entry.strongsNum).catch(() => []),
@@ -425,12 +443,15 @@ function EntryView({
     ]).then(([relatedRows, quickRows]) => {
       if (cancelled) return
       setRelated(relatedRows)
-      setOccurrences(quickRows)
+      // Don't regress a cached full set down to the 20-row quick batch — only apply it when
+      // there was nothing cached to show yet.
+      if (!cached) setOccurrences(quickRows)
       setOccurrencesLoading(false)
       // Phase 2: the full set, in the background — replaces the quick batch once it lands.
       window.lexicon.getOccurrences(entry.strongsNum).then((fullRows) => {
         if (cancelled) return
         setOccurrences(fullRows)
+        lexiconOccurrenceCache.set(entry.strongsNum, { related: relatedRows, occurrences: fullRows })
       }).catch(() => {})
     })
     return () => { cancelled = true }
@@ -765,23 +786,6 @@ function EntryView({
                     </div>,
                     document.body
                   )}
-                  <div className="relative flex-1 min-w-[110px]">
-                    <Search size={10} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] pointer-events-none" />
-                    <input
-                      value={occTextFilter}
-                      onChange={(e) => setOccTextFilter(e.target.value)}
-                      placeholder="Filter occurrences…"
-                      className="w-full text-[9.5px] pl-5 pr-5 py-1 rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-secondary))] outline-none focus:border-[rgb(var(--color-accent))]"
-                    />
-                    {occTextFilter && (
-                      <button
-                        onClick={() => setOccTextFilter('')}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"
-                      >
-                        <X size={10} />
-                      </button>
-                    )}
-                  </div>
                 </div>
                 {hasMultipleWordForms && (
                   <div className="flex items-center gap-1 flex-wrap">
@@ -818,17 +822,11 @@ function EntryView({
             if (occWordFilter.size > 0) {
               visible = visible.filter((o) => extractMatchedWords(o).some((w) => occWordFilter.has(w.toLowerCase())))
             }
-            const q = occTextFilter.trim().toLowerCase()
-            if (q) visible = visible.filter((o) => (o.text ?? '').toLowerCase().includes(q))
             if (occSort === 'matches') {
               visible = [...visible].sort((a, b) => (b.matchWordIndices?.length ?? 0) - (a.matchWordIndices?.length ?? 0))
             }
             if (visible.length === 0) {
-              return (
-                <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">
-                  {q ? `No occurrences match "${occTextFilter}".` : 'No occurrences match the current filters.'}
-                </p>
-              )
+              return <p className="text-xs text-[rgb(var(--color-text-muted))] py-2">No occurrences match the current filters.</p>
             }
             return (
             <div className="space-y-1">
@@ -1402,25 +1400,43 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     }
 
     if (!savedNum) { setActiveEntry(null); setEntryRestorePending(false); deferClear(); return }
+
+    // A fixed setTimeout(80) here raced the actual render: the entry committed and painted
+    // at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll once the
+    // timer fired — reading as "shows for a second without scroll then it jumps." Matches
+    // NoteEditorPM.tsx's own scroll-restore double-rAF: the first rAF runs before the
+    // browser has painted this render's DOM changes, the second (nested) rAF then fires
+    // after that paint's layout is actually settled, so the scrollTop assignment lands
+    // before the user ever sees the unscrolled frame.
+    function restoreScroll() {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
+          entryScrollRef.current.scrollTop = savedScroll
+        }
+      }))
+    }
+
+    // Cache hit (this Strong's number was already viewed this session) — render instantly
+    // instead of waiting on another IPC round trip. Switching Lexicon tabs reuses this same
+    // panel/effect rather than mounting fresh (see lexiconEntryCache's own comment), so
+    // without this every switch back to an already-seen entry re-showed a brief blank/
+    // restoring state purely from re-awaiting a fetch whose answer never changes.
+    const cachedEntry = lexiconEntryCache.get(savedNum)
+    if (cachedEntry) {
+      setActiveEntry(cachedEntry)
+      setEntryRestorePending(false)
+      restoreScroll()
+    }
+
     window.lexicon.getEntry(savedNum)
       .then((entry) => {
         // A newer restore request (another tab switch, or StrictMode's dev-only double-invoke
         // of this same effect on a fresh mount) has started since — don't let this stale one's
         // scroll-restore clobber whatever the user's done since. See entryOpenSeqRef's comment.
         if (entry && entryOpenSeqRef.current === seq) {
+          lexiconEntryCache.set(savedNum, entry)
           setActiveEntry(entry)
-          // A fixed setTimeout(80) here raced the actual render: the entry committed and
-          // painted at scrollTop 0 well before 80ms was up, then visibly jumped to savedScroll
-          // once the timer fired — reading as "shows for a second without scroll then it
-          // jumps." Matches NoteEditorPM.tsx's own scroll-restore double-rAF: the first
-          // rAF runs before the browser has painted this render's DOM changes, the second
-          // (nested) rAF then fires after that paint's layout is actually settled, so the
-          // scrollTop assignment lands before the user ever sees the unscrolled frame.
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
-              entryScrollRef.current.scrollTop = savedScroll
-            }
-          }))
+          if (!cachedEntry) restoreScroll()
         }
       })
       .catch(() => {})
