@@ -547,13 +547,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // drift from ViewerBiblePage.tsx's own copy of the same measurement.
     const mainH = measureContentHeight(c.scrollHeight, contentBottom)
 
-    // virtualScrollPctRef is now the single source of truth for the shared scroll percent in
-    // every case (wheel-driven virtual scroll when the chapter fits, and the sensitivity-
-    // normalized value from handleBibleScroll otherwise) — using it unconditionally here (not
-    // just when `fits`) keeps the band's geometry agreeing with wherever the outline actually
-    // scrolled to, rather than the raw (un-normalized) mainScrollTop/denom ratio that
-    // computeBandGeometry would otherwise fall back to.
-    let scrollPercentOverride: number | undefined = virtualScrollPctRef.current
+    // The band is drawn INSIDE this same window, directly on top of this panel's own real
+    // content — so it must track this panel's own true, un-smoothed scroll ratio
+    // (c.scrollTop / denom), not the sensitivity-normalized virtualScrollPctRef used to drive
+    // the PRESENTER's felt scroll speed. Those two percents only agree at the exact top/bottom
+    // of a real scroll range; in between, virtualScrollPctRef intentionally moves slower or
+    // faster than this panel's own scrollTop whenever the presenter's own scrollable range
+    // differs from this panel's (see presenterScrollSensitivity's doc comment) — using it here
+    // made the band visibly lag behind (or run ahead of) wherever the user had actually
+    // scrolled to in THIS panel, up to drifting off the rendered content entirely on longer
+    // chapters. Only fall back to the virtual accumulator when this panel has no native scroll
+    // range of its own to derive a ratio from (a short chapter driven purely by the wheel-
+    // virtual-scroll path below) — that's the one case with no real mainScrollTop/denom ratio
+    // to track in the first place.
+    const bandDenom = mainH - c.clientHeight
+    let scrollPercentOverride: number | undefined = bandDenom <= 0 ? virtualScrollPctRef.current : undefined
     // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
     // mirroring the main panel proportionally — so derive the scroll percent from where that
     // verse sits, centered, in the presenter's content (otherwise the band lands mid-verse).
