@@ -7,6 +7,7 @@ import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } 
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
+import { navigateToVerse } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
 import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -1507,30 +1508,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }) }}
                   onClick={() => {
                     setCrossRefHover(null)
-                    const s = useAppStore.getState()
-                    s.ensureTab('bible')
-                    const fresh = useAppStore.getState()
-                    const tabId = fresh.activeTabId['scripture']
-                    if (tabId) {
-                      const curTab = fresh.tabs['scripture'].find(t => t.id === tabId)
-                      const curState = curTab?.state as import('@/types').BibleTabState | undefined
-                      const currentTranslation = curState?.translation ?? 'kjva'
-                      // Auto-switch translation for cross-book refs
-                      const dedicatedTarget = getTranslationForBook(r.bookId)
-                      let newTranslation: string | undefined
-                      if (dedicatedTarget) {
-                        newTranslation = dedicatedTarget
-                      } else if (isDedicatedTranslation(currentTranslation)) {
-                        newTranslation = 'kjva'
-                      }
-                      const originLabel = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
-                      fresh.updateTabState('scripture', tabId, {
-                        bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
-                        ...(newTranslation ? { translation: newTranslation } : {}),
-                        scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label: originLabel, translation: currentTranslation },
-                      })
-                    }
-                    fresh.setActiveSpace('scripture')
+                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes' } })
                   }}
                   className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
@@ -1686,18 +1664,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
-                  const s = useAppStore.getState()
-                  s.ensureTab('bible')
-                  const fresh = useAppStore.getState()
-                  const tabId = fresh.activeTabId['scripture']
-                  if (tabId) {
-                    const label = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
-                    fresh.updateTabState('scripture', tabId, {
-                      bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
-                      scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label },
-                    })
-                  }
-                  fresh.setActiveSpace('scripture')
+                  navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes' } })
                 }}
               >
                 <BookOpen size={12} />

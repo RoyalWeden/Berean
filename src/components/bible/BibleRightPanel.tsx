@@ -9,6 +9,7 @@ import HeaderSegmentedToggle from '@/components/shell/HeaderSegmentedToggle'
 import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
+import { navigateToVerse, type NavOrigin } from '@/lib/verseNavigation'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -221,8 +222,8 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   }, [activeEntry?.strongsNum])
 
   const navToVerse = useCallback((bookId: string, chapter: number, verse: number) => {
-    navToVerseFromPanel(bookId, chapter, verse)
-  }, [])
+    navToVerseFromPanel(bookId, chapter, verse, undefined, undefined, activeEntry ? { kind: 'lexicon-occurrence', strongsNum: activeEntry.strongsNum } : undefined)
+  }, [activeEntry])
 
   function handleInput(val: string) {
     setQuery(val)
@@ -561,42 +562,14 @@ let _onVerseCtxMenu: ((bookId: string, chapter: number, verse: number, x: number
  *  `noteBack` — passed only when navigating from a verse ref clicked inside a note that's open
  *  in this panel — records which note to return to, mirroring NotesPanel.tsx's own
  *  handleVerseRefClick. Without this, clicking a verse ref from a note shown here had no way
- *  back to that note at all (a real reported bug — see BiblePanel.tsx's "back to note" pill). */
-function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null, noteBack?: { noteId: string; title: string } | null) {
-  const s = useAppStore.getState()
-  s.ensureTab('bible')
-  const fresh = useAppStore.getState()
-  const tabId = fresh.activeTabId['scripture']
-  if (!tabId) return
-
-  // Capture current position as the back-navigation target
-  const curTab = fresh.tabs['scripture'].find(t => t.id === tabId)
-  const cur = curTab?.state as BibleTabState | undefined
-  const currentTranslation = cur?.translation ?? 'kjva'
-  const scriptureBack = cur
-    ? { bookId: cur.bookId, chapter: cur.chapter, verse: cur.targetVerse, label: bookChapterVerseLabel(cur.bookId, cur.chapter), translation: currentTranslation }
-    : null
-
-  // Auto-switch translation:
-  //   • target book has a dedicated translation (e.g. enoch, jubilees) → use it
-  //   • current translation is dedicated but target book is canonical → switch to kjva
-  const dedicatedTarget = getTranslationForBook(bId)
-  let newTranslation: string | undefined
-  if (dedicatedTarget) {
-    newTranslation = dedicatedTarget
-  } else if (isDedicatedTranslation(currentTranslation)) {
-    newTranslation = 'kjva'
-  }
-
-  fresh.updateTabState('scripture', tabId, {
-    bookId: bId, chapter, targetVerse: verse,
-    endVerse: endVerse ?? undefined,
-    scrollPosition: 0,
-    ...(newTranslation ? { translation: newTranslation } : {}),
-    ...(scriptureBack ? { scriptureBack } : {}),
-    ...(noteBack !== undefined ? { noteBack } : {}),
-  })
-  s.setActiveSpace('scripture')
+ *  back to that note at all (a real reported bug — see BiblePanel.tsx's "back to note" pill).
+ *  Thin wrapper over the shared navigateToVerse() (src/lib/verseNavigation.ts) — this file's
+ *  own many call sites (TSKe/Classic/My-notes cross-ref rows, sidebar context menu) still call
+ *  this local name; `origin` defaults to a generic cross-ref tag since most callers here don't
+ *  (yet) thread their row-specific reason (TSKe heading, Classic vote strength, note title)
+ *  through — see NavOrigin's 'cross-ref' variant for the richer shape once that's wired. */
+function navToVerseFromPanel(bId: string, chapter: number, verse: number, endVerse?: number | null, noteBack?: { noteId: string; title: string } | null, origin: NavOrigin = { kind: 'cross-ref', source: 'tske' }) {
+  navigateToVerse({ bookId: bId, chapter, verse, endVerse, noteBack, origin })
 }
 
 function RefLabel({ bookId, chapter, verse, endVerse }: { bookId: string; chapter: number; verse: number; endVerse?: number | null }) {
@@ -887,7 +860,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
             {refs.map((r, i) => {
               const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
               return (
-                <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}` })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                   className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-1.5">
@@ -1114,7 +1087,7 @@ function UserNotesChapterView({
                         {verses.map(v => (
                           <button
                             key={v}
-                            onClick={() => navToVerseFromPanel(bookId, chapter, v)}
+                            onClick={() => navToVerseFromPanel(bookId, chapter, v, undefined, undefined, { kind: 'cross-ref', source: 'notes', reason: note.title || 'Untitled' })}
                             className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-accent))]/10 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))]/18 cursor-pointer transition-colors"
                           >
                             v.{v}
@@ -1137,7 +1110,7 @@ function UserNotesChapterView({
         const refList = (
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => (
-              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                 className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
                 <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
@@ -1425,7 +1398,8 @@ export default function BibleRightPanel({
   // Bible panel to the referenced verse, switching translation as needed.
   function handleVerseRefClick(ref: ParsedRef) {
     navToVerseFromPanel(ref.bookId, ref.chapter, ref.verse ?? 1, ref.endVerse,
-      sidebarNote ? { noteId: sidebarNote.id, title: sidebarNote.title || 'Untitled' } : null)
+      sidebarNote ? { noteId: sidebarNote.id, title: sidebarNote.title || 'Untitled' } : null,
+      sidebarNote ? { kind: 'note-wikilink', noteId: sidebarNote.id, noteTitle: sidebarNote.title || 'Untitled' } : undefined)
     // Apply translation override after the back-saving nav so translation isn't clobbered
     const store = useAppStore.getState()
     const scriptureTabId = store.activeTabId['scripture']
@@ -2239,7 +2213,7 @@ export default function BibleRightPanel({
             <>
               <button
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                onClick={() => { closeSideCtxMenu(); navToVerseFromPanel(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse) }}
+                onClick={() => { closeSideCtxMenu(); navToVerseFromPanel(sideCtxMenu.bookId, sideCtxMenu.chapter, sideCtxMenu.verse, undefined, undefined, { kind: 'other', label: 'side context menu' }) }}
               >
                 <BookOpen size={12} />
                 Open verse

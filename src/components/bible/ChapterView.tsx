@@ -7,6 +7,7 @@ import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
 import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
+import { navigateToVerse } from '@/lib/verseNavigation'
 import { versificationNote } from '@/lib/translationChapterMap'
 import { isHermasBook } from '@/lib/hermasMap'
 import { extractRefsFromNote } from '@/lib/noteRefs'
@@ -58,21 +59,7 @@ interface TaylorRef { bookId: string; chapter: number; verse: number; raw: strin
 
 /** Navigate the active scripture tab to a cross-referenced verse, switching translation if needed. */
 function navigateToScriptureRef(target: { bookId: string; chapter: number; verse: number }) {
-  const s = useAppStore.getState()
-  s.ensureTab('bible')
-  const fresh = useAppStore.getState()
-  const tabId = fresh.activeTabId['scripture']
-  if (!tabId) return
-  const curTab = fresh.tabs['scripture'].find((t) => t.id === tabId)
-  const curState = curTab?.state as import('@/types').BibleTabState | undefined
-  const currentTranslation = curState?.translation ?? 'kjva'
-  const dedicatedTarget = getTranslationForBook(target.bookId)
-  const newTranslation = dedicatedTarget ?? (isDedicatedTranslation(currentTranslation) ? 'kjva' : undefined)
-  fresh.updateTabState('scripture', tabId, {
-    bookId: target.bookId, chapter: target.chapter, targetVerse: target.verse, scrollPosition: 0,
-    ...(newTranslation ? { translation: newTranslation } : {}),
-  })
-  fresh.setActiveSpace('scripture')
+  navigateToVerse({ ...target, origin: { kind: 'cross-ref', source: 'tske', reason: 'Hermas Taylor footnote' } })
 }
 
 /**

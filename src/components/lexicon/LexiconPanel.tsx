@@ -9,6 +9,7 @@ import { bookName } from '@/lib/parseRef'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { StrongsContextMenu, useStrongsContextMenu } from './StrongsContextMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
+import { navigateToVerse } from '@/lib/verseNavigation'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import { rememberLexiconTitle } from '@/lib/lexiconTitle'
 import type { LexiconEntry, LexiconTabState } from '@/types'
@@ -1359,11 +1360,6 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   }
 
   const navToVerse = useCallback((bookId: string, chapter: number, verse: number, textId?: string) => {
-    const store = useAppStore.getState()
-    store.ensureTab('bible')
-    const fresh = useAppStore.getState()
-    const scriptureTabId = fresh.activeTabId['scripture']
-    if (!scriptureTabId) return
     // The occurrence being clicked already tells us which text it actually came from
     // (getLexiconOccurrences in electron/ipc/lexicon.ts only ever returns 'kjva' or 'lxx') — a
     // Greek Strong's occurrence in the LXX list (the "LXX" badge next to it, ~line 695 above)
@@ -1371,15 +1367,11 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     // showing before. Left undefined (not defaulted to KJVA) for any other/unknown text_id so
     // this never overrides an already-correct translation on a guess.
     const translation = textId === 'lxx' ? 'LXX' : textId === 'kjva' ? 'KJVA' : undefined
-    fresh.updateTabState('scripture', scriptureTabId, {
-      bookId,
-      chapter,
-      targetVerse: verse,
-      scrollPosition: 0,
-      ...(translation ? { translation } : {}),
+    navigateToVerse({
+      bookId, chapter, verse, translationOverride: translation,
+      origin: { kind: 'lexicon-occurrence', strongsNum: activeEntry?.strongsNum ?? '' },
     })
-    store.setActiveSpace('scripture')
-  }, [])
+  }, [activeEntry])
 
   // Global top bar's back button reached the list/search position for this tab.
   //
