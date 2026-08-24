@@ -166,6 +166,30 @@ interface AppHistoryAPI {
   clear: () => Promise<{ success: boolean }>
 }
 
+interface StudyTrailAPI {
+  startSession: (name: string) => Promise<import('./studyTrail').TrailSession>
+  pauseSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  resumeSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  renameSession: (trailSessionId: string, name: string) => Promise<{ success: boolean }>
+  listSessions: () => Promise<import('./studyTrail').TrailSession[]>
+  getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
+  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string }) => Promise<import('./studyTrail').TrailNode>
+  updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
+  addConnection: (conn: {
+    trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind
+    toBookId?: string; toChapter?: number; toVerse?: number
+    toStrongsNum?: string; toNoteId?: string; toVideoId?: string
+    clarityTier: import('./studyTrail').ClarityTier; reasonText?: string; reasonTags?: string[]
+    weight?: import('./studyTrail').ConnectionWeight; strongsDepth?: import('./studyTrail').StrongsDepth
+  }) => Promise<import('./studyTrail').TrailConnection>
+  markGlance: (connectionId: string) => Promise<{ success: boolean }>
+  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number }) => Promise<{ success: boolean }>
+  dismissPrompt: (connectionId: string) => Promise<{ success: boolean }>
+  updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>
+  getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+  search: (query: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+}
+
 export interface SavedWorkspace {
   id: string
   name: string
@@ -662,6 +686,7 @@ declare global {
     bgImport: BgImportAPI
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
+    studyTrail: StudyTrailAPI
     workspaces: WorkspacesAPI
     playlists: PlaylistsAPI
     ttsModel: TTSModelAPI

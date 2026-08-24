@@ -80,6 +80,7 @@ import { registerAiLookupHandlers } from './ipc/aiLookup'
 import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
 import { registerHistoryHandlers } from './ipc/history'
+import { registerStudyTrailHandlers } from './ipc/studyTrail'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
 import { registerPlaylistsHandlers } from './ipc/playlists'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
@@ -793,6 +794,7 @@ app.whenReady().then(async () => {
   registerBgImportHandlers(ipcMain, () => mainWindow)
   registerESwordImportHandlers(ipcMain, () => mainWindow)
   registerHistoryHandlers(ipcMain)
+  registerStudyTrailHandlers(ipcMain)
   registerWorkspacesHandlers(ipcMain)
   registerPlaylistsHandlers(ipcMain)
 

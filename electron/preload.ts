@@ -334,6 +334,24 @@ contextBridge.exposeInMainWorld('appHistory', {
   clear: () => ipcRenderer.invoke('history:clear'),
 })
 
+contextBridge.exposeInMainWorld('studyTrail', {
+  startSession: (name: string) => ipcRenderer.invoke('studyTrail:startSession', name),
+  pauseSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:pauseSession', trailSessionId),
+  resumeSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:resumeSession', trailSessionId),
+  renameSession: (trailSessionId: string, name: string) => ipcRenderer.invoke('studyTrail:renameSession', trailSessionId, name),
+  listSessions: () => ipcRenderer.invoke('studyTrail:listSessions'),
+  getSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:getSession', trailSessionId),
+  addNode: (node: unknown) => ipcRenderer.invoke('studyTrail:addNode', node),
+  updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
+  addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
+  markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),
+  updateConnectionReason: (connectionId: string, update: unknown) => ipcRenderer.invoke('studyTrail:updateConnectionReason', connectionId, update),
+  dismissPrompt: (connectionId: string) => ipcRenderer.invoke('studyTrail:dismissPrompt', connectionId),
+  updateRecap: (trailSessionId: string, recapText: string) => ipcRenderer.invoke('studyTrail:updateRecap', trailSessionId, recapText),
+  getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => ipcRenderer.invoke('studyTrail:getBacklinks', bookId, chapter, excludeSessionId),
+  search: (query: string) => ipcRenderer.invoke('studyTrail:search', query),
+})
+
 contextBridge.exposeInMainWorld('workspaces', {
   list: () => ipcRenderer.invoke('workspaces:list'),
   save: (name: string, layoutJson: string, stateJson: string) =>

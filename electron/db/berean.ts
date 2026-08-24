@@ -715,6 +715,85 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v27: note_thread_collapse table')
     }
+  },
+  {
+    // Study Trail: a separate subsystem (not a repurposed `history` table — shapes diverge
+    // too much: edges vs. flat entries, clarity tiers, clusters). Naming is prefixed
+    // `trail_*` throughout to avoid colliding with the unrelated tab-layout `sessions`
+    // concept already in the store (Session/sessions/currentSessionId) — a "study session"
+    // here is a completely different axis.
+    version: 28,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trail_sessions (
+          id                   TEXT PRIMARY KEY,
+          name                 TEXT NOT NULL,
+          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'
+          possibly_accidental  INTEGER DEFAULT 0,
+          recap_text           TEXT,
+          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it
+          created_at           INTEGER NOT NULL,
+          updated_at           INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS trail_paused_intervals (
+          id                TEXT PRIMARY KEY,
+          trail_session_id  TEXT NOT NULL,
+          paused_at         INTEGER NOT NULL,
+          resumed_at        INTEGER               -- NULL while still paused
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_paused_session ON trail_paused_intervals(trail_session_id);
+
+        CREATE TABLE IF NOT EXISTS trail_nodes (
+          id                  TEXT PRIMARY KEY,
+          trail_session_id    TEXT NOT NULL,
+          book_id             TEXT NOT NULL,
+          chapter             INTEGER NOT NULL,
+          order_index         INTEGER NOT NULL,
+          anchor_started_at   INTEGER NOT NULL,
+          anchor_ended_at     INTEGER,            -- NULL while still the active anchor
+          cached_subnote      TEXT,
+          origin_label        TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index);
+
+        CREATE TABLE IF NOT EXISTS trail_connections (
+          id                    TEXT PRIMARY KEY,
+          trail_session_id      TEXT NOT NULL,
+          from_node_id          TEXT NOT NULL,
+          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'
+          to_book_id            TEXT,
+          to_chapter            INTEGER,
+          to_verse              INTEGER,
+          to_strongs_num        TEXT,
+          to_note_id            TEXT,
+          to_video_id           TEXT,
+          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)
+          reason_text           TEXT,
+          reason_tags           TEXT,              -- JSON array
+          verse_pin_from        INTEGER,
+          verse_pin_to          INTEGER,
+          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'
+          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'
+          cluster_id            TEXT,
+          dismissed_prompt_at   INTEGER,
+          created_at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_conn_session ON trail_connections(trail_session_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter);
+
+        CREATE TABLE IF NOT EXISTS trail_embeddings (
+          id          TEXT PRIMARY KEY,
+          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'
+          ref_id      TEXT NOT NULL,
+          source_text TEXT NOT NULL,
+          vector      BLOB NOT NULL,   -- Float32Array, serialized
+          updated_at  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id);
+      `)
+      console.log('[berean-db] v28: Study Trail tables (trail_sessions/nodes/connections/embeddings)')
+    }
   }
 ]
 
