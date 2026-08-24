@@ -285,6 +285,10 @@ interface AppAPI {
   openViewerWindow: () => Promise<boolean>
   closeViewerWindow: () => Promise<boolean>
   isViewerWindowOpen: () => Promise<boolean>
+  openStudyTrailWindow: (trailSessionId?: string) => Promise<boolean>
+  closeStudyTrailWindow: () => Promise<boolean>
+  isStudyTrailWindowOpen: () => Promise<boolean>
+  onFocusTrailSession: (cb: (trailSessionId: string) => void) => void
   pushViewerContent: (payload: unknown) => void
   pushViewerSettings: (settings: unknown) => void
   pushViewerOverlay: (payload: ViewerOverlay) => void

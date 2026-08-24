@@ -243,6 +243,7 @@ function applyAutoDownloadPref(db: ReturnType<typeof getBereanDb>): void {
 
 let mainWindow: BrowserWindow | null = null
 let viewerWindow: BrowserWindow | null = null
+let studyTrailWindow: BrowserWindow | null = null
 
 function sendUpdateStatus(status: string, extra?: Record<string, unknown>) {
   mainWindow?.webContents.send('app:updateStatus', { status, ...extra })
@@ -461,6 +462,55 @@ function createViewerWindow(): void {
       }
     })
   })
+}
+
+// Study Trail — a third dedicated singleton window (not the generic createFloatingWindow
+// mechanism below): its persistent rail + bespoke title-bar chrome (Sessions/Everything
+// toggle, pause/resume, +New session) matches the Viewer window's shape, not FloatingShell's
+// "one existing full-size panel fills an undifferentiated frame" model. There is only ever
+// one Study Trail window — the note-embed block's "open in a window" action (a later phase)
+// focuses this same singleton on a given session rather than opening a new one.
+function createStudyTrailWindow(trailSessionId?: string): void {
+  if (studyTrailWindow && !studyTrailWindow.isDestroyed()) {
+    studyTrailWindow.focus()
+    if (trailSessionId) studyTrailWindow.webContents.send('studyTrail:focusSession', trailSessionId)
+    return
+  }
+  const iconPath = is.dev
+    ? join(app.getAppPath(), 'assets/icon.icns')
+    : join(process.resourcesPath, 'assets/icon.icns')
+  const appIcon = nativeImage.createFromPath(iconPath)
+  const isWin = process.platform === 'win32'
+  studyTrailWindow = new BrowserWindow({
+    width: 900,
+    height: 640,
+    minWidth: 640,
+    minHeight: 420,
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
+    backgroundColor: '#17151a',
+    icon: appIcon,
+    title: is.dev ? 'Study Trail [Dev]' : 'Study Trail',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  ;(studyTrailWindow as any).__isStudyTrail = true
+  studyTrailWindow.setAlwaysOnTop(true, 'floating')
+  studyTrailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  const query: Record<string, string> = { studyTrail: '1' }
+  if (trailSessionId) query.trailSessionId = trailSessionId
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    studyTrailWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${new URLSearchParams(query).toString()}`)
+  } else {
+    studyTrailWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
+  }
+
+  studyTrailWindow.on('closed', () => { studyTrailWindow = null })
 }
 
 function createFloatingWindow(type: string, state: Record<string, unknown>): void {
@@ -851,6 +901,12 @@ app.whenReady().then(async () => {
     createViewerWindow()
     return true
   })
+  ipcMain.handle('app:openStudyTrailWindow', (_e, trailSessionId?: string) => {
+    createStudyTrailWindow(trailSessionId)
+    return true
+  })
+  ipcMain.handle('app:isStudyTrailWindowOpen', () => !!studyTrailWindow && !studyTrailWindow.isDestroyed())
+  ipcMain.handle('app:closeStudyTrailWindow', () => { studyTrailWindow?.close(); return true })
   ipcMain.handle('app:isViewerWindowOpen', () => {
     return viewerWindow !== null && !viewerWindow.isDestroyed()
   })

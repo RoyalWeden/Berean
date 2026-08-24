@@ -2,7 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { useState, useEffect, useRef } from 'react'
 import {
-  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles, Volume2,
+  History, Archive, ArchiveRestore, X, Monitor, ScanSearch, ZoomIn, Settings, Search, Sparkles, Volume2, GitBranch,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import ZoomMenuRow from './ZoomMenuRow'
@@ -297,6 +297,24 @@ export default function Ribbon() {
             <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
               {viewerWindowOpen ? 'Send to presenter view' : 'Open presenter view'}
               <ShortcutKeys keys="⌘⇧B" className="ml-2" />
+              <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        {/* ── Study Trail ── */}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              onClick={() => window.app.openStudyTrailWindow?.()}
+              className="no-drag flex items-center justify-center w-8 h-8 rounded-shell transition-colors cursor-pointer text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))]"
+            >
+              <GitBranch size={16} />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content side="right" sideOffset={8} className="z-50 px-2 py-1 rounded text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] shadow-lg">
+              Study Trail
               <Tooltip.Arrow className="fill-[rgb(var(--color-surface-4))]" />
             </Tooltip.Content>
           </Tooltip.Portal>

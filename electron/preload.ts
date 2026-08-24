@@ -142,6 +142,13 @@ contextBridge.exposeInMainWorld('app', {
   openViewerWindow: () => ipcRenderer.invoke('app:openViewerWindow'),
   closeViewerWindow: () => ipcRenderer.invoke('app:closeViewerWindow'),
   isViewerWindowOpen: () => ipcRenderer.invoke('app:isViewerWindowOpen'),
+  openStudyTrailWindow: (trailSessionId?: string) => ipcRenderer.invoke('app:openStudyTrailWindow', trailSessionId),
+  closeStudyTrailWindow: () => ipcRenderer.invoke('app:closeStudyTrailWindow'),
+  isStudyTrailWindowOpen: () => ipcRenderer.invoke('app:isStudyTrailWindowOpen'),
+  onFocusTrailSession: (cb: (trailSessionId: string) => void) => {
+    ipcRenderer.removeAllListeners('studyTrail:focusSession')
+    ipcRenderer.on('studyTrail:focusSession', (_e, id: string) => cb(id))
+  },
   pushViewerContent: (payload: unknown) => ipcRenderer.send('app:pushViewerContent', payload),
   // Push display/format settings (word replacer, note blocks, theme…) to the viewer window
   pushViewerSettings: (settings: unknown) => ipcRenderer.send('app:pushViewerSettings', settings),
