@@ -289,6 +289,8 @@ interface AppAPI {
   closeStudyTrailWindow: () => Promise<boolean>
   isStudyTrailWindowOpen: () => Promise<boolean>
   onFocusTrailSession: (cb: (trailSessionId: string) => void) => void
+  broadcastStudyTrailState: (state: unknown) => void
+  onStudyTrailStateChanged: (cb: (state: unknown) => void) => void
   pushViewerContent: (payload: unknown) => void
   pushViewerSettings: (settings: unknown) => void
   pushViewerOverlay: (payload: ViewerOverlay) => void
@@ -676,6 +678,12 @@ interface TTSAudioCacheAPI {
 
 declare global {
   interface Window {
+    // Opt-in console logging for diagnosing "presenter outline shows different verses than
+    // the presenter itself" reports — set `window.__bereanPresenterDebug = true` in BOTH the
+    // main window's and the presenter/viewer window's devtools console, reproduce the mismatch,
+    // then copy the [PresenterDebug ...] lines from both. Not surfaced in any UI (devtools-only,
+    // for live debugging), and false/undefined by default so it never logs in normal use.
+    __bereanPresenterDebug?: boolean
     bible: BibleAPI
     notes: NotesAPI
     highlights: HighlightsAPI

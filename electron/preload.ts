@@ -149,6 +149,17 @@ contextBridge.exposeInMainWorld('app', {
     ipcRenderer.removeAllListeners('studyTrail:focusSession')
     ipcRenderer.on('studyTrail:focusSession', (_e, id: string) => cb(id))
   },
+  // The main window and the Study Trail window are separate renderer processes, each with its
+  // OWN in-memory useStudyTrailStore instance — starting/pausing/resuming a session in one
+  // window's UI never reached the other's local store, so the main window's recorder always
+  // saw currentTrailSessionId: null and silently never recorded anything, no matter which
+  // window the session was actually started from. This is the cross-window broadcast that
+  // closes that gap (see src/store/studyTrailSlice.ts's installStudyTrailStateSync).
+  broadcastStudyTrailState: (state: unknown) => ipcRenderer.send('app:broadcastStudyTrailState', state),
+  onStudyTrailStateChanged: (cb: (state: unknown) => void) => {
+    ipcRenderer.removeAllListeners('app:studyTrailStateChanged')
+    ipcRenderer.on('app:studyTrailStateChanged', (_e, state) => cb(state))
+  },
   pushViewerContent: (payload: unknown) => ipcRenderer.send('app:pushViewerContent', payload),
   // Push display/format settings (word replacer, note blocks, theme…) to the viewer window
   pushViewerSettings: (settings: unknown) => ipcRenderer.send('app:pushViewerSettings', settings),

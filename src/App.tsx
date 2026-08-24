@@ -5,7 +5,7 @@ import { useAppStore } from '@/store'
 import { setHermasTextId } from '@/lib/parseRef'
 import { setHermasVariant, hermasVariantForTextId } from '@/lib/hermasMap'
 import { useViewerSync } from '@/hooks/useViewerSync'
-import { installStudyTrailRecorder } from '@/store/studyTrailSlice'
+import { installStudyTrailRecorder, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import Sidebar from '@/components/shell/Sidebar'
 import FloatingRail from '@/components/shell/FloatingRail'
@@ -56,7 +56,7 @@ export default function App() {
   // Installed once, app-wide — every navigateToVerse() call anywhere feeds this without its
   // call site needing to know Study Trail exists (see src/lib/verseNavigation.ts's injected
   // recorder hook).
-  useEffect(() => { installStudyTrailRecorder() }, [])
+  useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
   const theme = useAppStore((s) => s.theme)
   const themePreset = useAppStore((s) => s.themePreset)
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)

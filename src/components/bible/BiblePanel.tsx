@@ -571,7 +571,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const vf = region.verseFracs[fv]
       if (vf != null) scrollPercentOverride = Math.max(0, Math.min(1, (vf - f / 2) / (1 - f)))
     }
-    setPresenterBand(computeBandGeometry({
+    const band = computeBandGeometry({
       visibleFraction: f,
       verseFracs: region.verseFracs,
       mainTops: tops,
@@ -579,7 +579,25 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       mainClientHeight: c.clientHeight,
       mainScrollTop: c.scrollTop,
       scrollPercentOverride,
-    }))
+    })
+    setPresenterBand(band)
+
+    // Debug logging for the "outline shows different verses than the presenter" report —
+    // compare this against the [PresenterDebug viewer] log ViewerBiblePage.tsx emits for the
+    // same tick (set window.__bereanPresenterDebug = true in BOTH windows' devtools console).
+    // Logs: what THIS window received as the presenter's own reported region (region.bookId/
+    // chapter/visibleFraction — ground truth as of the presenter's last report), what the band
+    // geometry computed from it (band.firstVerse/lastVerse — what the outline claims), and
+    // what's ACTUALLY on-screen in the presenter's own verseFracs at the computed scroll
+    // percent, independently re-derived here as a cross-check.
+    if (window.__bereanPresenterDebug) {
+      console.log('[PresenterDebug band]', {
+        regionBookId: region.bookId, regionChapter: region.chapter, regionVisibleFraction: region.visibleFraction,
+        mainScrollPercentUsed: scrollPercentOverride !== undefined ? scrollPercentOverride : (bandDenom > 0 ? c.scrollTop / bandDenom : 0),
+        bandFirstVerse: band?.firstVerse, bandLastVerse: band?.lastVerse,
+        bandTop: band?.top, bandHeight: band?.height,
+      })
+    }
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Latest computePresenterBand, readable from callbacks (like clearTargetVerse below) that

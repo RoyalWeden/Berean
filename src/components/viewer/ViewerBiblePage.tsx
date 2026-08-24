@@ -215,6 +215,31 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         console.warn('[ViewerBiblePage] reportVisibleRegion missing from preload — restart the app')
         return
       }
+      // Debug logging for the "outline shows different verses than the presenter" report —
+      // logs the ACTUAL currently on-screen verse range in THIS window (ground truth, derived
+      // directly from getBoundingClientRect against the viewport, not from the fraction math
+      // below), alongside the fraction-based payload being sent to the main window. Compare
+      // this against the [PresenterDebug band] log in BiblePanel.tsx for the same tick — a
+      // real mismatch will show up as a different verse range here vs. what the main window's
+      // outline band computes from this same payload.
+      if (window.__bereanPresenterDebug) {
+        const viewportTop = 0, viewportBottom = c.clientHeight
+        let onScreenFirst: number | null = null, onScreenLast: number | null = null
+        for (const elx of verseNodes) {
+          const n = Number(elx.dataset.verse)
+          if (!Number.isFinite(n)) continue
+          const r = elx.getBoundingClientRect()
+          const top = r.top - cTop, bottom = r.bottom - cTop
+          if (bottom > viewportTop && top < viewportBottom) {
+            if (onScreenFirst === null || n < onScreenFirst) onScreenFirst = n
+            if (onScreenLast === null || n > onScreenLast) onScreenLast = n
+          }
+        }
+        console.log('[PresenterDebug viewer]', {
+          bookId, chapter, scrollTop: c.scrollTop, clientHeight: c.clientHeight, contentHeight: H,
+          visibleFraction, onScreenVerses: [onScreenFirst, onScreenLast],
+        })
+      }
       window.viewer.reportVisibleRegion({ bookId, chapter, visibleFraction, verseFracs, clientHeight: c.clientHeight })
     })
   }, [bookId, chapter])

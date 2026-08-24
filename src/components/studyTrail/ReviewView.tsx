@@ -47,42 +47,42 @@ function SessionCard({ session }: { session: TrailSession }) {
     : 0
 
   return (
-    <div style={{ border: '1px solid #2a2730', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid rgb(var(--color-surface-4))', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
       <button
         onClick={() => setOpen((o) => !o)}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px',
-          background: '#1c1a21', border: 'none', cursor: 'pointer', textAlign: 'left',
+          background: 'rgb(var(--color-surface-2))', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
         <span style={{
           width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-          background: session.status === 'live' ? '#4fc3ae' : session.status === 'paused' ? '#e08468' : '#7d7869',
+          background: session.status === 'live' ? '#4fc3ae' : session.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
         }} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ece6d8', flex: 1 }}>{session.name}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', flex: 1 }}>{session.name}</span>
         {unresolvedCount > 0 && (
           <span style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', borderRadius: 999, padding: '1px 7px' }}>
             {unresolvedCount} needs input
           </span>
         )}
-        <span style={{ fontSize: 11, color: '#7d7869' }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))' }}>{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div style={{ padding: '10px 12px 12px' }}>
           {!detail ? (
-            <div style={{ fontSize: 11.5, color: '#7d7869' }}>Loading…</div>
+            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>Loading…</div>
           ) : (
             <>
               <div
                 contentEditable
                 suppressContentEditableWarning
                 onBlur={(e) => { setRecap(e.currentTarget.textContent ?? ''); commitRecap() }}
-                style={{ fontSize: 12.5, lineHeight: 1.6, color: '#d8d2c4', outline: 'none', padding: '4px 0' }}
+                style={{ fontSize: 12.5, lineHeight: 1.6, color: 'rgb(var(--color-text-secondary))', outline: 'none', padding: '4px 0' }}
               >
                 {recap}
               </div>
               {backlink && (
-                <div style={{ fontSize: 10.5, color: '#7d7869', marginTop: 6, fontStyle: 'italic' }}>{backlink}</div>
+                <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginTop: 6, fontStyle: 'italic' }}>{backlink}</div>
               )}
             </>
           )}
@@ -97,11 +97,11 @@ function SearchResultRow({ r }: { r: TrailConnectionWithSession }) {
     ? `Strong's ${r.toStrongsNum}`
     : `${r.toBookId ?? ''} ${r.toChapter ?? ''}${r.toVerse ? `:${r.toVerse}` : ''}`
   return (
-    <div style={{ padding: '6px 0', borderBottom: '1px solid #2a2730' }}>
-      <div style={{ fontSize: 11.5, color: '#ece6d8' }}>
-        {label} <span style={{ color: '#7d7869' }}>· {r.sessionName}</span>
+    <div style={{ padding: '6px 0', borderBottom: '1px solid rgb(var(--color-surface-4))' }}>
+      <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-primary))' }}>
+        {label} <span style={{ color: 'rgb(var(--color-text-muted))' }}>· {r.sessionName}</span>
       </div>
-      {r.reasonText && <div style={{ fontSize: 11, color: '#b7b0a0', fontStyle: 'italic', marginTop: 1 }}>{r.reasonText}</div>}
+      {r.reasonText && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic', marginTop: 1 }}>{r.reasonText}</div>}
     </div>
   )
 }
@@ -133,32 +133,32 @@ export default function ReviewView({ sessions }: { sessions: TrailSession[] }) {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') runSearch() }}
           placeholder="Search across every session…"
-          style={{ flex: 1, background: '#17151a', border: '1px solid #423d49', borderRadius: 7, padding: '7px 10px', color: '#ece6d8', fontSize: 12.5 }}
+          style={{ flex: 1, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '7px 10px', color: 'rgb(var(--color-text-primary))', fontSize: 12.5 }}
         />
         <button
           onClick={runSearch}
-          style={{ background: '#d7ab52', border: 'none', borderRadius: 7, padding: '0 14px', cursor: 'pointer', fontWeight: 600, fontSize: 12, color: '#17151a' }}
+          style={{ background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '0 14px', cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'rgb(var(--color-surface-1))' }}
         >{searching ? '…' : 'Search'}</button>
       </div>
 
       {results && (
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#7d7869', marginBottom: 6 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
             {results.length} result{results.length === 1 ? '' : 's'}
           </div>
           {results.length === 0 ? (
-            <div style={{ fontSize: 11.5, color: '#7d7869' }}>No matches — search is substring-only for now (real semantic search across word meanings isn't wired up yet).</div>
+            <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No matches — search is substring-only for now (real semantic search across word meanings isn't wired up yet).</div>
           ) : (
             results.map((r) => <SearchResultRow key={r.id} r={r} />)
           )}
         </div>
       )}
 
-      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#7d7869', marginBottom: 6 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
         Sessions
       </div>
       {grouped.map((s) => <SessionCard key={s.id} session={s} />)}
-      {grouped.length === 0 && <div style={{ fontSize: 11.5, color: '#7d7869' }}>No sessions yet.</div>}
+      {grouped.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet.</div>}
     </div>
   )
 }

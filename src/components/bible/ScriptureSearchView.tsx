@@ -127,16 +127,32 @@ type SortMode = 'relevance' | 'bookOrder'
 // position, picks a window that covers as many distinct query words as possible within a
 // character budget (greedy left-to-right from the first match), and marks truncated ends with
 // an ellipsis — the same idea as a search engine's result snippet.
-function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string {
+export interface Snippet {
+  text: string
+  /** Index into the ORIGINAL text where the kept slice starts (0 when untruncated). */
+  sliceStart: number
+  /** Index into the ORIGINAL text where the kept slice ends, exclusive (text.length when
+   *  untruncated). */
+  sliceEnd: number
+  /** Length of the leading ellipsis, if any (0 or 1) — annotation ranges remapped into this
+   *  snippet's coordinates need to shift past it. */
+  prefixLen: number
+}
+
+export function buildAllWordsSnippet(text: string, query: string, maxLen = 100): Snippet {
   const words = query.trim().split(/\s+/).filter(w => w.length > 0)
-  if (words.length === 0 || text.length <= maxLen) return text
+  if (words.length === 0 || text.length <= maxLen) return { text, sliceStart: 0, sliceEnd: text.length, prefixLen: 0 }
   const escaped = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const positions: number[] = []
   for (const w of escaped) {
     const m = new RegExp(`\\b${w}\\w*`, 'i').exec(text)
     if (m) positions.push(m.index)
   }
-  if (positions.length === 0) return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
+  if (positions.length === 0) {
+    return text.length > maxLen
+      ? { text: `${text.slice(0, maxLen)}…`, sliceStart: 0, sliceEnd: maxLen, prefixLen: 0 }
+      : { text, sliceStart: 0, sliceEnd: text.length, prefixLen: 0 }
+  }
   positions.sort((a, b) => a - b)
   const first = positions[0]
   const last = positions[positions.length - 1]
@@ -155,7 +171,32 @@ function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string
   }
   const prefix = start > 0 ? '…' : ''
   const suffix = end < text.length ? '…' : ''
-  return `${prefix}${text.slice(start, end)}${suffix}`
+  return { text: `${prefix}${text.slice(start, end)}${suffix}`, sliceStart: start, sliceEnd: end, prefixLen: prefix.length }
+}
+
+/**
+ * Remaps AnnotationRange[] (computed against the FULL verse text) into a snippet's own
+ * coordinate space, dropping/clipping ranges that fall outside the kept slice. Without this,
+ * every "all words" search result (the default view — context mode off) silently lost its
+ * red-letter/italic markup entirely, since buildAllWordsSnippet's truncation invalidates the
+ * original char offsets and the caller had no way to recover them — reported as "Advanced
+ * Scripture Search doesn't show red letters or italics" even after getAnnotationRanges itself
+ * was wired in, because in the common (truncated) case its output was simply discarded.
+ */
+export function remapRangesToSnippet(ranges: AnnotationRange[], snippet: Snippet): AnnotationRange[] {
+  const out: AnnotationRange[] = []
+  for (const r of ranges) {
+    const s = Math.max(r.start, snippet.sliceStart)
+    const e = Math.min(r.end, snippet.sliceEnd)
+    if (s >= e) continue
+    out.push({
+      start: s - snippet.sliceStart + snippet.prefixLen,
+      end: e - snippet.sliceStart + snippet.prefixLen,
+      isRedLetter: r.isRedLetter,
+      isItalic: r.isItalic,
+    })
+  }
+  return out
 }
 
 function highlight(text: string, query: string, wordMode: WordMode = 'all'): React.ReactNode {
@@ -1617,9 +1658,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               // Only "all words" mode needs the dynamic-start snippet — "any word" only
                               // needs one match visible (line-clamp already lands on it often enough),
                               // and "phrase" highlights a single contiguous span CSS clamping already handles.
-                              const displayText = !showContext && wordMode === 'all'
+                              const snippet: Snippet = !showContext && wordMode === 'all'
                                 ? buildAllWordsSnippet(rawText, query)
-                                : rawText
+                                : { text: rawText, sliceStart: 0, sliceEnd: rawText.length, prefixLen: 0 }
                               // The highlight query goes through the SAME word-replacer transform as the
                               // text it's matched against — text shows "Yeshua" (replaced), so a query of
                               // literal "jesus" needs to become "Yeshua" too, or it never matches the
@@ -1628,12 +1669,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
                                 ? applyWordReplacer(query, wordReplacerRules)
                                 : query
-                              // Annotation ranges are only valid against the FULL (unwindowed) rawText —
-                              // once buildAllWordsSnippet trims/shifts the string its char offsets no
-                              // longer line up, so fall back to plain highlight() for that case.
-                              if (displayText !== rawText) return highlight(displayText, highlightQuery, wordMode)
+                              // Annotation ranges are computed against the FULL (unwindowed) rawText, then
+                              // remapped into the snippet's own coordinate space (remapRangesToSnippet) —
+                              // this used to fall back to plain highlight() with no ranges at all whenever
+                              // the snippet was truncated, which is the common case (the default view has
+                              // context mode off), silently dropping red-letter/italic markup from nearly
+                              // every result.
                               const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId)
-                              return highlightWithAnnotations(displayText, annRanges, highlightQuery, wordMode)
+                              const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
+                                ? annRanges
+                                : remapRangesToSnippet(annRanges, snippet)
+                              return highlightWithAnnotations(snippet.text, snippetRanges, highlightQuery, wordMode)
                             })()}
                           </span>
                         )}

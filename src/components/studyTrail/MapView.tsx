@@ -11,7 +11,7 @@ import ReasonPromptPopover from './ReasonPromptPopover'
 // connection, thick = clustered (revisited more than once), diamond = lexicon/word stop,
 // square = chapter stop — same legend as the plan.
 
-const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: '#d7ab52', 3: '#e08468' }
+const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 
 function bookLabel(bookId: string): string {
   // Best-effort readable label — the window doesn't have the full books table loaded, and
@@ -20,7 +20,7 @@ function bookLabel(bookId: string): string {
 }
 
 function LineSwatch({ weight, tier, clustered }: { weight: string; tier: number; clustered: boolean }) {
-  const color = TIER_COLOR[tier] ?? '#7d7869'
+  const color = TIER_COLOR[tier] ?? 'rgb(var(--color-text-muted))'
   return (
     <svg width="28" height="10" style={{ flexShrink: 0 }}>
       <line
@@ -55,17 +55,17 @@ function ConnectionRow({
         width: 7, height: 7, flexShrink: 0,
         borderRadius: isLexicon ? 1 : '50%',
         transform: isLexicon ? 'rotate(45deg)' : undefined,
-        background: TIER_COLOR[conn.clarityTier] ?? '#7d7869',
+        background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
         opacity: conn.weight === 'glance' ? 0.5 : 1,
       }} />
-      <span style={{ fontSize: 12, color: '#ece6d8', opacity: conn.weight === 'glance' ? 0.6 : 1 }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1 }}>{label}</span>
       {conn.versePinFrom != null && (
-        <span style={{ fontSize: 10.5, color: '#7d7869' }}>
+        <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
           v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
         </span>
       )}
       {conn.reasonText ? (
-        <span style={{ fontSize: 11, color: '#b7b0a0', fontStyle: 'italic' }}>· {conn.reasonText}</span>
+        <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {conn.reasonText}</span>
       ) : needsInput ? (
         <button
           onClick={() => onOpenPrompt(conn)}
@@ -77,10 +77,10 @@ function ConnectionRow({
           }}
         >?</button>
       ) : conn.dismissedPromptAt ? (
-        <span style={{ fontSize: 10.5, color: '#5a564d' }}>reason unclear</span>
+        <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>reason unclear</span>
       ) : null}
-      {conn.weight === 'glance' && <span style={{ fontSize: 10, color: '#5a564d' }}>(glance)</span>}
-      {conn.clusterId && <span style={{ fontSize: 10, color: '#7d7869' }}>revisited</span>}
+      {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
+      {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
     </div>
   )
 }
@@ -91,14 +91,14 @@ function NodeBlock({ node, connections, onOpenPrompt }: {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-        <div style={{ width: 9, height: 9, background: '#d7ab52', borderRadius: 2, marginTop: 4 }} />
-        <div style={{ flex: 1, width: 2, background: '#3a3542', minHeight: 18 }} />
+        <div style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, marginTop: 4 }} />
+        <div style={{ flex: 1, width: 2, background: 'rgb(var(--color-surface-4))', minHeight: 18 }} />
       </div>
       <div style={{ paddingBottom: 16, flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13.5, fontWeight: 600, color: '#ece6d8' }}>
+        <div style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
           {bookLabel(node.bookId)} {node.chapter}
         </div>
-        {node.cachedSubnote && <div style={{ fontSize: 11, color: '#7d7869', marginTop: 1 }}>{node.cachedSubnote}</div>}
+        {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{node.cachedSubnote}</div>}
         <div style={{ marginTop: 4 }}>
           {connections.map((c) => <ConnectionRow key={c.id} conn={c} onOpenPrompt={onOpenPrompt} />)}
         </div>
@@ -130,20 +130,20 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
         />
       ))}
       {detail.nodes.length === 0 && (
-        <div style={{ fontSize: 12, color: '#7d7869' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
+        <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
       )}
 
       {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 20, paddingTop: 12, borderTop: '1px solid #2a2730', fontSize: 10.5, color: '#7d7869' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 20, paddingTop: 12, borderTop: '1px solid rgb(var(--color-surface-4))', fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
         <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#4fc3ae" strokeWidth={2} /></svg> clear</span>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#d7ab52" strokeWidth={2} strokeDasharray="3 3" /></svg> soft</span>
+        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-accent))" strokeWidth={2} strokeDasharray="3 3" /></svg> soft</span>
         <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#e08468" strokeWidth={2} strokeDasharray="3 3" /></svg> ambiguous</span>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#7d7869" strokeWidth={3.5} /></svg> revisited</span>
+        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-text-muted))" strokeWidth={3.5} /></svg> revisited</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 7, height: 7, background: '#7d7869', borderRadius: 1, transform: 'rotate(45deg)', display: 'inline-block' }} /> word stop
+          <span style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 1, transform: 'rotate(45deg)', display: 'inline-block' }} /> word stop
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 9, height: 9, background: '#d7ab52', borderRadius: 2, display: 'inline-block' }} /> chapter stop
+          <span style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, display: 'inline-block' }} /> chapter stop
         </span>
       </div>
 

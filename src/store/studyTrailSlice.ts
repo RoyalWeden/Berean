@@ -71,18 +71,24 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   startTrailSession: async (name: string) => {
     const session = await window.studyTrail.startSession(name)
     set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null })
+    // Tell every other open window (main window, if this was started from the Study Trail
+    // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
+    // necessary at all.
+    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: session.id, trailSessionStatus: 'live' })
   },
   pauseTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (!id) return
     await window.studyTrail.pauseSession(id)
     set({ trailSessionStatus: 'paused' })
+    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: id, trailSessionStatus: 'paused' })
   },
   resumeTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (!id) return
     await window.studyTrail.resumeSession(id)
     set({ trailSessionStatus: 'live' })
+    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: id, trailSessionStatus: 'live' })
   },
   renameTrailSession: async (name: string) => {
     const id = get().currentTrailSessionId
@@ -119,6 +125,49 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
     weight: 'full',
     strongsDepth: depth,
   }).catch(() => {})
+}
+
+/**
+ * Keeps THIS window's useStudyTrailStore in sync with whichever window a session was actually
+ * started/paused/resumed from. Each window (main + Study Trail) is a separate renderer process
+ * with its own independent in-memory store instance — a session started via the Study Trail
+ * window's own +New session button updated only ITS store, leaving the main window (where
+ * installStudyTrailRecorder's navigateToVerse hook actually lives and checks
+ * currentTrailSessionId before recording anything) permanently believing no session was live.
+ * That was the root cause of Study Trail silently recording nothing at all, regardless of
+ * which window a session was started from. Call once at startup in BOTH windows (App.tsx and
+ * StudyTrailApp.tsx) — see startTrailSession/pauseTrailSession/resumeTrailSession's own
+ * broadcastStudyTrailState calls for the other half of this.
+ */
+export function installStudyTrailStateSync(): void {
+  // Self-heal on mount (app boot, or a window reload while a session is already live/paused)
+  // rather than relying solely on a fresh broadcast, which only fires on the NEXT start/pause/
+  // resume action — without this, a session already live before this window/tab finished
+  // mounting would silently look ended to it until something else happened to re-broadcast.
+  window.studyTrail.listSessions().then((rows) => {
+    const active = rows.find((r) => r.status === 'live' || r.status === 'paused')
+    if (!active) return
+    const cur = useStudyTrailStore.getState()
+    if (cur.currentTrailSessionId) return // already knows about a session — don't clobber it
+    useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status })
+  }).catch(() => {})
+
+  window.app.onStudyTrailStateChanged?.((raw) => {
+    const incoming = raw as { currentTrailSessionId: string | null; trailSessionStatus: TrailSessionStatus | null }
+    const cur = useStudyTrailStore.getState()
+    if (cur.currentTrailSessionId === incoming.currentTrailSessionId && cur.trailSessionStatus === incoming.trailSessionStatus) return
+    useStudyTrailStore.setState({
+      currentTrailSessionId: incoming.currentTrailSessionId,
+      trailSessionStatus: incoming.trailSessionStatus,
+      // A different (or newly-null) session id means whatever anchor THIS window's own
+      // recorder was tracking is now stale — reset it exactly like startTrailSession's own
+      // reducer does, so the next navigation creates a fresh first anchor for the new session
+      // instead of wrongly hanging a connection off the previous one.
+      ...(cur.currentTrailSessionId !== incoming.currentTrailSessionId
+        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0 }
+        : {}),
+    })
+  })
 }
 
 // The glance window — a reversal back to the origin chapter within this long, with no other

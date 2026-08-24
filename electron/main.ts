@@ -907,6 +907,15 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('app:isStudyTrailWindowOpen', () => !!studyTrailWindow && !studyTrailWindow.isDestroyed())
   ipcMain.handle('app:closeStudyTrailWindow', () => { studyTrailWindow?.close(); return true })
+  // Broadcasts the live-session id/status to every open window (main + Study Trail) —
+  // see preload.ts's broadcastStudyTrailState comment for why this exists at all: each
+  // window's useStudyTrailStore is a separate in-memory instance, so this is the only way
+  // a session started in one window's UI is ever known to the other's recorder.
+  ipcMain.on('app:broadcastStudyTrailState', (_e, state) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('app:studyTrailStateChanged', state)
+    })
+  })
   ipcMain.handle('app:isViewerWindowOpen', () => {
     return viewerWindow !== null && !viewerWindow.isDestroyed()
   })
