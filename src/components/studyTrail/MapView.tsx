@@ -98,6 +98,12 @@ type AnnotatedConn = TrailConnection & {
    *  is specific enough to trace — gets its own row + direct line to that next node, in
    *  addition to (not instead of) the plain spine arrow every chapter gets. */
   isForwardBranch?: boolean
+  /** A cross-ref click that landed on a DIFFERENT verse in the SAME chapter the user is
+   *  already anchored on — the destination "node" is literally the node this row lives under.
+   *  Not a return (nothing was left and come back to) and not a forward branch (no new node),
+   *  just a same-chapter cross-ref worth tracing on its own row. See the sameChapter branch in
+   *  studyTrailSlice.ts's recorder for how this connection gets created. */
+  isSameChapterBranch?: boolean
 }
 
 function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
@@ -119,7 +125,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
         : conn.toKind === 'video'
           ? 'video'
           : `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
-  const label = conn.isReturn ? `↺ ${baseLabel}` : baseLabel
+  const label = conn.isReturn ? `↺ ${baseLabel}` : conn.isSameChapterBranch ? `↳ v.${conn.toVerse ?? '?'}` : baseLabel
   const ref = refFor(conn)
   return (
     <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
@@ -454,6 +460,15 @@ export default function MapView({
     const bucket = rowsForNode.get(c.fromNodeId)
     if (!bucket) continue
     if (c.toKind === 'chapter' && c.toBookId && c.toChapter != null) {
+      // A cross-ref that landed in the SAME chapter as its own fromNode (see the sameChapter
+      // branch in studyTrailSlice.ts) — the "target" resolves to the very node this row is
+      // rendered under, which is neither a forward move nor a round trip, just a same-chapter
+      // branch. Checked first so it can never fall through into the isReturn self-loop case.
+      const selfTarget = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
+      if (selfTarget && selfTarget.id === c.fromNodeId) {
+        bucket.push({ ...c, isSameChapterBranch: true })
+        continue
+      }
       const next = nextNodeById.get(c.fromNodeId)
       const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
       if (isForward) {

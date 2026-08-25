@@ -375,8 +375,10 @@ export function installStudyTrailRecorder(): void {
 
     const sameChapter = s.currentAnchorBookId === to.bookId && s.currentAnchorChapter === to.chapter
     if (sameChapter && s.currentAnchorNodeId) {
-      // Still reading the same chapter — no new connection. The counter keeps incrementing
-      // (it's one of the two revisit-promotion engagement signals, alongside dwell time — see
+      // Still reading the same chapter — no new NODE, and for most origins (plain verse-number
+      // clicks, tab-switches, sequential reading) no connection either: it's just more time
+      // spent on the one anchor. The counter keeps incrementing regardless (it's one of the two
+      // revisit-promotion engagement signals, alongside dwell time — see
       // REVISIT_PROMOTE_VERSE_THRESHOLD below), but it's a count of same-chapter NAVIGATION
       // EVENTS (clicking a verse number, a cross-ref landing back here, etc.), not verses
       // actually read — there's no scroll-position tracking behind it, so it was never
@@ -385,9 +387,31 @@ export function installStudyTrailRecorder(): void {
       // read). No cachedSubnote claim is written for this anymore; the real, verifiable
       // per-visit facts (arrival time, total dwell duration) are still shown via the hover
       // card, which doesn't need to assert an unverifiable read count.
+      //
+      // A cross-ref click IS still worth recording even when it lands in the same chapter —
+      // Michael's own framing: "if i click a verse from a cross ref on a verse, then that's
+      // something that should be like a branch and such to tie it together." Landing on
+      // Gen 3:5 via a TSKe cross-ref while anchored on Genesis 3 previously vanished into this
+      // same-chapter branch with zero trace, even though it's exactly as real a "why did I end
+      // up looking at this verse" fact as a cross-ref that happens to land in a different
+      // chapter. Recorded as a connection FROM the anchor back to itself (same node, same
+      // book/chapter, specific target verse) — MapView renders this as a short branch stub off
+      // the node, not a "return" (see isSameChapterBranch there), since nothing about it is a
+      // round trip. The anchor itself doesn't move and no new node is created.
       const count = s.currentAnchorVerseCount + 1
       useStudyTrailStore.setState({ currentAnchorVerseCount: count })
-      if (window.__bereanTrailDebug) console.log('[TrailDebug] same chapter — counted toward engagement only, no subnote/connection', { nodeId: s.currentAnchorNodeId, count })
+      if (origin.kind === 'cross-ref') {
+        const { text, tags } = reasonForOrigin(origin)
+        window.studyTrail.addConnection({
+          trailSessionId: s.currentTrailSessionId, fromNodeId: s.currentAnchorNodeId, toKind: 'chapter',
+          toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
+          clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
+        })
+          .then((conn) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (same-chapter branch) SUCCEEDED', conn) })
+          .catch((err) => console.error('[TrailDebug] addConnection (same-chapter branch) FAILED', err))
+      } else if (window.__bereanTrailDebug) {
+        console.log('[TrailDebug] same chapter — counted toward engagement only, no subnote/connection', { nodeId: s.currentAnchorNodeId, count })
+      }
       return
     }
 
