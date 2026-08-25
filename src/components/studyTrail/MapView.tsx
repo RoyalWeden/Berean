@@ -440,36 +440,38 @@ function NodeClusterGroup({
   }
   const first = nodes[0], last = nodes[nodes.length - 1]
   const spanMs = (last.anchorEndedAt ?? last.anchorStartedAt) - first.anchorStartedAt
-  // The distinct chapters bounced between, in first-seen order — usually 2 (A<->B), but the
-  // broader (not-chapter-scoped) cluster query can catch a 3+-way flurry too.
-  const distinctChapters: string[] = []
-  for (const n of nodes) {
-    const label = `${bookLabel(n.bookId)} ${n.chapter}`
-    if (!distinctChapters.includes(label)) distinctChapters.push(label)
-  }
+  // No separate summary row anymore — per direct feedback ("i dont like having the bounced
+  // between as a separate bullet... show these things better and more simply without so much
+  // text"), the collapsed state renders the FIRST and LAST node of the run as ordinary bullets
+  // (full connections, hover card, context menu — nothing lost), with everything in between
+  // hidden until expanded, and a small "⇄ Nx" badge on the last one standing in for the whole
+  // "bounced between X and Y over 3m" sentence (still available via the badge's tooltip).
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-        <span
-          ref={(el) => { registerPoint(`node:${first.id}`)(el); registerPoint(`node:${last.id}`)(el) }}
-          style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 2, marginTop: 5, flexShrink: 0, opacity: 0.6 }}
-        />
-      </div>
-      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', fontStyle: 'italic' }}>
-          ↺ Bounced between {distinctChapters.join(' and ')} over {formatGap(spanMs)}
-        </span>
-        <button onClick={() => setExpanded(true)} style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}>
-          ▸ {nodes.length}×
-        </button>
-      </div>
+    <div>
+      <NodeBlock
+        node={first} connections={connectionsByNodeId.get(first.id) ?? []} gapToNextMs={null} isLast={false}
+        step={(nodeOrderIndex.get(first.id) ?? -1) + 1} registerPoint={registerPoint} onHoverKey={onHoverKey}
+        onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
+        originConn={originConnByNodeId.get(first.id)}
+        onJumpToOrigin={originConnByNodeId.has(first.id) ? () => jumpToOrigin(originConnByNodeId.get(first.id)!) : undefined}
+        gutterWidth={0} rowsForConnection={rowsForConnection}
+      />
+      <NodeBlock
+        node={last} connections={connectionsByNodeId.get(last.id) ?? []} gapToNextMs={null} isLast={false}
+        step={(nodeOrderIndex.get(last.id) ?? -1) + 1} registerPoint={registerPoint} onHoverKey={onHoverKey}
+        onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
+        originConn={originConnByNodeId.get(last.id)}
+        onJumpToOrigin={originConnByNodeId.has(last.id) ? () => jumpToOrigin(originConnByNodeId.get(last.id)!) : undefined}
+        gutterWidth={0} rowsForConnection={rowsForConnection}
+        bounceBadge={{ count: nodes.length - 1, spanMs, onExpand: () => setExpanded(true) }}
+      />
     </div>
   )
 }
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, bounceBadge,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -482,6 +484,9 @@ function NodeBlock({
   /** Right-click "Delete" on this node's bullet — removes the node and its directly-attached
    *  branch connections, with a confirmation step (see TrailRefContextMenu). */
   onDeleteNode?: (nodeId: string) => void
+  /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
+   *  separate row — see NodeClusterGroup. */
+  bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -578,11 +583,27 @@ function NodeBlock({
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookLabel(node.bookId)} {node.chapter}
-            {isRevisit && (
+            {isRevisit && !bounceBadge && (
               <span style={{
                 fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
                 borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
               }}>revisit</span>
+            )}
+            {/* Replaces the old standalone "↺ Bounced between X and Y over 3m · 2x" text row —
+                per direct feedback ("i dont like having the bounced between as a separate
+                bullet... show these things better and more simply without so much text"), a
+                quick back-and-forth collapses into a small badge right on the node it ended on
+                instead of its own row. Full detail (span, count, both chapters) lives in the
+                title tooltip; clicking expands the individual bounce visits, same as before. */}
+            {bounceBadge && (
+              <button
+                onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
+                title={`Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
+                style={{
+                  fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
+                  border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', letterSpacing: '.01em',
+                }}
+              >⇄ {bounceBadge.count}x</button>
             )}
           </div>
         </TrailHoverCard>

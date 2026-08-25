@@ -114,7 +114,7 @@ export function recordNavigation(
   navRecorder?.(from, to, origin)
 }
 
-type NavRecorder = (
+export type NavRecorder = (
   from: { bookId?: string; chapter?: number; verse?: number; translation?: string },
   to: { bookId: string; chapter: number; verse?: number; endVerse?: number; translation?: string },
   origin: NavOrigin,

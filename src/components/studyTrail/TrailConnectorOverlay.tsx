@@ -179,19 +179,31 @@ export default function TrailConnectorOverlay({
           // doesn't actually curve the path's geometry the way these arcs do.
           const gutter = coords.get('gutter:x')
           const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          const start = pushOffStart(rawA, { x: laneX, y: rawA.y }, false, startGap)
-          const end = pullBackEnd({ x: laneX, y: rawB.y }, rawB, false, endGap)
-          const CORNER_R = 7
+          // Text clearance: the old routing jogged out to the lane at the DOT's exact y —
+          // since a row's text sits right at that same height and stretches across nearly the
+          // whole row width, that jog drew straight across it. Dipping vertically first (still
+          // at the dot's own x, i.e. left of where any text starts) into the blank padding a
+          // node's own row reserves below its text, THEN jogging horizontally at that safe y,
+          // means the horizontal run never shares a y-band with any text at all. Symmetric on
+          // both ends. Clamped so a short span between adjacent rows never dips past the other
+          // endpoint.
           const vertRun = Math.abs(rawB.y - rawA.y)
-          const r = Math.min(CORNER_R, vertRun / 2 || CORNER_R, Math.abs(laneX - start.x) || CORNER_R, Math.abs(end.x - laneX) || CORNER_R)
-          const signX1 = laneX >= start.x ? 1 : -1
+          const V_CLEARANCE = Math.min(16, vertRun / 3 || 16)
+          const dirAtoB = rawB.y >= rawA.y ? 1 : -1
+          const jogYA = rawA.y + dirAtoB * V_CLEARANCE
+          const jogYB = rawB.y - dirAtoB * V_CLEARANCE
+          const start = pushOffStart(rawA, { x: rawA.x, y: jogYA }, false, startGap)
+          const end = pullBackEnd({ x: rawB.x, y: jogYB }, rawB, false, endGap)
+          const CORNER_R = 7
+          const r = Math.min(CORNER_R, vertRun / 4 || CORNER_R, Math.abs(laneX - rawA.x) || CORNER_R, Math.abs(rawB.x - laneX) || CORNER_R)
+          const signX1 = laneX >= rawA.x ? 1 : -1
           const signY = rawB.y >= rawA.y ? 1 : -1
-          const signX2 = end.x >= laneX ? 1 : -1
-          const c1a = { x: laneX - signX1 * r, y: rawA.y }
-          const c1b = { x: laneX, y: rawA.y + signY * r }
-          const c2a = { x: laneX, y: rawB.y - signY * r }
-          const c2b = { x: laneX + signX2 * r, y: rawB.y }
-          d = `M${start.x},${start.y} L${c1a.x},${c1a.y} Q${laneX},${rawA.y} ${c1b.x},${c1b.y} L${c2a.x},${c2a.y} Q${laneX},${rawB.y} ${c2b.x},${c2b.y} L${end.x},${end.y}`
+          const signX2 = rawB.x >= laneX ? 1 : -1
+          const c1a = { x: laneX - signX1 * r, y: jogYA }
+          const c1b = { x: laneX, y: jogYA + signY * r }
+          const c2a = { x: laneX, y: jogYB - signY * r }
+          const c2b = { x: laneX + signX2 * r, y: jogYB }
+          d = `M${start.x},${start.y} L${rawA.x},${jogYA} L${c1a.x},${c1a.y} Q${laneX},${jogYA} ${c1b.x},${c1b.y} L${c2a.x},${c2a.y} Q${laneX},${jogYB} ${c2b.x},${c2b.y} L${rawB.x},${jogYB} L${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
