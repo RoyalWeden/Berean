@@ -126,33 +126,31 @@ type AnnotatedConn = TrailConnection & {
   hasChainChildren?: boolean
 }
 
-// A branch CHAIN staying entirely within lexicon-land has no chapter to "promote" into (see
-// studyTrailSlice.ts's BRANCH_PROMOTE_* comment) — whether it's substantial enough to flag is
-// purely this live walk over already-stored chain_depth/createdAt data, never a persisted fact.
-function chainStats(connId: string, rowsForConnection: Map<string, AnnotatedConn[]> | undefined, rootCreatedAt: number): { maxDepth: number; maxCreatedAt: number } {
+// Walks a chain's FULL descendant tree (however deep the underlying chain_depth actually goes)
+// into one flat, chronologically-ordered list. Replaces an earlier per-level recursive-nesting
+// design — per direct feedback ("one indent for the whole chain, then flat... this can just be
+// straight down") a chain reads as one branch off its chapter, not a staircase of indents per
+// hop. Also used for the "chain" badge stat (maxDepth/span) so both concerns share one walk.
+function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedConn[]> | undefined): AnnotatedConn[] {
   const kids = rowsForConnection?.get(connId) ?? []
-  let maxDepth = 0, maxCreatedAt = rootCreatedAt
+  const out: AnnotatedConn[] = []
   for (const k of kids) {
-    const sub = chainStats(k.id, rowsForConnection, rootCreatedAt)
-    maxDepth = Math.max(maxDepth, 1 + sub.maxDepth)
-    maxCreatedAt = Math.max(maxCreatedAt, k.createdAt, sub.maxCreatedAt)
+    out.push(k)
+    out.push(...flattenChain(k.id, rowsForConnection))
   }
-  return { maxDepth, maxCreatedAt }
+  return out.sort((a, b) => a.createdAt - b.createdAt)
 }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, depth = 0, onHoverKey }: {
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
   openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
-  /** Branch chaining (v31) — connId → the connections chained directly off it. Passed down so
-   *  a row can render its own nested "branch shelf" beneath it. */
+  /** Branch chaining (v31) — connId → the connections chained directly off it. Only read by a
+   *  ROOT row (one not itself chained off another) — see flattenChain above; a row rendered
+   *  INSIDE that flat list never looks up its own children again (would double-render). */
   rowsForConnection?: Map<string, AnnotatedConn[]>
-  /** VISUAL nesting depth (not the same as conn.chainDepth — a reconverging hop always renders
-   *  at depth 1 regardless of its true chain_depth, see the branch-shelf rendering below). 0 =
-   *  this row itself is top-level, directly under its chapter node. */
-  depth?: number
   onHoverKey?: (key: string | null) => void
 }) {
   const [expandedCollapsed, setExpandedCollapsed] = useState(false)
@@ -187,26 +185,20 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       : baseLabel
   const ref = refFor(conn)
 
-  // Branch-shelf nesting — a chain hop that RECONVERGES (its destination is a real chapter,
-  // toKind:'chapter') always surfaces to visual depth 1 regardless of its true chainDepth, per
-  // the "a branch closing back toward the main spine should read as coming back, not stay
-  // buried at max indent" rule. An INTERIOR hop (stays in lexicon-land) nests one level deeper
-  // each time, but only up to visual depth 2 by default — a 3rd nested level (a 4th word in a
-  // chain) collapses under a "+N more" toggle instead of nesting further, so a chain can never
-  // run away visually no matter how deep the underlying data actually goes.
-  const children = rowsForConnection?.get(conn.id) ?? []
-  const reconvergingChildren = children.filter((c) => c.toKind === 'chapter')
-  const interiorChildren = children.filter((c) => c.toKind !== 'chapter')
-  const canExpandInterior = depth < 2 || expandedCollapsed
-  const visibleInterior = canExpandInterior ? interiorChildren : []
-  const collapsedInteriorCount = canExpandInterior ? 0 : interiorChildren.length
-  const reconvergeItems = groupForRender(reconvergingChildren)
-  const interiorItems = groupForRender(visibleInterior)
-  // Only the chain's own ROOT (depth 0, chainDepth 0) shows the badge — a mid-chain row already
-  // reads as "inside" a chain from its nesting alone.
-  const chain = depth === 0 && conn.hasChainChildren ? chainStats(conn.id, rowsForConnection, conn.createdAt) : null
-  const isPromotedChain = !!chain && (chain.maxDepth >= BRANCH_PROMOTE_DEPTH_THRESHOLD || (chain.maxCreatedAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS)
-  const hasNested = reconvergeItems.length > 0 || interiorItems.length > 0 || collapsedInteriorCount > 0
+  // One flat list for the whole chain, one indent level — see flattenChain above. A very long
+  // chain (rare, but a real risk once nothing caps depth) still gets a soft cap so the list
+  // itself can't run away; raised generously (8, vs. the old 2-LEVEL nesting cap) since the
+  // actual complaint was indentation depth, not list length.
+  const FLAT_CHAIN_VISIBLE_CAP = 8
+  const fullChain = conn.hasChainChildren ? flattenChain(conn.id, rowsForConnection) : []
+  const visibleChain = expandedCollapsed ? fullChain : fullChain.slice(0, FLAT_CHAIN_VISIBLE_CAP)
+  const collapsedChainCount = expandedCollapsed ? 0 : Math.max(0, fullChain.length - FLAT_CHAIN_VISIBLE_CAP)
+  const chainItems = groupForRender(visibleChain)
+  const isPromotedChain = fullChain.length > 0 && (
+    fullChain.length >= BRANCH_PROMOTE_DEPTH_THRESHOLD ||
+    (fullChain[fullChain.length - 1].createdAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS
+  )
+  const hasNested = chainItems.length > 0 || collapsedChainCount > 0
 
   return (
     <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
@@ -234,7 +226,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         >{label}</span>
         {isPromotedChain && (
           <span
-            title={`A ${chain!.maxDepth + 1}-hop word-study chain`}
+            title={`A ${fullChain.length + 1}-hop word-study chain`}
             style={{
               fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
               borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
@@ -267,17 +259,14 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     </TrailHoverCard>
     {hasNested && (
       <div style={{ marginLeft: 15, borderLeft: '1px solid rgb(var(--color-surface-4))', paddingLeft: 8 }}>
-        {reconvergeItems.map((it) => it.type === 'single'
-          ? <ConnRow key={it.item.id} conn={it.item} depth={1} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+        {chainItems.map((it) => it.type === 'single'
+          ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
           : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
-        {interiorItems.map((it) => it.type === 'single'
-          ? <ConnRow key={it.item.id} conn={it.item} depth={depth + 1} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
-          : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
-        {collapsedInteriorCount > 0 && (
+        {collapsedChainCount > 0 && (
           <button
             onClick={() => setExpandedCollapsed(true)}
             style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', margin: '2px 0' }}
-          >+{collapsedInteriorCount} more</button>
+          >+{collapsedChainCount} more</button>
         )}
       </div>
     )}
