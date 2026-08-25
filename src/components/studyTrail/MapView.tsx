@@ -6,7 +6,7 @@ import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
-import { trailRefClick, navigateTrailRef, originDisplayText, type TrailRef } from './trailNav'
+import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
@@ -85,23 +85,13 @@ function isConfidentOrigin(conn: TrailConnection): boolean {
   return conn.clarityTier === 1 && !isLowSignalOrigin(conn)
 }
 
-// REVERTED — a prior round widened this to tier 2/3 with a "possibly via" hedge, on the theory
-// that a plain sentence should always beat requiring an arrow-trace. Direct feedback overruled
-// that: "idk why it says 'possibly' when it knows i searched for it... also that message
-// shouldn't show outside of the hover thing." The hedge read as Study Trail being unsure a
-// search even HAPPENED (it wasn't — it's 100% sure of that, only softer on whether that
-// specific search was the causally interesting reason), and the always-visible badge itself
-// wasn't wanted for anything below full confidence. Back to tier-1-only, no hedge wording — the
-// wider tier-2/3 "via ..." text (with its ClarityBadge showing the actual tier) still lives in
-// the hover card (TrailHoverContent.tsx's OriginLine), which is exactly "the hover thing."
-function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
-  const replace = useWordReplace()
-  return (
-    <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
-      via {replace(originDisplayText(conn))}
-    </div>
-  )
-}
+// REMOVED (was OriginBadgeLine, the always-visible "via X" line above a node) — round-tripped
+// through tier-1-only, then tier-2/3-with-hedge, then back to tier-1-only, and per this round's
+// direct feedback it's gone entirely now: "i dont think the 'via Strong's G3619 occurrence' and
+// such should be showing outside of the hover thing... only really main text and chapters and
+// strongs and such should be showing outside of the hover thing." The full "via ..." fact for
+// every tier still lives in the hover card (TrailHoverContent.tsx's OriginLine) — this was a
+// deliberate simplification to keep the always-visible area clean, not an oversight.
 
 type AnnotatedConn = TrailConnection & {
   isReturn?: boolean
@@ -238,9 +228,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
           </span>
         )}
-        {conn.reasonText && !isLowSignalOrigin(conn) && !conn.isForwardBranch ? (
-          <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {replace(conn.reasonText)}</span>
-        ) : needsInput ? (
+        {/* The inline "· {reason}" text (e.g. "· a search for 'eze2'") was removed per direct
+            feedback — it's exactly the kind of "via ..." reasoning that should now only ever
+            show in the hover card, not always-visible next to the row. */}
+        {needsInput ? (
           <button
             onClick={() => onOpenPrompt(conn)}
             title="Why did you jump here?"
@@ -270,7 +261,12 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       </div>
     </TrailHoverCard>
     {hasNested && (
-      <div style={{ marginLeft: 15, borderLeft: '1px solid rgb(var(--color-surface-4))', paddingLeft: 8 }}>
+      // Fully flat, no indent at all — per direct feedback ("straight down"), a chain hop
+      // renders as a plain sibling row at the EXACT same level as the one before it, not
+      // nested one step in. The chaining data (fromConnectionId) still exists and still drives
+      // correct arrow-origin behavior (see pushRowEdges) — it just no longer implies any visual
+      // indentation of its own.
+      <>
         {chainItems.map((it) => it.type === 'single'
           ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
           : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
@@ -280,7 +276,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', margin: '2px 0' }}
           >+{collapsedChainCount} more</button>
         )}
-      </div>
+      </>
     )}
     </div>
   )
@@ -465,9 +461,6 @@ function NodeBlock({
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
-  // Tier-1 ("clear") only — reverted from a wider tier-2/3 experiment per direct feedback, see
-  // OriginBadgeLine's comment. A tier-2/3 origin's "via ..." text still lives in the hover card.
-  const showOrigin = originConn && isConfidentOrigin(originConn)
   return (
     <div
       ref={blockRef}
@@ -503,7 +496,13 @@ function NodeBlock({
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
       <div style={{ paddingBottom: 24, flex: 1, minWidth: 0 }}>
-        {showOrigin && <OriginBadgeLine conn={originConn!} />}
+        {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
+            "i dont think the 'via Strong's G3619 occurrence' and such should be showing
+            outside of the hover thing... only really main text and chapters and strongs and
+            such should be showing outside of the hover thing" — keeps the always-visible area
+            clean (bare chapter/verse/Strong's-number labels only) so the connection lines
+            themselves read more clearly; the full "via ..." fact is still one hover away, see
+            TrailNodeHoverContent below. */}
         <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
@@ -561,7 +560,6 @@ export default function MapView({
   onZoomChange?: (zoom: number) => void
 }) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
-  const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -589,6 +587,17 @@ export default function MapView({
   // or connection row dims every edge that doesn't touch it, no topology change required. Wired
   // into the edges array just before it's passed to the overlay (see below).
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
+  // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
+  // elsewhere WITHOUT first moving the mouse back over the original row, never fires that
+  // row's own onMouseLeave — hoveredKey was getting stuck pointing at it forever, leaving
+  // every OTHER edge dimmed to 15% opacity permanently ("when i rightclick, it removes all the
+  // lines and stuff and they dont come back"). Clearing it the moment a menu opens closes that
+  // gap regardless of how the menu later gets dismissed.
+  function openMenu(data: Parameters<typeof openMenuRaw>[0]) {
+    setHoveredKey(null)
+    openMenuRaw(data)
+  }
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
   // whenever an input/textarea has focus (renaming a session, typing in the search box above,
@@ -703,6 +712,13 @@ export default function MapView({
     hasChainChildrenIds.add(c.fromConnectionId)
   }
 
+  // Node ids that have a SPECIFIC traced arrival (an isForwardBranch row, below) — the plain
+  // generic spine arrow between chronologically-adjacent nodes is suppressed for these (see the
+  // spine-edge loop): "if a user gets to a chapter from a branch, then dont show the arrow from
+  // the previous chapter if it came from the branch" — showing both was redundant/confusing
+  // once the specific traced line already tells the real story.
+  const nodesWithTracedArrival = new Set<string>()
+
   const rowsForNode = new Map<string, AnnotatedConn[]>()
   for (const n of detail.nodes) rowsForNode.set(n.id, [])
   for (const c of detail.connections) {
@@ -721,6 +737,7 @@ export default function MapView({
         if (isForward) {
           if (!isConfidentOrigin(c) && !annotated.isChainedBranch) continue // no row at all — matches prior behavior exactly
           annotated = { ...annotated, isForwardBranch: true }
+          nodesWithTracedArrival.add(next!.id)
         } else {
           const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
           annotated = { ...annotated, isReturn: !!target }
@@ -757,6 +774,11 @@ export default function MapView({
     // adjacent nodes from two DIFFERENT sessions shouldn't visually read as one continuous
     // read-through just because they happen to be time-adjacent.
     if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
+    // Suppressed when the arrival already has its own specific traced line (the `origin:${c.id}`
+    // edge from the causing row, built below) — showing the generic spine arrow ALONGSIDE the
+    // specific one was exactly the redundant "arrow from the previous chapter" the branch-traced
+    // line already makes clear.
+    if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
     edges.push({ key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`, color: 'rgb(var(--color-accent))', arrow: true })
   }
 

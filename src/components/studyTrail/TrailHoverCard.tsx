@@ -23,14 +23,21 @@ import { createPortal } from 'react-dom'
 // bottom edge. A portal escapes that subtree entirely, so `position: fixed` means the real
 // viewport again regardless of what transforms sit between this component and the window.
 const SHOW_DELAY_MS = 350
+// A short grace period before actually closing, given only on leaving the TRIGGER (not the
+// card) — long enough for the cursor to travel from the trigger to the card itself (they're
+// portaled siblings, not nested, so there's a real gap between them) without flickering shut
+// mid-transit. Leaving the card itself closes instantly, same as before.
+const CLOSE_GRACE_MS = 120
 
 export default function TrailHoverCard({ content, children, disabled }: { content: ReactNode; children: ReactNode; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function scheduleOpen(e: React.MouseEvent) {
     if (disabled) return
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
     const x = e.clientX, y = e.clientY
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
@@ -40,20 +47,36 @@ export default function TrailHoverCard({ content, children, disabled }: { conten
       setOpen(true)
     }, SHOW_DELAY_MS)
   }
-  function cancelOpen() {
+  // Leaving the trigger no longer closes instantly — a short grace window lets the cursor
+  // actually reach the card (see cancelOpen's comment above) so it's possible to move INTO the
+  // card and interact with it (select text, click a link/button inside it) instead of it
+  // vanishing the moment you leave the row that opened it. Per direct feedback: "make sure that
+  // the hover things in the study trail stay if the user puts their cursor over the hover thing."
+  function scheduleClose() {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    closeTimerRef.current = setTimeout(() => setOpen(false), CLOSE_GRACE_MS)
+  }
+  function cancelClose() {
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
+  }
+  function closeNow() {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     setOpen(false)
   }
 
   return (
-    <div onMouseEnter={scheduleOpen} onMouseLeave={cancelOpen} style={{ display: 'contents' }}>
+    <div onMouseEnter={scheduleOpen} onMouseLeave={scheduleClose} style={{ display: 'contents' }}>
       {children}
       {open && pos && createPortal(
         <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={closeNow}
           style={{
             position: 'fixed', top: pos.top, left: pos.left, right: pos.right, zIndex: 10000,
             maxWidth: 280, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-            borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', padding: '9px 11px', pointerEvents: 'none',
+            borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', padding: '9px 11px',
           }}
         >
           {content}
