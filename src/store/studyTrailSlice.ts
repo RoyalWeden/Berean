@@ -95,7 +95,18 @@ export function tierForOrigin(origin: NavOrigin): ClarityTier {
 // through here. Every case below reads naturally after "via " (see OriginBadgeLine).
 export function reasonForOrigin(origin: NavOrigin): { text?: string; tags: string[] } {
   switch (origin.kind) {
-    case 'cross-ref': return { text: origin.reason ?? `a ${origin.source} cross-reference`, tags: [`cross-ref:${origin.source}`] }
+    case 'cross-ref': {
+      // fromVerse — when known (the right panel's specific active verse, not just "some verse
+      // in the chapter") — is appended so the origin badge/row reads e.g. "a tske cross-
+      // reference (from Matthew 5:17)" instead of just naming the destination chapter with no
+      // indication of which specific verse on the ORIGIN side actually pointed here. Per
+      // Michael: "it should indicate that i went from a specific verse in matthew 5 cross ref
+      // to isaiah 52 or whatever i clicked." Appended, not prepended/replacing — origin.reason
+      // (when present) must still come through verbatim, see the locked unit test below.
+      const base = origin.reason ?? `a ${origin.source} cross-reference`
+      const text = origin.fromVerse != null ? `${base} (from v.${origin.fromVerse})` : base
+      return { text, tags: [`cross-ref:${origin.source}`] }
+    }
     case 'lexicon-occurrence': return { text: `Strong's ${origin.strongsNum} occurrence`, tags: ['lexicon'] }
     // ai-lookup's text is the raw question verbatim (not decorated) — it's tier 1 and shown
     // directly as the connection's reason elsewhere, where "AI Lookup:" would just be noise

@@ -739,7 +739,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                       {!gCollapsed && (
                         <div className="flex flex-col gap-1 pl-5 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
-                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
                               <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
@@ -787,7 +787,7 @@ function TSKeChapterView({ bookId, chapter, activeVerseNum }: { bookId: string; 
                       {!gCollapsed && (
                         <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
                           {group.refs.map((r, ri) => (
-                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse)} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                            <button key={ri} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'tske', fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                               className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                             >
                               <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">
@@ -860,7 +860,7 @@ function ClassicChapterView({ bookId, chapter, activeVerseNum }: { bookId: strin
             {refs.map((r, i) => {
               const strength = Math.max(0, Math.min(Math.ceil(r.votes / 3), 5))
               return (
-                <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}` })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+                <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'classic', reason: `votes: ${r.votes}`, fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                   className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-1.5">
@@ -1087,7 +1087,7 @@ function UserNotesChapterView({
                         {verses.map(v => (
                           <button
                             key={v}
-                            onClick={() => navToVerseFromPanel(bookId, chapter, v, undefined, undefined, { kind: 'cross-ref', source: 'notes', reason: note.title || 'Untitled' })}
+                            onClick={() => navToVerseFromPanel(bookId, chapter, v, undefined, undefined, { kind: 'cross-ref', source: 'notes', reason: note.title || 'Untitled', fromVerse: activeVerseNum ?? undefined })}
                             className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[rgb(var(--color-accent))]/10 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))]/18 cursor-pointer transition-colors"
                           >
                             v.{v}
@@ -1110,7 +1110,7 @@ function UserNotesChapterView({
         const refList = (
           <div className="flex flex-col gap-1 pl-8 pr-2 pb-1.5">
             {refs.map((r, i) => (
-              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
+              <button key={i} onClick={() => navToVerseFromPanel(r.bookId, r.chapter, r.verse, r.endVerse, undefined, { kind: 'cross-ref', source: 'notes', reason: r.sourceNoteTitle, fromVerse: verseNum })} onContextMenu={(e) => { e.preventDefault(); _onVerseCtxMenu?.(r.bookId, r.chapter, r.verse, e.clientX, e.clientY) }}
                 className="w-full text-left flex flex-col gap-1 px-2.5 py-2 rounded-shell border border-transparent hover:border-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-surface-3))] transition-colors cursor-pointer group"
               >
                 <span className="w-fit font-mono text-[10px] font-semibold text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/10 rounded px-1 py-px group-hover:bg-[rgb(var(--color-accent))]/18 transition-colors leading-none">

@@ -11,7 +11,7 @@ import type { BibleTabState } from '@/types'
  */
 export type NavOrigin =
   | { kind: 'verse-popover' }                                            // VerseRow "Open verse" / cross-ref hover
-  | { kind: 'cross-ref'; source: 'tske' | 'classic' | 'notes'; reason?: string } // BibleRightPanel ref rows
+  | { kind: 'cross-ref'; source: 'tske' | 'classic' | 'notes'; reason?: string; fromVerse?: number } // BibleRightPanel ref rows — fromVerse is the SPECIFIC verse whose cross-ref list this came from (the right panel's activeVerseNum), not just "some verse in the chapter"
   | { kind: 'search-result'; query: string }                             // ScriptureSearchView / SearchTab / FloatingSearch
   | { kind: 'lexicon-occurrence'; strongsNum: string }                   // LexiconPanel occurrence row
   | { kind: 'note-wikilink'; noteId: string; noteTitle: string }          // NotesPanel wikilink/verse-ref click

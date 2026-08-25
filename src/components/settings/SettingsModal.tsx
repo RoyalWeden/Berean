@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2,
+  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
@@ -133,7 +133,7 @@ const BEREAN_SITE_URL = 'https://royalweden.github.io/Berean'
 
 
 
-type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'experimental'
+type Section = 'appearance' | 'reading' | 'notes' | 'vault' | 'youtube' | 'audio' | 'shortcuts' | 'data' | 'about' | 'viewer' | 'studyTrail' | 'experimental'
 
 interface WatchHistoryEntry {
   videoId: string
@@ -189,6 +189,8 @@ export default function SettingsModal() {
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const setWordReplacerEnabled = useAppStore((s) => s.setWordReplacerEnabled)
   const toggleWordReplacerRule = useAppStore((s) => s.toggleWordReplacerRule)
+  const studyTrailAskChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
+  const setStudyTrailAskChapterJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const noteVerseRefsEnabled = useAppStore((s) => s.noteVerseRefsEnabled)
   const noteLexiconRefsEnabled = useAppStore((s) => s.noteLexiconRefsEnabled)
   const setNoteVerseRefsEnabled = useAppStore((s) => s.setNoteVerseRefsEnabled)
@@ -427,6 +429,7 @@ export default function SettingsModal() {
     { id: 'data',       label: 'Data',       icon: Database,  keywords: ['import', 'esword', 'biblegateway', 'migrate', 'history', 'workspace', 'saved', 'reset', 'clear', 'delete', 'wipe', 'factory', 'danger'] },
     { id: 'about',      label: 'About & Updates', icon: Info, keywords: ['about', 'version', 'license', 'update', 'beta', 'stable', 'auto-update'] },
     { id: 'viewer',     label: 'Viewer Window', icon: Cast,   keywords: ['viewer', 'presentation', 'broadcast', 'external', 'screen', 'font scale'] },
+    { id: 'studyTrail', label: 'Study Trail', icon: GitBranch, keywords: ['study trail', 'trail', 'session', 'map', 'navigation history', 'jump', 'reason', 'why did you jump'] },
     { id: 'experimental', label: 'Experimental', icon: FlaskConical, keywords: ['experimental', 'beta', 'pdf', 'opt-in', 'feature flag'] },
   ]
 
@@ -1820,6 +1823,44 @@ export default function SettingsModal() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {section === 'studyTrail' && (
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Study Trail</p>
+                    <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-0">
+                      A separate window that passively maps your navigation between chapters, cross-references,
+                      and word studies — sessions, the map/review views, and pause/rename/delete all live in that
+                      window itself, opened from the sidebar rail.
+                    </p>
+                    <button
+                      onClick={() => window.app.openStudyTrailWindow?.()}
+                      className="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))] transition-colors cursor-pointer"
+                    >
+                      <ExternalLink size={12} /> Open Study Trail window
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                    <div>
+                      <p className="text-sm text-[rgb(var(--color-text-primary))]">Ask why you jumped chapters</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        When you jump to a chapter Study Trail isn't already confident about the reason for
+                        (a search result, a manual book/chapter pick, a tab switch — not a cross-reference or
+                        word lookup, which already have a known reason), a small dismissible prompt appears
+                        right here in the main window asking why, with optional verse-tying on both ends.
+                        Off by default. Also toggleable from the Study Trail window's own title bar.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setStudyTrailAskChapterJumpReason(!studyTrailAskChapterJumpReason)}
+                      className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors cursor-pointer ${studyTrailAskChapterJumpReason ? 'bg-[rgb(var(--color-accent))]' : 'bg-[rgb(var(--color-surface-4))]'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${studyTrailAskChapterJumpReason ? 'translate-x-5' : ''}`} />
+                    </button>
                   </div>
                 </div>
               )}
