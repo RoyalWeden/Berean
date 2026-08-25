@@ -47,21 +47,21 @@ export function TrailRefContextMenu({
   },
     createElement('div', { style: { fontSize: 10.5, color: 'rgb(var(--color-text-muted))', padding: '3px 8px 5px' } }, label),
     createElement('button', {
-      onClick: () => { navigateTrailRef(menu.ref, false); onClose() },
+      className: 'trail-ctx-btn', onClick: () => { navigateTrailRef(menu.ref, false); onClose() },
       style: menuBtnStyle,
     }, 'Open in current tab'),
     createElement('button', {
-      onClick: () => { navigateTrailRef(menu.ref, true); onClose() },
+      className: 'trail-ctx-btn', onClick: () => { navigateTrailRef(menu.ref, true); onClose() },
       style: menuBtnStyle,
     }, 'Open in new tab'),
     createElement('button', {
-      onClick: () => { trailRefOpenFloating(menu.ref); onClose() },
+      className: 'trail-ctx-btn', onClick: () => { trailRefOpenFloating(menu.ref); onClose() },
       style: menuBtnStyle,
     }, 'Open in floating tab'),
     ...(menu.onJumpToOrigin ? [
       createElement('div', { key: 'divider', style: { height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' } }),
       createElement('button', {
-        key: 'jump', onClick: () => { menu.onJumpToOrigin!(); onClose() }, style: menuBtnStyle,
+        key: 'jump', className: 'trail-ctx-btn', onClick: () => { menu.onJumpToOrigin!(); onClose() }, style: menuBtnStyle,
       }, 'Scroll to where this came from'),
     ] : []),
   ), document.body)

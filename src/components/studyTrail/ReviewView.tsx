@@ -3,6 +3,7 @@ import { bookName } from '@/lib/parseRef'
 import type { TrailSession, TrailSessionDetail, TrailConnectionWithSession } from '@/types/studyTrail'
 import { buildRecap } from './recapText'
 import { trailRefClick, type TrailRef } from './trailNav'
+import { useWordReplace } from './useWordReplace'
 
 // The Review tab: search across every session's connections, plus each session collapsed into
 // an editable prose recap paragraph. Search is currently substring-only server-side
@@ -16,6 +17,7 @@ function SessionCard({ session }: { session: TrailSession }) {
   const [recap, setRecap] = useState('')
   const [backlink, setBacklink] = useState<string | null>(null)
   const savedRecapRef = useRef('')
+  const replace = useWordReplace()
 
   useEffect(() => {
     if (!open) return
@@ -75,6 +77,12 @@ function SessionCard({ session }: { session: TrailSession }) {
             <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>Loading…</div>
           ) : (
             <>
+              {/* Deliberately NOT run through replace() — this div is contentEditable and its raw
+                  textContent is what gets saved back on blur (see commitRecap). Applying the
+                  word-replacer to the displayed text would mean editing/saving the REPLACED
+                  words, silently baking substitutions into the stored recap forever — the same
+                  reason the notes editor itself never runs word-replacer over editable content,
+                  only over read-only pulled-in text (verses, glosses, etc). */}
               <div
                 contentEditable
                 suppressContentEditableWarning
@@ -84,7 +92,7 @@ function SessionCard({ session }: { session: TrailSession }) {
                 {recap}
               </div>
               {backlink && (
-                <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginTop: 6, fontStyle: 'italic' }}>{backlink}</div>
+                <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginTop: 6, fontStyle: 'italic' }}>{replace(backlink)}</div>
               )}
             </>
           )}
@@ -95,6 +103,7 @@ function SessionCard({ session }: { session: TrailSession }) {
 }
 
 function SearchResultRow({ r }: { r: TrailConnectionWithSession }) {
+  const replace = useWordReplace()
   const label = r.toKind === 'lexicon'
     ? `Strong's ${r.toStrongsNum}`
     : `${r.toBookId ? bookName(r.toBookId) : ''} ${r.toChapter ?? ''}${r.toVerse ? `:${r.toVerse}` : ''}`
@@ -113,7 +122,7 @@ function SearchResultRow({ r }: { r: TrailConnectionWithSession }) {
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
         >{label}</span> <span style={{ color: 'rgb(var(--color-text-muted))' }}>· {r.sessionName}</span>
       </div>
-      {r.reasonText && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic', marginTop: 1 }}>{r.reasonText}</div>}
+      {r.reasonText && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic', marginTop: 1 }}>{replace(r.reasonText)}</div>}
     </div>
   )
 }

@@ -235,6 +235,11 @@ export default function StudyTrailApp() {
       display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui, sans-serif',
       background: 'rgb(var(--color-surface-1))', color: 'rgb(var(--color-text-primary))',
     }}>
+      {/* Real :hover (not JS mouseenter/leave state) for every plain context-menu-style button
+          in this window, including TrailRefContextMenu's — that one portals to document.body,
+          but a global style tag still reaches it since it's just a class selector, not scoped
+          to this subtree. */}
+      <style>{`.trail-ctx-btn:hover { background: rgb(var(--color-surface-3)); }`}</style>
       {/* Title bar — the whole strip is a drag region (titleBarStyle: 'hiddenInset' on this
           BrowserWindow gives no native drag handling beyond the tiny traffic-light inset area
           itself, so without an explicit -webkit-app-region: drag somewhere the window couldn't
@@ -489,8 +494,8 @@ export default function StudyTrailApp() {
                 borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
               }}
             >
-              <button onClick={() => startRename(s.id, s.name)} style={sessionMenuBtnStyle}>Rename</button>
-              <button onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468' }}>Delete</button>
+              <button className="trail-ctx-btn" onClick={() => startRename(s.id, s.name)} style={sessionMenuBtnStyle}>Rename</button>
+              <button className="trail-ctx-btn" onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468' }}>Delete</button>
             </div>
           )
         })()}
@@ -505,7 +510,29 @@ export default function StudyTrailApp() {
             <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
             <>
-              <h2 style={{ margin: '0 0 4px', fontSize: 17 }}>{detail.session.name}</h2>
+              {renamingId === detail.session.id ? (
+                <input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename()
+                    else if (e.key === 'Escape') setRenamingId(null)
+                  }}
+                  onBlur={commitRename}
+                  style={{
+                    display: 'block', fontSize: 17, fontWeight: 700, margin: '0 0 4px', background: 'rgb(var(--color-surface-2))',
+                    border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
+                  }}
+                />
+              ) : (
+                <h2
+                  onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
+                  onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
+                  title="Double-click or right-click to rename"
+                  style={{ margin: '0 0 4px', fontSize: 17, cursor: 'text' }}
+                >{detail.session.name}</h2>
+              )}
               <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 16 }}>
                 {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
               </div>

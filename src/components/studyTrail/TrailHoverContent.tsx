@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import { originDisplayText } from './trailNav'
+import { useWordReplace } from './useWordReplace'
 import type { TrailConnection, TrailNode } from '@/types/studyTrail'
 
 // Rich hover-card body — timestamp/duration plus a live-fetched verse or Strong's-gloss
@@ -40,9 +41,10 @@ function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
 // connection is known, since that was the exact gap Michael flagged: landing on a chapter via
 // a Strong's occurrence (or any other tangent) showed nothing at all about where it came from.
 function OriginLine({ conn }: { conn: TrailConnection }) {
+  const replace = useWordReplace()
   return (
     <div style={{ ...rowStyle, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span>via {originDisplayText(conn)}</span>
+      <span>via {replace(originDisplayText(conn))}</span>
       <ClarityBadge tier={conn.clarityTier} />
     </div>
   )
@@ -50,6 +52,7 @@ function OriginLine({ conn }: { conn: TrailConnection }) {
 
 export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
   const [verseText, setVerseText] = useState<string | null>(null)
+  const replace = useWordReplace()
   useEffect(() => {
     let cancelled = false
     window.bible.queryVerse(node.bookId, node.chapter, 1).then((v) => { if (!cancelled) setVerseText(v?.text ?? null) }).catch(() => {})
@@ -70,16 +73,17 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
       {(verseText || node.cachedSubnote) && <div style={dividerStyle} />}
       {verseText && (
         <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          &ldquo;{verseText}&rdquo;
+          &ldquo;{replace(verseText)}&rdquo;
         </div>
       )}
-      {node.cachedSubnote && <div style={{ ...rowStyle, marginTop: verseText ? 3 : 0 }}>{node.cachedSubnote}</div>}
+      {node.cachedSubnote && <div style={{ ...rowStyle, marginTop: verseText ? 3 : 0 }}>{replace(node.cachedSubnote)}</div>}
     </div>
   )
 }
 
 export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection }) {
   const [preview, setPreview] = useState<string | null>(null)
+  const replace = useWordReplace()
   useEffect(() => {
     let cancelled = false
     if (conn.toKind === 'lexicon' && conn.toStrongsNum) {
@@ -110,14 +114,14 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
         <>
           <div style={dividerStyle} />
           <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {conn.toKind === 'lexicon' ? preview : `“${preview}”`}
+            {conn.toKind === 'lexicon' ? replace(preview) : `“${replace(preview)}”`}
           </div>
         </>
       )}
       {(conn.reasonText || conn.reasonTags.length > 0) && (
         <>
           <div style={dividerStyle} />
-          {conn.reasonText && <div style={rowStyle}>{conn.reasonText}</div>}
+          {conn.reasonText && <div style={rowStyle}>{replace(conn.reasonText)}</div>}
           {conn.reasonTags.length > 0 && <div style={{ ...rowStyle, color: 'rgb(var(--color-text-muted))' }}>tags: {conn.reasonTags.join(', ')}</div>}
         </>
       )}

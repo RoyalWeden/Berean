@@ -6,6 +6,7 @@ import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, originDisplayText, type TrailRef } from './trailNav'
+import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
 
@@ -83,9 +84,10 @@ function isConfidentOrigin(conn: TrailConnection): boolean {
 }
 
 function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
+  const replace = useWordReplace()
   return (
     <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
-      via {originDisplayText(conn)}
+      via {replace(originDisplayText(conn))}
     </div>
   )
 }
@@ -105,6 +107,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
 }) {
+  const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
   const baseLabel = isLexicon
@@ -147,7 +150,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
           </span>
         )}
         {conn.reasonText && !isLowSignalOrigin(conn) && !conn.isForwardBranch ? (
-          <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {conn.reasonText}</span>
+          <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {replace(conn.reasonText)}</span>
         ) : needsInput ? (
           <button
             onClick={() => onOpenPrompt(conn)}
@@ -242,6 +245,7 @@ function NodeBlock({
    *  through — 0 means no laned edges exist this render, so no column is reserved at all. */
   gutterWidth: number
 }) {
+  const replace = useWordReplace()
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
@@ -299,7 +303,7 @@ function NodeBlock({
             )}
           </div>
         </TrailHoverCard>
-        {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{node.cachedSubnote}</div>}
+        {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {items.map((it) => it.type === 'single'
             ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
