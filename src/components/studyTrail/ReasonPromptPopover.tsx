@@ -33,7 +33,14 @@ import type { TrailConnection } from '@/types/studyTrail'
 // Copying a note is NOT done from here anymore — moved to a hover bubble in MapView.tsx (see
 // TrailNoteHoverBubble) so copying doesn't require opening the editor at all.
 
-const QUICK_TAGS = ['Key insight', 'Cross-reference', 'Tangent only']
+// "Tangent only" was dropped from here — it duplicated the dedicated tangent checkbox above
+// once that existed, which is exactly the kind of unclear-tag overlap Michael flagged ("the
+// tags are not very clear"). The two that remain are given a short description alongside the
+// label rather than relying on the bare word alone to explain what selecting it does.
+const QUICK_TAGS: { label: string; hint: string }[] = [
+  { label: 'Key insight', hint: 'worth remembering' },
+  { label: 'Cross-reference', hint: 'ties two passages together' },
+]
 const MARGIN = 12
 const WIDTH = 440
 
@@ -243,33 +250,12 @@ export default function ReasonPromptPopover({
       </div>
 
       <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 10 }}>
-          Optional — this is just for your own recall later. Drag me anywhere; I won't block navigation.
-        </div>
-
-        {/* Minimal by default — the two checkboxes plus one free-text box is everything most
-            jumps need; tags/ties are one click away behind "Add detail", not shown up front. */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', marginBottom: 6, cursor: 'pointer' }}>
-          <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
-          This is a tangent/branch (not part of the main study)
-        </label>
-        {isBranch && (
-          <button
-            onClick={backToMain}
-            title="Mark that the tangent ends HERE — everything after this goes back to being the main branch"
-            style={{ fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 6px 22px', textAlign: 'left' }}
-          >↩ back to main branch from here</button>
-        )}
-        {nodeId && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', marginBottom: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={isTopicBreak} onChange={(e) => setIsTopicBreak(e.target.checked)} />
-            This is a new topic (break in the trail here)
-          </label>
-        )}
-
+        {/* Kept deliberately sparse — per direct feedback ("too busy... not so much text"), the
+            header already says what this is; the two checkboxes and the note box are
+            self-explanatory without a paragraph of instructions above them. */}
         {connection.reasonText && (
-          <div style={{ fontSize: 11, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
-            Study Trail detected: {connection.reasonText}
+          <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
+            auto-detected: {connection.reasonText}
           </div>
         )}
         <textarea
@@ -277,36 +263,57 @@ export default function ReasonPromptPopover({
           onChange={(e) => setNote(e.target.value)}
           placeholder="Why did you jump here? (optional)"
           rows={2}
-          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 8 }}
+          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 10 }}
         />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
+            <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
+            Tangent
+          </label>
+          {isBranch && (
+            <button
+              onClick={backToMain}
+              title="Everything after this goes back to the main branch"
+              style={{ fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+            >↩ back to main</button>
+          )}
+          {nodeId && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
+              <input type="checkbox" checked={isTopicBreak} onChange={(e) => setIsTopicBreak(e.target.checked)} />
+              New topic
+            </label>
+          )}
+        </div>
 
         <button
           onClick={() => setDetailOpen((v) => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 8px', marginLeft: -2 }}
         >
           <ChevronRight size={11} style={{ transform: detailOpen ? 'rotate(90deg)' : 'none', transition: 'transform 100ms' }} />
-          Add detail (tags, verse ties)
+          More
         </button>
 
         {detailOpen && (
           <>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
-              {QUICK_TAGS.map((t) => (
+              {QUICK_TAGS.map(({ label, hint }) => (
                 <button
-                  key={t}
-                  onClick={() => toggleTag(t)}
+                  key={label}
+                  onClick={() => toggleTag(label)}
+                  title={hint}
                   style={{
                     fontSize: 10.5, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
-                    border: `1px solid ${tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-                    background: tags.includes(t) ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
-                    color: tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
+                    border: `1px solid ${tags.includes(label) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
+                    background: tags.includes(label) ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+                    color: tags.includes(label) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
                   }}
-                >{t}</button>
+                >{label}</button>
               ))}
             </div>
 
-            <TieSection label="Verse(s) in the chapter you left" values={tiesFrom} onChange={setTiesFrom} />
-            <TieSection label="Verse(s) in the chapter you landed on" values={tiesTo} onChange={setTiesTo} />
+            <TieSection label="Ties to the chapter you left" values={tiesFrom} onChange={setTiesFrom} />
+            <TieSection label="Ties to the chapter you landed on" values={tiesTo} onChange={setTiesTo} />
           </>
         )}
 

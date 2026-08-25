@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Pencil, Copy } from 'lucide-react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
@@ -11,6 +11,13 @@ import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS } from '@/store/studyTrailSlice'
+
+// Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
+// in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
+// NodeClusterGroup call site) so hover cards uniformly disappear and stay hidden while the popup
+// is up. Per direct feedback: "when i click the edit button, the hover thing should go away and
+// shouldnt show until i close out of the whyd you jump here thing."
+const HoverDisabledContext = createContext(false)
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
 // connections listed underneath it, all physically connected by a measured SVG overlay
@@ -231,9 +238,11 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   )
   const hasNested = chainItems.length > 0 || collapsedChainCount > 0
 
+  const hoverDisabled = useContext(HoverDisabledContext)
   return (
     <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
     <TrailHoverCard
+      disabled={hoverDisabled}
       content={<TrailConnectionHoverContent conn={conn} />}
       secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
     >
@@ -471,12 +480,12 @@ function NodeClusterGroup({
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, bounceBadge,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
   originConn?: TrailConnection
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   boundaryLabel?: string
@@ -484,6 +493,9 @@ function NodeBlock({
   /** Right-click "Delete" on this node's bullet — removes the node and its directly-attached
    *  branch connections, with a confirmation step (see TrailRefContextMenu). */
   onDeleteNode?: (nodeId: string) => void
+  /** Right-click toggle for marking/unmarking this node as a topic break (a divider on the
+   *  main spine) — the direct, popup-free way to add one, per direct feedback. */
+  onToggleTopicBreak?: (nodeId: string, current: boolean) => void
   /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
    *  separate row — see NodeClusterGroup. */
   bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
@@ -510,6 +522,7 @@ function NodeBlock({
   rowsForConnection?: Map<string, AnnotatedConn[]>
 }) {
   const replace = useWordReplace()
+  const hoverDisabled = useContext(HoverDisabledContext)
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
@@ -568,10 +581,14 @@ function NodeBlock({
             clean (bare chapter/verse/Strong's-number labels only) so the connection lines
             themselves read more clearly; the full "via ..." fact is still one hover away, see
             TrailNodeHoverContent below. */}
-        <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
+        <TrailHoverCard disabled={hoverDisabled} content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
-            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e, onJumpToOrigin, onDeleteNode ? () => onDeleteNode(node.id) : undefined)}
+            onContextMenu={(e) => openTrailRefMenu(
+              openMenu, nodeRef, e, onJumpToOrigin,
+              onDeleteNode ? () => onDeleteNode(node.id) : undefined,
+              onToggleTopicBreak ? { active: node.isTopicBreak, onToggle: () => onToggleTopicBreak(node.id, node.isTopicBreak) } : undefined,
+            )}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
@@ -975,6 +992,7 @@ export default function MapView({
   }
 
   return (
+    <HoverDisabledContext.Provider value={!!promptConn}>
     <div style={{ position: 'relative' }}>
       <div style={{ marginBottom: 10 }}>
         <input
@@ -1039,6 +1057,7 @@ export default function MapView({
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
               onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
+              onToggleTopicBreak={(nodeId, current) => window.studyTrail.setNodeTopicBreak(nodeId, !current).then(onChanged)}
               step={i + 1}
               onHoverKey={setHoveredKey}
               keyboardFocused={keyboardFocusId === n.id}
@@ -1073,5 +1092,6 @@ export default function MapView({
         </div>
       </div>
     </div>
+    </HoverDisabledContext.Provider>
   )
 }

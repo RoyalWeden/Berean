@@ -69,12 +69,13 @@ const ENDPOINT_GAP = 3
 
 /** Pulls a path's endpoint back off the target point by its radius + a visible gap, along the
  *  path's actual approach direction — for curved edges (the cubic bezier this file draws) the
- *  end tangent is ALWAYS horizontal regardless of the two points' relative positions (both
- *  control points are offset the same +36 in x from their own endpoint — see the `d` build
- *  below), so the pullback is a pure x-shift; straight edges pull back along the literal a→b
- *  direction. */
+ *  tangent at each end is VERTICAL (not horizontal — see the `d` build below, which is what a
+ *  branch row reconverging into the main spine should look like: pointing down out of the
+ *  bullet, curving over, then pointing down into the target, rather than shooting sideways out
+ *  of the bullet first), so the pullback is a pure y-shift in the direction from A to B;
+ *  straight edges pull back along the literal a→b direction. */
 function pullBackEnd(from: TrailPoint, to: TrailPoint, curved: boolean, dist: number): TrailPoint {
-  if (curved) return { x: to.x + dist, y: to.y }
+  if (curved) return { x: to.x, y: to.y - Math.sign(to.y - from.y || 1) * dist }
   const dx = to.x - from.x, dy = to.y - from.y
   const len = Math.hypot(dx, dy) || 1
   return { x: to.x - (dx / len) * dist, y: to.y - (dy / len) * dist }
@@ -82,7 +83,7 @@ function pullBackEnd(from: TrailPoint, to: TrailPoint, curved: boolean, dist: nu
 /** Same idea for the START point — the path begins slightly clear of the source dot too,
  *  rather than dead-center inside it. */
 function pushOffStart(from: TrailPoint, to: TrailPoint, curved: boolean, dist: number): TrailPoint {
-  if (curved) return { x: from.x + dist, y: from.y }
+  if (curved) return { x: from.x, y: from.y + Math.sign(to.y - from.y || 1) * dist }
   const dx = to.x - from.x, dy = to.y - from.y
   const len = Math.hypot(dx, dy) || 1
   return { x: from.x + (dx / len) * dist, y: from.y + (dy / len) * dist }
@@ -182,7 +183,7 @@ export default function TrailConnectorOverlay({
           // Text clearance: the old routing jogged out to the lane at the DOT's exact y —
           // since a row's text sits right at that same height and stretches across nearly the
           // whole row width, that jog drew straight across it. Dipping vertically first (still
-          // at the dot's own x, i.e. left of where any text starts) into the blank padding a
+          // near the dot's own x, i.e. left of where any text starts) into the blank padding a
           // node's own row reserves below its text, THEN jogging horizontally at that safe y,
           // means the horizontal run never shares a y-band with any text at all. Symmetric on
           // both ends. Clamped so a short span between adjacent rows never dips past the other
@@ -192,24 +193,39 @@ export default function TrailConnectorOverlay({
           const dirAtoB = rawB.y >= rawA.y ? 1 : -1
           const jogYA = rawA.y + dirAtoB * V_CLEARANCE
           const jogYB = rawB.y - dirAtoB * V_CLEARANCE
-          const start = pushOffStart(rawA, { x: rawA.x, y: jogYA }, false, startGap)
-          const end = pullBackEnd({ x: rawB.x, y: jogYB }, rawB, false, endGap)
-          const CORNER_R = 7
-          const r = Math.min(CORNER_R, vertRun / 4 || CORNER_R, Math.abs(laneX - rawA.x) || CORNER_R, Math.abs(rawB.x - laneX) || CORNER_R)
           const signX1 = laneX >= rawA.x ? 1 : -1
-          const signY = rawB.y >= rawA.y ? 1 : -1
           const signX2 = rawB.x >= laneX ? 1 : -1
-          const c1a = { x: laneX - signX1 * r, y: jogYA }
-          const c1b = { x: laneX, y: jogYA + signY * r }
-          const c2a = { x: laneX, y: jogYB - signY * r }
-          const c2b = { x: laneX + signX2 * r, y: jogYB }
-          d = `M${start.x},${start.y} L${rawA.x},${jogYA} L${c1a.x},${c1a.y} Q${laneX},${jogYA} ${c1b.x},${c1b.y} L${c2a.x},${c2a.y} Q${laneX},${jogYB} ${c2b.x},${c2b.y} L${rawB.x},${jogYB} L${end.x},${end.y}`
+          // A few px OFF the dot's exact x (not straight down through it) — the main spine
+          // arrow between consecutive nodes runs through that exact column, so a dip drawn
+          // precisely there visually overlapped/crossed it. Nudging toward the lane side keeps
+          // this dashed line clear of it while still reading as "right by the dot."
+          const NUDGE = 4
+          const nearA = { x: rawA.x + signX1 * NUDGE, y: jogYA }
+          const nearB = { x: rawB.x + signX2 * NUDGE, y: jogYB }
+          const start = pushOffStart(rawA, nearA, false, startGap)
+          const end = pullBackEnd(nearB, rawB, false, endGap)
+          // Smooth bezier turns (not small-radius arcs, which read as barely-rounded right
+          // angles at this scale — per direct feedback, "still look too square... unnatural")
+          // — each transition curves through a full quarter-turn in one continuous bezier
+          // instead of a line+small-arc+line chain. Clamped so a short span between adjacent
+          // rows can't push the two turns past each other.
+          const BEND = Math.min(18, Math.abs(nearB.y - nearA.y) / 3 || 18)
+          d = `M${start.x},${start.y} L${nearA.x},${nearA.y} `
+            + `C${nearA.x + signX1 * BEND},${nearA.y} ${laneX},${nearA.y + dirAtoB * BEND} ${laneX},${nearA.y + dirAtoB * BEND * 1.4} `
+            + `L${laneX},${nearB.y - dirAtoB * BEND * 1.4} `
+            + `C${laneX},${nearB.y - dirAtoB * BEND} ${nearB.x + signX2 * BEND},${nearB.y} ${nearB.x},${nearB.y} `
+            + `L${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
           const b = pullBackEnd(rawA, rawB, curved, endGap)
+          // Vertical control-point offsets (not the old +36 in x) — per direct feedback
+          // ("start the arrow line from below the branch bullet instead of the right side"),
+          // the curve should point straight down (or up) out of the source bullet and into the
+          // target, bowing sideways only as much as their x-difference actually requires.
+          const dir = Math.sign(b.y - a.y || 1)
           d = curved
-            ? `M${a.x},${a.y} C${a.x + 36},${a.y} ${b.x + 36},${b.y} ${b.x},${b.y}`
+            ? `M${a.x},${a.y} C${a.x},${a.y + dir * 28} ${b.x},${b.y - dir * 28} ${b.x},${b.y}`
             : `M${a.x},${a.y} L${b.x},${b.y}`
         }
         return (

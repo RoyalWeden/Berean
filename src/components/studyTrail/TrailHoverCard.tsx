@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 // Generic hover-card wrapper for Study Trail's Map/Everything views — spine nodes, branch
@@ -85,6 +85,13 @@ export default function TrailHoverCard({ content, children, disabled, secondaryC
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     setOpen(false)
   }
+
+  // `disabled` (e.g. the "why'd you jump here" edit popup being open) previously only blocked
+  // scheduleOpen from arming — an ALREADY-open card (the one under the cursor when you clicked
+  // the pencil icon that opens the popup) stayed open regardless. Force it shut the moment
+  // disabled flips true, so clicking Edit reliably clears the hover card instead of leaving it
+  // floating on top of/behind the popup until the mouse happens to move away.
+  useEffect(() => { if (disabled) closeNow() }, [disabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div onMouseEnter={scheduleOpen} onMouseLeave={scheduleClose} style={{ display: 'contents' }}>

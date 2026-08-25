@@ -11,25 +11,26 @@ import { bookName } from '@/lib/parseRef'
 // those components are tightly coupled to their host's own popover state machine and aren't
 // meant to be imported across windows.
 export function useTrailRefMenu() {
-  return usePositionedMenu<{ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void }>()
+  return usePositionedMenu<{ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void } }>()
 }
 
 export function openTrailRefMenu(
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; x: number; y: number }) => void,
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void,
   ref: TrailRef,
   e: React.MouseEvent,
   onJumpToOrigin?: () => void,
   onDelete?: () => void,
+  topicBreak?: { active: boolean; onToggle: () => void },
 ) {
   e.preventDefault()
   e.stopPropagation()
-  openMenu({ ref, onJumpToOrigin, onDelete, x: e.clientX, y: e.clientY })
+  openMenu({ ref, onJumpToOrigin, onDelete, topicBreak, x: e.clientX, y: e.clientY })
 }
 
 export function TrailRefContextMenu({
   menu, menuRef, onClose,
 }: {
-  menu: ({ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void } & { x: number; y: number }) | null
+  menu: ({ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void } } & { x: number; y: number }) | null
   menuRef: React.RefObject<HTMLDivElement>
   onClose: () => void
 }) {
@@ -69,6 +70,15 @@ export function TrailRefContextMenu({
       createElement('button', {
         key: 'jump', className: 'trail-ctx-btn', onClick: () => { menu.onJumpToOrigin!(); onClose() }, style: menuBtnStyle,
       }, 'Scroll to where this came from'),
+    ] : []),
+    // Dedicated topic-break toggle — per direct feedback ("have a button in the study trail to
+    // put a break/separate topics"), this doesn't need to go through the "ask why" popup at
+    // all; right-click a chapter bullet and toggle it directly.
+    ...(menu.topicBreak ? [
+      createElement('div', { key: 'topic-divider', style: { height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' } }),
+      createElement('button', {
+        key: 'topic', className: 'trail-ctx-btn', onClick: () => { menu.topicBreak!.onToggle(); onClose() }, style: menuBtnStyle,
+      }, menu.topicBreak.active ? 'Remove topic break' : 'Mark as new topic (break here)'),
     ] : []),
     ...(menu.onDelete ? [
       createElement('div', { key: 'del-divider', style: { height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' } }),

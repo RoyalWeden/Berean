@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -41,20 +41,14 @@ export default function StudyTrailArrivalPrompt() {
   return <ArrivalPill connectionId={conn.id} onClose={clear} />
 }
 
-const AUTO_DISMISS_MS = 6000
-
 /** The lightweight, non-blocking alternative to the full popup — a small pill in the topbar
- *  area. Auto-dismisses (saving nothing) if ignored; typing something and pressing Enter/blur
- *  saves it as the connection's own userNote, same field the full popup writes to. */
+ *  area. Per direct feedback ("the thing of 'whyd you go here' shouldnt go away until
+ *  dismissed"), this stays up until the user explicitly closes it (the × button) or saves —
+ *  no auto-dismiss timer. Typing something and pressing Enter/blur saves it as the
+ *  connection's own userNote, same field the full popup writes to. */
 function ArrivalPill({ connectionId, onClose }: { connectionId: string; onClose: () => void }) {
   const [text, setText] = useState('')
   const [expanded, setExpanded] = useState(false)
-
-  useEffect(() => {
-    if (expanded) return // paused while the user is actively typing
-    const t = setTimeout(onClose, AUTO_DISMISS_MS)
-    return () => clearTimeout(t)
-  }, [expanded, onClose])
 
   async function save() {
     const trimmed = text.trim()
