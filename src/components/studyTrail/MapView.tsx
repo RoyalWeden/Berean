@@ -9,6 +9,7 @@ import { trailRefClick, navigateTrailRef, originDisplayText, type TrailRef } fro
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
+import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS } from '@/store/studyTrailSlice'
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
 // connections listed underneath it, all physically connected by a measured SVG overlay
@@ -111,15 +112,48 @@ type AnnotatedConn = TrailConnection & {
    *  just a same-chapter cross-ref worth tracing on its own row. See the sameChapter branch in
    *  studyTrailSlice.ts's recorder for how this connection gets created. */
   isSameChapterBranch?: boolean
+  /** 1-based chronological step number of an isReturn row's TARGET node — lets the row say
+   *  "↺ back to step 4" in plain text (confused-reviewer persona: confirming a return should
+   *  never REQUIRE successfully tracing the arrow, just reading two numbers). */
+  returnTargetStep?: number
+  /** Branch chaining (v31) — hangs off ANOTHER connection (fromConnectionId set), not directly
+   *  off its chapter node; renders nested under its parent row instead of as a sibling. */
+  isChainedBranch?: boolean
+  /** At least one other connection is chained off THIS one — needs to render its own nested
+   *  sub-shelf beneath it. */
+  hasChainChildren?: boolean
 }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
+// A branch CHAIN staying entirely within lexicon-land has no chapter to "promote" into (see
+// studyTrailSlice.ts's BRANCH_PROMOTE_* comment) — whether it's substantial enough to flag is
+// purely this live walk over already-stored chain_depth/createdAt data, never a persisted fact.
+function chainStats(connId: string, rowsForConnection: Map<string, AnnotatedConn[]> | undefined, rootCreatedAt: number): { maxDepth: number; maxCreatedAt: number } {
+  const kids = rowsForConnection?.get(connId) ?? []
+  let maxDepth = 0, maxCreatedAt = rootCreatedAt
+  for (const k of kids) {
+    const sub = chainStats(k.id, rowsForConnection, rootCreatedAt)
+    maxDepth = Math.max(maxDepth, 1 + sub.maxDepth)
+    maxCreatedAt = Math.max(maxCreatedAt, k.createdAt, sub.maxCreatedAt)
+  }
+  return { maxDepth, maxCreatedAt }
+}
+
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, depth = 0, onHoverKey }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
   openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
+  /** Branch chaining (v31) — connId → the connections chained directly off it. Passed down so
+   *  a row can render its own nested "branch shelf" beneath it. */
+  rowsForConnection?: Map<string, AnnotatedConn[]>
+  /** VISUAL nesting depth (not the same as conn.chainDepth — a reconverging hop always renders
+   *  at depth 1 regardless of its true chain_depth, see the branch-shelf rendering below). 0 =
+   *  this row itself is top-level, directly under its chapter node. */
+  depth?: number
+  onHoverKey?: (key: string | null) => void
 }) {
+  const [expandedCollapsed, setExpandedCollapsed] = useState(false)
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
@@ -129,7 +163,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   // originVersePinFrom capture), it belongs IN the row label, not reassembled by the reader.
   // No book/chapter prefix on the origin side — this row already lives directly under that
   // chapter's own node block, so which chapter v.17 belongs to is never in question.
-  const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
+  const destVerseSuffix = conn.toVerse
+    ? conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `:${conn.toVerse}–${conn.toVerseEnd}` : `:${conn.toVerse}`
+    : ''
+  const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${destVerseSuffix}`
   const baseLabel = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
@@ -141,9 +178,36 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
           : conn.originVersePinFrom != null
             ? `v.${conn.originVersePinFrom} → ${chapterDestLabel}`
             : chapterDestLabel
-  const label = conn.isReturn ? `↺ ${baseLabel}` : conn.isSameChapterBranch ? `↳ v.${conn.toVerse ?? '?'}` : baseLabel
+  const label = conn.isReturn
+    ? `↺ back to step ${conn.returnTargetStep ?? '?'} — ${baseLabel}`
+    : conn.isSameChapterBranch
+      ? conn.originVersePinFrom != null ? `↳ v.${conn.originVersePinFrom} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
+      : baseLabel
   const ref = refFor(conn)
+
+  // Branch-shelf nesting — a chain hop that RECONVERGES (its destination is a real chapter,
+  // toKind:'chapter') always surfaces to visual depth 1 regardless of its true chainDepth, per
+  // the "a branch closing back toward the main spine should read as coming back, not stay
+  // buried at max indent" rule. An INTERIOR hop (stays in lexicon-land) nests one level deeper
+  // each time, but only up to visual depth 2 by default — a 3rd nested level (a 4th word in a
+  // chain) collapses under a "+N more" toggle instead of nesting further, so a chain can never
+  // run away visually no matter how deep the underlying data actually goes.
+  const children = rowsForConnection?.get(conn.id) ?? []
+  const reconvergingChildren = children.filter((c) => c.toKind === 'chapter')
+  const interiorChildren = children.filter((c) => c.toKind !== 'chapter')
+  const canExpandInterior = depth < 2 || expandedCollapsed
+  const visibleInterior = canExpandInterior ? interiorChildren : []
+  const collapsedInteriorCount = canExpandInterior ? 0 : interiorChildren.length
+  const reconvergeItems = groupForRender(reconvergingChildren)
+  const interiorItems = groupForRender(visibleInterior)
+  // Only the chain's own ROOT (depth 0, chainDepth 0) shows the badge — a mid-chain row already
+  // reads as "inside" a chain from its nesting alone.
+  const chain = depth === 0 && conn.hasChainChildren ? chainStats(conn.id, rowsForConnection, conn.createdAt) : null
+  const isPromotedChain = !!chain && (chain.maxDepth >= BRANCH_PROMOTE_DEPTH_THRESHOLD || (chain.maxCreatedAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS)
+  const hasNested = reconvergeItems.length > 0 || interiorItems.length > 0 || collapsedInteriorCount > 0
+
   return (
+    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
     <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
         <span
@@ -166,6 +230,15 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
           onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
         >{label}</span>
+        {isPromotedChain && (
+          <span
+            title={`A ${chain!.maxDepth + 1}-hop word-study chain`}
+            style={{
+              fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+              borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
+            }}
+          >chain</span>
+        )}
         {conn.versePinFrom != null && (
           <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
             v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
@@ -190,6 +263,23 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
         {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
       </div>
     </TrailHoverCard>
+    {hasNested && (
+      <div style={{ marginLeft: 15, borderLeft: '1px solid rgb(var(--color-surface-4))', paddingLeft: 8 }}>
+        {reconvergeItems.map((it) => it.type === 'single'
+          ? <ConnRow key={it.item.id} conn={it.item} depth={1} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+          : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
+        {interiorItems.map((it) => it.type === 'single'
+          ? <ConnRow key={it.item.id} conn={it.item} depth={depth + 1} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+          : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
+        {collapsedInteriorCount > 0 && (
+          <button
+            onClick={() => setExpandedCollapsed(true)}
+            style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', margin: '2px 0' }}
+          >+{collapsedInteriorCount} more</button>
+        )}
+      </div>
+    )}
+    </div>
   )
 }
 
@@ -246,7 +336,7 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -274,6 +364,9 @@ function NodeBlock({
    *  edge not touching it — the design persona's "highest-value 30-minute fix" for making a
    *  dense graph legible without any topology change. */
   onHoverKey?: (key: string | null) => void
+  /** Branch chaining (v31) — connId → the connections chained directly off it, threaded down to
+   *  every top-level ConnRow so it can render its own nested branch shelf. */
+  rowsForConnection?: Map<string, AnnotatedConn[]>
 }) {
   const replace = useWordReplace()
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
@@ -346,7 +439,7 @@ function NodeBlock({
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {items.map((it) => it.type === 'single'
-            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
@@ -447,6 +540,12 @@ export default function MapView({
   for (const n of detail.nodes) nodeByKey.set(`${n.trailSessionId}:${n.bookId}:${n.chapter}`, n)
   const nextNodeById = new Map<string, TrailNode | undefined>()
   detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
+  // 1-based chronological position — lets a return row read "back to step 4" in plain text
+  // instead of requiring the arrow to be traced (confused-reviewer persona). Declared here
+  // (rather than just below, where it's also used for lane min/max idx) so the rowsForNode
+  // build below can already resolve a return's target step while annotating isReturn.
+  const nodeOrderIndex = new Map<string, number>()
+  detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
 
   // The EARLIEST connection that ever led to a given chapter — its "origin story," shown
   // above the node always (OriginBadgeLine) and in its hover card, regardless of how many
@@ -493,11 +592,21 @@ export default function MapView({
   // A round-trip connection (destination matches an EARLIER/different existing node) is
   // annotated `isReturn` so ConnRow can prefix it with ↺ instead of implying a fresh move —
   // and feeds a laned return edge in the overlay (built below).
+  // Branch chaining (v31) — a connection with fromConnectionId set hangs off ANOTHER
+  // connection, not directly off its chapter node; it's excluded from rowsForNode's top-level
+  // bucket below and instead rendered nested under its parent row (see ConnRow's own recursive
+  // rendering of rowsForConnection.get(its own id)).
+  const rowsForConnection = new Map<string, AnnotatedConn[]>()
+  const hasChainChildrenIds = new Set<string>()
+  for (const c of detail.connections) {
+    if (!c.fromConnectionId) continue
+    hasChainChildrenIds.add(c.fromConnectionId)
+  }
+
   const rowsForNode = new Map<string, AnnotatedConn[]>()
   for (const n of detail.nodes) rowsForNode.set(n.id, [])
   for (const c of detail.connections) {
-    const bucket = rowsForNode.get(c.fromNodeId)
-    if (!bucket) continue
+    let annotated: AnnotatedConn = { ...c, isChainedBranch: !!c.fromConnectionId, hasChainChildren: hasChainChildrenIds.has(c.id) }
     if (c.toKind === 'chapter' && c.toBookId && c.toChapter != null) {
       // A cross-ref that landed in the SAME chapter as its own fromNode (see the sameChapter
       // branch in studyTrailSlice.ts) — the "target" resolves to the very node this row is
@@ -505,20 +614,27 @@ export default function MapView({
       // branch. Checked first so it can never fall through into the isReturn self-loop case.
       const selfTarget = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       if (selfTarget && selfTarget.id === c.fromNodeId) {
-        bucket.push({ ...c, isSameChapterBranch: true })
-        continue
+        annotated = { ...annotated, isSameChapterBranch: true }
+      } else {
+        const next = nextNodeById.get(c.fromNodeId)
+        const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
+        if (isForward) {
+          if (!isConfidentOrigin(c) && !annotated.isChainedBranch) continue // no row at all — matches prior behavior exactly
+          annotated = { ...annotated, isForwardBranch: true }
+        } else {
+          const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
+          annotated = { ...annotated, isReturn: !!target, returnTargetStep: target ? nodeOrderIndex.get(target.id)! + 1 : undefined }
+        }
       }
-      const next = nextNodeById.get(c.fromNodeId)
-      const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
-      if (isForward) {
-        if (isConfidentOrigin(c)) bucket.push({ ...c, isForwardBranch: true })
-        continue
-      }
-      const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-      bucket.push({ ...c, isReturn: !!target })
+    }
+    if (annotated.isChainedBranch) {
+      const bucket = rowsForConnection.get(c.fromConnectionId!) ?? []
+      bucket.push(annotated)
+      rowsForConnection.set(c.fromConnectionId!, bucket)
       continue
     }
-    bucket.push(c)
+    const bucket = rowsForNode.get(c.fromNodeId)
+    if (bucket) bucket.push(annotated)
   }
 
   // The connected-lines engine's edge list — built from the same data that drives the rows
@@ -532,8 +648,6 @@ export default function MapView({
   // jogging horizontally only at the very top/bottom — it can never cross an intervening
   // chapter's text again. Forward-branch edges stay short (row → the very next node) and don't
   // need a lane.
-  const nodeOrderIndex = new Map<string, number>()
-  detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
   interface LanedEdge extends TrailEdge { minIdx: number; maxIdx: number }
   const lanedRaw: LanedEdge[] = []
 
@@ -545,32 +659,43 @@ export default function MapView({
     if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
     edges.push({ key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`, color: 'rgb(var(--color-accent))', arrow: true })
   }
+
+  // Shared per-row edge logic — called for every row regardless of whether it's a top-level
+  // row (stub from its chapter node) or a chained branch row (stub from its PARENT row's own
+  // point instead, per the v31 branch-chaining work: "arrows connect from the true branch," not
+  // a generic/frozen point). `stubFrom` is the point key this row's own short connector starts
+  // at; isReturn/isForwardBranch edges are identical either way since they're keyed off the
+  // row's own `row:${c.id}` point, which exists regardless of nesting depth.
+  function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
+    const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
+    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
+    if (c.isReturn && c.toBookId && c.toChapter != null) {
+      const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
+      if (target) {
+        const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
+        lanedRaw.push({
+          key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, arrow: true,
+          minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
+        })
+      }
+    }
+    if (c.isForwardBranch) {
+      // The specific-origin trace for an otherwise-plain forward move — short (always the
+      // very next node), so a direct curved line is fine, no lane needed. Also how a branch
+      // CHAIN's terminal hop reconverges into the spine — the target is still "the next node
+      // after the chain's ROOT chapter" (fromNodeId always stays the root), which is correct
+      // because arriving at a new chapter only ever happens right when this connection is
+      // written, so it's always the true next spine entry chronologically.
+      const target = nextNodeById.get(c.fromNodeId)
+      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true, opacity: 0.85 })
+    }
+  }
+
   for (const n of detail.nodes) {
     const items = groupForRender(rowsForNode.get(n.id) ?? [])
     for (const it of items) {
       if (it.type === 'single') {
-        const c = it.item
-        const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
-        // Straight, not curved — these are short local connectors (node → its own row); a
-        // curve crossing through adjacent text was adding shape/crowding for little benefit
-        // at this density. Curves/lanes stay reserved for edges that travel further.
-        edges.push({ key: `stub:${c.id}`, from: `node:${n.id}`, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
-        if (c.isReturn && c.toBookId && c.toChapter != null) {
-          const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-          if (target) {
-            const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(target.id)!
-            lanedRaw.push({
-              key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, arrow: true,
-              minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
-            })
-          }
-        }
-        if (c.isForwardBranch) {
-          // The specific-origin trace for an otherwise-plain forward move — short (always the
-          // very next node), so a direct curved line is fine, no lane needed.
-          const target = nextNodeById.get(n.id)
-          if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true, opacity: 0.85 })
-        }
+        pushRowEdges(it.item, `node:${n.id}`)
       } else {
         const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
         edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
@@ -590,6 +715,21 @@ export default function MapView({
     }
   }
 
+  // Chained branch rows (excluded from rowsForNode above) get the same per-row edges, but
+  // their short local stub starts from their PARENT connection's own row point instead of a
+  // chapter node — this is the "arrows properly connect... originate from the TRUE last stop"
+  // fix: no generic/frozen point is ever used, TrailConnectorOverlay measures real registered
+  // DOM elements live regardless of nesting depth.
+  for (const [parentConnId, children] of rowsForConnection) {
+    for (const it of groupForRender(children)) {
+      if (it.type === 'single') pushRowEdges(it.item, `row:${parentConnId}`)
+      else {
+        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
+        edges.push({ key: `stub:${it.key}`, from: `row:${parentConnId}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
+      }
+    }
+  }
+
   // Greedy lane packing (standard interval-scheduling — same idea git-graph tools use for
   // branch lanes): process by start index, give each edge the lowest lane whose
   // previously-assigned span doesn't overlap this one.
@@ -603,6 +743,11 @@ export default function MapView({
   }
   const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING : 0
+
+  // Hover-to-isolate — dim every edge that doesn't touch the hovered node/row, no topology
+  // change required. hoveredKey/onHoverKey are reported by NodeBlock and ConnRow below.
+  const touchesHover = (e: TrailEdge) => !hoveredKey || e.from === hoveredKey || e.to === hoveredKey
+  const finalEdges = hoveredKey ? edges.map((e) => touchesHover(e) ? e : { ...e, opacity: (e.opacity ?? 1) * 0.15 }) : edges
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -639,7 +784,7 @@ export default function MapView({
       <div onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
-            <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={edges} zoom={zoom} />
+            <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
           <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
@@ -673,6 +818,7 @@ export default function MapView({
               searchMatched={!!q && matchedNodeIds.has(n.id)}
               blockRef={(el) => { if (el) nodeBlockRefs.current.set(n.id, el); else nodeBlockRefs.current.delete(n.id) }}
               gutterWidth={gutterWidth}
+              rowsForConnection={rowsForConnection}
             />
           )
         })}

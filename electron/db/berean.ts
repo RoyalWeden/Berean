@@ -823,6 +823,38 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_to INTEGER;`)
       console.log('[berean-db] v30: trail_connections.origin_verse_pin_from/to')
     }
+  },
+  {
+    // Study Trail — branch chaining. Until now trail_connections.from_node_id could ONLY ever
+    // reference a trail_nodes row (a chapter anchor) — a lexicon lookup, or a same-chapter
+    // cross-ref, could never itself be the origin of a LATER connection, so a Strong's A -> B ->
+    // C click chain rendered as three disconnected leaves all hanging off the same chapter, and
+    // a click made from deep in that chain was structurally indistinguishable from a click made
+    // straight from the chapter itself. from_connection_id is the optional MORE SPECIFIC parent
+    // — when set, it is this connection's real immediate predecessor; from_node_id is still
+    // always kept populated (backfilled to the chain's ROOT chapter node) so every existing
+    // from_node_id-keyed query/render path keeps working unmodified for chain rows too — see
+    // MapView.tsx's rowsForNode. chain_depth (0 = hangs directly off a chapter node, same
+    // meaning as before this migration; 1+ = hangs off another connection) lets both the
+    // recorder decide whether the current anchor is "at the chapter" or "mid-chain" and the
+    // renderer control chain-nesting depth, without walking from_connection_id pointers on
+    // every render. to_verse_end closes a separate gap: a TSKe RANGE cross-ref (e.g.
+    // Isa 52:13-53:12) previously only ever recorded its start verse — NavigateToVerseArgs'
+    // endVerse was captured for tab state but never threaded through to the recorder at all.
+    // promoted_from_connection_id on trail_nodes is the branch-chain analogue of
+    // revisit_of_node_id (v29) — that column always points at another NODE (same chapter,
+    // different visit); this one points at a CONNECTION, for when a branch chain itself grows
+    // deep/slow enough to be worth flagging, kept separate so the two kinds of backlink are
+    // never ambiguous.
+    version: 31,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN from_connection_id TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN to_verse_end INTEGER;`)
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN promoted_from_connection_id TEXT;`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_trail_conn_parent ON trail_connections(from_connection_id);`)
+      console.log('[berean-db] v31: trail_connections.from_connection_id/chain_depth/to_verse_end, trail_nodes.promoted_from_connection_id')
+    }
   }
 ]
 

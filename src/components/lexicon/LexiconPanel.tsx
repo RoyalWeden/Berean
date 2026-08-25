@@ -1516,7 +1516,9 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
   function navToEntry(strongsNum: string, newTab: boolean) {
     if (newTab) {
       createTab('lexicon')
-      openLexiconEntry(strongsNum) // already records a 'click'-depth connection
+      // 'related' — this is a Cmd/Ctrl-click on a related word from an ALREADY-open entry, not
+      // a fresh click from scripture, even though it happens to also open a new tab.
+      openLexiconEntry(strongsNum, undefined, 'related')
       setActiveSpace('lexicon')
       return
     }

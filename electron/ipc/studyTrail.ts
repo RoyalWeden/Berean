@@ -27,7 +27,7 @@ interface TrailSessionRow {
 interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
-  revisit_of_node_id: string | null
+  revisit_of_node_id: string | null; promoted_from_connection_id: string | null
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -38,6 +38,7 @@ interface TrailConnectionRow {
   origin_verse_pin_from: number | null; origin_verse_pin_to: number | null
   weight: string; strongs_depth: string | null; cluster_id: string | null
   dismissed_prompt_at: number | null; created_at: number
+  from_connection_id: string | null; chain_depth: number; to_verse_end: number | null
 }
 
 function rowToSession(r: TrailSessionRow) {
@@ -56,6 +57,7 @@ function rowToNode(r: TrailNodeRow) {
     anchorEndedAt: r.anchor_ended_at ?? undefined,
     cachedSubnote: r.cached_subnote ?? undefined, originLabel: r.origin_label ?? undefined,
     revisitOfNodeId: r.revisit_of_node_id ?? undefined,
+    promotedFromConnectionId: r.promoted_from_connection_id ?? undefined,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -74,6 +76,9 @@ function rowToConnection(r: TrailConnectionRow) {
     clusterId: r.cluster_id ?? undefined,
     dismissedPromptAt: r.dismissed_prompt_at ?? undefined,
     createdAt: r.created_at,
+    fromConnectionId: r.from_connection_id ?? undefined,
+    chainDepth: r.chain_depth,
+    toVerseEnd: r.to_verse_end ?? undefined,
   }
 }
 
@@ -291,6 +296,14 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     // `fromVerse`), so there's no reason to make the user re-enter it later. Same column,
     // populated two different ways depending on how confident the origin already is.
     originVersePinFrom?: number
+    // Branch chaining (v31) — when set, this connection's TRUE immediate predecessor is another
+    // connection (a prior lexicon lookup, or same-chapter branch), not fromNodeId's chapter
+    // directly. fromNodeId is still always required/populated (the chain's root chapter), so
+    // every from_node_id-keyed query keeps working unmodified. chainDepth is 0 when there's no
+    // parent connection, N+1 when there is — see studyTrailSlice.ts's currentBranchTipConnectionId.
+    fromConnectionId?: string
+    chainDepth?: number
+    toVerseEnd?: number
   }) => {
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection called', conn)
     const db = getBereanDb()
@@ -318,14 +331,16 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       INSERT INTO trail_connections (
         id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
         to_strongs_num, to_note_id, to_video_id, clarity_tier, reason_text, reason_tags,
-        weight, strongs_depth, cluster_id, origin_verse_pin_from, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        weight, strongs_depth, cluster_id, origin_verse_pin_from,
+        from_connection_id, chain_depth, to_verse_end, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, conn.trailSessionId, conn.fromNodeId, conn.toKind,
       conn.toBookId ?? null, conn.toChapter ?? null, conn.toVerse ?? null,
       conn.toStrongsNum ?? null, conn.toNoteId ?? null, conn.toVideoId ?? null,
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
-      conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null, now
+      conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null,
+      conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null, now
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)

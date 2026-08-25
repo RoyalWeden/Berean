@@ -197,7 +197,7 @@ export interface AppState {
 
   // Cross-panel lexicon communication
   pendingLexiconEntry: string | null
-  openLexiconEntry: (strongsNum: string, fromNote?: { noteId: string; title: string }) => void
+  openLexiconEntry: (strongsNum: string, fromNote?: { noteId: string; title: string }, depth?: import('@/types/studyTrail').StrongsDepth) => void
   clearLexiconEntry: () => void
   pendingLexiconSearch: string | null
   requestLexiconSearch: (term: string) => void
@@ -2145,12 +2145,16 @@ export const useAppStore = create<AppState>()(
         return { settingsOpen: opening }
       }),
 
-      openLexiconEntry: (strongsNum, fromNote) => {
+      openLexiconEntry: (strongsNum, fromNote, depth) => {
         // Fuller "G26 — ἀγάπη" title when this entry has been loaded before this
         // session; falls back to the bare number otherwise (see lexiconTitle.ts).
         const lexTitle = lexiconTitleFor(strongsNum)
         get().addHistoryEntry({ type: 'lexicon', title: lexTitle, strongsNum })
-        recordLexiconConnection(strongsNum)
+        // `depth` lets a caller invoking this from an ALREADY-OPEN entry (a Cmd/Ctrl-click on a
+        // related word, opening a new tab) say so — that's a 'related' hop, not a fresh 'click',
+        // even though it happens to also open a new tab. Defaults to 'click' for the true
+        // first-click-from-scripture case everywhere else this is called.
+        recordLexiconConnection(strongsNum, depth ?? 'click')
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
           if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })

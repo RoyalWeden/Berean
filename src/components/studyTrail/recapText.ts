@@ -25,7 +25,13 @@ export function buildRecap(detail: TrailSessionDetail): string {
   const lexiconHits = connections.filter((c) => c.toKind === 'lexicon')
   if (lexiconHits.length > 0) {
     const words = [...new Set(lexiconHits.map((c) => c.toStrongsNum).filter(Boolean))]
-    parts.push(`Looked up ${words.length} word${words.length === 1 ? '' : 's'}: ${words.join(', ')}.`)
+    let sentence = `Looked up ${words.length} word${words.length === 1 ? '' : 's'}: ${words.join(', ')}.`
+    // Branch chaining (v31) — a deep click-through (word A led to word B led to word C...) reads
+    // very differently from N unrelated single lookups; call out the deepest chain when one
+    // exists, not just the flat count.
+    const deepestChain = Math.max(0, ...lexiconHits.map((c) => c.chainDepth))
+    if (deepestChain > 0) sentence += ` Followed a related-word chain ${deepestChain + 1} deep.`
+    parts.push(sentence)
   }
   const unresolved = connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
   if (unresolved > 0) parts.push(`${unresolved} jump${unresolved === 1 ? '' : 's'} still without a noted reason.`)

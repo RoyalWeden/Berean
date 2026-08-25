@@ -42,6 +42,16 @@ describe('reasonForOrigin', () => {
     expect(tags).toContain('search')
   })
 
+  it('appends "(from v.N)" for a cross-ref with a known origin verse, without disturbing plain reason text when fromVerse is absent', () => {
+    expect(reasonForOrigin({ kind: 'cross-ref', source: 'tske', fromVerse: 17 }))
+      .toEqual({ text: 'a tske cross-reference (from v.17)', tags: ['cross-ref:tske'] })
+    expect(reasonForOrigin({ kind: 'cross-ref', source: 'classic', reason: 'votes: 5', fromVerse: 3 }))
+      .toEqual({ text: 'votes: 5 (from v.3)', tags: ['cross-ref:classic'] })
+    // No fromVerse — matches the pre-existing verbatim-reason test above exactly.
+    expect(reasonForOrigin({ kind: 'cross-ref', source: 'tske', reason: 'shared theme of love' }))
+      .toEqual({ text: 'shared theme of love', tags: ['cross-ref:tske'] })
+  })
+
   it('has no pre-filled reason for an ambiguous manual jump — only a tag', () => {
     const { text, tags } = reasonForOrigin({ kind: 'book-chapter-picker' })
     expect(text).toBeUndefined()

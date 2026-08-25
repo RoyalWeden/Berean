@@ -10,6 +10,7 @@ import { useAppStore } from '@/store'
 import { bookName, bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { navigateToVerse, recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
+import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { getWordWindow } from '@/lib/verseUtils'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -248,9 +249,17 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
   }
 
   const navToEntry = useCallback((strongsNum: string, openNewTab = false) => {
+    // Navigating to ANOTHER Strong's entry while one is already open (a related-word chip, a
+    // derivation-embedded link, prev/next) is exactly as real a study hop as the FIRST click
+    // that opened the panel — it was previously untracked entirely in the plain-click branch
+    // below (a bug: neither recordLexiconConnection nor openLexiconEntry was ever called), and
+    // even the Cmd/Ctrl-click branch (openNewTab) always recorded depth 'click' instead of
+    // 'related'. Both are fixed here; recordLexiconConnection itself chains this off
+    // currentBranchTipConnectionId when mid-branch (see studyTrailSlice.ts), so a Strong's
+    // A -> B -> C click sequence now reads as a real chain instead of disconnected leaves.
     if (openNewTab) {
       createTab('lexicon')
-      openLexiconEntry(strongsNum)
+      openLexiconEntry(strongsNum, undefined, 'related')
       setActiveSpace('lexicon')
       return
     }
@@ -259,6 +268,7 @@ function SidebarLexicon({ initialEntry, onEntryChange }: SidebarLexiconProps) {
         if (!entry) return
         if (activeEntry) setHistory((h) => [...h, activeEntry])
         setActiveEntry(entry)
+        recordLexiconConnection(strongsNum, 'related')
       })
       .catch(() => {})
   }, [activeEntry, createTab, openLexiconEntry, setActiveSpace])

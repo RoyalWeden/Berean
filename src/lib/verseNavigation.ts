@@ -90,7 +90,7 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   }
   navRecorder?.(
     { bookId: cur?.bookId, chapter: cur?.chapter, verse: cur?.targetVerse, translation: currentTranslation },
-    { bookId, chapter, verse, translation: newTranslation ?? currentTranslation },
+    { bookId, chapter, verse, endVerse: endVerse ?? undefined, translation: newTranslation ?? currentTranslation },
     origin,
   )
 }
@@ -116,7 +116,7 @@ export function recordNavigation(
 
 type NavRecorder = (
   from: { bookId?: string; chapter?: number; verse?: number; translation?: string },
-  to: { bookId: string; chapter: number; verse?: number; translation?: string },
+  to: { bookId: string; chapter: number; verse?: number; endVerse?: number; translation?: string },
   origin: NavOrigin,
 ) => void
 

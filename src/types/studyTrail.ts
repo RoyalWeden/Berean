@@ -33,6 +33,12 @@ export interface TrailNode {
   /** Set only on a PROMOTED revisit node — points back to the original node for this chapter.
    *  See electron/db/berean.ts's v29 migration comment for the full "why". */
   revisitOfNodeId?: string
+  /** The branch-chain analogue of revisitOfNodeId (v31) — reserved for a future "this chapter
+   *  was reached by a substantial branch chain" flag, kept as a separate column so it's never
+   *  ambiguous with a same-chapter revisit backlink. Not currently written by any code path —
+   *  the equivalent "chain got long enough to flag" signal is computed live from chainDepth at
+   *  render time instead (see MapView.tsx), no persisted fact needed for that case. */
+  promotedFromConnectionId?: string
 }
 
 export interface TrailConnection {
@@ -60,6 +66,17 @@ export interface TrailConnection {
   clusterId?: string
   dismissedPromptAt?: number
   createdAt: number
+  /** Branch chaining (v31) — when set, this connection's TRUE immediate predecessor is another
+   *  connection (a prior lexicon lookup, or same-chapter branch), not fromNodeId's chapter
+   *  directly. fromNodeId is still always populated (the chain's root chapter), so every
+   *  fromNodeId-keyed lookup keeps working unmodified. See electron/db/berean.ts's v31 comment. */
+  fromConnectionId?: string
+  /** 0 = hangs directly off a chapter node (unchanged meaning from before v31); 1+ = hops deep
+   *  in a branch chain. */
+  chainDepth: number
+  /** Destination range end, parallel to toVerse — a TSKe range ref (e.g. Isa 52:13-53:12)
+   *  previously only ever recorded its start verse. */
+  toVerseEnd?: number
 }
 
 export interface TrailPausedInterval {

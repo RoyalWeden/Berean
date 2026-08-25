@@ -187,6 +187,7 @@ interface StudyTrailAPI {
     clarityTier: import('./studyTrail').ClarityTier; reasonText?: string; reasonTags?: string[]
     weight?: import('./studyTrail').ConnectionWeight; strongsDepth?: import('./studyTrail').StrongsDepth
     originVersePinFrom?: number
+    fromConnectionId?: string; chainDepth?: number; toVerseEnd?: number
   }) => Promise<import('./studyTrail').TrailConnection>
   markGlance: (connectionId: string) => Promise<{ success: boolean }>
   updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number }) => Promise<{ success: boolean }>
