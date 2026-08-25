@@ -7,7 +7,7 @@ import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHover
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, originDisplayText, type TrailRef } from './trailNav'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
-import TrailConnectorOverlay, { useTrailConnectorPoints, type TrailEdge } from './TrailConnectorOverlay'
+import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
 // connections listed underneath it, all physically connected by a measured SVG overlay
@@ -85,7 +85,13 @@ function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   )
 }
 
-type AnnotatedConn = TrailConnection & { isReturn?: boolean }
+type AnnotatedConn = TrailConnection & {
+  isReturn?: boolean
+  /** A forward chapter-connection (destination IS the literal next spine node) whose origin
+   *  is specific enough to trace — gets its own row + direct line to that next node, in
+   *  addition to (not instead of) the plain spine arrow every chapter gets. */
+  isForwardBranch?: boolean
+}
 
 function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   conn: AnnotatedConn
@@ -210,7 +216,7 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -227,6 +233,9 @@ function NodeBlock({
   /** A search filter is active and this node DOES match it. */
   searchMatched?: boolean
   blockRef?: (el: HTMLDivElement | null) => void
+  /** Width (px) of the reserved right-hand gutter column laned return/revisit edges route
+   *  through — 0 means no laned edges exist this render, so no column is reserved at all. */
+  gutterWidth: number
 }) {
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
@@ -292,6 +301,13 @@ function NodeBlock({
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
+      {gutterWidth > 0 && (
+        // Reserved space for laned return/revisit edges to route through — a fixed width
+        // shared by EVERY row (registering the point from each row is harmless/idempotent
+        // since they all land at the same x once layout resolves; simpler and more robust
+        // than assuming any one particular row is guaranteed to render).
+        <div ref={registerPoint('gutter:x')} style={{ width: gutterWidth, flexShrink: 0 }} />
+      )}
       </div>
     </div>
   )
@@ -408,12 +424,21 @@ export default function MapView({
   }
 
   // Connections actually rendered as rows under each node: every non-chapter connection, plus
-  // chapter-connections that are a ROUND TRIP (destination isn't the literal next spine node).
-  // A plain forward chapter-connection is already fully represented by the spine itself
-  // (this node → the next block down) and would just duplicate that as a redundant row. A
-  // round-trip connection (destination matches an EARLIER/different existing node) is
+  // chapter-connections that are a ROUND TRIP (destination isn't the literal next spine node),
+  // PLUS forward chapter-connections whose origin is something specific enough to be worth
+  // tracing (a Strong's lookup, a cross-ref, a search — anything that isn't just plain
+  // sequential reading or a tab-switch). That last category used to be silently skipped
+  // entirely (the plain spine arrow already implies "next chapter," so a row felt redundant)
+  // — but that's exactly what read as "no indication of where I got that from": the ORIGIN
+  // BADGE LINE said "via Strong's G3942 occurrence" in text, yet no actual LINE traced back to
+  // that specific lookup, only the generic straight spine progression every chapter gets. Now
+  // a specific-origin forward connection gets its own row too (marked `isForwardBranch`, no ↺
+  // prefix — it's not a return, just a traceable cause) feeding a direct edge in the overlay
+  // below, alongside the spine arrow it doesn't replace.
+  //
+  // A round-trip connection (destination matches an EARLIER/different existing node) is
   // annotated `isReturn` so ConnRow can prefix it with ↺ instead of implying a fresh move —
-  // and feeds a curved return edge in the overlay (built below).
+  // and feeds a laned return edge in the overlay (built below).
   const rowsForNode = new Map<string, AnnotatedConn[]>()
   for (const n of detail.nodes) rowsForNode.set(n.id, [])
   for (const c of detail.connections) {
@@ -422,7 +447,10 @@ export default function MapView({
     if (c.toKind === 'chapter' && c.toBookId && c.toChapter != null) {
       const next = nextNodeById.get(c.fromNodeId)
       const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
-      if (isForward) continue
+      if (isForward) {
+        if (!isLowSignalOrigin(c)) bucket.push({ ...c, isForwardBranch: true })
+        continue
+      }
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       bucket.push({ ...c, isReturn: !!target })
       continue
@@ -432,6 +460,20 @@ export default function MapView({
 
   // The connected-lines engine's edge list — built from the same data that drives the rows
   // above, so the diagram can never drift out of sync with what's actually displayed.
+  //
+  // Return/revisit edges get routed through a shared right-hand GUTTER instead of a bezier
+  // bulge — a bulge can't reliably clear content of unbounded width, and two such edges whose
+  // vertical spans overlap would just visually merge. Each gets a "lane" (a git-graph-style
+  // greedy interval-packing assignment: the lowest lane number whose reserved node-index range
+  // doesn't overlap this edge's own span) and routes as a vertical line confined to that lane,
+  // jogging horizontally only at the very top/bottom — it can never cross an intervening
+  // chapter's text again. Forward-branch edges stay short (row → the very next node) and don't
+  // need a lane.
+  const nodeOrderIndex = new Map<string, number>()
+  detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
+  interface LanedEdge extends TrailEdge { minIdx: number; maxIdx: number }
+  const lanedRaw: LanedEdge[] = []
+
   const edges: TrailEdge[] = []
   for (let i = 0; i < detail.nodes.length - 1; i++) {
     // Skip across a session boundary (merged all-sessions timeline) — chronologically
@@ -448,12 +490,23 @@ export default function MapView({
         const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
         // Straight, not curved — these are short local connectors (node → its own row); a
         // curve crossing through adjacent text was adding shape/crowding for little benefit
-        // at this density. Curves stay reserved for return edges, which travel further and
-        // genuinely benefit from routing around intervening rows.
+        // at this density. Curves/lanes stay reserved for edges that travel further.
         edges.push({ key: `stub:${c.id}`, from: `node:${n.id}`, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
         if (c.isReturn && c.toBookId && c.toChapter != null) {
           const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-          if (target) edges.push({ key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true })
+          if (target) {
+            const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(target.id)!
+            lanedRaw.push({
+              key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, arrow: true,
+              minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
+            })
+          }
+        }
+        if (c.isForwardBranch) {
+          // The specific-origin trace for an otherwise-plain forward move — short (always the
+          // very next node), so a direct curved line is fine, no lane needed.
+          const target = nextNodeById.get(n.id)
+          if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true, opacity: 0.85 })
         }
       } else {
         const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
@@ -465,12 +518,28 @@ export default function MapView({
     // never arrowed, since it signals identity ("this is the same chapter"), not a direction
     // of travel the way the primary forward spine edge into this node already does.
     if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId)) {
-      edges.push({
+      const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
+      lanedRaw.push({
         key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
-        color: 'rgb(var(--color-text-muted))', dashed: true, curved: true, opacity: 0.35,
+        color: 'rgb(var(--color-text-muted))', dashed: true, opacity: 0.35,
+        minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
       })
     }
   }
+
+  // Greedy lane packing (standard interval-scheduling — same idea git-graph tools use for
+  // branch lanes): process by start index, give each edge the lowest lane whose
+  // previously-assigned span doesn't overlap this one.
+  lanedRaw.sort((a, b) => a.minIdx - b.minIdx)
+  const laneEnds: number[] = []
+  for (const e of lanedRaw) {
+    let lane = 0
+    while (lane < laneEnds.length && laneEnds[lane] >= e.minIdx) lane++
+    laneEnds[lane] = e.maxIdx
+    edges.push({ ...e, lane })
+  }
+  const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
+  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING : 0
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -538,6 +607,7 @@ export default function MapView({
               dimmed={!!q && !matchedNodeIds.has(n.id)}
               searchMatched={!!q && matchedNodeIds.has(n.id)}
               blockRef={(el) => { if (el) nodeBlockRefs.current.set(n.id, el); else nodeBlockRefs.current.delete(n.id) }}
+              gutterWidth={gutterWidth}
             />
           )
         })}

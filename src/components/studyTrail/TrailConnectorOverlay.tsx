@@ -27,7 +27,18 @@ export interface TrailEdge {
   curved?: boolean
   arrow?: boolean
   opacity?: number
+  /** Routes this edge through the shared right-hand gutter lane `lane` (0-indexed) instead of
+   *  a bezier bulge — see MapView.tsx's greedy lane-packing pass. Requires a `gutter:x` point
+   *  to be registered (MapView reserves a fixed-width spacer column for this). Takes priority
+   *  over `curved` when both are somehow set. */
+  lane?: number
 }
+
+// Shared with MapView.tsx, which needs these to size the reserved gutter column — a lane
+// routes at `gutterBaseX - lane * LANE_SPACING` (see the `d` construction below), so the
+// column must be at least `GUTTER_BASE + maxLane * LANE_SPACING` wide to fit every lane.
+export const GUTTER_BASE = 16
+export const LANE_SPACING = 10
 
 /** One shared registry of "connector point key → its DOM element", plus the ref-callback
  *  factory every anchor (spine dot, row marker) uses to register itself. Lives in the parent
@@ -151,18 +162,32 @@ export default function TrailConnectorOverlay({
       {edges.map((e) => {
         const rawA = coords.get(e.from), rawB = coords.get(e.to)
         if (!rawA || !rawB) return null
-        const curved = !!e.curved
         const startGap = radiusFor(e.from) + ENDPOINT_GAP
         const endGap = radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP)
-        const a = pushOffStart(rawA, rawB, curved, startGap)
-        const b = pullBackEnd(rawA, rawB, curved, endGap)
-        const d = curved
-          ? `M${a.x},${a.y} C${a.x + 36},${a.y} ${b.x + 36},${b.y} ${b.x},${b.y}`
-          : `M${a.x},${a.y} L${b.x},${b.y}`
+
+        let d: string
+        if (e.lane != null) {
+          // Laned (gutter) routing: a vertical run confined to this lane's column, jogging
+          // horizontally only right at each end — never crosses through intervening content
+          // regardless of how far apart the two points are. strokeLinejoin="round" below softens
+          // the two corners into a subway-map curve for free, no arc math needed.
+          const gutter = coords.get('gutter:x')
+          const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
+          const start = pushOffStart(rawA, { x: laneX, y: rawA.y }, false, startGap)
+          const end = pullBackEnd({ x: laneX, y: rawB.y }, rawB, false, endGap)
+          d = `M${start.x},${start.y} L${laneX},${rawA.y} L${laneX},${rawB.y} L${end.x},${end.y}`
+        } else {
+          const curved = !!e.curved
+          const a = pushOffStart(rawA, rawB, curved, startGap)
+          const b = pullBackEnd(rawA, rawB, curved, endGap)
+          d = curved
+            ? `M${a.x},${a.y} C${a.x + 36},${a.y} ${b.x + 36},${b.y} ${b.x},${b.y}`
+            : `M${a.x},${a.y} L${b.x},${b.y}`
+        }
         return (
           <path
             key={e.key} d={d} stroke={e.color} strokeWidth={e.thick ? 3 : 1.75} fill="none"
-            strokeDasharray={e.dashed ? '4 4' : undefined} strokeLinecap="round" opacity={e.opacity ?? 1}
+            strokeDasharray={e.dashed ? '4 4' : undefined} strokeLinecap="round" strokeLinejoin="round" opacity={e.opacity ?? 1}
             markerEnd={e.arrow ? 'url(#trail-arrow)' : undefined}
           />
         )
