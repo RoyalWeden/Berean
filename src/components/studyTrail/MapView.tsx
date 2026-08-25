@@ -579,7 +579,13 @@ function NodeBlock({
         />
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
-      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0 }}>
+      {/* maxWidth caps how far this stretches — `flex:1` alone lets it grow to match whatever
+          the WIDEST row anywhere in the whole spine happens to need (a long note preview, a
+          long Strong's list, etc.), dragging the gutter column (registered right after this
+          div) far out to the right of THIS row's own short text along with it — which is
+          exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
+          a wide loop well past nearby text instead of hugging close to the actual content. */}
+      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and

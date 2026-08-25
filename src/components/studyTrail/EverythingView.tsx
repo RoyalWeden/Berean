@@ -50,6 +50,9 @@ export default function EverythingView({ sessions, zoom, onZoomChange }: {
     const interval = setInterval(() => loadAll(false), 2000)
     return () => clearInterval(interval)
   }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Push-based near-instant refresh — the poll above is a fallback; per direct feedback
+  // ("want it faster / near-instant"), this reacts the moment anything is actually written.
+  useEffect(() => window.studyTrail.onDataChanged(() => loadAll(false)), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalConnections = details.reduce((n, d) => n + d.connections.length, 0)
   const totalNodes = details.reduce((n, d) => n + d.nodes.length, 0)

@@ -1,4 +1,5 @@
 import type { IpcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { is } from '@electron-toolkit/utils'
 import { getBereanDb } from '../db/berean'
@@ -8,6 +9,19 @@ import { getBereanDb } from '../db/berean'
 // separate opt-in flag: main-process console output only reaches the terminal running
 // `npm run dev`, which is far less noisy than devtools, so there's little cost to leaving it on.
 const DEBUG = is.dev
+
+// Push-based live update — per direct feedback ("make sure that the study trail auto updates
+// as i am studying... want it faster / near-instant"), every window gets told IMMEDIATELY
+// whenever a node/connection/session is written, instead of relying solely on the Study Trail
+// window's own 2s poll (StudyTrailApp.tsx/EverythingView.tsx keep that poll too, as a cheap
+// safety net — this is the fast path, not a replacement for it). Payload is just the session id
+// (or undefined for a session-list-level change) — listeners re-fetch rather than trust a
+// pushed snapshot, so this can't drift out of sync with the DB.
+function broadcastDataChanged(trailSessionId?: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('studyTrail:dataChanged', trailSessionId)
+  }
+}
 
 // Prepared-statement cache, mirroring highlights.ts's pattern — every navigation potentially
 // writes a connection, so this is a hot path worth not re-preparing SQL on every call.
@@ -112,6 +126,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       .run(id, name, now, now)
     const result = rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(id) as TrailSessionRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:startSession inserted', result)
+    broadcastDataChanged(result.id)
     return result
   })
 
@@ -121,6 +136,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     prep(db, `UPDATE trail_sessions SET status = 'paused', updated_at = ? WHERE id = ?`).run(now, trailSessionId)
     prep(db, `INSERT INTO trail_paused_intervals (id, trail_session_id, paused_at) VALUES (?, ?, ?)`)
       .run(randomUUID(), trailSessionId, now)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
@@ -134,11 +150,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       WHERE trail_session_id = ? AND resumed_at IS NULL
       ORDER BY paused_at DESC LIMIT 1
     `).run(now, trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
   ipcMain.handle('studyTrail:renameSession', (_e, trailSessionId: string, name: string) => {
     prep(getBereanDb(), `UPDATE trail_sessions SET name = ?, updated_at = ? WHERE id = ?`).run(name, Date.now(), trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
@@ -158,6 +176,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     const accidental = !!session && nodeCount <= 1 && connCount === 0 && (now - session.created_at) < 30_000
     prep(db, `UPDATE trail_sessions SET status = 'ended', possibly_accidental = ?, updated_at = ? WHERE id = ?`)
       .run(accidental ? 1 : 0, now, trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(trailSessionId) as TrailSessionRow)
   })
 
@@ -173,6 +192,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       prep(db, 'DELETE FROM trail_sessions WHERE id = ?').run(id)
     })
     del(trailSessionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -188,6 +208,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       }
     })
     delAll(trailSessionIds)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -235,6 +256,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null, node.translation ?? null)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
@@ -261,6 +283,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = NULL WHERE id = ?`).run(nodeId)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:reopenNode reopened', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
@@ -312,11 +335,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     promote()
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
   ipcMain.handle('studyTrail:updateNodeSubnote', (_e, nodeId: string, subnote: string) => {
     prep(getBereanDb(), `UPDATE trail_nodes SET cached_subnote = ? WHERE id = ?`).run(subnote, nodeId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -325,6 +350,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // the Study Trail window.
   ipcMain.handle('studyTrail:setNodeTopicBreak', (_e, nodeId: string, isTopicBreak: boolean) => {
     prep(getBereanDb(), `UPDATE trail_nodes SET is_topic_break = ? WHERE id = ?`).run(isTopicBreak ? 1 : 0, nodeId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -356,6 +382,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       prep(db, 'DELETE FROM trail_nodes WHERE id = ?').run(id)
     })
     delNode(nodeId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -425,11 +452,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
   ipcMain.handle('studyTrail:markGlance', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET weight = 'glance' WHERE id = ?`).run(connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -465,6 +494,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -474,6 +504,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // captured automatically at record time) are left alone — those were never user-authored.
   ipcMain.handle('studyTrail:clearConnectionNote', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET user_note = NULL, ties_from = NULL, ties_to = NULL WHERE id = ?`).run(connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -482,12 +513,14 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // fact of dismissal so the renderer knows not to auto-surface it again).
   ipcMain.handle('studyTrail:dismissPrompt', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET dismissed_prompt_at = ? WHERE id = ?`).run(Date.now(), connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
   ipcMain.handle('studyTrail:updateRecap', (_e, trailSessionId: string, recapText: string) => {
     prep(getBereanDb(), `UPDATE trail_sessions SET recap_text = ?, recap_user_edited = 1, updated_at = ? WHERE id = ?`)
       .run(recapText, Date.now(), trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 

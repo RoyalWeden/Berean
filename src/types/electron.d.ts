@@ -199,6 +199,7 @@ interface StudyTrailAPI {
   updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
   search: (query: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+  onDataChanged: (cb: (trailSessionId: string | undefined) => void) => () => void
 }
 
 export interface SavedWorkspace {

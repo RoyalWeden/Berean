@@ -114,22 +114,27 @@ export default function StudyTrailApp() {
   useEffect(() => { refresh() }, [])
   useEffect(() => { installStudyTrailStateSync() }, [])
   // Keeps the session rail itself (status dot, "3m ago", possiblyAccidental) live while you
-  // keep studying, not just the currently-open Map/Everything content — same short-poll v1 as
-  // below, no push channel yet.
+  // keep studying, not just the currently-open Map/Everything content — a slow poll as a
+  // fallback safety net (the push listener below is the fast path, see broadcastDataChanged's
+  // comment in electron/ipc/studyTrail.ts).
   useEffect(() => {
     const interval = setInterval(refresh, 2000)
     return () => clearInterval(interval)
   }, [])
+  // Push-based near-instant refresh — per direct feedback ("want it faster / near-instant"),
+  // this fires the moment anything is actually written, rather than waiting on the poll above.
+  useEffect(() => window.studyTrail.onDataChanged(() => refresh()), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live-refresh while a session is active — no push channel yet (deferred, see plan), so a
-  // short poll while the window is open is the honest v1 rather than a fake "live" claim.
+  // Live-refresh while a session is active — the poll is a fallback safety net; onDataChanged
+  // (below) is the fast path that actually makes this feel near-instant.
   useEffect(() => {
     if (!selectedId || mainTab !== 'map') { return }
     let cancelled = false
     const load = () => window.studyTrail.getSession(selectedId).then((d) => { if (!cancelled) setDetail(d) })
     load()
     const interval = setInterval(load, 2000)
-    return () => { cancelled = true; clearInterval(interval) }
+    const unsub = window.studyTrail.onDataChanged((id) => { if (id === undefined || id === selectedId) load() })
+    return () => { cancelled = true; clearInterval(interval); unsub?.() }
   }, [selectedId, mainTab])
 
   useEffect(() => {
