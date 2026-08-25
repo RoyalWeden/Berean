@@ -901,6 +901,28 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_connections ADD COLUMN ties TEXT;`)
       console.log('[berean-db] v34: trail_connections.ties')
     }
+  },
+  {
+    // Study Trail — the auto-detected fact and the user's OWN note are now fully separate,
+    // per direct feedback: "the note that the user puts for the connection shouldnt be on the
+    // part where it has 'strongs occurrence' or whatever else... it should be a separate note
+    // that has nothing on it until the user puts it (its not related to the auto note)."
+    // reason_text stays exactly what it always was — the recorder's own auto-inferred phrase
+    // ("Strong's word · G26", "a tske cross-reference") — and is never again pre-filled into
+    // or overwritten by the user's note. user_note is a brand new, always-blank-until-typed
+    // field for that.
+    //
+    // ties (v34) is also split: ties_from/ties_to replace it, since the "why did you jump"
+    // popup now has separate From-chapter and To-chapter tie sections rather than one combined
+    // list. The v34 `ties` column is left in place (unused going forward, harmless) rather than
+    // dropped — SQLite ALTER TABLE has no cheap DROP COLUMN, and nothing reads it anymore.
+    version: 35,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN user_note TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties_from TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties_to TEXT;`)
+      console.log('[berean-db] v35: trail_connections.user_note/ties_from/ties_to')
+    }
   }
 ]
 

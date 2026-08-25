@@ -41,6 +41,7 @@ interface TrailConnectionRow {
   dismissed_prompt_at: number | null; created_at: number
   from_connection_id: string | null; chain_depth: number; to_verse_end: number | null
   ties: string | null
+  user_note: string | null; ties_from: string | null; ties_to: string | null
 }
 
 function rowToSession(r: TrailSessionRow) {
@@ -76,6 +77,9 @@ function rowToConnection(r: TrailConnectionRow) {
     versePinFrom: r.verse_pin_from ?? undefined, versePinTo: r.verse_pin_to ?? undefined,
     originVersePinFrom: r.origin_verse_pin_from ?? undefined, originVersePinTo: r.origin_verse_pin_to ?? undefined,
     ties: r.ties ? JSON.parse(r.ties) : [],
+    userNote: r.user_note ?? undefined,
+    tiesFrom: r.ties_from ? JSON.parse(r.ties_from) : [],
+    tiesTo: r.ties_to ? JSON.parse(r.ties_to) : [],
     weight: r.weight as 'full' | 'glance',
     strongsDepth: r.strongs_depth ?? undefined,
     clusterId: r.cluster_id ?? undefined,
@@ -383,11 +387,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('studyTrail:updateConnectionReason', (_e, connectionId: string, update: {
     reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number
     originVersePinFrom?: number; originVersePinTo?: number
-    // Unified reason/note system — ties supersedes the four verse-pin columns above for new
-    // entries (see the v34 migration comment); still accepted alongside them since a caller
-    // may legitimately want both (e.g. the destination pin auto-captured at record time, plus
-    // a user-typed tie added later).
     ties?: string[]
+    // Unified reason/note system (v35) — user_note is the ONLY field the note popover writes
+    // to now for the user's own free-text note; reason_text stays purely the recorder's own
+    // auto-inferred phrase and is never sent here by that popover anymore (still accepted as a
+    // param for any other caller that legitimately wants to set it). ties_from/ties_to replace
+    // the single `ties` list with the two labeled sections the popup now has.
+    userNote?: string; tiesFrom?: string[]; tiesTo?: string[]
   }) => {
     const db = getBereanDb()
     const sets: string[] = []
@@ -399,6 +405,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (update.originVersePinFrom !== undefined) { sets.push('origin_verse_pin_from = ?'); vals.push(update.originVersePinFrom) }
     if (update.originVersePinTo !== undefined) { sets.push('origin_verse_pin_to = ?'); vals.push(update.originVersePinTo) }
     if (update.ties !== undefined) { sets.push('ties = ?'); vals.push(JSON.stringify(update.ties)) }
+    if (update.userNote !== undefined) { sets.push('user_note = ?'); vals.push(update.userNote) }
+    if (update.tiesFrom !== undefined) { sets.push('ties_from = ?'); vals.push(JSON.stringify(update.tiesFrom)) }
+    if (update.tiesTo !== undefined) { sets.push('ties_to = ?'); vals.push(JSON.stringify(update.tiesTo)) }
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
@@ -406,11 +415,11 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   })
 
   // Delete — distinct from "Not now" (dismissPrompt): clears the user's own note content
-  // entirely rather than just marking the prompt as handled. Auto-inferred fields (reason_tags
-  // from the recorder, the verse pins captured automatically at record time) are left alone;
-  // only the user-authored parts are wiped.
+  // entirely (user_note + ties_from/ties_to) rather than just marking the prompt as handled.
+  // Auto-inferred fields (reason_text/reason_tags from the recorder, the legacy verse pins
+  // captured automatically at record time) are left alone — those were never user-authored.
   ipcMain.handle('studyTrail:clearConnectionNote', (_e, connectionId: string) => {
-    prep(getBereanDb(), `UPDATE trail_connections SET reason_text = NULL, ties = NULL WHERE id = ?`).run(connectionId)
+    prep(getBereanDb(), `UPDATE trail_connections SET user_note = NULL, ties_from = NULL, ties_to = NULL WHERE id = ?`).run(connectionId)
     return { success: true }
   })
 

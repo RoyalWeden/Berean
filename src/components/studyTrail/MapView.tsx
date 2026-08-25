@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Copy } from 'lucide-react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -128,6 +128,38 @@ function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedCo
   return out.sort((a, b) => a.createdAt - b.createdAt)
 }
 
+// The connection's OWN user-written note, as its own separate floating bubble (see
+// TrailHoverCard's secondaryContent) — never merged into the auto-detected-facts hover card.
+// Only rendered at all when there's actually something to show (a blank note popover has
+// nothing worth a second bubble for). Its own copy button per direct feedback: "the copy
+// button... should be in the note when the user hovers over the connection... that'll have a
+// copy button" — copying no longer requires opening the editor popover at all.
+function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
+  const replace = useWordReplace()
+  async function copy() {
+    const lines = [conn.userNote?.trim(), ...conn.tiesFrom, ...conn.tiesTo].filter(Boolean) as string[]
+    try { await navigator.clipboard.writeText(lines.join('\n')) } catch { /* clipboard unavailable — no-op */ }
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Your note</span>
+        <button
+          onClick={copy} title="Copy this note"
+          style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+        ><Copy size={11} /></button>
+      </div>
+      {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (conn.tiesFrom.length || conn.tiesTo.length) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
+      {conn.tiesFrom.length > 0 && (
+        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
+      )}
+      {conn.tiesTo.length > 0 && (
+        <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
+      )}
+    </div>
+  )
+}
+
 function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
@@ -192,7 +224,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
 
   return (
     <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
-    <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
+    <TrailHoverCard
+      content={<TrailConnectionHoverContent conn={conn} />}
+      secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
         <span
           ref={registerPoint(`row:${conn.id}`)}

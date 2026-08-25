@@ -69,11 +69,18 @@ export interface TrailConnection {
    *  pin the destination) — see the v30 migration comment in electron/db/berean.ts. */
   originVersePinFrom?: number
   originVersePinTo?: number
-  /** Unified reason/note system (v34) — freely-typed reference strings ("Mark 13:1-5",
-   *  "Ezekiel 33:4") tying this connection to whichever verse(s) actually mattered, however
-   *  many. Supersedes versePinFrom/To + originVersePinFrom/To for NEW entries (those stay
-   *  read for old data) — a connection isn't limited to exactly one verse per side. */
+  /** v34, superseded by tiesFrom/tiesTo below (v35) — kept only so old rows still round-trip;
+   *  no longer written to by anything. */
   ties: string[]
+  /** The user's OWN free-text note (v35) — fully separate from reasonText (the recorder's
+   *  auto-inferred phrase, e.g. "Strong's word · G26"). Always blank until the user actually
+   *  types one; never pre-filled from, or mixed into, the auto-inferred text. */
+  userNote?: string
+  /** Freely-typed reference strings ("Mark 13:1-5") tying this connection to verse(s) in the
+   *  chapter LEFT / the chapter LANDED ON, respectively — two labeled sections in the note
+   *  popup, replacing the single combined `ties` list (v34) for new entries. */
+  tiesFrom: string[]
+  tiesTo: string[]
   weight: ConnectionWeight
   strongsDepth?: StrongsDepth
   clusterId?: string

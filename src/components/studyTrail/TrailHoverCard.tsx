@@ -29,9 +29,20 @@ const SHOW_DELAY_MS = 350
 // mid-transit. Leaving the card itself closes instantly, same as before.
 const CLOSE_GRACE_MS = 120
 
-export default function TrailHoverCard({ content, children, disabled }: { content: ReactNode; children: ReactNode; disabled?: boolean }) {
+export default function TrailHoverCard({ content, children, disabled, secondaryContent }: {
+  content: ReactNode
+  children: ReactNode
+  disabled?: boolean
+  /** A SECOND, separate floating bubble shown beside the regular one — used for a connection's
+   *  own user-written note (TrailNoteHoverBubble in MapView.tsx), which is deliberately its own
+   *  bubble rather than a section tacked onto the auto-detected-facts card: "a second, separate
+   *  hover bubble... like there are two bubbles." Both open/close together, driven by this same
+   *  trigger's hover state. */
+  secondaryContent?: ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left?: number; right?: number } | null>(null)
+  const [secondaryPos, setSecondaryPos] = useState<{ top: number; left: number } | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -44,6 +55,15 @@ export default function TrailHoverCard({ content, children, disabled }: { conten
       const overflowsRight = x + 280 > window.innerWidth
       const top = Math.min(y - 6, window.innerHeight - 140)
       setPos(overflowsRight ? { top, right: window.innerWidth - x + 12 } : { top, left: x + 12 })
+      if (secondaryContent) {
+        // Placed just to the side of the primary card — mirrored to the LEFT when the primary
+        // itself already flipped left to avoid the right edge, otherwise to the right; clamped
+        // so it can't run off the opposite edge either.
+        const secondaryLeft = overflowsRight
+          ? Math.max(12, x - 290 - 12 - 280)
+          : Math.min(x + 12 + 290, window.innerWidth - 290)
+        setSecondaryPos({ top, left: secondaryLeft })
+      }
       setOpen(true)
     }, SHOW_DELAY_MS)
   }
@@ -80,6 +100,20 @@ export default function TrailHoverCard({ content, children, disabled }: { conten
           }}
         >
           {content}
+        </div>,
+        document.body,
+      )}
+      {open && secondaryPos && secondaryContent && createPortal(
+        <div
+          onMouseEnter={cancelClose}
+          onMouseLeave={closeNow}
+          style={{
+            position: 'fixed', top: secondaryPos.top, left: secondaryPos.left, zIndex: 10000,
+            width: 280, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+            borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', padding: '9px 11px',
+          }}
+        >
+          {secondaryContent}
         </div>,
         document.body,
       )}
