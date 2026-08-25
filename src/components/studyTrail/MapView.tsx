@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Pencil, Copy } from 'lucide-react'
-import { bookName } from '@/lib/parseRef'
+import { Pencil, Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown } from 'lucide-react'
+import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
@@ -46,30 +46,32 @@ function bookLabel(bookId: string): string {
 }
 
 function GapConnector({ gapMs }: { gapMs: number | null }) {
-  const height = gapMs == null ? 18 : gapSegmentHeight(gapMs)
-  // The "Nh later" chip used to live here, absolutely positioned near the top of this narrow
-  // column — which put it right on top of THIS node's own title text (the column stretches to
-  // match the reserved gap height, so "near the top" landed at the same y as the row's own
-  // content, not blank space). Per direct feedback ("the text... needs to not be on top of
-  // other text"), the label now renders as its own full-width divider row BETWEEN the two
-  // nodes (see GapDivider below) — this column only reserves the vertical space the gap math
-  // calls for, nothing else.
+  // Only reserves a small fixed connecting stub now — for a gap big enough to show its own
+  // GapDivider row (below), that row owns the rest of the reserved height itself, so the two
+  // don't stack and double the visual gap. For a small gap (no divider shown), this still
+  // grows to gapSegmentHeight, same as before.
+  const showsDivider = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
+  const height = showsDivider ? 18 : gapMs == null ? 18 : gapSegmentHeight(gapMs)
   return <div style={{ flex: 1, width: 2, minHeight: height }} />
 }
 
 // A full-width row between two node blocks for a long gap — guaranteed not to overlap
 // anything (it's its own block-level row in normal flow, not an overlay), and the dashed rule
 // itself is the "break in time" visual cue per direct feedback ("the line at this region
-// either shows like zig zag or is like dots or something to show a break in time").
+// either shows like zig zag or is like dots or something to show a break in time"). Reserves
+// the gap's own full height and centers its label vertically within it — per direct feedback
+// ("the gap label needs to show in the vertical middle of the gap").
 function GapDivider({ gapMs }: { gapMs: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 8px', paddingLeft: 21 }}>
-      <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
-      <span style={{
-        fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
-        letterSpacing: '.02em',
-      }}>{formatGap(gapMs)} later</span>
-      <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), paddingLeft: 21 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+        <span style={{
+          fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
+          letterSpacing: '.02em',
+        }}>{formatGap(gapMs)} later</span>
+        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+      </div>
     </div>
   )
 }
@@ -220,13 +222,16 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             ? `${originLabel(conn.originVersePinFrom)} → ${chapterDestLabel}`
             : chapterDestLabel
   // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
-  // step 6'") — reverted to the plain ↺ prefix; the arrow itself (now curved/subtle, see
-  // TrailConnectorOverlay's arc routing) carries the "this is a return" signal instead of text.
-  const label = conn.isReturn
-    ? `↺ ${baseLabel}`
-    : conn.isSameChapterBranch
-      ? conn.originVersePinFrom != null ? `↳ ${originLabel(conn.originVersePinFrom)} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
-      : baseLabel
+  // step 6'") — the arrow itself (curved/subtle, see TrailConnectorOverlay's routing) carries
+  // the "this is a return" signal, this is just a small icon, not spelled-out text. Uses the
+  // same lucide icons the rest of the app already uses for these concepts (RotateCcw for
+  // revisit/return, GitBranch — literally Study Trail's own sidebar icon, see Ribbon.tsx — for
+  // a branch/tangent) instead of bespoke unicode characters, per direct feedback ("make sure
+  // that all the icons are using the same icons in the rest of the app").
+  const labelIcon: 'return' | 'branch' | null = conn.isReturn ? 'return' : conn.isSameChapterBranch ? 'branch' : null
+  const label = conn.isSameChapterBranch
+    ? conn.originVersePinFrom != null ? `${originLabel(conn.originVersePinFrom)} → v.${conn.toVerse ?? '?'}` : `v.${conn.toVerse ?? '?'}`
+    : baseLabel
   const ref = refFor(conn)
 
   // One flat list for the whole chain, one indent level — see flattenChain above. A very long
@@ -268,11 +273,15 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e) : undefined}
           style={{
             fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
-            cursor: ref ? 'pointer' : undefined,
+            cursor: ref ? 'pointer' : undefined, display: 'inline-flex', alignItems: 'center', gap: 4,
           }}
           onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
-        >{label}</span>
+        >
+          {labelIcon === 'return' && <RotateCcw size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {labelIcon === 'branch' && <GitBranch size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {label}
+        </span>
         {isPromotedChain && (
           <span
             title={`A ${fullChain.length + 1}-hop word-study chain`}
@@ -487,6 +496,7 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
+  isBranchNode, branchDepth, originVerseLabel,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -505,6 +515,17 @@ function NodeBlock({
   /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
    *  separate row — see NodeClusterGroup. */
   bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
+  /** This node was reached via a user-marked tangent/branch connection (not a normal spine
+   *  continuation) — per direct feedback describing the exact expected look: "deuteronomy 32
+   *  is on the main branch then deuteronomy 32:1 goes on the side branch, isaiah 1:2 is the
+   *  next entry on that same side branch." Rendered indented, with a small mini-bullet showing
+   *  the specific verse the branch left FROM stacked right above this node's own title. */
+  isBranchNode?: boolean
+  /** How many branch hops deep (0 = first hop off main) — additional indentation per level, so
+   *  a tangent-off-a-tangent reads as visibly nested further, not just flat. */
+  branchDepth?: number
+  /** "Deuteronomy 32:1" — the specific verse this branch departed FROM, when known. */
+  originVerseLabel?: string
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -532,6 +553,9 @@ function NodeBlock({
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
+  // Indent per branch depth (0 = first hop off main) — a tangent off a tangent nests visibly
+  // further, not just flat, per direct feedback on the tangent-indentation design.
+  const indent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
   return (
     <div
       ref={blockRef}
@@ -540,6 +564,7 @@ function NodeBlock({
       style={{
         opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
         boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+        marginLeft: indent,
       }}
     >
       {boundaryLabel && (
@@ -562,6 +587,18 @@ function NodeBlock({
         }}>
           <span style={{ flexShrink: 0 }}>New topic</span>
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
+        </div>
+      )}
+      {/* The specific verse this branch departed FROM, as its own small stacked bullet right
+          above the destination — exactly the two-bullet look described directly: "deuteronomy
+          32:1 goes on the side branch, isaiah 1:2 is the next entry on that same side branch." */}
+      {isBranchNode && originVerseLabel && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 2 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
+            <span style={{ width: 5, height: 5, background: 'rgb(var(--color-text-muted))', borderRadius: '50%', marginTop: 5, flexShrink: 0, opacity: 0.6 }} />
+            <span style={{ flex: 1, width: 1, minHeight: 8, background: 'rgb(var(--color-surface-4))', marginTop: 2 }} />
+          </div>
+          <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', fontStyle: 'italic' }}>{originVerseLabel}</div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
@@ -629,10 +666,11 @@ function NodeBlock({
                 onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
                 title={`Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
                 style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
                   fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
                   border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', letterSpacing: '.01em',
                 }}
-              >⇄ {bounceBadge.count}x</button>
+              ><ArrowLeftRight size={10} /> {bounceBadge.count}x</button>
             )}
           </div>
         </TrailHoverCard>
@@ -678,9 +716,25 @@ export default function MapView({
   // Open scrolled to the MOST RECENT event by default, not the earliest — per direct feedback
   // ("when opening any of the timeline things, even in everything, it should scroll to the
   // bottom by default"). Same idiom as AiLookupPanel.tsx's chat auto-scroll. Keyed on the node
-  // count so it re-fires once data actually finishes loading (detail starts empty on mount).
+  // count so it re-fires once data actually finishes loading (detail starts empty on mount) —
+  // but ONLY when the user was already at/near the bottom (see isAtBottomRef below); a new node
+  // streaming in via the push update while they've scrolled up to review earlier history must
+  // not yank them back down.
+  const isAtBottomRef = useRef(true)
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false)
+  const NEAR_BOTTOM_PX = 40
+  function checkAtBottom() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
+    isAtBottomRef.current = atBottom
+    setShowScrollToLatest(!atBottom)
+  }
+  function scrollToLatest() {
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
+  }
   useEffect(() => {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+    if (isAtBottomRef.current) scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
   }, [detail.nodes.length])
 
   const [ownZoom, setOwnZoom] = useState(1)
@@ -757,6 +811,8 @@ export default function MapView({
   // between them.
   const nodeByKey = new Map<string, TrailNode>()
   for (const n of detail.nodes) nodeByKey.set(`${n.trailSessionId}:${n.bookId}:${n.chapter}`, n)
+  const nodeById = new Map<string, TrailNode>()
+  for (const n of detail.nodes) nodeById.set(n.id, n)
   const nextNodeById = new Map<string, TrailNode | undefined>()
   detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
   // 1-based chronological position — lets a return row read "back to step 4" in plain text
@@ -1026,7 +1082,7 @@ export default function MapView({
           }}
         />
       </div>
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative' }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
@@ -1062,6 +1118,12 @@ export default function MapView({
           const next = detail.nodes[i + 1]
           const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
           const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
+          const originConn = originConnByNodeId.get(n.id)
+          const isBranchNode = !!originConn?.isBranch
+          const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
+          const originVerseLabel = originConn?.originVersePinFrom != null && originNode
+            ? bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)
+            : undefined
           return (
             <div key={n.id}>
             <NodeBlock
@@ -1072,7 +1134,7 @@ export default function MapView({
               onOpenPrompt={setPromptConn}
               refFor={refFor}
               openMenu={openMenu}
-              originConn={originConnByNodeId.get(n.id)}
+              originConn={originConn}
               registerPoint={registerPoint}
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
@@ -1086,6 +1148,9 @@ export default function MapView({
               blockRef={(el) => { if (el) nodeBlockRefs.current.set(n.id, el); else nodeBlockRefs.current.delete(n.id) }}
               gutterWidth={gutterWidth}
               rowsForConnection={rowsForConnection}
+              isBranchNode={isBranchNode}
+              branchDepth={originConn?.chainDepth}
+              originVerseLabel={originVerseLabel}
             />
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
             </div>
@@ -1112,6 +1177,23 @@ export default function MapView({
             </div>
           </div>
         </div>
+        {/* Outside the zoomed/transformed content div (a sibling, not nested inside it) — a
+            `transform` ancestor would otherwise make itself the containing block for
+            `position: fixed`, anchoring this to the SCALED content instead of the real window.
+            Per direct feedback: "if the user scrolls away from the latest, there should be a
+            button that pops up to scroll back to latest." */}
+        {showScrollToLatest && (
+          <button
+            onClick={scrollToLatest}
+            title="Scroll to latest"
+            style={{
+              position: 'fixed', bottom: 24, right: 24, zIndex: 50,
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
+              border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          ><ArrowDown size={13} /> Latest</button>
+        )}
       </div>
     </div>
     </HoverDisabledContext.Provider>

@@ -247,11 +247,133 @@ export default function StudyTrailApp() {
   // first) regardless of status changes — starting/pausing/ending a session must never
   // reshuffle other rows. Sorting here (rather than trusting IPC order alone) also survives
   // any timing quirk in when `refresh()` resolves relative to a pause/start pair.
+  // Split out the live session (if any) so it can render pinned above the scrolling list —
+  // see the sticky wrapper below. Everything else keeps the existing stable order.
+  const liveSession = sessions.find((s) => s.status === 'live')
   const orderedSessions = [...sessions].sort((a, b) => {
     if (a.status === 'live' && b.status !== 'live') return -1
     if (b.status === 'live' && a.status !== 'live') return 1
     return b.createdAt - a.createdAt
   })
+  const restSessions = liveSession ? orderedSessions.filter((s) => s.id !== liveSession.id) : orderedSessions
+
+  // Extracted so the live session's row can render TWICE-ish — once pinned in the sticky group
+  // above the scrolling list, once as a no-op skip when there isn't one — without duplicating
+  // this whole block. `pinned` only affects the key/wrapper, not the row's own look.
+  function renderSessionRow(s: TrailSession | undefined, pinned: boolean) {
+    if (!s) return null
+    const isHovered = hoveredId === s.id
+    const isXHovered = hoveredDeleteId === s.id
+    return (
+      <div
+        key={pinned ? `pinned:${s.id}` : s.id}
+        onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
+        onMouseEnter={() => setHoveredId(s.id)}
+        onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
+        onContextMenu={(e) => openSessionMenu(e, s.id)}
+        style={{
+          padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
+          // Selected + hover need to layer, not pick one or the other — a selected row
+          // hovered previously looked visually identical to an un-hovered selected row
+          // (no feedback at all). Bump selected's own tint up a notch on hover instead
+          // of falling through to the plain hover shade.
+          background: selectedId === s.id && mainTab === 'map' && !selectMode
+            ? isHovered ? 'rgb(var(--color-accent) / 0.22)' : 'rgb(var(--color-accent) / 0.14)'
+            : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
+        }}
+      >
+        {selectMode && (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(s.id)}
+            onChange={(e) => toggleSelected(e, s.id)}
+            onClick={(e) => e.stopPropagation()}
+            style={{ marginTop: 3, flexShrink: 0 }}
+          />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span
+              className={s.status === 'live' ? 'trail-live-dot' : undefined}
+              style={{
+                width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
+              }}
+            />
+            {renamingId === s.id ? (
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename()
+                  else if (e.key === 'Escape') setRenamingId(null)
+                }}
+                onBlur={commitRename}
+                style={{
+                  flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, background: 'rgb(var(--color-surface-1))',
+                  border: '1px solid rgb(var(--color-accent))', borderRadius: 5, padding: '1px 4px', color: 'rgb(var(--color-text-primary))',
+                }}
+              />
+            ) : (
+              <span
+                onContextMenu={(e) => openSessionMenu(e, s.id)}
+                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >{s.name}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
+            {s.possiblyAccidental && (
+              <button
+                onClick={(e) => dismissAccidental(e, s.id)}
+                title="Empty/accidental session — dismiss without confirming"
+                style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
+              >dismiss</button>
+            )}
+            {s.status === 'ended' && !s.possiblyAccidental && (
+              <button
+                onClick={(e) => resumeEnded(e, s.id)}
+                title="Pick this session back up — pauses whatever's currently active"
+                style={{ fontSize: 9.5, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
+              >▶ resume</button>
+            )}
+          </div>
+        </div>
+        {!selectMode && (
+          confirmDeleteId === s.id ? (
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              <button
+                onClick={(e) => confirmDelete(e, s.id)}
+                style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
+              >Delete</button>
+              <button
+                onClick={cancelDelete}
+                style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
+              >Cancel</button>
+            </div>
+          ) : (isHovered || isXHovered) ? (
+            <button
+              onClick={(e) => requestDelete(e, s.id)}
+              onMouseEnter={() => setHoveredDeleteId(s.id)}
+              onMouseLeave={() => setHoveredDeleteId((h) => h === s.id ? null : h)}
+              title="Delete this session"
+              style={{
+                fontSize: 13, lineHeight: 1, color: isXHovered ? '#e08468' : 'rgb(var(--color-text-muted))',
+                background: isXHovered ? 'rgba(224,132,104,0.14)' : 'transparent', borderRadius: 5,
+                border: 'none', cursor: 'pointer', padding: '1px 5px', flexShrink: 0,
+              }}
+            >×</button>
+          ) : (
+            // Reserves the same width as the × button so rows don't jiggle horizontally
+            // when the hover state toggles it in and out.
+            <span style={{ width: 18, flexShrink: 0 }} />
+          )
+        )}
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -360,6 +482,13 @@ export default function StudyTrailApp() {
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Session rail */}
         <div style={{ width: 220, borderRight: '1px solid rgb(var(--color-surface-4))', padding: 14, overflowY: 'auto', flexShrink: 0 }}>
+          {/* Sticky group — header, new-session control, Everything, and the live session (if
+              any) all stay visible while scrolling a long session list. Per direct feedback:
+              "the new session, everything, and the live session should all be pinned at the
+              top of the session bar so that when scrolling in the sessions they can still be
+              seen." Negative top/margin compensates for this rail's own 14px padding so the
+              sticky group's background reaches the true scroll-container edge with no gap. */}
+          <div style={{ position: 'sticky', top: -14, marginTop: -14, paddingTop: 14, background: 'rgb(var(--color-surface-1))', zIndex: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', flex: 1 }}>
               Sessions
@@ -425,119 +554,9 @@ export default function StudyTrailApp() {
             </div>
             <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
-          {orderedSessions.map((s) => {
-            const isHovered = hoveredId === s.id
-            const isXHovered = hoveredDeleteId === s.id
-            return (
-            <div
-              key={s.id}
-              onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
-              onMouseEnter={() => setHoveredId(s.id)}
-              onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
-              onContextMenu={(e) => openSessionMenu(e, s.id)}
-              style={{
-                padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
-                // Selected + hover need to layer, not pick one or the other — a selected row
-                // hovered previously looked visually identical to an un-hovered selected row
-                // (no feedback at all). Bump selected's own tint up a notch on hover instead
-                // of falling through to the plain hover shade.
-                background: selectedId === s.id && mainTab === 'map' && !selectMode
-                  ? isHovered ? 'rgb(var(--color-accent) / 0.22)' : 'rgb(var(--color-accent) / 0.14)'
-                  : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
-              }}
-            >
-              {selectMode && (
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(s.id)}
-                  onChange={(e) => toggleSelected(e, s.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ marginTop: 3, flexShrink: 0 }}
-                />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span
-                    className={s.status === 'live' ? 'trail-live-dot' : undefined}
-                    style={{
-                      width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                      background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
-                    }}
-                  />
-                  {renamingId === s.id ? (
-                    <input
-                      ref={renameInputRef}
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitRename()
-                        else if (e.key === 'Escape') setRenamingId(null)
-                      }}
-                      onBlur={commitRename}
-                      style={{
-                        flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, background: 'rgb(var(--color-surface-1))',
-                        border: '1px solid rgb(var(--color-accent))', borderRadius: 5, padding: '1px 4px', color: 'rgb(var(--color-text-primary))',
-                      }}
-                    />
-                  ) : (
-                    <span
-                      onContextMenu={(e) => openSessionMenu(e, s.id)}
-                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                    >{s.name}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
-                  {s.possiblyAccidental && (
-                    <button
-                      onClick={(e) => dismissAccidental(e, s.id)}
-                      title="Empty/accidental session — dismiss without confirming"
-                      style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
-                    >dismiss</button>
-                  )}
-                  {s.status === 'ended' && !s.possiblyAccidental && (
-                    <button
-                      onClick={(e) => resumeEnded(e, s.id)}
-                      title="Pick this session back up — pauses whatever's currently active"
-                      style={{ fontSize: 9.5, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
-                    >▶ resume</button>
-                  )}
-                </div>
-              </div>
-              {!selectMode && (
-                confirmDeleteId === s.id ? (
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button
-                      onClick={(e) => confirmDelete(e, s.id)}
-                      style={{ fontSize: 10, fontWeight: 700, color: '#e08468', background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
-                    >Delete</button>
-                    <button
-                      onClick={cancelDelete}
-                      style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
-                    >Cancel</button>
-                  </div>
-                ) : (isHovered || isXHovered) ? (
-                  <button
-                    onClick={(e) => requestDelete(e, s.id)}
-                    onMouseEnter={() => setHoveredDeleteId(s.id)}
-                    onMouseLeave={() => setHoveredDeleteId((h) => h === s.id ? null : h)}
-                    title="Delete this session"
-                    style={{
-                      fontSize: 13, lineHeight: 1, color: isXHovered ? '#e08468' : 'rgb(var(--color-text-muted))',
-                      background: isXHovered ? 'rgba(224,132,104,0.14)' : 'transparent', borderRadius: 5,
-                      border: 'none', cursor: 'pointer', padding: '1px 5px', flexShrink: 0,
-                    }}
-                  >×</button>
-                ) : (
-                  // Reserves the same width as the × button so rows don't jiggle horizontally
-                  // when the hover state toggles it in and out.
-                  <span style={{ width: 18, flexShrink: 0 }} />
-                )
-              )}
-            </div>
-            )
-          })}
+          {renderSessionRow(liveSession, true)}
+          </div>
+          {restSessions.map((s) => renderSessionRow(s, false))}
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
         </div>
 

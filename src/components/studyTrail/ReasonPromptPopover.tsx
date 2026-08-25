@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { GripHorizontal, X, Trash2, Plus, ChevronRight } from 'lucide-react'
+import { GripHorizontal, X, Trash2, Plus, ChevronRight, CornerUpLeft } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
@@ -266,6 +266,15 @@ export default function ReasonPromptPopover({
           style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 10 }}
         />
 
+        {/* When this connection is already part of an active tangent chain, checking the box
+            again isn't a no-op toggle — it (and every further hop while still in branch mode)
+            nests one level deeper automatically, shown here so it's not a mystery why the
+            indentation grows. Per direct feedback on how tangent depth should read. */}
+        {isBranch && connection.chainDepth > 0 && (
+          <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
+            Already {connection.chainDepth} level{connection.chainDepth === 1 ? '' : 's'} deep in this tangent
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
             <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
@@ -275,8 +284,8 @@ export default function ReasonPromptPopover({
             <button
               onClick={backToMain}
               title="Everything after this goes back to the main branch"
-              style={{ fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-            >↩ back to main</button>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+            ><CornerUpLeft size={11} /> back to main</button>
           )}
           {nodeId && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>

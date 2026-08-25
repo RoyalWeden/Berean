@@ -9,6 +9,7 @@ import { create } from 'zustand'
 import type { NavOrigin, NavRecorder } from '@/lib/verseNavigation'
 import { setNavRecorder } from '@/lib/verseNavigation'
 import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
 
 interface StudyTrailState {
   currentTrailSessionId: string | null
@@ -121,18 +122,24 @@ export function tierForOrigin(origin: NavOrigin): ClarityTier {
 // to just these ~15 NavOrigin KINDS — a bespoke phrasing/icon per literal scenario was never
 // actually needed, only per KIND, and every kind already threads its own real reasonText/tags
 // through here. Every case below reads naturally after "via " (see OriginBadgeLine).
-export function reasonForOrigin(origin: NavOrigin): { text?: string; tags: string[] } {
+export function reasonForOrigin(origin: NavOrigin, fromRef?: { bookId: string; chapter: number }): { text?: string; tags: string[] } {
+  // The full "Deuteronomy 32:1" reference when the origin chapter is known (every real call
+  // site now passes fromRef — see commitChapterArrival/the same-chapter branch below), falling
+  // back to the old bare "v.1" only when it isn't (kept so the locked verbatim-text tests below,
+  // which call this with no fromRef, still pass unchanged). Per direct feedback: "this info in
+  // the note... should actually say the book chapter and verse like 'Deuteronomy 32:1'."
+  const fromLabel = (v: number) => fromRef ? bookChapterVerseLabel(fromRef.bookId, fromRef.chapter, v) : `v.${v}`
   switch (origin.kind) {
     case 'cross-ref': {
       // fromVerse — when known (the right panel's specific active verse, not just "some verse
       // in the chapter") — is appended so the origin badge/row reads e.g. "a tske cross-
-      // reference (from Matthew 5:17)" instead of just naming the destination chapter with no
-      // indication of which specific verse on the ORIGIN side actually pointed here. Per
+      // reference (from Deuteronomy 32:1)" instead of just naming the destination chapter with
+      // no indication of which specific verse on the ORIGIN side actually pointed here. Per
       // Michael: "it should indicate that i went from a specific verse in matthew 5 cross ref
       // to isaiah 52 or whatever i clicked." Appended, not prepended/replacing — origin.reason
       // (when present) must still come through verbatim, see the locked unit test below.
       const base = origin.reason ?? `a ${origin.source} cross-reference`
-      const text = origin.fromVerse != null ? `${base} (from v.${origin.fromVerse})` : base
+      const text = origin.fromVerse != null ? `${base} (from ${fromLabel(origin.fromVerse)})` : base
       return { text, tags: [`cross-ref:${origin.source}`] }
     }
     case 'lexicon-occurrence': return { text: `Strong's ${origin.strongsNum} occurrence`, tags: ['lexicon'] }
@@ -141,7 +148,7 @@ export function reasonForOrigin(origin: NavOrigin): { text?: string; tags: strin
     // next to a question mark already reading as a question. fromVerse (a nested cross-ref
     // result) appends the same way cross-ref's does — see the locked verbatim-question test
     // below, which has no fromVerse and must stay untouched.
-    case 'ai-lookup': return { text: origin.fromVerse != null ? `${origin.question} (from v.${origin.fromVerse})` : origin.question, tags: ['ai-lookup'] }
+    case 'ai-lookup': return { text: origin.fromVerse != null ? `${origin.question} (from ${fromLabel(origin.fromVerse)})` : origin.question, tags: ['ai-lookup'] }
     case 'search-result': return { text: `a search for "${origin.query}"`, tags: ['search'] }
     case 'note-wikilink': return { text: `a link in note "${origin.noteTitle}"`, tags: ['note'] }
     // No pre-filled text on purpose — book-chapter-picker is the one genuinely ambiguous tier-3
@@ -545,7 +552,8 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
 
   const trailSessionId = s.currentTrailSessionId
   const prevNodeId = s.currentAnchorNodeId
-  const { text, tags } = reasonForOrigin(origin)
+  const fromRef = s.currentAnchorBookId && s.currentAnchorChapter != null ? { bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter } : undefined
+  const { text, tags } = reasonForOrigin(origin, fromRef)
   const tier = tierForOrigin(origin)
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] chapter arrival dwell elapsed — recording', { trailSessionId, prevNodeId, to, tier, text, tags, originKind: origin.kind })
@@ -744,7 +752,8 @@ export function installStudyTrailRecorder(): void {
       const count = s.currentAnchorVerseCount + 1
       useStudyTrailStore.setState({ currentAnchorVerseCount: count })
       if (SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)) {
-        const { text, tags } = reasonForOrigin(origin)
+        const fromRef = s.currentAnchorBookId && s.currentAnchorChapter != null ? { bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter } : undefined
+        const { text, tags } = reasonForOrigin(origin, fromRef)
         const chained = s.currentBranchTipConnectionId != null
         // A same-chapter cross-ref is exactly as much "off on a tangent" as one that lands on a
         // different chapter — same isBranch/currentlyInBranch treatment as the different-

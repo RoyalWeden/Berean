@@ -51,7 +51,6 @@ function OriginLine({ conn }: { conn: TrailConnection }) {
 }
 
 export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
-  const [verseText, setVerseText] = useState<string | null>(null)
   const replace = useWordReplace()
   // A dedicated-translation book (Enoch, Jubilees, etc.) only ever lives in ITS OWN db, never
   // 'kjva' (the default queryVerse falls back to when no textId is passed) — that mismatch was
@@ -60,11 +59,11 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
   // node.translation; for a canon book, fall back to what was actually recorded at arrival
   // (node.translation, v32) — the user's own KJV-vs-LXX choice, not derivable from bookId alone.
   const effectiveTranslation = getTranslationForBook(node.bookId) ?? node.translation
-  useEffect(() => {
-    let cancelled = false
-    window.bible.queryVerse(node.bookId, node.chapter, 1, effectiveTranslation ?? undefined).then((v) => { if (!cancelled) setVerseText(v?.text ?? null) }).catch(() => {})
-    return () => { cancelled = true }
-  }, [node.bookId, node.chapter, effectiveTranslation])
+  // No verse-1 preview here anymore — per direct feedback ("dont show the preview of the
+  // chapter when it is the main bullet because those are entire chapters, only show the
+  // preview of the verses for the bullets that are specific verses or verse ranges"), a whole-
+  // chapter node's hover shouldn't imply "verse 1 represents this chapter." Verse-specific
+  // previews still show on connection rows/branch bullets — see TrailConnectionHoverContent.
 
   const duration = (node.anchorEndedAt ?? Date.now()) - node.anchorStartedAt
 
@@ -89,13 +88,8 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
       </div>
       {originConn && <div style={dividerStyle} />}
       {originConn && <OriginLine conn={originConn} />}
-      {(verseText || node.cachedSubnote) && <div style={dividerStyle} />}
-      {verseText && (
-        <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          &ldquo;{replace(verseText)}&rdquo;
-        </div>
-      )}
-      {node.cachedSubnote && <div style={{ ...rowStyle, marginTop: verseText ? 3 : 0 }}>{replace(node.cachedSubnote)}</div>}
+      {node.cachedSubnote && <div style={dividerStyle} />}
+      {node.cachedSubnote && <div style={rowStyle}>{replace(node.cachedSubnote)}</div>}
     </div>
   )
 }
@@ -110,10 +104,13 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
         if (cancelled || !e) return
         setPreview(`${e.lemma} (${e.transliteration}) — ${e.gloss}`)
       }).catch(() => {})
-    } else if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null) {
-      // Same non-canon-book gap as TrailNodeHoverContent above — a dedicated-translation
+    } else if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null && conn.toVerse != null) {
+      // Only when this row actually targets a SPECIFIC verse (or range) — per direct feedback,
+      // a bare chapter destination has no one verse that represents it, so no preview is shown
+      // at all for those (see TrailNodeHoverContent, which dropped its own verse-1 preview for
+      // the same reason). Same non-canon-book gap as there — a dedicated-translation
       // destination silently returned no preview with queryVerse defaulting to 'kjva'.
-      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse ?? conn.versePinFrom ?? 1, getTranslationForBook(conn.toBookId) ?? undefined)
+      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse, getTranslationForBook(conn.toBookId) ?? undefined)
         .then((v) => { if (!cancelled) setPreview(v?.text ?? null) }).catch(() => {})
     }
     return () => { cancelled = true }

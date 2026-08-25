@@ -167,54 +167,36 @@ export default function TrailConnectorOverlay({
         const rawA = coords.get(e.from), rawB = coords.get(e.to)
         if (!rawA || !rawB) return null
         const startGap = radiusFor(e.from) + ENDPOINT_GAP
-        const endGap = radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP)
+        // A laned+arrowed edge (a branch's return arrow) needs more clearance than that — per
+        // direct feedback ("i cant even see the arrow pointing back to the bullet"), the old
+        // gap left the arrowhead's own 7-unit length overlapping the dot itself instead of
+        // reading as a distinct triangle pointing at it.
+        const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 9 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
 
         let d: string
         if (e.lane != null) {
-          // Laned (gutter) routing: a vertical run confined to this lane's column, jogging
-          // horizontally only right at each end — never crosses through intervening content
-          // regardless of how far apart the two points are. The two jog corners are true
-          // quarter-circle arcs (Q command), not hard L-to-L corners — per direct feedback
-          // ("i also hate the boxing looking arrow... this whole line and arrow thing needs to
-          // be curved"), strokeLinejoin:"round" alone only bevels a corner's visual join, it
-          // doesn't actually curve the path's geometry the way these arcs do.
+          // ONE continuous bezier now — not a line+arc+line+arc+line chain. Per direct
+          // feedback ("the entire curve should actually be one continuous curve... it should
+          // be just round and not go straight and then go to the right"), any hard segment
+          // boundary read as a kink no matter how rounded each individual corner was. A single
+          // cubic bezier whose control points sit near the shared lane (so multiple laned
+          // edges still visually separate, same as before) but are offset heavily in Y relative
+          // to their own endpoint gives an exit/entry tangent that's still close to vertical
+          // (pointing down out of the bullet, down into the target) while smoothly bowing
+          // through the lane in between — genuinely one curve, no straight run.
           const gutter = coords.get('gutter:x')
           const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          // Text clearance: the old routing jogged out to the lane at the DOT's exact y —
-          // since a row's text sits right at that same height and stretches across nearly the
-          // whole row width, that jog drew straight across it. Dipping vertically first (still
-          // near the dot's own x, i.e. left of where any text starts) into the blank padding a
-          // node's own row reserves below its text, THEN jogging horizontally at that safe y,
-          // means the horizontal run never shares a y-band with any text at all. Symmetric on
-          // both ends. Clamped so a short span between adjacent rows never dips past the other
-          // endpoint.
-          const vertRun = Math.abs(rawB.y - rawA.y)
-          const V_CLEARANCE = Math.min(16, vertRun / 3 || 16)
-          const dirAtoB = rawB.y >= rawA.y ? 1 : -1
-          const jogYA = rawA.y + dirAtoB * V_CLEARANCE
-          const jogYB = rawB.y - dirAtoB * V_CLEARANCE
-          const signX1 = laneX >= rawA.x ? 1 : -1
-          const signX2 = rawB.x >= laneX ? 1 : -1
-          // A few px OFF the dot's exact x (not straight down through it) — the main spine
-          // arrow between consecutive nodes runs through that exact column, so a dip drawn
-          // precisely there visually overlapped/crossed it. Nudging toward the lane side keeps
-          // this dashed line clear of it while still reading as "right by the dot."
-          const NUDGE = 4
-          const nearA = { x: rawA.x + signX1 * NUDGE, y: jogYA }
-          const nearB = { x: rawB.x + signX2 * NUDGE, y: jogYB }
-          const start = pushOffStart(rawA, nearA, false, startGap)
-          const end = pullBackEnd(nearB, rawB, false, endGap)
-          // Smooth bezier turns (not small-radius arcs, which read as barely-rounded right
-          // angles at this scale — per direct feedback, "still look too square... unnatural")
-          // — each transition curves through a full quarter-turn in one continuous bezier
-          // instead of a line+small-arc+line chain. Clamped so a short span between adjacent
-          // rows can't push the two turns past each other.
-          const BEND = Math.min(18, Math.abs(nearB.y - nearA.y) / 3 || 18)
-          d = `M${start.x},${start.y} L${nearA.x},${nearA.y} `
-            + `C${nearA.x + signX1 * BEND},${nearA.y} ${laneX},${nearA.y + dirAtoB * BEND} ${laneX},${nearA.y + dirAtoB * BEND * 1.4} `
-            + `L${laneX},${nearB.y - dirAtoB * BEND * 1.4} `
-            + `C${laneX},${nearB.y - dirAtoB * BEND} ${nearB.x + signX2 * BEND},${nearB.y} ${nearB.x},${nearB.y} `
-            + `L${end.x},${end.y}`
+          const dir = Math.sign(rawB.y - rawA.y || 1)
+          const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * 30 }, false, startGap)
+          const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * 30 }, rawB, false, endGap)
+          const vertRun = Math.abs(end.y - start.y)
+          const BEND = Math.min(60, Math.max(24, vertRun * 0.4))
+          const reachA = laneX - start.x
+          const reachB = laneX - end.x
+          d = `M${start.x},${start.y} `
+            + `C${start.x + reachA * 0.55},${start.y + dir * BEND} `
+            + `${end.x + reachB * 0.55},${end.y - dir * BEND} `
+            + `${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
