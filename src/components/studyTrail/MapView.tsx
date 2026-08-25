@@ -762,6 +762,18 @@ export default function MapView({
     setHoveredKey(null)
     openMenuRaw(data)
   }
+  // Generalizes the fix above to its actual root cause rather than patching one trigger at a
+  // time — per direct feedback ("some items in the study trail going invisible... seems when i
+  // go to a new scripture"): navigating in the separate MAIN Bible window never fires a
+  // mouseleave in THIS window's DOM at all (it's a different renderer), so hoveredKey stayed
+  // stuck pointing at whatever was hovered before focus moved away, leaving every other edge
+  // dimmed to 15% opacity indefinitely. Clearing on window blur covers that case and any other
+  // way focus can leave this window without the cursor visibly moving off the hovered element.
+  useEffect(() => {
+    const onBlur = () => setHoveredKey(null)
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [])
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
   // whenever an input/textarea has focus (renaming a session, typing in the search box above,
@@ -1068,8 +1080,14 @@ export default function MapView({
 
   return (
     <HoverDisabledContext.Provider value={!!promptConn}>
-    <div style={{ position: 'relative' }}>
-      <div style={{ marginBottom: 10 }}>
+    {/* flex column + minHeight:0 down this whole chain (through the scroll container below) is
+        what actually makes ITS OWN `overflow: auto` the one that scrolls — without a real
+        bounded height, the browser just grows this div to fit its content and an ANCESTOR ends
+        up scrolling instead (see StudyTrailApp.tsx's "Main pane", which previously had its own
+        overflow:auto too), so this component's onScroll/checkAtBottom (and the "Latest" button
+        it drives) never fired in practice. */}
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <div style={{ marginBottom: 10, flexShrink: 0 }}>
         <input
           ref={searchInputRef}
           value={searchQuery}
@@ -1082,7 +1100,7 @@ export default function MapView({
           }}
         />
       </div>
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative' }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
@@ -1116,10 +1134,16 @@ export default function MapView({
           }
           const { node: n, index: i } = item
           const next = detail.nodes[i + 1]
-          const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
-          const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
           const originConn = originConnByNodeId.get(n.id)
           const isBranchNode = !!originConn?.isBranch
+          const nextIsBranchNode = next ? !!originConnByNodeId.get(next.id)?.isBranch : false
+          const rawGapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
+          // A branch's own bullets (either side of this gap) never get the real-elapsed-time
+          // gap treatment — per direct feedback ("a little gap is okay but it should be pretty
+          // tight still"), a branch stays tight/close to the bullet it came from regardless of
+          // how much real time passed; only MAIN-spine chapter-to-chapter gaps scale with time.
+          const gapToNextMs = (isBranchNode || nextIsBranchNode) ? null : rawGapToNextMs
+          const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
           const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
           const originVerseLabel = originConn?.originVersePinFrom != null && originNode
             ? bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)

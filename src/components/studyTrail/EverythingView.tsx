@@ -87,15 +87,20 @@ export default function EverythingView({ sessions, zoom, onZoomChange }: {
   }
 
   return (
-    <div>
-      <h2 style={{ margin: '0 0 4px', fontSize: 17 }}>Everything</h2>
-      <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18 }}>
+    // flex column filling the full height handed down by StudyTrailApp's "Main pane" — MapView
+    // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
+    // one that actually scrolls (see MapView.tsx's own comment on this).
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 17, flexShrink: 0 }}>Everything</h2>
+      <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18, flexShrink: 0 }}>
         {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
       </div>
       {mergedNodes.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
-        <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} />
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} />
+        </div>
       )}
     </div>
   )

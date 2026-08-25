@@ -58,16 +58,16 @@ describe('getWordWindow', () => {
   })
 
   it('includes 3 words before the match in the window', () => {
-    const words = Array.from({ length: 30 }, (_, i) => `w${i}`)
+    const words = Array.from({ length: 30 }, (_, i) => `longword${i}`)
     const text = words.join(' ')
     const result = getWordWindow(text, [15])!
-    // Window starts at 15 - 3 = 12, so w12, w13, w14, w15 should appear
-    expect(result.windowText).toContain('w12')
-    expect(result.windowText).toContain('w15')
+    // Window starts at 15 - 3 = 12, so word12, word15 should appear
+    expect(result.windowText).toContain('longword12')
+    expect(result.windowText).toContain('longword15')
   })
 
   it('adjusts window match indices relative to the window', () => {
-    const words = Array.from({ length: 30 }, (_, i) => `w${i}`)
+    const words = Array.from({ length: 30 }, (_, i) => `longword${i}`)
     const text = words.join(' ')
     // match at word 15; window starts at 12; hasPrefix=true (offset=1)
     // relIdx = 15 - 12 + 1 = 4
@@ -76,7 +76,7 @@ describe('getWordWindow', () => {
   })
 
   it('handles multiple match indices, filtering those inside the window', () => {
-    const words = Array.from({ length: 50 }, (_, i) => `w${i}`)
+    const words = Array.from({ length: 50 }, (_, i) => `longword${i}`)
     const text = words.join(' ')
     // matches at 5 (outside window for first match at 20), 20, 25
     const result = getWordWindow(text, [20, 25])!
@@ -84,11 +84,32 @@ describe('getWordWindow', () => {
   })
 
   it('omits suffix ellipsis when window reaches the end', () => {
-    const words = Array.from({ length: 15 }, (_, i) => `w${i}`)
+    // Long enough per-word labels to clear WINDOW_MIN_CHARS (windowing is now gated on the
+    // verse's total length, not just match position — a short verse should never be windowed
+    // at all, see the length-gating tests below).
+    const words = Array.from({ length: 15 }, (_, i) => `extralongword${i}`)
     const text = words.join(' ')
     const result = getWordWindow(text, [12])!
     // windowEnd = min(15, 12-3+14) = 15 = words.length → no suffix
     expect(result.windowText.endsWith('…')).toBe(false)
+  })
+
+  it('returns null (no windowing) when the whole text is short enough to fit a single row, even if the match falls late', () => {
+    // Regression test for "truncates when it doesn't need to" — a short verse whose match
+    // happens to land after word 9 previously still got chopped to a few words.
+    const text = 'O Lord, open thou my lips; and my mouth shall shew forth thy praise.'
+    expect(text.length).toBeLessThan(160)
+    expect(getWordWindow(text, [13])).toBeNull()
+  })
+
+  it('returns null (not a garbage "…"-only slice) when the match index is past the end of the plain-text word count', () => {
+    // Regression test for the "..." bug — a Strong's tag index computed against text_tagged
+    // (which can carry extra markup tokens) landing past the plain-text word array previously
+    // produced windowText === '…' with no real text at all.
+    const words = Array.from({ length: 30 }, (_, i) => `longword${i}`)
+    const text = words.join(' ')
+    expect(getWordWindow(text, [29])).not.toBeNull() // in range — sanity check
+    expect(getWordWindow(text, [45])).toBeNull() // out of range — must not produce a bogus slice
   })
 })
 

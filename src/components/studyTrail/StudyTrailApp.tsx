@@ -578,10 +578,18 @@ export default function StudyTrailApp() {
           )
         })()}
 
-        {/* Main pane */}
-        <div style={{ flex: 1, padding: 20, overflowY: 'auto', minWidth: 0 }}>
+        {/* Main pane — flex column + overflow:hidden (not auto) so THIS div never scrolls
+            itself; MapView's own internal scroll container is the single source of truth for
+            scrolling (see its own comment) — a second, ALSO-scrollable ancestor here meant
+            MapView's onScroll/checkAtBottom (and the "Latest" button it drives) rarely fired,
+            since the browser let this outer div do the scrolling in practice instead. */}
+        <div style={{ flex: 1, padding: 20, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* This div is what actually fills the remaining height and hands MapView a real
+              bounded ancestor to scroll within — see the "Main pane" comment above. ReviewView
+              gets its own overflow:auto here too, now that the outer pane no longer scrolls. */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {mainTab === 'review' ? (
-            <ReviewView sessions={sessions} />
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ReviewView sessions={sessions} /></div>
           ) : selectedId === null ? (
             <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} />
           ) : !detail ? (
@@ -601,6 +609,7 @@ export default function StudyTrailApp() {
                   style={{
                     display: 'block', fontSize: 17, fontWeight: 700, margin: '0 0 4px', background: 'rgb(var(--color-surface-2))',
                     border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
+                    flexShrink: 0,
                   }}
                 />
               ) : (
@@ -608,20 +617,23 @@ export default function StudyTrailApp() {
                   onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
                   onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
                   title="Double-click or right-click to rename"
-                  style={{ margin: '0 0 4px', fontSize: 17, cursor: 'text' }}
+                  style={{ margin: '0 0 4px', fontSize: 17, cursor: 'text', flexShrink: 0 }}
                 >{detail.session.name}</h2>
               )}
-              <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 16, flexShrink: 0 }}>
                 {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
               </div>
-              <MapView
-                detail={detail}
-                onChanged={() => window.studyTrail.getSession(detail.session.id).then((d) => d && setDetail(d))}
-                zoom={zoom}
-                onZoomChange={setZoom}
-              />
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <MapView
+                  detail={detail}
+                  onChanged={() => window.studyTrail.getSession(detail.session.id).then((d) => d && setDetail(d))}
+                  zoom={zoom}
+                  onZoomChange={setZoom}
+                />
+              </div>
             </>
           )}
+          </div>
         </div>
       </div>
     </div>
