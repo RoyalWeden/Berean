@@ -187,7 +187,14 @@ export default function TrailConnectorOverlay({
         return (
           <path
             key={e.key} d={d} stroke={e.color} strokeWidth={e.thick ? 3 : 1.75} fill="none"
-            strokeDasharray={e.dashed ? '4 4' : undefined} strokeLinecap="round" strokeLinejoin="round" opacity={e.opacity ?? 1}
+            strokeDasharray={e.dashed ? '4 4' : undefined}
+            // A round cap adds a small rounded bump extending PAST the path's mathematical
+            // endpoint (half the stroke width) — harmless on its own, but on an arrowed edge
+            // that bump sits right where the marker's flat back edge is supposed to meet the
+            // line, making the join look slightly off/disconnected instead of the line
+            // flowing cleanly into the arrowhead. A flat ("butt") cap terminates exactly at
+            // the endpoint with no extension, so the arrowhead's back sits flush against it.
+            strokeLinecap={e.arrow ? 'butt' : 'round'} strokeLinejoin="round" opacity={e.opacity ?? 1}
             markerEnd={e.arrow ? 'url(#trail-arrow)' : undefined}
           />
         )

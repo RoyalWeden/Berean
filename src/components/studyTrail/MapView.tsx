@@ -71,16 +71,21 @@ export function isLowSignalOrigin(conn: TrailConnection): boolean {
   return conn.reasonTags.some((t) => LOW_SIGNAL_ORIGIN_TAGS.has(t))
 }
 
+// Whether an origin is confident enough to state OUTRIGHT (always-visible line, and — for a
+// forward connection — its own distinct traced branch line) rather than just being available
+// on hover. Tier 1 ("clear") origins are things Berean can name with certainty — a Strong's
+// occurrence click, an AI Lookup suggestion, a TSKe/Classic cross-ref. A search result is only
+// tier 2 ("soft") on purpose: clicking a search hit doesn't necessarily mean THAT specific
+// search caused the study direction the way clicking a specific word lookup does — it's
+// available in the hover card same as everything else, just not asserted as fact inline.
+function isConfidentOrigin(conn: TrailConnection): boolean {
+  return conn.clarityTier === 1 && !isLowSignalOrigin(conn)
+}
+
 function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
-  const color = TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
-      <span>via {originDisplayText(conn)}</span>
-      <span style={{
-        fontSize: 9, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, borderRadius: 999, padding: '0 5px',
-        textTransform: 'uppercase', letterSpacing: '.03em',
-      }}>{conn.clarityTier === 1 ? 'clear' : conn.clarityTier === 2 ? 'soft' : 'ambiguous'}</span>
+    <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
+      via {originDisplayText(conn)}
     </div>
   )
 }
@@ -141,7 +146,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
             v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
           </span>
         )}
-        {conn.reasonText && !isLowSignalOrigin(conn) ? (
+        {conn.reasonText && !isLowSignalOrigin(conn) && !conn.isForwardBranch ? (
           <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {conn.reasonText}</span>
         ) : needsInput ? (
           <button
@@ -240,7 +245,7 @@ function NodeBlock({
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
-  const showOrigin = originConn && !isLowSignalOrigin(originConn)
+  const showOrigin = originConn && isConfidentOrigin(originConn)
   return (
     <div
       ref={blockRef}
@@ -448,7 +453,7 @@ export default function MapView({
       const next = nextNodeById.get(c.fromNodeId)
       const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
       if (isForward) {
-        if (!isLowSignalOrigin(c)) bucket.push({ ...c, isForwardBranch: true })
+        if (isConfidentOrigin(c)) bucket.push({ ...c, isForwardBranch: true })
         continue
       }
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)

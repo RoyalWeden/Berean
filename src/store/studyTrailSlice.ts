@@ -375,12 +375,19 @@ export function installStudyTrailRecorder(): void {
 
     const sameChapter = s.currentAnchorBookId === to.bookId && s.currentAnchorChapter === to.chapter
     if (sameChapter && s.currentAnchorNodeId) {
-      // Still reading the same chapter — update the subnote, no new connection.
+      // Still reading the same chapter — no new connection. The counter keeps incrementing
+      // (it's one of the two revisit-promotion engagement signals, alongside dwell time — see
+      // REVISIT_PROMOTE_VERSE_THRESHOLD below), but it's a count of same-chapter NAVIGATION
+      // EVENTS (clicking a verse number, a cross-ref landing back here, etc.), not verses
+      // actually read — there's no scroll-position tracking behind it, so it was never
+      // honest to display as "read N verses in this chapter" (a plain scroll-through with no
+      // further verse-targeted navigation left it at 0 regardless of how much was actually
+      // read). No cachedSubnote claim is written for this anymore; the real, verifiable
+      // per-visit facts (arrival time, total dwell duration) are still shown via the hover
+      // card, which doesn't need to assert an unverifiable read count.
       const count = s.currentAnchorVerseCount + 1
       useStudyTrailStore.setState({ currentAnchorVerseCount: count })
-      if (window.__bereanTrailDebug) console.log('[TrailDebug] same chapter — updating subnote only, no connection', { nodeId: s.currentAnchorNodeId, count })
-      window.studyTrail.updateNodeSubnote(s.currentAnchorNodeId, `read ${count} verse${count === 1 ? '' : 's'} in this chapter`)
-        .catch((err) => console.error('[TrailDebug] updateNodeSubnote FAILED', err))
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] same chapter — counted toward engagement only, no subnote/connection', { nodeId: s.currentAnchorNodeId, count })
       return
     }
 
