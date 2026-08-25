@@ -9,6 +9,18 @@ import EverythingView from './EverythingView'
 
 type MainTab = 'map' | 'review'
 
+function fmtLastUsed(ms: number): string {
+  const diff = Date.now() - ms
+  const min = diff / 60_000
+  if (min < 1) return 'just now'
+  if (min < 60) return `${Math.round(min)}m ago`
+  const hr = min / 60
+  if (hr < 24) return `${Math.round(hr)}h ago`
+  const d = new Date(ms)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 // The Study Trail window's React root. Session rail + a Map (default) / Review toggle in the
 // title bar, mirroring the plan's Phase 2 layout. Live-refresh is a 2s poll while a session is
 // selected — no push channel yet (see the plan's "studyTrail:newEvent" — deferred), so this
@@ -27,6 +39,16 @@ export default function StudyTrailApp() {
   const endTrailSession = useStudyTrailStore((s) => s.endTrailSession)
   const deleteTrailSession = useStudyTrailStore((s) => s.deleteTrailSession)
   const deleteTrailSessions = useStudyTrailStore((s) => s.deleteTrailSessions)
+  const activateExistingSession = useStudyTrailStore((s) => s.activateExistingSession)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null)
+  // Auto-select whatever session is actually live/paused the FIRST time we learn about it —
+  // otherwise reopening the window always lands on "Everything" by default, which looked
+  // exactly like "nothing got tracked while the window was closed" even though every
+  // navigation was recorded correctly in the DB the whole time. Only fires once (the ref
+  // guard) so deliberately switching to Everything later while a session stays live isn't
+  // fought by this on every store update.
+  const autoSelectedRef = useRef(false)
 
   // Delete/clear UI — three modes, per how Michael asked for this: (1) a per-row × that needs
   // a second confirming click within a few seconds (no modal — a plain inline "Delete? Yes /
@@ -87,8 +109,17 @@ export default function StudyTrailApp() {
   }, [selectedId, mainTab])
 
   useEffect(() => {
-    window.app.onFocusTrailSession?.((id) => { setSelectedId(id); setMainTab('map') })
+    window.app.onFocusTrailSession?.((id) => { setSelectedId(id); setMainTab('map'); autoSelectedRef.current = true })
   }, [])
+
+  useEffect(() => {
+    if (autoSelectedRef.current) return
+    if (currentTrailSessionId) {
+      autoSelectedRef.current = true
+      setSelectedId(currentTrailSessionId)
+      setMainTab('map')
+    }
+  }, [currentTrailSessionId])
 
   async function handleStart() {
     const name = newName.trim() || 'Untitled study'
@@ -117,6 +148,13 @@ export default function StudyTrailApp() {
     e.stopPropagation()
     if (confirmRevertTimer.current) clearTimeout(confirmRevertTimer.current)
     setConfirmDeleteId(null)
+  }
+  async function resumeEnded(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    await activateExistingSession(id)
+    await refresh()
+    setSelectedId(id)
+    setMainTab('map')
   }
   async function dismissAccidental(e: React.MouseEvent, id: string) {
     e.stopPropagation()
@@ -163,6 +201,16 @@ export default function StudyTrailApp() {
         WebkitAppRegion: 'drag',
       } as React.CSSProperties}>
         <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 10 }}>Study Trail</span>
+        {/* Persistent paused indicator — visible regardless of which session is being VIEWED,
+            since this reflects whether the ACTIVE (recording) session is paused, which is
+            easy to lose track of once you've clicked away from it. */}
+        {currentTrailSessionId && trailSessionStatus === 'paused' && (
+          <span style={{
+            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: '#e08468',
+            background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 999,
+            padding: '2px 8px', marginRight: 10, WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}>⏸ Study Trail paused</span>
+        )}
         <div style={{ display: 'flex', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, overflow: 'hidden', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {(['map', 'review'] as const).map((t) => (
             <button
@@ -241,24 +289,30 @@ export default function StudyTrailApp() {
           <div
             onClick={() => { setSelectedId(null); setMainTab('map') }}
             style={{
-              padding: '9px 10px', borderRadius: 9, cursor: 'pointer', marginBottom: 6,
+              padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
               background: selectedId === null && mainTab === 'map' ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
               border: '1px dashed rgb(var(--color-surface-4))',
             }}
           >
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: selectedId === null ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: selectedId === null ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))' }}>
               Everything
             </div>
-            <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
+            <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
-          {sessions.map((s) => (
+          {sessions.map((s) => {
+            const isHovered = hoveredId === s.id
+            const isXHovered = hoveredDeleteId === s.id
+            return (
             <div
               key={s.id}
-              className="group"
               onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
+              onMouseEnter={() => setHoveredId(s.id)}
+              onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
               style={{
-                padding: '9px 10px', borderRadius: 9, cursor: 'pointer', marginBottom: 2, display: 'flex', alignItems: 'flex-start', gap: 7,
-                background: selectedId === s.id && mainTab === 'map' && !selectMode ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+                padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
+                background: selectedId === s.id && mainTab === 'map' && !selectMode
+                  ? 'rgb(var(--color-accent) / 0.14)'
+                  : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
               }}
             >
               {selectMode && (
@@ -271,21 +325,28 @@ export default function StudyTrailApp() {
                 />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{
                     width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
                     background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
                   }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                 </div>
-                <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{s.status}</span>
+                <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
                   {s.possiblyAccidental && (
                     <button
                       onClick={(e) => dismissAccidental(e, s.id)}
                       title="Empty/accidental session — dismiss without confirming"
                       style={{ fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
                     >dismiss</button>
+                  )}
+                  {s.status === 'ended' && !s.possiblyAccidental && (
+                    <button
+                      onClick={(e) => resumeEnded(e, s.id)}
+                      title="Pick this session back up — pauses whatever's currently active"
+                      style={{ fontSize: 9.5, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}
+                    >▶ resume</button>
                   )}
                 </div>
               </div>
@@ -301,16 +362,27 @@ export default function StudyTrailApp() {
                       style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
                     >Cancel</button>
                   </div>
-                ) : (
+                ) : (isHovered || isXHovered) ? (
                   <button
                     onClick={(e) => requestDelete(e, s.id)}
+                    onMouseEnter={() => setHoveredDeleteId(s.id)}
+                    onMouseLeave={() => setHoveredDeleteId((h) => h === s.id ? null : h)}
                     title="Delete this session"
-                    style={{ fontSize: 13, lineHeight: 1, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                    style={{
+                      fontSize: 13, lineHeight: 1, color: isXHovered ? '#e08468' : 'rgb(var(--color-text-muted))',
+                      background: isXHovered ? 'rgba(224,132,104,0.14)' : 'transparent', borderRadius: 5,
+                      border: 'none', cursor: 'pointer', padding: '1px 5px', flexShrink: 0,
+                    }}
                   >×</button>
+                ) : (
+                  // Reserves the same width as the × button so rows don't jiggle horizontally
+                  // when the hover state toggles it in and out.
+                  <span style={{ width: 18, flexShrink: 0 }} />
                 )
               )}
             </div>
-          ))}
+            )
+          })}
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
         </div>
 

@@ -47,6 +47,24 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   )
 }
 
+// Always-visible "how did I get here" line above a node — NOT hover-only. Landing on a
+// chapter via a Strong's occurrence (or any other tangent) previously showed nothing at all
+// about where it came from unless you happened to hover the right thing; this makes the
+// origin part of the node's normal, always-on display.
+function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
+  const color = TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 2 }}>
+      <span>via {conn.reasonText || conn.reasonTags.join(', ') || 'navigation'}</span>
+      <span style={{
+        fontSize: 9, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, borderRadius: 999, padding: '0 5px',
+        textTransform: 'uppercase', letterSpacing: '.03em',
+      }}>{conn.clarityTier === 1 ? 'clear' : conn.clarityTier === 2 ? 'soft' : 'ambiguous'}</span>
+    </div>
+  )
+}
+
 function LineSwatch({ weight, tier, clustered }: { weight: string; tier: number; clustered: boolean }) {
   const color = TIER_COLOR[tier] ?? 'rgb(var(--color-text-muted))'
   return (
@@ -181,12 +199,13 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 }
 
 function NodeBlock({
-  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu,
+  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
   openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  originConn?: TrailConnection
 }) {
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
@@ -197,11 +216,12 @@ function NodeBlock({
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
       <div style={{ paddingBottom: 16, flex: 1, minWidth: 0 }}>
-        <TrailHoverCard content={<TrailNodeHoverContent node={node} />}>
+        {originConn && <OriginBadgeLine conn={originConn} />}
+        <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
             onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e)}
-            style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer', display: 'inline-block' }}
+            style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
           >
             {bookLabel(node.bookId)} {node.chapter}
           </div>
@@ -229,6 +249,17 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
   for (const n of detail.nodes) nodeByKey.set(`${n.bookId}:${n.chapter}`, n)
   const nextNodeById = new Map<string, TrailNode | undefined>()
   detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
+
+  // The EARLIEST connection that ever led to a given chapter — its "origin story," shown
+  // above the node always (OriginBadgeLine) and in its hover card, regardless of how many
+  // times the chapter's been revisited since. The very first node of the session has none
+  // (nothing led to it — it's where the session started).
+  const originConnByNodeId = new Map<string, TrailConnection>()
+  for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
+    if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) continue
+    const target = nodeByKey.get(`${c.toBookId}:${c.toChapter}`)
+    if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
+  }
 
   function refFor(conn: TrailConnection): TrailRef | null {
     if (conn.toKind === 'lexicon' && conn.toStrongsNum) return { kind: 'lexicon', strongsNum: conn.toStrongsNum }
@@ -283,6 +314,7 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
             onOpenPrompt={setPromptConn}
             refFor={refFor}
             openMenu={openMenu}
+            originConn={originConnByNodeId.get(n.id)}
           />
         )
       })}

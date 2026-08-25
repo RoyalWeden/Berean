@@ -21,8 +21,33 @@ function fmtDuration(ms: number): string {
 
 const rowStyle: React.CSSProperties = { fontSize: 11, color: 'rgb(var(--color-text-secondary))', lineHeight: 1.5 }
 const dividerStyle: React.CSSProperties = { height: 1, background: 'rgb(var(--color-surface-4))', margin: '6px 0' }
+const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
+const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguous' }
 
-export function TrailNodeHoverContent({ node }: { node: TrailNode }) {
+function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
+  const color = TIER_COLOR[tier]
+  return (
+    <span style={{
+      fontSize: 9.5, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
+      border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, borderRadius: 999, padding: '1px 6px',
+      textTransform: 'uppercase', letterSpacing: '.03em',
+    }}>{TIER_LABEL[tier]}</span>
+  )
+}
+
+// The "how did I get here" line — every node's hover card leads with this when an origin
+// connection is known, since that was the exact gap Michael flagged: landing on a chapter via
+// a Strong's occurrence (or any other tangent) showed nothing at all about where it came from.
+function OriginLine({ conn }: { conn: TrailConnection }) {
+  return (
+    <div style={{ ...rowStyle, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span>via {conn.reasonText || conn.reasonTags.join(', ') || 'navigation'}</span>
+      <ClarityBadge tier={conn.clarityTier} />
+    </div>
+  )
+}
+
+export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
   const [verseText, setVerseText] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -39,6 +64,8 @@ export function TrailNodeHoverContent({ node }: { node: TrailNode }) {
         <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
       </div>
       <div style={{ ...rowStyle, marginTop: 2 }}>{fmtDuration(duration)} on this chapter</div>
+      {originConn && <div style={dividerStyle} />}
+      {originConn && <OriginLine conn={originConn} />}
       {(verseText || node.cachedSubnote) && <div style={dividerStyle} />}
       {verseText && (
         <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -66,7 +93,6 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
     return () => { cancelled = true }
   }, [conn.toKind, conn.toStrongsNum, conn.toBookId, conn.toChapter, conn.toVerse, conn.versePinFrom])
 
-  const clarityLabel = conn.clarityTier === 1 ? 'clear' : conn.clarityTier === 2 ? 'soft' : 'ambiguous'
   const label = conn.toKind === 'lexicon' ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare' ? `compare · ${bookName(conn.toBookId ?? '')} ${conn.toChapter}`
     : conn.toKind === 'note' ? 'note' : conn.toKind === 'video' ? 'video'
@@ -75,8 +101,9 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
   return (
     <div>
       <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
-      <div style={{ ...rowStyle, marginTop: 2 }}>
-        {clarityLabel} · {fmtClock(conn.createdAt)}{conn.weight === 'glance' ? ' · glance' : ''}
+      <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <ClarityBadge tier={conn.clarityTier} />
+        <span>{fmtClock(conn.createdAt)}{conn.weight === 'glance' ? ' · glance' : ''}</span>
       </div>
       {preview && (
         <>

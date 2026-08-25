@@ -35,6 +35,11 @@ interface StudyTrailState {
   endTrailSession: () => Promise<void>
   deleteTrailSession: (trailSessionId: string) => Promise<void>
   deleteTrailSessions: (trailSessionIds: string[]) => Promise<void>
+  /** Makes an EXISTING session (e.g. a previously-ended one the user wants to pick back up)
+   *  the active one — pausing whatever was active first, so two sessions are never live at
+   *  once. Restores sessionNodeIndex and the still-open anchor (if any) so recording resumes
+   *  correctly rather than starting the reopened session with no memory of its own nodes. */
+  activateExistingSession: (trailSessionId: string) => Promise<void>
 }
 
 /** cross-ref/search/etc. → clarity tier, per the plan's clarity-tier rules. Kept here (not on
@@ -81,6 +86,12 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
 
   startTrailSession: async (name: string) => {
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startTrailSession() called', { name })
+    // Never leave a previous session dangling with status='live' forever while a new one
+    // starts recording — two sessions being "active" at once was possible before this (the
+    // old row just sat orphaned in the DB, still showing a green "live" dot in the rail even
+    // though nothing was recording to it anymore).
+    const prevId = get().currentTrailSessionId
+    if (prevId) await window.studyTrail.pauseSession(prevId).catch(() => {})
     const session = await window.studyTrail.startSession(name)
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startSession IPC resolved', session)
     set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, sessionNodeIndex: {} })
@@ -137,6 +148,21 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
+  activateExistingSession: async (trailSessionId: string) => {
+    const prevId = get().currentTrailSessionId
+    if (prevId && prevId !== trailSessionId) await window.studyTrail.pauseSession(prevId).catch(() => {})
+    await window.studyTrail.resumeSession(trailSessionId)
+    const detail = await window.studyTrail.getSession(trailSessionId).catch(() => null)
+    const sessionNodeIndex: Record<string, string> = {}
+    if (detail) for (const n of detail.nodes) sessionNodeIndex[`${n.bookId}:${n.chapter}`] = n.id
+    const openNode = detail?.nodes.find((n) => n.anchorEndedAt == null)
+    set({
+      currentTrailSessionId: trailSessionId, trailSessionStatus: 'live', sessionNodeIndex,
+      currentAnchorNodeId: openNode?.id ?? null, currentAnchorBookId: openNode?.bookId ?? null,
+      currentAnchorChapter: openNode?.chapter ?? null, currentAnchorVerseCount: 0,
+    })
+    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: trailSessionId, trailSessionStatus: 'live' })
+  },
 }))
 
 /**
@@ -175,6 +201,23 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
   })
     .then((conn) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (lexicon) SUCCEEDED', conn) })
     .catch((err) => console.error('[TrailDebug] addConnection (lexicon) FAILED — this was previously silently swallowed', err))
+}
+
+/**
+ * Notes a translation switch (KJV → LXX, etc.) on the CURRENT anchor node — the plain
+ * translation picker in BiblePanel.tsx changes `updateTabState('scripture', ..., {translation})`
+ * directly, without going through navigateToVerse/the NavOrigin recorder at all (there's no
+ * chapter change to record), so it was previously invisible to Study Trail entirely: "switched
+ * from KJV to LXX and it didn't detect that." Appends to the node's cachedSubnote rather than
+ * a new connection row — a translation switch isn't a navigational tangent, just a detail
+ * about how this chapter was being read.
+ */
+export function recordTranslationSwitch(newTranslation: string): void {
+  const s = useStudyTrailStore.getState()
+  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live' || !s.currentAnchorNodeId) return
+  const label = newTranslation.toUpperCase()
+  window.studyTrail.updateNodeSubnote(s.currentAnchorNodeId, `switched to ${label}`)
+    .catch((err) => console.error('[TrailDebug] recordTranslationSwitch FAILED', err))
 }
 
 /**

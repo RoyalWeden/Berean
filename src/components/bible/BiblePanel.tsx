@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
-import { recordLexiconConnection } from '@/store/studyTrailSlice'
+import { recordLexiconConnection, recordTranslationSwitch } from '@/store/studyTrailSlice'
 import { recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
 import ChapterView from './ChapterView'
 import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
@@ -818,6 +818,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // current book if the target has it, otherwise navigates to the target's first book.
   function selectPickerTranslation(tid: string) {
     if (!activeTab) return
+    recordTranslationSwitch(tid)
     // Capture the currently top-visible verse before ANY edition switch below (same
     // mechanism the Strong's toggle uses — see captureStrongsAnchor's comment) so the
     // translation change can restore roughly the same reading position instead of always

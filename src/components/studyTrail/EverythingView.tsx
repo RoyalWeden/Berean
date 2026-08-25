@@ -104,7 +104,7 @@ function SessionBlock({ detail, onOpenPrompt, openMenu }: {
               <div
                 onClick={(e) => trailRefClick({ kind: 'chapter', bookId: n.bookId, chapter: n.chapter }, e)}
                 onContextMenu={(e) => openTrailRefMenu(openMenu, { kind: 'chapter', bookId: n.bookId, chapter: n.chapter }, e)}
-                style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer', display: 'inline-block' }}
+                style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
               >
                 {bookName(n.bookId)} {n.chapter}
               </div>

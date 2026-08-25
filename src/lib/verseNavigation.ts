@@ -88,7 +88,11 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   if (typeof window !== 'undefined' && window.__bereanTrailDebug) {
     console.log('[TrailDebug] navigateToVerse fired', { origin, to: { bookId, chapter, verse }, recorderInstalled: !!navRecorder })
   }
-  navRecorder?.({ bookId: cur?.bookId, chapter: cur?.chapter, verse: cur?.targetVerse }, { bookId, chapter, verse }, origin)
+  navRecorder?.(
+    { bookId: cur?.bookId, chapter: cur?.chapter, verse: cur?.targetVerse, translation: currentTranslation },
+    { bookId, chapter, verse, translation: newTranslation ?? currentTranslation },
+    origin,
+  )
 }
 
 /**
@@ -111,8 +115,8 @@ export function recordNavigation(
 }
 
 type NavRecorder = (
-  from: { bookId?: string; chapter?: number; verse?: number },
-  to: { bookId: string; chapter: number; verse?: number },
+  from: { bookId?: string; chapter?: number; verse?: number; translation?: string },
+  to: { bookId: string; chapter: number; verse?: number; translation?: string },
   origin: NavOrigin,
 ) => void
 
