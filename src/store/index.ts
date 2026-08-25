@@ -2632,3 +2632,36 @@ export const useAppStore = create<AppState>()(
     }
   )
 )
+
+// Cross-window LIVE settings sync. Two windows (main + Study Trail) each hold their own
+// independent useAppStore instance, both persisted to the SAME 'berean-app-state' localStorage
+// key — but persist's rehydration only ever runs ONCE, at each window's own mount. Toggling a
+// setting in one already-open window (e.g. the Study Trail window's "Ask why?" title-bar
+// button) writes to localStorage fine, but the OTHER already-open window's in-memory store
+// never re-reads it — it was silently stale until an app restart. Confirmed the actual cause of
+// "i have the toggle on... i still dont see any of the ask why things": the main window (where
+// the arrival prompt is mounted, see StudyTrailArrivalPrompt.tsx) never learned the toggle in
+// the Study Trail window's title bar had been flipped.
+//
+// The native `storage` event fires in every OTHER window when localStorage changes (never the
+// window that made the write) — exactly the missing piece. debouncedLocalStorage.ts still
+// batches the actual disk write up to ~500ms, so this lands with that same small delay, which is
+// fine for a settings toggle. Scoped to an explicit allowlist (not a full-state overwrite) so a
+// tab/UI-state field mid-edit in one window is never clobbered by a stale snapshot from another.
+const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = ['studyTrailAskChapterJumpReason']
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'berean-app-state' || !e.newValue) return
+    try {
+      const parsed = JSON.parse(e.newValue) as { state?: Partial<AppState> }
+      if (!parsed.state) return
+      const patch: Partial<AppState> = {}
+      for (const key of CROSS_WINDOW_SYNCED_KEYS) {
+        if (key in parsed.state) (patch as any)[key] = (parsed.state as any)[key]
+      }
+      if (Object.keys(patch).length > 0) useAppStore.setState(patch)
+    } catch {
+      // Malformed/partial localStorage value mid-write — next change will resync.
+    }
+  })
+}

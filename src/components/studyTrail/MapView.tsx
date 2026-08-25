@@ -84,18 +84,20 @@ function isConfidentOrigin(conn: TrailConnection): boolean {
   return conn.clarityTier === 1 && !isLowSignalOrigin(conn)
 }
 
-// Per the confused-reviewer persona's brief: someone who can't reliably trace an SVG line
-// should never be REQUIRED to — a plain sentence should always be available, even for the
-// less-certain tiers, so an arrow becomes an optional visual confirmation of something the
-// text already said, not the only source of truth. Tier 1 reads as a plain fact ("via ...");
-// tier 2/3 are hedged ("possibly via ...") since Study Trail itself isn't fully sure — hedging
-// honestly, not asserting a guess as fact, is what makes it safe to show these more often.
+// REVERTED — a prior round widened this to tier 2/3 with a "possibly via" hedge, on the theory
+// that a plain sentence should always beat requiring an arrow-trace. Direct feedback overruled
+// that: "idk why it says 'possibly' when it knows i searched for it... also that message
+// shouldn't show outside of the hover thing." The hedge read as Study Trail being unsure a
+// search even HAPPENED (it wasn't — it's 100% sure of that, only softer on whether that
+// specific search was the causally interesting reason), and the always-visible badge itself
+// wasn't wanted for anything below full confidence. Back to tier-1-only, no hedge wording — the
+// wider tier-2/3 "via ..." text (with its ClarityBadge showing the actual tier) still lives in
+// the hover card (TrailHoverContent.tsx's OriginLine), which is exactly "the hover thing."
 function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   const replace = useWordReplace()
-  const hedge = conn.clarityTier === 1 ? '' : 'possibly '
   return (
     <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
-      {hedge}via {replace(originDisplayText(conn))}
+      via {replace(originDisplayText(conn))}
     </div>
   )
 }
@@ -372,11 +374,9 @@ function NodeBlock({
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
-  // Shown for every tier now except the genuinely low-signal ones (tab-switch, plain reading)
-  // — isConfidentOrigin still separately gates whether a forward connection ALSO earns its own
-  // traced branch line (see rowsForNode below), so this widening doesn't reintroduce the
-  // duplicate-line clutter that gate was built to prevent; it only widens the plain-text badge.
-  const showOrigin = originConn && !isLowSignalOrigin(originConn)
+  // Tier-1 ("clear") only — reverted from a wider tier-2/3 experiment per direct feedback, see
+  // OriginBadgeLine's comment. A tier-2/3 origin's "via ..." text still lives in the hover card.
+  const showOrigin = originConn && isConfidentOrigin(originConn)
   return (
     <div
       ref={blockRef}

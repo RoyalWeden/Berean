@@ -2264,7 +2264,17 @@ export default function BibleRightPanel({
                     ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
                   })
                   setActiveSpace('scripture')
-                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'cross-ref', source: 'notes' })
+                  // This shared "open in new/floating tab" context menu is reachable from FOUR
+                  // different row types — TSKe, Classic, and notes cross-refs, AND lexicon
+                  // occurrence rows (see _onVerseCtxMenu's 4 wiring points above) — so hardcoding
+                  // `{kind:'cross-ref', source:'notes'}` here was flatly wrong for 3 of those 4,
+                  // always showing the generic "via a notes cross-reference" fallback text no
+                  // matter which row was actually right-clicked. Confirmed bug: "cross ref
+                  // tracking does not work at all... shows just the typical thing of via notes
+                  // cross ref" — a right-click on ANY of these rows always produced this same
+                  // wrong label. 'other' is the honest classification here since which row type
+                  // triggered it isn't threaded through this shared menu at all.
+                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'other', label: 'opened via right-click menu' })
                 }}
               >
                 <ExternalLink size={12} />
@@ -2277,7 +2287,9 @@ export default function BibleRightPanel({
                   const { bookId: bId, chapter: ch, verse: vs } = sideCtxMenu
                   window.app.openFloatingTab('bible', { bookId: bId, chapter: String(ch), targetVerse: String(vs) })
                   bumpFloatingTabToken()
-                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'cross-ref', source: 'notes' })
+                  // See the "Open in new tab" branch above — same shared 4-row-type context
+                  // menu, same fix.
+                  recordNavigation({}, { bookId: bId, chapter: ch, verse: vs }, { kind: 'other', label: 'opened via right-click menu' })
                 }}
               >
                 <ExternalLink size={12} />
