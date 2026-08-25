@@ -114,10 +114,6 @@ type AnnotatedConn = TrailConnection & {
    *  just a same-chapter cross-ref worth tracing on its own row. See the sameChapter branch in
    *  studyTrailSlice.ts's recorder for how this connection gets created. */
   isSameChapterBranch?: boolean
-  /** 1-based chronological step number of an isReturn row's TARGET node — lets the row say
-   *  "↺ back to step 4" in plain text (confused-reviewer persona: confirming a return should
-   *  never REQUIRE successfully tracing the arrow, just reading two numbers). */
-  returnTargetStep?: number
   /** Branch chaining (v31) — hangs off ANOTHER connection (fromConnectionId set), not directly
    *  off its chapter node; renders nested under its parent row instead of as a sibling. */
   isChainedBranch?: boolean
@@ -178,8 +174,11 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           : conn.originVersePinFrom != null
             ? `v.${conn.originVersePinFrom} → ${chapterDestLabel}`
             : chapterDestLabel
+  // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
+  // step 6'") — reverted to the plain ↺ prefix; the arrow itself (now curved/subtle, see
+  // TrailConnectorOverlay's arc routing) carries the "this is a return" signal instead of text.
   const label = conn.isReturn
-    ? `↺ back to step ${conn.returnTargetStep ?? '?'} — ${baseLabel}`
+    ? `↺ ${baseLabel}`
     : conn.isSameChapterBranch
       ? conn.originVersePinFrom != null ? `↳ v.${conn.originVersePinFrom} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
       : baseLabel
@@ -702,7 +701,7 @@ export default function MapView({
           annotated = { ...annotated, isForwardBranch: true }
         } else {
           const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
-          annotated = { ...annotated, isReturn: !!target, returnTargetStep: target ? nodeOrderIndex.get(target.id)! + 1 : undefined }
+          annotated = { ...annotated, isReturn: !!target }
         }
       }
     }
@@ -752,8 +751,13 @@ export default function MapView({
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       if (target) {
         const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
+        // Deliberately its own quieter visual class, independent of clarity-tier color — per
+        // direct feedback ("curved and slightly transparent... discrete"), a return shouldn't
+        // shout as loud as a fresh forward move. Muted gray, low opacity, thinner than the
+        // 1.75 default, on top of the arc-rounded routing above.
         lanedRaw.push({
-          key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, arrow: true,
+          key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
+          color: 'rgb(var(--color-text-muted))', arrow: true, opacity: 0.45, strokeWidth: 1.25,
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
         })
       }
@@ -788,7 +792,7 @@ export default function MapView({
       const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
       lanedRaw.push({
         key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
-        color: 'rgb(var(--color-text-muted))', dashed: true, opacity: 0.35,
+        color: 'rgb(var(--color-text-muted))', dashed: true, opacity: 0.25, strokeWidth: 1,
         minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
       })
     }

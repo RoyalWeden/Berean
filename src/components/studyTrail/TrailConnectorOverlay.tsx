@@ -32,6 +32,9 @@ export interface TrailEdge {
    *  to be registered (MapView reserves a fixed-width spacer column for this). Takes priority
    *  over `curved` when both are somehow set. */
   lane?: number
+  /** Overrides the thick/1.75 default entirely — for return/revisit-link edges wanting their
+   *  own quieter, thinner-than-normal weight independent of the thick flag. */
+  strokeWidth?: number
 }
 
 // Shared with MapView.tsx, which needs these to size the reserved gutter column — a lane
@@ -169,13 +172,26 @@ export default function TrailConnectorOverlay({
         if (e.lane != null) {
           // Laned (gutter) routing: a vertical run confined to this lane's column, jogging
           // horizontally only right at each end — never crosses through intervening content
-          // regardless of how far apart the two points are. strokeLinejoin="round" below softens
-          // the two corners into a subway-map curve for free, no arc math needed.
+          // regardless of how far apart the two points are. The two jog corners are true
+          // quarter-circle arcs (Q command), not hard L-to-L corners — per direct feedback
+          // ("i also hate the boxing looking arrow... this whole line and arrow thing needs to
+          // be curved"), strokeLinejoin:"round" alone only bevels a corner's visual join, it
+          // doesn't actually curve the path's geometry the way these arcs do.
           const gutter = coords.get('gutter:x')
           const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const start = pushOffStart(rawA, { x: laneX, y: rawA.y }, false, startGap)
           const end = pullBackEnd({ x: laneX, y: rawB.y }, rawB, false, endGap)
-          d = `M${start.x},${start.y} L${laneX},${rawA.y} L${laneX},${rawB.y} L${end.x},${end.y}`
+          const CORNER_R = 7
+          const vertRun = Math.abs(rawB.y - rawA.y)
+          const r = Math.min(CORNER_R, vertRun / 2 || CORNER_R, Math.abs(laneX - start.x) || CORNER_R, Math.abs(end.x - laneX) || CORNER_R)
+          const signX1 = laneX >= start.x ? 1 : -1
+          const signY = rawB.y >= rawA.y ? 1 : -1
+          const signX2 = end.x >= laneX ? 1 : -1
+          const c1a = { x: laneX - signX1 * r, y: rawA.y }
+          const c1b = { x: laneX, y: rawA.y + signY * r }
+          const c2a = { x: laneX, y: rawB.y - signY * r }
+          const c2b = { x: laneX + signX2 * r, y: rawB.y }
+          d = `M${start.x},${start.y} L${c1a.x},${c1a.y} Q${laneX},${rawA.y} ${c1b.x},${c1b.y} L${c2a.x},${c2a.y} Q${laneX},${rawB.y} ${c2b.x},${c2b.y} L${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
@@ -186,7 +202,7 @@ export default function TrailConnectorOverlay({
         }
         return (
           <path
-            key={e.key} d={d} stroke={e.color} strokeWidth={e.thick ? 3 : 1.75} fill="none"
+            key={e.key} d={d} stroke={e.color} strokeWidth={e.strokeWidth ?? (e.thick ? 3 : 1.75)} fill="none"
             strokeDasharray={e.dashed ? '4 4' : undefined}
             // A round cap adds a small rounded bump extending PAST the path's mathematical
             // endpoint (half the stroke width) — harmless on its own, but on an arrowed edge
