@@ -8,7 +8,12 @@
 import { create } from 'zustand'
 import type { NavOrigin } from '@/lib/verseNavigation'
 import { setNavRecorder } from '@/lib/verseNavigation'
-import type { ClarityTier, TrailSessionStatus } from '@/types/studyTrail'
+import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
+// Read lazily (inside function bodies only, never at module-eval time) — index.ts itself
+// imports recordLexiconConnection from this file, so a top-level circular read here would be
+// unsafe; a deferred read of useAppStore.getState() after both modules have finished
+// initializing is fine.
+import { useAppStore } from '@/store'
 
 interface StudyTrailState {
   currentTrailSessionId: string | null
@@ -36,6 +41,18 @@ interface StudyTrailState {
   // point at a PROMOTED node once one exists for that chapter, so a third visit resumes from
   // the most recent position, not the original.
   sessionNodeIndex: Record<string, string>
+
+  // A just-created chapter-to-chapter connection waiting on the opt-in "why did you jump here?"
+  // arrival prompt (Settings → studyTrailAskChapterJumpReason) — set right after the recorder
+  // successfully writes the connection, read by a popover mounted in the main Bible-reader
+  // window (src/App.tsx), per the plan's "auto-prompt in the main window" note. Only ever one
+  // pending at a time; a later arrival replaces rather than queues. Unlike the tier-3 "?"
+  // badge's dismissPrompt (permanent — dismissed_prompt_at is written to the DB), closing this
+  // WITHOUT saving writes nothing at all: it's a one-time nudge for this specific arrival, not
+  // a persistent per-connection state, so a later jump to the same pair of chapters still gets
+  // its own fresh prompt rather than being permanently silenced.
+  pendingArrivalPrompt: TrailConnection | null
+  clearPendingArrivalPrompt: () => void
 
   startTrailSession: (name: string) => Promise<void>
   pauseTrailSession: () => Promise<void>
@@ -107,6 +124,8 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentAnchorVerseCount: 0,
   currentAnchorActivatedAt: null,
   currentAnchorIsRevisit: false,
+  pendingArrivalPrompt: null,
+  clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null }),
   sessionNodeIndex: {},
 
   startTrailSession: async (name: string) => {
@@ -178,7 +197,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (id) await window.studyTrail.endSession(id)
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, pendingArrivalPrompt: null, sessionNodeIndex: {} })
     if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session end', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
   },
@@ -188,14 +207,14 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSession: async (trailSessionId: string) => {
     await window.studyTrail.deleteSession(trailSessionId)
     if (get().currentTrailSessionId === trailSessionId) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, pendingArrivalPrompt: null, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
   deleteTrailSessions: async (trailSessionIds: string[]) => {
     await window.studyTrail.deleteSessions(trailSessionIds)
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, pendingArrivalPrompt: null, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
@@ -334,7 +353,7 @@ export function installStudyTrailStateSync(): void {
               currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: false,
               sessionNodeIndex: { [`${incoming.seedAnchor.bookId}:${incoming.seedAnchor.chapter}`]: incoming.seedAnchor.nodeId },
             }
-          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} }
+          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, pendingArrivalPrompt: null, sessionNodeIndex: {} }
         : {}),
     })
   })
@@ -514,6 +533,13 @@ export function installStudyTrailRecorder(): void {
         clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
       })
       if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
+      // The opt-in "why did you jump here?" arrival prompt — only for jumps Study Trail is
+      // NOT already confident about (tier 2/3: search, tab-switch, manual picker, etc.). A
+      // tier-1 jump (cross-ref, lexicon occurrence, AI Lookup, sequential reading) already has
+      // a known, specific reason recorded automatically — asking again would just be noise.
+      if (tier !== 1 && useAppStore.getState().studyTrailAskChapterJumpReason) {
+        useStudyTrailStore.setState({ pendingArrivalPrompt: conn })
+      }
       // Arm the glance check: if the user bounces straight back to where they came from
       // within the window, this connection gets re-weighted down to a glance.
       if (pendingGlanceCheck) clearTimeout(pendingGlanceCheck.timer)

@@ -809,6 +809,20 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_nodes ADD COLUMN revisit_of_node_id TEXT;`)
       console.log('[berean-db] v29: trail_nodes.revisit_of_node_id (revisit promotion)')
     }
+  },
+  {
+    // Study Trail — origin-side verse pins. verse_pin_from/to (added in v28) only ever pinned
+    // verse(s) on the DESTINATION chapter; the "tie verse(s) to the reason" ask (chapter-jump
+    // reason prompt) also lets the user pin which verse(s) on the chapter they LEFT actually
+    // motivated the jump — e.g. "Gen 3:15 led me to Rev 12:9" pins both ends, not just the
+    // arrival side. Kept as separate columns rather than repurposing verse_pin_from/to so a
+    // connection can carry both without ambiguity about which side each pin belongs to.
+    version: 30,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_from INTEGER;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_to INTEGER;`)
+      console.log('[berean-db] v30: trail_connections.origin_verse_pin_from/to')
+    }
   }
 ]
 

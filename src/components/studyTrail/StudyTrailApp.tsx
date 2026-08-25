@@ -89,6 +89,8 @@ export default function StudyTrailApp() {
   const backgroundAnimationEnabled = useAppStore((s) => s.backgroundAnimationEnabled)
   const backgroundAnimationStyle = useAppStore((s) => s.backgroundAnimationStyle)
   const backgroundAnimationIntensity = useAppStore((s) => s.backgroundAnimationIntensity)
+  const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
+  const setAskChapterJumpReason = useAppStore((s) => s.setStudyTrailAskChapterJumpReason)
   const [systemIsDark, setSystemIsDark] = useState(
     () => window.matchMedia('(prefers-color-scheme: dark)').matches
   )
@@ -278,6 +280,25 @@ export default function StudyTrailApp() {
           ))}
         </div>
         <div style={{ flex: 1 }} />
+        {/* Opt-in "ask why I jumped chapters" arrival prompt (StudyTrailArrivalPrompt.tsx,
+            mounted in the main Bible-reader window) — off by default since it's an
+            interruption. Setting lives on the shared useAppStore (see
+            setStudyTrailAskChapterJumpReason), so it's a real persisted preference, not
+            session-local state, and syncs to the main window via the same localStorage
+            persist theme/wordReplacer already rely on. */}
+        <button
+          onClick={() => setAskChapterJumpReason(!askChapterJumpReason)}
+          title="Ask why you jumped chapters — a dismissible prompt appears in the main window on tier-2/3 chapter jumps"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '4px 10px',
+            cursor: 'pointer', borderRadius: 8, WebkitAppRegion: 'no-drag', marginRight: 8,
+            border: `1px solid ${askChapterJumpReason ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
+            background: askChapterJumpReason ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+            color: askChapterJumpReason ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
+          } as React.CSSProperties}
+        >
+          {askChapterJumpReason ? '● ' : '○ '}Ask why?
+        </button>
         {selectedSession && selectedSession.id === currentTrailSessionId && (
           <>
             <button

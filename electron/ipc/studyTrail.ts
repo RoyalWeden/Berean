@@ -35,6 +35,7 @@ interface TrailConnectionRow {
   to_strongs_num: string | null; to_note_id: string | null; to_video_id: string | null
   clarity_tier: number; reason_text: string | null; reason_tags: string | null
   verse_pin_from: number | null; verse_pin_to: number | null
+  origin_verse_pin_from: number | null; origin_verse_pin_to: number | null
   weight: string; strongs_depth: string | null; cluster_id: string | null
   dismissed_prompt_at: number | null; created_at: number
 }
@@ -67,6 +68,7 @@ function rowToConnection(r: TrailConnectionRow) {
     reasonText: r.reason_text ?? undefined,
     reasonTags: r.reason_tags ? JSON.parse(r.reason_tags) : [],
     versePinFrom: r.verse_pin_from ?? undefined, versePinTo: r.verse_pin_to ?? undefined,
+    originVersePinFrom: r.origin_verse_pin_from ?? undefined, originVersePinTo: r.origin_verse_pin_to ?? undefined,
     weight: r.weight as 'full' | 'glance',
     strongsDepth: r.strongs_depth ?? undefined,
     clusterId: r.cluster_id ?? undefined,
@@ -331,6 +333,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('studyTrail:updateConnectionReason', (_e, connectionId: string, update: {
     reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number
+    originVersePinFrom?: number; originVersePinTo?: number
   }) => {
     const db = getBereanDb()
     const sets: string[] = []
@@ -339,6 +342,8 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (update.reasonTags !== undefined) { sets.push('reason_tags = ?'); vals.push(JSON.stringify(update.reasonTags)) }
     if (update.versePinFrom !== undefined) { sets.push('verse_pin_from = ?'); vals.push(update.versePinFrom) }
     if (update.versePinTo !== undefined) { sets.push('verse_pin_to = ?'); vals.push(update.versePinTo) }
+    if (update.originVersePinFrom !== undefined) { sets.push('origin_verse_pin_from = ?'); vals.push(update.originVersePinFrom) }
+    if (update.originVersePinTo !== undefined) { sets.push('origin_verse_pin_to = ?'); vals.push(update.originVersePinTo) }
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)

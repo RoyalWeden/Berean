@@ -51,6 +51,10 @@ export interface TrailConnection {
   reasonTags: string[]
   versePinFrom?: number
   versePinTo?: number
+  /** Verse(s) pinned on the chapter the user LEFT (as opposed to versePinFrom/To above, which
+   *  pin the destination) — see the v30 migration comment in electron/db/berean.ts. */
+  originVersePinFrom?: number
+  originVersePinTo?: number
   weight: ConnectionWeight
   strongsDepth?: StrongsDepth
   clusterId?: string

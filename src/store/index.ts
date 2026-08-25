@@ -355,6 +355,15 @@ export interface AppState {
   setWordReplacerRules: (rules: WordReplacerRule[]) => void
   toggleWordReplacerRule: (id: string) => void
 
+  // Study Trail — opt-in "why did you jump chapters?" arrival prompt (separate from the
+  // always-available tier-3 "?" badge prompt already on each ambiguous connection). Off by
+  // default since it's an interruption; lives here (not in useStudyTrailStore, which isn't
+  // persisted) so it's a real Settings-backed preference that syncs across the main window and
+  // the separate Study Trail window via the shared localStorage persist, same as
+  // wordReplacerEnabled above.
+  studyTrailAskChapterJumpReason: boolean
+  setStudyTrailAskChapterJumpReason: (v: boolean) => void
+
   // Print & Export settings
   printMarginPreset: 'none' | 'narrow' | 'normal' | 'wide' | 'custom'
   printCustomMargins: { top: number; right: number; bottom: number; left: number }  // inches
@@ -1550,6 +1559,7 @@ export const useAppStore = create<AppState>()(
       continuousDailyScroll: false,
       wordReplacerEnabled: true,
       wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
+      studyTrailAskChapterJumpReason: false,
 
       archivedGroups: [] as ArchivedGroup[],
       sessions: [DEFAULT_SESSION] as Session[],
@@ -2419,6 +2429,8 @@ export const useAppStore = create<AppState>()(
         wordReplacerRules: s.wordReplacerRules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r),
       })),
 
+      setStudyTrailAskChapterJumpReason: (v) => set({ studyTrailAskChapterJumpReason: v }),
+
       setTheme: (theme) => set({ theme }),
       setAppZoom: (level) => set({ appZoom: clampZoom(level) }),
       adjustAppZoom: (dir) => set((s) => ({ appZoom: adjustZoom(s.appZoom, dir) })),
@@ -2544,6 +2556,7 @@ export const useAppStore = create<AppState>()(
         dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,
+        studyTrailAskChapterJumpReason: state.studyTrailAskChapterJumpReason,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,
         noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
         autoEmDash: state.autoEmDash,
