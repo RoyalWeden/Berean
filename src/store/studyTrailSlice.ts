@@ -800,11 +800,24 @@ export function installStudyTrailRecorder(): void {
     // A genuinely different chapter — this earns a connection FROM the current anchor (if
     // any). Per direct feedback ("if i quickly flip from chapter Isaiah 40 to get to Isaiah 44
     // I wont want you to track the chapters in between unless i actually stop on them"), this
-    // isn't recorded immediately — it's scheduled after a short dwell (see scheduleChapterArrival
-    // below), so a rapid A→B→C→D→E flip-through (each hop re-arming the same timer before the
-    // last one fires) never creates a node for any of the merely-passed-through chapters, only
-    // for wherever the user actually settles.
-    scheduleChapterArrival(from, to, origin)
+    // isn't recorded immediately for most origins — it's scheduled after a short dwell (see
+    // scheduleChapterArrival below), so a rapid A→B→C→D→E flip-through (each hop re-arming the
+    // same timer before the last one fires) never creates a node for any of the merely-
+    // passed-through chapters, only for wherever the user actually settles.
+    //
+    // EXCEPT the same always-worthy kinds SAME_CHAPTER_BRANCH_WORTHY_KINDS already carves out
+    // for the same-chapter case above (cross-ref, lexicon-occurrence, ai-lookup) — these are
+    // deliberate clicks on a specific reference, not passive/reflexive flipping, so they were
+    // being silently dropped by the dwell debounce whenever the user kept moving within
+    // CHAPTER_ARRIVAL_DWELL_MS of clicking one (exactly the "cross ref... not putting the
+    // branch sometimes" bug report). Recorded immediately instead, same as the sameChapter
+    // branch already does.
+    if (SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)) {
+      if (pendingChapterArrivalTimer) { clearTimeout(pendingChapterArrivalTimer); pendingChapterArrivalTimer = null }
+      commitChapterArrival(from, to, origin).catch((err) => console.error('[TrailDebug] commitChapterArrival (immediate, always-worthy origin) FAILED', err))
+    } else {
+      scheduleChapterArrival(from, to, origin)
+    }
 
     // If THIS navigation is itself the "bounce back" a previous connection was waiting on,
     // mark that one a glance instead of a full connection.

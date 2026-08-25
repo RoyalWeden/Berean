@@ -47,23 +47,29 @@ function bookLabel(bookId: string): string {
 
 function GapConnector({ gapMs }: { gapMs: number | null }) {
   const height = gapMs == null ? 18 : gapSegmentHeight(gapMs)
-  const showChip = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
+  // The "Nh later" chip used to live here, absolutely positioned near the top of this narrow
+  // column — which put it right on top of THIS node's own title text (the column stretches to
+  // match the reserved gap height, so "near the top" landed at the same y as the row's own
+  // content, not blank space). Per direct feedback ("the text... needs to not be on top of
+  // other text"), the label now renders as its own full-width divider row BETWEEN the two
+  // nodes (see GapDivider below) — this column only reserves the vertical space the gap math
+  // calls for, nothing else.
+  return <div style={{ flex: 1, width: 2, minHeight: height }} />
+}
+
+// A full-width row between two node blocks for a long gap — guaranteed not to overlap
+// anything (it's its own block-level row in normal flow, not an overlay), and the dashed rule
+// itself is the "break in time" visual cue per direct feedback ("the line at this region
+// either shows like zig zag or is like dots or something to show a break in time").
+function GapDivider({ gapMs }: { gapMs: number }) {
   return (
-    // The connecting LINE itself is now drawn by TrailConnectorOverlay (spine-dot to
-    // spine-dot) — this just reserves the vertical space the gap math calls for, and hosts
-    // the "42m later" chip when the gap is big enough to call out.
-    <div style={{ position: 'relative', flex: 1, width: 2, minHeight: height }}>
-      {showChip && (
-        // Anchored near the TOP of this connector (not vertically centered) — the column
-        // stretches to match whatever tall content sits beside it, so a centered chip used to
-        // drift down into unrelated row content several items below instead of reading as
-        // "attached to the incoming spine segment."
-        <div style={{
-          position: 'absolute', top: 10, left: 6, whiteSpace: 'nowrap', zIndex: 1,
-          fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
-          border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '1px 6px',
-        }}>{formatGap(gapMs!)} later</div>
-      )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0 8px', paddingLeft: 21 }}>
+      <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+      <span style={{
+        fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
+        letterSpacing: '.02em',
+      }}>{formatGap(gapMs)} later</span>
+      <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
     </div>
   )
 }
@@ -877,7 +883,14 @@ export default function MapView({
     // specific one was exactly the redundant "arrow from the previous chapter" the branch-traced
     // line already makes clear.
     if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
-    edges.push({ key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`, color: 'rgb(var(--color-accent))', arrow: true })
+    // Dashed instead of solid across a long gap — the same visual "break in time" cue as
+    // GapDivider's own dashed rule (and threshold), reinforcing it right on the connecting
+    // line itself, not just the label between the two nodes.
+    const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
+    edges.push({
+      key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
+      color: 'rgb(var(--color-accent))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
+    })
   }
 
   // Shared per-row edge logic — called for every row regardless of whether it's a top-level
@@ -1042,9 +1055,10 @@ export default function MapView({
           const { node: n, index: i } = item
           const next = detail.nodes[i + 1]
           const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
+          const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
           return (
+            <div key={n.id}>
             <NodeBlock
-              key={n.id}
               node={n}
               connections={rowsForNode.get(n.id) ?? []}
               gapToNextMs={gapToNextMs}
@@ -1067,6 +1081,8 @@ export default function MapView({
               gutterWidth={gutterWidth}
               rowsForConnection={rowsForConnection}
             />
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
+            </div>
           )
         })}
         {detail.nodes.length === 0 && (

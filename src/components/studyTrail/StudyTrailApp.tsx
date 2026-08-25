@@ -113,6 +113,13 @@ export default function StudyTrailApp() {
   }
   useEffect(() => { refresh() }, [])
   useEffect(() => { installStudyTrailStateSync() }, [])
+  // Keeps the session rail itself (status dot, "3m ago", possiblyAccidental) live while you
+  // keep studying, not just the currently-open Map/Everything content — same short-poll v1 as
+  // below, no push channel yet.
+  useEffect(() => {
+    const interval = setInterval(refresh, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Live-refresh while a session is active — no push channel yet (deferred, see plan), so a
   // short poll while the window is open is the honest v1 rather than a fake "live" claim.
