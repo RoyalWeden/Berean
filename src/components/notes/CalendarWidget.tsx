@@ -177,9 +177,9 @@ export function CalendarGrid({ date, notes, onDateChange, onSelectDate, compact,
                   onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(cellDate, e.clientX, e.clientY) } : undefined}
                   className="flex flex-col items-center justify-center gap-0 cursor-pointer group"
                 >
-                  <span className={`flex items-center justify-center ${circleSize} rounded-full leading-none transition-colors
-                    ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold'
-                      : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40'
+                  <span className={`flex items-center justify-center ${circleSize} rounded-full leading-none transition-[filter,background-color]
+                    ${isToday ? 'bg-[rgb(var(--color-accent))] text-white font-semibold group-hover:brightness-125'
+                      : isSelected ? 'text-[rgb(var(--color-text-primary))] ring-1 ring-inset ring-[rgb(var(--color-text-muted))]/40 group-hover:bg-[rgb(var(--color-surface-4))]/60'
                       : 'text-[rgb(var(--color-text-secondary))] group-hover:bg-[rgb(var(--color-surface-4))]'}`}
                     style={{ fontSize: dayCellSize }}
                   >

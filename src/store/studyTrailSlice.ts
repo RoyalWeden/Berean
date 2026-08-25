@@ -9,11 +9,6 @@ import { create } from 'zustand'
 import type { NavOrigin } from '@/lib/verseNavigation'
 import { setNavRecorder } from '@/lib/verseNavigation'
 import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
-// Read lazily (inside function bodies only, never at module-eval time) — index.ts itself
-// imports recordLexiconConnection from this file, so a top-level circular read here would be
-// unsafe; a deferred read of useAppStore.getState() after both modules have finished
-// initializing is fine.
-import { useAppStore } from '@/store'
 
 interface StudyTrailState {
   currentTrailSessionId: string | null
@@ -54,6 +49,16 @@ interface StudyTrailState {
   currentBranchTipDepth: number
   currentBranchTipActivatedAt: number | null
 
+  // v36 — "in branch mode" persists ACROSS chapter arrivals (unlike currentBranchTip* above,
+  // which normally resets to depth 0 on every new chapter node). A cross-ref jump always starts
+  // (or continues) a branch — per direct feedback, once off on a tangent, everything recorded
+  // after it stays part of that branch until the user explicitly marks a return to main, not
+  // just until the next chapter change. Also set (best-effort — the "ask why" popup is
+  // non-blocking/async, so this only actually engages if the user answers before navigating
+  // further) when the user checks "this is a tangent" in the popup.
+  currentlyInBranch: boolean
+  markBranchReturn: (connectionId?: string) => void
+
   // A just-created chapter-to-chapter connection waiting on the opt-in "why did you jump here?"
   // arrival prompt (Settings → studyTrailAskChapterJumpReason) — set right after the recorder
   // successfully writes the connection, read by a popover mounted in the main Bible-reader
@@ -64,6 +69,10 @@ interface StudyTrailState {
   // a persistent per-connection state, so a later jump to the same pair of chapters still gets
   // its own fresh prompt rather than being permanently silenced.
   pendingArrivalPrompt: TrailConnection | null
+  // The node the connection above actually LANDED on — needed alongside pendingArrivalPrompt so
+  // the popup's "new topic" checkbox (a node-level flag, not a connection-level one) has
+  // somewhere to write to.
+  pendingArrivalNodeId: string | null
   clearPendingArrivalPrompt: () => void
 
   startTrailSession: (name: string) => Promise<void>
@@ -78,6 +87,13 @@ interface StudyTrailState {
    *  once. Restores sessionNodeIndex and the still-open anchor (if any) so recording resumes
    *  correctly rather than starting the reopened session with no memory of its own nodes. */
   activateExistingSession: (trailSessionId: string) => Promise<void>
+  /** Recording should never require the user to have created a session first — a session is
+   *  now just a named label/view over the continuous trail, not a gate on capture. Called
+   *  lazily by the recorder the first time it sees no live session; auto-provisions an
+   *  "Untitled study" session (same as clicking "+ New session" would) so navigation is never
+   *  silently dropped just because nobody clicked Start first. Resolves to the live session id,
+   *  reusing whatever's already live/in-flight rather than racing multiple auto-creates. */
+  ensureLiveSession: () => Promise<string>
 }
 
 /** cross-ref/search/etc. → clarity tier, per the plan's clarity-tier rules. Kept here (not on
@@ -152,8 +168,15 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentBranchTipConnectionId: null,
   currentBranchTipDepth: 0,
   currentBranchTipActivatedAt: null,
-  pendingArrivalPrompt: null,
-  clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null }),
+  currentlyInBranch: false,
+  markBranchReturn: (connectionId?: string) => {
+    const tipId = useStudyTrailStore.getState().currentBranchTipConnectionId
+    const target = connectionId ?? tipId ?? undefined
+    if (target) window.studyTrail.updateConnectionReason(target, { isBranchReturn: true }).catch(() => {})
+    set({ currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null })
+  },
+  pendingArrivalPrompt: null, pendingArrivalNodeId: null,
+  clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
   sessionNodeIndex: {},
 
   startTrailSession: async (name: string) => {
@@ -186,7 +209,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
       currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorActivatedAt: seedNodeId ? Date.now() : null,
       currentAnchorNodeId: seedNodeId, currentAnchorBookId: seedNodeId ? activeRef!.bookId : null,
       currentAnchorChapter: seedNodeId ? activeRef!.chapter : null, currentAnchorIsRevisit: false,
-      currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
+      currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
       sessionNodeIndex: seedNodeId ? { [`${activeRef!.bookId}:${activeRef!.chapter}`]: seedNodeId } : {},
     })
     // Tell every other open window (main window, if this was started from the Study Trail
@@ -226,7 +249,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (id) await window.studyTrail.endSession(id)
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, sessionNodeIndex: {} })
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
     if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session end', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
   },
@@ -236,14 +259,14 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSession: async (trailSessionId: string) => {
     await window.studyTrail.deleteSession(trailSessionId)
     if (get().currentTrailSessionId === trailSessionId) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
   deleteTrailSessions: async (trailSessionIds: string[]) => {
     await window.studyTrail.deleteSessions(trailSessionIds)
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
@@ -260,11 +283,32 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
       currentAnchorNodeId: openNode?.id ?? null, currentAnchorBookId: openNode?.bookId ?? null,
       currentAnchorChapter: openNode?.chapter ?? null, currentAnchorVerseCount: 0,
       currentAnchorActivatedAt: openNode ? Date.now() : null, currentAnchorIsRevisit: false,
-      currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
+      currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
     })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: trailSessionId, trailSessionStatus: 'live' })
   },
+  ensureLiveSession: async () => {
+    const existing = get().currentTrailSessionId
+    if (existing && get().trailSessionStatus === 'live') return existing
+    // Guard against multiple navigations racing this before the first create() resolves —
+    // everyone piggybacks on the one in-flight request instead of each starting its own
+    // session (which would silently orphan all-but-the-last).
+    if (ensureLiveSessionInFlight) return ensureLiveSessionInFlight
+    ensureLiveSessionInFlight = (async () => {
+      try {
+        await get().startTrailSession('Untitled study')
+        return get().currentTrailSessionId!
+      } finally {
+        ensureLiveSessionInFlight = null
+      }
+    })()
+    return ensureLiveSessionInFlight
+  },
 }))
+
+// See ensureLiveSession's own comment — module-level so it survives across the async gap
+// regardless of which call site (recorder, recordLexiconConnection, ...) triggers it first.
+let ensureLiveSessionInFlight: Promise<string> | null = null
 
 /**
  * Records a lexicon-entry-open as a connection FROM the current anchor chapter (Strong's-chip
@@ -285,8 +329,16 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
       trailSessionStatus: s.trailSessionStatus, currentAnchorNodeId: s.currentAnchorNodeId,
     })
   }
-  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live' || !s.currentAnchorNodeId) {
-    if (window.__bereanTrailDebug) console.log('[TrailDebug] recordLexiconConnection: gate failed — nothing recorded')
+  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') {
+    // Same auto-provisioning as the main recorder — see its comment. Still requires an anchor
+    // node to attach to (a lexicon click has to originate from a chapter already on-screen), so
+    // this specific click is lost if it's the very first thing that happens after auto-creating
+    // the session, but the session itself is no longer the blocker.
+    void useStudyTrailStore.getState().ensureLiveSession()
+    return
+  }
+  if (!s.currentAnchorNodeId) {
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] recordLexiconConnection: no anchor node yet — nothing recorded')
     return
   }
   // Branch chaining — fromNodeId always stays the chapter root (unchanged), but when the user
@@ -332,7 +384,11 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
  */
 export function recordTranslationSwitch(newTranslation: string): void {
   const s = useStudyTrailStore.getState()
-  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live' || !s.currentAnchorNodeId) return
+  if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') {
+    void useStudyTrailStore.getState().ensureLiveSession()
+    return
+  }
+  if (!s.currentAnchorNodeId) return
   const label = newTranslation.toUpperCase()
   window.studyTrail.updateNodeSubnote(s.currentAnchorNodeId, `switched to ${label}`)
     .catch((err) => console.error('[TrailDebug] recordTranslationSwitch FAILED', err))
@@ -358,7 +414,14 @@ export function installStudyTrailStateSync(): void {
   window.studyTrail.listSessions().then(async (rows) => {
     const active = rows.find((r) => r.status === 'live' || r.status === 'paused')
     if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions', { rows, adopting: active?.id ?? null })
-    if (!active) return
+    if (!active) {
+      // Nothing live or paused anywhere (first run ever, or every prior session was ended) —
+      // recording must never sit idle just because the user hasn't clicked "New session".
+      // Auto-provision one now so the very first navigation of this app launch is captured,
+      // not silently dropped until the user notices and starts one manually.
+      void useStudyTrailStore.getState().ensureLiveSession()
+      return
+    }
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId) return // already knows about a session — don't clobber it
     // Seed sessionNodeIndex from whatever this session already has (a page reload, or this
@@ -398,10 +461,10 @@ export function installStudyTrailStateSync(): void {
               currentAnchorNodeId: incoming.seedAnchor.nodeId, currentAnchorBookId: incoming.seedAnchor.bookId,
               currentAnchorChapter: incoming.seedAnchor.chapter, currentAnchorVerseCount: 0,
               currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: false,
-              currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
+              currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
               sessionNodeIndex: { [`${incoming.seedAnchor.bookId}:${incoming.seedAnchor.chapter}`]: incoming.seedAnchor.nodeId },
             }
-          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, sessionNodeIndex: {} }
+          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} }
         : {}),
     })
   })
@@ -454,8 +517,14 @@ export function installStudyTrailRecorder(): void {
         currentAnchorNodeId: s.currentAnchorNodeId, from, to, origin,
       })
     }
+    // Recording never requires the user to have created/started a session — a session is
+    // just a named label over the continuous trail now. If nothing is live yet, kick off an
+    // auto-provisioned one in the background and skip only THIS one navigation event (the
+    // in-flight guard means this only actually happens once, at cold start, before the very
+    // first navigation lands).
     if (!s.currentTrailSessionId || s.trailSessionStatus !== 'live') {
-      if (window.__bereanTrailDebug) console.log('[TrailDebug] recorder: no live session in THIS window\'s store — nothing recorded')
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] recorder: no live session yet — auto-provisioning one, this event is not recorded')
+      void useStudyTrailStore.getState().ensureLiveSession()
       return
     }
     if (!to.bookId || to.chapter == null) {
@@ -497,6 +566,10 @@ export function installStudyTrailRecorder(): void {
       if (SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)) {
         const { text, tags } = reasonForOrigin(origin)
         const chained = s.currentBranchTipConnectionId != null
+        // A same-chapter cross-ref is exactly as much "off on a tangent" as one that lands on a
+        // different chapter — same isBranch/currentlyInBranch treatment as the different-
+        // chapter path above, so it keeps chaining as a branch until explicitly returned.
+        const isBranchThisHop = origin.kind === 'cross-ref' || s.currentlyInBranch
         window.studyTrail.addConnection({
           trailSessionId: s.currentTrailSessionId, fromNodeId: s.currentAnchorNodeId, toKind: 'chapter',
           fromConnectionId: chained ? s.currentBranchTipConnectionId! : undefined,
@@ -504,10 +577,12 @@ export function installStudyTrailRecorder(): void {
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
           clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
           originVersePinFrom: originFromVerse(origin),
+          isBranch: isBranchThisHop,
         })
           .then((conn) => {
             if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (same-chapter branch) SUCCEEDED', conn)
             useStudyTrailStore.setState({
+              currentlyInBranch: isBranchThisHop || s.currentlyInBranch,
               currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
             })
           })
@@ -596,14 +671,16 @@ export function installStudyTrailRecorder(): void {
         node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation })
       }
       if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
-      // Arriving at ANY chapter always means "back at depth 0" — whatever branch chain led here
-      // (if any) is now fully closed out; the connection landing on this node (below) still
-      // correctly credits that chain's true tip via fromConnectionId/chainDepth captured from
-      // `s` BEFORE this reset, it just doesn't carry forward into whatever happens next.
+      // Arriving at a chapter normally means "back at depth 0" for the branch chain — UNLESS
+      // this hop is itself a branch (a cross-ref jump, which always starts/continues one, or
+      // any hop recorded while already mid-branch from an earlier tangent) — in which case
+      // branch-chain state carries forward instead of resetting, so the branch keeps extending
+      // across chapters until the user explicitly marks a return to main (see markBranchReturn).
+      const isBranchThisHop = origin.kind === 'cross-ref' || s.currentlyInBranch
       useStudyTrailStore.setState((st) => ({
         currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
         currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: !!existingNodeId,
-        currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
+        ...(isBranchThisHop ? {} : { currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null }),
         sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
       }))
       if (!effectivePrevNodeId) {
@@ -628,14 +705,27 @@ export function installStudyTrailRecorder(): void {
         toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
         clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
         originVersePinFrom: originFromVerse(origin),
+        isBranch: isBranchThisHop,
       })
       if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
-      // The opt-in "why did you jump here?" arrival prompt — only for jumps Study Trail is
-      // NOT already confident about (tier 2/3: search, tab-switch, manual picker, etc.). A
-      // tier-1 jump (cross-ref, lexicon occurrence, AI Lookup, sequential reading) already has
-      // a known, specific reason recorded automatically — asking again would just be noise.
-      if (tier !== 1 && useAppStore.getState().studyTrailAskChapterJumpReason) {
-        useStudyTrailStore.setState({ pendingArrivalPrompt: conn })
+      // Keep the branch chain's tip pointed at THIS connection so whatever the user does next
+      // (another chapter jump, a lexicon click) chains off it rather than off the bare chapter
+      // node — same mechanism the same-chapter/lexicon branch chaining already uses.
+      if (isBranchThisHop) {
+        useStudyTrailStore.setState({
+          currentlyInBranch: true, currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
+        })
+      }
+      // The arrival prompt — only for jumps Study Trail is NOT already confident about (tier
+      // 2/3: search, tab-switch, manual picker, etc.). A tier-1 jump (cross-ref, lexicon
+      // occurrence, AI Lookup, sequential reading) already has a known, specific reason recorded
+      // automatically — asking again would just be noise. Always set for tier 2/3 now (not
+      // gated behind studyTrailAskChapterJumpReason here) — StudyTrailArrivalPrompt itself
+      // decides whether that setting means "show the full popup" or "show the lightweight
+      // passive pill instead", so a reason can still be jotted down even with the full popup
+      // turned off.
+      if (tier !== 1) {
+        useStudyTrailStore.setState({ pendingArrivalPrompt: conn, pendingArrivalNodeId: node!.id })
       }
       // Arm the glance check: if the user bounces straight back to where they came from
       // within the window, this connection gets re-weighted down to a glance.
@@ -663,7 +753,7 @@ export function installStudyTrailRecorder(): void {
       // navigational moment. Auto-dismiss it without writing anything (same as a manual "Not
       // now"), so it doesn't accumulate as the user checks their answer by bouncing around.
       if (useStudyTrailStore.getState().pendingArrivalPrompt?.id === glanceConnId) {
-        useStudyTrailStore.setState({ pendingArrivalPrompt: null })
+        useStudyTrailStore.setState({ pendingArrivalPrompt: null, pendingArrivalNodeId: null })
       }
       pendingGlanceCheck = null
     }

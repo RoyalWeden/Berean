@@ -28,7 +28,7 @@ interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
   revisit_of_node_id: string | null; promoted_from_connection_id: string | null; translation: string | null
-  cluster_id: string | null
+  cluster_id: string | null; is_topic_break: number
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -42,6 +42,7 @@ interface TrailConnectionRow {
   from_connection_id: string | null; chain_depth: number; to_verse_end: number | null
   ties: string | null
   user_note: string | null; ties_from: string | null; ties_to: string | null
+  is_branch: number; is_branch_return: number
 }
 
 function rowToSession(r: TrailSessionRow) {
@@ -63,6 +64,7 @@ function rowToNode(r: TrailNodeRow) {
     promotedFromConnectionId: r.promoted_from_connection_id ?? undefined,
     translation: r.translation ?? undefined,
     clusterId: r.cluster_id ?? undefined,
+    isTopicBreak: !!r.is_topic_break,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -88,6 +90,8 @@ function rowToConnection(r: TrailConnectionRow) {
     fromConnectionId: r.from_connection_id ?? undefined,
     chainDepth: r.chain_depth,
     toVerseEnd: r.to_verse_end ?? undefined,
+    isBranch: !!r.is_branch,
+    isBranchReturn: !!r.is_branch_return,
   }
 }
 
@@ -316,6 +320,45 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
+  // Topic break (v36) — a horizontal divider on the main spine, set from the "ask why" popup's
+  // "new topic" checkbox (applies to the node the user just arrived at) or edited later from
+  // the Study Trail window.
+  ipcMain.handle('studyTrail:setNodeTopicBreak', (_e, nodeId: string, isTopicBreak: boolean) => {
+    prep(getBereanDb(), `UPDATE trail_nodes SET is_topic_break = ? WHERE id = ?`).run(isTopicBreak ? 1 : 0, nodeId)
+    return { success: true }
+  })
+
+  // Delete a single trail node — right-click "Delete" on a bullet (§8 of the plan). Cascades to
+  // its directly-attached connections (both those originating FROM it, and any same-chapter/
+  // branch connections chained off one of those via from_connection_id), but leaves every OTHER
+  // node/connection in the session untouched. The renderer confirms with the user first (this
+  // handler itself performs no confirmation — it's a hard, immediate delete once called).
+  ipcMain.handle('studyTrail:deleteNode', (_e, nodeId: string) => {
+    const db = getBereanDb()
+    const delNode = db.transaction((id: string) => {
+      const directConnIds = (prep(db, 'SELECT id FROM trail_connections WHERE from_node_id = ?').all(id) as Array<{ id: string }>).map((r) => r.id)
+      // Chained connections (a lexicon click off a lexicon click, etc.) reference their parent
+      // via from_connection_id, not from_node_id — walk the chain outward so a delete doesn't
+      // leave orphaned rows dangling off a connection that no longer exists.
+      let frontier = directConnIds
+      const allConnIds = new Set(directConnIds)
+      while (frontier.length > 0) {
+        const placeholders = frontier.map(() => '?').join(',')
+        const next = (prep(db, `SELECT id FROM trail_connections WHERE from_connection_id IN (${placeholders})`).all(...frontier) as Array<{ id: string }>)
+          .map((r) => r.id).filter((cid) => !allConnIds.has(cid))
+        next.forEach((cid) => allConnIds.add(cid))
+        frontier = next
+      }
+      if (allConnIds.size > 0) {
+        const placeholders = [...allConnIds].map(() => '?').join(',')
+        prep(db, `DELETE FROM trail_connections WHERE id IN (${placeholders})`).run(...allConnIds)
+      }
+      prep(db, 'DELETE FROM trail_nodes WHERE id = ?').run(id)
+    })
+    delNode(nodeId)
+    return { success: true }
+  })
+
   ipcMain.handle('studyTrail:addConnection', (_e, conn: {
     trailSessionId: string; fromNodeId: string; toKind: string
     toBookId?: string; toChapter?: number; toVerse?: number
@@ -336,6 +379,11 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     fromConnectionId?: string
     chainDepth?: number
     toVerseEnd?: number
+    // User-marked tangent (v36) — set at capture time from the "ask why" popup's minimal
+    // checkbox, or later via updateConnectionReason when reclassified from the Study Trail
+    // window itself.
+    isBranch?: boolean
+    isBranchReturn?: boolean
   }) => {
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection called', conn)
     const db = getBereanDb()
@@ -364,15 +412,16 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
         id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
         to_strongs_num, to_note_id, to_video_id, clarity_tier, reason_text, reason_tags,
         weight, strongs_depth, cluster_id, origin_verse_pin_from,
-        from_connection_id, chain_depth, to_verse_end, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        from_connection_id, chain_depth, to_verse_end, is_branch, is_branch_return, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, conn.trailSessionId, conn.fromNodeId, conn.toKind,
       conn.toBookId ?? null, conn.toChapter ?? null, conn.toVerse ?? null,
       conn.toStrongsNum ?? null, conn.toNoteId ?? null, conn.toVideoId ?? null,
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
       conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null,
-      conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null, now
+      conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null,
+      conn.isBranch ? 1 : 0, conn.isBranchReturn ? 1 : 0, now
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)
@@ -394,6 +443,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     // param for any other caller that legitimately wants to set it). ties_from/ties_to replace
     // the single `ties` list with the two labeled sections the popup now has.
     userNote?: string; tiesFrom?: string[]; tiesTo?: string[]
+    // Editable after the fact from the Study Trail window — reclassify a tangent as having
+    // been the real main branch, or mark that this connection is where a branch rejoins main.
+    isBranch?: boolean; isBranchReturn?: boolean
   }) => {
     const db = getBereanDb()
     const sets: string[] = []
@@ -408,6 +460,8 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (update.userNote !== undefined) { sets.push('user_note = ?'); vals.push(update.userNote) }
     if (update.tiesFrom !== undefined) { sets.push('ties_from = ?'); vals.push(JSON.stringify(update.tiesFrom)) }
     if (update.tiesTo !== undefined) { sets.push('ties_to = ?'); vals.push(JSON.stringify(update.tiesTo)) }
+    if (update.isBranch !== undefined) { sets.push('is_branch = ?'); vals.push(update.isBranch ? 1 : 0) }
+    if (update.isBranchReturn !== undefined) { sets.push('is_branch_return = ?'); vals.push(update.isBranchReturn ? 1 : 0) }
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)

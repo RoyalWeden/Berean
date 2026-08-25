@@ -180,6 +180,8 @@ interface StudyTrailAPI {
   reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>
   promoteRevisit: (args: { trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number; translation?: string }) => Promise<import('./studyTrail').TrailNode>
   updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
+  setNodeTopicBreak: (nodeId: string, isTopicBreak: boolean) => Promise<{ success: boolean }>
+  deleteNode: (nodeId: string) => Promise<{ success: boolean }>
   addConnection: (conn: {
     trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind
     toBookId?: string; toChapter?: number; toVerse?: number
@@ -188,9 +190,10 @@ interface StudyTrailAPI {
     weight?: import('./studyTrail').ConnectionWeight; strongsDepth?: import('./studyTrail').StrongsDepth
     originVersePinFrom?: number
     fromConnectionId?: string; chainDepth?: number; toVerseEnd?: number
+    isBranch?: boolean; isBranchReturn?: boolean
   }) => Promise<import('./studyTrail').TrailConnection>
   markGlance: (connectionId: string) => Promise<{ success: boolean }>
-  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number; ties?: string[]; userNote?: string; tiesFrom?: string[]; tiesTo?: string[] }) => Promise<{ success: boolean }>
+  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number; ties?: string[]; userNote?: string; tiesFrom?: string[]; tiesTo?: string[]; isBranch?: boolean; isBranchReturn?: boolean }) => Promise<{ success: boolean }>
   dismissPrompt: (connectionId: string) => Promise<{ success: boolean }>
   clearConnectionNote: (connectionId: string) => Promise<{ success: boolean }>
   updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>

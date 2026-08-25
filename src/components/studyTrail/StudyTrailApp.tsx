@@ -231,6 +231,15 @@ export default function StudyTrailApp() {
   }
 
   const selectedSession = sessions.find((s) => s.id === selectedId) ?? null
+  // Live session pinned to top; everything else stays in stable creation order (newest
+  // first) regardless of status changes — starting/pausing/ending a session must never
+  // reshuffle other rows. Sorting here (rather than trusting IPC order alone) also survives
+  // any timing quirk in when `refresh()` resolves relative to a pause/start pair.
+  const orderedSessions = [...sessions].sort((a, b) => {
+    if (a.status === 'live' && b.status !== 'live') return -1
+    if (b.status === 'live' && a.status !== 'live') return 1
+    return b.createdAt - a.createdAt
+  })
 
   return (
     <div style={{
@@ -241,7 +250,15 @@ export default function StudyTrailApp() {
           in this window, including TrailRefContextMenu's — that one portals to document.body,
           but a global style tag still reaches it since it's just a class selector, not scoped
           to this subtree. */}
-      <style>{`.trail-ctx-btn:hover { background: rgb(var(--color-surface-3)); }`}</style>
+      <style>{`
+        .trail-ctx-btn:hover { background: rgb(var(--color-surface-3)); }
+        /* Slow, low-amplitude breathe on the live-session dot — a small indicator like this
+           reads better as a gentle pulse than a sharp blink. */
+        @keyframes trail-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .trail-live-dot { animation: trail-live-pulse 2s ease-in-out infinite; }
+        .trail-everything-row:not([data-selected="true"]):hover { background: rgb(var(--color-surface-3)) !important; }
+        .trail-everything-row[data-selected="true"]:hover { background: rgb(var(--color-accent) / 0.22) !important; }
+      `}</style>
       {/* Title bar — the whole strip is a drag region (titleBarStyle: 'hiddenInset' on this
           BrowserWindow gives no native drag handling beyond the tiny traffic-light inset area
           itself, so without an explicit -webkit-app-region: drag somewhere the window couldn't
@@ -383,6 +400,8 @@ export default function StudyTrailApp() {
               individual session list, same idea as the plan's "Sessions/Everything toggle". */}
           <div
             onClick={() => { setSelectedId(null); setMainTab('map') }}
+            className="trail-everything-row"
+            data-selected={selectedId === null && mainTab === 'map'}
             style={{
               padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
               background: selectedId === null && mainTab === 'map' ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
@@ -394,7 +413,7 @@ export default function StudyTrailApp() {
             </div>
             <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>every session, all at once</div>
           </div>
-          {sessions.map((s) => {
+          {orderedSessions.map((s) => {
             const isHovered = hoveredId === s.id
             const isXHovered = hoveredDeleteId === s.id
             return (
@@ -406,8 +425,12 @@ export default function StudyTrailApp() {
               onContextMenu={(e) => openSessionMenu(e, s.id)}
               style={{
                 padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
+                // Selected + hover need to layer, not pick one or the other — a selected row
+                // hovered previously looked visually identical to an un-hovered selected row
+                // (no feedback at all). Bump selected's own tint up a notch on hover instead
+                // of falling through to the plain hover shade.
                 background: selectedId === s.id && mainTab === 'map' && !selectMode
-                  ? 'rgb(var(--color-accent) / 0.14)'
+                  ? isHovered ? 'rgb(var(--color-accent) / 0.22)' : 'rgb(var(--color-accent) / 0.14)'
                   : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
               }}
             >
@@ -422,10 +445,13 @@ export default function StudyTrailApp() {
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{
-                    width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-                    background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
-                  }} />
+                  <span
+                    className={s.status === 'live' ? 'trail-live-dot' : undefined}
+                    style={{
+                      width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+                      background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
+                    }}
+                  />
                   {renamingId === s.id ? (
                     <input
                       ref={renameInputRef}

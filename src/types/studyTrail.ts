@@ -47,6 +47,10 @@ export interface TrailNode {
    *  collapse "bounced back to X three times in 40s" into one summary block instead of showing
    *  every promotion as its own full node. Node-level twin of TrailConnection.clusterId. */
   clusterId?: string
+  /** v36 — a horizontal divider on the main spine at this node, marking a deliberate break
+   *  between topics rather than a mere chapter change. Set from the "ask why" popup's "new
+   *  topic" checkbox, or toggled later from the Study Trail window. */
+  isTopicBreak: boolean
 }
 
 export interface TrailConnection {
@@ -97,6 +101,14 @@ export interface TrailConnection {
   /** Destination range end, parallel to toVerse — a TSKe range ref (e.g. Isa 52:13-53:12)
    *  previously only ever recorded its start verse. */
   toVerseEnd?: number
+  /** v36 — user-marked tangent/branch: this connection (and, by convention, everything chained
+   *  after it via fromConnectionId until a later isBranchReturn) is NOT part of the main study
+   *  branch. Set from the "ask why" popup's minimal checkbox, editable later from the Study
+   *  Trail window (reclassify a tangent as having been the real main branch, or vice versa). */
+  isBranch: boolean
+  /** v36 — marks that this connection is where a previously-flagged tangent rejoins the main
+   *  branch. Only meaningful alongside an earlier isBranch=true connection in the same chain. */
+  isBranchReturn: boolean
 }
 
 export interface TrailPausedInterval {

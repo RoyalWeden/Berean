@@ -160,7 +160,7 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
   )
 }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey }: {
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey, originBookId, originChapter }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
@@ -171,17 +171,26 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
    *  INSIDE that flat list never looks up its own children again (would double-render). */
   rowsForConnection?: Map<string, AnnotatedConn[]>
   onHoverKey?: (key: string | null) => void
+  /** The chapter this row's connection actually originates FROM — its parent NodeBlock's own
+   *  book/chapter. Used to render the full "Jeremiah 23:3" origin reference (not just a bare
+   *  "v.3") per direct feedback: "when the chapter or whatever comes from a verse, this should
+   *  be seen not just in the hover but also in the branch showing something like 'Jeremiah
+   *  23:3'." */
+  originBookId?: string
+  originChapter?: number
 }) {
   const [expandedCollapsed, setExpandedCollapsed] = useState(false)
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
-  // "v.17 → Isa 52" instead of just "Isaiah 52" with a stray v.17 chip floating next to it —
-  // when the SPECIFIC verse on this row's own (origin) chapter is known (a cross-ref click
-  // always knows this; see NavOrigin's cross-ref.fromVerse and the recorder's automatic
-  // originVersePinFrom capture), it belongs IN the row label, not reassembled by the reader.
-  // No book/chapter prefix on the origin side — this row already lives directly under that
-  // chapter's own node block, so which chapter v.17 belongs to is never in question.
+  // Full "Jeremiah 23:3" origin reference (not just a bare "v.3") whenever the origin
+  // chapter is known — always true for a top-level row (its parent NodeBlock IS that
+  // chapter); still falls back to the bare verse number for the rare caller that can't
+  // supply it (e.g. a glance-group's expanded list, several chapters removed from any one
+  // origin) rather than showing nothing at all.
+  const originLabel = (v: number) => originBookId && originChapter != null
+    ? `${bookLabel(originBookId)} ${originChapter}:${v}`
+    : `v.${v}`
   const destVerseSuffix = conn.toVerse
     ? conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `:${conn.toVerse}–${conn.toVerseEnd}` : `:${conn.toVerse}`
     : ''
@@ -195,7 +204,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         : conn.toKind === 'video'
           ? 'video'
           : conn.originVersePinFrom != null
-            ? `v.${conn.originVersePinFrom} → ${chapterDestLabel}`
+            ? `${originLabel(conn.originVersePinFrom)} → ${chapterDestLabel}`
             : chapterDestLabel
   // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
   // step 6'") — reverted to the plain ↺ prefix; the arrow itself (now curved/subtle, see
@@ -203,7 +212,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   const label = conn.isReturn
     ? `↺ ${baseLabel}`
     : conn.isSameChapterBranch
-      ? conn.originVersePinFrom != null ? `↳ v.${conn.originVersePinFrom} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
+      ? conn.originVersePinFrom != null ? `↳ ${originLabel(conn.originVersePinFrom)} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
       : baseLabel
   const ref = refFor(conn)
 
@@ -303,7 +312,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       // indentation of its own.
       <>
         {chainItems.map((it) => it.type === 'single'
-          ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+          ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} originBookId={originBookId} originChapter={originChapter} />
           : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         {collapsedChainCount > 0 && (
           <button
@@ -460,16 +469,19 @@ function NodeClusterGroup({
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; x: number; y: number }) => void
   originConn?: TrailConnection
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   boundaryLabel?: string
   onJumpToOrigin?: () => void
+  /** Right-click "Delete" on this node's bullet — removes the node and its directly-attached
+   *  branch connections, with a confirmation step (see TrailRefContextMenu). */
+  onDeleteNode?: (nodeId: string) => void
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -515,6 +527,19 @@ function NodeBlock({
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
         </div>
       )}
+      {/* v36 — a user-marked topic break: a plain divider on the main spine (not a new
+          sub-spine), same visual language as the session boundaryLabel above but distinct
+          styling (accent-tinted) so it's clearly a deliberate user marker, not an automatic
+          session/date grouping. */}
+      {node.isTopicBreak && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
+          fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-accent))', textTransform: 'uppercase', letterSpacing: '.05em',
+        }}>
+          <span style={{ flexShrink: 0 }}>New topic</span>
+          <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
@@ -541,7 +566,7 @@ function NodeBlock({
         <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
-            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e, onJumpToOrigin)}
+            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e, onJumpToOrigin, onDeleteNode ? () => onDeleteNode(node.id) : undefined)}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
@@ -564,7 +589,7 @@ function NodeBlock({
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {items.map((it) => it.type === 'single'
-            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} />
+            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
@@ -992,6 +1017,7 @@ export default function MapView({
               registerPoint={registerPoint}
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
+              onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
               step={i + 1}
               onHoverKey={setHoveredKey}
               keyboardFocused={keyboardFocusId === n.id}
@@ -1010,6 +1036,12 @@ export default function MapView({
         {promptConn && (
           <ReasonPromptPopover
             connection={promptConn}
+            // Best-effort match on book/chapter — a connection doesn't store the destination
+            // node's id directly, only where it points. Ambiguous only in the rare case of two
+            // nodes for the same chapter (a revisit); the checkbox is a minor per-arrival detail
+            // anyway, not worth a schema change to disambiguate perfectly.
+            nodeId={detail.nodes.find((n) => n.bookId === promptConn.toBookId && n.chapter === promptConn.toChapter)?.id}
+            nodeIsTopicBreak={detail.nodes.find((n) => n.bookId === promptConn.toBookId && n.chapter === promptConn.toChapter)?.isTopicBreak}
             onClose={() => setPromptConn(null)}
             onSaved={() => { setPromptConn(null); onChanged() }}
           />

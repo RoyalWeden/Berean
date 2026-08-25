@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { GripHorizontal, X, Trash2, Plus } from 'lucide-react'
+import { GripHorizontal, X, Trash2, Plus, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection } from '@/types/studyTrail'
 
@@ -102,15 +103,25 @@ function TieSection({ label, values, onChange }: { label: string; values: string
 }
 
 export default function ReasonPromptPopover({
-  connection, onClose, onSaved, title,
+  connection, onClose, onSaved, title, nodeId, nodeIsTopicBreak,
 }: {
   connection: TrailConnection
   onClose: () => void
   onSaved: () => void
   title?: string
+  /** The node this connection LANDED on — only known for the live arrival-prompt path (the
+   *  recorder just created it) or when the caller looks it up. Needed for the "new topic"
+   *  checkbox, which is a node-level flag, not a connection-level one. Omitted entirely (the
+   *  checkbox hides) when the caller has no node to attach it to. */
+  nodeId?: string
+  nodeIsTopicBreak?: boolean
 }) {
   const [note, setNote] = useState(connection.userNote ?? '')
   const [tags, setTags] = useState<string[]>(connection.reasonTags ?? [])
+  const [isBranch, setIsBranch] = useState(connection.isBranch)
+  const [isTopicBreak, setIsTopicBreak] = useState(!!nodeIsTopicBreak)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const markBranchReturn = useStudyTrailStore((s) => s.markBranchReturn)
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
   // already recorded is invisible in the new UI, then always end with one blank row per section.
   const legacyFrom = connection.originVersePinFrom != null
@@ -165,11 +176,25 @@ export default function ReasonPromptPopover({
         userNote: note.trim() || undefined,
         tiesFrom: tiesFrom.map((t) => t.trim()).filter(Boolean),
         tiesTo: tiesTo.map((t) => t.trim()).filter(Boolean),
+        isBranch,
       })
+      if (nodeId) await window.studyTrail.setNodeTopicBreak(nodeId, isTopicBreak)
+      // Best-effort live continuation — see currentlyInBranch's own comment in
+      // studyTrailSlice.ts: checking "tangent" here means whatever the user does NEXT (before
+      // marking a return) also stays flagged as part of this same branch, not just this one
+      // connection. Only meaningful if this popup is still open/answered promptly; a later
+      // reclassification from the Study Trail window (this same checkbox, on an old
+      // connection) intentionally does NOT retroactively affect live recording.
+      if (isBranch) useStudyTrailStore.setState({ currentlyInBranch: true })
       onSaved()
     } finally {
       setSaving(false)
     }
+  }
+
+  function backToMain() {
+    markBranchReturn(connection.id)
+    onSaved()
   }
 
   async function notNow() {
@@ -222,52 +247,68 @@ export default function ReasonPromptPopover({
           Optional — this is just for your own recall later. Drag me anywhere; I won't block navigation.
         </div>
 
-        {/* Auto-detected fact (read-only) beside your own blank note — two columns when there's
-            room, wrapping to stacked when there isn't (flex-wrap, no media query needed since
-            this is a fixed-width popover, not a page). If there's no auto-detected fact at all,
-            the note textarea just takes the full width alone. */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-          {connection.reasonText && (
-            <div style={{ flex: '1 1 160px', minWidth: 140 }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-                Study Trail detected
-              </div>
-              <div style={{ fontSize: 11.5, fontStyle: 'italic', color: 'rgb(var(--color-text-secondary))', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', lineHeight: 1.4 }}>
-                {connection.reasonText}
-              </div>
-            </div>
-          )}
-          <div style={{ flex: '1 1 200px', minWidth: 180 }}>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-              Your note
-            </div>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Nothing here yet — add your own note…"
-              rows={3}
-              style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit' }}
-            />
+        {/* Minimal by default — the two checkboxes plus one free-text box is everything most
+            jumps need; tags/ties are one click away behind "Add detail", not shown up front. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', marginBottom: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
+          This is a tangent/branch (not part of the main study)
+        </label>
+        {isBranch && (
+          <button
+            onClick={backToMain}
+            title="Mark that the tangent ends HERE — everything after this goes back to being the main branch"
+            style={{ fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 6px 22px', textAlign: 'left' }}
+          >↩ back to main branch from here</button>
+        )}
+        {nodeId && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={isTopicBreak} onChange={(e) => setIsTopicBreak(e.target.checked)} />
+            This is a new topic (break in the trail here)
+          </label>
+        )}
+
+        {connection.reasonText && (
+          <div style={{ fontSize: 11, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
+            Study Trail detected: {connection.reasonText}
           </div>
-        </div>
+        )}
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Why did you jump here? (optional)"
+          rows={2}
+          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 8 }}
+        />
 
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
-          {QUICK_TAGS.map((t) => (
-            <button
-              key={t}
-              onClick={() => toggleTag(t)}
-              style={{
-                fontSize: 10.5, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
-                border: `1px solid ${tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-                background: tags.includes(t) ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
-                color: tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
-              }}
-            >{t}</button>
-          ))}
-        </div>
+        <button
+          onClick={() => setDetailOpen((v) => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 8px', marginLeft: -2 }}
+        >
+          <ChevronRight size={11} style={{ transform: detailOpen ? 'rotate(90deg)' : 'none', transition: 'transform 100ms' }} />
+          Add detail (tags, verse ties)
+        </button>
 
-        <TieSection label="Verse(s) in the chapter you left" values={tiesFrom} onChange={setTiesFrom} />
-        <TieSection label="Verse(s) in the chapter you landed on" values={tiesTo} onChange={setTiesTo} />
+        {detailOpen && (
+          <>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+              {QUICK_TAGS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => toggleTag(t)}
+                  style={{
+                    fontSize: 10.5, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                    border: `1px solid ${tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
+                    background: tags.includes(t) ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
+                    color: tags.includes(t) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
+                  }}
+                >{t}</button>
+              ))}
+            </div>
+
+            <TieSection label="Verse(s) in the chapter you left" values={tiesFrom} onChange={setTiesFrom} />
+            <TieSection label="Verse(s) in the chapter you landed on" values={tiesTo} onChange={setTiesTo} />
+          </>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
           <button

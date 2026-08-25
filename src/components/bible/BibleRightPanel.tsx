@@ -664,7 +664,7 @@ function VerseSection({
       <button
         onClick={onToggle}
         className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors cursor-pointer ${
-          isActive ? 'bg-[rgb(var(--color-accent))/10]' : 'hover:bg-[rgb(var(--color-surface-4))/50]'
+          isActive ? 'bg-[rgb(var(--color-accent))/10] hover:bg-[rgb(var(--color-accent))/20]' : 'hover:bg-[rgb(var(--color-surface-4))/50]'
         }`}
       >
         <span className={`font-mono text-[10px] font-bold w-8 flex-shrink-0 ${isActive ? 'text-[rgb(var(--color-accent))]' : 'text-[rgb(var(--color-text-muted))]'}`}>

@@ -1,4 +1,4 @@
-import { createElement } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
@@ -11,27 +11,33 @@ import { bookName } from '@/lib/parseRef'
 // those components are tightly coupled to their host's own popover state machine and aren't
 // meant to be imported across windows.
 export function useTrailRefMenu() {
-  return usePositionedMenu<{ ref: TrailRef; onJumpToOrigin?: () => void }>()
+  return usePositionedMenu<{ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void }>()
 }
 
 export function openTrailRefMenu(
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void,
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; x: number; y: number }) => void,
   ref: TrailRef,
   e: React.MouseEvent,
   onJumpToOrigin?: () => void,
+  onDelete?: () => void,
 ) {
   e.preventDefault()
   e.stopPropagation()
-  openMenu({ ref, onJumpToOrigin, x: e.clientX, y: e.clientY })
+  openMenu({ ref, onJumpToOrigin, onDelete, x: e.clientX, y: e.clientY })
 }
 
 export function TrailRefContextMenu({
   menu, menuRef, onClose,
 }: {
-  menu: ({ ref: TrailRef; onJumpToOrigin?: () => void } & { x: number; y: number }) | null
+  menu: ({ ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void } & { x: number; y: number }) | null
   menuRef: React.RefObject<HTMLDivElement>
   onClose: () => void
 }) {
+  // Delete needs a second confirming click (no native confirm() — matches the session rail's
+  // own inline "Delete? Yes / Cancel" idiom elsewhere in this window) — reset whenever a
+  // different menu opens (or closes) so a stale "confirm?" state never carries over.
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  useEffect(() => { setConfirmingDelete(false) }, [menu])
   if (!menu) return null
   const label = trailRefLabel(menu.ref, bookName)
   // Portaled to document.body — same reason as TrailHoverCard: MapView's zoom feature wraps
@@ -63,6 +69,24 @@ export function TrailRefContextMenu({
       createElement('button', {
         key: 'jump', className: 'trail-ctx-btn', onClick: () => { menu.onJumpToOrigin!(); onClose() }, style: menuBtnStyle,
       }, 'Scroll to where this came from'),
+    ] : []),
+    ...(menu.onDelete ? [
+      createElement('div', { key: 'del-divider', style: { height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' } }),
+      confirmingDelete
+        ? createElement('div', { key: 'del-confirm', style: { display: 'flex', gap: 4, padding: '2px 4px' } },
+            createElement('button', {
+              className: 'trail-ctx-btn', onClick: () => { menu.onDelete!(); onClose() },
+              style: { ...menuBtnStyle, color: '#e08468', flex: 1 },
+            }, 'Delete'),
+            createElement('button', {
+              className: 'trail-ctx-btn', onClick: () => setConfirmingDelete(false),
+              style: { ...menuBtnStyle, flex: 1 },
+            }, 'Cancel'),
+          )
+        : createElement('button', {
+            key: 'del', className: 'trail-ctx-btn', onClick: () => setConfirmingDelete(true),
+            style: { ...menuBtnStyle, color: '#e08468' },
+          }, 'Delete'),
     ] : []),
   ), document.body)
 }
