@@ -55,7 +55,7 @@ interface VerseRowProps {
   /** Plain-word part of a combined Strong's+word search ("G5485 god") — highlighted by
    *  text match alongside highlightStrongsWords, not just the Strong's-indexed word(s). */
   highlightStrongsExtraWords?: string[]
-  onStrongsClick?: (num: string) => void
+  onStrongsClick?: (num: string, verseNum?: number) => void
   onWordClick?: (word: string) => void
   /** Read Aloud (TTS) is currently reading THIS verse — see ChapterView.tsx, which computes
    *  this by comparing the store's audioPlayback state against this row's own book/chapter/verse. */
@@ -957,7 +957,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                     wordSegments={wordSegs ?? undefined}
                     findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
                     findWordMode={highlightMode}
-                    onStrongsClick={onStrongsClick}
+                    onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
                     onWordClick={onWordClick}
                   />
                   {i < displayTokens.length - 1 && (
@@ -1114,7 +1114,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   wordSegments={wordSegs ?? undefined}
                   findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
                   findWordMode={highlightMode}
-                  onStrongsClick={onStrongsClick}
+                  onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
                   onWordClick={onWordClick}
                 />
                 {i < words.length - 1 && (
@@ -1508,7 +1508,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }) }}
                   onClick={() => {
                     setCrossRefHover(null)
-                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes' } })
+                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                   }}
                   className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
@@ -1664,7 +1664,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
-                  navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes' } })
+                  navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                 }}
               >
                 <BookOpen size={12} />
@@ -1694,7 +1694,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   recordNavigation(
                     { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
                     { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
-                    { kind: 'cross-ref', source: 'notes' },
+                    { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
                   )
                 }}
               >
@@ -1717,7 +1717,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   recordNavigation(
                     { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
                     { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
-                    { kind: 'cross-ref', source: 'notes' },
+                    { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
                   )
                 }}
               >

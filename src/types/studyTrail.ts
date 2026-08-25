@@ -39,6 +39,10 @@ export interface TrailNode {
    *  the equivalent "chain got long enough to flag" signal is computed live from chainDepth at
    *  render time instead (see MapView.tsx), no persisted fact needed for that case. */
   promotedFromConnectionId?: string
+  /** The translation/text this chapter was actually read in at arrival (v32) — 'kjva', 'lxx',
+   *  or a dedicated-translation id (enoch, jubilees, etc). Always populated going forward,
+   *  independent of cachedSubnote's mid-visit-switch note. */
+  translation?: string
 }
 
 export interface TrailConnection {

@@ -176,9 +176,9 @@ interface StudyTrailAPI {
   deleteSessions: (trailSessionIds: string[]) => Promise<{ success: boolean }>
   listSessions: () => Promise<import('./studyTrail').TrailSession[]>
   getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
-  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string }) => Promise<import('./studyTrail').TrailNode>
+  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string; translation?: string }) => Promise<import('./studyTrail').TrailNode>
   reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>
-  promoteRevisit: (args: { trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number }) => Promise<import('./studyTrail').TrailNode>
+  promoteRevisit: (args: { trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number; translation?: string }) => Promise<import('./studyTrail').TrailNode>
   updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
   addConnection: (conn: {
     trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind

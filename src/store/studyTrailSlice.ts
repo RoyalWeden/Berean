@@ -122,8 +122,10 @@ export function reasonForOrigin(origin: NavOrigin): { text?: string; tags: strin
     case 'lexicon-occurrence': return { text: `Strong's ${origin.strongsNum} occurrence`, tags: ['lexicon'] }
     // ai-lookup's text is the raw question verbatim (not decorated) — it's tier 1 and shown
     // directly as the connection's reason elsewhere, where "AI Lookup:" would just be noise
-    // next to a question mark already reading as a question.
-    case 'ai-lookup': return { text: origin.question, tags: ['ai-lookup'] }
+    // next to a question mark already reading as a question. fromVerse (a nested cross-ref
+    // result) appends the same way cross-ref's does — see the locked verbatim-question test
+    // below, which has no fromVerse and must stay untouched.
+    case 'ai-lookup': return { text: origin.fromVerse != null ? `${origin.question} (from v.${origin.fromVerse})` : origin.question, tags: ['ai-lookup'] }
     case 'search-result': return { text: `a search for "${origin.query}"`, tags: ['search'] }
     case 'note-wikilink': return { text: `a link in note "${origin.noteTitle}"`, tags: ['note'] }
     // No pre-filled text on purpose — book-chapter-picker is the one genuinely ambiguous tier-3
@@ -275,11 +277,11 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
  * a bolder connection — see the plan's Strong's depth-gradient section — without needing a
  * flag bump; each of those is its own new connection row.
  */
-export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'occurrences' | 'related' = 'click'): void {
+export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'occurrences' | 'related' = 'click', fromVerse?: number): void {
   const s = useStudyTrailStore.getState()
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] recordLexiconConnection() called', {
-      strongsNum, depth, currentTrailSessionId: s.currentTrailSessionId,
+      strongsNum, depth, fromVerse, currentTrailSessionId: s.currentTrailSessionId,
       trailSessionStatus: s.trailSessionStatus, currentAnchorNodeId: s.currentAnchorNodeId,
     })
   }
@@ -305,6 +307,10 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
     reasonTags: ['lexicon'],
     weight: 'full',
     strongsDepth: depth,
+    // Only meaningful for a fresh click FROM scripture text — a click from an already-open
+    // entry (SidebarLexicon/LexiconPanel's own navToEntry, depth 'related') has no originating
+    // verse at all, correctly left undefined by those call sites.
+    originVersePinFrom: fromVerse,
   })
     .then((conn) => {
       if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (lexicon) SUCCEEDED', conn)
@@ -422,7 +428,17 @@ let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter:
 // more time on the same anchor" cases this branch exists to filter out. An explicit allowlist
 // (not a per-kind `if`) so a future same-chapter-worthy origin only needs adding here, not a new
 // conditional. See the same-chapter cross-ref fix (commit 6c2e527) this generalizes.
-const SAME_CHAPTER_BRANCH_WORTHY_KINDS = new Set<NavOrigin['kind']>(['cross-ref', 'lexicon-occurrence'])
+const SAME_CHAPTER_BRANCH_WORTHY_KINDS = new Set<NavOrigin['kind']>(['cross-ref', 'lexicon-occurrence', 'ai-lookup'])
+
+// The specific origin verse a connection's automatic reason came from — cross-ref rows and a
+// nested AI Lookup cross-ref result both know this; every other origin kind doesn't have the
+// concept at all. One place to read it so the two addConnection call sites below (and any
+// future one) don't each need their own kind-by-kind check.
+function originFromVerse(origin: NavOrigin): number | undefined {
+  if (origin.kind === 'cross-ref') return origin.fromVerse
+  if (origin.kind === 'ai-lookup') return origin.fromVerse
+  return undefined
+}
 
 // A branch CHAIN (as opposed to the chapter-revisit case REVISIT_PROMOTE_* above measures)
 // staying entirely within lexicon-land can never create a trail_nodes row to "promote" into —
@@ -493,7 +509,7 @@ export function installStudyTrailRecorder(): void {
           chainDepth: chained ? s.currentBranchTipDepth + 1 : 0,
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
           clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
-          originVersePinFrom: origin.kind === 'cross-ref' ? origin.fromVerse : undefined,
+          originVersePinFrom: originFromVerse(origin),
         })
           .then((conn) => {
             if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (same-chapter branch) SUCCEEDED', conn)
@@ -569,7 +585,11 @@ export function installStudyTrailRecorder(): void {
           try {
             const promoted = await window.studyTrail.promoteRevisit({
               trailSessionId, originalNodeId: prevNodeId, bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter,
-              activatedAt: s.currentAnchorActivatedAt,
+              // from.translation, not to.translation — this promotes the chapter being LEFT
+              // (the reopened node the user was just re-engaging with), so it needs that
+              // chapter's own translation, which is what `from` (the pre-navigation tab state)
+              // carries, not the destination's.
+              activatedAt: s.currentAnchorActivatedAt, translation: from.translation,
             })
             if (window.__bereanTrailDebug) console.log('[TrailDebug] promoteRevisit SUCCEEDED', promoted)
             effectivePrevNodeId = promoted.id
@@ -583,9 +603,9 @@ export function installStudyTrailRecorder(): void {
 
       let node = await (existingNodeId
         ? window.studyTrail.reopenNode(existingNodeId)
-        : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind }))
+        : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation }))
       if (!node) { // reopenNode found nothing (stale index entry) — fall back to a fresh node
-        node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+        node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation })
       }
       if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
       // Arriving at ANY chapter always means "back at depth 0" — whatever branch chain led here
@@ -619,7 +639,7 @@ export function installStudyTrailRecorder(): void {
         chainDepth: chainedFromBranch ? s.currentBranchTipDepth + 1 : 0,
         toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
         clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
-        originVersePinFrom: origin.kind === 'cross-ref' ? origin.fromVerse : undefined,
+        originVersePinFrom: originFromVerse(origin),
       })
       if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
       // The opt-in "why did you jump here?" arrival prompt — only for jumps Study Trail is

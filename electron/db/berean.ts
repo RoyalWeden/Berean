@@ -855,6 +855,20 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_trail_conn_parent ON trail_connections(from_connection_id);`)
       console.log('[berean-db] v31: trail_connections.from_connection_id/chain_depth/to_verse_end, trail_nodes.promoted_from_connection_id')
     }
+  },
+  {
+    // Study Trail — which TEXT a chapter was actually read in. Previously the only translation
+    // signal on a node was cached_subnote, written ONLY on an explicit MID-VISIT switch
+    // (recordTranslationSwitch) — a chapter opened directly in LXX, or a dedicated-translation
+    // book (Enoch/Jubilees/etc.) that was never switched into, showed nothing at all in the
+    // hover card. The recorder's `to` object already carries `translation` on every navigation
+    // (see verseNavigation.ts's navigateToVerse) — this column just keeps that fact instead of
+    // discarding it, so every node has an always-populated answer to "what was this read in."
+    version: 32,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN translation TEXT;`)
+      console.log('[berean-db] v32: trail_nodes.translation')
+    }
   }
 ]
 

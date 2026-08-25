@@ -1663,7 +1663,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (!useAppStore.getState().viewerPaused) computePresenterBandRef.current()
   }, [memoTabId, updateTabState])
 
-  const handleStrongsClick = useCallback((strongsNum: string) => {
+  const handleStrongsClick = useCallback((strongsNum: string, verseNum?: number) => {
     // No side panel in floating windows — skip opening it
     if (!floating) {
       setRightPanelLexiconEntry(strongsNum)
@@ -1679,7 +1679,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
-    recordLexiconConnection(strongsNum)
+    // verseNum — the specific verse this Strong's number was clicked from — was previously
+    // never threaded through this whole callback chain (StrongsInline -> VerseRow ->
+    // ChapterView -> here), even though every level already renders one verse at a time and
+    // had it in scope. Confirmed root cause of "clicked strongs from 2 peter 3 and it didn't
+    // track the verse I clicked that from."
+    recordLexiconConnection(strongsNum, 'click', verseNum)
   }, [floating, memoTabId, updateTabState])
 
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current

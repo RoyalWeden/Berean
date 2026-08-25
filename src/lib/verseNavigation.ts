@@ -15,7 +15,7 @@ export type NavOrigin =
   | { kind: 'search-result'; query: string }                             // ScriptureSearchView / SearchTab / FloatingSearch
   | { kind: 'lexicon-occurrence'; strongsNum: string }                   // LexiconPanel occurrence row
   | { kind: 'note-wikilink'; noteId: string; noteTitle: string }          // NotesPanel wikilink/verse-ref click
-  | { kind: 'ai-lookup'; question: string }                              // AiLookupPanel suggested verse
+  | { kind: 'ai-lookup'; question: string; fromVerse?: number }          // AiLookupPanel suggested verse — fromVerse set when this suggestion was itself a nested cross-ref result (AiLookupResult.crossRefOf), so it's exactly as traceable as a right-panel cross-ref click
   | { kind: 'compare-column' }                                           // CompareView column change
   | { kind: 'book-chapter-picker' }                                      // manual chapter/book picker — ambiguous
   | { kind: 'history-revisit' }                                          // HistoryModal reopen

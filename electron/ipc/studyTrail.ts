@@ -27,7 +27,7 @@ interface TrailSessionRow {
 interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
-  revisit_of_node_id: string | null; promoted_from_connection_id: string | null
+  revisit_of_node_id: string | null; promoted_from_connection_id: string | null; translation: string | null
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -58,6 +58,7 @@ function rowToNode(r: TrailNodeRow) {
     cachedSubnote: r.cached_subnote ?? undefined, originLabel: r.origin_label ?? undefined,
     revisitOfNodeId: r.revisit_of_node_id ?? undefined,
     promotedFromConnectionId: r.promoted_from_connection_id ?? undefined,
+    translation: r.translation ?? undefined,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -200,6 +201,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('studyTrail:addNode', (_e, node: {
     trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string
+    translation?: string
   }) => {
     // Prints to the TERMINAL running `npm run dev` (this is the Electron MAIN process — not
     // devtools console), gated the same as the renderer-side [TrailDebug] logs via a global
@@ -216,9 +218,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE trail_session_id = ? AND anchor_ended_at IS NULL`)
       .run(now, node.trailSessionId)
     prep(db, `
-      INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, origin_label)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null)
+      INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, origin_label, translation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null, node.translation ?? null)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode inserted', result)
     return result
@@ -260,6 +262,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // duration no longer double-counts time that now belongs to the promoted node.
   ipcMain.handle('studyTrail:promoteRevisit', (_e, args: {
     trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number
+    translation?: string
   }) => {
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit called', args)
     const db = getBereanDb()
@@ -269,9 +272,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE id = ? AND anchor_ended_at IS NULL`)
         .run(args.activatedAt, args.originalNodeId)
       prep(db, `
-        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, anchor_ended_at, revisit_of_node_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, args.trailSessionId, args.bookId, args.chapter, args.activatedAt, args.activatedAt, now, args.originalNodeId)
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, anchor_ended_at, revisit_of_node_id, translation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, args.trailSessionId, args.bookId, args.chapter, args.activatedAt, args.activatedAt, now, args.originalNodeId, args.translation ?? null)
     })
     promote()
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)

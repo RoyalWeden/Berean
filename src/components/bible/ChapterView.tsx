@@ -116,7 +116,7 @@ interface ChapterViewProps {
   hiddenAnnotations?: string[]
   findQuery?: string
   findWordMode?: 'phrase' | 'all' | 'any'
-  onStrongsClick?: (num: string) => void
+  onStrongsClick?: (num: string, verseNum?: number) => void
   onWordClick?: (word: string) => void
   onVersesLoaded?: () => void
   /** Fired once after the scroll-to-verse effect scrolls to `targetVerse`, so the

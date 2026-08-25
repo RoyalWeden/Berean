@@ -471,10 +471,14 @@ export default function AiLookupPanel() {
     setActiveSpace('scripture')
     // Tier 1 — the AI Lookup's suggestion IS the reason; the asked question is threaded
     // through as the connection's reason text so it reads as "why" in the Study Trail map.
+    // A NESTED cross-ref result (r.crossRefOf set) additionally knows exactly which verse's
+    // cross-ref list it came from — previously dropped entirely, since this whole function
+    // always recorded kind:'ai-lookup' with no verse info at all, unlike the equivalent
+    // right-panel cross-ref click.
     recordNavigation(
       { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
       { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
-      { kind: 'ai-lookup', question: question ?? '' },
+      { kind: 'ai-lookup', question: question ?? '', fromVerse: r.crossRefOf?.verse },
     )
   }
 

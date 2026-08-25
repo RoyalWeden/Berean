@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { bookName } from '@/lib/parseRef'
+import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { originDisplayText } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import type { TrailConnection, TrailNode } from '@/types/studyTrail'
@@ -53,11 +53,18 @@ function OriginLine({ conn }: { conn: TrailConnection }) {
 export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
   const [verseText, setVerseText] = useState<string | null>(null)
   const replace = useWordReplace()
+  // A dedicated-translation book (Enoch, Jubilees, etc.) only ever lives in ITS OWN db, never
+  // 'kjva' (the default queryVerse falls back to when no textId is passed) — that mismatch was
+  // silently resolving null with no indication why, so a non-canon chapter's hover card showed
+  // no preview at all. getTranslationForBook is authoritative for those books regardless of
+  // node.translation; for a canon book, fall back to what was actually recorded at arrival
+  // (node.translation, v32) — the user's own KJV-vs-LXX choice, not derivable from bookId alone.
+  const effectiveTranslation = getTranslationForBook(node.bookId) ?? node.translation
   useEffect(() => {
     let cancelled = false
-    window.bible.queryVerse(node.bookId, node.chapter, 1).then((v) => { if (!cancelled) setVerseText(v?.text ?? null) }).catch(() => {})
+    window.bible.queryVerse(node.bookId, node.chapter, 1, effectiveTranslation ?? undefined).then((v) => { if (!cancelled) setVerseText(v?.text ?? null) }).catch(() => {})
     return () => { cancelled = true }
-  }, [node.bookId, node.chapter])
+  }, [node.bookId, node.chapter, effectiveTranslation])
 
   const duration = (node.anchorEndedAt ?? Date.now()) - node.anchorStartedAt
 
@@ -67,7 +74,19 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
         <span>{bookName(node.bookId)} {node.chapter}</span>
         <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
       </div>
-      <div style={{ ...rowStyle, marginTop: 2 }}>{fmtDuration(duration)} on this chapter</div>
+      <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{fmtDuration(duration)} on this chapter</span>
+        {/* No indication anywhere of which text (KJV vs LXX, or a dedicated translation) a
+            chapter was actually read in — per direct feedback ("i dont see any indication in
+            the hover thing if the user checked the lxx"). Suppressed for plain kjva since
+            that's the silent default everyone assumes; anything else is worth calling out. */}
+        {effectiveTranslation && effectiveTranslation !== 'kjva' && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.12)',
+            borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
+          }}>{effectiveTranslation}</span>
+        )}
+      </div>
       {originConn && <div style={dividerStyle} />}
       {originConn && <OriginLine conn={originConn} />}
       {(verseText || node.cachedSubnote) && <div style={dividerStyle} />}
@@ -92,7 +111,9 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
         setPreview(`${e.lemma} (${e.transliteration}) — ${e.gloss}`)
       }).catch(() => {})
     } else if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null) {
-      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse ?? conn.versePinFrom ?? 1)
+      // Same non-canon-book gap as TrailNodeHoverContent above — a dedicated-translation
+      // destination silently returned no preview with queryVerse defaulting to 'kjva'.
+      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse ?? conn.versePinFrom ?? 1, getTranslationForBook(conn.toBookId) ?? undefined)
         .then((v) => { if (!cancelled) setPreview(v?.text ?? null) }).catch(() => {})
     }
     return () => { cancelled = true }
