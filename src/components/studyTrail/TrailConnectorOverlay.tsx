@@ -42,6 +42,14 @@ export default function TrailConnectorOverlay({
 }) {
   const [coords, setCoords] = useState<Map<string, TrailPoint>>(new Map())
 
+  // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
+  // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
+  // every render, including the one setCoords itself triggers — an unconditional setState
+  // there is an infinite "render → effect → setState → render" loop (React's "Maximum update
+  // depth exceeded"). Only committing state when a value actually changed breaks the cycle:
+  // the effect still reruns after every render (needed to catch layout changes with no
+  // dedicated signal — glance-group expand/collapse, etc.), but once positions stabilize it
+  // becomes a no-op instead of scheduling another update.
   const recompute = useCallback(() => {
     const container = containerRef.current
     if (!container) return
@@ -51,12 +59,23 @@ export default function TrailConnectorOverlay({
       const r = el.getBoundingClientRect()
       next.set(key, { x: r.left + r.width / 2 - cRect.left, y: r.top + r.height / 2 - cRect.top })
     })
-    setCoords(next)
+    setCoords((prev) => {
+      if (prev.size === next.size) {
+        let same = true
+        for (const [key, pt] of next) {
+          const p = prev.get(key)
+          if (!p || p.x !== pt.x || p.y !== pt.y) { same = false; break }
+        }
+        if (same) return prev
+      }
+      return next
+    })
   }, [containerRef, pointsRef])
 
   // Every render (cheap — this is small DOM, and it's the only way to catch a glance-group
   // expanding/collapsing or new nodes streaming in without wiring a bespoke "recompute" signal
-  // into every caller of every state setter that could change row layout).
+  // into every caller of every state setter that could change row layout). Safe against
+  // infinite loops because recompute() above only calls setCoords when something truly moved.
   useLayoutEffect(() => { recompute() })
 
   // Catches layout shifts React itself didn't cause a re-render for — window resize, and any
