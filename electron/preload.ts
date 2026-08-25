@@ -153,6 +153,13 @@ contextBridge.exposeInMainWorld('app', {
   // app:navigateMainToRef handler comment for why this round-trips through the main process
   // instead of a direct store call.
   navigateMainToRef: (payload: unknown) => ipcRenderer.invoke('app:navigateMainToRef', payload),
+  getActiveScriptureRef: () => ipcRenderer.invoke('app:getActiveScriptureRef'),
+  onRequestActiveScriptureRef: (cb: () => { bookId: string; chapter: number } | null) => {
+    ipcRenderer.removeAllListeners('app:requestActiveScriptureRef')
+    ipcRenderer.on('app:requestActiveScriptureRef', () => {
+      ipcRenderer.send('app:activeScriptureRefReply', cb())
+    })
+  },
   onNavigateToRef: (cb: (payload: unknown) => void) => {
     ipcRenderer.removeAllListeners('app:navigateToRef')
     ipcRenderer.on('app:navigateToRef', (_e, payload) => cb(payload))

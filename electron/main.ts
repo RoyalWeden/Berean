@@ -912,6 +912,19 @@ app.whenReady().then(async () => {
   // setters directly, since those would only mutate THIS window's store. This focuses the real
   // main window and hands it the ref; App.tsx's onNavigateToRef listener does the actual
   // navigateToVerse/addTab/openLexiconEntry call against the main window's own live state.
+  // Study Trail's "+New session" wants to seed the first spine node from whatever chapter is
+  // ACTUALLY open right now in the main window — but the main window's tab state lives in ITS
+  // OWN renderer's store, invisible to the Study Trail window's separate renderer. Round-trips
+  // through the main process: ask the main window's renderer, wait for its one-shot reply.
+  ipcMain.handle('app:getActiveScriptureRef', (_e) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { ipcMain.removeAllListeners('app:activeScriptureRefReply'); resolve(null) }, 1500)
+      ipcMain.once('app:activeScriptureRefReply', (_e2, ref) => { clearTimeout(timer); resolve(ref) })
+      mainWindow!.webContents.send('app:requestActiveScriptureRef')
+    })
+  })
+
   ipcMain.handle('app:navigateMainToRef', (_e, payload: unknown) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false
     if (mainWindow.isMinimized()) mainWindow.restore()

@@ -119,12 +119,38 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (prevId) await window.studyTrail.pauseSession(prevId).catch(() => {})
     const session = await window.studyTrail.startSession(name)
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startSession IPC resolved', session)
-    set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
+
+    // Seed the session's first spine node from whatever chapter is ACTUALLY open right now in
+    // the main window, so a new session doesn't start on a totally blank slate if you're
+    // already mid-study when you create it. The main window's tab state lives in ITS OWN
+    // separate renderer store (invisible from here), so this asks it directly via a round-trip
+    // IPC (getActiveScriptureRef) — best-effort: if the main window doesn't answer in time, or
+    // there's no scripture tab open at all, the session just starts empty as before.
+    const activeRef = await window.app.getActiveScriptureRef?.().catch(() => null)
+    let seedNodeId: string | null = null
+    if (activeRef) {
+      const seedNode = await window.studyTrail.addNode({
+        trailSessionId: session.id, bookId: activeRef.bookId, chapter: activeRef.chapter, orderIndex: Date.now(),
+      }).catch(() => null)
+      seedNodeId = seedNode?.id ?? null
+    }
+
+    set({
+      currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorActivatedAt: seedNodeId ? Date.now() : null,
+      currentAnchorNodeId: seedNodeId, currentAnchorBookId: seedNodeId ? activeRef!.bookId : null,
+      currentAnchorChapter: seedNodeId ? activeRef!.chapter : null, currentAnchorIsRevisit: false,
+      sessionNodeIndex: seedNodeId ? { [`${activeRef!.bookId}:${activeRef!.chapter}`]: seedNodeId } : {},
+    })
     // Tell every other open window (main window, if this was started from the Study Trail
     // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
-    // necessary at all.
-    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session start', { currentTrailSessionId: session.id, trailSessionStatus: 'live' })
-    window.app.broadcastStudyTrailState?.({ currentTrailSessionId: session.id, trailSessionStatus: 'live' })
+    // necessary at all. The seedAnchor payload lets the MAIN window (where the actual live
+    // recorder/anchor-tracking runs) adopt the seeded node directly instead of resetting to a
+    // blank anchor and waiting for the next real navigation to create the first node.
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session start', { currentTrailSessionId: session.id, trailSessionStatus: 'live', seedNodeId })
+    window.app.broadcastStudyTrailState?.({
+      currentTrailSessionId: session.id, trailSessionStatus: 'live',
+      ...(seedNodeId ? { seedAnchor: { nodeId: seedNodeId, bookId: activeRef!.bookId, chapter: activeRef!.chapter } } : {}),
+    })
   },
   pauseTrailSession: async () => {
     const id = get().currentTrailSessionId
@@ -280,19 +306,35 @@ export function installStudyTrailStateSync(): void {
   }).catch((err) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions FAILED', err) })
 
   window.app.onStudyTrailStateChanged?.((raw) => {
-    const incoming = raw as { currentTrailSessionId: string | null; trailSessionStatus: TrailSessionStatus | null }
+    const incoming = raw as {
+      currentTrailSessionId: string | null; trailSessionStatus: TrailSessionStatus | null
+      seedAnchor?: { nodeId: string; bookId: string; chapter: number }
+    }
     if (window.__bereanTrailDebug) console.log('[TrailDebug] received broadcast', incoming)
     const cur = useStudyTrailStore.getState()
     if (cur.currentTrailSessionId === incoming.currentTrailSessionId && cur.trailSessionStatus === incoming.trailSessionStatus) return
+    const sessionChanged = cur.currentTrailSessionId !== incoming.currentTrailSessionId
     useStudyTrailStore.setState({
       currentTrailSessionId: incoming.currentTrailSessionId,
       trailSessionStatus: incoming.trailSessionStatus,
       // A different (or newly-null) session id means whatever anchor THIS window's own
       // recorder was tracking is now stale — reset it exactly like startTrailSession's own
       // reducer does, so the next navigation creates a fresh first anchor for the new session
-      // instead of wrongly hanging a connection off the previous one.
-      ...(cur.currentTrailSessionId !== incoming.currentTrailSessionId
-        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} }
+      // instead of wrongly hanging a connection off the previous one. UNLESS the broadcast
+      // came with a seedAnchor (the new session was seeded from whatever chapter was active
+      // when it was created) — then THIS window (almost always the main window, where the
+      // live recorder actually runs) adopts that seeded node as its own current anchor
+      // directly, so the next real navigation correctly connects FROM it instead of having
+      // nothing to connect from.
+      ...(sessionChanged
+        ? incoming.seedAnchor
+          ? {
+              currentAnchorNodeId: incoming.seedAnchor.nodeId, currentAnchorBookId: incoming.seedAnchor.bookId,
+              currentAnchorChapter: incoming.seedAnchor.chapter, currentAnchorVerseCount: 0,
+              currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: false,
+              sessionNodeIndex: { [`${incoming.seedAnchor.bookId}:${incoming.seedAnchor.chapter}`]: incoming.seedAnchor.nodeId },
+            }
+          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} }
         : {}),
     })
   })

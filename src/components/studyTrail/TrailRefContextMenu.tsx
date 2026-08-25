@@ -11,23 +11,24 @@ import { bookName } from '@/lib/parseRef'
 // those components are tightly coupled to their host's own popover state machine and aren't
 // meant to be imported across windows.
 export function useTrailRefMenu() {
-  return usePositionedMenu<{ ref: TrailRef }>()
+  return usePositionedMenu<{ ref: TrailRef; onJumpToOrigin?: () => void }>()
 }
 
 export function openTrailRefMenu(
-  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void,
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void,
   ref: TrailRef,
   e: React.MouseEvent,
+  onJumpToOrigin?: () => void,
 ) {
   e.preventDefault()
   e.stopPropagation()
-  openMenu({ ref, x: e.clientX, y: e.clientY })
+  openMenu({ ref, onJumpToOrigin, x: e.clientX, y: e.clientY })
 }
 
 export function TrailRefContextMenu({
   menu, menuRef, onClose,
 }: {
-  menu: ({ ref: TrailRef } & { x: number; y: number }) | null
+  menu: ({ ref: TrailRef; onJumpToOrigin?: () => void } & { x: number; y: number }) | null
   menuRef: React.RefObject<HTMLDivElement>
   onClose: () => void
 }) {
@@ -57,6 +58,12 @@ export function TrailRefContextMenu({
       onClick: () => { trailRefOpenFloating(menu.ref); onClose() },
       style: menuBtnStyle,
     }, 'Open in floating tab'),
+    ...(menu.onJumpToOrigin ? [
+      createElement('div', { key: 'divider', style: { height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' } }),
+      createElement('button', {
+        key: 'jump', onClick: () => { menu.onJumpToOrigin!(); onClose() }, style: menuBtnStyle,
+      }, 'Scroll to where this came from'),
+    ] : []),
   ), document.body)
 }
 

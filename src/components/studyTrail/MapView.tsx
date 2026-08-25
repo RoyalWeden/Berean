@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
-import { trailRefClick, originDisplayText, type TrailRef } from './trailNav'
+import { trailRefClick, navigateTrailRef, originDisplayText, type TrailRef } from './trailNav'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, type TrailEdge } from './TrailConnectorOverlay'
 
@@ -91,7 +91,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
-  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
 }) {
   const isLexicon = conn.toKind === 'lexicon'
@@ -160,7 +160,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
 function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
   items: AnnotatedConn[]
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   groupKey: string
 }) {
@@ -209,22 +209,37 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 }
 
 function NodeBlock({
-  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel,
+  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
+  keyboardFocused, dimmed, searchMatched, blockRef,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
   originConn?: TrailConnection
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   boundaryLabel?: string
+  onJumpToOrigin?: () => void
+  /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
+  keyboardFocused?: boolean
+  /** A search filter is active and this node/its rows don't match it. */
+  dimmed?: boolean
+  /** A search filter is active and this node DOES match it. */
+  searchMatched?: boolean
+  blockRef?: (el: HTMLDivElement | null) => void
 }) {
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
   const showOrigin = originConn && !isLowSignalOrigin(originConn)
   return (
-    <div>
+    <div
+      ref={blockRef}
+      style={{
+        opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
+        boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+      }}
+    >
       {boundaryLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
@@ -254,7 +269,7 @@ function NodeBlock({
         <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
-            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e)}
+            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e, onJumpToOrigin)}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
@@ -306,6 +321,40 @@ export default function MapView({
   const zoom = zoomProp ?? ownZoom
   const setZoom = onZoomChange ?? setOwnZoom
 
+  // Quick filter/highlight while looking at a (possibly long) spine — not a replacement for
+  // the Review tab's cross-session search, just a way to spot things without scrolling/reading
+  // every row. Matches against the chapter label and every connection's label/reasonText.
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
+  // whenever an input/textarea has focus (renaming a session, typing in the search box above,
+  // etc.) so it never hijacks normal typing.
+  const [keyboardFocusId, setKeyboardFocusId] = useState<string | null>(null)
+  const nodeBlockRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return
+      if (detail.nodes.length === 0) return
+      e.preventDefault()
+      if (e.key === 'Enter') {
+        if (keyboardFocusId) navigateTrailRef({ kind: 'chapter', bookId: detail.nodes.find((n) => n.id === keyboardFocusId)!.bookId, chapter: detail.nodes.find((n) => n.id === keyboardFocusId)!.chapter }, false)
+        return
+      }
+      const curIdx = keyboardFocusId ? detail.nodes.findIndex((n) => n.id === keyboardFocusId) : -1
+      const nextIdx = e.key === 'ArrowDown'
+        ? Math.min(detail.nodes.length - 1, curIdx + 1)
+        : Math.max(0, curIdx === -1 ? detail.nodes.length - 1 : curIdx - 1)
+      const nextId = detail.nodes[nextIdx].id
+      setKeyboardFocusId(nextId)
+      nodeBlockRefs.current.get(nextId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [detail.nodes, keyboardFocusId])
+
   // Real proportional zoom (a CSS transform on the whole spine), not just a spacing/font-size
   // slider — trackpad pinch and Ctrl+scroll both arrive as wheel events with ctrlKey=true (the
   // standard way browsers report pinch gestures), so a single wheel listener covers both. The
@@ -338,6 +387,16 @@ export default function MapView({
     if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) continue
     const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
     if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
+  }
+
+  // "Scroll to where this came from" — tries the exact originating ROW first (a branch stop
+  // like a Strong's lookup, if one is actually rendered as its own row); falls back to the
+  // originating CHAPTER's own spine dot when the origin was a plain forward connection with no
+  // distinct row (the common "just kept reading onward" case), so the action is always useful
+  // even when there's nothing more specific to point at.
+  function jumpToOrigin(conn: TrailConnection) {
+    const el = pointsRef.current.get(`row:${conn.id}`) ?? pointsRef.current.get(`node:${conn.fromNodeId}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   function refFor(conn: TrailConnection): TrailRef | null {
@@ -413,8 +472,38 @@ export default function MapView({
     }
   }
 
+  const q = searchQuery.trim().toLowerCase()
+  const matchedNodeIds = new Set<string>()
+  if (q) {
+    for (const n of detail.nodes) {
+      const nodeText = `${bookLabel(n.bookId)} ${n.chapter}`.toLowerCase()
+      const rowMatch = (rowsForNode.get(n.id) ?? []).some((c) =>
+        (c.toStrongsNum ?? '').toLowerCase().includes(q) ||
+        (c.reasonText ?? '').toLowerCase().includes(q) ||
+        (c.toBookId ? bookLabel(c.toBookId).toLowerCase() : '').includes(q))
+      if (nodeText.includes(q) || rowMatch) matchedNodeIds.add(n.id)
+    }
+  }
+  function jumpToFirstMatch() {
+    const first = detail.nodes.find((n) => matchedNodeIds.has(n.id))
+    if (first) nodeBlockRefs.current.get(first.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
     <div style={{ position: 'relative' }}>
+      <div style={{ marginBottom: 10 }}>
+        <input
+          ref={searchInputRef}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
+          placeholder="Filter this timeline… (chapter, Strong's number, reason)"
+          style={{
+            width: '100%', fontSize: 12, padding: '6px 9px', background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+          }}
+        />
+      </div>
       <div onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
@@ -444,6 +533,11 @@ export default function MapView({
               originConn={originConnByNodeId.get(n.id)}
               registerPoint={registerPoint}
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
+              onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
+              keyboardFocused={keyboardFocusId === n.id}
+              dimmed={!!q && !matchedNodeIds.has(n.id)}
+              searchMatched={!!q && matchedNodeIds.has(n.id)}
+              blockRef={(el) => { if (el) nodeBlockRefs.current.set(n.id, el); else nodeBlockRefs.current.delete(n.id) }}
             />
           )
         })}

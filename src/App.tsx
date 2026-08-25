@@ -24,7 +24,7 @@ import AudioPlayer from '@/components/audio/AudioPlayer'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
-import type { SpaceId, Tab } from '@/types'
+import type { SpaceId, Tab, BibleTabState } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
 // like the other lazy modals below so it doesn't add to the initial bundle.
@@ -59,6 +59,18 @@ export default function App() {
   // call site needing to know Study Trail exists (see src/lib/verseNavigation.ts's injected
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
+  // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
+  // new session's first node from the currently-active tab) — see electron/main.ts's
+  // app:getActiveScriptureRef comment for why this has to round-trip through the main process.
+  useEffect(() => {
+    window.app.onRequestActiveScriptureRef?.(() => {
+      const s = useAppStore.getState()
+      const tabId = s.activeTabId['scripture']
+      const tab = s.tabs['scripture'].find((t) => t.id === tabId)
+      const bs = tab?.state as BibleTabState | undefined
+      return bs?.bookId && bs.chapter != null ? { bookId: bs.bookId, chapter: bs.chapter } : null
+    })
+  }, [])
   // The receiving half of Study Trail's (or any secondary window's) "navigate the main
   // window" request — see electron/main.ts's app:navigateMainToRef comment for why this has
   // to round-trip through the main process instead of a direct cross-window store call.
