@@ -83,11 +83,18 @@ function isConfidentOrigin(conn: TrailConnection): boolean {
   return conn.clarityTier === 1 && !isLowSignalOrigin(conn)
 }
 
+// Per the confused-reviewer persona's brief: someone who can't reliably trace an SVG line
+// should never be REQUIRED to — a plain sentence should always be available, even for the
+// less-certain tiers, so an arrow becomes an optional visual confirmation of something the
+// text already said, not the only source of truth. Tier 1 reads as a plain fact ("via ...");
+// tier 2/3 are hedged ("possibly via ...") since Study Trail itself isn't fully sure — hedging
+// honestly, not asserting a guess as fact, is what makes it safe to show these more often.
 function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   const replace = useWordReplace()
+  const hedge = conn.clarityTier === 1 ? '' : 'possibly '
   return (
     <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
-      via {replace(originDisplayText(conn))}
+      {hedge}via {replace(originDisplayText(conn))}
     </div>
   )
 }
@@ -116,6 +123,13 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
+  // "v.17 → Isa 52" instead of just "Isaiah 52" with a stray v.17 chip floating next to it —
+  // when the SPECIFIC verse on this row's own (origin) chapter is known (a cross-ref click
+  // always knows this; see NavOrigin's cross-ref.fromVerse and the recorder's automatic
+  // originVersePinFrom capture), it belongs IN the row label, not reassembled by the reader.
+  // No book/chapter prefix on the origin side — this row already lives directly under that
+  // chapter's own node block, so which chapter v.17 belongs to is never in question.
+  const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
   const baseLabel = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
@@ -124,7 +138,9 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
         ? 'note'
         : conn.toKind === 'video'
           ? 'video'
-          : `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${conn.toVerse ? `:${conn.toVerse}` : ''}`
+          : conn.originVersePinFrom != null
+            ? `v.${conn.originVersePinFrom} → ${chapterDestLabel}`
+            : chapterDestLabel
   const label = conn.isReturn ? `↺ ${baseLabel}` : conn.isSameChapterBranch ? `↳ v.${conn.toVerse ?? '?'}` : baseLabel
   const ref = refFor(conn)
   return (
@@ -230,7 +246,7 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -250,15 +266,29 @@ function NodeBlock({
   /** Width (px) of the reserved right-hand gutter column laned return/revisit edges route
    *  through — 0 means no laned edges exist this render, so no column is reserved at all. */
   gutterWidth: number
+  /** 1-based chronological position in the session — per the confused-reviewer persona: a
+   *  return row can say "back to step 4" in plain text, so confirming it never REQUIRES
+   *  successfully tracing the arrow, just reading two numbers. */
+  step: number
+  /** Hover-to-isolate: reports this node's point key on enter/leave so MapView can dim every
+   *  edge not touching it — the design persona's "highest-value 30-minute fix" for making a
+   *  dense graph legible without any topology change. */
+  onHoverKey?: (key: string | null) => void
 }) {
   const replace = useWordReplace()
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
-  const showOrigin = originConn && isConfidentOrigin(originConn)
+  // Shown for every tier now except the genuinely low-signal ones (tab-switch, plain reading)
+  // — isConfidentOrigin still separately gates whether a forward connection ALSO earns its own
+  // traced branch line (see rowsForNode below), so this widening doesn't reintroduce the
+  // duplicate-line clutter that gate was built to prevent; it only widens the plain-text badge.
+  const showOrigin = originConn && !isLowSignalOrigin(originConn)
   return (
     <div
       ref={blockRef}
+      onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
+      onMouseLeave={() => onHoverKey?.(null)}
       style={{
         opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
         boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
@@ -300,6 +330,10 @@ function NodeBlock({
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
+              minWidth: 14, textAlign: 'right', flexShrink: 0,
+            }}>{step}</span>
             {bookLabel(node.bookId)} {node.chapter}
             {isRevisit && (
               <span style={{
@@ -357,6 +391,11 @@ export default function MapView({
   // every row. Matches against the chapter label and every connection's label/reasonText.
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Hover-to-isolate — the design persona's highest-value/lowest-effort fix: hovering any node
+  // or connection row dims every edge that doesn't touch it, no topology change required. Wired
+  // into the edges array just before it's passed to the overlay (see below).
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null)
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
   // whenever an input/textarea has focus (renaming a session, typing in the search box above,
@@ -627,6 +666,8 @@ export default function MapView({
               registerPoint={registerPoint}
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
+              step={i + 1}
+              onHoverKey={setHoveredKey}
               keyboardFocused={keyboardFocusId === n.id}
               dimmed={!!q && !matchedNodeIds.has(n.id)}
               searchMatched={!!q && matchedNodeIds.has(n.id)}

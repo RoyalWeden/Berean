@@ -436,6 +436,7 @@ export function installStudyTrailRecorder(): void {
           trailSessionId: s.currentTrailSessionId, fromNodeId: s.currentAnchorNodeId, toKind: 'chapter',
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
           clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
+          originVersePinFrom: origin.fromVerse,
         })
           .then((conn) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (same-chapter branch) SUCCEEDED', conn) })
           .catch((err) => console.error('[TrailDebug] addConnection (same-chapter branch) FAILED', err))
@@ -542,6 +543,7 @@ export function installStudyTrailRecorder(): void {
         trailSessionId, fromNodeId: effectivePrevNodeId, toKind: 'chapter',
         toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
         clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
+        originVersePinFrom: origin.kind === 'cross-ref' ? origin.fromVerse : undefined,
       })
       if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
       // The opt-in "why did you jump here?" arrival prompt — only for jumps Study Trail is

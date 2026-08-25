@@ -285,6 +285,12 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     toStrongsNum?: string; toNoteId?: string; toVideoId?: string
     clarityTier: 1 | 2 | 3; reasonText?: string; reasonTags?: string[]
     weight?: 'full' | 'glance'; strongsDepth?: string
+    // Auto-captured at creation time (as opposed to originVersePinFrom/To's usual role as a
+    // user-entered pin from the arrival-reason prompt) — a cross-ref click already KNOWS
+    // exactly which verse on the chapter being left it came from (see NavOrigin's cross-ref
+    // `fromVerse`), so there's no reason to make the user re-enter it later. Same column,
+    // populated two different ways depending on how confident the origin already is.
+    originVersePinFrom?: number
   }) => {
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection called', conn)
     const db = getBereanDb()
@@ -312,14 +318,14 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       INSERT INTO trail_connections (
         id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
         to_strongs_num, to_note_id, to_video_id, clarity_tier, reason_text, reason_tags,
-        weight, strongs_depth, cluster_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        weight, strongs_depth, cluster_id, origin_verse_pin_from, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, conn.trailSessionId, conn.fromNodeId, conn.toKind,
       conn.toBookId ?? null, conn.toChapter ?? null, conn.toVerse ?? null,
       conn.toStrongsNum ?? null, conn.toNoteId ?? null, conn.toVideoId ?? null,
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
-      conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, now
+      conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null, now
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)
