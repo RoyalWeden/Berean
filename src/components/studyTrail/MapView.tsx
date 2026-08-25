@@ -135,7 +135,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
             v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
           </span>
         )}
-        {conn.reasonText ? (
+        {conn.reasonText && !isLowSignalOrigin(conn) ? (
           <span style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))', fontStyle: 'italic' }}>· {conn.reasonText}</span>
         ) : needsInput ? (
           <button
@@ -282,27 +282,39 @@ function NodeBlock({
   )
 }
 
-const ZOOM_MIN = 0.5
-const ZOOM_MAX = 2
-const ZOOM_STEP = 0.1
+export const ZOOM_MIN = 0.5
+export const ZOOM_MAX = 2
 
-export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: { detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string> }) {
+export default function MapView({
+  detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange,
+}: {
+  detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Zoom is normally OWNED by StudyTrailApp (rendered in its title bar, top-right, so it
+   *  applies consistently whether you're looking at one session or the merged Everything
+   *  timeline) — these are optional purely so MapView still works if ever mounted standalone
+   *  without a controlling parent. */
+  zoom?: number
+  onZoomChange?: (zoom: number) => void
+}) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
   const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
   const containerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
 
+  const [ownZoom, setOwnZoom] = useState(1)
+  const zoom = zoomProp ?? ownZoom
+  const setZoom = onZoomChange ?? setOwnZoom
+
   // Real proportional zoom (a CSS transform on the whole spine), not just a spacing/font-size
   // slider — trackpad pinch and Ctrl+scroll both arrive as wheel events with ctrlKey=true (the
   // standard way browsers report pinch gestures), so a single wheel listener covers both. The
   // scaled content sits inside its own scrollable viewport (below) so zooming in doesn't clip
   // against the panel's outer scroll area.
-  const [zoom, setZoom] = useState(1)
   function onWheelZoom(e: React.WheelEvent) {
     if (!e.ctrlKey) return // a plain (non-pinch) wheel scroll should keep scrolling normally
     e.preventDefault()
-    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z - e.deltaY * 0.01)))
+    setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom - e.deltaY * 0.01)))
   }
 
   // key = `${bookId}:${chapter}` — lets a connection tell whether its destination is the
@@ -403,18 +415,6 @@ export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: {
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Zoom controls — fixed to the viewport corner of the scrollable pane, not the scaled
-          content, so they stay a constant size and position regardless of zoom level. */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 2, display: 'flex', justifyContent: 'flex-end', gap: 4,
-        marginBottom: 6, WebkitAppRegion: 'no-drag',
-      } as React.CSSProperties}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2 }}>
-          <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
-          <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 44, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
-          <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
-        </div>
-      </div>
       <div onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
@@ -451,22 +451,6 @@ export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: {
           <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
         )}
 
-        {/* Legend */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 20, paddingTop: 12, borderTop: '1px solid rgb(var(--color-surface-4))', fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
-          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#4fc3ae" strokeWidth={2} /></svg> clear</span>
-          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-accent))" strokeWidth={2} strokeDasharray="3 3" /></svg> soft</span>
-          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#e08468" strokeWidth={2} strokeDasharray="3 3" /></svg> ambiguous</span>
-          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-text-muted))" strokeWidth={3.5} /></svg> revisited</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 1, transform: 'rotate(45deg)', display: 'inline-block' }} /> word stop
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, display: 'inline-block' }} /> chapter stop
-          </span>
-          <span>↺ round trip</span>
-          <span>hover any label for detail · click to open · right-click for tab options</span>
-        </div>
-
         {promptConn && (
           <ReasonPromptPopover
             connection={promptConn}
@@ -481,9 +465,4 @@ export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: {
       </div>
     </div>
   )
-}
-
-const zoomBtnStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, width: 24, height: 24, lineHeight: '22px', textAlign: 'center',
-  color: 'rgb(var(--color-text-secondary))', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
 }

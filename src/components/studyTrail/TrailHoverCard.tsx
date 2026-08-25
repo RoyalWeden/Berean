@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 // Generic hover-card wrapper for Study Trail's Map/Everything views — spine nodes, branch
 // nodes, and edges all use this for the same "hover shows detail, click navigates" split (see
@@ -12,6 +13,15 @@ import { useRef, useState, type ReactNode } from 'react'
 // doesn't affect layout of its children), and `display: contents` elements report an
 // all-zero getBoundingClientRect() in Chromium, which is exactly why every card was rendering
 // pinned to the window's top-left corner regardless of what was actually hovered.
+//
+// Rendered via a PORTAL straight into document.body — MapView's zoom feature wraps the whole
+// spine in `transform: scale(...)`, and a `transform` on any ancestor makes THAT ancestor the
+// containing block for `position: fixed` descendants instead of the viewport (a real, if
+// obscure, CSS rule) — every hover card was silently being positioned/sized relative to the
+// zoomed spine's own (scrolling, clipping) box instead of the actual window, which is exactly
+// why cards weren't appearing at the cursor and were getting clipped by the scroll pane's
+// bottom edge. A portal escapes that subtree entirely, so `position: fixed` means the real
+// viewport again regardless of what transforms sit between this component and the window.
 const SHOW_DELAY_MS = 350
 
 export default function TrailHoverCard({ content, children, disabled }: { content: ReactNode; children: ReactNode; disabled?: boolean }) {
@@ -38,7 +48,7 @@ export default function TrailHoverCard({ content, children, disabled }: { conten
   return (
     <div onMouseEnter={scheduleOpen} onMouseLeave={cancelOpen} style={{ display: 'contents' }}>
       {children}
-      {open && pos && (
+      {open && pos && createPortal(
         <div
           style={{
             position: 'fixed', top: pos.top, left: pos.left, right: pos.right, zIndex: 10000,
@@ -47,7 +57,8 @@ export default function TrailHoverCard({ content, children, disabled }: { conten
           }}
         >
           {content}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

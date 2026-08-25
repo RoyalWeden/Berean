@@ -1,4 +1,5 @@
 import { createElement } from 'react'
+import { createPortal } from 'react-dom'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
 import { bookName } from '@/lib/parseRef'
@@ -32,7 +33,10 @@ export function TrailRefContextMenu({
 }) {
   if (!menu) return null
   const label = trailRefLabel(menu.ref, bookName)
-  return createElement('div', {
+  // Portaled to document.body — same reason as TrailHoverCard: MapView's zoom feature wraps
+  // the spine in `transform: scale(...)`, which makes that ancestor the containing block for
+  // `position: fixed` descendants instead of the real viewport.
+  return createPortal(createElement('div', {
     ref: menuRef,
     style: {
       position: 'fixed', top: menu.y, left: menu.x, zIndex: 10001, minWidth: 170,
@@ -53,7 +57,7 @@ export function TrailRefContextMenu({
       onClick: () => { trailRefOpenFloating(menu.ref); onClose() },
       style: menuBtnStyle,
     }, 'Open in floating tab'),
-  )
+  ), document.body)
 }
 
 const menuBtnStyle: React.CSSProperties = {

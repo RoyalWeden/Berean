@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync } from '@/store/studyTrailSlice'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
-import MapView from './MapView'
+import MapView, { ZOOM_MIN, ZOOM_MAX } from './MapView'
 import ReviewView from './ReviewView'
 import EverythingView from './EverythingView'
 
@@ -42,6 +42,16 @@ export default function StudyTrailApp() {
   const activateExistingSession = useStudyTrailStore((s) => s.activateExistingSession)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null)
+  // Right-click on a session row (or its name specifically) → Rename / Delete. Inline rename
+  // reuses the same "swap to an input" idiom as the new-session button above.
+  const [sessionCtxMenu, setSessionCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  // Owned here (not inside MapView) so it applies consistently in the title bar whether
+  // you're looking at one session's Map or the merged Everything timeline.
+  const [zoom, setZoom] = useState(1)
+  const ZOOM_STEP = 0.1
   // Auto-select whatever session is actually live/paused the FIRST time we learn about it —
   // otherwise reopening the window always lands on "Everything" by default, which looked
   // exactly like "nothing got tracked while the window was closed" even though every
@@ -59,6 +69,11 @@ export default function StudyTrailApp() {
   const confirmRevertTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // No "New session name…" placeholder sitting there by default — just a plain "+ New
+  // session" button; clicking it swaps in an empty, auto-focused input so the user is
+  // immediately typing the name with nothing to clear first.
+  const [creatingSession, setCreatingSession] = useState(false)
+  const newSessionInputRef = useRef<HTMLInputElement>(null)
 
   // Follow the main window's theme — same shared applyThemeToDocument ViewerApp.tsx/App.tsx/
   // FloatingShell.tsx all use. This window is a separate renderer/document, so even though
@@ -121,19 +136,52 @@ export default function StudyTrailApp() {
     }
   }, [currentTrailSessionId])
 
+  useEffect(() => { if (creatingSession) newSessionInputRef.current?.focus() }, [creatingSession])
+  useEffect(() => { if (renamingId) renameInputRef.current?.select() }, [renamingId])
+  useEffect(() => {
+    if (!sessionCtxMenu) return
+    const close = () => setSessionCtxMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('blur', close)
+    return () => { window.removeEventListener('click', close); window.removeEventListener('blur', close) }
+  }, [sessionCtxMenu])
+
+  function openSessionMenu(e: React.MouseEvent, id: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    setSessionCtxMenu({ id, x: e.clientX, y: e.clientY })
+  }
+  function startRename(id: string, currentName: string) {
+    setSessionCtxMenu(null)
+    setRenamingId(id)
+    setRenameValue(currentName)
+  }
+  async function commitRename() {
+    const id = renamingId
+    const name = renameValue.trim()
+    setRenamingId(null)
+    if (!id || !name) return
+    await window.studyTrail.renameSession(id, name)
+    await refresh()
+  }
+
   async function handleStart() {
     const name = newName.trim() || 'Untitled study'
     await startTrailSession(name)
     setNewName('')
+    setCreatingSession(false)
     await refresh()
     setSelectedId(useStudyTrailStore.getState().currentTrailSessionId)
   }
 
-  function requestDelete(e: React.MouseEvent, id: string) {
-    e.stopPropagation()
+  function requestDeleteConfirm(id: string) {
     if (confirmRevertTimer.current) clearTimeout(confirmRevertTimer.current)
     setConfirmDeleteId(id)
     confirmRevertTimer.current = setTimeout(() => setConfirmDeleteId(null), 4000)
+  }
+  function requestDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    requestDeleteConfirm(id)
   }
   async function confirmDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation()
@@ -242,6 +290,16 @@ export default function StudyTrailApp() {
             </button>
           </>
         )}
+        {mainTab === 'map' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 2, marginLeft: 8, background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2, WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}>
+            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
+            <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 42, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -271,17 +329,28 @@ export default function StudyTrailApp() {
               }}
             >Delete {selectedIds.size} session{selectedIds.size === 1 ? '' : 's'}</button>
           )}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="New session name…"
-              onKeyDown={(e) => { if (e.key === 'Enter') handleStart() }}
-              style={{ flex: 1, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
-            />
-            <button onClick={handleStart} style={{ background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '0 10px', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
-              +
-            </button>
+          <div style={{ marginBottom: 12 }}>
+            {creatingSession ? (
+              <input
+                ref={newSessionInputRef}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleStart()
+                  else if (e.key === 'Escape') { setCreatingSession(false); setNewName('') }
+                }}
+                onBlur={() => { if (!newName.trim()) setCreatingSession(false) }}
+                style={{ width: '100%', background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-accent))', borderRadius: 7, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
+              />
+            ) : (
+              <button
+                onClick={() => setCreatingSession(true)}
+                style={{
+                  width: '100%', background: 'transparent', border: '1px dashed rgb(var(--color-surface-4))', borderRadius: 7,
+                  padding: '6px 8px', cursor: 'pointer', fontWeight: 600, fontSize: 12, color: 'rgb(var(--color-text-secondary))',
+                }}
+              >+ New session</button>
+            )}
           </div>
           {/* "Everything" — the default (selectedId starts null): not in any particular
               session, just show what's been tracked across all of them. Pinned above the
@@ -308,6 +377,7 @@ export default function StudyTrailApp() {
               onClick={() => { if (selectMode) { toggleSelected({} as React.MouseEvent, s.id) } else { setSelectedId(s.id); setMainTab('map') } }}
               onMouseEnter={() => setHoveredId(s.id)}
               onMouseLeave={() => setHoveredId((h) => h === s.id ? null : h)}
+              onContextMenu={(e) => openSessionMenu(e, s.id)}
               style={{
                 padding: '6px 8px', borderRadius: 8, cursor: 'pointer', marginBottom: 1, display: 'flex', alignItems: 'flex-start', gap: 7,
                 background: selectedId === s.id && mainTab === 'map' && !selectMode
@@ -330,7 +400,28 @@ export default function StudyTrailApp() {
                     width: 5, height: 5, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
                     background: s.status === 'live' ? '#4fc3ae' : s.status === 'paused' ? '#e08468' : 'rgb(var(--color-text-muted))',
                   }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                  {renamingId === s.id ? (
+                    <input
+                      ref={renameInputRef}
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename()
+                        else if (e.key === 'Escape') setRenamingId(null)
+                      }}
+                      onBlur={commitRename}
+                      style={{
+                        flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, background: 'rgb(var(--color-surface-1))',
+                        border: '1px solid rgb(var(--color-accent))', borderRadius: 5, padding: '1px 4px', color: 'rgb(var(--color-text-primary))',
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onContextMenu={(e) => openSessionMenu(e, s.id)}
+                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >{s.name}</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>{s.status} · {fmtLastUsed(s.updatedAt)}</span>
@@ -386,12 +477,30 @@ export default function StudyTrailApp() {
           {sessions.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one above.</div>}
         </div>
 
+        {sessionCtxMenu && (() => {
+          const s = sessions.find((x) => x.id === sessionCtxMenu.id)
+          if (!s) return null
+          return (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed', top: sessionCtxMenu.y, left: sessionCtxMenu.x, zIndex: 10001, minWidth: 150,
+                background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+                borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
+              }}
+            >
+              <button onClick={() => startRename(s.id, s.name)} style={sessionMenuBtnStyle}>Rename</button>
+              <button onClick={() => { setSessionCtxMenu(null); requestDeleteConfirm(s.id) }} style={{ ...sessionMenuBtnStyle, color: '#e08468' }}>Delete</button>
+            </div>
+          )
+        })()}
+
         {/* Main pane */}
         <div style={{ flex: 1, padding: 20, overflowY: 'auto', minWidth: 0 }}>
           {mainTab === 'review' ? (
             <ReviewView sessions={sessions} />
           ) : selectedId === null ? (
-            <EverythingView sessions={sessions} />
+            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} />
           ) : !detail ? (
             <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
@@ -403,6 +512,8 @@ export default function StudyTrailApp() {
               <MapView
                 detail={detail}
                 onChanged={() => window.studyTrail.getSession(detail.session.id).then((d) => d && setDetail(d))}
+                zoom={zoom}
+                onZoomChange={setZoom}
               />
             </>
           )}
@@ -410,4 +521,15 @@ export default function StudyTrailApp() {
       </div>
     </div>
   )
+}
+
+const zoomBtnStyle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, width: 22, height: 22, lineHeight: '20px', textAlign: 'center',
+  color: 'rgb(var(--color-text-secondary))', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+}
+
+const sessionMenuBtnStyle: React.CSSProperties = {
+  display: 'block', width: '100%', textAlign: 'left', fontSize: 12, padding: '6px 8px',
+  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+  color: 'rgb(var(--color-text-primary))',
 }
