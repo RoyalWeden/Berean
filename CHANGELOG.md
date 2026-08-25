@@ -122,6 +122,61 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.5] - 2026-08-25
+
+Study Trail
+
+- New: Study Trail — a separate window that passively builds a map of your
+  Bible study as you read, without you having to do anything. Every chapter
+  you visit becomes a point on a timeline; cross-references, Strong's word
+  lookups, and searches that took you somewhere become branches off it,
+  each one showing exactly which verse it came from and which verse it
+  landed on.
+- Clicking through a chain of related Strong's words (a lookup, then its
+  derivation, then one of its occurrences, and so on) shows up as one
+  connected branch instead of separate disconnected entries.
+- Returning to a chapter you'd already visited always gets its own honest
+  point in time on the timeline, rather than looking like it happened
+  earlier than it really did. Bouncing back and forth quickly between a
+  couple of chapters collapses into one summary ("bounced between X and Y,
+  3 times") instead of cluttering the timeline.
+- An optional prompt can ask why you jumped from one chapter to another
+  (off by default — turn it on in Settings or from the Study Trail
+  window). It's a small draggable card that never blocks you from
+  navigating around while it's open, and lets you tie together specific
+  verses on both the chapter you left and the one you landed on by just
+  typing a reference.
+- Every connection can carry its own personal note, completely separate
+  from what Study Trail figured out on its own — write it, copy it, or
+  delete it from a small popup, and see it again later just by hovering.
+- Search past sessions by name, date, or by anything you wrote in a note,
+  and view every session merged into one continuous timeline.
+- Hovering any chapter or connection shows its full detail — which
+  translation you were reading it in (including Enoch, Jubilees, and
+  other non-canonical texts), a preview of the verse text, and how
+  confident Study Trail is about why you got there.
+
+Presenter
+
+- The outline showing what's currently live on the Presenter screen no
+  longer scrolls fully out of view when you scroll the main window a long
+  way away from it — it stays just barely visible instead of
+  disappearing.
+
+Reading & Search
+
+- Fixed the word replacer (e.g. divine-name restoration) not applying
+  when copying a verse from the side panel.
+- Fixed search results occasionally losing red-letter or italic
+  formatting when a snippet got truncated.
+- Restored the Strong's occurrence list's book filter to a proper
+  dropdown and added word-form chips for narrowing occurrences by how a
+  word was actually translated.
+- Fixed a highlight-position drift and an image icon rendering slightly
+  off-center in its corner.
+- Fixed the verse-number popover overflowing past the bottom of the
+  window near the end of a chapter.
+
 ## [0.5.4] - 2026-08-22
 
 Notes
