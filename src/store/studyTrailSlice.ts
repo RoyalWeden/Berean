@@ -625,15 +625,21 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
     node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation })
   }
   if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
-  // Arriving at a chapter normally means "back at depth 0" for the branch chain — UNLESS this
-  // hop is itself a branch (a cross-ref jump to a SPECIFIC VERSE, which always starts/continues
-  // one, or any hop recorded while already mid-branch from an earlier tangent) — in which case
-  // branch-chain state carries forward instead of resetting, so the branch keeps extending
-  // across chapters until the user explicitly marks a return to main (see markBranchReturn). A
-  // cross-ref landing on a bare CHAPTER with no specific verse target doesn't earn its own
-  // branch — there's nothing verse-specific to point at, so it's recorded as an ordinary spine
-  // continuation instead (per direct feedback distinguishing the two cases explicitly).
-  const isBranchThisHop = (origin.kind === 'cross-ref' && to.verse != null) || s.currentlyInBranch
+  // Arriving at a chapter normally means "back at depth 0" for the branch chain — UNLESS THIS
+  // hop is itself a deliberate cross-ref/lexicon-occurrence/ai-lookup jump to a SPECIFIC VERSE.
+  // Per direct feedback, being "already mid-branch" no longer carries forward on its own: a
+  // plain/manual jump (typing a reference, the book/chapter picker, a search result, just
+  // reading onward) always snaps back to main automatically, even if you never explicitly
+  // clicked "back to main." Only another deliberate click of one of those kinds (from wherever
+  // you currently are, main or mid-branch) extends the chain further — that still works
+  // correctly on its own merits below via chainedFromBranch, no need to also gate on the OLD
+  // currentlyInBranch flag here. (Previously this also carried forward on `s.currentlyInBranch`,
+  // which meant one cross-ref click permanently branch-tagged every subsequent navigation until
+  // a manual "back to main" click — the reported "Song of Songs 8 shows up oddly indented/
+  // disconnected" bug.) A landing on a bare CHAPTER with no specific verse target still doesn't
+  // earn its own branch — there's nothing verse-specific to point at, so it's recorded as an
+  // ordinary spine continuation instead.
+  const isBranchThisHop = SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind) && to.verse != null
   useStudyTrailStore.setState((st) => ({
     currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
     currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: !!existingNodeId,
@@ -755,12 +761,12 @@ export function installStudyTrailRecorder(): void {
         const fromRef = s.currentAnchorBookId && s.currentAnchorChapter != null ? { bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter } : undefined
         const { text, tags } = reasonForOrigin(origin, fromRef)
         const chained = s.currentBranchTipConnectionId != null
-        // A same-chapter cross-ref is exactly as much "off on a tangent" as one that lands on a
-        // different chapter — same isBranch/currentlyInBranch treatment as the different-
-        // chapter path above, so it keeps chaining as a branch until explicitly returned. (Same
-        // "specific verse only" condition as there too, though a same-chapter cross-ref/
-        // lexicon-occurrence landing always does target a specific verse by definition.)
-        const isBranchThisHop = (origin.kind === 'cross-ref' && to.verse != null) || s.currentlyInBranch
+        // A same-chapter cross-ref/lexicon-occurrence/ai-lookup is exactly as much "off on a
+        // tangent" as one that lands on a different chapter — same isBranch treatment as the
+        // different-chapter path above (no longer also gated on `currentlyInBranch` carrying
+        // forward — see that path's own comment for why). Same "specific verse only" condition,
+        // though a same-chapter landing always does target a specific verse by definition.
+        const isBranchThisHop = SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind) && to.verse != null
         window.studyTrail.addConnection({
           trailSessionId: s.currentTrailSessionId, fromNodeId: s.currentAnchorNodeId, toKind: 'chapter',
           fromConnectionId: chained ? s.currentBranchTipConnectionId! : undefined,
