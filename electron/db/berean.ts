@@ -869,6 +869,23 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_nodes ADD COLUMN translation TEXT;`)
       console.log('[berean-db] v32: trail_nodes.translation')
     }
+  },
+  {
+    // Study Trail — revisit promotion is now UNCONDITIONAL (the engagement threshold that used
+    // to gate it was removed from studyTrailSlice.ts's recorder): every departure from a
+    // reopened node promotes it into its own new spine entry, guaranteeing "events that happen
+    // later never look like they happened in the past." The predictable side effect — rapid
+    // back-and-forth between two chapters now produces a run of separate promoted nodes instead
+    // of none — is handled entirely in the RENDERER (MapView.tsx collapses same-cluster_id
+    // nodes into one compact summary, mirroring the GlanceGroupRow pattern already built for
+    // clustered connections). This column is the node-level twin of
+    // trail_connections.cluster_id (v28) — same CLUSTER_WINDOW_MS-based "was there a recent
+    // promotion of this same chapter" detection, computed in the promoteRevisit handler itself.
+    version: 33,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN cluster_id TEXT;`)
+      console.log('[berean-db] v33: trail_nodes.cluster_id')
+    }
   }
 ]
 

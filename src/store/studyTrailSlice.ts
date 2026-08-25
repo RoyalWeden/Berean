@@ -412,12 +412,6 @@ export function installStudyTrailStateSync(): void {
 // than a full tangent. Nothing is ever deleted, only re-weighted.
 const GLANCE_WINDOW_MS = 2500
 
-// Revisit-promotion thresholds — either crossing counts as "genuine re-engagement" (see the
-// promotion check in installStudyTrailRecorder below). Verse count catches "read a few more
-// verses and moved on" quickly even if they didn't linger; dwell time catches "sat there
-// actually thinking about it" even without triggering more verse-view navigations.
-const REVISIT_PROMOTE_VERSE_THRESHOLD = 3
-const REVISIT_PROMOTE_DWELL_MS = 45_000
 let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter: number; timer: ReturnType<typeof setTimeout> } | null = null
 
 // Origins specific/intentional enough that even a SAME-CHAPTER landing is worth its own branch
@@ -473,11 +467,11 @@ export function installStudyTrailRecorder(): void {
     if (sameChapter && s.currentAnchorNodeId) {
       // Still reading the same chapter — no new NODE, and for most origins (plain verse-number
       // clicks, tab-switches, sequential reading) no connection either: it's just more time
-      // spent on the one anchor. The counter keeps incrementing regardless (it's one of the two
-      // revisit-promotion engagement signals, alongside dwell time — see
-      // REVISIT_PROMOTE_VERSE_THRESHOLD below), but it's a count of same-chapter NAVIGATION
-      // EVENTS (clicking a verse number, a cross-ref landing back here, etc.), not verses
-      // actually read — there's no scroll-position tracking behind it, so it was never
+      // spent on the one anchor. The counter keeps incrementing regardless (kept for possible
+      // future use — it no longer gates revisit promotion, which is unconditional now), but
+      // it's a count of same-chapter NAVIGATION EVENTS (clicking a verse number, a cross-ref
+      // landing back here, etc.), not verses actually read — there's no scroll-position
+      // tracking behind it, so it was never
       // honest to display as "read N verses in this chapter" (a plain scroll-through with no
       // further verse-targeted navigation left it at 0 regardless of how much was actually
       // read). No cachedSubnote claim is written for this anymore; the real, verifiable
@@ -563,41 +557,35 @@ export function installStudyTrailRecorder(): void {
 
     ;(async () => {
       // Revisit promotion — checked as we LEAVE, not as we arrive. If the anchor being left
-      // was itself a reopened node (not a fresh first visit) and THIS particular visit
-      // involved real engagement (read several verses, or spent real time — either counts,
-      // since a quick glance at one verse and an unusually long stare at zero new verses are
-      // both genuine signals), split it off into its own new spine node positioned at when
-      // this visit actually began — instead of forever folding it into the chapter's frozen
-      // first-visit position, which is what read as "this happened in the past" even for a
-      // substantial re-engagement happening right now. A brief bounce-through never crosses
-      // either threshold, so it still resolves exactly as before (a quiet return curve to the
-      // original position) — this doesn't reintroduce the "spine drift" bug the reuse
-      // mechanism was originally built to fix, since reopenNode's own arrival behavior is
-      // completely unchanged.
+      // was itself a reopened node (not a fresh first visit), split it off into its own new
+      // spine node positioned at when this visit actually began — instead of forever folding
+      // it into the chapter's frozen first-visit position, which is what read as "this
+      // happened in the past" even for a substantial re-engagement happening right now.
+      // UNCONDITIONAL as of this round — per direct feedback ("i would think to always promote
+      // on any revisit... events that happen later dont look like they happened in the past
+      // before they would have actually happened"), the earlier engagement threshold
+      // (REVISIT_PROMOTE_VERSE_THRESHOLD/DWELL_MS) is removed; even a brief bounce-through now
+      // gets its own real chronological position. The predictable cost — rapid back-and-forth
+      // now produces a run of separate promoted nodes — is handled entirely in the renderer
+      // (see MapView.tsx's cluster-collapse, and promoteRevisit's own cluster_id detection in
+      // electron/ipc/studyTrail.ts, v33), not by suppressing promotion here.
       let effectivePrevNodeId = prevNodeId
       if (prevNodeId && s.currentAnchorIsRevisit && s.currentAnchorActivatedAt != null && s.currentAnchorBookId && s.currentAnchorChapter != null) {
-        const dwellMs = Date.now() - s.currentAnchorActivatedAt
-        const engaged = s.currentAnchorVerseCount >= REVISIT_PROMOTE_VERSE_THRESHOLD || dwellMs >= REVISIT_PROMOTE_DWELL_MS
-        if (window.__bereanTrailDebug) {
-          console.log('[TrailDebug] revisit-promotion check', { prevNodeId, verseCount: s.currentAnchorVerseCount, dwellMs, engaged })
-        }
-        if (engaged) {
-          try {
-            const promoted = await window.studyTrail.promoteRevisit({
-              trailSessionId, originalNodeId: prevNodeId, bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter,
-              // from.translation, not to.translation — this promotes the chapter being LEFT
-              // (the reopened node the user was just re-engaging with), so it needs that
-              // chapter's own translation, which is what `from` (the pre-navigation tab state)
-              // carries, not the destination's.
-              activatedAt: s.currentAnchorActivatedAt, translation: from.translation,
-            })
-            if (window.__bereanTrailDebug) console.log('[TrailDebug] promoteRevisit SUCCEEDED', promoted)
-            effectivePrevNodeId = promoted.id
-            const promotedKey = `${s.currentAnchorBookId}:${s.currentAnchorChapter}`
-            useStudyTrailStore.setState((st) => ({ sessionNodeIndex: { ...st.sessionNodeIndex, [promotedKey]: promoted.id } }))
-          } catch (err) {
-            console.error('[TrailDebug] promoteRevisit FAILED — keeping the original node as the connection source', err)
-          }
+        try {
+          const promoted = await window.studyTrail.promoteRevisit({
+            trailSessionId, originalNodeId: prevNodeId, bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter,
+            // from.translation, not to.translation — this promotes the chapter being LEFT
+            // (the reopened node the user was just re-engaging with), so it needs that
+            // chapter's own translation, which is what `from` (the pre-navigation tab state)
+            // carries, not the destination's.
+            activatedAt: s.currentAnchorActivatedAt, translation: from.translation,
+          })
+          if (window.__bereanTrailDebug) console.log('[TrailDebug] promoteRevisit SUCCEEDED', promoted)
+          effectivePrevNodeId = promoted.id
+          const promotedKey = `${s.currentAnchorBookId}:${s.currentAnchorChapter}`
+          useStudyTrailStore.setState((st) => ({ sessionNodeIndex: { ...st.sessionNodeIndex, [promotedKey]: promoted.id } }))
+        } catch (err) {
+          console.error('[TrailDebug] promoteRevisit FAILED — keeping the original node as the connection source', err)
         }
       }
 

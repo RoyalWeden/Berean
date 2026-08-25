@@ -28,6 +28,7 @@ interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
   revisit_of_node_id: string | null; promoted_from_connection_id: string | null; translation: string | null
+  cluster_id: string | null
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -59,6 +60,7 @@ function rowToNode(r: TrailNodeRow) {
     revisitOfNodeId: r.revisit_of_node_id ?? undefined,
     promotedFromConnectionId: r.promoted_from_connection_id ?? undefined,
     translation: r.translation ?? undefined,
+    clusterId: r.cluster_id ?? undefined,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -268,13 +270,34 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     const db = getBereanDb()
     const now = Date.now()
     const id = randomUUID()
+    // Node-level twin of addConnection's connection-cluster detection above, but broader on
+    // purpose: NOT scoped to this same chapter. A rapid A<->B oscillation alternates chapters
+    // (A,B,A,B...), so two promotions of the SAME chapter are never adjacent in the spine once
+    // interleaved with the other side of the bounce — clustering only same-chapter promotions
+    // (like connections do, which is fine there since a connection's own row lives directly
+    // under its distinct source) would produce two clusters that never render as one
+    // contiguous, collapsible run. Matching ANY recent promotion in this session instead makes
+    // the whole flurry (both directions) one cluster, which IS contiguous in the spine and
+    // lets MapView.tsx collapse it into one "bounced N times" summary instead of N full nodes.
+    let clusterId: string | null = null
+    const recentNode = prep(db, `
+      SELECT id, cluster_id FROM trail_nodes
+      WHERE trail_session_id = ? AND revisit_of_node_id IS NOT NULL AND anchor_started_at > ?
+      ORDER BY anchor_started_at DESC LIMIT 1
+    `).get(args.trailSessionId, now - CLUSTER_WINDOW_MS) as { id: string; cluster_id: string | null } | undefined
+    if (recentNode) {
+      clusterId = recentNode.cluster_id ?? recentNode.id
+      if (!recentNode.cluster_id) {
+        prep(db, `UPDATE trail_nodes SET cluster_id = ? WHERE id = ?`).run(clusterId, recentNode.id)
+      }
+    }
     const promote = db.transaction(() => {
       prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE id = ? AND anchor_ended_at IS NULL`)
         .run(args.activatedAt, args.originalNodeId)
       prep(db, `
-        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, anchor_ended_at, revisit_of_node_id, translation)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, args.trailSessionId, args.bookId, args.chapter, args.activatedAt, args.activatedAt, now, args.originalNodeId, args.translation ?? null)
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, anchor_ended_at, revisit_of_node_id, translation, cluster_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, args.trailSessionId, args.bookId, args.chapter, args.activatedAt, args.activatedAt, now, args.originalNodeId, args.translation ?? null, clusterId)
     })
     promote()
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)

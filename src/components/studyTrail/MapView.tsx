@@ -325,6 +325,96 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
   return out
 }
 
+// Revisit promotion is unconditional now (see studyTrailSlice.ts) — a rapid back-and-forth
+// between chapters produces a real run of promoted nodes, which would otherwise look like N
+// separate full spine entries for what was really one quick flurry of checking. Collapses a
+// CONSECUTIVE run (in spine order) of nodes sharing the same non-null clusterId into one
+// compact summary, mirroring GlanceGroupRow's collapse/expand pattern one level up.
+type NodeRenderItem = { type: 'single'; node: TrailNode; index: number } | { type: 'cluster'; nodes: TrailNode[]; startIndex: number }
+
+function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
+  const out: NodeRenderItem[] = []
+  let i = 0
+  while (i < nodes.length) {
+    const n = nodes[i]
+    if (n.clusterId) {
+      let j = i + 1
+      while (j < nodes.length && nodes[j].clusterId === n.clusterId) j++
+      if (j - i >= 2) {
+        out.push({ type: 'cluster', nodes: nodes.slice(i, j), startIndex: i })
+        i = j
+        continue
+      }
+    }
+    out.push({ type: 'single', node: n, index: i })
+    i++
+  }
+  return out
+}
+
+function NodeClusterGroup({
+  nodes, registerPoint, onHoverKey, connectionsByNodeId, nodeOrderIndex,
+  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection,
+}: {
+  nodes: TrailNode[]
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
+  onHoverKey?: (key: string | null) => void
+  connectionsByNodeId: Map<string, AnnotatedConn[]>
+  nodeOrderIndex: Map<string, number>
+  onOpenPrompt: (c: TrailConnection) => void
+  refFor: (conn: TrailConnection) => TrailRef | null
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
+  originConnByNodeId: Map<string, TrailConnection>
+  jumpToOrigin: (conn: TrailConnection) => void
+  rowsForConnection: Map<string, AnnotatedConn[]>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (expanded) {
+    return (
+      <div>
+        {nodes.map((n) => (
+          <NodeBlock
+            key={n.id} node={n} connections={connectionsByNodeId.get(n.id) ?? []} gapToNextMs={null} isLast={false}
+            step={(nodeOrderIndex.get(n.id) ?? -1) + 1} registerPoint={registerPoint} onHoverKey={onHoverKey}
+            onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
+            originConn={originConnByNodeId.get(n.id)}
+            onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
+            gutterWidth={0} rowsForConnection={rowsForConnection}
+          />
+        ))}
+        <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0 8px 21px' }}>▾ collapse</button>
+      </div>
+    )
+  }
+  const first = nodes[0], last = nodes[nodes.length - 1]
+  const spanMs = (last.anchorEndedAt ?? last.anchorStartedAt) - first.anchorStartedAt
+  // The distinct chapters bounced between, in first-seen order — usually 2 (A<->B), but the
+  // broader (not-chapter-scoped) cluster query can catch a 3+-way flurry too.
+  const distinctChapters: string[] = []
+  for (const n of nodes) {
+    const label = `${bookLabel(n.bookId)} ${n.chapter}`
+    if (!distinctChapters.includes(label)) distinctChapters.push(label)
+  }
+  return (
+    <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
+        <span
+          ref={(el) => { registerPoint(`node:${first.id}`)(el); registerPoint(`node:${last.id}`)(el) }}
+          style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 2, marginTop: 5, flexShrink: 0, opacity: 0.6 }}
+        />
+      </div>
+      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', fontStyle: 'italic' }}>
+          ↺ Bounced between {distinctChapters.join(' and ')} over {formatGap(spanMs)}
+        </span>
+        <button onClick={() => setExpanded(true)} style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}>
+          ▸ {nodes.length}×
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection,
@@ -783,7 +873,26 @@ export default function MapView({
             }}>?</span> below (never required — dismiss any of them any time).
           </div>
         )}
-        {detail.nodes.map((n, i) => {
+        {groupNodesForRender(detail.nodes).map((item) => {
+          if (item.type === 'cluster') {
+            return (
+              <NodeClusterGroup
+                key={`cluster:${item.nodes[0].id}`}
+                nodes={item.nodes}
+                registerPoint={registerPoint}
+                onHoverKey={setHoveredKey}
+                connectionsByNodeId={rowsForNode}
+                nodeOrderIndex={nodeOrderIndex}
+                onOpenPrompt={setPromptConn}
+                refFor={refFor}
+                openMenu={openMenu}
+                originConnByNodeId={originConnByNodeId}
+                jumpToOrigin={jumpToOrigin}
+                rowsForConnection={rowsForConnection}
+              />
+            )
+          }
+          const { node: n, index: i } = item
           const next = detail.nodes[i + 1]
           const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
           return (

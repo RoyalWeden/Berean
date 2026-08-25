@@ -43,6 +43,10 @@ export interface TrailNode {
    *  or a dedicated-translation id (enoch, jubilees, etc). Always populated going forward,
    *  independent of cachedSubnote's mid-visit-switch note. */
   translation?: string
+  /** Shared across a rapid run of promoted revisits of the SAME chapter (v33) — lets MapView
+   *  collapse "bounced back to X three times in 40s" into one summary block instead of showing
+   *  every promotion as its own full node. Node-level twin of TrailConnection.clusterId. */
+  clusterId?: string
 }
 
 export interface TrailConnection {
