@@ -725,6 +725,40 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => ro.disconnect()
   }, [floating, computePresenterBand, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the presenter band (the "outline" showing what's live on the Presenter screen) from
+  // scrolling fully out of view when the USER manually scrolls the main window away from it —
+  // per direct ask: "postpone the vertical scrolling of the chapter and only scroll the outline
+  // down so that the outline never gets out of the viewable area." Only ever engages once the
+  // band and the current view are far enough apart that a plain scroll would actually hide it
+  // entirely (a short chapter where everything's already on screen never triggers this) — and
+  // only caps how far a manual scroll can go in the direction that would hide it further; it
+  // never resists scrolling BACK toward the band. band.top/height are in the same CONTENT-space
+  // coordinates as scrollTop (see computePresenterBand above) and only change when the
+  // presenter's own visible region changes — they stay put while the user scrolls THIS window,
+  // so reading presenterBand from React state here (rather than re-measuring) is safe, not stale.
+  useEffect(() => {
+    if (floating || !viewerWindowOpen || viewerPaused || !presenterBand) return
+    const el = getScrollEl()
+    if (!el) return
+    const MIN_VISIBLE_PX = 24
+    function clampToKeepBandVisible() {
+      const band = presenterBand
+      if (!band || !el) return
+      const bandTop = band.top, bandBottom = band.top + band.height
+      const viewTop = el.scrollTop, viewBottom = viewTop + el.clientHeight
+      if (bandTop > viewBottom) {
+        // Scrolled UP past the band (band now below the visible area) — cap how far up.
+        el.scrollTop = Math.max(0, bandTop - el.clientHeight + MIN_VISIBLE_PX)
+      } else if (bandBottom < viewTop) {
+        // Scrolled DOWN past the band (band now above the visible area) — cap how far down.
+        el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, bandBottom - MIN_VISIBLE_PX)
+      }
+    }
+    el.addEventListener('scroll', clampToKeepBandVisible, { passive: true })
+    return () => el.removeEventListener('scroll', clampToKeepBandVisible)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floating, viewerWindowOpen, viewerPaused, presenterBand, continuousChapterScroll])
+
   // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
   // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
   const currentBibleChapterRef = () => {
