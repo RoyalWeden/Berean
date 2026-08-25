@@ -886,6 +886,21 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_nodes ADD COLUMN cluster_id TEXT;`)
       console.log('[berean-db] v33: trail_nodes.cluster_id')
     }
+  },
+  {
+    // Study Trail — unified reason/note system. The old versePinFrom/To + originVersePinFrom/To
+    // (four separate integer columns, always exactly one verse per side) are superseded for NEW
+    // entries by `ties` — a JSON array of freely-typed reference strings (e.g. ["Mark 13:1-5",
+    // "Ezekiel 33:4"]), since a real connection may tie together more than just one origin verse
+    // and one destination verse. Stored as raw typed text, not pre-parsed — re-parsed on demand
+    // at render time via the existing parseRef() for click-to-navigate, so a not-yet-resolvable
+    // partial reference is never silently dropped. Old verse-pin data is left in place and still
+    // read (nothing is backfilled/migrated) — see ConnRow/ReasonPromptPopover for the fallback.
+    version: 34,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties TEXT;`)
+      console.log('[berean-db] v34: trail_connections.ties')
+    }
   }
 ]
 

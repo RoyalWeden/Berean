@@ -657,6 +657,14 @@ export function installStudyTrailRecorder(): void {
       window.studyTrail.markGlance(glanceConnId)
         .then(() => { if (window.__bereanTrailDebug) console.log('[TrailDebug] markGlance SUCCEEDED', { connectionId: glanceConnId }) })
         .catch((err) => console.error('[TrailDebug] markGlance FAILED', err))
+      // Smart anti-spam for the arrival prompt (§5 of the plan) — a jump that turns out to be
+      // a quick back-and-forth check (exactly what glance detection exists to catch) shouldn't
+      // leave its own "why did you jump here?" popover sitting open for what wasn't really a
+      // navigational moment. Auto-dismiss it without writing anything (same as a manual "Not
+      // now"), so it doesn't accumulate as the user checks their answer by bouncing around.
+      if (useStudyTrailStore.getState().pendingArrivalPrompt?.id === glanceConnId) {
+        useStudyTrailStore.setState({ pendingArrivalPrompt: null })
+      }
       pendingGlanceCheck = null
     }
   })

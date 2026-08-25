@@ -19,8 +19,6 @@ export default function StudyTrailArrivalPrompt() {
     <ReasonPromptPopover
       connection={conn}
       title={title}
-      showOriginPins
-      permanentDismiss={false}
       onClose={clear}
       onSaved={clear}
     />

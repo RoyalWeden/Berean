@@ -69,6 +69,11 @@ export interface TrailConnection {
    *  pin the destination) — see the v30 migration comment in electron/db/berean.ts. */
   originVersePinFrom?: number
   originVersePinTo?: number
+  /** Unified reason/note system (v34) — freely-typed reference strings ("Mark 13:1-5",
+   *  "Ezekiel 33:4") tying this connection to whichever verse(s) actually mattered, however
+   *  many. Supersedes versePinFrom/To + originVersePinFrom/To for NEW entries (those stay
+   *  read for old data) — a connection isn't limited to exactly one verse per side. */
+  ties: string[]
   weight: ConnectionWeight
   strongsDepth?: StrongsDepth
   clusterId?: string

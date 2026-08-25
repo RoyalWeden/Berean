@@ -777,6 +777,11 @@ export interface AppState {
   setQueuePopoverOpen: (v: boolean) => void
   setQueuePopoverPos: (pos: { x: number; y: number }) => void
 
+  // Study Trail's reason/note popover — same "remember where it was last dragged to" pattern
+  // as queuePopoverPos above. null means "not dragged yet, use the default top-right dock."
+  reasonPromptPopoverPos: { x: number; y: number } | null
+  setReasonPromptPopoverPos: (pos: { x: number; y: number }) => void
+
   // Read Aloud preferences — persisted like other display settings.
   ttsVoiceURI: string | null
   ttsRate: number
@@ -1459,8 +1464,10 @@ export const useAppStore = create<AppState>()(
 
       queuePopoverOpen: false,
       queuePopoverPos: null,
+      reasonPromptPopoverPos: null,
       setQueuePopoverOpen: (v) => set({ queuePopoverOpen: v }),
       setQueuePopoverPos: (pos) => set({ queuePopoverPos: pos }),
+      setReasonPromptPopoverPos: (pos) => set({ reasonPromptPopoverPos: pos }),
 
       ttsVoiceURI: null,
       ttsRate: 1,
@@ -2626,6 +2633,7 @@ export const useAppStore = create<AppState>()(
         // chrome state, safe (and expected, per the original ask) to survive a restart.
         queuePopoverOpen: state.queuePopoverOpen,
         queuePopoverPos: state.queuePopoverPos,
+        reasonPromptPopoverPos: state.reasonPromptPopoverPos,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })

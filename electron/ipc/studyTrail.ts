@@ -40,6 +40,7 @@ interface TrailConnectionRow {
   weight: string; strongs_depth: string | null; cluster_id: string | null
   dismissed_prompt_at: number | null; created_at: number
   from_connection_id: string | null; chain_depth: number; to_verse_end: number | null
+  ties: string | null
 }
 
 function rowToSession(r: TrailSessionRow) {
@@ -74,6 +75,7 @@ function rowToConnection(r: TrailConnectionRow) {
     reasonTags: r.reason_tags ? JSON.parse(r.reason_tags) : [],
     versePinFrom: r.verse_pin_from ?? undefined, versePinTo: r.verse_pin_to ?? undefined,
     originVersePinFrom: r.origin_verse_pin_from ?? undefined, originVersePinTo: r.origin_verse_pin_to ?? undefined,
+    ties: r.ties ? JSON.parse(r.ties) : [],
     weight: r.weight as 'full' | 'glance',
     strongsDepth: r.strongs_depth ?? undefined,
     clusterId: r.cluster_id ?? undefined,
@@ -381,6 +383,11 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('studyTrail:updateConnectionReason', (_e, connectionId: string, update: {
     reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number
     originVersePinFrom?: number; originVersePinTo?: number
+    // Unified reason/note system — ties supersedes the four verse-pin columns above for new
+    // entries (see the v34 migration comment); still accepted alongside them since a caller
+    // may legitimately want both (e.g. the destination pin auto-captured at record time, plus
+    // a user-typed tie added later).
+    ties?: string[]
   }) => {
     const db = getBereanDb()
     const sets: string[] = []
@@ -391,9 +398,19 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (update.versePinTo !== undefined) { sets.push('verse_pin_to = ?'); vals.push(update.versePinTo) }
     if (update.originVersePinFrom !== undefined) { sets.push('origin_verse_pin_from = ?'); vals.push(update.originVersePinFrom) }
     if (update.originVersePinTo !== undefined) { sets.push('origin_verse_pin_to = ?'); vals.push(update.originVersePinTo) }
+    if (update.ties !== undefined) { sets.push('ties = ?'); vals.push(JSON.stringify(update.ties)) }
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+    return { success: true }
+  })
+
+  // Delete — distinct from "Not now" (dismissPrompt): clears the user's own note content
+  // entirely rather than just marking the prompt as handled. Auto-inferred fields (reason_tags
+  // from the recorder, the verse pins captured automatically at record time) are left alone;
+  // only the user-authored parts are wiped.
+  ipcMain.handle('studyTrail:clearConnectionNote', (_e, connectionId: string) => {
+    prep(getBereanDb(), `UPDATE trail_connections SET reason_text = NULL, ties = NULL WHERE id = ?`).run(connectionId)
     return { success: true }
   })
 

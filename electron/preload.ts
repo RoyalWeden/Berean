@@ -385,6 +385,7 @@ contextBridge.exposeInMainWorld('studyTrail', {
   markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),
   updateConnectionReason: (connectionId: string, update: unknown) => ipcRenderer.invoke('studyTrail:updateConnectionReason', connectionId, update),
   dismissPrompt: (connectionId: string) => ipcRenderer.invoke('studyTrail:dismissPrompt', connectionId),
+  clearConnectionNote: (connectionId: string) => ipcRenderer.invoke('studyTrail:clearConnectionNote', connectionId),
   updateRecap: (trailSessionId: string, recapText: string) => ipcRenderer.invoke('studyTrail:updateRecap', trailSessionId, recapText),
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => ipcRenderer.invoke('studyTrail:getBacklinks', bookId, chapter, excludeSessionId),
   search: (query: string) => ipcRenderer.invoke('studyTrail:search', query),

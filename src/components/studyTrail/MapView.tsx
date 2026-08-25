@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -254,6 +255,18 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         ) : null}
         {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
         {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
+        {/* Unified reason/note trigger — ALWAYS present now, not gated to tier-3 needsInput the
+            way the "?" badge above is. Opens the same popover pre-filled with whatever's
+            already stored; the "?" badge stays as its own distinct always-nagging affordance
+            for a genuinely unresolved ambiguous jump, this is the calm "add a note anytime" one. */}
+        <button
+          onClick={() => onOpenPrompt(conn)}
+          title={conn.reasonText || conn.ties.length > 0 ? 'Edit your note for this connection' : 'Add a note for this connection'}
+          style={{
+            background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
+            padding: 0, flexShrink: 0, opacity: 0.55, display: 'flex', alignItems: 'center',
+          }}
+        ><Pencil size={10.5} /></button>
       </div>
     </TrailHoverCard>
     {hasNested && (

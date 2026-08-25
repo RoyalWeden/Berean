@@ -190,8 +190,9 @@ interface StudyTrailAPI {
     fromConnectionId?: string; chainDepth?: number; toVerseEnd?: number
   }) => Promise<import('./studyTrail').TrailConnection>
   markGlance: (connectionId: string) => Promise<{ success: boolean }>
-  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number }) => Promise<{ success: boolean }>
+  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number; ties?: string[] }) => Promise<{ success: boolean }>
   dismissPrompt: (connectionId: string) => Promise<{ success: boolean }>
+  clearConnectionNote: (connectionId: string) => Promise<{ success: boolean }>
   updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
   search: (query: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
