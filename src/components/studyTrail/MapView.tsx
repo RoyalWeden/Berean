@@ -564,7 +564,16 @@ export default function MapView({
   const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
   const containerRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
+
+  // Open scrolled to the MOST RECENT event by default, not the earliest — per direct feedback
+  // ("when opening any of the timeline things, even in everything, it should scroll to the
+  // bottom by default"). Same idiom as AiLookupPanel.tsx's chat auto-scroll. Keyed on the node
+  // count so it re-fires once data actually finishes loading (detail starts empty on mount).
+  useEffect(() => {
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+  }, [detail.nodes.length])
 
   const [ownZoom, setOwnZoom] = useState(1)
   const zoom = zoomProp ?? ownZoom
@@ -877,7 +886,7 @@ export default function MapView({
           }}
         />
       </div>
-      <div onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />

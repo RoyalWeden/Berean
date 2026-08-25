@@ -144,7 +144,22 @@ export default function ReviewView({ sessions }: { sessions: TrailSession[] }) {
     }
   }
 
-  const grouped = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+  // Sessions filter live as you type — "search for a particular session by date or name...
+  // make sure the search is very simple by just typing." Kept entirely client-side (the
+  // session list is already fully loaded here) and separate from the connection-content
+  // search below (that one's a server round-trip, still explicit Enter/click) — both share
+  // the SAME query box, results just render together.
+  const q = query.trim().toLowerCase()
+  const grouped = [...sessions]
+    .filter((s) => {
+      if (!q) return true
+      if (s.name.toLowerCase().includes(q)) return true
+      const d = new Date(s.createdAt)
+      const long = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).toLowerCase()
+      const short = d.toLocaleDateString('en-US', { year: '2-digit', month: '2-digit', day: '2-digit' }).toLowerCase()
+      return long.includes(q) || short.includes(q)
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt)
 
   return (
     <div>
@@ -153,7 +168,7 @@ export default function ReviewView({ sessions }: { sessions: TrailSession[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') runSearch() }}
-          placeholder="Search across every session…"
+          placeholder="Search by session name, date, or connection content…"
           style={{ flex: 1, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '7px 10px', color: 'rgb(var(--color-text-primary))', fontSize: 12.5 }}
         />
         <button
@@ -176,10 +191,14 @@ export default function ReviewView({ sessions }: { sessions: TrailSession[] }) {
       )}
 
       <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
-        Sessions
+        Sessions{q ? ` — ${grouped.length} match${grouped.length === 1 ? '' : 'es'}` : ''}
       </div>
       {grouped.map((s) => <SessionCard key={s.id} session={s} />)}
-      {grouped.length === 0 && <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>No sessions yet.</div>}
+      {grouped.length === 0 && (
+        <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))' }}>
+          {q ? 'No sessions match that name or date.' : 'No sessions yet.'}
+        </div>
+      )}
     </div>
   )
 }
