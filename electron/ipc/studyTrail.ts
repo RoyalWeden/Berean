@@ -27,6 +27,7 @@ interface TrailSessionRow {
 interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
+  revisit_of_node_id: string | null
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -53,6 +54,7 @@ function rowToNode(r: TrailNodeRow) {
     orderIndex: r.order_index, anchorStartedAt: r.anchor_started_at,
     anchorEndedAt: r.anchor_ended_at ?? undefined,
     cachedSubnote: r.cached_subnote ?? undefined, originLabel: r.origin_label ?? undefined,
+    revisitOfNodeId: r.revisit_of_node_id ?? undefined,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -238,6 +240,35 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = NULL WHERE id = ?`).run(nodeId)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow)
     if (DEBUG) console.log('[TrailDebug:main] studyTrail:reopenNode reopened', result)
+    return result
+  })
+
+  // Revisit promotion — called (see studyTrailSlice.ts's recorder) when the user is about to
+  // navigate AWAY from a reopened node they'd genuinely re-engaged with (real dwell time this
+  // visit, not just a bounce-through). Splits that engagement off into its own new node,
+  // positioned at its real chronological spot on the spine (order_index/anchor_started_at =
+  // when THIS revisit actually began, not "now") rather than leaving it permanently folded
+  // into the original node's frozen first-visit position. The original node's own
+  // anchor_ended_at is closed out at the revisit's start time, so its own displayed dwell
+  // duration no longer double-counts time that now belongs to the promoted node.
+  ipcMain.handle('studyTrail:promoteRevisit', (_e, args: {
+    trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number
+  }) => {
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit called', args)
+    const db = getBereanDb()
+    const now = Date.now()
+    const id = randomUUID()
+    const promote = db.transaction(() => {
+      prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE id = ? AND anchor_ended_at IS NULL`)
+        .run(args.activatedAt, args.originalNodeId)
+      prep(db, `
+        INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, anchor_ended_at, revisit_of_node_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, args.trailSessionId, args.bookId, args.chapter, args.activatedAt, args.activatedAt, now, args.originalNodeId)
+    })
+    promote()
+    const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
+    if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit inserted', result)
     return result
   })
 

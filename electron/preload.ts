@@ -372,6 +372,7 @@ contextBridge.exposeInMainWorld('studyTrail', {
   getSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:getSession', trailSessionId),
   addNode: (node: unknown) => ipcRenderer.invoke('studyTrail:addNode', node),
   reopenNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:reopenNode', nodeId),
+  promoteRevisit: (args: unknown) => ipcRenderer.invoke('studyTrail:promoteRevisit', args),
   updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
   addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
   markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),

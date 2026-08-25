@@ -44,8 +44,12 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
     // the "42m later" chip when the gap is big enough to call out.
     <div style={{ position: 'relative', flex: 1, width: 2, minHeight: height }}>
       {showChip && (
+        // Anchored near the TOP of this connector (not vertically centered) — the column
+        // stretches to match whatever tall content sits beside it, so a centered chip used to
+        // drift down into unrelated row content several items below instead of reading as
+        // "attached to the incoming spine segment."
         <div style={{
-          position: 'absolute', top: '50%', left: 6, transform: 'translateY(-50%)', whiteSpace: 'nowrap', zIndex: 1,
+          position: 'absolute', top: 10, left: 6, whiteSpace: 'nowrap', zIndex: 1,
           fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
           border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '1px 6px',
         }}>{formatGap(gapMs!)} later</div>
@@ -58,10 +62,19 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
 // chapter via a Strong's occurrence (or any other tangent) previously showed nothing at all
 // about where it came from unless you happened to hover the right thing; this makes the
 // origin part of the node's normal, always-on display.
+// Origin kinds this routine/low-decision-value that they'd rather stay hover-only — reading
+// onward and switching between already-open tabs are normal navigation flow, not really an
+// "origin story" worth taking up permanent visual space for. The full text is still always in
+// the hover card (TrailNodeHoverContent) regardless.
+const LOW_SIGNAL_ORIGIN_TAGS = new Set(['tab-switch', 'reading'])
+export function isLowSignalOrigin(conn: TrailConnection): boolean {
+  return conn.reasonTags.some((t) => LOW_SIGNAL_ORIGIN_TAGS.has(t))
+}
+
 function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   const color = TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 2 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 6, opacity: 0.85 }}>
       <span>via {originDisplayText(conn)}</span>
       <span style={{
         fontSize: 9, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
@@ -96,7 +109,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   const ref = refFor(conn)
   return (
     <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
         <span
           ref={registerPoint(`row:${conn.id}`)}
           style={{
@@ -208,6 +221,8 @@ function NodeBlock({
 }) {
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
+  const isRevisit = !!node.revisitOfNodeId
+  const showOrigin = originConn && !isLowSignalOrigin(originConn)
   return (
     <div>
       {boundaryLabel && (
@@ -219,20 +234,40 @@ function NodeBlock({
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 4 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-        <div ref={registerPoint(`node:${node.id}`)} style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, marginTop: 4, flexShrink: 0 }} />
+        {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
+            still a full, real spine entry (own connections, own hover card), just visually
+            marked as "seen before" at a glance. See the revisit-link edge built in MapView
+            below for the quiet dashed connector back to the original mention. */}
+        <div
+          ref={registerPoint(`node:${node.id}`)}
+          style={{
+            width: isRevisit ? 7 : 9, height: isRevisit ? 7 : 9, background: 'rgb(var(--color-accent))',
+            borderRadius: 2, marginTop: isRevisit ? 5 : 4, flexShrink: 0, opacity: isRevisit ? 0.7 : 1,
+          }}
+        />
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
-      <div style={{ paddingBottom: 16, flex: 1, minWidth: 0 }}>
-        {originConn && <OriginBadgeLine conn={originConn} />}
+      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0 }}>
+        {showOrigin && <OriginBadgeLine conn={originConn!} />}
         <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
             onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e)}
-            style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
+            style={{
+              fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
+              color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
           >
             {bookLabel(node.bookId)} {node.chapter}
+            {isRevisit && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+                borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
+              }}>revisit</span>
+            )}
           </div>
         </TrailHoverCard>
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{node.cachedSubnote}</div>}
@@ -247,12 +282,28 @@ function NodeBlock({
   )
 }
 
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2
+const ZOOM_STEP = 0.1
+
 export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: { detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string> }) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
   const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
   const containerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
+
+  // Real proportional zoom (a CSS transform on the whole spine), not just a spacing/font-size
+  // slider — trackpad pinch and Ctrl+scroll both arrive as wheel events with ctrlKey=true (the
+  // standard way browsers report pinch gestures), so a single wheel listener covers both. The
+  // scaled content sits inside its own scrollable viewport (below) so zooming in doesn't clip
+  // against the panel's outer scroll area.
+  const [zoom, setZoom] = useState(1)
+  function onWheelZoom(e: React.WheelEvent) {
+    if (!e.ctrlKey) return // a plain (non-pinch) wheel scroll should keep scrolling normally
+    e.preventDefault()
+    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z - e.deltaY * 0.01)))
+  }
 
   // key = `${bookId}:${chapter}` — lets a connection tell whether its destination is the
   // literal next spine node (a forward move, no separate row needed — the spine geometry
@@ -324,22 +375,51 @@ export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: {
       if (it.type === 'single') {
         const c = it.item
         const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${c.id}`, from: `node:${n.id}`, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: true, opacity: 0.7 })
+        // Straight, not curved — these are short local connectors (node → its own row); a
+        // curve crossing through adjacent text was adding shape/crowding for little benefit
+        // at this density. Curves stay reserved for return edges, which travel further and
+        // genuinely benefit from routing around intervening rows.
+        edges.push({ key: `stub:${c.id}`, from: `node:${n.id}`, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
         if (c.isReturn && c.toBookId && c.toChapter != null) {
           const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
           if (target) edges.push({ key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true })
         }
       } else {
         const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: true, opacity: 0.55 })
+        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
       }
+    }
+    // The quiet "same chapter as" backlink for a promoted revisit — deliberately muted/thin/
+    // dashed (structural chrome, not a clarity-tier signal, hence gray not TIER_COLOR) and
+    // never arrowed, since it signals identity ("this is the same chapter"), not a direction
+    // of travel the way the primary forward spine edge into this node already does.
+    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId)) {
+      edges.push({
+        key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
+        color: 'rgb(var(--color-text-muted))', dashed: true, curved: true, opacity: 0.35,
+      })
     }
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={edges} />
-      <div style={{ position: 'relative', zIndex: 1 }}>
+    <div style={{ position: 'relative' }}>
+      {/* Zoom controls — fixed to the viewport corner of the scrollable pane, not the scaled
+          content, so they stay a constant size and position regardless of zoom level. */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 2, display: 'flex', justifyContent: 'flex-end', gap: 4,
+        marginBottom: 6, WebkitAppRegion: 'no-drag',
+      } as React.CSSProperties}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2 }}>
+          <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
+          <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 44, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
+          <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
+        </div>
+      </div>
+      <div onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
+        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
+          <div ref={containerRef} style={{ position: 'relative' }}>
+            <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={edges} zoom={zoom} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
           <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
             {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
@@ -395,7 +475,15 @@ export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: {
           />
         )}
         <TrailRefContextMenu menu={menu} menuRef={menuRef} onClose={closeMenu} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
+}
+
+const zoomBtnStyle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, width: 24, height: 24, lineHeight: '22px', textAlign: 'center',
+  color: 'rgb(var(--color-text-secondary))', background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
 }

@@ -20,12 +20,21 @@ interface StudyTrailState {
   currentAnchorBookId: string | null
   currentAnchorChapter: number | null
   currentAnchorVerseCount: number
+  // When the current anchor is a REOPENED (not freshly-created) node, these track this
+  // particular visit's own start time and whether it's a reopen at all — read at the moment
+  // the user leaves to decide whether this was substantial enough re-engagement to PROMOTE
+  // into its own new spine node (see the recorder's promotion check, and the v29 migration
+  // comment in electron/db/berean.ts for the full "why").
+  currentAnchorActivatedAt: number | null
+  currentAnchorIsRevisit: boolean
   // `${bookId}:${chapter}` → nodeId, for every chapter that already has a node in THIS
   // session. The spine-drift fix: before recording a fresh chapter navigation as a brand-new
   // node, the recorder checks this index — a match means "already visited," so the existing
   // node is reopened (studyTrail:reopenNode) instead of a duplicate being created, which is
   // what lets a lexicon/search detour that lands back on an already-read chapter resume the
-  // real spine instead of permanently dragging the anchor through the detour.
+  // real spine instead of permanently dragging the anchor through the detour. Updated to
+  // point at a PROMOTED node once one exists for that chapter, so a third visit resumes from
+  // the most recent position, not the original.
   sessionNodeIndex: Record<string, string>
 
   startTrailSession: (name: string) => Promise<void>
@@ -96,6 +105,8 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentAnchorBookId: null,
   currentAnchorChapter: null,
   currentAnchorVerseCount: 0,
+  currentAnchorActivatedAt: null,
+  currentAnchorIsRevisit: false,
   sessionNodeIndex: {},
 
   startTrailSession: async (name: string) => {
@@ -108,7 +119,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (prevId) await window.studyTrail.pauseSession(prevId).catch(() => {})
     const session = await window.studyTrail.startSession(name)
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startSession IPC resolved', session)
-    set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, sessionNodeIndex: {} })
+    set({ currentTrailSessionId: session.id, trailSessionStatus: 'live', currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
     // Tell every other open window (main window, if this was started from the Study Trail
     // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
     // necessary at all.
@@ -141,7 +152,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (id) await window.studyTrail.endSession(id)
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
     if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session end', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
   },
@@ -151,14 +162,14 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSession: async (trailSessionId: string) => {
     await window.studyTrail.deleteSession(trailSessionId)
     if (get().currentTrailSessionId === trailSessionId) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
   deleteTrailSessions: async (trailSessionIds: string[]) => {
     await window.studyTrail.deleteSessions(trailSessionIds)
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
@@ -174,6 +185,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
       currentTrailSessionId: trailSessionId, trailSessionStatus: 'live', sessionNodeIndex,
       currentAnchorNodeId: openNode?.id ?? null, currentAnchorBookId: openNode?.bookId ?? null,
       currentAnchorChapter: openNode?.chapter ?? null, currentAnchorVerseCount: 0,
+      currentAnchorActivatedAt: openNode ? Date.now() : null, currentAnchorIsRevisit: false,
     })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: trailSessionId, trailSessionStatus: 'live' })
   },
@@ -280,7 +292,7 @@ export function installStudyTrailStateSync(): void {
       // reducer does, so the next navigation creates a fresh first anchor for the new session
       // instead of wrongly hanging a connection off the previous one.
       ...(cur.currentTrailSessionId !== incoming.currentTrailSessionId
-        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, sessionNodeIndex: {} }
+        ? { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, sessionNodeIndex: {} }
         : {}),
     })
   })
@@ -290,6 +302,13 @@ export function installStudyTrailStateSync(): void {
 // navigation in between, retroactively marks the connection as a low-weight 'glance' rather
 // than a full tangent. Nothing is ever deleted, only re-weighted.
 const GLANCE_WINDOW_MS = 2500
+
+// Revisit-promotion thresholds — either crossing counts as "genuine re-engagement" (see the
+// promotion check in installStudyTrailRecorder below). Verse count catches "read a few more
+// verses and moved on" quickly even if they didn't linger; dwell time catches "sat there
+// actually thinking about it" even without triggering more verse-view navigations.
+const REVISIT_PROMOTE_VERSE_THRESHOLD = 3
+const REVISIT_PROMOTE_DWELL_MS = 45_000
 let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter: number; timer: ReturnType<typeof setTimeout> } | null = null
 
 /** Installed once at app startup (see src/App.tsx) so every navigateToVerse() call anywhere
@@ -358,46 +377,80 @@ export function installStudyTrailRecorder(): void {
     // rather than the anchor permanently dragging forward through the detour.
     const key = `${to.bookId}:${to.chapter}`
     const existingNodeId = s.sessionNodeIndex[key]
-    const nodePromise = existingNodeId
-      ? window.studyTrail.reopenNode(existingNodeId)
-      : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
     if (window.__bereanTrailDebug) console.log('[TrailDebug] resolving node for chapter', { key, existingNodeId, willReopen: !!existingNodeId })
 
-    nodePromise
-      .then(async (node) => {
-        if (!node) { // reopenNode found nothing (stale index entry) — fall back to a fresh node
-          node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+    ;(async () => {
+      // Revisit promotion — checked as we LEAVE, not as we arrive. If the anchor being left
+      // was itself a reopened node (not a fresh first visit) and THIS particular visit
+      // involved real engagement (read several verses, or spent real time — either counts,
+      // since a quick glance at one verse and an unusually long stare at zero new verses are
+      // both genuine signals), split it off into its own new spine node positioned at when
+      // this visit actually began — instead of forever folding it into the chapter's frozen
+      // first-visit position, which is what read as "this happened in the past" even for a
+      // substantial re-engagement happening right now. A brief bounce-through never crosses
+      // either threshold, so it still resolves exactly as before (a quiet return curve to the
+      // original position) — this doesn't reintroduce the "spine drift" bug the reuse
+      // mechanism was originally built to fix, since reopenNode's own arrival behavior is
+      // completely unchanged.
+      let effectivePrevNodeId = prevNodeId
+      if (prevNodeId && s.currentAnchorIsRevisit && s.currentAnchorActivatedAt != null && s.currentAnchorBookId && s.currentAnchorChapter != null) {
+        const dwellMs = Date.now() - s.currentAnchorActivatedAt
+        const engaged = s.currentAnchorVerseCount >= REVISIT_PROMOTE_VERSE_THRESHOLD || dwellMs >= REVISIT_PROMOTE_DWELL_MS
+        if (window.__bereanTrailDebug) {
+          console.log('[TrailDebug] revisit-promotion check', { prevNodeId, verseCount: s.currentAnchorVerseCount, dwellMs, engaged })
         }
-        if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
-        useStudyTrailStore.setState((st) => ({
-          currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
-          sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
-        }))
-        if (!prevNodeId) {
-          if (window.__bereanTrailDebug) console.log('[TrailDebug] no prevNodeId (first anchor of session) — nothing to connect FROM')
-          return
-        }
-        if (prevNodeId === node!.id) {
-          if (window.__bereanTrailDebug) console.log('[TrailDebug] reopened the SAME node we were already on — nothing to connect')
-          return
-        }
-        const conn = await window.studyTrail.addConnection({
-          trailSessionId, fromNodeId: prevNodeId, toKind: 'chapter',
-          toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
-          clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
-        })
-        if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
-        // Arm the glance check: if the user bounces straight back to where they came from
-        // within the window, this connection gets re-weighted down to a glance.
-        if (pendingGlanceCheck) clearTimeout(pendingGlanceCheck.timer)
-        if (from.bookId && from.chapter != null) {
-          pendingGlanceCheck = {
-            connectionId: conn.id, fromBookId: from.bookId, fromChapter: from.chapter,
-            timer: setTimeout(() => { pendingGlanceCheck = null }, GLANCE_WINDOW_MS),
+        if (engaged) {
+          try {
+            const promoted = await window.studyTrail.promoteRevisit({
+              trailSessionId, originalNodeId: prevNodeId, bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter,
+              activatedAt: s.currentAnchorActivatedAt,
+            })
+            if (window.__bereanTrailDebug) console.log('[TrailDebug] promoteRevisit SUCCEEDED', promoted)
+            effectivePrevNodeId = promoted.id
+            const promotedKey = `${s.currentAnchorBookId}:${s.currentAnchorChapter}`
+            useStudyTrailStore.setState((st) => ({ sessionNodeIndex: { ...st.sessionNodeIndex, [promotedKey]: promoted.id } }))
+          } catch (err) {
+            console.error('[TrailDebug] promoteRevisit FAILED — keeping the original node as the connection source', err)
           }
         }
+      }
+
+      let node = await (existingNodeId
+        ? window.studyTrail.reopenNode(existingNodeId)
+        : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind }))
+      if (!node) { // reopenNode found nothing (stale index entry) — fall back to a fresh node
+        node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind })
+      }
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] node resolved — new anchor', node)
+      useStudyTrailStore.setState((st) => ({
+        currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
+        currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: !!existingNodeId,
+        sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
+      }))
+      if (!effectivePrevNodeId) {
+        if (window.__bereanTrailDebug) console.log('[TrailDebug] no prevNodeId (first anchor of session) — nothing to connect FROM')
+        return
+      }
+      if (effectivePrevNodeId === node!.id) {
+        if (window.__bereanTrailDebug) console.log('[TrailDebug] reopened the SAME node we were already on — nothing to connect')
+        return
+      }
+      const conn = await window.studyTrail.addConnection({
+        trailSessionId, fromNodeId: effectivePrevNodeId, toKind: 'chapter',
+        toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
+        clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
       })
-      .catch((err) => console.error('[TrailDebug] node resolution or its follow-up addConnection FAILED — this was previously silently swallowed', err))
+      if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
+      // Arm the glance check: if the user bounces straight back to where they came from
+      // within the window, this connection gets re-weighted down to a glance.
+      if (pendingGlanceCheck) clearTimeout(pendingGlanceCheck.timer)
+      if (from.bookId && from.chapter != null) {
+        pendingGlanceCheck = {
+          connectionId: conn.id, fromBookId: from.bookId, fromChapter: from.chapter,
+          timer: setTimeout(() => { pendingGlanceCheck = null }, GLANCE_WINDOW_MS),
+        }
+      }
+    })().catch((err) => console.error('[TrailDebug] node resolution or its follow-up addConnection FAILED — this was previously silently swallowed', err))
 
     // If THIS navigation is itself the "bounce back" a previous connection was waiting on,
     // mark that one a glance instead of a full connection.

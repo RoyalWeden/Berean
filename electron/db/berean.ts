@@ -794,6 +794,21 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v28: Study Trail tables (trail_sessions/nodes/connections/embeddings)')
     }
+  },
+  {
+    // Study Trail — revisit promotion: a genuine, substantial re-engagement with an
+    // already-visited chapter (not just a brief detour bouncing through it) gets its OWN new
+    // trail_nodes row positioned at its real chronological spot on the spine, rather than
+    // being forever represented by a curved "return" arrow pointing back to the chapter's
+    // frozen first-visit position — which read as "this happened in the past" even when the
+    // user was actively re-studying it right now. revisit_of_node_id links the promoted node
+    // back to the original for a light "same chapter as" connector (rendered directly from
+    // this column in MapView.tsx, no separate trail_connections row needed for it).
+    version: 29,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN revisit_of_node_id TEXT;`)
+      console.log('[berean-db] v29: trail_nodes.revisit_of_node_id (revisit promotion)')
+    }
   }
 ]
 

@@ -30,6 +30,9 @@ export interface TrailNode {
   anchorEndedAt?: number
   cachedSubnote?: string
   originLabel?: string
+  /** Set only on a PROMOTED revisit node — points back to the original node for this chapter.
+   *  See electron/db/berean.ts's v29 migration comment for the full "why". */
+  revisitOfNodeId?: string
 }
 
 export interface TrailConnection {
