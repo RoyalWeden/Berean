@@ -142,6 +142,39 @@ contextBridge.exposeInMainWorld('app', {
   openViewerWindow: () => ipcRenderer.invoke('app:openViewerWindow'),
   closeViewerWindow: () => ipcRenderer.invoke('app:closeViewerWindow'),
   isViewerWindowOpen: () => ipcRenderer.invoke('app:isViewerWindowOpen'),
+  openStudyTrailWindow: (trailSessionId?: string) => ipcRenderer.invoke('app:openStudyTrailWindow', trailSessionId),
+  closeStudyTrailWindow: () => ipcRenderer.invoke('app:closeStudyTrailWindow'),
+  isStudyTrailWindowOpen: () => ipcRenderer.invoke('app:isStudyTrailWindowOpen'),
+  onFocusTrailSession: (cb: (trailSessionId: string) => void) => {
+    ipcRenderer.removeAllListeners('studyTrail:focusSession')
+    ipcRenderer.on('studyTrail:focusSession', (_e, id: string) => cb(id))
+  },
+  // Study Trail (or any secondary window) → main window navigation. See main.ts's
+  // app:navigateMainToRef handler comment for why this round-trips through the main process
+  // instead of a direct store call.
+  navigateMainToRef: (payload: unknown) => ipcRenderer.invoke('app:navigateMainToRef', payload),
+  getActiveScriptureRef: () => ipcRenderer.invoke('app:getActiveScriptureRef'),
+  onRequestActiveScriptureRef: (cb: () => { bookId: string; chapter: number } | null) => {
+    ipcRenderer.removeAllListeners('app:requestActiveScriptureRef')
+    ipcRenderer.on('app:requestActiveScriptureRef', () => {
+      ipcRenderer.send('app:activeScriptureRefReply', cb())
+    })
+  },
+  onNavigateToRef: (cb: (payload: unknown) => void) => {
+    ipcRenderer.removeAllListeners('app:navigateToRef')
+    ipcRenderer.on('app:navigateToRef', (_e, payload) => cb(payload))
+  },
+  // The main window and the Study Trail window are separate renderer processes, each with its
+  // OWN in-memory useStudyTrailStore instance — starting/pausing/resuming a session in one
+  // window's UI never reached the other's local store, so the main window's recorder always
+  // saw currentTrailSessionId: null and silently never recorded anything, no matter which
+  // window the session was actually started from. This is the cross-window broadcast that
+  // closes that gap (see src/store/studyTrailSlice.ts's installStudyTrailStateSync).
+  broadcastStudyTrailState: (state: unknown) => ipcRenderer.send('app:broadcastStudyTrailState', state),
+  onStudyTrailStateChanged: (cb: (state: unknown) => void) => {
+    ipcRenderer.removeAllListeners('app:studyTrailStateChanged')
+    ipcRenderer.on('app:studyTrailStateChanged', (_e, state) => cb(state))
+  },
   pushViewerContent: (payload: unknown) => ipcRenderer.send('app:pushViewerContent', payload),
   // Push display/format settings (word replacer, note blocks, theme…) to the viewer window
   pushViewerSettings: (settings: unknown) => ipcRenderer.send('app:pushViewerSettings', settings),
@@ -332,6 +365,30 @@ contextBridge.exposeInMainWorld('appHistory', {
   getPage: (beforeTs: number, limit?: number) => ipcRenderer.invoke('history:getPage', beforeTs, limit),
   delete: (id: string) => ipcRenderer.invoke('history:delete', id),
   clear: () => ipcRenderer.invoke('history:clear'),
+})
+
+contextBridge.exposeInMainWorld('studyTrail', {
+  startSession: (name: string) => ipcRenderer.invoke('studyTrail:startSession', name),
+  pauseSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:pauseSession', trailSessionId),
+  resumeSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:resumeSession', trailSessionId),
+  renameSession: (trailSessionId: string, name: string) => ipcRenderer.invoke('studyTrail:renameSession', trailSessionId, name),
+  endSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:endSession', trailSessionId),
+  deleteSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:deleteSession', trailSessionId),
+  deleteSessions: (trailSessionIds: string[]) => ipcRenderer.invoke('studyTrail:deleteSessions', trailSessionIds),
+  listSessions: () => ipcRenderer.invoke('studyTrail:listSessions'),
+  getSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:getSession', trailSessionId),
+  addNode: (node: unknown) => ipcRenderer.invoke('studyTrail:addNode', node),
+  reopenNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:reopenNode', nodeId),
+  promoteRevisit: (args: unknown) => ipcRenderer.invoke('studyTrail:promoteRevisit', args),
+  updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
+  addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
+  markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),
+  updateConnectionReason: (connectionId: string, update: unknown) => ipcRenderer.invoke('studyTrail:updateConnectionReason', connectionId, update),
+  dismissPrompt: (connectionId: string) => ipcRenderer.invoke('studyTrail:dismissPrompt', connectionId),
+  clearConnectionNote: (connectionId: string) => ipcRenderer.invoke('studyTrail:clearConnectionNote', connectionId),
+  updateRecap: (trailSessionId: string, recapText: string) => ipcRenderer.invoke('studyTrail:updateRecap', trailSessionId, recapText),
+  getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => ipcRenderer.invoke('studyTrail:getBacklinks', bookId, chapter, excludeSessionId),
+  search: (query: string) => ipcRenderer.invoke('studyTrail:search', query),
 })
 
 contextBridge.exposeInMainWorld('workspaces', {

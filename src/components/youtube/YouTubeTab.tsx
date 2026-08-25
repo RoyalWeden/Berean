@@ -2162,12 +2162,12 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
 
         {/* Search scope — only shown while searching: Title / Transcript / Both */}
         {search && (
-          <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-lg p-0.5 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {(['title', 'transcript', 'both'] as SearchScope[]).map((s) => (
               <button key={s}
                 onClick={(e) => { e.stopPropagation(); setSearchScope(s); setPage(1) }}
                 title={s === 'title' ? 'Search titles & channels' : s === 'transcript' ? 'Search transcript text' : 'Search titles & transcripts'}
-                className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors capitalize ${searchScope === s ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors capitalize ${searchScope === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
               >
                 {s}
               </button>
@@ -2176,11 +2176,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
         )}
 
         {/* Type filter */}
-        <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded-lg p-0.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {(['all', 'video', 'short', 'live'] as TypeFilter[]).map((t) => (
             <button key={t}
               onClick={(e) => { e.stopPropagation(); setTypeFilter(t); setPage(1) }}
-              className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors ${typeFilter === t ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${typeFilter === t ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
             >
               {TYPE_LABEL[t]}
             </button>
@@ -2207,7 +2207,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           <button
             ref={channelBtnRef}
             onClick={() => { setShowChannelMenu((v) => !v); setShowSortMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[120px]"
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors max-w-[120px]"
           >
             <span className="truncate">{channelFilter === 'all' ? 'All channels' : channelFilter.replace('@', '')}</span>
             <ChevronDown size={10} className="flex-shrink-0" />
@@ -2264,7 +2264,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           <button
             ref={sortBtnRef}
             onClick={() => { setShowSortMenu((v) => !v); setShowChannelMenu(false); setShowDurationMenu(false); setShowWatchMenu(false) }}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
           >
             {SORT_LABEL[sort]} <ChevronDown size={10} />
           </button>
@@ -2351,10 +2351,10 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               ref={transcriptBtnRef}
               onClick={(e) => { e.stopPropagation(); setShowTranscriptMenu((v) => !v) }}
               title="Transcript tools (dev only)"
-              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded cursor-pointer transition-colors ${
+              className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border cursor-pointer transition-colors ${
                 fetchingTranscripts
-                  ? 'bg-emerald-500/25 text-emerald-400'
-                  : 'bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25]'
+                  ? 'bg-emerald-500/16 border-emerald-500/45 text-emerald-400 font-semibold'
+                  : 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold hover:bg-[rgb(var(--color-accent))]/25'
               }`}
             >
               <Captions size={11} />
@@ -2449,11 +2449,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {/* Search scope — where the search box looks (title, transcript text, or both) */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Search in</span>
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5">
+            <div className="flex items-center gap-1">
               {([['title', 'Title'], ['transcript', 'Transcript'], ['both', 'Both']] as [SearchScope, string][]).map(([s, lbl]) => (
                 <button key={s}
                   onClick={() => { setSearchScope(s); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${searchScope === s ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${searchScope === s ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                 >
                   {lbl}
                 </button>
@@ -2476,11 +2476,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {/* Progress / watch filter */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Progress</span>
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5">
+            <div className="flex items-center gap-1">
               {(Object.keys(WATCH_LABEL) as WatchFilter[]).map((opt) => (
                 <button key={opt}
                   onClick={() => { setWatchFilter(opt); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${watchFilter === opt ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${watchFilter === opt ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                 >
                   {WATCH_LABEL[opt]}
                 </button>
@@ -2491,11 +2491,11 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
           {/* Length / duration filter */}
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-[rgb(var(--color-text-muted))] font-medium whitespace-nowrap">Length</span>
-            <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-4))] rounded p-0.5 flex-wrap">
+            <div className="flex items-center gap-1 flex-wrap">
               {(Object.keys(DURATION_LABEL) as DurationFilter[]).map((opt) => (
                 <button key={opt}
                   onClick={() => { setDurationFilter(opt); setPage(1) }}
-                  className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${durationFilter === opt ? 'bg-[rgb(var(--color-surface-1))] text-[rgb(var(--color-text-primary))] font-medium shadow-sm' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border cursor-pointer transition-colors whitespace-nowrap ${durationFilter === opt ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'}`}
                 >
                   {DURATION_LABEL[opt]}
                 </button>
@@ -2713,7 +2713,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
               {hasMore && !loading && (
                 <button
                   onClick={() => setPage((p) => p + 1)}
-                  className="text-xs px-4 py-2 rounded-lg bg-[rgb(var(--color-surface-2))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-accent))/50] cursor-pointer transition-colors"
+                  className="text-xs text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:underline cursor-pointer"
                 >
                   Show more ({sorted.length - paged.length} remaining)
                 </button>

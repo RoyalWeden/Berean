@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Copy, Hash, BookOpen, ExternalLink } from 'lucide-react'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { getTranslationForBook } from '@/lib/parseRef'
 import { CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 
@@ -66,6 +67,7 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
 
   if (!target) return null
   const ITEM = 'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] transition-colors'
+  const ICON = 'flex-shrink-0 text-[rgb(var(--color-text-muted))]'
 
   function openVerse() {
     const store = useAppStore.getState()
@@ -97,9 +99,15 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
       ...(dedicatedTarget ? { translation: dedicatedTarget } : {}),
     })
     store.setActiveSpace('scripture')
+    // This context menu doesn't carry "where the user right-clicked FROM" (it's shared across
+    // several hosts — search results, chapter view, etc.) — an empty `from` is the honest
+    // signal (recordNavigation/tierForOrigin handle it fine), still worth recording the
+    // destination and origin kind rather than silently bypassing entirely.
+    recordNavigation({}, { bookId: target!.bookId, chapter: target!.chapter, verse: target!.verse }, { kind: 'other', label: 'verse-copy-menu' })
   }
 
   function openInFloatingTab() {
+    recordNavigation({}, { bookId: target!.bookId, chapter: target!.chapter, verse: target!.verse }, { kind: 'other', label: 'verse-copy-menu' })
     window.app.openFloatingTab('bible', {
       bookId: target!.bookId, chapter: String(target!.chapter), targetVerse: String(target!.verse),
       ...(target!.endVerse ? { endVerse: String(target!.endVerse) } : {}),
@@ -110,24 +118,24 @@ export function VerseCopyMenu({ target, onClose }: { target: VerseCopyTarget | n
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[10000] min-w-[150px] rounded-lg border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))] shadow-xl py-1"
+      className="fixed z-[10000] min-w-[150px] rounded-shell context-menu overflow-hidden py-1"
       style={{ left: target.x, top: target.y }}
       onClick={(e) => e.stopPropagation()}
     >
       <button className={ITEM} onClick={() => { openVerse(); onClose() }}>
-        <BookOpen size={13} className="flex-shrink-0" /> Open verse
+        <BookOpen size={12} className={ICON} /> Open verse
       </button>
       <button className={ITEM} onClick={() => { copyVerse(target.bookId, target.chapter, target.verse, target.text, target.lxx, target.endVerse); onClose() }}>
-        <Copy size={13} className="flex-shrink-0" /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
+        <Copy size={12} className={ICON} /> {target.endVerse && target.endVerse > target.verse ? 'Copy verses' : 'Copy verse'}
       </button>
       <button className={ITEM} onClick={() => { copyVerseRef(target.bookId, target.chapter, target.verse, target.lxx, target.endVerse); onClose() }}>
-        <Hash size={13} className="flex-shrink-0" /> Copy reference
+        <Hash size={12} className={ICON} /> Copy reference
       </button>
       <button className={ITEM} onClick={() => { openInNewTab(); onClose() }}>
-        <ExternalLink size={13} className="flex-shrink-0" /> Open in new tab
+        <ExternalLink size={12} className={ICON} /> Open in new tab
       </button>
       <button className={ITEM} onClick={() => { openInFloatingTab(); onClose() }}>
-        <ExternalLink size={13} className="flex-shrink-0" /> Open in floating tab
+        <ExternalLink size={12} className={ICON} /> Open in floating tab
       </button>
     </div>,
     document.body,

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, Fragment } from 'react'
 import { hermasAwareChapterLabel } from '@/lib/hermasMap'
 import { useAppStore } from '@/store'
 import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
+import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
@@ -136,13 +137,17 @@ interface Props {
   textId: string
   fontScale: number
   scrollPercent?: number
+  /** Annotation categories hidden in the main window (kjva_italics, lxx_supply,
+   *  enoch_supply/uncertain/restored, jubilees_date/bracket/etc.) — mirrored here so the
+   *  presenter matches. */
+  hiddenAnnotations?: string[]
   // Viewer-only highlights for THIS chapter, owned by ViewerApp so they survive chapter switches.
   viewerHighlights: Record<number, ViewerHighlight[]>
   onAddViewerHighlight: (verseNum: number, hl: ViewerHighlight) => void
   onRemoveViewerHighlight: (verseNum: number, startChar: number, endChar: number) => void
 }
 
-export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
+export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
   const [verses, setVerses] = useState<Verse[]>([])
   const [loading, setLoading] = useState(true)
   const [dbHighlights, setDbHighlights] = useState<Record<number, DBHighlight[]>>({})
@@ -155,6 +160,10 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const activeRef = useRef<HTMLDivElement>(null)
   const scrollPercentRAFRef = useRef<number | null>(null)
   const reportRAFRef = useRef<number | null>(null)
+  // Debug-only: last scrollTop this window actually applied, so a visible "jump" (a large
+  // sudden change in the PRESENTER'S OWN on-screen position, not just in the percent it was
+  // told) can be flagged directly at the point the user would actually see it.
+  const lastAppliedScrollTopDebugRef = useRef<{ scrollTop: number; chapterKey: string } | null>(null)
   // Find-bar "scroll to verse" support: briefly ignore proportional sync so the centering sticks.
   const scrollLockUntilRef = useRef(0)
   const lastScrollToNonceRef = useRef(0)
@@ -163,8 +172,14 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const wrEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wrRules = useAppStore((s) => s.wordReplacerRules)
   // Display tokens carry red-letter / italic flags so Yeshua's words render in red.
-  const displayTokens = (v: Verse) =>
-    buildVerseDisplayTokens(v.text, v.text_tagged, textId, wrEnabled, wrRules)
+  // Bracket/parenthetical annotations (LXX supply, Enoch, Jubilees) are stripped from the
+  // plain text first, same as VerseRow's stripAnnotations; KJV italics come through as
+  // per-token flags on text_tagged instead, so those are filtered out after the fact.
+  const displayTokens = (v: Verse) => {
+    const strippedText = hiddenAnnotations.length ? stripAnnotations(v.text, textId, hiddenAnnotations) : v.text
+    const tokens = buildVerseDisplayTokens(strippedText, v.text_tagged, textId, wrEnabled, wrRules)
+    return hiddenAnnotations.includes('kjva_italics') ? tokens.filter((t) => !t.isItalic) : tokens
+  }
 
   // Report the fraction of the chapter visible in the presenter. The main window combines
   // this with its own live scroll position to draw the outline band — so the band tracks
@@ -204,6 +219,31 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         console.warn('[ViewerBiblePage] reportVisibleRegion missing from preload — restart the app')
         return
       }
+      // Debug logging for the "outline shows different verses than the presenter" report —
+      // logs the ACTUAL currently on-screen verse range in THIS window (ground truth, derived
+      // directly from getBoundingClientRect against the viewport, not from the fraction math
+      // below), alongside the fraction-based payload being sent to the main window. Compare
+      // this against the [PresenterDebug band] log in BiblePanel.tsx for the same tick — a
+      // real mismatch will show up as a different verse range here vs. what the main window's
+      // outline band computes from this same payload.
+      if (window.__bereanPresenterDebug) {
+        const viewportTop = 0, viewportBottom = c.clientHeight
+        let onScreenFirst: number | null = null, onScreenLast: number | null = null
+        for (const elx of verseNodes) {
+          const n = Number(elx.dataset.verse)
+          if (!Number.isFinite(n)) continue
+          const r = elx.getBoundingClientRect()
+          const top = r.top - cTop, bottom = r.bottom - cTop
+          if (bottom > viewportTop && top < viewportBottom) {
+            if (onScreenFirst === null || n < onScreenFirst) onScreenFirst = n
+            if (onScreenLast === null || n > onScreenLast) onScreenLast = n
+          }
+        }
+        console.log('[PresenterDebug viewer]', {
+          bookId, chapter, scrollTop: c.scrollTop, clientHeight: c.clientHeight, contentHeight: H,
+          visibleFraction, onScreenVerses: [onScreenFirst, onScreenLast],
+        })
+      }
       window.viewer.reportVisibleRegion({ bookId, chapter, visibleFraction, verseFracs, clientHeight: c.clientHeight })
     })
   }, [bookId, chapter])
@@ -228,11 +268,26 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
       .catch(() => {})
   }, [bookId, chapter, textId, highlightChangeToken])
 
-  // Scroll to active verse — only when no proportional scroll position is supplied.
+  // Scroll to active verse — only when no proportional scroll position is supplied. THIS is
+  // the fallback path most likely to diverge from the main window: `verse` can be stale (a
+  // leftover targetVerse/lastBibleVerse from an earlier navigation — see useViewerSync.ts's
+  // computeViewerPayload doc comment) and centering on it has NOTHING to do with wherever the
+  // main window's own native scroll position actually is right now.
   useEffect(() => {
-    if (scrollPercent !== undefined && scrollPercent !== null) return
+    if (scrollPercent !== undefined && scrollPercent !== null) {
+      if (window.__bereanPresenterDebug) console.log('[PD viewer-center-effect] SKIPPED — scrollPercent is defined', { scrollPercent })
+      return
+    }
     if (verse && activeRef.current) {
+      if (window.__bereanPresenterDebug) {
+        const r = activeRef.current.getBoundingClientRect()
+        console.log('[PD viewer-center-effect] CENTERING on verse (scrollPercent undefined)', {
+          bookId, chapter, verse, activeRefRectTop: r.top, activeRefRectBottom: r.bottom,
+        })
+      }
       activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (window.__bereanPresenterDebug) {
+      console.log('[PD viewer-center-effect] scrollPercent undefined but nothing to center on', { verse, hasActiveRef: !!activeRef.current })
     }
   }, [verse, verses, scrollPercent])
 
@@ -242,11 +297,37 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     if (scrollPercentRAFRef.current) cancelAnimationFrame(scrollPercentRAFRef.current)
     scrollPercentRAFRef.current = requestAnimationFrame(() => {
       scrollPercentRAFRef.current = null
-      if (Date.now() < scrollLockUntilRef.current) return // a find-bar centering is in progress
+      if (Date.now() < scrollLockUntilRef.current) {
+        if (window.__bereanPresenterDebug) console.log('[PD viewer-percent-effect] SKIPPED — find-bar scroll lock active')
+        return
+      }
       const el = containerRef.current
       if (!el) return
       const max = el.scrollHeight - el.clientHeight
+      const appliedScrollTop = max > 0 ? scrollPercent * max : el.scrollTop
+      const chapterKey = `${bookId}:${chapter}`
+      if (window.__bereanPresenterDebug) {
+        const prev = lastAppliedScrollTopDebugRef.current
+        // Threshold scaled to viewport height — a jump of more than ~40% of one screenful in a
+        // single application, within the SAME chapter, is not a smooth proportional glide.
+        const isJump = prev && prev.chapterKey === chapterKey && Math.abs(appliedScrollTop - prev.scrollTop) > el.clientHeight * 0.4
+        console.log('[PD viewer-percent-effect] APPLYING', {
+          bookId, chapter, scrollPercent, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+          max, appliedScrollTop, prevAppliedScrollTop: prev?.scrollTop, prevChapterKey: prev?.chapterKey,
+        })
+        if (isJump) {
+          console.warn('[PD VISIBLE JUMP on presenter]', {
+            from: prev!.scrollTop, to: appliedScrollTop, chapterKey, clientHeight: el.clientHeight,
+          })
+        }
+      }
+      lastAppliedScrollTopDebugRef.current = { scrollTop: appliedScrollTop, chapterKey }
       if (max > 0) el.scrollTop = scrollPercent * max
+      if (window.__bereanPresenterDebug) {
+        console.log('[PD viewer-percent-effect] APPLIED', {
+          bookId, chapter, scrollPercent, actualScrollTopAfter: el.scrollTop,
+        })
+      }
     })
   }, [scrollPercent, verses])
 
@@ -258,7 +339,7 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   // until the next chapter navigation.
   useEffect(() => {
     if (!loading) reportVisible()
-  }, [loading, verses, fontScale, wrEnabled, wrRules, reportVisible])
+  }, [loading, verses, fontScale, wrEnabled, wrRules, hiddenAnnotations, reportVisible])
   useEffect(() => {
     const onResize = () => reportVisible()
     window.addEventListener('resize', onResize)

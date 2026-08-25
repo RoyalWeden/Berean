@@ -19,6 +19,7 @@ import NoteStatusDropdown from './NoteStatusDropdown'
 import NotesBoardView from './NotesBoardView'
 import FindBar from '@/components/shell/FindBar'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { bookChapterVerseLabel, getTranslationForBook, resolveBookToken } from '@/lib/parseRef'
 import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
@@ -1247,6 +1248,13 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
       noteBack,
       translation: translationOverride.toUpperCase(),
     })
+    // Tier 2 — a wikilink/verse-ref inside a note is soft-inferred (the reason is the note's
+    // own text/title, not a certainty like a cross-ref table row).
+    recordNavigation(
+      {},
+      { bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse },
+      { kind: 'note-wikilink', noteId: activeNote?.id ?? '', noteTitle: activeNote?.title || 'Untitled' },
+    )
   }
 
   // Port of the CM6 editor's lexicon-ref click handling, which used to

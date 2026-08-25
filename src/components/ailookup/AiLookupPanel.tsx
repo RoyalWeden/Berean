@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
 import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
 import { applyWordReplacer } from '@/lib/wordReplacer'
 import type { AiLookupChatMessage, AiLookupResponse, AiLookupResult, AiLookupNoteResult, AiLookupStrongsCard, AiLookupTabContextRef, AiLookupVideoResult } from '@/types/electron'
@@ -452,10 +453,11 @@ export default function AiLookupPanel() {
     return undefined
   }
 
-  function navigateToResult(r: AiLookupResult) {
+  function navigateToResult(r: AiLookupResult, question?: string) {
     const state = useAppStore.getState()
     const activeId = state.activeTabId.scripture
     const activeScripture = activeId ? state.tabs.scripture.find((t) => t.id === activeId) : null
+    const priorState = activeScripture?.state as { bookId?: string; chapter?: number; targetVerse?: number } | undefined
     const title = `${r.bookName} ${r.chapter}:${r.verse}${r.endVerse ? '-' + r.endVerse : ''}`
     if (activeScripture) {
       updateTabState('scripture', activeScripture.id, { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, endVerse: r.endVerse, scrollPosition: 0, translation: r.textId.toUpperCase() })
@@ -467,6 +469,17 @@ export default function AiLookupPanel() {
       })
     }
     setActiveSpace('scripture')
+    // Tier 1 — the AI Lookup's suggestion IS the reason; the asked question is threaded
+    // through as the connection's reason text so it reads as "why" in the Study Trail map.
+    // A NESTED cross-ref result (r.crossRefOf set) additionally knows exactly which verse's
+    // cross-ref list it came from — previously dropped entirely, since this whole function
+    // always recorded kind:'ai-lookup' with no verse info at all, unlike the equivalent
+    // right-panel cross-ref click.
+    recordNavigation(
+      { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
+      { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
+      { kind: 'ai-lookup', question: question ?? '', fromVerse: r.crossRefOf?.verse },
+    )
   }
 
   async function persist(nextMessages: AiLookupChatMessage[]) {
@@ -816,7 +829,7 @@ export default function AiLookupPanel() {
                       return (
                         <div key={ri}>
                           <button
-                            onClick={() => navigateToResult(r)}
+                            onClick={() => navigateToResult(r, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                             onContextMenu={(e) => verseCopy.open(e, {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',
@@ -857,7 +870,7 @@ export default function AiLookupPanel() {
                                   {nested.map((cr, ci) => (
                                     <button
                                       key={ci}
-                                      onClick={() => navigateToResult(cr)}
+                                      onClick={() => navigateToResult(cr, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                                       onContextMenu={(e) => verseCopy.open(e, { bookId: cr.bookId, chapter: cr.chapter, verse: cr.verse, text: cr.text, lxx: cr.textId === 'lxx' })}
                                       className="text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))]/70 px-2 py-1 transition-colors cursor-pointer max-w-full"
                                     >
@@ -893,7 +906,7 @@ export default function AiLookupPanel() {
                         {m.related!.map((r, ri) => (
                           <button
                             key={ri}
-                            onClick={() => navigateToResult(r)}
+                            onClick={() => navigateToResult(r, [...messages].slice(0, mi).reverse().find((mm) => mm.role === 'user')?.content)}
                             onContextMenu={(e) => verseCopy.open(e, {
                               bookId: r.bookId, chapter: r.chapter, verse: r.verse, endVerse: r.endVerse,
                               text: r.text, lxx: r.textId === 'lxx',

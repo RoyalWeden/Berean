@@ -4,6 +4,8 @@ import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
+import { recordLexiconConnection, recordTranslationSwitch } from '@/store/studyTrailSlice'
+import { recordNavigation, type NavOrigin } from '@/lib/verseNavigation'
 import ChapterView from './ChapterView'
 import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
 import CompareView from './CompareView'
@@ -17,7 +19,7 @@ import FindBar from '@/components/shell/FindBar'
 import ScriptureSearchView from './ScriptureSearchView'
 import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
-import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent } from '@/hooks/useViewerSync'
+import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
 import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord } from '@/lib/presenterBand'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
@@ -118,6 +120,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // While a find-bar jump is in flight, suppress proportional scroll sync so the explicit
   // "center this verse" command drives the presenter cleanly (no tug-of-war).
   const findScrollSuppressRef = useRef(0)
+  // Fires ~180ms after the LAST scroll event, regardless of suppression state — the fix for a
+  // confirmed bug (found via a dedicated investigation of "presenter shows a stale verse range
+  // after a targetVerse jump + manual scroll"): findScrollSuppressRef.current re-extends itself
+  // on EVERY scroll tick that lands while still suppressed (see the "else" branch below), so a
+  // continuous scroll gesture right after a jump — normal reading behavior — can push the
+  // suppression deadline forward every tick and never let it expire while still moving. The
+  // tick where the user actually STOPS (their true final resting scrollTop) is then itself
+  // swallowed by the still-active suppression window, and since no further scroll event ever
+  // fires, that true final position is NEVER cached or pushed — leaving the presenter/outline
+  // permanently mirroring a stale mid-jump position. This timer independently detects "scrolling
+  // has settled" and forces one authoritative sync from the real current DOM state, bypassing
+  // suppression entirely, so the true final position always eventually gets through.
+  const scrollSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The verse the presenter is currently centered on via a find-bar jump (null when the
   // presenter is mirroring the main panel proportionally). While set, the outline band is
   // computed from this verse's centered position instead of the main panel's scroll percent.
@@ -128,6 +143,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // this is the single "shared p" value actually applied to the presenter and used to draw
   // the outline band, so the two can never disagree about where the presenter is scrolled to.
   const virtualScrollPctRef = useRef(0)
+  // Debug-only: remembers the last pushed (percent, chapterKey) pair so handleBibleScroll can
+  // flag a suspiciously large jump between consecutive pushes for the SAME chapter — the
+  // "jumping near the beginning/end of a chapter" symptom should show up here as a
+  // [PD SUSPICIOUS JUMP] line with the exact before/after values and what triggered the push.
+  const lastPushedDebugRef = useRef<{ percent: number; chapterKey: string } | null>(null)
   // The main panel's own scrollTop as of the last handleBibleScroll event, used to derive a
   // physical px delta each event rather than a fresh ratio-to-own-range every time (see
   // handleBibleScroll). Kept in sync with virtualScrollPctRef by every place that resets or
@@ -425,7 +445,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // percent/chapterKey stale here makes computeViewerPayload() report `undefined` for
     // this chapter, so the viewer centers on `verse` instead — see useViewerSync.ts.
     if (!hasTargetVerse) {
-      setMainBibleScrollPercent(0, `${tabState.bookId}:${tabState.chapter}`)
+      const freshChapterKey = `${tabState.bookId}:${tabState.chapter}`
+      setMainBibleScrollPercent(0, freshChapterKey)
+      clearLastBibleVerse(freshChapterKey)
     }
     virtualScrollPctRef.current = 0
     lastMainScrollTopRef.current = 0
@@ -454,7 +476,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (activeSpace !== 'scripture') return
     pendingScrollRef.current = null
     const savedPos = tabState.scrollPosition ?? 0
-    if (savedPos === 0) return
+    if (savedPos === 0) {
+      // Landing on this tab already at (or with no saved) scroll position — unlike the
+      // non-continuous reset effect above, this path never fires a native scroll event to
+      // refresh useViewerSync.ts's lastBibleScrollPercent/lastScrollChapterKey cache, so it can
+      // stay stale for whatever chapter was last ACTIVELY scrolled elsewhere. computeViewerPayload
+      // then reports scrollPercent as undefined for this (legitimately top-of-chapter) tab, and
+      // the presenter falls back to centering on a stale bs.verse/lastBibleVerse instead —
+      // confirmed root cause of "main shows top of chapter, presenter shows mid-chapter verses".
+      const freshChapterKey = `${tabState.bookId}:${tabState.chapter}`
+      setMainBibleScrollPercent(0, freshChapterKey)
+      clearLastBibleVerse(freshChapterKey)
+      virtualScrollPctRef.current = 0
+      return
+    }
     pendingScrollRef.current = savedPos
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSpace, activeTabId, continuousChapterScroll])
@@ -546,13 +581,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // drift from ViewerBiblePage.tsx's own copy of the same measurement.
     const mainH = measureContentHeight(c.scrollHeight, contentBottom)
 
-    // virtualScrollPctRef is now the single source of truth for the shared scroll percent in
-    // every case (wheel-driven virtual scroll when the chapter fits, and the sensitivity-
-    // normalized value from handleBibleScroll otherwise) — using it unconditionally here (not
-    // just when `fits`) keeps the band's geometry agreeing with wherever the outline actually
-    // scrolled to, rather than the raw (un-normalized) mainScrollTop/denom ratio that
-    // computeBandGeometry would otherwise fall back to.
-    let scrollPercentOverride: number | undefined = virtualScrollPctRef.current
+    // The band is drawn INSIDE this same window, directly on top of this panel's own real
+    // content — so it must track this panel's own true, un-smoothed scroll ratio
+    // (c.scrollTop / denom), not the sensitivity-normalized virtualScrollPctRef used to drive
+    // the PRESENTER's felt scroll speed. Those two percents only agree at the exact top/bottom
+    // of a real scroll range; in between, virtualScrollPctRef intentionally moves slower or
+    // faster than this panel's own scrollTop whenever the presenter's own scrollable range
+    // differs from this panel's (see presenterScrollSensitivity's doc comment) — using it here
+    // made the band visibly lag behind (or run ahead of) wherever the user had actually
+    // scrolled to in THIS panel, up to drifting off the rendered content entirely on longer
+    // chapters. Only fall back to the virtual accumulator when this panel has no native scroll
+    // range of its own to derive a ratio from (a short chapter driven purely by the wheel-
+    // virtual-scroll path below) — that's the one case with no real mainScrollTop/denom ratio
+    // to track in the first place.
+    const bandDenom = mainH - c.clientHeight
+    let scrollPercentOverride: number | undefined = bandDenom <= 0 ? virtualScrollPctRef.current : undefined
     // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
     // mirroring the main panel proportionally — so derive the scroll percent from where that
     // verse sits, centered, in the presenter's content (otherwise the band lands mid-verse).
@@ -561,7 +604,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const vf = region.verseFracs[fv]
       if (vf != null) scrollPercentOverride = Math.max(0, Math.min(1, (vf - f / 2) / (1 - f)))
     }
-    setPresenterBand(computeBandGeometry({
+    const band = computeBandGeometry({
       visibleFraction: f,
       verseFracs: region.verseFracs,
       mainTops: tops,
@@ -569,7 +612,25 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       mainClientHeight: c.clientHeight,
       mainScrollTop: c.scrollTop,
       scrollPercentOverride,
-    }))
+    })
+    setPresenterBand(band)
+
+    // Debug logging for the "outline shows different verses than the presenter" report —
+    // compare this against the [PresenterDebug viewer] log ViewerBiblePage.tsx emits for the
+    // same tick (set window.__bereanPresenterDebug = true in BOTH windows' devtools console).
+    // Logs: what THIS window received as the presenter's own reported region (region.bookId/
+    // chapter/visibleFraction — ground truth as of the presenter's last report), what the band
+    // geometry computed from it (band.firstVerse/lastVerse — what the outline claims), and
+    // what's ACTUALLY on-screen in the presenter's own verseFracs at the computed scroll
+    // percent, independently re-derived here as a cross-check.
+    if (window.__bereanPresenterDebug) {
+      console.log('[PresenterDebug band]', {
+        regionBookId: region.bookId, regionChapter: region.chapter, regionVisibleFraction: region.visibleFraction,
+        mainScrollPercentUsed: scrollPercentOverride !== undefined ? scrollPercentOverride : (bandDenom > 0 ? c.scrollTop / bandDenom : 0),
+        bandFirstVerse: band?.firstVerse, bandLastVerse: band?.lastVerse,
+        bandTop: band?.top, bandHeight: band?.height,
+      })
+    }
   }, [floating, viewerWindowOpen, viewerVisibleRegion, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Latest computePresenterBand, readable from callbacks (like clearTargetVerse below) that
@@ -598,7 +659,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (floating) return
     const container = getScrollEl()
     if (container) {
-      const max = container.scrollHeight - container.clientHeight
+      // measureContentHeight (content-bottom-clamped), not raw scrollHeight — matches every
+      // other place that measures this panel's scrollable range (computePresenterBand,
+      // ViewerBiblePage.tsx's own reportVisible). Using raw scrollHeight here made this one
+      // explicit "send to view" push compute a systematically smaller percent than the rest of
+      // the pipeline for a short chapter with trailing empty space below the last verse.
+      const cTop = container.getBoundingClientRect().top
+      let contentBottom = 0
+      for (const node of Array.from(container.querySelectorAll('[data-verse]'))) {
+        const r = (node as HTMLElement).getBoundingClientRect()
+        const bottom = r.bottom - cTop + container.scrollTop
+        if (bottom > contentBottom) contentBottom = bottom
+      }
+      const contentHeight = measureContentHeight(container.scrollHeight, contentBottom)
+      const max = contentHeight - container.clientHeight
       const percent = max > 0 ? container.scrollTop / max : 0
       setMainBibleScrollPercent(percent, `${tabState.bookId}:${tabState.chapter}`)
       // This is an explicit absolute re-sync (not a physical scroll gesture), so resync the
@@ -650,6 +724,40 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     ro.observe(el)
     return () => ro.disconnect()
   }, [floating, computePresenterBand, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the presenter band (the "outline" showing what's live on the Presenter screen) from
+  // scrolling fully out of view when the USER manually scrolls the main window away from it —
+  // per direct ask: "postpone the vertical scrolling of the chapter and only scroll the outline
+  // down so that the outline never gets out of the viewable area." Only ever engages once the
+  // band and the current view are far enough apart that a plain scroll would actually hide it
+  // entirely (a short chapter where everything's already on screen never triggers this) — and
+  // only caps how far a manual scroll can go in the direction that would hide it further; it
+  // never resists scrolling BACK toward the band. band.top/height are in the same CONTENT-space
+  // coordinates as scrollTop (see computePresenterBand above) and only change when the
+  // presenter's own visible region changes — they stay put while the user scrolls THIS window,
+  // so reading presenterBand from React state here (rather than re-measuring) is safe, not stale.
+  useEffect(() => {
+    if (floating || !viewerWindowOpen || viewerPaused || !presenterBand) return
+    const el = getScrollEl()
+    if (!el) return
+    const MIN_VISIBLE_PX = 24
+    function clampToKeepBandVisible() {
+      const band = presenterBand
+      if (!band || !el) return
+      const bandTop = band.top, bandBottom = band.top + band.height
+      const viewTop = el.scrollTop, viewBottom = viewTop + el.clientHeight
+      if (bandTop > viewBottom) {
+        // Scrolled UP past the band (band now below the visible area) — cap how far up.
+        el.scrollTop = Math.max(0, bandTop - el.clientHeight + MIN_VISIBLE_PX)
+      } else if (bandBottom < viewTop) {
+        // Scrolled DOWN past the band (band now above the visible area) — cap how far down.
+        el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, bandBottom - MIN_VISIBLE_PX)
+      }
+    }
+    el.addEventListener('scroll', clampToKeepBandVisible, { passive: true })
+    return () => el.removeEventListener('scroll', clampToKeepBandVisible)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floating, viewerWindowOpen, viewerPaused, presenterBand, continuousChapterScroll])
 
   // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
   // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
@@ -744,6 +852,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // current book if the target has it, otherwise navigates to the target's first book.
   function selectPickerTranslation(tid: string) {
     if (!activeTab) return
+    recordTranslationSwitch(tid)
     // Capture the currently top-visible verse before ANY edition switch below (same
     // mechanism the Strong's toggle uses — see captureStrongsAnchor's comment) so the
     // translation change can restore roughly the same reading position instead of always
@@ -1281,7 +1390,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           : singular(chapter)
   }
 
-  function navigate(bookId: string, chapter: number, endChapter?: number) {
+  function navigate(bookId: string, chapter: number, endChapter?: number, origin: NavOrigin = { kind: 'book-chapter-picker' }) {
     if (!activeTab) return
     const title = makeTitle(bookId, chapter, endChapter)
     // Clear any verse-specific right-panel filter left over from before this
@@ -1290,11 +1399,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // `!verseFilter` guard on every later chapter the user paged to, since nothing
     // else ever reset it on plain chapter navigation.
     setRightPanelVerseFilter(null)
+    const priorBookId = tabState.bookId, priorChapter = tabState.chapter, priorVerse = tabState.targetVerse
     updateTabState('scripture', activeTab.id, {
       bookId, chapter, endChapter, scrollPosition: 0, targetVerse: undefined, endVerse: undefined, noteBack: null, scriptureBack: null,
       rightPanelVerseFilter: null,
     })
     renameTab('scripture', activeTab.id, title)
+    recordNavigation({ bookId: priorBookId, chapter: priorChapter, verse: priorVerse }, { bookId, chapter }, origin)
   }
 
   // Header for the "add comparison panel" picker's popover — names every panel
@@ -1324,7 +1435,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     const ref = getPrevChapterRef(books, tabState.bookId, tabState.chapter, textId, { endChapter: tabState.endChapter })
-    if (ref) navigate(ref.bookId, ref.chapter)
+    if (ref) navigate(ref.bookId, ref.chapter, undefined, { kind: 'sequential-nav' })
   }
 
   function nextChapter() {
@@ -1335,7 +1446,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     const ref = getNextChapterRef(books, tabState.bookId, tabState.chapter, chapterCount, textId, { endChapter: tabState.endChapter })
-    if (ref) navigate(ref.bookId, ref.chapter)
+    if (ref) navigate(ref.bookId, ref.chapter, undefined, { kind: 'sequential-nav' })
   }
 
   function toggleRightPanel() {
@@ -1586,7 +1697,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     if (!useAppStore.getState().viewerPaused) computePresenterBandRef.current()
   }, [memoTabId, updateTabState])
 
-  const handleStrongsClick = useCallback((strongsNum: string) => {
+  const handleStrongsClick = useCallback((strongsNum: string, verseNum?: number) => {
     // No side panel in floating windows — skip opening it
     if (!floating) {
       setRightPanelLexiconEntry(strongsNum)
@@ -1602,6 +1713,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       strongsNum,
       parentId: recentId,
     })
+    // verseNum — the specific verse this Strong's number was clicked from — was previously
+    // never threaded through this whole callback chain (StrongsInline -> VerseRow ->
+    // ChapterView -> here), even though every level already renders one verse at a time and
+    // had it in scope. Confirmed root cause of "clicked strongs from 2 peter 3 and it didn't
+    // track the verse I clicked that from."
+    recordLexiconConnection(strongsNum, 'click', verseNum)
   }, [floating, memoTabId, updateTabState])
 
   // Add a comparison panel at the picked book/chapter. Enters compare mode (current
@@ -1782,7 +1899,62 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     scrollSaveTimerRef.current = setTimeout(() => {
       if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
     }, 150)
-    const max = container.scrollHeight - container.clientHeight
+    // In Continuous Chapter Scroll mode, `container` is the WHOLE multi-chapter scroll region
+    // (loaded chapters + height-preserving placeholder spacers for evicted ones spanning the
+    // entire book) — using its raw scrollHeight/scrollTop here computed "how far scrolled
+    // through the ENTIRE BOOK", not "how far through the CURRENT chapter" the presenter is
+    // actually showing. Since there's almost always much more book left below the current
+    // chapter, that percent stayed pinned near 0 for every chapter except the literal last one
+    // in the book — reported as "the presenter doesn't get to the bottom of the scripture."
+    // Fix: measure against the CURRENT chapter's own wrapper element (data-chapter, set by
+    // ContinuousChapterScroll.tsx) instead of the shared container when it's found, falling
+    // back to the container's own bounds otherwise (the plain non-continuous single-chapter
+    // div, where container IS the chapter).
+    const chapterHeadingEl = continuousChapterScroll
+      ? (container.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null)
+      : null
+    const chapterWrapperEl = (chapterHeadingEl?.parentElement as HTMLElement | null) ?? (continuousChapterScroll ? null : container)
+    let effScrollTop = scrollTop
+    let max = container.scrollHeight - container.clientHeight
+    if (continuousChapterScroll && chapterWrapperEl) {
+      const cRect = container.getBoundingClientRect()
+      const wRect = chapterWrapperEl.getBoundingClientRect()
+      const chapterTop = wRect.top - cRect.top + scrollTop
+      effScrollTop = Math.max(0, scrollTop - chapterTop)
+      max = chapterWrapperEl.offsetHeight - container.clientHeight
+      if (window.__bereanPresenterDebug) {
+        console.log('[PresenterDebug continuous-chapter-bounds]', {
+          chapter: tabStateRef.current.chapter, chapterTop, chapterHeight: chapterWrapperEl.offsetHeight,
+          rawScrollTop: scrollTop, effScrollTop, max,
+        })
+      }
+    }
+    // Ground truth: what verses are ACTUALLY on-screen in the MAIN window right now, measured
+    // directly from the viewport (not derived from any percent/fraction math) — the single most
+    // useful line for comparing against the presenter's own [PD ...] logs at the same moment.
+    // Scoped to chapterWrapperEl (this chapter's own subtree) in continuous mode so a verse
+    // number collision with an adjacent, partially-visible chapter can't pollute the range.
+    if (window.__bereanPresenterDebug) {
+      const scope = chapterWrapperEl ?? container
+      const cRectForVerses = container.getBoundingClientRect()
+      let onScreenFirst: number | null = null, onScreenLast: number | null = null
+      for (const node of Array.from(scope.querySelectorAll('[data-verse]'))) {
+        const elx = node as HTMLElement
+        const n = Number(elx.dataset.verse)
+        if (!Number.isFinite(n)) continue
+        const r = elx.getBoundingClientRect()
+        const top = r.top - cRectForVerses.top, bottom = r.bottom - cRectForVerses.top
+        if (bottom > 0 && top < container.clientHeight) {
+          if (onScreenFirst === null || n < onScreenFirst) onScreenFirst = n
+          if (onScreenLast === null || n > onScreenLast) onScreenLast = n
+        }
+      }
+      console.log('[PD main GROUND TRUTH]', {
+        bookId: tabStateRef.current.bookId, chapter: tabStateRef.current.chapter,
+        rawScrollTop: scrollTop, scrollHeight: container.scrollHeight, clientHeight: container.clientHeight,
+        onScreenVerses: [onScreenFirst, onScreenLast], continuousChapterScroll,
+      })
+    }
     const st = useAppStore.getState()
     let scrollPercent: number
     if (Date.now() < findScrollSuppressRef.current) {
@@ -1795,28 +1967,29 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // Don't record it as the "last known" percent either: caching it here would leave the
       // presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned value for
       // this chapter that a later, unrelated push could pick up and wrongly reuse.
-      scrollPercent = max > 0 ? scrollTop / max : 0
+      scrollPercent = max > 0 ? effScrollTop / max : 0
       virtualScrollPctRef.current = scrollPercent
       lastMainScrollTopRef.current = scrollTop
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
     } else {
-      // Normalize the physical scrollTop delta against the PRESENTER's own scrollable range
-      // (not this panel's own, often tiny, range) — see presenterScrollSensitivity's doc
-      // comment for the full derivation. This is the same math the zero-scroll-room wheel
-      // handler further below already uses to drive a "virtual" scroll, generalized here to
-      // real (nonzero) native scroll events, so the outline's felt scroll speed no longer
-      // swings wildly depending on how little a chapter happens to overflow this panel.
-      // Snapped to the exact extremes at the true top/bottom of THIS panel's own scroll range
-      // so reaching either end here always means reaching the corresponding end of the
-      // presenter's outline — the normalization only smooths the speed of the motion between
-      // those two endpoints, it never stops the outline from actually reaching them.
-      const region = viewerVisibleRegion
-      const sensitivity = presenterScrollSensitivity(region?.clientHeight, region?.visibleFraction)
-      const deltaPx = scrollTop - lastMainScrollTopRef.current
+      // THE actual percent pushed to the presenter — this used to run the physical scrollTop
+      // delta through a "sensitivity" normalization against the PRESENTER's own (often
+      // different) scrollable range, accumulating onto virtualScrollPctRef tick by tick instead
+      // of just reading the true position. That accumulation DRIFTS: confirmed via logging
+      // (see the [PD SUSPICIOUS JUMP at settle] investigation) that after continuous scrolling
+      // through a single chapter, the accumulated value can end up roughly HALF the true
+      // scrollTop/max ratio at the exact same physical position — nothing except hitting an
+      // exact 0/1 endpoint, or the scroll-settle timer, ever re-anchored it to reality in
+      // between. Since computePresenterBand (the outline drawn in THIS window) already uses the
+      // panel's own true ratio directly, that drift is exactly why the outline tracked
+      // correctly while the actual presenter window (fed this now-wrong value) didn't — "the
+      // presenter isn't aligned with the outline" was two different numbers being computed for
+      // the same physical scroll position. Fixed: always use the true ratio directly, the same
+      // math the endpoint-snapping already used at 0/1, extended to every point in between —
+      // matching computePresenterBand and the scroll-settle timer's math exactly, so there's
+      // only ever ONE definition of "where this panel is scrolled to."
       lastMainScrollTopRef.current = scrollTop
-      if (max <= 0 || scrollTop <= 0) scrollPercent = 0
-      else if (scrollTop >= max) scrollPercent = 1
-      else scrollPercent = Math.max(0, Math.min(1, virtualScrollPctRef.current + deltaPx * sensitivity))
+      scrollPercent = max <= 0 ? 0 : Math.max(0, Math.min(1, effScrollTop / max))
       virtualScrollPctRef.current = scrollPercent
       setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     }
@@ -1826,7 +1999,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       viewerScrollRAFRef.current = requestAnimationFrame(() => {
         viewerScrollRAFRef.current = null
         const base = computeViewerPayload()
-        if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent })
+        if (base.kind === 'bible') {
+          const pushChapterKey = `${base.bookId}:${base.chapter}`
+          if (window.__bereanPresenterDebug) {
+            const prev = lastPushedDebugRef.current
+            const isJump = prev && prev.chapterKey === pushChapterKey && Math.abs(scrollPercent - prev.percent) > 0.15
+            console.log('[PD main scroll→push]', {
+              rawScrollTop: scrollTop, effScrollTop, max, DECIDED_scrollPercent: scrollPercent,
+              baseVerseFromPayload: base.verse, baseBookId: base.bookId, baseChapter: base.chapter,
+              prevPushedPercent: prev?.percent, prevPushedChapterKey: prev?.chapterKey,
+            })
+            if (isJump) {
+              console.warn('[PD SUSPICIOUS JUMP]', {
+                from: prev!.percent, to: scrollPercent, chapterKey: pushChapterKey,
+                suppressed: Date.now() < findScrollSuppressRef.current, continuousChapterScroll,
+              })
+            }
+          }
+          lastPushedDebugRef.current = { percent: scrollPercent, chapterKey: pushChapterKey }
+          window.app.pushViewerContent?.({ ...base, scrollPercent })
+        }
         // Coalesced into the same rAF as the push above (was previously unthrottled,
         // running its own getBoundingClientRect() pass over every verse on every raw
         // scroll event even when the push right above it was already rAF-throttled).
@@ -1839,6 +2031,66 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // clearing a stale band.
       computePresenterBand()
     }
+    // Schedule (or re-schedule) the "scroll has settled" fallback — see scrollSettleTimerRef's
+    // own doc comment for the bug this closes. Every scroll tick pushes the deadline out; only
+    // once ticks actually stop arriving does this fire, at which point it forces one final,
+    // UNSUPPRESSED sync from the live DOM's true current position. 450ms, not a shorter value —
+    // trackpad momentum/inertial scrolling naturally decelerates into gaps between events that
+    // can exceed 150-200ms well before the motion has actually stopped; firing this "final,
+    // authoritative" sync mid-momentum (reported as a NEW jump right after the original settle
+    // fix shipped) forces a real but not-yet-final position, which a moment later gets
+    // corrected by the next momentum tick — two real but different positions applied close
+    // together reads as a visible jump on the presenter. 450ms comfortably clears normal
+    // momentum-scroll gaps while still being far shorter than a person deliberately scrolling
+    // again.
+    if (scrollSettleTimerRef.current) clearTimeout(scrollSettleTimerRef.current)
+    scrollSettleTimerRef.current = setTimeout(() => {
+      scrollSettleTimerRef.current = null
+      const el = getScrollEl()
+      if (!el) return
+      const settledScrollTop = el.scrollTop
+      const settledHeadingEl = continuousChapterScroll
+        ? (el.querySelector(`[data-chapter="${tabStateRef.current.chapter}"]`) as HTMLElement | null)
+        : null
+      const settledWrapperEl = (settledHeadingEl?.parentElement as HTMLElement | null) ?? (continuousChapterScroll ? null : el)
+      let settledEff = settledScrollTop
+      let settledMax = el.scrollHeight - el.clientHeight
+      if (continuousChapterScroll && settledWrapperEl) {
+        const cRect = el.getBoundingClientRect()
+        const wRect = settledWrapperEl.getBoundingClientRect()
+        const chapterTop = wRect.top - cRect.top + settledScrollTop
+        settledEff = Math.max(0, settledScrollTop - chapterTop)
+        settledMax = settledWrapperEl.offsetHeight - el.clientHeight
+      }
+      const settledPercent = settledMax <= 0 ? 0 : settledEff <= 0 ? 0 : settledEff >= settledMax ? 1 : settledEff / settledMax
+      virtualScrollPctRef.current = settledPercent
+      lastMainScrollTopRef.current = settledScrollTop
+      // Force-expire any lingering suppression — this settle sync IS the authoritative final
+      // word on where the panel actually rests, superseding whatever jump/find-bar centering
+      // was suppressing proportional pushes until now.
+      findScrollSuppressRef.current = 0
+      setMainBibleScrollPercent(settledPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+      const settledChapterKey = `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
+      if (window.__bereanPresenterDebug) {
+        const prev = lastPushedDebugRef.current
+        const isJump = prev && prev.chapterKey === settledChapterKey && Math.abs(settledPercent - prev.percent) > 0.15
+        console.log('[PD scroll-settled]', {
+          bookId: tabStateRef.current.bookId, chapter: tabStateRef.current.chapter,
+          settledScrollTop, settledEff, settledMax, settledPercent,
+          prevPushedPercent: prev?.percent, prevPushedChapterKey: prev?.chapterKey,
+        })
+        if (isJump) {
+          console.warn('[PD SUSPICIOUS JUMP at settle]', { from: prev!.percent, to: settledPercent, chapterKey: settledChapterKey })
+        }
+      }
+      lastPushedDebugRef.current = { percent: settledPercent, chapterKey: settledChapterKey }
+      const st2 = useAppStore.getState()
+      if (!st2.viewerWindowOpen || st2.viewerPaused) return
+      findCenterVerseRef.current = null
+      const base = computeViewerPayload()
+      if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: settledPercent })
+      computePresenterBand()
+    }, 450)
   }, [updateTabState, computePresenterBand]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dedicated search tab — render ONLY ScriptureSearchView (no toolbar) ──────
@@ -1942,6 +2194,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               searchBack: savedQuery ? { query: savedQuery } : null,
             })
             renameTab('scripture', activeTab.id, title)
+            // This is Advanced Scripture Search's own "click a result" action (distinct from
+            // FloatingSearch/SearchTab, already wired) — was never recorded at all.
+            recordNavigation(
+              { bookId: tabState.bookId, chapter: tabState.chapter },
+              { bookId, chapter, verse },
+              { kind: 'search-result', query: savedQuery },
+            )
           }}
           onOpenInNewTab={(bookId, chapter, verse, tid) => {
             const book = books.find((b) => b.id === bookId)
@@ -1950,9 +2209,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               : book ? `${book.name} ${chapter}` : `${bookId} ${chapter}`
             addTab({ id: `bible-${Date.now()}`, spaceId: 'scripture', type: 'bible', title,
               state: { translation: tid.toUpperCase(), bookId, chapter, targetVerse: verse, scrollPosition: 0, showStrongs: false } })
+            recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}
           onOpenInFloating={(bookId, chapter, verse) => {
             window.app.openFloatingTab('bible', { bookId, chapter: String(chapter), targetVerse: String(verse) })
+            recordNavigation({}, { bookId, chapter, verse }, { kind: 'search-result', query: tabState.scriptureSearchQuery ?? '' })
           }}
           onClose={() => {
             if (isDedicatedSearchTab && activeTab) {
@@ -2479,8 +2740,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // Same reset as navigate() — continuous scroll changes tabState.chapter
           // through this callback instead, so it needs the same verse-filter clear.
           setRightPanelVerseFilter(null)
+          const priorChapter = tabState.chapter
           updateTabState('scripture', activeTab.id, { chapter: ch, rightPanelVerseFilter: null })
           renameTab('scripture', activeTab.id, chTitle)
+          recordNavigation({ bookId: tabState.bookId, chapter: priorChapter }, { bookId: tabState.bookId, chapter: ch }, { kind: 'sequential-nav' })
         }}
         onVersesLoaded={onVersesLoaded}
         onTargetVerseConsumed={clearTargetVerse}

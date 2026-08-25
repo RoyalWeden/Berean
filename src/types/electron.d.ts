@@ -166,6 +166,38 @@ interface AppHistoryAPI {
   clear: () => Promise<{ success: boolean }>
 }
 
+interface StudyTrailAPI {
+  startSession: (name: string) => Promise<import('./studyTrail').TrailSession>
+  pauseSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  resumeSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  renameSession: (trailSessionId: string, name: string) => Promise<{ success: boolean }>
+  endSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSession>
+  deleteSession: (trailSessionId: string) => Promise<{ success: boolean }>
+  deleteSessions: (trailSessionIds: string[]) => Promise<{ success: boolean }>
+  listSessions: () => Promise<import('./studyTrail').TrailSession[]>
+  getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
+  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string; translation?: string }) => Promise<import('./studyTrail').TrailNode>
+  reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>
+  promoteRevisit: (args: { trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number; translation?: string }) => Promise<import('./studyTrail').TrailNode>
+  updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
+  addConnection: (conn: {
+    trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind
+    toBookId?: string; toChapter?: number; toVerse?: number
+    toStrongsNum?: string; toNoteId?: string; toVideoId?: string
+    clarityTier: import('./studyTrail').ClarityTier; reasonText?: string; reasonTags?: string[]
+    weight?: import('./studyTrail').ConnectionWeight; strongsDepth?: import('./studyTrail').StrongsDepth
+    originVersePinFrom?: number
+    fromConnectionId?: string; chainDepth?: number; toVerseEnd?: number
+  }) => Promise<import('./studyTrail').TrailConnection>
+  markGlance: (connectionId: string) => Promise<{ success: boolean }>
+  updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number; ties?: string[]; userNote?: string; tiesFrom?: string[]; tiesTo?: string[] }) => Promise<{ success: boolean }>
+  dismissPrompt: (connectionId: string) => Promise<{ success: boolean }>
+  clearConnectionNote: (connectionId: string) => Promise<{ success: boolean }>
+  updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>
+  getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+  search: (query: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+}
+
 export interface SavedWorkspace {
   id: string
   name: string
@@ -261,6 +293,16 @@ interface AppAPI {
   openViewerWindow: () => Promise<boolean>
   closeViewerWindow: () => Promise<boolean>
   isViewerWindowOpen: () => Promise<boolean>
+  openStudyTrailWindow: (trailSessionId?: string) => Promise<boolean>
+  closeStudyTrailWindow: () => Promise<boolean>
+  isStudyTrailWindowOpen: () => Promise<boolean>
+  onFocusTrailSession: (cb: (trailSessionId: string) => void) => void
+  navigateMainToRef: (payload: import('./studyTrail').TrailNavRefPayload) => Promise<boolean>
+  getActiveScriptureRef: () => Promise<{ bookId: string; chapter: number } | null>
+  onRequestActiveScriptureRef: (cb: () => { bookId: string; chapter: number } | null) => void
+  onNavigateToRef: (cb: (payload: import('./studyTrail').TrailNavRefPayload) => void) => void
+  broadcastStudyTrailState: (state: unknown) => void
+  onStudyTrailStateChanged: (cb: (state: unknown) => void) => void
   pushViewerContent: (payload: unknown) => void
   pushViewerSettings: (settings: unknown) => void
   pushViewerOverlay: (payload: ViewerOverlay) => void
@@ -648,6 +690,21 @@ interface TTSAudioCacheAPI {
 
 declare global {
   interface Window {
+    // Opt-in console logging for diagnosing "presenter outline shows different verses than
+    // the presenter itself" reports — set `window.__bereanPresenterDebug = true` in BOTH the
+    // main window's and the presenter/viewer window's devtools console, reproduce the mismatch,
+    // then copy the [PresenterDebug ...] lines from both. Not surfaced in any UI (devtools-only,
+    // for live debugging), and false/undefined by default so it never logs in normal use.
+    __bereanPresenterDebug?: boolean
+    // Opt-in console logging for diagnosing "Study Trail isn't recording anything" — set
+    // `window.__bereanTrailDebug = true` in the MAIN window's devtools console (the recorder
+    // lives there — the Study Trail window itself never navigates verses, so its console
+    // won't show much beyond the bootstrap/broadcast lines), then start a session and
+    // navigate. [TrailDebug] lines show whether navigateToVerse/recordNavigation actually
+    // fired, whether a recorder is installed, and — critically — whether THIS window's local
+    // useStudyTrailStore believes a session is live at the moment of each navigation (the
+    // actual gate every recording decision is made against).
+    __bereanTrailDebug?: boolean
     bible: BibleAPI
     notes: NotesAPI
     highlights: HighlightsAPI
@@ -662,6 +719,7 @@ declare global {
     bgImport: BgImportAPI
     eSwordImport: ESwordImportAPI
     appHistory: AppHistoryAPI
+    studyTrail: StudyTrailAPI
     workspaces: WorkspacesAPI
     playlists: PlaylistsAPI
     ttsModel: TTSModelAPI

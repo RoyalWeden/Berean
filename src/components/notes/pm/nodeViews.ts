@@ -136,12 +136,11 @@ export function imageNodeView(getPos: () => number | undefined) {
     const handle = document.createElement('span')
     handle.className = 'pm-image-resize-handle'
     handle.contentEditable = 'false'
-    // A ⤡-style diagonal resize-arrows glyph, not a plain colored square — same reveal-on-
-    // hover/selection behavior as before, purely a visual swap of what's rendered inside.
-    // Rotated 90° via CSS (pmEditor.css) — the path itself draws a NE-SW diagonal, but this
-    // handle sits at the wrap's bottom-right corner with an `nwse-resize` cursor (NW-SE), so
-    // the un-rotated glyph pointed the wrong way relative to the actual drag direction.
-    handle.innerHTML = '<svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 10 L10 2 M5.5 2 H10 V6.5 M6.5 10 H2 V5.5"/></svg>'
+    // Same glyph lucide-react ships as MoveDiagonal2 — used verbatim (not a hand-drawn
+    // approximation) so this matches every other icon in the app pixel-for-pixel. Its two
+    // corner brackets already point NW/SE, which reads correctly at this handle's bottom-right
+    // position with its `nwse-resize` cursor, so no extra CSS rotation is needed.
+    handle.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 11 5 5 11 5"/><polyline points="19 13 19 19 13 19"/><line x1="5" y1="5" x2="19" y2="19"/></svg>'
     handle.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
@@ -171,9 +170,10 @@ export function imageNodeView(getPos: () => number | undefined) {
     deleteBtn.className = 'pm-image-delete-btn'
     deleteBtn.contentEditable = 'false'
     deleteBtn.title = 'Delete image'
-    // Trash-can glyph (lucide Trash2 shape, simplified) rather than a plain "×" — reads more
-    // clearly as "delete this image" at a glance than a generic close/dismiss cross would.
-    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+    // Exact lucide-react Trash2 glyph (same paths the rest of the app renders via <Trash2 />)
+    // rather than a hand-drawn approximation — reads more clearly as "delete this image" at a
+    // glance than a generic close/dismiss cross would, and now matches pixel-for-pixel.
+    deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
     deleteBtn.addEventListener('mousedown', (e) => {
       // Prevent this turning into a node selection/drag before the click fires.
       e.preventDefault()
@@ -421,4 +421,81 @@ export function listItemNodeView(getPos: () => number | undefined) {
     li.appendChild(contentDOM)
     return { dom: li, contentDOM }
   }
+}
+
+// ─── study_trail_embed NodeView ─────────────────────────────────────────────
+// A leaf card, no contentDOM (schema.ts's study_trail_embed has no `content`) — clicking it
+// opens the singleton Study Trail window focused on this session (window.app.openStudyTrail
+// Window), never expands inline, same "click → open elsewhere" behavior as a Strong's chip
+// opening a lexicon tab. The connection/needs-input counts shown are refreshed on a short
+// poll while this card is mounted (no studyTrail:newEvent push channel exists yet — see the
+// plan's Phase 2 note on that) purely as a DOM-text update, deliberately NOT dispatched back
+// into the document as a node-attr change: doing that on every poll tick would spam the
+// editor's undo history for a value that's explicitly cached/display-only (schema.ts's own
+// comment on these attrs). The node's stored attrs still update normally the next time the
+// note is genuinely re-saved with fresh values from wherever the embed gets (re)inserted.
+export function studyTrailEmbedNodeView(node: PMNode): NodeView {
+  const dom = document.createElement('div')
+  dom.className = 'pm-study-trail-embed'
+  dom.contentEditable = 'false'
+  dom.style.display = 'flex'
+  dom.style.alignItems = 'center'
+  dom.style.gap = '8px'
+  dom.style.padding = '8px 12px'
+  dom.style.margin = '0.6em 0'
+  dom.style.border = '1px solid rgb(var(--color-surface-4))'
+  dom.style.borderRadius = '10px'
+  dom.style.background = 'rgb(var(--color-surface-2))'
+  dom.style.cursor = 'pointer'
+  dom.style.userSelect = 'none'
+
+  const icon = document.createElement('span')
+  icon.textContent = '🔀'
+  icon.style.fontSize = '14px'
+  dom.appendChild(icon)
+
+  const label = document.createElement('span')
+  label.style.fontSize = '0.85em'
+  label.style.fontWeight = '600'
+  label.style.color = 'rgb(var(--color-text-primary))'
+  label.textContent = node.attrs.title || 'Study Trail'
+  dom.appendChild(label)
+
+  const stats = document.createElement('span')
+  stats.style.fontSize = '0.78em'
+  stats.style.color = 'rgb(var(--color-text-muted))'
+  dom.appendChild(stats)
+
+  const needsInputBadge = document.createElement('span')
+  needsInputBadge.style.fontSize = '0.72em'
+  needsInputBadge.style.fontWeight = '700'
+  needsInputBadge.style.color = '#e08468'
+  needsInputBadge.style.background = 'rgba(224,132,104,0.14)'
+  needsInputBadge.style.borderRadius = '999px'
+  needsInputBadge.style.padding = '1px 7px'
+  needsInputBadge.style.display = 'none'
+  dom.appendChild(needsInputBadge)
+
+  function paint(connectionCount: number, needsInputCount: number) {
+    stats.textContent = `${connectionCount} connection${connectionCount === 1 ? '' : 's'}`
+    needsInputBadge.style.display = needsInputCount > 0 ? '' : 'none'
+    needsInputBadge.textContent = `${needsInputCount} needs input`
+  }
+  paint(node.attrs.connectionCount, node.attrs.needsInputCount)
+
+  const trailSessionId = node.attrs.trailSessionId
+  const interval = trailSessionId ? setInterval(() => {
+    window.studyTrail?.getSession(trailSessionId).then((detail) => {
+      if (!detail) return
+      const needsInput = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
+      paint(detail.connections.length, needsInput)
+    }).catch(() => {})
+  }, 5000) : null
+
+  dom.addEventListener('mousedown', (e) => e.preventDefault())
+  dom.addEventListener('click', () => {
+    if (trailSessionId) window.app.openStudyTrailWindow?.(trailSessionId)
+  })
+
+  return { dom, destroy: () => { if (interval) clearInterval(interval) } }
 }

@@ -80,6 +80,7 @@ import { registerAiLookupHandlers } from './ipc/aiLookup'
 import { registerBgImportHandlers } from './ipc/bgImport'
 import { registerESwordImportHandlers } from './ipc/eSwordImport'
 import { registerHistoryHandlers } from './ipc/history'
+import { registerStudyTrailHandlers } from './ipc/studyTrail'
 import { registerWorkspacesHandlers } from './ipc/workspaces'
 import { registerPlaylistsHandlers } from './ipc/playlists'
 import { registerTTSModelHandlers } from './ipc/ttsModel'
@@ -242,6 +243,7 @@ function applyAutoDownloadPref(db: ReturnType<typeof getBereanDb>): void {
 
 let mainWindow: BrowserWindow | null = null
 let viewerWindow: BrowserWindow | null = null
+let studyTrailWindow: BrowserWindow | null = null
 
 function sendUpdateStatus(status: string, extra?: Record<string, unknown>) {
   mainWindow?.webContents.send('app:updateStatus', { status, ...extra })
@@ -460,6 +462,55 @@ function createViewerWindow(): void {
       }
     })
   })
+}
+
+// Study Trail — a third dedicated singleton window (not the generic createFloatingWindow
+// mechanism below): its persistent rail + bespoke title-bar chrome (Sessions/Everything
+// toggle, pause/resume, +New session) matches the Viewer window's shape, not FloatingShell's
+// "one existing full-size panel fills an undifferentiated frame" model. There is only ever
+// one Study Trail window — the note-embed block's "open in a window" action (a later phase)
+// focuses this same singleton on a given session rather than opening a new one.
+function createStudyTrailWindow(trailSessionId?: string): void {
+  if (studyTrailWindow && !studyTrailWindow.isDestroyed()) {
+    studyTrailWindow.focus()
+    if (trailSessionId) studyTrailWindow.webContents.send('studyTrail:focusSession', trailSessionId)
+    return
+  }
+  const iconPath = is.dev
+    ? join(app.getAppPath(), 'assets/icon.icns')
+    : join(process.resourcesPath, 'assets/icon.icns')
+  const appIcon = nativeImage.createFromPath(iconPath)
+  const isWin = process.platform === 'win32'
+  studyTrailWindow = new BrowserWindow({
+    width: 900,
+    height: 640,
+    minWidth: 640,
+    minHeight: 420,
+    titleBarStyle: isWin ? 'default' : 'hiddenInset',
+    ...(isWin ? {} : { trafficLightPosition: { x: 12, y: 14 } }),
+    backgroundColor: '#17151a',
+    icon: appIcon,
+    title: is.dev ? 'Study Trail [Dev]' : 'Study Trail',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+  ;(studyTrailWindow as any).__isStudyTrail = true
+  studyTrailWindow.setAlwaysOnTop(true, 'floating')
+  studyTrailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  const query: Record<string, string> = { studyTrail: '1' }
+  if (trailSessionId) query.trailSessionId = trailSessionId
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    studyTrailWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?${new URLSearchParams(query).toString()}`)
+  } else {
+    studyTrailWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
+  }
+
+  studyTrailWindow.on('closed', () => { studyTrailWindow = null })
 }
 
 function createFloatingWindow(type: string, state: Record<string, unknown>): void {
@@ -793,6 +844,7 @@ app.whenReady().then(async () => {
   registerBgImportHandlers(ipcMain, () => mainWindow)
   registerESwordImportHandlers(ipcMain, () => mainWindow)
   registerHistoryHandlers(ipcMain)
+  registerStudyTrailHandlers(ipcMain)
   registerWorkspacesHandlers(ipcMain)
   registerPlaylistsHandlers(ipcMain)
 
@@ -848,6 +900,49 @@ app.whenReady().then(async () => {
     }
     createViewerWindow()
     return true
+  })
+  ipcMain.handle('app:openStudyTrailWindow', (_e, trailSessionId?: string) => {
+    createStudyTrailWindow(trailSessionId)
+    return true
+  })
+  ipcMain.handle('app:isStudyTrailWindowOpen', () => !!studyTrailWindow && !studyTrailWindow.isDestroyed())
+  ipcMain.handle('app:closeStudyTrailWindow', () => { studyTrailWindow?.close(); return true })
+  // Study Trail (and any other secondary window) has its own independent renderer store — a
+  // click on a chapter/Strong's label there can't just call the main window's own tab-state
+  // setters directly, since those would only mutate THIS window's store. This focuses the real
+  // main window and hands it the ref; App.tsx's onNavigateToRef listener does the actual
+  // navigateToVerse/addTab/openLexiconEntry call against the main window's own live state.
+  // Study Trail's "+New session" wants to seed the first spine node from whatever chapter is
+  // ACTUALLY open right now in the main window — but the main window's tab state lives in ITS
+  // OWN renderer's store, invisible to the Study Trail window's separate renderer. Round-trips
+  // through the main process: ask the main window's renderer, wait for its one-shot reply.
+  ipcMain.handle('app:getActiveScriptureRef', (_e) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => { ipcMain.removeAllListeners('app:activeScriptureRefReply'); resolve(null) }, 1500)
+      ipcMain.once('app:activeScriptureRefReply', (_e2, ref) => { clearTimeout(timer); resolve(ref) })
+      mainWindow!.webContents.send('app:requestActiveScriptureRef')
+    })
+  })
+
+  ipcMain.handle('app:navigateMainToRef', (_e, payload: unknown) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('app:navigateToRef', payload)
+    return true
+  })
+  // Broadcasts the live-session id/status to every open window (main + Study Trail) —
+  // see preload.ts's broadcastStudyTrailState comment for why this exists at all: each
+  // window's useStudyTrailStore is a separate in-memory instance, so this is the only way
+  // a session started in one window's UI is ever known to the other's recorder.
+  ipcMain.on('app:broadcastStudyTrailState', (_e, state) => {
+    const allWins = BrowserWindow.getAllWindows()
+    if (is.dev) console.log('[TrailDebug:main] app:broadcastStudyTrailState relaying', { state, windowCount: allWins.length })
+    allWins.forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send('app:studyTrailStateChanged', state)
+    })
   })
   ipcMain.handle('app:isViewerWindowOpen', () => {
     return viewerWindow !== null && !viewerWindow.isDestroyed()

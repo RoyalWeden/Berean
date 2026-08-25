@@ -93,7 +93,7 @@ function safeFtsQuery(q: string, wordMode: 'all' | 'phrase'): string {
   }).join(' AND ')
 }
 
-export interface VerseSearchRow { book_id: string; chapter: number; verse_num: number; text: string }
+export interface VerseSearchRow { book_id: string; chapter: number; verse_num: number; text: string; text_tagged?: string }
 
 /** Single-verse lookup, exported so other main-process modules (e.g.
  *  electron/ipc/aiLookup.ts, verifying AI-guessed references) can reuse it
@@ -126,6 +126,9 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
   // already used: a cached statement is keyed only on the SQL text, and `IN (?,?,...)` / a fixed
   // chapter number both change that text per call, so caching would be pointless here anyway.
   const dynamic = scoped
+  // So search results can show KJV italics / red-letter (Yeshua's words) markup the same
+  // way the reader does — see ScriptureSearchView.tsx's use of getAnnotationRanges().
+  const taggedCol = hasTaggedCol(db, textId) ? ', v.text_tagged' : ''
 
   if (wordMode === 'any') {
     const terms = cleanWords(trimmed)
@@ -133,7 +136,7 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
     const rows: VerseSearchRow[] = []
     const limit = scoped ? 5000 : 2000
     const sql = `
-      SELECT v.book_id, v.chapter, v.verse_num, v.text
+      SELECT v.book_id, v.chapter, v.verse_num, v.text${taggedCol}
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
       WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}
@@ -161,7 +164,7 @@ export function searchVerses(query: string, textId = 'kjva', wordMode: WordMode 
   try {
     const limit = scoped ? 5000 : 2000
     const sql = `
-      SELECT v.book_id, v.chapter, v.verse_num, v.text
+      SELECT v.book_id, v.chapter, v.verse_num, v.text${taggedCol}
       FROM verses_fts f
       JOIN verses v ON v.id = f.rowid
       WHERE verses_fts MATCH ?${bookIdsClause}${chapterClause}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 're
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { recordNavigation } from '@/lib/verseNavigation'
 import type { HistoryEntry } from '@/types'
 import { parseRef } from '@/lib/parseRef'
 import { getAllNotes } from '@/lib/notesCache'
@@ -114,6 +115,7 @@ function useNavigate() {
       case 'compare': {
         const tab = s.tabs['scripture'].find(t => t.id === s.activeTabId['scripture'])
           ?? s.tabs['scripture'][0]
+        const priorState = tab?.state as { bookId?: string; chapter?: number; targetVerse?: number } | undefined
         if (tab && entry.bookId) {
           s.updateTabState('scripture', tab.id, {
             bookId: entry.bookId,
@@ -127,6 +129,13 @@ function useNavigate() {
           const fresh = useAppStore.getState()
           const newTab = fresh.tabs['scripture'].find(t => t.id === fresh.activeTabId['scripture'])
           if (newTab) fresh.updateTabState('scripture', newTab.id, { bookId: entry.bookId, chapter: entry.chapter ?? 1, scrollPosition: 0, targetVerse: entry.verse })
+        }
+        if (entry.bookId) {
+          recordNavigation(
+            { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
+            { bookId: entry.bookId, chapter: entry.chapter ?? 1, verse: entry.verse },
+            { kind: 'history-revisit' },
+          )
         }
         break
       }

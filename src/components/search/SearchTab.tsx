@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, BookOpen, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
+import { recordNavigation } from '@/lib/verseNavigation'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import { expandQueryForWordReplacer } from '@/lib/wordReplacer'
 import { numberTokenAlternates } from '@/lib/numberWords'
@@ -280,6 +281,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
     const translation = tid.toUpperCase()
 
     const activeScripture = scriptureSpaceTabs.find((t) => t.id === useAppStore.getState().activeTabId.scripture)
+    const priorState = activeScripture?.state as { bookId?: string; chapter?: number; targetVerse?: number } | undefined
     if (activeScripture) {
       updateTabState('scripture', activeScripture.id, { bookId, chapter, targetVerse: verseNum, scrollPosition: 0, translation, endVerse: undefined })
       renameTab('scripture', activeScripture.id, title)
@@ -292,6 +294,11 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
       })
     }
     setActiveSpace('scripture')
+    recordNavigation(
+      { bookId: priorState?.bookId, chapter: priorState?.chapter, verse: priorState?.targetVerse },
+      { bookId, chapter, verse: verseNum },
+      { kind: 'search-result', query: query.trim() },
+    )
   }
 
   // Build grouped results
@@ -453,7 +460,7 @@ export default function SearchTab({ floating = false }: { floating?: boolean }) 
             onClick={() => setTestamentFilter(f)}
             className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex-shrink-0 ${
               testamentFilter === f
-                ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))] text-white'
+                ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
                 : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
             }`}
           >

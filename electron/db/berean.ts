@@ -715,6 +715,214 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v27: note_thread_collapse table')
     }
+  },
+  {
+    // Study Trail: a separate subsystem (not a repurposed `history` table — shapes diverge
+    // too much: edges vs. flat entries, clarity tiers, clusters). Naming is prefixed
+    // `trail_*` throughout to avoid colliding with the unrelated tab-layout `sessions`
+    // concept already in the store (Session/sessions/currentSessionId) — a "study session"
+    // here is a completely different axis.
+    version: 28,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS trail_sessions (
+          id                   TEXT PRIMARY KEY,
+          name                 TEXT NOT NULL,
+          status               TEXT NOT NULL,        -- 'live' | 'paused' | 'ended'
+          possibly_accidental  INTEGER DEFAULT 0,
+          recap_text           TEXT,
+          recap_user_edited    INTEGER DEFAULT 0,     -- once 1, auto-recap never overwrites it
+          created_at           INTEGER NOT NULL,
+          updated_at           INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS trail_paused_intervals (
+          id                TEXT PRIMARY KEY,
+          trail_session_id  TEXT NOT NULL,
+          paused_at         INTEGER NOT NULL,
+          resumed_at        INTEGER               -- NULL while still paused
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_paused_session ON trail_paused_intervals(trail_session_id);
+
+        CREATE TABLE IF NOT EXISTS trail_nodes (
+          id                  TEXT PRIMARY KEY,
+          trail_session_id    TEXT NOT NULL,
+          book_id             TEXT NOT NULL,
+          chapter             INTEGER NOT NULL,
+          order_index         INTEGER NOT NULL,
+          anchor_started_at   INTEGER NOT NULL,
+          anchor_ended_at     INTEGER,            -- NULL while still the active anchor
+          cached_subnote      TEXT,
+          origin_label        TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_nodes_session ON trail_nodes(trail_session_id, order_index);
+
+        CREATE TABLE IF NOT EXISTS trail_connections (
+          id                    TEXT PRIMARY KEY,
+          trail_session_id      TEXT NOT NULL,
+          from_node_id          TEXT NOT NULL,
+          to_kind               TEXT NOT NULL,     -- 'chapter'|'lexicon'|'note'|'video'|'compare'
+          to_book_id            TEXT,
+          to_chapter            INTEGER,
+          to_verse              INTEGER,
+          to_strongs_num        TEXT,
+          to_note_id            TEXT,
+          to_video_id           TEXT,
+          clarity_tier          INTEGER NOT NULL,  -- 1 (clear) | 2 (soft) | 3 (ambiguous)
+          reason_text           TEXT,
+          reason_tags           TEXT,              -- JSON array
+          verse_pin_from        INTEGER,
+          verse_pin_to          INTEGER,
+          weight                TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'glance'
+          strongs_depth         TEXT,              -- 'click' | 'occurrences' | 'related'
+          cluster_id            TEXT,
+          dismissed_prompt_at   INTEGER,
+          created_at            INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_conn_session ON trail_connections(trail_session_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_trail_conn_dest ON trail_connections(to_book_id, to_chapter);
+
+        CREATE TABLE IF NOT EXISTS trail_embeddings (
+          id          TEXT PRIMARY KEY,
+          ref_type    TEXT NOT NULL,   -- 'connection_reason' | 'lexicon_gloss' | 'recap'
+          ref_id      TEXT NOT NULL,
+          source_text TEXT NOT NULL,
+          vector      BLOB NOT NULL,   -- Float32Array, serialized
+          updated_at  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trail_embeddings_ref ON trail_embeddings(ref_type, ref_id);
+      `)
+      console.log('[berean-db] v28: Study Trail tables (trail_sessions/nodes/connections/embeddings)')
+    }
+  },
+  {
+    // Study Trail — revisit promotion: a genuine, substantial re-engagement with an
+    // already-visited chapter (not just a brief detour bouncing through it) gets its OWN new
+    // trail_nodes row positioned at its real chronological spot on the spine, rather than
+    // being forever represented by a curved "return" arrow pointing back to the chapter's
+    // frozen first-visit position — which read as "this happened in the past" even when the
+    // user was actively re-studying it right now. revisit_of_node_id links the promoted node
+    // back to the original for a light "same chapter as" connector (rendered directly from
+    // this column in MapView.tsx, no separate trail_connections row needed for it).
+    version: 29,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN revisit_of_node_id TEXT;`)
+      console.log('[berean-db] v29: trail_nodes.revisit_of_node_id (revisit promotion)')
+    }
+  },
+  {
+    // Study Trail — origin-side verse pins. verse_pin_from/to (added in v28) only ever pinned
+    // verse(s) on the DESTINATION chapter; the "tie verse(s) to the reason" ask (chapter-jump
+    // reason prompt) also lets the user pin which verse(s) on the chapter they LEFT actually
+    // motivated the jump — e.g. "Gen 3:15 led me to Rev 12:9" pins both ends, not just the
+    // arrival side. Kept as separate columns rather than repurposing verse_pin_from/to so a
+    // connection can carry both without ambiguity about which side each pin belongs to.
+    version: 30,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_from INTEGER;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN origin_verse_pin_to INTEGER;`)
+      console.log('[berean-db] v30: trail_connections.origin_verse_pin_from/to')
+    }
+  },
+  {
+    // Study Trail — branch chaining. Until now trail_connections.from_node_id could ONLY ever
+    // reference a trail_nodes row (a chapter anchor) — a lexicon lookup, or a same-chapter
+    // cross-ref, could never itself be the origin of a LATER connection, so a Strong's A -> B ->
+    // C click chain rendered as three disconnected leaves all hanging off the same chapter, and
+    // a click made from deep in that chain was structurally indistinguishable from a click made
+    // straight from the chapter itself. from_connection_id is the optional MORE SPECIFIC parent
+    // — when set, it is this connection's real immediate predecessor; from_node_id is still
+    // always kept populated (backfilled to the chain's ROOT chapter node) so every existing
+    // from_node_id-keyed query/render path keeps working unmodified for chain rows too — see
+    // MapView.tsx's rowsForNode. chain_depth (0 = hangs directly off a chapter node, same
+    // meaning as before this migration; 1+ = hangs off another connection) lets both the
+    // recorder decide whether the current anchor is "at the chapter" or "mid-chain" and the
+    // renderer control chain-nesting depth, without walking from_connection_id pointers on
+    // every render. to_verse_end closes a separate gap: a TSKe RANGE cross-ref (e.g.
+    // Isa 52:13-53:12) previously only ever recorded its start verse — NavigateToVerseArgs'
+    // endVerse was captured for tab state but never threaded through to the recorder at all.
+    // promoted_from_connection_id on trail_nodes is the branch-chain analogue of
+    // revisit_of_node_id (v29) — that column always points at another NODE (same chapter,
+    // different visit); this one points at a CONNECTION, for when a branch chain itself grows
+    // deep/slow enough to be worth flagging, kept separate so the two kinds of backlink are
+    // never ambiguous.
+    version: 31,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN from_connection_id TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN to_verse_end INTEGER;`)
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN promoted_from_connection_id TEXT;`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_trail_conn_parent ON trail_connections(from_connection_id);`)
+      console.log('[berean-db] v31: trail_connections.from_connection_id/chain_depth/to_verse_end, trail_nodes.promoted_from_connection_id')
+    }
+  },
+  {
+    // Study Trail — which TEXT a chapter was actually read in. Previously the only translation
+    // signal on a node was cached_subnote, written ONLY on an explicit MID-VISIT switch
+    // (recordTranslationSwitch) — a chapter opened directly in LXX, or a dedicated-translation
+    // book (Enoch/Jubilees/etc.) that was never switched into, showed nothing at all in the
+    // hover card. The recorder's `to` object already carries `translation` on every navigation
+    // (see verseNavigation.ts's navigateToVerse) — this column just keeps that fact instead of
+    // discarding it, so every node has an always-populated answer to "what was this read in."
+    version: 32,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN translation TEXT;`)
+      console.log('[berean-db] v32: trail_nodes.translation')
+    }
+  },
+  {
+    // Study Trail — revisit promotion is now UNCONDITIONAL (the engagement threshold that used
+    // to gate it was removed from studyTrailSlice.ts's recorder): every departure from a
+    // reopened node promotes it into its own new spine entry, guaranteeing "events that happen
+    // later never look like they happened in the past." The predictable side effect — rapid
+    // back-and-forth between two chapters now produces a run of separate promoted nodes instead
+    // of none — is handled entirely in the RENDERER (MapView.tsx collapses same-cluster_id
+    // nodes into one compact summary, mirroring the GlanceGroupRow pattern already built for
+    // clustered connections). This column is the node-level twin of
+    // trail_connections.cluster_id (v28) — same CLUSTER_WINDOW_MS-based "was there a recent
+    // promotion of this same chapter" detection, computed in the promoteRevisit handler itself.
+    version: 33,
+    up(db) {
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN cluster_id TEXT;`)
+      console.log('[berean-db] v33: trail_nodes.cluster_id')
+    }
+  },
+  {
+    // Study Trail — unified reason/note system. The old versePinFrom/To + originVersePinFrom/To
+    // (four separate integer columns, always exactly one verse per side) are superseded for NEW
+    // entries by `ties` — a JSON array of freely-typed reference strings (e.g. ["Mark 13:1-5",
+    // "Ezekiel 33:4"]), since a real connection may tie together more than just one origin verse
+    // and one destination verse. Stored as raw typed text, not pre-parsed — re-parsed on demand
+    // at render time via the existing parseRef() for click-to-navigate, so a not-yet-resolvable
+    // partial reference is never silently dropped. Old verse-pin data is left in place and still
+    // read (nothing is backfilled/migrated) — see ConnRow/ReasonPromptPopover for the fallback.
+    version: 34,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties TEXT;`)
+      console.log('[berean-db] v34: trail_connections.ties')
+    }
+  },
+  {
+    // Study Trail — the auto-detected fact and the user's OWN note are now fully separate,
+    // per direct feedback: "the note that the user puts for the connection shouldnt be on the
+    // part where it has 'strongs occurrence' or whatever else... it should be a separate note
+    // that has nothing on it until the user puts it (its not related to the auto note)."
+    // reason_text stays exactly what it always was — the recorder's own auto-inferred phrase
+    // ("Strong's word · G26", "a tske cross-reference") — and is never again pre-filled into
+    // or overwritten by the user's note. user_note is a brand new, always-blank-until-typed
+    // field for that.
+    //
+    // ties (v34) is also split: ties_from/ties_to replace it, since the "why did you jump"
+    // popup now has separate From-chapter and To-chapter tie sections rather than one combined
+    // list. The v34 `ties` column is left in place (unused going forward, harmless) rather than
+    // dropped — SQLite ALTER TABLE has no cheap DROP COLUMN, and nothing reads it anymore.
+    version: 35,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN user_note TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties_from TEXT;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN ties_to TEXT;`)
+      console.log('[berean-db] v35: trail_connections.user_note/ties_from/ties_to')
+    }
   }
 ]
 

@@ -9,6 +9,8 @@ import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
 import { debouncedLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
+import { recordLexiconConnection } from '@/store/studyTrailSlice'
+import { recordNavigation } from '@/lib/verseNavigation'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
 export interface WordReplacerRule {
@@ -195,7 +197,7 @@ export interface AppState {
 
   // Cross-panel lexicon communication
   pendingLexiconEntry: string | null
-  openLexiconEntry: (strongsNum: string, fromNote?: { noteId: string; title: string }) => void
+  openLexiconEntry: (strongsNum: string, fromNote?: { noteId: string; title: string }, depth?: import('@/types/studyTrail').StrongsDepth) => void
   clearLexiconEntry: () => void
   pendingLexiconSearch: string | null
   requestLexiconSearch: (term: string) => void
@@ -352,6 +354,15 @@ export interface AppState {
   setWordReplacerEnabled: (v: boolean) => void
   setWordReplacerRules: (rules: WordReplacerRule[]) => void
   toggleWordReplacerRule: (id: string) => void
+
+  // Study Trail — opt-in "why did you jump chapters?" arrival prompt (separate from the
+  // always-available tier-3 "?" badge prompt already on each ambiguous connection). Off by
+  // default since it's an interruption; lives here (not in useStudyTrailStore, which isn't
+  // persisted) so it's a real Settings-backed preference that syncs across the main window and
+  // the separate Study Trail window via the shared localStorage persist, same as
+  // wordReplacerEnabled above.
+  studyTrailAskChapterJumpReason: boolean
+  setStudyTrailAskChapterJumpReason: (v: boolean) => void
 
   // Print & Export settings
   printMarginPreset: 'none' | 'narrow' | 'normal' | 'wide' | 'custom'
@@ -765,6 +776,11 @@ export interface AppState {
   queuePopoverPos: { x: number; y: number } | null
   setQueuePopoverOpen: (v: boolean) => void
   setQueuePopoverPos: (pos: { x: number; y: number }) => void
+
+  // Study Trail's reason/note popover — same "remember where it was last dragged to" pattern
+  // as queuePopoverPos above. null means "not dragged yet, use the default top-right dock."
+  reasonPromptPopoverPos: { x: number; y: number } | null
+  setReasonPromptPopoverPos: (pos: { x: number; y: number }) => void
 
   // Read Aloud preferences — persisted like other display settings.
   ttsVoiceURI: string | null
@@ -1448,8 +1464,10 @@ export const useAppStore = create<AppState>()(
 
       queuePopoverOpen: false,
       queuePopoverPos: null,
+      reasonPromptPopoverPos: null,
       setQueuePopoverOpen: (v) => set({ queuePopoverOpen: v }),
       setQueuePopoverPos: (pos) => set({ queuePopoverPos: pos }),
+      setReasonPromptPopoverPos: (pos) => set({ reasonPromptPopoverPos: pos }),
 
       ttsVoiceURI: null,
       ttsRate: 1,
@@ -1548,6 +1566,7 @@ export const useAppStore = create<AppState>()(
       continuousDailyScroll: false,
       wordReplacerEnabled: true,
       wordReplacerRules: DEFAULT_WORD_REPLACER_RULES,
+      studyTrailAskChapterJumpReason: false,
 
       archivedGroups: [] as ArchivedGroup[],
       sessions: [DEFAULT_SESSION] as Session[],
@@ -1719,6 +1738,29 @@ export const useAppStore = create<AppState>()(
       },
 
       activateTab: (tab) => {
+        // Clicking an ALREADY-OPEN scripture tab in the sidebar is real navigation — you moved
+        // your attention to a different chapter, same as any other jump — but it never went
+        // through navigateToVerse()/recordNavigation() at all, since this is the ONE choke
+        // point every tab-switch (sidebar click, keyboard tab-cycling, etc.) funnels through
+        // regardless of tab type. Only fires for a genuine SPACE-appropriate switch (scripture
+        // space, bible-type tab, actually switching TO a different tab than what was already
+        // active) — switching within notes/lexicon/youtube/search isn't a scripture connection.
+        if (tab.spaceId === 'scripture' && tab.type === 'bible') {
+          const prevState = get()
+          const prevTabId = prevState.activeTabId.scripture
+          if (prevTabId !== tab.id) {
+            const prevTab = prevState.tabs.scripture.find((t) => t.id === prevTabId)
+            const prevBs = prevTab?.state as BibleTabState | undefined
+            const bs = tab.state as BibleTabState
+            if (bs.bookId) {
+              recordNavigation(
+                { bookId: prevBs?.bookId, chapter: prevBs?.chapter, verse: prevBs?.verse ?? prevBs?.targetVerse },
+                { bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse ?? bs.targetVerse },
+                { kind: 'tab-switch' },
+              )
+            }
+          }
+        }
         set((s) => ({
           activeTabId: { ...s.activeTabId, [tab.spaceId]: tab.id },
           activeSpace: tab.spaceId,
@@ -2110,11 +2152,16 @@ export const useAppStore = create<AppState>()(
         return { settingsOpen: opening }
       }),
 
-      openLexiconEntry: (strongsNum, fromNote) => {
+      openLexiconEntry: (strongsNum, fromNote, depth) => {
         // Fuller "G26 — ἀγάπη" title when this entry has been loaded before this
         // session; falls back to the bare number otherwise (see lexiconTitle.ts).
         const lexTitle = lexiconTitleFor(strongsNum)
         get().addHistoryEntry({ type: 'lexicon', title: lexTitle, strongsNum })
+        // `depth` lets a caller invoking this from an ALREADY-OPEN entry (a Cmd/Ctrl-click on a
+        // related word, opening a new tab) say so — that's a 'related' hop, not a fresh 'click',
+        // even though it happens to also open a new tab. Defaults to 'click' for the true
+        // first-click-from-scripture case everywhere else this is called.
+        recordLexiconConnection(strongsNum, depth ?? 'click')
         if (!get().isNavJumping) {
           const tabId = get().activeTabId['lexicon']
           if (tabId) get().pushTabNav(tabId, { type: 'lexicon', strongsNum, title: lexTitle })
@@ -2393,6 +2440,8 @@ export const useAppStore = create<AppState>()(
         wordReplacerRules: s.wordReplacerRules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r),
       })),
 
+      setStudyTrailAskChapterJumpReason: (v) => set({ studyTrailAskChapterJumpReason: v }),
+
       setTheme: (theme) => set({ theme }),
       setAppZoom: (level) => set({ appZoom: clampZoom(level) }),
       adjustAppZoom: (dir) => set((s) => ({ appZoom: adjustZoom(s.appZoom, dir) })),
@@ -2518,6 +2567,7 @@ export const useAppStore = create<AppState>()(
         dailyNoteLocation: state.dailyNoteLocation,
         wordReplacerEnabled: state.wordReplacerEnabled,
         wordReplacerRules: state.wordReplacerRules,
+        studyTrailAskChapterJumpReason: state.studyTrailAskChapterJumpReason,
         noteVerseRefsEnabled: state.noteVerseRefsEnabled,
         noteLexiconRefsEnabled: state.noteLexiconRefsEnabled,
         autoEmDash: state.autoEmDash,
@@ -2583,9 +2633,43 @@ export const useAppStore = create<AppState>()(
         // chrome state, safe (and expected, per the original ask) to survive a restart.
         queuePopoverOpen: state.queuePopoverOpen,
         queuePopoverPos: state.queuePopoverPos,
+        reasonPromptPopoverPos: state.reasonPromptPopoverPos,
         // NOTE: history is persisted to SQLite (history table), not localStorage.
         // It is loaded on mount in App.tsx via window.history.getAll().
       })
     }
   )
 )
+
+// Cross-window LIVE settings sync. Two windows (main + Study Trail) each hold their own
+// independent useAppStore instance, both persisted to the SAME 'berean-app-state' localStorage
+// key — but persist's rehydration only ever runs ONCE, at each window's own mount. Toggling a
+// setting in one already-open window (e.g. the Study Trail window's "Ask why?" title-bar
+// button) writes to localStorage fine, but the OTHER already-open window's in-memory store
+// never re-reads it — it was silently stale until an app restart. Confirmed the actual cause of
+// "i have the toggle on... i still dont see any of the ask why things": the main window (where
+// the arrival prompt is mounted, see StudyTrailArrivalPrompt.tsx) never learned the toggle in
+// the Study Trail window's title bar had been flipped.
+//
+// The native `storage` event fires in every OTHER window when localStorage changes (never the
+// window that made the write) — exactly the missing piece. debouncedLocalStorage.ts still
+// batches the actual disk write up to ~500ms, so this lands with that same small delay, which is
+// fine for a settings toggle. Scoped to an explicit allowlist (not a full-state overwrite) so a
+// tab/UI-state field mid-edit in one window is never clobbered by a stale snapshot from another.
+const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = ['studyTrailAskChapterJumpReason']
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'berean-app-state' || !e.newValue) return
+    try {
+      const parsed = JSON.parse(e.newValue) as { state?: Partial<AppState> }
+      if (!parsed.state) return
+      const patch: Partial<AppState> = {}
+      for (const key of CROSS_WINDOW_SYNCED_KEYS) {
+        if (key in parsed.state) (patch as any)[key] = (parsed.state as any)[key]
+      }
+      if (Object.keys(patch).length > 0) useAppStore.setState(patch)
+    } catch {
+      // Malformed/partial localStorage value mid-write — next change will resync.
+    }
+  })
+}

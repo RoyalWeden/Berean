@@ -158,29 +158,33 @@
 /* Resize handle — bottom-right corner, only interactable (and visible) once the image is
    selected/being dragged, matching the "handle appears on selection" convention nodeViews.ts's
    own comment describes; kept in the DOM at all times (not conditionally rendered) since this
-   is a plain vanilla-DOM NodeView, not React — visibility is the only thing toggled. */
+   is a plain vanilla-DOM NodeView, not React — visibility is the only thing toggled.
+   Positioned via a negative half-size offset so its CENTER lands exactly on the image's
+   corner point (half the badge sits outside the image, half inside) — an inset positive
+   offset (e.g. right/bottom: 4px) left the badge floating inside the corner, proportionally
+   off-center from the actual corner rather than anchored to it. */
 .berean-pm-editor .ProseMirror .pm-image-resize-handle {
   position: absolute;
-  right: 2px;
-  bottom: 6px;
-  width: 16px;
-  height: 16px;
+  right: -9px;
+  bottom: -9px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: rgb(var(--color-accent));
-  color: rgb(var(--color-surface-1));
-  border: 1.5px solid rgb(var(--color-surface-1));
+  border-radius: 50%;
+  background: rgb(var(--color-surface-1) / 0.85);
+  color: rgb(var(--color-text-primary));
+  border: 1.5px solid rgb(var(--color-surface-4));
   cursor: nwse-resize;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.1s ease;
+  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
 }
-/* The glyph itself (nodeViews.ts) draws a NE-SW diagonal; rotating 90° here points it NW-SE
-   to actually match this handle's own `nwse-resize` cursor direction. */
-.berean-pm-editor .ProseMirror .pm-image-resize-handle svg {
-  transform: rotate(90deg);
+.berean-pm-editor .ProseMirror .pm-image-resize-handle:hover {
+  background: rgb(var(--color-accent));
+  border-color: rgb(var(--color-accent));
+  color: rgb(var(--color-surface-1));
 }
 .berean-pm-editor .ProseMirror .pm-image-wrap:hover .pm-image-resize-handle,
 .berean-pm-editor .ProseMirror .pm-image-wrap.pm-image-selected .pm-image-resize-handle,
@@ -188,12 +192,15 @@
   opacity: 1;
   pointer-events: auto;
 }
-/* Delete button — top-right corner, same reveal-on-hover/selection convention as the resize
-   handle above. A small circular "×" glyph so it reads as destructive without a text label. */
+/* Delete button — top-right corner, same reveal-on-hover/selection convention, size,
+   corner-centered positioning, and neutral-circle idle style as the resize handle above
+   (bottom-right) — the two controls read as a matched pair rather than two differently-
+   styled one-offs. Trash2 glyph (see nodeViews.ts) turns red on hover so it reads as
+   destructive without a text label. */
 .berean-pm-editor .ProseMirror .pm-image-delete-btn {
   position: absolute;
-  right: 4px;
-  top: 4px;
+  right: -9px;
+  top: -9px;
   width: 18px;
   height: 18px;
   display: flex;

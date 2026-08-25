@@ -151,6 +151,12 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
           }
 
           if (best !== null && best !== visibleCh) {
+            if (window.__bereanPresenterDebug) {
+              console.log('[PD chapter-boundary-cross]', {
+                from: visibleCh, to: best, bestRatio, bestTop,
+                scrollTop: container.scrollTop, clientHeight: container.clientHeight,
+              })
+            }
             ownChapterUpdateRef.current = true
             setVisibleCh(best)
             onChapterChange(best)

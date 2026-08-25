@@ -7,6 +7,7 @@ import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } 
 import { useAppStore } from '@/store'
 import { applyWordReplacer, applyStrongsWordReplacer } from '@/lib/wordReplacer'
 import { buildVerseDisplayText, mapDisplayOffsetToOriginal, mapOriginalOffsetToDisplay } from '@/lib/verseUtils'
+import { navigateToVerse, recordNavigation } from '@/lib/verseNavigation'
 import { applyFindHighlight } from '@/lib/highlight'
 import { usePositionedMenu, CLOSE_CONTEXT_MENUS_EVENT, dispatchCloseContextMenus } from '@/lib/usePositionedMenu'
 import { extractRefsFromNote, refMatchesVerse } from '@/lib/noteRefs'
@@ -18,6 +19,7 @@ import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
+import { stripAnnotations } from '@/lib/annotationFilters'
 export type { HighlightColor }
 export { HIGHLIGHT_COLORS }
 
@@ -53,7 +55,7 @@ interface VerseRowProps {
   /** Plain-word part of a combined Strong's+word search ("G5485 god") — highlighted by
    *  text match alongside highlightStrongsWords, not just the Strong's-indexed word(s). */
   highlightStrongsExtraWords?: string[]
-  onStrongsClick?: (num: string) => void
+  onStrongsClick?: (num: string, verseNum?: number) => void
   onWordClick?: (word: string) => void
   /** Read Aloud (TTS) is currently reading THIS verse — see ChapterView.tsx, which computes
    *  this by comparing the store's audioPlayback state against this row's own book/chapter/verse. */
@@ -129,53 +131,27 @@ function splitWordByHighlights(
   })
 }
 
-function cleanPunctuation(s: string): string {
-  return s
-    .replace(/,\s*,/g, ',')
-    .replace(/\s+([,;:.!?])/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// stripAnnotations moved to '@/lib/annotationFilters' so ViewerBiblePage.tsx (presenter
+// window) can share the exact same regex logic instead of carrying no equivalent at all.
 
-// A.M. date pattern: [1307 A.M.] or [1307-1320 A.M.] or [1307 Anno Mundi]
-const JUB_DATE_RE = /\s*\[[\d][\d\s\-,]*\s*(?:A\.M\.|Anno\s+Mundi)\s*\]/gi
-// Non-date square brackets: [text] — excludes the A.M. date form
-const JUB_BRACKET_RE = /\s*\[(?![\d][\d\s\-,]*\s*(?:A\.M\.|Anno\s+Mundi))[^\]]*\]/g
-// Angle brackets: <text>
-const JUB_RESTORED_RE = /\s*<([^>]*)>/g
-// Single-letter stanza markers: (b) (c) (d)
-const JUB_STANZA_RE = /\s*\([a-z]\)\s*/g
-// Parenthetical supply: (word) — but NOT single letters (those are stanza markers)
-const JUB_SUPPLY_RE = /\s*\((?![a-z]\))([^)]*)\)/g
-
-function stripAnnotations(text: string, textId: string, hiddenAnnotations: string[]): string {
-  if (hiddenAnnotations.length === 0) return text
-  let result = text
-  switch (textId) {
-    case 'lxx':
-      if (hiddenAnnotations.includes('lxx_supply')) result = result.replace(/\s*\[([^\]]*)\]/g, '')
-      return cleanPunctuation(result)
-    case 'enoch':
-      if (hiddenAnnotations.includes('enoch_supply'))    result = result.replace(/\s*\(([^)]*)\)/g, '')
-      if (hiddenAnnotations.includes('enoch_uncertain')) result = result.replace(/\s*\[([^\]]*)\]/g, '')
-      if (hiddenAnnotations.includes('enoch_restored'))  result = result.replace(/\s*〈([^〉]*)〉/g, '')
-      return cleanPunctuation(result)
-    case 'jubilees':
-      // Strip in a specific order so regexes don't interfere with each other
-      if (hiddenAnnotations.includes('jubilees_date'))     result = result.replace(JUB_DATE_RE, '')
-      if (hiddenAnnotations.includes('jubilees_bracket'))  result = result.replace(JUB_BRACKET_RE, '')
-      if (hiddenAnnotations.includes('jubilees_restored')) result = result.replace(JUB_RESTORED_RE, '')
-      if (hiddenAnnotations.includes('jubilees_stanza'))   result = result.replace(JUB_STANZA_RE, ' ')
-      if (hiddenAnnotations.includes('jubilees_supply'))   result = result.replace(JUB_SUPPLY_RE, '')
-      return cleanPunctuation(result)
-    default:
-      return text
-  }
-}
-
+// StrongsInline (showStrongs mode) renders each word with an extra sibling text node for its
+// Strong's-number chip (data-strongs-chip, e.g. "G4074") or, for words with no chip, an
+// invisible aria-hidden placeholder ("·") that keeps chip-row heights aligned — see
+// StrongsInline.tsx. Neither exists in verse.text/the display string this offset is meant to
+// align with, but the plain TreeWalker below used to count them anyway, inflating every
+// selection's char offset by however many chips/placeholders preceded it. That's what made
+// selecting "Peter and John" in Luke 22:8 (showStrongs on) actually highlight a few characters
+// to the left ("t Peter and ") — the char offset drifted more with every prior word.
 function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement): number {
   let pos = 0
-  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
+  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      const el = (n as Text).parentElement
+      return el?.closest('[data-strongs-chip], [aria-hidden]')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+    },
+  })
   let curr: Text | null
   while ((curr = walker.nextNode() as Text) !== null) {
     if (curr === node) return pos + offset
@@ -422,6 +398,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const popoverPanelRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
   const selToolbarRef = useRef<HTMLDivElement>(null)
   const words = verseForDisplay.text.split(' ')
@@ -721,6 +698,29 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     }
   }, [selToolbar])
 
+  // After the verse-number popover renders, measure its ACTUAL size and re-clamp — the
+  // click-position clamp in openPopover() only guesses the height (MENU_H = 240px), but the
+  // real panel (6 action rows + a divider + 3 rows of highlight swatches) renders taller than
+  // that, so a click near the bottom of the viewport still let it run off-screen. Same
+  // measure-then-clamp pattern as the selection toolbar above.
+  useLayoutEffect(() => {
+    if (!popoverOpen || !popoverPanelRef.current) return
+    const el = popoverPanelRef.current
+    const r = el.getBoundingClientRect()
+    const pad = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let x = popoverPos.x
+    let y = popoverPos.y
+    if (r.right  > vw - pad) x = vw - r.width  - pad
+    if (x < pad)             x = pad
+    if (r.bottom > vh - pad) y = vh - r.height - pad
+    if (y < pad)             y = pad
+    if (x !== popoverPos.x || y !== popoverPos.y) {
+      setPopoverPos({ x, y })
+    }
+  }, [popoverOpen, popoverPos])
+
   // Dismiss selection toolbar when clicking away — skip dismissal if click is inside toolbar
   useEffect(() => {
     if (!selToolbar) return
@@ -957,7 +957,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                     wordSegments={wordSegs ?? undefined}
                     findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
                     findWordMode={highlightMode}
-                    onStrongsClick={onStrongsClick}
+                    onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
                     onWordClick={onWordClick}
                   />
                   {i < displayTokens.length - 1 && (
@@ -1114,7 +1114,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   wordSegments={wordSegs ?? undefined}
                   findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
                   findWordMode={highlightMode}
-                  onStrongsClick={onStrongsClick}
+                  onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
                   onWordClick={onWordClick}
                 />
                 {i < words.length - 1 && (
@@ -1232,6 +1232,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
             // menu) needed the opposite nudge (was too transparent, not enough contrast
             // against selected/highlighted text) — so each gets its own explicit background
             // opacity rather than sharing one value that can't satisfy both at once.
+            ref={popoverPanelRef}
             className="fixed z-[100] min-w-[160px] rounded-shell context-menu overflow-hidden py-1"
             style={{ left: popoverPos.x, top: popoverPos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.94)' }}
           >
@@ -1507,30 +1508,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }) }}
                   onClick={() => {
                     setCrossRefHover(null)
-                    const s = useAppStore.getState()
-                    s.ensureTab('bible')
-                    const fresh = useAppStore.getState()
-                    const tabId = fresh.activeTabId['scripture']
-                    if (tabId) {
-                      const curTab = fresh.tabs['scripture'].find(t => t.id === tabId)
-                      const curState = curTab?.state as import('@/types').BibleTabState | undefined
-                      const currentTranslation = curState?.translation ?? 'kjva'
-                      // Auto-switch translation for cross-book refs
-                      const dedicatedTarget = getTranslationForBook(r.bookId)
-                      let newTranslation: string | undefined
-                      if (dedicatedTarget) {
-                        newTranslation = dedicatedTarget
-                      } else if (isDedicatedTranslation(currentTranslation)) {
-                        newTranslation = 'kjva'
-                      }
-                      const originLabel = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
-                      fresh.updateTabState('scripture', tabId, {
-                        bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
-                        ...(newTranslation ? { translation: newTranslation } : {}),
-                        scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label: originLabel, translation: currentTranslation },
-                      })
-                    }
-                    fresh.setActiveSpace('scripture')
+                    navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                   }}
                   className="w-full text-left px-3 py-1 hover:bg-[rgb(var(--color-surface-3))] cursor-pointer transition-colors border-b border-[rgb(var(--color-surface-2))] last:border-0 group"
                 >
@@ -1650,14 +1628,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           {indicatorMenu.type === 'note' ? (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeIndicatorMenu(); openNoteInBiblePanel(indicatorMenu.note.id) }}
               >
                 <StickyNote size={12} />
                 Open in panel
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   useAppStore.getState().requestOpenNote(indicatorMenu.note.id)
@@ -1668,7 +1646,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   window.app.openFloatingTab('notes', { noteId: indicatorMenu.note.id })
@@ -1682,29 +1660,18 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           ) : (
             <>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
-                  const s = useAppStore.getState()
-                  s.ensureTab('bible')
-                  const fresh = useAppStore.getState()
-                  const tabId = fresh.activeTabId['scripture']
-                  if (tabId) {
-                    const label = bookChapterVerseLabel(verse.book_id, verse.chapter, verse.verse_num)
-                    fresh.updateTabState('scripture', tabId, {
-                      bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, scrollPosition: 0,
-                      scriptureBack: { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, label },
-                    })
-                  }
-                  fresh.setActiveSpace('scripture')
+                  navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
                 }}
               >
                 <BookOpen size={12} />
                 Open verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1718,13 +1685,24 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                     state: { bookId: r.bookId, chapter: r.chapter, targetVerse: r.verse, translation, showStrongs: false, scrollPosition: 0 },
                     ...(originTabId ? { originTabId, originSpaceId: s.activeSpace } : {}),
                   })
+                  // Same origin as "Open verse" above — this menu's other cross-ref jump, just
+                  // opened in a new tab instead of in-place. Previously bypassed recording
+                  // entirely (only "Open verse" was wired), which per investigation was the
+                  // dominant reason a real testing session recorded almost nothing: exploring
+                  // cross-refs via "new tab" is a very natural habit and every one of those
+                  // clicks was silently lost.
+                  recordNavigation(
+                    { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
+                    { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
+                    { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
+                  )
                 }}
               >
                 <BookOpen size={12} />
                 Open in new tab
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1732,6 +1710,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                   s.ensureTab('bible')
                   window.app.openFloatingTab('bible', { bookId: r.bookId, chapter: String(r.chapter), targetVerse: String(r.verse) })
                   s.bumpFloatingTabToken()
+                  // Recording is a main-window concept (Study Trail's whole recorder lives
+                  // there) — the verse itself opens in a separate floating window, but the
+                  // navigational tangent the user took is still real and worth recording from
+                  // here, same as "Open in new tab" above.
+                  recordNavigation(
+                    { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num },
+                    { bookId: r.bookId, chapter: r.chapter, verse: r.verse },
+                    { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num },
+                  )
                 }}
               >
                 <ExternalLink size={12} />
@@ -1739,7 +1726,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               </button>
               <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={async () => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref
@@ -1751,7 +1738,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 Copy verse
               </button>
               <button
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => {
                   closeIndicatorMenu()
                   const r = indicatorMenu.ref

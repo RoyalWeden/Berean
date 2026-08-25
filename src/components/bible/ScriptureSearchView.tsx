@@ -10,9 +10,10 @@ import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordRepl
 import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
-import { normalizeBookQuery, getWordWindow } from '@/lib/verseUtils'
+import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
+import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
@@ -111,6 +112,7 @@ interface RawResult {
   chapter: number
   verse_num: number
   text: string
+  text_tagged?: string
   _textId?: string
 }
 
@@ -125,16 +127,32 @@ type SortMode = 'relevance' | 'bookOrder'
 // position, picks a window that covers as many distinct query words as possible within a
 // character budget (greedy left-to-right from the first match), and marks truncated ends with
 // an ellipsis — the same idea as a search engine's result snippet.
-function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string {
+export interface Snippet {
+  text: string
+  /** Index into the ORIGINAL text where the kept slice starts (0 when untruncated). */
+  sliceStart: number
+  /** Index into the ORIGINAL text where the kept slice ends, exclusive (text.length when
+   *  untruncated). */
+  sliceEnd: number
+  /** Length of the leading ellipsis, if any (0 or 1) — annotation ranges remapped into this
+   *  snippet's coordinates need to shift past it. */
+  prefixLen: number
+}
+
+export function buildAllWordsSnippet(text: string, query: string, maxLen = 100): Snippet {
   const words = query.trim().split(/\s+/).filter(w => w.length > 0)
-  if (words.length === 0 || text.length <= maxLen) return text
+  if (words.length === 0 || text.length <= maxLen) return { text, sliceStart: 0, sliceEnd: text.length, prefixLen: 0 }
   const escaped = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const positions: number[] = []
   for (const w of escaped) {
     const m = new RegExp(`\\b${w}\\w*`, 'i').exec(text)
     if (m) positions.push(m.index)
   }
-  if (positions.length === 0) return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
+  if (positions.length === 0) {
+    return text.length > maxLen
+      ? { text: `${text.slice(0, maxLen)}…`, sliceStart: 0, sliceEnd: maxLen, prefixLen: 0 }
+      : { text, sliceStart: 0, sliceEnd: text.length, prefixLen: 0 }
+  }
   positions.sort((a, b) => a - b)
   const first = positions[0]
   const last = positions[positions.length - 1]
@@ -153,7 +171,32 @@ function buildAllWordsSnippet(text: string, query: string, maxLen = 100): string
   }
   const prefix = start > 0 ? '…' : ''
   const suffix = end < text.length ? '…' : ''
-  return `${prefix}${text.slice(start, end)}${suffix}`
+  return { text: `${prefix}${text.slice(start, end)}${suffix}`, sliceStart: start, sliceEnd: end, prefixLen: prefix.length }
+}
+
+/**
+ * Remaps AnnotationRange[] (computed against the FULL verse text) into a snippet's own
+ * coordinate space, dropping/clipping ranges that fall outside the kept slice. Without this,
+ * every "all words" search result (the default view — context mode off) silently lost its
+ * red-letter/italic markup entirely, since buildAllWordsSnippet's truncation invalidates the
+ * original char offsets and the caller had no way to recover them — reported as "Advanced
+ * Scripture Search doesn't show red letters or italics" even after getAnnotationRanges itself
+ * was wired in, because in the common (truncated) case its output was simply discarded.
+ */
+export function remapRangesToSnippet(ranges: AnnotationRange[], snippet: Snippet): AnnotationRange[] {
+  const out: AnnotationRange[] = []
+  for (const r of ranges) {
+    const s = Math.max(r.start, snippet.sliceStart)
+    const e = Math.min(r.end, snippet.sliceEnd)
+    if (s >= e) continue
+    out.push({
+      start: s - snippet.sliceStart + snippet.prefixLen,
+      end: e - snippet.sliceStart + snippet.prefixLen,
+      isRedLetter: r.isRedLetter,
+      isItalic: r.isItalic,
+    })
+  }
+  return out
 }
 
 function highlight(text: string, query: string, wordMode: WordMode = 'all'): React.ReactNode {
@@ -172,6 +215,46 @@ function highlight(text: string, query: string, wordMode: WordMode = 'all'): Rea
       )}
     </>
   )
+}
+
+/**
+ * Like {@link highlight}, but also paints KJV-italic / red-letter (Yeshua's words) spans
+ * from `ranges` (see getAnnotationRanges in verseUtils.ts). `text` must be the SAME string
+ * `ranges` was computed against (unwindowed r.text) — callers that snippet/truncate the
+ * verse first fall back to plain `highlight()` instead of passing ranges here, since the
+ * char offsets would no longer line up with the truncated string.
+ */
+function highlightWithAnnotations(text: string, ranges: AnnotationRange[], query: string, wordMode: WordMode = 'all'): React.ReactNode {
+  if (ranges.length === 0) return highlight(text, query, wordMode)
+  const pattern = query.trim() ? buildHighlightPattern(query, wordMode) : ''
+  const matchRanges: Array<[number, number]> = []
+  if (pattern) {
+    const re = new RegExp(pattern, 'gi')
+    let m: RegExpExecArray | null
+    while ((m = re.exec(text)) !== null) {
+      if (m[0].length === 0) { re.lastIndex++; continue }
+      matchRanges.push([m.index, m.index + m[0].length])
+      re.lastIndex = m.index + m[0].length
+    }
+  }
+  const breakpoints = new Set<number>([0, text.length])
+  for (const r of ranges) { breakpoints.add(Math.max(0, Math.min(r.start, text.length))); breakpoints.add(Math.max(0, Math.min(r.end, text.length))) }
+  for (const [s, e] of matchRanges) { breakpoints.add(s); breakpoints.add(e) }
+  const sorted = [...breakpoints].sort((a, b) => a - b)
+  const nodes: React.ReactNode[] = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const s = sorted[i], e = sorted[i + 1]
+    if (s >= e) continue
+    const slice = text.slice(s, e)
+    const ann = ranges.find((r) => r.start <= s && r.end >= e)
+    const isMatch = matchRanges.some(([ms, me]) => ms <= s && me >= e)
+    let node: React.ReactNode = slice
+    if (isMatch) node = <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{node}</mark>
+    if (ann?.isRedLetter) node = <span className={RED_LETTER_CLASS}>{node}</span>
+    else if (ann?.isItalic) node = <span className="italic opacity-70">{node}</span>
+    nodes.push(<span key={i}>{node}</span>)
+  }
+  return <>{nodes}</>
 }
 
 interface PersistedState {
@@ -1517,14 +1600,18 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               {contextRows.map((v) => {
                                 const isMatch = v.verse_num === r.verse_num
                                 const vText = wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(v.text, wordReplacerRules) : v.text
+                                // Ranges are computed against v.text (pre-replacer) — see
+                                // highlightWithAnnotations' doc comment for why this is an
+                                // approximation, not exact, when the word replacer is on.
+                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId)
                                 return (
                                   <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
                                     <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
                                     {isMatch && effectiveMode(query) === 'strongs'
                                       ? highlightStrongs(vText, strongsMatches[`${r.book_id}:${r.chapter}:${r.verse_num}`] ?? [], parseMultiStrongsQuery(query)?.words ?? [])
                                       : isMatch
-                                        ? highlight(vText, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
-                                        : vText}
+                                        ? highlightWithAnnotations(vText, vAnnRanges, wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(query, wordReplacerRules) : query, wordMode)
+                                        : highlightWithAnnotations(vText, vAnnRanges, '', wordMode)}
                                   </span>
                                 )
                               })}
@@ -1571,9 +1658,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               // Only "all words" mode needs the dynamic-start snippet — "any word" only
                               // needs one match visible (line-clamp already lands on it often enough),
                               // and "phrase" highlights a single contiguous span CSS clamping already handles.
-                              const displayText = !showContext && wordMode === 'all'
+                              const snippet: Snippet = !showContext && wordMode === 'all'
                                 ? buildAllWordsSnippet(rawText, query)
-                                : rawText
+                                : { text: rawText, sliceStart: 0, sliceEnd: rawText.length, prefixLen: 0 }
                               // The highlight query goes through the SAME word-replacer transform as the
                               // text it's matched against — text shows "Yeshua" (replaced), so a query of
                               // literal "jesus" needs to become "Yeshua" too, or it never matches the
@@ -1582,7 +1669,17 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               const highlightQuery = wordReplacerEnabled && wordReplacerRules.length > 0
                                 ? applyWordReplacer(query, wordReplacerRules)
                                 : query
-                              return highlight(displayText, highlightQuery, wordMode)
+                              // Annotation ranges are computed against the FULL (unwindowed) rawText, then
+                              // remapped into the snippet's own coordinate space (remapRangesToSnippet) —
+                              // this used to fall back to plain highlight() with no ranges at all whenever
+                              // the snippet was truncated, which is the common case (the default view has
+                              // context mode off), silently dropping red-letter/italic markup from nearly
+                              // every result.
+                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId)
+                              const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
+                                ? annRanges
+                                : remapRangesToSnippet(annRanges, snippet)
+                              return highlightWithAnnotations(snippet.text, snippetRanges, highlightQuery, wordMode)
                             })()}
                           </span>
                         )}
@@ -1707,7 +1804,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               closeCtxMenu()
             }}
           >
-            <ChevronRight size={12} />
+            <ChevronRight size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Open here
           </button>
           <button
@@ -1721,14 +1818,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               copyVerse(bId, ch, vs, text, tid === 'lxx')
             }}
           >
-            <Copy size={12} />
+            <Copy size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Copy verse
           </button>
           <button
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
             onClick={() => { copyVerseRef(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId === 'lxx'); closeCtxMenu() }}
           >
-            <Hash size={12} />
+            <Hash size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Copy reference
           </button>
           {onOpenInNewTab && (
@@ -1736,7 +1833,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
               onClick={() => { onOpenInNewTab(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse, ctxMenu.textId); closeCtxMenu() }}
             >
-              <BookOpen size={12} />
+              <BookOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Open in new tab
             </button>
           )}
@@ -1745,7 +1842,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors"
               onClick={() => { onOpenInFloating(ctxMenu.bookId, ctxMenu.chapter, ctxMenu.verse); closeCtxMenu() }}
             >
-              <ExternalLink size={12} />
+              <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
               Open in floating tab
             </button>
           )}

@@ -3,17 +3,48 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import FloatingShell from '@/components/shell/FloatingShell'
 import ViewerApp from '@/components/viewer/ViewerApp'
+import StudyTrailApp from '@/components/studyTrail/StudyTrailApp'
 import { initScrollbarAutoHide } from '@/lib/scrollbarAutoHide'
 import './styles/global.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 
 initScrollbarAutoHide()
 
+// ── Persistent debug flags ──────────────────────────────────────────────────
+// Backs window.__bereanPresenterDebug / window.__bereanTrailDebug with localStorage (shared
+// across all windows — same origin) instead of a plain in-memory property. Previously, setting
+// `window.__bereanPresenterDebug = true` in devtools only lasted until the next reload/restart,
+// which is exactly what a real repro often needs (restarting the app to pick up code changes,
+// or the presenter window itself reloading) — silently losing the flag and producing "nothing
+// logged" reports that looked like the logging was never added at all. Now set once, in any
+// window, and it stays on (including surviving a full app restart) until explicitly turned off.
+// Applies to EVERY renderer (main window, presenter/viewer window, Study Trail window) since
+// this file is main.tsx, shared by all of them.
+function definePersistentDebugFlag(prop: '__bereanPresenterDebug' | '__bereanTrailDebug', storageKey: string) {
+  Object.defineProperty(window, prop, {
+    configurable: true,
+    get() {
+      try { return localStorage.getItem(storageKey) === '1' } catch { return false }
+    },
+    set(v: boolean) {
+      try {
+        if (v) { localStorage.setItem(storageKey, '1'); console.log(`[Debug] ${prop} = true (persisted — stays on until set to false, including across restarts)`) }
+        else { localStorage.removeItem(storageKey); console.log(`[Debug] ${prop} = false`) }
+      } catch { /* ignore — storage unavailable, flag just won't persist this run */ }
+    },
+  })
+}
+definePersistentDebugFlag('__bereanPresenterDebug', 'berean-debug-presenter')
+definePersistentDebugFlag('__bereanTrailDebug', 'berean-debug-trail')
+if (window.__bereanPresenterDebug) console.log('[Debug] __bereanPresenterDebug is ON (persisted from a previous session)')
+if (window.__bereanTrailDebug) console.log('[Debug] __bereanTrailDebug is ON (persisted from a previous session)')
+
 // Very first line of renderer JS — confirms the bundle is executing.
 
 const searchParams = new URLSearchParams(window.location.search)
 const isFloatMode = searchParams.get('float') === '1'
 const isViewerMode = searchParams.get('viewer') === '1'
+const isStudyTrailMode = searchParams.get('studyTrail') === '1'
 
 // ── Global crash handler ──────────────────────────────────────────────────────
 // Uses raw DOM (not React) so it works even if the React tree is dead.
@@ -119,6 +150,6 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isViewerMode ? <ViewerApp /> : isFloatMode ? <FloatingShell /> : <App />}
+    {isViewerMode ? <ViewerApp /> : isStudyTrailMode ? <StudyTrailApp /> : isFloatMode ? <FloatingShell /> : <App />}
   </React.StrictMode>
 )

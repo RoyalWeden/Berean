@@ -174,6 +174,7 @@ export default function ViewerApp() {
   }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
   const handleContent = useCallback((raw: unknown) => {
+    if (window.__bereanPresenterDebug) console.log('[PD viewer-receive] onContent payload', raw)
     setPayload(raw as ViewerPayload)
   }, [])
 
@@ -324,6 +325,7 @@ export default function ViewerApp() {
                 textId={payload.textId}
                 fontScale={localScale}
                 scrollPercent={payload.scrollPercent}
+                hiddenAnnotations={payload.hiddenAnnotations}
                 viewerHighlights={viewerHls[hlKey] ?? {}}
                 onAddViewerHighlight={(verseNum, hl) => setViewerHls(prev => {
                   const chap = prev[hlKey] ?? {}
