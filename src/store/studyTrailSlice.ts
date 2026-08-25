@@ -62,16 +62,30 @@ export function tierForOrigin(origin: NavOrigin): ClarityTier {
   }
 }
 
+// One shared "via {text}" sentence shape (see OriginBadgeLine/TrailNodeHoverContent) covers
+// every one of the app's ~150+ concrete navigation scenarios cleanly, because they all reduce
+// to just these ~15 NavOrigin KINDS — a bespoke phrasing/icon per literal scenario was never
+// actually needed, only per KIND, and every kind already threads its own real reasonText/tags
+// through here. Every case below reads naturally after "via " (see OriginBadgeLine).
 export function reasonForOrigin(origin: NavOrigin): { text?: string; tags: string[] } {
   switch (origin.kind) {
-    case 'cross-ref': return { text: origin.reason, tags: [`cross-ref:${origin.source}`] }
+    case 'cross-ref': return { text: origin.reason ?? `a ${origin.source} cross-reference`, tags: [`cross-ref:${origin.source}`] }
     case 'lexicon-occurrence': return { text: `Strong's ${origin.strongsNum} occurrence`, tags: ['lexicon'] }
+    // ai-lookup's text is the raw question verbatim (not decorated) — it's tier 1 and shown
+    // directly as the connection's reason elsewhere, where "AI Lookup:" would just be noise
+    // next to a question mark already reading as a question.
     case 'ai-lookup': return { text: origin.question, tags: ['ai-lookup'] }
-    case 'search-result': return { text: `search: "${origin.query}"`, tags: ['search'] }
-    case 'note-wikilink': return { text: `note: ${origin.noteTitle}`, tags: ['note'] }
+    case 'search-result': return { text: `a search for "${origin.query}"`, tags: ['search'] }
+    case 'note-wikilink': return { text: `a link in note "${origin.noteTitle}"`, tags: ['note'] }
+    // No pre-filled text on purpose — book-chapter-picker is the one genuinely ambiguous tier-3
+    // origin; inventing a reason here would defeat the point of ever prompting for one.
     case 'book-chapter-picker': return { tags: ['manual'] }
-    case 'other': return { text: origin.label, tags: [] }
-    default: return { tags: [] }
+    case 'verse-popover': return { text: 'a verse popover', tags: ['popover'] }
+    case 'compare-column': return { text: 'viewing side-by-side in Compare', tags: ['compare'] }
+    case 'history-revisit': return { text: 'revisiting from History', tags: ['history'] }
+    case 'sequential-nav': return { text: 'reading onward', tags: ['reading'] }
+    case 'tab-switch': return { text: 'switching to an already-open tab', tags: ['tab-switch'] }
+    case 'other': return { text: origin.label ?? 'navigation', tags: [] }
   }
 }
 

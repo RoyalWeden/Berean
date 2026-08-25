@@ -41,3 +41,19 @@ export function trailRefLabel(ref: TrailRef, bookLabel: (bookId: string) => stri
     ? `${bookLabel(ref.bookId)} ${ref.chapter}${ref.verse ? `:${ref.verse}` : ''}`
     : `Strong's ${ref.strongsNum}`
 }
+
+// Friendly fallback for the "via ..." origin line when a connection has no reasonText (the
+// deliberately-never-pre-filled tier-3 case, book-chapter-picker) — reads its tags instead of
+// showing raw internal tag strings like "manual" or "cross-ref:tske" verbatim.
+const TAG_LABEL: Record<string, string> = {
+  manual: 'typed in manually', lexicon: "a Strong's lookup", search: 'a search', note: 'a note',
+  'cross-ref:tske': 'a TSKe cross-reference', 'cross-ref:classic': 'a classic cross-reference',
+  'cross-ref:notes': 'a cross-reference in a note', 'ai-lookup': 'AI Lookup', popover: 'a verse popover',
+  compare: 'Compare', history: 'History', reading: 'reading onward', 'tab-switch': 'switching tabs',
+}
+
+export function originDisplayText(conn: { reasonText?: string; reasonTags: string[] }): string {
+  if (conn.reasonText) return conn.reasonText
+  const tagText = conn.reasonTags.map((t) => TAG_LABEL[t] ?? t).join(', ')
+  return tagText || 'navigation'
+}

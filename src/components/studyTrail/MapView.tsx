@@ -1,26 +1,30 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
-import { trailRefClick, type TrailRef } from './trailNav'
+import { trailRefClick, originDisplayText, type TrailRef } from './trailNav'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
+import TrailConnectorOverlay, { useTrailConnectorPoints, type TrailEdge } from './TrailConnectorOverlay'
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
-// connections listed underneath it. Plain inline SVG/DOM (consistent with the rest of the
-// app's icon/diagram usage, no graph-layout library — the shape is one time-ordered spine per
-// session with branches, not a general graph).
+// connections listed underneath it, all physically connected by a measured SVG overlay
+// (TrailConnectorOverlay) — every spine dot, branch-row marker, and round-trip target is a
+// registered "point," and the overlay draws real curves between them, recomputed on every
+// render plus a ResizeObserver on the container. Previously each row's own tiny 28px line
+// swatch floated independently, touching neither the spine dot above it nor the row's own
+// marker — "make sure the dots are connected to the lines too."
 //
-// This pass adds: real elapsed-time spacing + gap chips between spine nodes (the spine
-// "breathes" instead of every visit looking equally close together); round-trip detection (a
+// Also: real elapsed-time spacing + gap chips between spine nodes (the spine "breathes"
+// instead of every visit looking equally close together); round-trip detection (a
 // chapter-connection whose destination is an ALREADY-EXISTING spine node, not the literal next
-// one, renders as a ↺ "return to" row instead of implying a fresh forward move — the fix for a
-// lexicon/search detour permanently dragging the anchor forward now shows up here as an
-// honest round trip rather than either a lost branch or a duplicate node); rich hover cards;
-// click / Cmd+click / right-click navigation on every chapter/Strong's label; and collapsing
-// of clustered glance connections into one summarized row.
+// one, renders as a ↺ "return to" row AND a curved return edge with an arrowhead back into
+// that node — the fix for a lexicon/search detour permanently dragging the anchor forward now
+// shows up here as an honest round trip); an always-visible "via X [tier]" origin line above
+// every node; rich hover cards; click / Cmd+click / right-click navigation; and collapsing of
+// clustered glance connections into one summarized row.
 //
 // Legend: solid = main path, dashed = tangent/soft, thick = revisited, diamond = lexicon/word
 // stop, square = chapter stop, ↺ = round trip back to an earlier stop.
@@ -35,10 +39,13 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   const height = gapMs == null ? 18 : gapSegmentHeight(gapMs)
   const showChip = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
   return (
-    <div style={{ position: 'relative', flex: 1, width: 2, minHeight: height, background: 'rgb(var(--color-surface-4))', opacity: showChip ? 0.35 : 1 }}>
+    // The connecting LINE itself is now drawn by TrailConnectorOverlay (spine-dot to
+    // spine-dot) — this just reserves the vertical space the gap math calls for, and hosts
+    // the "42m later" chip when the gap is big enough to call out.
+    <div style={{ position: 'relative', flex: 1, width: 2, minHeight: height }}>
       {showChip && (
         <div style={{
-          position: 'absolute', top: '50%', left: 6, transform: 'translateY(-50%)', whiteSpace: 'nowrap',
+          position: 'absolute', top: '50%', left: 6, transform: 'translateY(-50%)', whiteSpace: 'nowrap', zIndex: 1,
           fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
           border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '1px 6px',
         }}>{formatGap(gapMs!)} later</div>
@@ -55,7 +62,7 @@ function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   const color = TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', marginBottom: 2 }}>
-      <span>via {conn.reasonText || conn.reasonTags.join(', ') || 'navigation'}</span>
+      <span>via {originDisplayText(conn)}</span>
       <span style={{
         fontSize: 9, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 16%, transparent)`,
         border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, borderRadius: 999, padding: '0 5px',
@@ -65,28 +72,14 @@ function OriginBadgeLine({ conn }: { conn: TrailConnection }) {
   )
 }
 
-function LineSwatch({ weight, tier, clustered }: { weight: string; tier: number; clustered: boolean }) {
-  const color = TIER_COLOR[tier] ?? 'rgb(var(--color-text-muted))'
-  return (
-    <svg width="28" height="10" style={{ flexShrink: 0 }}>
-      <line
-        x1={1} y1={5} x2={27} y2={5}
-        stroke={color}
-        strokeWidth={clustered ? 3.5 : 2}
-        strokeDasharray={weight === 'glance' ? '3 3' : undefined}
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
 type AnnotatedConn = TrailConnection & { isReturn?: boolean }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu }: {
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
   openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
 }) {
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
@@ -104,20 +97,22 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu }: {
   return (
     <TrailHoverCard content={<TrailConnectionHoverContent conn={conn} />}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-        <LineSwatch weight={conn.weight} tier={conn.clarityTier} clustered={!!conn.clusterId} />
-        <span style={{
-          width: 7, height: 7, flexShrink: 0,
-          borderRadius: isLexicon ? 1 : '50%',
-          transform: isLexicon ? 'rotate(45deg)' : undefined,
-          background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
-          opacity: conn.weight === 'glance' ? 0.5 : 1,
-        }} />
+        <span
+          ref={registerPoint(`row:${conn.id}`)}
+          style={{
+            width: 7, height: 7, flexShrink: 0,
+            borderRadius: isLexicon ? 1 : '50%',
+            transform: isLexicon ? 'rotate(45deg)' : undefined,
+            background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
+            opacity: conn.weight === 'glance' ? 0.5 : 1,
+          }}
+        />
         <span
           onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
           onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e) : undefined}
           style={{
             fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
-            cursor: ref ? 'pointer' : undefined, textDecoration: ref ? undefined : undefined,
+            cursor: ref ? 'pointer' : undefined,
           }}
           onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
@@ -149,10 +144,12 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu }: {
   )
 }
 
-function GlanceGroupRow({ items, refFor, openMenu }: {
+function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
   items: AnnotatedConn[]
   refFor: (conn: TrailConnection) => TrailRef | null
   openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
+  groupKey: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const first = items[0], last = items[items.length - 1]
@@ -160,14 +157,14 @@ function GlanceGroupRow({ items, refFor, openMenu }: {
   if (expanded) {
     return (
       <div>
-        {items.map((c) => <ConnRow key={c.id} conn={c} refFor={refFor} onOpenPrompt={() => {}} openMenu={openMenu} />)}
+        {items.map((c) => <ConnRow key={c.id} conn={c} refFor={refFor} onOpenPrompt={() => {}} openMenu={openMenu} registerPoint={registerPoint} />)}
         <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' }}>▾ collapse</button>
       </div>
     )
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', opacity: 0.55 }}>
-      <svg width="14" height="10" style={{ flexShrink: 0 }}><line x1={1} y1={5} x2={13} y2={5} stroke="rgb(var(--color-text-muted))" strokeWidth={2} strokeDasharray="3 3" strokeLinecap="round" /></svg>
+      <span ref={registerPoint(groupKey)} style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
       <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-secondary))' }}>
         {labelFor(first)} → {labelFor(last)}
       </span>
@@ -178,7 +175,7 @@ function GlanceGroupRow({ items, refFor, openMenu }: {
   )
 }
 
-type RenderItem = { type: 'single'; item: AnnotatedConn } | { type: 'glanceGroup'; items: AnnotatedConn[] }
+type RenderItem = { type: 'single'; item: AnnotatedConn } | { type: 'glanceGroup'; key: string; items: AnnotatedConn[] }
 
 function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
   const out: RenderItem[] = []
@@ -189,7 +186,7 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
       const group = conns.filter((x) => x.clusterId === c.clusterId && x.weight === 'glance')
       if (group.length >= 2) {
         consumedClusters.add(c.clusterId)
-        out.push({ type: 'glanceGroup', items: group })
+        out.push({ type: 'glanceGroup', key: `grp:${c.clusterId}`, items: group })
         continue
       }
     }
@@ -199,20 +196,32 @@ function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 }
 
 function NodeBlock({
-  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn,
+  node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
   openMenu: (data: { ref: TrailRef; x: number; y: number }) => void
   originConn?: TrailConnection
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
+  boundaryLabel?: string
 }) {
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 4 }}>
+    <div>
+      {boundaryLabel && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
+          fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
+        }}>
+          <span style={{ flexShrink: 0 }}>{boundaryLabel}</span>
+          <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 4 }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-        <div style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, marginTop: 4, flexShrink: 0 }} />
+        <div ref={registerPoint(`node:${node.id}`)} style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, marginTop: 4, flexShrink: 0 }} />
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
       <div style={{ paddingBottom: 16, flex: 1, minWidth: 0 }}>
@@ -228,25 +237,32 @@ function NodeBlock({
         </TrailHoverCard>
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{node.cachedSubnote}</div>}
         <div style={{ marginTop: 4 }}>
-          {items.map((it, i) => it.type === 'single'
-            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} />
-            : <GlanceGroupRow key={`grp-${i}`} items={it.items} refFor={refFor} openMenu={openMenu} />)}
+          {items.map((it) => it.type === 'single'
+            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
+            : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
+      </div>
       </div>
     </div>
   )
 }
 
-export default function MapView({ detail, onChanged }: { detail: TrailSessionDetail; onChanged: () => void }) {
+export default function MapView({ detail, onChanged, boundaryLabelForNodeId }: { detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string> }) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
   const { menu, menuRef, openMenu, closeMenu } = useTrailRefMenu()
+  const { pointsRef, registerPoint } = useTrailConnectorPoints()
+  const containerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
 
   // key = `${bookId}:${chapter}` — lets a connection tell whether its destination is the
   // literal next spine node (a forward move, no separate row needed — the spine geometry
-  // already shows it) or an EARLIER/different existing node (a round trip back to it).
+  // already shows it) or an EARLIER/different existing node (a round trip back to it). Keyed
+  // by trailSessionId too (not just bookId:chapter) — MapView also renders a merged
+  // ALL-sessions timeline (EverythingView's "one continuous spine" mode), where the same
+  // chapter genuinely visited in two DIFFERENT sessions must never look like a round trip
+  // between them.
   const nodeByKey = new Map<string, TrailNode>()
-  for (const n of detail.nodes) nodeByKey.set(`${n.bookId}:${n.chapter}`, n)
+  for (const n of detail.nodes) nodeByKey.set(`${n.trailSessionId}:${n.bookId}:${n.chapter}`, n)
   const nextNodeById = new Map<string, TrailNode | undefined>()
   detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
 
@@ -257,7 +273,7 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
   const originConnByNodeId = new Map<string, TrailConnection>()
   for (const c of [...detail.connections].sort((a, b) => a.createdAt - b.createdAt)) {
     if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) continue
-    const target = nodeByKey.get(`${c.toBookId}:${c.toChapter}`)
+    const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
     if (target && !originConnByNodeId.has(target.id)) originConnByNodeId.set(target.id, c)
   }
 
@@ -274,7 +290,8 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
   // A plain forward chapter-connection is already fully represented by the spine itself
   // (this node → the next block down) and would just duplicate that as a redundant row. A
   // round-trip connection (destination matches an EARLIER/different existing node) is
-  // annotated `isReturn` so ConnRow can prefix it with ↺ instead of implying a fresh move.
+  // annotated `isReturn` so ConnRow can prefix it with ↺ instead of implying a fresh move —
+  // and feeds a curved return edge in the overlay (built below).
   const rowsForNode = new Map<string, AnnotatedConn[]>()
   for (const n of detail.nodes) rowsForNode.set(n.id, [])
   for (const c of detail.connections) {
@@ -282,70 +299,103 @@ export default function MapView({ detail, onChanged }: { detail: TrailSessionDet
     if (!bucket) continue
     if (c.toKind === 'chapter' && c.toBookId && c.toChapter != null) {
       const next = nextNodeById.get(c.fromNodeId)
-      const isForward = next && next.bookId === c.toBookId && next.chapter === c.toChapter
+      const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
       if (isForward) continue
-      const target = nodeByKey.get(`${c.toBookId}:${c.toChapter}`)
+      const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       bucket.push({ ...c, isReturn: !!target })
       continue
     }
     bucket.push(c)
   }
 
+  // The connected-lines engine's edge list — built from the same data that drives the rows
+  // above, so the diagram can never drift out of sync with what's actually displayed.
+  const edges: TrailEdge[] = []
+  for (let i = 0; i < detail.nodes.length - 1; i++) {
+    // Skip across a session boundary (merged all-sessions timeline) — chronologically
+    // adjacent nodes from two DIFFERENT sessions shouldn't visually read as one continuous
+    // read-through just because they happen to be time-adjacent.
+    if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
+    edges.push({ key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`, color: 'rgb(var(--color-accent))', arrow: true })
+  }
+  for (const n of detail.nodes) {
+    const items = groupForRender(rowsForNode.get(n.id) ?? [])
+    for (const it of items) {
+      if (it.type === 'single') {
+        const c = it.item
+        const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
+        edges.push({ key: `stub:${c.id}`, from: `node:${n.id}`, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: true, opacity: 0.7 })
+        if (c.isReturn && c.toBookId && c.toChapter != null) {
+          const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
+          if (target) edges.push({ key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true })
+        }
+      } else {
+        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
+        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: true, opacity: 0.55 })
+      }
+    }
+  }
+
   return (
-    <div>
-      {needsInputCount > 0 && (
-        <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
-          {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13,
-            borderRadius: 999, background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', fontSize: 9, fontWeight: 700,
-          }}>?</span> below (never required — dismiss any of them any time).
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={edges} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        {needsInputCount > 0 && (
+          <div style={{ fontSize: 11, color: '#e08468', marginBottom: 10 }}>
+            {needsInputCount} connection{needsInputCount === 1 ? '' : 's'} could use a reason — click a <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13,
+              borderRadius: 999, background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', fontSize: 9, fontWeight: 700,
+            }}>?</span> below (never required — dismiss any of them any time).
+          </div>
+        )}
+        {detail.nodes.map((n, i) => {
+          const next = detail.nodes[i + 1]
+          const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
+          return (
+            <NodeBlock
+              key={n.id}
+              node={n}
+              connections={rowsForNode.get(n.id) ?? []}
+              gapToNextMs={gapToNextMs}
+              isLast={i === detail.nodes.length - 1}
+              onOpenPrompt={setPromptConn}
+              refFor={refFor}
+              openMenu={openMenu}
+              originConn={originConnByNodeId.get(n.id)}
+              registerPoint={registerPoint}
+              boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
+            />
+          )
+        })}
+        {detail.nodes.length === 0 && (
+          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
+        )}
+
+        {/* Legend */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 20, paddingTop: 12, borderTop: '1px solid rgb(var(--color-surface-4))', fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
+          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#4fc3ae" strokeWidth={2} /></svg> clear</span>
+          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-accent))" strokeWidth={2} strokeDasharray="3 3" /></svg> soft</span>
+          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#e08468" strokeWidth={2} strokeDasharray="3 3" /></svg> ambiguous</span>
+          <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-text-muted))" strokeWidth={3.5} /></svg> revisited</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 1, transform: 'rotate(45deg)', display: 'inline-block' }} /> word stop
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, display: 'inline-block' }} /> chapter stop
+          </span>
+          <span>↺ round trip</span>
+          <span>hover any label for detail · click to open · right-click for tab options</span>
         </div>
-      )}
-      {detail.nodes.map((n, i) => {
-        const next = detail.nodes[i + 1]
-        const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
-        return (
-          <NodeBlock
-            key={n.id}
-            node={n}
-            connections={rowsForNode.get(n.id) ?? []}
-            gapToNextMs={gapToNextMs}
-            isLast={i === detail.nodes.length - 1}
-            onOpenPrompt={setPromptConn}
-            refFor={refFor}
-            openMenu={openMenu}
-            originConn={originConnByNodeId.get(n.id)}
+
+        {promptConn && (
+          <ReasonPromptPopover
+            connection={promptConn}
+            onClose={() => setPromptConn(null)}
+            onSaved={() => { setPromptConn(null); onChanged() }}
           />
-        )
-      })}
-      {detail.nodes.length === 0 && (
-        <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Nothing recorded yet — navigate around the app while this session is live.</div>
-      )}
-
-      {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 20, paddingTop: 12, borderTop: '1px solid rgb(var(--color-surface-4))', fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#4fc3ae" strokeWidth={2} /></svg> clear</span>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-accent))" strokeWidth={2} strokeDasharray="3 3" /></svg> soft</span>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="#e08468" strokeWidth={2} strokeDasharray="3 3" /></svg> ambiguous</span>
-        <span><svg width="16" height="8"><line x1={1} y1={4} x2={15} y2={4} stroke="rgb(var(--color-text-muted))" strokeWidth={3.5} /></svg> revisited</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 1, transform: 'rotate(45deg)', display: 'inline-block' }} /> word stop
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 9, height: 9, background: 'rgb(var(--color-accent))', borderRadius: 2, display: 'inline-block' }} /> chapter stop
-        </span>
-        <span>↺ round trip</span>
-        <span>hover any label for detail · click to open · right-click for tab options</span>
+        )}
+        <TrailRefContextMenu menu={menu} menuRef={menuRef} onClose={closeMenu} />
       </div>
-
-      {promptConn && (
-        <ReasonPromptPopover
-          connection={promptConn}
-          onClose={() => setPromptConn(null)}
-          onSaved={() => { setPromptConn(null); onChanged() }}
-        />
-      )}
-      <TrailRefContextMenu menu={menu} menuRef={menuRef} onClose={closeMenu} />
     </div>
   )
 }

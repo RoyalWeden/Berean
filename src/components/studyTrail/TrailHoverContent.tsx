@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { bookName } from '@/lib/parseRef'
+import { originDisplayText } from './trailNav'
 import type { TrailConnection, TrailNode } from '@/types/studyTrail'
 
 // Rich hover-card body — timestamp/duration plus a live-fetched verse or Strong's-gloss
@@ -41,7 +42,7 @@ function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
 function OriginLine({ conn }: { conn: TrailConnection }) {
   return (
     <div style={{ ...rowStyle, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span>via {conn.reasonText || conn.reasonTags.join(', ') || 'navigation'}</span>
+      <span>via {originDisplayText(conn)}</span>
       <ClarityBadge tier={conn.clarityTier} />
     </div>
   )
