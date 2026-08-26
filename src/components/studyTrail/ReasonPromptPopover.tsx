@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Trash2, Plus } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
+import { parseRef, bookChapterVerseLabel, bookName } from '@/lib/parseRef'
 import TrailPopoverShell from './TrailPopoverShell'
 import type { TrailConnection } from '@/types/studyTrail'
 
@@ -104,21 +104,32 @@ function TieColumn({ label, values, onChange }: { label: string; values: string[
 }
 
 export default function ReasonPromptPopover({
-  connection, onClose, onSaved, title,
+  connection, onClose, onSaved, title, originBookId, originChapter,
 }: {
   connection: TrailConnection
   onClose: () => void
   onSaved: () => void
   title?: string
+  /** The chapter this connection departed FROM — needed only to format the legacy
+   *  originVersePinFrom fallback tie as a full reference ("Deuteronomy 32:3") instead of a bare
+   *  "v.3", per direct feedback. The connection itself has no book/chapter for its own origin
+   *  (only fromNodeId), so the caller resolves it via a node lookup and passes it in; omitted
+   *  entirely (falls back to "v.3") for hosts — the auto arrival prompt — that don't have an
+   *  easy node list to resolve it from, which is fine since that path rarely has legacy data. */
+  originBookId?: string
+  originChapter?: number
 }) {
   const [note, setNote] = useState(connection.userNote ?? '')
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
   // already recorded is invisible in the new UI, then always end with one blank row per column.
+  // Full "Book Chapter:Verse" when the book/chapter is known — per direct feedback ("for the
+  // 'from' it should show as the full book chapter verse instead of 'v.3'") — falling back to
+  // the bare "v.3" form only when that context genuinely isn't available.
   const legacyFrom = connection.originVersePinFrom != null
-    ? [`v.${connection.originVersePinFrom}${connection.originVersePinTo && connection.originVersePinTo !== connection.originVersePinFrom ? `-${connection.originVersePinTo}` : ''}`]
+    ? [`${originBookId ? `${bookName(originBookId)} ${originChapter}:` : 'v.'}${connection.originVersePinFrom}${connection.originVersePinTo && connection.originVersePinTo !== connection.originVersePinFrom ? `-${connection.originVersePinTo}` : ''}`]
     : []
   const legacyTo = connection.versePinFrom != null
-    ? [`v.${connection.versePinFrom}${connection.versePinTo && connection.versePinTo !== connection.versePinFrom ? `-${connection.versePinTo}` : ''}`]
+    ? [`${connection.toBookId ? `${bookName(connection.toBookId)} ${connection.toChapter}:` : 'v.'}${connection.versePinFrom}${connection.versePinTo && connection.versePinTo !== connection.versePinFrom ? `-${connection.versePinTo}` : ''}`]
     : []
   const [tiesFrom, setTiesFrom] = useState<string[]>(connection.tiesFrom.length > 0 ? [...connection.tiesFrom, ''] : [...legacyFrom, ''])
   const [tiesTo, setTiesTo] = useState<string[]>(connection.tiesTo.length > 0 ? [...connection.tiesTo, ''] : [...legacyTo, ''])

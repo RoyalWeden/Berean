@@ -1309,8 +1309,20 @@ export default function MapView({
   // and every point visited along the way gets pronounced (full opacity, thicker stroke);
   // everything else — other lines, AND (via hoverChainPointKeys passed down to
   // NodeBlock/ConnRow/TangentBullet below) their labels and bullets — dims out.
+  // A return/revisit-link edge points chronologically BACKWARD (its `to` is an EARLIER node
+  // than its `from`) — the opposite of every other edge here. Feeding it into the generic
+  // backward-walk below (which treats "whatever an edge's `from` is" as an ancestor of whatever
+  // it points `to`) has it exactly backwards: hovering the REVISITED node discovers this edge
+  // (since the edge's `to` IS that node) and then incorrectly treats the LATER row that pointed
+  // back to it as an "ancestor," continuing the walk from there into thingsafter the hover
+  // point — per direct feedback ("i highlight on a revisited item and it also is highlighting
+  // too much" / "it should dim everything past it including the revisit stuff"). Excluded from
+  // the general walk entirely; handled as its own direct, single-hop case below instead (hovering
+  // one of its two endpoints pronounces just that one arc, never chased further).
+  const isBackwardEdge = (key: string) => key.startsWith('return:') || key.startsWith('revisit-link:')
   const edgesByTo = new Map<string, TrailEdge[]>()
   for (const e of edges) {
+    if (isBackwardEdge(e.key)) continue
     const bucket = edgesByTo.get(e.to) ?? []
     bucket.push(e)
     edgesByTo.set(e.to, bucket)
@@ -1319,6 +1331,12 @@ export default function MapView({
   const hoverChainPointKeys = new Set<string>()
   if (hoveredKey) {
     hoverChainPointKeys.add(hoveredKey)
+    // Direct, single-hop only: a return/revisit-link edge pronounces when the hovered point is
+    // literally one of its own two ends, without chasing anything further through it.
+    for (const e of edges) {
+      if (!isBackwardEdge(e.key)) continue
+      if (e.from === hoveredKey || e.to === hoveredKey) hoverChainEdgeKeys.add(e.key)
+    }
     const stack = [hoveredKey]
     // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are two
     // HALVES of the exact same hop, not an ancestor/descendant pair — but the backward-only
@@ -1348,7 +1366,15 @@ export default function MapView({
       }
     }
   }
-  const finalEdges = hoveredKey
+  // Safety net for "when i rightclick one of the items, all the connection lines are not
+  // visible" — if hoveredKey is somehow stuck pointing at a key that doesn't actually touch
+  // anything in THIS render's edge graph (stale from a prior render, a point that no longer
+  // exists, a timing edge case around a right-click), dimming everything to 12% opacity reads
+  // as "all the lines disappeared." Treat that specific case as if nothing were hovered at all
+  // — every edge stays at normal opacity — rather than let one orphaned key blank out the whole
+  // diagram.
+  const hoveredKeyIsLive = !!hoveredKey && edges.some((e) => e.from === hoveredKey || e.to === hoveredKey)
+  const finalEdges = hoveredKeyIsLive
     ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
         : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
@@ -1422,7 +1448,7 @@ export default function MapView({
                 originConnByNodeId={originConnByNodeId}
                 jumpToOrigin={jumpToOrigin}
                 rowsForConnection={rowsForConnection}
-                hoverChain={hoveredKey ? hoverChainPointKeys : null}
+                hoverChain={hoveredKeyIsLive ? hoverChainPointKeys : null}
               />
             )
           }
@@ -1482,7 +1508,7 @@ export default function MapView({
               branchDepth={originConn?.chainDepth}
               originVerseLabel={originVerseLabel}
               originVerseRef={originVerseRef}
-              hoverChain={hoveredKey ? hoverChainPointKeys : null}
+              hoverChain={hoveredKeyIsLive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
@@ -1496,6 +1522,8 @@ export default function MapView({
         {promptConn && (
           <ReasonPromptPopover
             connection={promptConn}
+            originBookId={nodeById.get(promptConn.fromNodeId)?.bookId}
+            originChapter={nodeById.get(promptConn.fromNodeId)?.chapter}
             onClose={() => setPromptConn(null)}
             onSaved={() => { setPromptConn(null); onChanged() }}
           />

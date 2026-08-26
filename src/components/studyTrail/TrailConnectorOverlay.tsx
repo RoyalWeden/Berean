@@ -205,18 +205,21 @@ export default function TrailConnectorOverlay({
           // ("the revisit connection line needs to go completely around everything else... the
           // arc will need to be curved more"), scale that extra swing with how much vertical
           // distance this particular edge actually has to clear.
-          const extraBow = Math.max(0, vertRun - 80) * 0.35
+          // Raised the floor substantially (was scaling from 0, only kicking in past 80px of
+          // vertical run) — per direct feedback that it was STILL cutting through the main
+          // spine even after the previous round's widening. Every laned edge now gets a
+          // healthy guaranteed clearance, growing further for a longer run.
+          const extraBow = 50 + Math.max(0, vertRun - 60) * 0.4
           const laneX = baseLaneX - extraBow
-          const BEND = Math.min(60, Math.max(24, vertRun * 0.4))
-          const reachA = laneX - start.x
-          const reachB = laneX - end.x
-          // Control points pulled to 90% of the way to the lane (was 55%) — per direct
-          // feedback, the curve needs to visibly swing PAST the main spine's own bullets, not
-          // just lean toward the gutter without clearly clearing them.
-          d = `M${start.x},${start.y} `
-            + `C${start.x + reachA * 0.9},${start.y + dir * BEND} `
-            + `${end.x + reachB * 0.9},${end.y - dir * BEND} `
-            + `${end.x},${end.y}`
+          // A "stadium" shape, not a gentle lean: both control points sit directly at the lane
+          // (same X), at the SAME Y as their own endpoint — a cubic bezier built this way exits
+          // each endpoint moving mostly SIDEWAYS right away (committing to the lane almost
+          // immediately) rather than staying near-vertical through most of its length, so the
+          // curve reads as "swings out and clearly goes around," not "leans slightly left of
+          // the spine." Per direct feedback across two rounds ("the revisit connection line
+          // needs to go completely around everything else... it still is going through
+          // things").
+          d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
