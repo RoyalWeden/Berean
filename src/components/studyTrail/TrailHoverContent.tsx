@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { originDisplayText } from './trailNav'
 import { useWordReplace } from './useWordReplace'
@@ -26,6 +27,20 @@ const dividerStyle: React.CSSProperties = { height: 1, background: 'rgb(var(--co
 const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguous' }
 
+// A small note/pencil button shared by every hover card (node, connection, tangent bullet) —
+// per direct feedback ("there should be a note button in the hover popup so that i can add a
+// note"). Opens the SAME ReasonPromptPopover editor the row-level pencil icon already does (one
+// unified note concept everywhere, not a separate quick-note system) — this is just another
+// place to reach it, right where you're already looking at the fact card.
+function EditNoteBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} title="Add/edit a note for this"
+      style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}
+    ><Pencil size={11} /></button>
+  )
+}
+
 function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const color = TIER_COLOR[tier]
   return (
@@ -50,7 +65,7 @@ function OriginLine({ conn }: { conn: TrailConnection }) {
   )
 }
 
-export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
+export function TrailNodeHoverContent({ node, originConn, onEditNote }: { node: TrailNode; originConn?: TrailConnection; onEditNote?: () => void }) {
   const replace = useWordReplace()
   // A dedicated-translation book (Enoch, Jubilees, etc.) only ever lives in ITS OWN db, never
   // 'kjva' (the default queryVerse falls back to when no textId is passed) — that mismatch was
@@ -69,9 +84,12 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>
         <span>{bookName(node.bookId)} {node.chapter}</span>
-        <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
+          {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+        </span>
       </div>
       <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span>{fmtDuration(duration)} on this chapter</span>
@@ -99,7 +117,7 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
 // bullets used to share the same TrailConnectionHoverContent (which only ever describes the
 // connection's own destination), so hovering the origin bullet showed the SAME preview as the
 // destination bullet right below it. This fetches and previews the origin verse itself instead.
-export function TrailVersePreview({ bookId, chapter, verse }: { bookId: string; chapter: number; verse: number }) {
+export function TrailVersePreview({ bookId, chapter, verse, onEditNote }: { bookId: string; chapter: number; verse: number; onEditNote?: () => void }) {
   const [preview, setPreview] = useState<string | null>(null)
   const replace = useWordReplace()
   useEffect(() => {
@@ -110,7 +128,10 @@ export function TrailVersePreview({ bookId, chapter, verse }: { bookId: string; 
   }, [bookId, chapter, verse])
   return (
     <div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{bookName(bookId)} {chapter}:{verse}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{bookName(bookId)} {chapter}:{verse}</div>
+        {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+      </div>
       {preview && (
         <>
           <div style={dividerStyle} />
@@ -123,7 +144,7 @@ export function TrailVersePreview({ bookId, chapter, verse }: { bookId: string; 
   )
 }
 
-export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection }) {
+export function TrailConnectionHoverContent({ conn, onEditNote }: { conn: TrailConnection; onEditNote?: () => void }) {
   const [preview, setPreview] = useState<string | null>(null)
   const replace = useWordReplace()
   useEffect(() => {
@@ -152,7 +173,10 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
 
   return (
     <div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
+        {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+      </div>
       <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <ClarityBadge tier={conn.clarityTier} />
         <span>{fmtClock(conn.createdAt)}{conn.weight === 'glance' ? ' · glance' : ''}</span>

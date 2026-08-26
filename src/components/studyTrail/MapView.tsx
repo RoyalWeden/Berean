@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Pencil, Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown } from 'lucide-react'
+import { Pencil, Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2 } from 'lucide-react'
 import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -162,14 +162,27 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
     const lines = [conn.userNote?.trim(), ...conn.tiesFrom, ...conn.tiesTo].filter(Boolean) as string[]
     try { await navigator.clipboard.writeText(lines.join('\n')) } catch { /* clipboard unavailable — no-op */ }
   }
+  // Per direct feedback ("the user should also be able to delete the note") — clears the same
+  // fields ReasonPromptPopover's own Delete button does; the existing onDataChanged broadcast
+  // (see electron/ipc/studyTrail.ts) is what makes this bubble disappear once the DB catches up,
+  // no separate refresh callback needed here.
+  function deleteNote() {
+    window.studyTrail.clearConnectionNote(conn.id).catch(() => {})
+  }
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Your note</span>
-        <button
-          onClick={copy} title="Copy this note"
-          style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
-        ><Copy size={11} /></button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={copy} title="Copy this note"
+            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+          ><Copy size={11} /></button>
+          <button
+            onClick={deleteNote} title="Delete this note"
+            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+          ><Trash2 size={11} /></button>
+        </span>
       </div>
       {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (conn.tiesFrom.length || conn.tiesTo.length) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
       {conn.tiesFrom.length > 0 && (
@@ -207,7 +220,7 @@ const TANGENT_EXTRA_GAP = 10
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
 const MAIN_SPINE_GAP = 44
 
-function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed }: {
+function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   /** What this SPECIFIC bullet's own hover card should show — the origin bullet and the
@@ -220,21 +233,33 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
    *  prop literally named `ref` specially even on a plain function component, which would
    *  silently strip it/warn instead of passing it through as a normal value. */
   targetRef: TrailRef | null
-  openMenu?: (data: { ref: TrailRef; x: number; y: number }) => void
+  openMenu?: (data: { ref: TrailRef; tangentToggle?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
   onHoverKey?: (key: string | null) => void
   dimmed?: boolean
+  /** The connection both bullets in a pair are two ends of — needed for the note bubble/note
+   *  button and the tangent-toggle context-menu item, all three of which act on the connection
+   *  itself, not on either bullet individually. */
+  conn?: TrailConnection
+  onOpenPrompt?: (c: TrailConnection) => void
 }) {
   const hoverDisabled = useContext(HoverDisabledContext)
   return (
     <div onMouseEnter={() => onHoverKey?.(pointKey)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: dimmed ? 0.25 : 1, transition: 'opacity 120ms' }}>
-    <TrailHoverCard disabled={hoverDisabled} content={hoverContent}>
+    <TrailHoverCard
+      disabled={hoverDisabled}
+      content={hoverContent}
+      secondaryContent={conn && (conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+    >
       {/* Click/cursor moved to the WHOLE row (dot + label), not just the label text — per direct
           feedback ("turn the cursor into the pointing when over the tangents too"), hovering the
           dot itself is a perfectly reasonable place to click a bullet, matching how the main
           spine's own node dot is clickable too. */}
       <div
         onClick={targetRef ? (e) => trailRefClick(targetRef, e) : undefined}
-        onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e) : undefined}
+        onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e, undefined, undefined, undefined, conn ? {
+          active: conn.isBranch,
+          onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
+        } : undefined) : undefined}
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent, cursor: targetRef ? 'pointer' : undefined }}
         onMouseEnter={(e) => { if (targetRef) (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'underline') }}
         onMouseLeave={(e) => { (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'none') }}
@@ -328,7 +353,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms' }}>
     <TrailHoverCard
       disabled={hoverDisabled}
-      content={<TrailConnectionHoverContent conn={conn} />}
+      content={<TrailConnectionHoverContent conn={conn} onEditNote={() => onOpenPrompt(conn)} />}
       secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
@@ -344,7 +369,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         />
         <span
           onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
-          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e) : undefined}
+          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, undefined, undefined, {
+            active: conn.isBranch,
+            onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
+          }) : undefined}
           style={{
             fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
             cursor: ref ? 'pointer' : undefined, display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -696,20 +724,24 @@ function NodeBlock({
         <div style={{ marginBottom: 2 }}>
           <TangentBullet
             label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint}
-            hoverContent={originVerseRef?.kind === 'chapter' ? <TrailVersePreview bookId={originVerseRef.bookId} chapter={originVerseRef.chapter} verse={originVerseRef.verse!} /> : null}
+            hoverContent={originVerseRef?.kind === 'chapter'
+              ? <TrailVersePreview bookId={originVerseRef.bookId} chapter={originVerseRef.chapter} verse={originVerseRef.verse!} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />
+              : null}
             targetRef={originVerseRef ?? null} openMenu={openMenu} onHoverKey={onHoverKey}
             dimmed={!!hoverChain && !hoverChain.has(`tangent-origin:${node.id}`)}
+            conn={originConn} onOpenPrompt={onOpenPrompt}
           />
           <TangentBullet
             label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
             indent={tangentIndent}
             pointKey={`tangent-dest:${node.id}`}
             registerPoint={registerPoint}
-            hoverContent={originConn ? <TrailConnectionHoverContent conn={originConn} /> : null}
+            hoverContent={originConn ? <TrailConnectionHoverContent conn={originConn} onEditNote={() => onOpenPrompt(originConn)} /> : null}
             targetRef={originConn ? refFor(originConn) : null}
             openMenu={openMenu}
             onHoverKey={onHoverKey}
             dimmed={!!hoverChain && !hoverChain.has(`tangent-dest:${node.id}`)}
+            conn={originConn} onOpenPrompt={onOpenPrompt}
           />
         </div>
       )}
@@ -759,13 +791,21 @@ function NodeBlock({
             clean (bare chapter/verse/Strong's-number labels only) so the connection lines
             themselves read more clearly; the full "via ..." fact is still one hover away, see
             TrailNodeHoverContent below. */}
-        <TrailHoverCard disabled={hoverDisabled} content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
+        <TrailHoverCard
+          disabled={hoverDisabled}
+          content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+          secondaryContent={originConn && (originConn.userNote || originConn.tiesFrom.length > 0 || originConn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={originConn} /> : undefined}
+        >
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
             onContextMenu={(e) => openTrailRefMenu(
               openMenu, nodeRef, e, onJumpToOrigin,
               onDeleteNode ? () => onDeleteNode(node.id) : undefined,
               onToggleTopicBreak ? { active: node.isTopicBreak, onToggle: () => onToggleTopicBreak(node.id, node.isTopicBreak) } : undefined,
+              originConn ? {
+                active: originConn.isBranch,
+                onToggle: () => window.studyTrail.updateConnectionReason(originConn.id, { isBranch: !originConn.isBranch }),
+              } : undefined,
             )}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
@@ -1456,12 +1496,6 @@ export default function MapView({
         {promptConn && (
           <ReasonPromptPopover
             connection={promptConn}
-            // Best-effort match on book/chapter — a connection doesn't store the destination
-            // node's id directly, only where it points. Ambiguous only in the rare case of two
-            // nodes for the same chapter (a revisit); the checkbox is a minor per-arrival detail
-            // anyway, not worth a schema change to disambiguate perfectly.
-            nodeId={detail.nodes.find((n) => n.bookId === promptConn.toBookId && n.chapter === promptConn.toChapter)?.id}
-            nodeIsTopicBreak={detail.nodes.find((n) => n.bookId === promptConn.toBookId && n.chapter === promptConn.toChapter)?.isTopicBreak}
             onClose={() => setPromptConn(null)}
             onSaved={() => { setPromptConn(null); onChanged() }}
           />

@@ -20,7 +20,6 @@ import ReasonPromptPopover from './ReasonPromptPopover'
 // thing that pops up in the topbar."
 export default function StudyTrailArrivalPrompt() {
   const conn = useStudyTrailStore((s) => s.pendingArrivalPrompt)
-  const nodeId = useStudyTrailStore((s) => s.pendingArrivalNodeId)
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
   if (!conn) return null
@@ -32,7 +31,6 @@ export default function StudyTrailArrivalPrompt() {
       <ReasonPromptPopover
         connection={conn}
         title={title}
-        nodeId={nodeId ?? undefined}
         onClose={clear}
         onSaved={clear}
       />

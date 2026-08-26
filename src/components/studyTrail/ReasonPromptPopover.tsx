@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { GripHorizontal, X, Trash2, Plus, ChevronRight } from 'lucide-react'
+import { X, Trash2, Plus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
+import TrailPopoverShell from './TrailPopoverShell'
 import type { TrailConnection } from '@/types/studyTrail'
 
 // The unified reason/note popover — ONE place a note lives for ANY connection, any clarity
-// tier, not a separate system per trigger. Its three hosts:
-//  - The Study Trail window's Map — a small pencil icon on every ConnRow (always present, not
-//    gated to tier-3) opens this pre-filled with whatever's already stored.
+// tier, not a separate system per trigger. Its hosts:
+//  - The Study Trail window's Map — the pencil icon on every ConnRow/TangentBullet/node hover
+//    card opens this pre-filled with whatever's already stored.
 //  - The opt-in arrival prompt (pendingArrivalPrompt in studyTrailSlice.ts), mounted in the main
 //    Bible reader via StudyTrailArrivalPrompt.tsx, for a tier-2/3 chapter jump.
 //  - (Both share the same component/fields — the arrival prompt is just one way to fill this
@@ -18,30 +19,22 @@ import type { TrailConnection } from '@/types/studyTrail'
 // AiLookupPanel.tsx) — deliberately NO click-outside-to-close, since the whole point is that
 // jumping between chapters to check your answer must never dismiss it.
 //
+// Refreshed per direct feedback ("refresh the 'why did you jump here' menu to be more
+// simplified... this popup should look a lot nicer"): a single note textbox, then two columns
+// (From / To) of free-typed verse ties — no quick tags, no Tangent/New-topic checkboxes (both
+// moved to the right-click menu, see TrailRefContextMenu.tsx's tangentToggle/topicBreak) and no
+// collapsed "More" section, since the ties are now the ONLY thing left to show. Shares
+// TrailPopoverShell with the arrival prompt so the two read as one family.
+//
 // The auto-detected fact (reasonText, e.g. "Strong's word · G26") and the user's OWN note
-// (userNote) are fully separate fields (v35) — per direct feedback: "the note that the user
-// puts for the connection shouldnt be on the part where it has 'strongs occurrence' or
-// whatever else... it should be a separate note that has nothing on it until the user puts
-// it." reasonText renders READ-ONLY as context; userNote is a blank-until-typed textarea,
-// preferably beside it (side by side when there's room, wrapping below otherwise).
+// (userNote) stay fully separate fields (v35): reasonText renders READ-ONLY as context; userNote
+// is a blank-until-typed textarea.
 //
-// Verse ties are free-typed references ("Mark 13:1-5") parsed via the existing parseRef(),
-// split into two labeled sections (the chapter left / the chapter landed on) rather than one
-// combined list.
-//
-// Copying a note is NOT done from here anymore — moved to a hover bubble in MapView.tsx (see
-// TrailNoteHoverBubble) so copying doesn't require opening the editor at all.
+// Copying a note is NOT done from here — that's a hover bubble in MapView.tsx (see
+// TrailNoteBubbleContent) so copying doesn't require opening the editor at all.
 
-// "Tangent only" was dropped from here — it duplicated the dedicated tangent checkbox above
-// once that existed, which is exactly the kind of unclear-tag overlap Michael flagged ("the
-// tags are not very clear"). The two that remain are given a short description alongside the
-// label rather than relying on the bare word alone to explain what selecting it does.
-const QUICK_TAGS: { label: string; hint: string }[] = [
-  { label: 'Key insight', hint: 'worth remembering' },
-  { label: 'Cross-reference', hint: 'ties two passages together' },
-]
 const MARGIN = 12
-const WIDTH = 440
+const WIDTH = 420
 
 function clampPos(pos: { x: number; y: number }, height: number) {
   const maxX = Math.max(MARGIN, window.innerWidth - WIDTH - MARGIN)
@@ -50,7 +43,7 @@ function clampPos(pos: { x: number; y: number }, height: number) {
 }
 // Default dock: top-right, per direct feedback ("on the top right of the window").
 function defaultPos() {
-  return clampPos({ x: window.innerWidth - WIDTH - MARGIN, y: 48 }, 400)
+  return clampPos({ x: window.innerWidth - WIDTH - MARGIN, y: 48 }, 320)
 }
 
 /** A typed tie, resolved against parseRef on every render — cheap, pure, no need to persist the
@@ -65,8 +58,8 @@ function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: st
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="e.g. Mark 13:1-5"
-          style={{ flex: 1, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '5px 7px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
+          placeholder="e.g. Mark 13:1"
+          style={{ flex: 1, minWidth: 0, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '5px 7px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
         />
         <button
           onClick={onRemove}
@@ -76,15 +69,17 @@ function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: st
       </div>
       {value.trim() && (
         <div style={{ fontSize: 9.5, marginTop: 2, paddingLeft: 2, color: resolved ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))' }}>
-          {resolved ? `→ ${resolved}` : 'not recognized yet — still saved as typed'}
+          {resolved ? `→ ${resolved}` : 'not recognized yet'}
         </div>
       )}
     </div>
   )
 }
 
-/** One "+add another" tie-list section, used twice below (from-chapter / to-chapter). */
-function TieSection({ label, values, onChange }: { label: string; values: string[]; onChange: (next: string[]) => void }) {
+/** One "+add another" tie-list column — used twice below (from-chapter / to-chapter), side by
+ *  side. Short labels ("From"/"To") per direct feedback ("the labels for those should be
+ *  shorter/simpler"), replacing the old full-sentence "Ties to the chapter you left/landed on". */
+function TieColumn({ label, values, onChange }: { label: string; values: string[]; onChange: (next: string[]) => void }) {
   function update(i: number, v: string) {
     const next = [...values]
     next[i] = v
@@ -95,7 +90,7 @@ function TieSection({ label, values, onChange }: { label: string; values: string
     onChange(values.filter((_, idx) => idx !== i))
   }
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
         {label}
       </div>
@@ -103,32 +98,22 @@ function TieSection({ label, values, onChange }: { label: string; values: string
       <button
         onClick={() => onChange([...values, ''])}
         style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' }}
-      ><Plus size={11} /> add another</button>
+      ><Plus size={11} /> add</button>
     </div>
   )
 }
 
 export default function ReasonPromptPopover({
-  connection, onClose, onSaved, title, nodeId, nodeIsTopicBreak,
+  connection, onClose, onSaved, title,
 }: {
   connection: TrailConnection
   onClose: () => void
   onSaved: () => void
   title?: string
-  /** The node this connection LANDED on — only known for the live arrival-prompt path (the
-   *  recorder just created it) or when the caller looks it up. Needed for the "new topic"
-   *  checkbox, which is a node-level flag, not a connection-level one. Omitted entirely (the
-   *  checkbox hides) when the caller has no node to attach it to. */
-  nodeId?: string
-  nodeIsTopicBreak?: boolean
 }) {
   const [note, setNote] = useState(connection.userNote ?? '')
-  const [tags, setTags] = useState<string[]>(connection.reasonTags ?? [])
-  const [isBranch, setIsBranch] = useState(connection.isBranch)
-  const [isTopicBreak, setIsTopicBreak] = useState(!!nodeIsTopicBreak)
-  const [detailOpen, setDetailOpen] = useState(false)
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
-  // already recorded is invisible in the new UI, then always end with one blank row per section.
+  // already recorded is invisible in the new UI, then always end with one blank row per column.
   const legacyFrom = connection.originVersePinFrom != null
     ? [`v.${connection.originVersePinFrom}${connection.originVersePinTo && connection.originVersePinTo !== connection.originVersePinFrom ? `-${connection.originVersePinTo}` : ''}`]
     : []
@@ -141,7 +126,7 @@ export default function ReasonPromptPopover({
 
   const storedPos = useAppStore((s) => s.reasonPromptPopoverPos)
   const setStoredPos = useAppStore((s) => s.setReasonPromptPopoverPos)
-  const [pos, setPosLocal] = useState(() => (storedPos ? clampPos(storedPos, 400) : defaultPos()))
+  const [pos, setPosLocal] = useState(() => (storedPos ? clampPos(storedPos, 320) : defaultPos()))
   function setPos(next: { x: number; y: number } | ((p: { x: number; y: number }) => { x: number; y: number })) {
     setPosLocal((p) => {
       const resolved = typeof next === 'function' ? next(p) : next
@@ -153,7 +138,7 @@ export default function ReasonPromptPopover({
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function onResize() { setPos((p) => clampPos(p, cardRef.current?.offsetHeight ?? 400)) }
+    function onResize() { setPos((p) => clampPos(p, cardRef.current?.offsetHeight ?? 320)) }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -165,25 +150,18 @@ export default function ReasonPromptPopover({
   function onDragMove(e: React.PointerEvent) {
     if (!dragRef.current) return
     const dx = e.clientX - dragRef.current.startX, dy = e.clientY - dragRef.current.startY
-    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, cardRef.current?.offsetHeight ?? 400))
+    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, cardRef.current?.offsetHeight ?? 320))
   }
   function onDragEnd() { dragRef.current = null }
-
-  function toggleTag(t: string) {
-    setTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])
-  }
 
   async function save() {
     setSaving(true)
     try {
       await window.studyTrail.updateConnectionReason(connection.id, {
-        reasonTags: tags,
         userNote: note.trim() || undefined,
         tiesFrom: tiesFrom.map((t) => t.trim()).filter(Boolean),
         tiesTo: tiesTo.map((t) => t.trim()).filter(Boolean),
-        isBranch,
       })
-      if (nodeId) await window.studyTrail.setNodeTopicBreak(nodeId, isTopicBreak)
       onSaved()
     } finally {
       setSaving(false)
@@ -208,37 +186,13 @@ export default function ReasonPromptPopover({
   }
 
   return createPortal(
-    <div
-      ref={cardRef}
-      className="no-drag"
-      style={{
-        position: 'fixed', left: pos.x, top: pos.y, width: WIDTH, zIndex: 100,
-        background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-        borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.4)', overflow: 'hidden',
-      }}
-    >
-      <div
-        onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd}
-        className="no-drag"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-          padding: '8px 10px', borderBottom: '1px solid rgb(var(--color-surface-4))',
-          cursor: 'grab', userSelect: 'none',
-        }}
+    <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 100 }}>
+      <TrailPopoverShell
+        title={title ?? 'Why did you jump here?'}
+        onClose={onClose}
+        width={WIDTH}
+        dragHandleProps={{ onPointerDown: onDragStart, onPointerMove: onDragMove, onPointerUp: onDragEnd }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'rgb(var(--color-text-primary))' }}>
-          <GripHorizontal size={12} color="rgb(var(--color-text-muted))" />
-          {title ?? 'Why did you jump here?'}
-        </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}>
-          <X size={14} />
-        </button>
-      </div>
-
-      <div style={{ padding: 12 }}>
-        {/* Kept deliberately sparse — per direct feedback ("too busy... not so much text"), the
-            header already says what this is; the two checkboxes and the note box are
-            self-explanatory without a paragraph of instructions above them. */}
         {connection.reasonText && (
           <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
             auto-detected: {connection.reasonText}
@@ -247,68 +201,17 @@ export default function ReasonPromptPopover({
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Why did you jump here? (optional)"
+          placeholder="Add a note (optional)"
           rows={2}
-          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 10 }}
+          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }}
         />
 
-        {/* Tangent depth (chainDepth) and when a tangent ends are both fully automatic now —
-            computed from which verse each cross-ref/lexicon/AI-lookup click actually landed on
-            and left from (see tangentParentFor in studyTrailSlice.ts), not from any manual
-            flag. This checkbox still does something real (it's conn.isBranch itself, read
-            directly by the Study Trail's rendering), but there is deliberately no "back to
-            main" action here anymore — a stale manual mechanism from before that automatic
-            model existed, which had stopped affecting the rendered trail at all. */}
-        {isBranch && connection.chainDepth > 0 && (
-          <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
-            Already {connection.chainDepth} level{connection.chainDepth === 1 ? '' : 's'} deep in this tangent
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
-            <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
-            Tangent
-          </label>
-          {nodeId && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
-              <input type="checkbox" checked={isTopicBreak} onChange={(e) => setIsTopicBreak(e.target.checked)} />
-              New topic
-            </label>
-          )}
+        <div style={{ display: 'flex', gap: 14, marginBottom: 4 }}>
+          <TieColumn label="From" values={tiesFrom} onChange={setTiesFrom} />
+          <TieColumn label="To" values={tiesTo} onChange={setTiesTo} />
         </div>
 
-        <button
-          onClick={() => setDetailOpen((v) => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 0 8px', marginLeft: -2 }}
-        >
-          <ChevronRight size={11} style={{ transform: detailOpen ? 'rotate(90deg)' : 'none', transition: 'transform 100ms' }} />
-          More
-        </button>
-
-        {detailOpen && (
-          <>
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
-              {QUICK_TAGS.map(({ label, hint }) => (
-                <button
-                  key={label}
-                  onClick={() => toggleTag(label)}
-                  title={hint}
-                  style={{
-                    fontSize: 10.5, padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
-                    border: `1px solid ${tags.includes(label) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-surface-4))'}`,
-                    background: tags.includes(label) ? 'rgb(var(--color-accent) / 0.14)' : 'transparent',
-                    color: tags.includes(label) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))',
-                  }}
-                >{label}</button>
-              ))}
-            </div>
-
-            <TieSection label="Ties to the chapter you left" values={tiesFrom} onChange={setTiesFrom} />
-            <TieSection label="Ties to the chapter you landed on" values={tiesTo} onChange={setTiesTo} />
-          </>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
           <button
             onClick={deleteNote} title="Delete your note"
             style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
@@ -325,7 +228,7 @@ export default function ReasonPromptPopover({
             >Save</button>
           </div>
         </div>
-      </div>
+      </TrailPopoverShell>
     </div>,
     document.body
   )
