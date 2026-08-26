@@ -510,6 +510,16 @@ function createStudyTrailWindow(trailSessionId?: string): void {
     studyTrailWindow.loadFile(join(__dirname, '../renderer/index.html'), { query })
   }
 
+  // Auto-open in dev, same as mainWindow already does — this window's own alwaysOnTop +
+  // visibleOnAllWorkspaces make it easy to lose track of which window actually has OS focus,
+  // and there's no custom right-click "Inspect Element" wired up in this app at all (Electron
+  // doesn't add one by default), so manually reaching this window's own DevTools required going
+  // through the app's top menu bar (View → Toggle Developer Tools) with it focused — a real,
+  // reported point of friction ("i cant get the logs for the study trail...").
+  if (is.dev) {
+    studyTrailWindow.webContents.openDevTools({ mode: 'detach' })
+  }
+
   studyTrailWindow.on('closed', () => { studyTrailWindow = null })
 }
 
