@@ -4,7 +4,7 @@ import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
-import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
+import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
@@ -207,25 +207,43 @@ const TANGENT_EXTRA_GAP = 10
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
 const MAIN_SPINE_GAP = 44
 
-function TangentBullet({ label, indent, pointKey, registerPoint, conn }: {
+function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed }: {
   label: string; indent: number; pointKey: string
   registerPoint: (key: string) => (el: HTMLElement | null) => void
-  /** The connection this bullet is one end of — both the origin and destination bullet for a
-   *  given tangent share the same connection, so the hover card is identical either way. */
-  conn?: TrailConnection
+  /** What this SPECIFIC bullet's own hover card should show — the origin bullet and the
+   *  destination bullet describe two different verses, so each gets its own content rather
+   *  than sharing one (previously both showed the connection's destination, even when hovering
+   *  the origin bullet — see TrailVersePreview's own comment). */
+  hoverContent: React.ReactNode
+  /** The verse THIS bullet represents — clicking/right-clicking navigates there, same as any
+   *  other clickable reference in the trail. Named targetRef, not `ref` — React (18) treats a
+   *  prop literally named `ref` specially even on a plain function component, which would
+   *  silently strip it/warn instead of passing it through as a normal value. */
+  targetRef: TrailRef | null
+  openMenu?: (data: { ref: TrailRef; x: number; y: number }) => void
+  onHoverKey?: (key: string | null) => void
+  dimmed?: boolean
 }) {
   const hoverDisabled = useContext(HoverDisabledContext)
   return (
-    <TrailHoverCard disabled={hoverDisabled || !conn} content={conn ? <TrailConnectionHoverContent conn={conn} /> : null}>
+    <div onMouseEnter={() => onHoverKey?.(pointKey)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: dimmed ? 0.25 : 1, transition: 'opacity 120ms' }}>
+    <TrailHoverCard disabled={hoverDisabled} content={hoverContent}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent }}>
         <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
-        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
+        <span
+          onClick={targetRef ? (e) => trailRefClick(targetRef, e) : undefined}
+          onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e) : undefined}
+          style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', cursor: targetRef ? 'pointer' : undefined }}
+          onMouseEnter={(e) => { if (targetRef) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
+        >{label}</span>
       </div>
     </TrailHoverCard>
+    </div>
   )
 }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey, originBookId, originChapter }: {
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey, originBookId, originChapter, hoverChain }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
@@ -243,6 +261,9 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
    *  23:3'." */
   originBookId?: string
   originChapter?: number
+  /** See NodeBlock's own hoverChain prop — same full hover-trace point-key set, threaded down
+   *  so a same-chapter tangent row dims/pronounces exactly like everything else. */
+  hoverChain?: Set<string> | null
 }) {
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
@@ -298,8 +319,9 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   const hasNested = childItems.length > 0
 
   const hoverDisabled = useContext(HoverDisabledContext)
+  const hoverDimmed = !!hoverChain && !hoverChain.has(`row:${conn.id}`)
   return (
-    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
+    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms' }}>
     <TrailHoverCard
       disabled={hoverDisabled}
       content={<TrailConnectionHoverContent conn={conn} />}
@@ -381,7 +403,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       // naturally nests one level deeper than this row — per the confirmed model, a real
       // call-stack shape, not a flat sibling list under the chain's root.
       childItems.map((it) => it.type === 'single'
-        ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} originBookId={originBookId} originChapter={originChapter} />
+        ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} originBookId={originBookId} originChapter={originChapter} hoverChain={hoverChain} />
         : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)
     )}
     </div>
@@ -534,7 +556,7 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
-  isBranchNode, branchDepth, originVerseLabel,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -564,6 +586,16 @@ function NodeBlock({
   branchDepth?: number
   /** "Deuteronomy 32:1" — the specific verse this branch departed FROM, when known. */
   originVerseLabel?: string
+  /** The same verse as originVerseLabel, structured as a clickable TrailRef — lets the origin
+   *  tangent bullet navigate/right-click like any other reference (per direct feedback: "make
+   *  sure to show the tangents as clickable to go to the verse"). */
+  originVerseRef?: TrailRef | null
+  /** The full hover-trace chain of point keys (node:/row:/tangent-origin:/tangent-dest:) built
+   *  by MapView when something is hovered — null when nothing is hovered. Everything NOT in
+   *  this set dims out; per direct feedback ("pronounce the arrows that led to that point and
+   *  dim everything else out — other lines and labels and bullets"), that includes this node's
+   *  own bullet/label whenever it isn't part of whatever's being traced. */
+  hoverChain?: Set<string> | null
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -597,13 +629,14 @@ function NodeBlock({
   // the spine's own left edge, whether it was reached plainly or via a tangent.
   const indent = 0
   const tangentIndent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
+  const hoverDimmed = !!hoverChain && !hoverChain.has(`node:${node.id}`)
   return (
     <div
       ref={blockRef}
       onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
       onMouseLeave={() => onHoverKey?.(null)}
       style={{
-        opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
+        opacity: dimmed || hoverDimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
         boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
         marginLeft: indent,
       }}
@@ -638,13 +671,22 @@ function NodeBlock({
           spine point; these two rows are the actual tangent hop that led to it. */}
       {isBranchNode && originVerseLabel && (
         <div style={{ marginBottom: 2 }}>
-          <TangentBullet label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint} conn={originConn} />
+          <TangentBullet
+            label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint}
+            hoverContent={originVerseRef?.kind === 'chapter' ? <TrailVersePreview bookId={originVerseRef.bookId} chapter={originVerseRef.chapter} verse={originVerseRef.verse!} /> : null}
+            targetRef={originVerseRef ?? null} openMenu={openMenu} onHoverKey={onHoverKey}
+            dimmed={!!hoverChain && !hoverChain.has(`tangent-origin:${node.id}`)}
+          />
           <TangentBullet
             label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
             indent={tangentIndent}
             pointKey={`tangent-dest:${node.id}`}
             registerPoint={registerPoint}
-            conn={originConn}
+            hoverContent={originConn ? <TrailConnectionHoverContent conn={originConn} /> : null}
+            targetRef={originConn ? refFor(originConn) : null}
+            openMenu={openMenu}
+            onHoverKey={onHoverKey}
+            dimmed={!!hoverChain && !hoverChain.has(`tangent-dest:${node.id}`)}
           />
         </div>
       )}
@@ -726,7 +768,7 @@ function NodeBlock({
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {items.map((it) => it.type === 'single'
-            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} />
+            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} hoverChain={hoverChain} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
@@ -1167,10 +1209,42 @@ export default function MapView({
   const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING : 0
 
-  // Hover-to-isolate — dim every edge that doesn't touch the hovered node/row, no topology
-  // change required. hoveredKey/onHoverKey are reported by NodeBlock and ConnRow below.
-  const touchesHover = (e: TrailEdge) => !hoveredKey || e.from === hoveredKey || e.to === hoveredKey
-  const finalEdges = hoveredKey ? edges.map((e) => touchesHover(e) ? e : { ...e, opacity: (e.opacity ?? 1) * 0.15 }) : edges
+  // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
+  // and dim everything else out"), this walks the FULL causal chain backward from whatever's
+  // hovered (not just the edges directly touching it): starting at the hovered point, repeatedly
+  // follow "whichever edge(s) end here" back to their own `from` point, and keep going from
+  // there, until the walk runs out of predecessors (the session's very first node). Every edge
+  // and every point visited along the way gets pronounced (full opacity, thicker stroke);
+  // everything else — other lines, AND (via hoverChainPointKeys passed down to
+  // NodeBlock/ConnRow/TangentBullet below) their labels and bullets — dims out.
+  const edgesByTo = new Map<string, TrailEdge[]>()
+  for (const e of edges) {
+    const bucket = edgesByTo.get(e.to) ?? []
+    bucket.push(e)
+    edgesByTo.set(e.to, bucket)
+  }
+  const hoverChainEdgeKeys = new Set<string>()
+  const hoverChainPointKeys = new Set<string>()
+  if (hoveredKey) {
+    hoverChainPointKeys.add(hoveredKey)
+    const stack = [hoveredKey]
+    while (stack.length) {
+      const cur = stack.pop()!
+      for (const e of edgesByTo.get(cur) ?? []) {
+        if (hoverChainEdgeKeys.has(e.key)) continue
+        hoverChainEdgeKeys.add(e.key)
+        if (!hoverChainPointKeys.has(e.from)) {
+          hoverChainPointKeys.add(e.from)
+          stack.push(e.from)
+        }
+      }
+    }
+  }
+  const finalEdges = hoveredKey
+    ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
+        ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
+        : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
+    : edges
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -1264,6 +1338,13 @@ export default function MapView({
           const originVerseLabel = originConn?.originVersePinFrom != null && originNode
             ? bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)
             : undefined
+          // The origin bullet's own verse (book/chapter/verse it was clicked FROM) — used for
+          // its click-to-navigate ref and its own hover preview, distinct from the destination
+          // bullet's (which is just refFor(originConn)/TrailConnectionHoverContent, already
+          // available where TangentBullet is rendered).
+          const originVerseRef: TrailRef | null = originConn?.originVersePinFrom != null && originNode
+            ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
+            : null
           return (
             <div key={n.id}>
             <NodeBlock
@@ -1291,6 +1372,8 @@ export default function MapView({
               isBranchNode={isBranchNode}
               branchDepth={originConn?.chainDepth}
               originVerseLabel={originVerseLabel}
+              originVerseRef={originVerseRef}
+              hoverChain={hoveredKey ? hoverChainPointKeys : null}
             />
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
             </div>

@@ -94,6 +94,35 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
   )
 }
 
+// The ORIGIN half of a tangent bullet pair (see MapView.tsx's TangentBullet) — the verse a
+// cross-ref/lexicon/AI-lookup click was made FROM, not its destination. Fixes a real bug: both
+// bullets used to share the same TrailConnectionHoverContent (which only ever describes the
+// connection's own destination), so hovering the origin bullet showed the SAME preview as the
+// destination bullet right below it. This fetches and previews the origin verse itself instead.
+export function TrailVersePreview({ bookId, chapter, verse }: { bookId: string; chapter: number; verse: number }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  const replace = useWordReplace()
+  useEffect(() => {
+    let cancelled = false
+    window.bible.queryVerse(bookId, chapter, verse, getTranslationForBook(bookId) ?? undefined)
+      .then((v) => { if (!cancelled) setPreview(v?.text ?? null) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [bookId, chapter, verse])
+  return (
+    <div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{bookName(bookId)} {chapter}:{verse}</div>
+      {preview && (
+        <>
+          <div style={dividerStyle} />
+          <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            “{replace(preview)}”
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection }) {
   const [preview, setPreview] = useState<string | null>(null)
   const replace = useWordReplace()
@@ -136,11 +165,14 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
           </div>
         </>
       )}
-      {(conn.reasonText || conn.reasonTags.length > 0) && (
+      {/* The raw reasonTags list ("tags: cross-ref, notes") was removed per direct feedback —
+          it's internal bookkeeping (what KIND of thing this connection is, already implied by
+          the label/icon above it), not something worth restating as visible text. The actual
+          user-authored reasonText (a real note about WHY) still shows. */}
+      {conn.reasonText && (
         <>
           <div style={dividerStyle} />
-          {conn.reasonText && <div style={rowStyle}>{replace(conn.reasonText)}</div>}
-          {conn.reasonTags.length > 0 && <div style={{ ...rowStyle, color: 'rgb(var(--color-text-muted))' }}>tags: {conn.reasonTags.join(', ')}</div>}
+          <div style={rowStyle}>{replace(conn.reasonText)}</div>
         </>
       )}
     </div>
