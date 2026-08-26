@@ -183,11 +183,13 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
 }
 
 // A lightweight tangent bullet — used for the origin/destination pair shown above a
-// cross-chapter branch's own spine-point node (see NodeBlock). Deliberately plain/read-only (no
-// hover card, no click-to-navigate, no context menu) — these two rows exist purely to name the
-// specific verses a tangent connects; the full connection detail is on the node/ConnRow they sit
-// beside. Visually matches ConnRow's own dot+text so a tangent bullet looks the same whether it
-// came from a same-chapter or cross-chapter hop, per direct feedback unifying the two.
+// cross-chapter branch's own spine-point node (see NodeBlock). Now carries the same hover card
+// as an ordinary ConnRow (per direct feedback: "put the hover thing for tangents too") — still
+// no click-to-navigate/context menu, since both bullets describe the SAME connection between
+// them and the full detail (note, tie-ins, edit) already lives on the node/ConnRow they sit
+// beside; this is just the same at-a-glance preview. Visually matches ConnRow's own dot+text so
+// a tangent bullet looks the same whether it came from a same-chapter or cross-chapter hop, per
+// direct feedback unifying the two.
 // The baseline source of spacing for every tangent-adjacent step (node→first bullet, bullet→
 // bullet, last bullet→arrival node) — 14px top + 14px bottom gives 28px between two stacked
 // bullets. Raised from 8 per direct feedback ("make all the tangent related gaps bigger").
@@ -205,12 +207,21 @@ const TANGENT_EXTRA_GAP = 10
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
 const MAIN_SPINE_GAP = 44
 
-function TangentBullet({ label, indent, pointKey, registerPoint }: { label: string; indent: number; pointKey: string; registerPoint: (key: string) => (el: HTMLElement | null) => void }) {
+function TangentBullet({ label, indent, pointKey, registerPoint, conn }: {
+  label: string; indent: number; pointKey: string
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
+  /** The connection this bullet is one end of — both the origin and destination bullet for a
+   *  given tangent share the same connection, so the hover card is identical either way. */
+  conn?: TrailConnection
+}) {
+  const hoverDisabled = useContext(HoverDisabledContext)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent }}>
-      <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
-      <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
-    </div>
+    <TrailHoverCard disabled={hoverDisabled || !conn} content={conn ? <TrailConnectionHoverContent conn={conn} /> : null}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent }}>
+        <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
+        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
+      </div>
+    </TrailHoverCard>
   )
 }
 
@@ -627,19 +638,19 @@ function NodeBlock({
           spine point; these two rows are the actual tangent hop that led to it. */}
       {isBranchNode && originVerseLabel && (
         <div style={{ marginBottom: 2 }}>
-          <TangentBullet label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint} />
+          <TangentBullet label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint} conn={originConn} />
           <TangentBullet
             label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
             indent={tangentIndent}
             pointKey={`tangent-dest:${node.id}`}
             registerPoint={registerPoint}
+            conn={originConn}
           />
         </div>
       )}
-      {/* gap: 6 (was 12) — per direct feedback ("move the main spine labels like '1 Isaiah 11'
-          closer to the bullet"), the label sits right next to its own bullet, not a full 12px
-          away. */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
+      {/* gap: 3 (was 12, then 6) — per direct feedback ("move the main spine labels ... closer
+          to the bullet more"), the label sits right next to its own bullet. */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
