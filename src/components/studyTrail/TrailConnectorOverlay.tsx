@@ -200,7 +200,19 @@ export default function TrailConnectorOverlay({
           // (pointing down out of the bullet, down into the target) while smoothly bowing
           // through the lane in between — genuinely one curve, no straight run.
           const gutter = coords.get('gutter:x')
-          const baseLaneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
+          // Anchored to the spacer's own RIGHT edge (gutter.x*2 — the registered point is the
+          // spacer's CENTER, and its left edge sits at containerRef's own x=0), not its center.
+          // Real bug found tracing through this by hand: MapView's gutterWidth got a large flat
+          // EXTRA_BOW_RESERVE added on top specifically so this file's own extraBow (below) had
+          // room to swing into — but anchoring from the spacer's CENTER meant that reservation
+          // only bought HALF as much usable room as intended, and extraBow now regularly
+          // exceeds it, driving laneX NEGATIVE — off the left edge of the scrollable area
+          // entirely (you can't scroll to negative x), which is exactly what "the arc for the
+          // revisit wasnt adjusted at all, it needs to be wider because it isnt hitting either
+          // of the bullets" looks like: a curve whose control points request space that doesn't
+          // exist. Clamped to a small positive floor as a last-resort safety net regardless.
+          const gutterRightEdge = gutter ? gutter.x * 2 : 0
+          const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const dir = Math.sign(rawB.y - rawA.y || 1)
           const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * 30 }, false, startGap)
           const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * 30 }, rawB, false, endGap)
@@ -223,7 +235,10 @@ export default function TrailConnectorOverlay({
           // slightly... reach the full distance") — paired with MapView's own gutterWidth
           // reservation (EXTRA_BOW_RESERVE), which still comfortably covers this.
           const extraBow = 65 + Math.max(0, vertRun - 60) * 0.45
-          const laneX = baseLaneX - extraBow
+          // Clamped to a small positive floor — a last-resort safety net so a future formula
+          // tweak on either side of this (extraBow here, or gutterWidth in MapView) can never
+          // reintroduce the negative-laneX bug above even if they drift out of sync again.
+          const laneX = Math.max(10, baseLaneX - extraBow)
           // A "stadium" shape, not a gentle lean: control points sit at the lane (same X) close
           // to their own endpoint's Y — a cubic bezier built this way exits each endpoint
           // moving mostly SIDEWAYS right away (committing to the lane almost immediately)
