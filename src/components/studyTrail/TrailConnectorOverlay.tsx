@@ -103,6 +103,15 @@ export default function TrailConnectorOverlay({
   zoom?: number
 }) {
   const [coords, setCoords] = useState<Map<string, TrailPoint>>(new Map())
+  // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
+  // render forever for any edge whose endpoint is legitimately not currently mounted (most
+  // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
+  // which only renders its first/last node — see NodeClusterGroup in MapView.tsx). That's
+  // expected, not a bug, but logging it every render made the console useless for spotting a
+  // REAL missing-endpoint case. Keyed by edge key + which side was missing, so a genuine fix
+  // (endpoint starts resolving) or a genuine regression (a previously-fine edge goes missing)
+  // both still surface — only the identical-every-render spam is suppressed.
+  const warnedRef = useRef<Set<string>>(new Set())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -178,7 +187,13 @@ export default function TrailConnectorOverlay({
           // same __bereanTrailDebug flag as Study Trail's other diagnostic logging — set
           // `window.__bereanTrailDebug = true` in devtools (persists across restarts; see
           // main.tsx's definePersistentDebugFlag) to turn it on.
-          if (window.__bereanTrailDebug) console.warn('[TrailDebug] edge endpoint missing — not drawn', { key: e.key, from: e.from, to: e.to, hasFrom: !!rawA, hasTo: !!rawB })
+          if (window.__bereanTrailDebug) {
+            const warnKey = `${e.key}:${!!rawA}:${!!rawB}`
+            if (!warnedRef.current.has(warnKey)) {
+              warnedRef.current.add(warnKey)
+              console.warn('[TrailDebug] edge endpoint missing — not drawn', { key: e.key, from: e.from, to: e.to, hasFrom: !!rawA, hasTo: !!rawB })
+            }
+          }
           return null
         }
         const startGap = radiusFor(e.from) + ENDPOINT_GAP
