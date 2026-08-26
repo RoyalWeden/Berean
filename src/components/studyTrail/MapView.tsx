@@ -631,7 +631,10 @@ function NodeBlock({
           />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
+      {/* gap: 6 (was 12) — per direct feedback ("move the main spine labels like '1 Isaiah 11'
+          closer to the bullet"), the label sits right next to its own bullet, not a full 12px
+          away. */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
@@ -1213,11 +1216,16 @@ export default function MapView({
           const isBranchNode = !!originConn?.isBranch
           const nextIsBranchNode = next ? !!originConnByNodeId.get(next.id)?.isBranch : false
           const rawGapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
-          // A branch's own bullets (either side of this gap) never get the real-elapsed-time
-          // gap treatment — per direct feedback ("a little gap is okay but it should be pretty
-          // tight still"), a branch stays tight/close to the bullet it came from regardless of
-          // how much real time passed; only MAIN-spine chapter-to-chapter gaps scale with time.
-          const gapToNextMs = (isBranchNode || nextIsBranchNode) ? null : rawGapToNextMs
+          // Only the UPCOMING node being a tangent arrival forces tight spacing — that's the
+          // node→bullet stack right before it, already fully handled by the dedicated
+          // TangentBullet/3-segment-edge mechanism, not by this GapConnector at all. Whether
+          // THIS node (`n`) itself was reached via a tangent is irrelevant to its own outgoing
+          // gap: once a tangent has reconverged and landed on n, leaving n for a plain next
+          // read is an ordinary main-spine hop and deserves the full main-spine gap. Per direct
+          // feedback ("the gap from Luke 4 to Isaiah 1 needs a lot larger gap because that is
+          // the main spine") — the old `isBranchNode ||` here was incorrectly keeping that
+          // outgoing gap tight just because n itself had arrived via a branch.
+          const gapToNextMs = nextIsBranchNode ? null : rawGapToNextMs
           const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
           const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
           const originVerseLabel = originConn?.originVersePinFrom != null && originNode
