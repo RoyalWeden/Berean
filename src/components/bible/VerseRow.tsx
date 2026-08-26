@@ -144,18 +144,20 @@ function splitWordByHighlights(
 // to the left ("t Peter and ") — the char offset drifted more with every prior word.
 function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement): number {
   let pos = 0
-  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT, {
-    acceptNode(n) {
-      const el = (n as Text).parentElement
-      return el?.closest('[data-strongs-chip], [aria-hidden]')
-        ? NodeFilter.FILTER_REJECT
-        : NodeFilter.FILTER_ACCEPT
-    },
-  })
+  // Walks EVERY text node (no FILTER_REJECT) — a rejecting walker never visits a Strong's-chip/
+  // aria-hidden text node at all, so if the browser's actual selection anchor/focus happens to
+  // land inside one (a double-click landing exactly on a chip glued to a word, or a drag ending
+  // right at that boundary), `curr === node` could never match and this returned -1, silently
+  // hiding the whole selection toolbar — "for some words that i select... it doesnt show the
+  // menu." Chip/hidden text still doesn't COUNT toward the offset (its `curr.length` isn't
+  // real verse text), but landing inside one now resolves to the nearest real boundary instead
+  // of failing outright.
+  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
   let curr: Text | null
   while ((curr = walker.nextNode() as Text) !== null) {
-    if (curr === node) return pos + offset
-    pos += curr.length
+    const isAnnotation = !!(curr.parentElement)?.closest('[data-strongs-chip], [aria-hidden]')
+    if (curr === node) return pos + (isAnnotation ? 0 : offset)
+    if (!isAnnotation) pos += curr.length
   }
   return -1
 }
