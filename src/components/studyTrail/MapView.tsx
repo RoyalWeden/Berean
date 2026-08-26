@@ -691,7 +691,19 @@ function NodeBlock({
         ref={blockRef}
         style={{
           flex: 1, minWidth: 0,
-          opacity: dimmed || hoverDimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
+          // hoverDimmed dropped from here — per direct feedback ("hovering over deut 32:29 is
+          // dimming deut 32:29 and the previous tangent item isaiah 1:3, that shouldn't be
+          // happening"): this wrapper is the ANCESTOR of both this node's own tangent-origin/
+          // tangent-dest bullets below (each already independently opacity-managed against the
+          // exact same hoverChain) AND its own plain spine-point row. Applying hoverDimmed HERE
+          // multiplied a 0.3 opacity onto the whole subtree regardless of what each child's own
+          // (correctly-computed) opacity said — dimming the tangent bullets even while hovering
+          // one of them, since `node:${node.id}` itself (as opposed to its own tangent-dest/
+          // origin) isn't always part of the pronounced chain for that hover. Only `dimmed`
+          // (the unrelated search-match dim, where dimming the WHOLE node together is actually
+          // correct) stays here; hover-driven dimming moves to the specific row it's about
+          // below, next to the other two already-independent bullets.
+          opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
           boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
           marginLeft: indent,
         }}
@@ -765,7 +777,10 @@ function NodeBlock({
       <div
         onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
         onMouseLeave={() => onHoverKey?.(null)}
-        style={{ display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}
+        style={{
+          display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP),
+          opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms',
+        }}
       >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
@@ -1341,16 +1356,23 @@ export default function MapView({
   // spans, which is exactly what a several-node-distant revisit looks like. Scale the reserve
   // by the longest laned edge's own node-index span (using the same 60px/60-node-distance
   // knee and 0.45 slope TrailConnectorOverlay uses, translated from pixels to an estimated
-  // ~50px-per-item row height) instead of a constant, with the old 170 as a floor so short
+  // ~90px-per-item row height) instead of a constant, with the old 170 as a floor so short
   // revisits are unaffected.
-  const ROW_HEIGHT_ESTIMATE = 50
+  // Estimate raised 50 -> 90 — per direct feedback that a follow-up arc tweak "didn't change"
+  // anything visible: a real NodeBlock (title + tangent bullets + connections + note preview)
+  // routinely renders taller than a bare 50px/item guess, so the ESTIMATED vertRun was coming in
+  // well under the REAL one TrailConnectorOverlay measures live off the DOM — underreserving,
+  // so the overlay's own laneX floor clamp was still kicking in for exactly the same multi-node
+  // revisits this formula was meant to cover, making the reservation bump invisible in practice.
+  const ROW_HEIGHT_ESTIMATE = 90
   const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
   const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
   // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (85) — keep these in sync if either one
   // is retuned, or the reservation and the actual curve drift apart again (see the negative-
-  // laneX bug this whole reservation formula exists to prevent).
+  // laneX bug this whole reservation formula exists to prevent). Safety margin also widened
+  // 40 -> 70 for the same underreservation reason above.
   const dynamicExtraBow = 85 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
-  const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 40)
+  const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 70)
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Deepest tangent depth actually present anywhere in this view — drives how many faint
