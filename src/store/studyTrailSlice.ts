@@ -38,6 +38,20 @@ interface StudyTrailState {
   // the most recent position, not the original.
   sessionNodeIndex: Record<string, string>
 
+  // Tangent depth/parent lookup — `${bookId}:${chapter}:${verse}` → the tangent connection whose
+  // OWN destination is that verse, plus its depth. Per the confirmed branch/tangent model: a new
+  // verse-specific branch click chains off whichever EXISTING tangent bullet already represents
+  // its origin verse (one level deeper than that bullet), or — if no tangent bullet represents
+  // that verse yet — hangs directly off the current main anchor as a fresh sibling. This
+  // replaces the old single "most recent branch" pointer (`currentBranchTipConnectionId` below),
+  // which always chained onto whatever happened most recently regardless of which verse a new
+  // click actually came from — the reported bug where two sibling tangents off the same verse
+  // (e.g. Isaiah 1:2 and Jeremiah 7:3, both clicked from Deuteronomy 32:1) incorrectly nested one
+  // under the other instead of sitting side by side. Cleared whenever a plain/non-tangent hop
+  // returns to depth 0 (a fresh tangent group starts clean); kept across tangent hops within the
+  // same excursion so later sibling/nested lookups keep resolving correctly.
+  sessionTangentIndex: Record<string, { connectionId: string; depth: number }>
+
   // Branch chaining (v31) — the most recent BRANCH connection recorded off the current anchor
   // that is itself eligible to be chained off (a lexicon click/related-word/occurrence, or a
   // same-chapter branch) — null means "the anchor's chapter itself is the nearest parent."
@@ -184,7 +198,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   },
   pendingArrivalPrompt: null, pendingArrivalNodeId: null,
   clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
-  sessionNodeIndex: {},
+  sessionNodeIndex: {}, sessionTangentIndex: {},
 
   startTrailSession: async (name: string) => {
     if (window.__bereanTrailDebug) console.log('[TrailDebug] startTrailSession() called', { name })
@@ -218,6 +232,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
       currentAnchorChapter: seedNodeId ? activeRef!.chapter : null, currentAnchorIsRevisit: false,
       currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
       sessionNodeIndex: seedNodeId ? { [`${activeRef!.bookId}:${activeRef!.chapter}`]: seedNodeId } : {},
+      sessionTangentIndex: {},
     })
     // Tell every other open window (main window, if this was started from the Study Trail
     // window, or vice versa) — see installStudyTrailStateSync's own comment for why this is
@@ -256,7 +271,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
     if (id) await window.studyTrail.endSession(id)
-    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
+    set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
     if (window.__bereanTrailDebug) console.log('[TrailDebug] broadcasting session end', { id })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
   },
@@ -266,14 +281,14 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   deleteTrailSession: async (trailSessionId: string) => {
     await window.studyTrail.deleteSession(trailSessionId)
     if (get().currentTrailSessionId === trailSessionId) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
   deleteTrailSessions: async (trailSessionIds: string[]) => {
     await window.studyTrail.deleteSessions(trailSessionIds)
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
-      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} })
+      set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
     }
   },
@@ -286,7 +301,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (detail) for (const n of detail.nodes) sessionNodeIndex[`${n.bookId}:${n.chapter}`] = n.id
     const openNode = detail?.nodes.find((n) => n.anchorEndedAt == null)
     set({
-      currentTrailSessionId: trailSessionId, trailSessionStatus: 'live', sessionNodeIndex,
+      currentTrailSessionId: trailSessionId, trailSessionStatus: 'live', sessionNodeIndex, sessionTangentIndex: {},
       currentAnchorNodeId: openNode?.id ?? null, currentAnchorBookId: openNode?.bookId ?? null,
       currentAnchorChapter: openNode?.chapter ?? null, currentAnchorVerseCount: 0,
       currentAnchorActivatedAt: openNode ? Date.now() : null, currentAnchorIsRevisit: false,
@@ -438,7 +453,7 @@ export function installStudyTrailStateSync(): void {
     const detail = await window.studyTrail.getSession(active.id).catch(() => null)
     const sessionNodeIndex: Record<string, string> = {}
     if (detail) for (const n of detail.nodes) sessionNodeIndex[`${n.bookId}:${n.chapter}`] = n.id
-    useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status, sessionNodeIndex })
+    useStudyTrailStore.setState({ currentTrailSessionId: active.id, trailSessionStatus: active.status, sessionNodeIndex, sessionTangentIndex: {} })
   }).catch((err) => { if (window.__bereanTrailDebug) console.log('[TrailDebug] bootstrap listSessions FAILED', err) })
 
   window.app.onStudyTrailStateChanged?.((raw) => {
@@ -470,8 +485,9 @@ export function installStudyTrailStateSync(): void {
               currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: false,
               currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
               sessionNodeIndex: { [`${incoming.seedAnchor.bookId}:${incoming.seedAnchor.chapter}`]: incoming.seedAnchor.nodeId },
+              sessionTangentIndex: {},
             }
-          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {} }
+          : { currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} }
         : {}),
     })
   })
@@ -492,7 +508,11 @@ let pendingGlanceCheck: { connectionId: string; fromBookId: string; fromChapter:
 // more time on the same anchor" cases this branch exists to filter out. An explicit allowlist
 // (not a per-kind `if`) so a future same-chapter-worthy origin only needs adding here, not a new
 // conditional. See the same-chapter cross-ref fix (commit 6c2e527) this generalizes.
-const SAME_CHAPTER_BRANCH_WORTHY_KINDS = new Set<NavOrigin['kind']>(['cross-ref', 'lexicon-occurrence', 'ai-lookup'])
+// search-result added per direct feedback confirming a verse-specific search result click is
+// exactly as much a deliberate "why did I look at THIS verse" tangent as a cross-ref click —
+// it just has no origin verse of its own (no `fromVerse` concept for a search), so the
+// depth/parent lookup below always treats it as a fresh sibling, never a nested chain.
+const SAME_CHAPTER_BRANCH_WORTHY_KINDS = new Set<NavOrigin['kind']>(['cross-ref', 'lexicon-occurrence', 'ai-lookup', 'search-result'])
 
 // The specific origin verse a connection's automatic reason came from — cross-ref rows and a
 // nested AI Lookup cross-ref result both know this; every other origin kind doesn't have the
@@ -502,6 +522,24 @@ function originFromVerse(origin: NavOrigin): number | undefined {
   if (origin.kind === 'cross-ref') return origin.fromVerse
   if (origin.kind === 'ai-lookup') return origin.fromVerse
   return undefined
+}
+
+/** Depth/parent lookup for a new tangent connection, per the confirmed branch model: chain off
+ *  whichever EXISTING tangent bullet already represents this origin verse (one level deeper than
+ *  it), or hang directly off the current main anchor as a fresh sibling if no tangent bullet
+ *  represents that verse yet. `anchorBookId`/`anchorChapter` is the chapter the origin verse
+ *  belongs to — the current anchor at the moment of the click (the chapter being read FROM),
+ *  not the destination. See sessionTangentIndex's own comment for the full "why". */
+function tangentParentFor(
+  tangentIndex: Record<string, { connectionId: string; depth: number }>,
+  anchorBookId: string | null, anchorChapter: number | null, origin: NavOrigin,
+): { fromConnectionId?: string; chainDepth: number } {
+  const fromVerse = originFromVerse(origin)
+  if (fromVerse != null && anchorBookId && anchorChapter != null) {
+    const parent = tangentIndex[`${anchorBookId}:${anchorChapter}:${fromVerse}`]
+    if (parent) return { fromConnectionId: parent.connectionId, chainDepth: parent.depth + 1 }
+  }
+  return { chainDepth: 0 }
 }
 
 // A branch CHAIN (as opposed to the chapter-revisit case REVISIT_PROMOTE_* above measures)
@@ -643,7 +681,10 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
   useStudyTrailStore.setState((st) => ({
     currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
     currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: !!existingNodeId,
-    ...(isBranchThisHop ? {} : { currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null }),
+    // A plain/non-tangent hop is back at depth 0 — the whole tangent group (and its lookup
+    // index) closes out; the NEXT tangent, whenever it starts, begins clean rather than
+    // possibly chaining onto a stale entry from an unrelated earlier excursion.
+    ...(isBranchThisHop ? {} : { currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, sessionTangentIndex: {} }),
     sessionNodeIndex: { ...st.sessionNodeIndex, [key]: node!.id },
   }))
   if (!effectivePrevNodeId) {
@@ -654,30 +695,30 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
     if (window.__bereanTrailDebug) console.log('[TrailDebug] reopened the SAME node we were already on — nothing to connect')
     return
   }
-  // fromConnectionId/chainDepth captured from `s` (the pre-reset snapshot) — this is the crux
-  // of "arrows connect from the true branch": when this chapter jump was itself the last hop
-  // of a lexicon/same-chapter branch chain, the connection correctly attributes to that
-  // chain's real tip instead of the stale chapter anchor from before the chain started. A
-  // chain that goes nowhere never reaches this line at all (no chapter to land on), which is
-  // exactly the "dead-ends" rendering case — no special-casing needed here.
-  const chainedFromBranch = s.currentBranchTipConnectionId != null
+  // Depth/parent from tangentParentFor — chains off whichever existing tangent bullet already
+  // represents this hop's ORIGIN verse (one level deeper), or hangs directly off the anchor as
+  // a fresh sibling otherwise. `s` is the pre-arrival snapshot, so `s.currentAnchorBookId`/
+  // `currentAnchorChapter` still correctly means "the chapter being left" here.
+  const parent = tangentParentFor(s.sessionTangentIndex, s.currentAnchorBookId, s.currentAnchorChapter, origin)
   const conn = await window.studyTrail.addConnection({
     trailSessionId, fromNodeId: effectivePrevNodeId, toKind: 'chapter',
-    fromConnectionId: chainedFromBranch ? s.currentBranchTipConnectionId! : undefined,
-    chainDepth: chainedFromBranch ? s.currentBranchTipDepth + 1 : 0,
+    fromConnectionId: parent.fromConnectionId,
+    chainDepth: parent.chainDepth,
     toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
     clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
     originVersePinFrom: originFromVerse(origin),
     isBranch: isBranchThisHop,
   })
   if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (chapter) SUCCEEDED', conn)
-  // Keep the branch chain's tip pointed at THIS connection so whatever the user does next
-  // (another chapter jump, a lexicon click) chains off it rather than off the bare chapter
-  // node — same mechanism the same-chapter/lexicon branch chaining already uses.
   if (isBranchThisHop) {
-    useStudyTrailStore.setState({
+    useStudyTrailStore.setState((st) => ({
       currentlyInBranch: true, currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
-    })
+      // Record THIS connection's own destination verse so a later cross-ref clicked FROM it
+      // (once its chapter becomes the anchor, which it does above) chains one level deeper.
+      ...(to.verse != null && to.bookId
+        ? { sessionTangentIndex: { ...st.sessionTangentIndex, [`${to.bookId}:${to.chapter}:${to.verse}`]: { connectionId: conn.id, depth: conn.chainDepth } } }
+        : {}),
+    }))
   }
   // The arrival prompt — only for jumps Study Trail is NOT already confident about (tier 2/3:
   // search, tab-switch, manual picker, etc.). A tier-1 jump (cross-ref, lexicon occurrence, AI
@@ -760,17 +801,16 @@ export function installStudyTrailRecorder(): void {
       if (SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)) {
         const fromRef = s.currentAnchorBookId && s.currentAnchorChapter != null ? { bookId: s.currentAnchorBookId, chapter: s.currentAnchorChapter } : undefined
         const { text, tags } = reasonForOrigin(origin, fromRef)
-        const chained = s.currentBranchTipConnectionId != null
-        // A same-chapter cross-ref/lexicon-occurrence/ai-lookup is exactly as much "off on a
-        // tangent" as one that lands on a different chapter — same isBranch treatment as the
-        // different-chapter path above (no longer also gated on `currentlyInBranch` carrying
-        // forward — see that path's own comment for why). Same "specific verse only" condition,
-        // though a same-chapter landing always does target a specific verse by definition.
+        // A same-chapter cross-ref/lexicon-occurrence/ai-lookup/search-result is exactly as much
+        // "off on a tangent" as one that lands on a different chapter — same isBranch treatment
+        // as the different-chapter path above. Same "specific verse only" condition, though a
+        // same-chapter landing always does target a specific verse by definition.
         const isBranchThisHop = SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind) && to.verse != null
+        const parent = tangentParentFor(s.sessionTangentIndex, s.currentAnchorBookId, s.currentAnchorChapter, origin)
         window.studyTrail.addConnection({
           trailSessionId: s.currentTrailSessionId, fromNodeId: s.currentAnchorNodeId, toKind: 'chapter',
-          fromConnectionId: chained ? s.currentBranchTipConnectionId! : undefined,
-          chainDepth: chained ? s.currentBranchTipDepth + 1 : 0,
+          fromConnectionId: parent.fromConnectionId,
+          chainDepth: parent.chainDepth,
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
           clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
           originVersePinFrom: originFromVerse(origin),
@@ -778,10 +818,16 @@ export function installStudyTrailRecorder(): void {
         })
           .then((conn) => {
             if (window.__bereanTrailDebug) console.log('[TrailDebug] addConnection (same-chapter branch) SUCCEEDED', conn)
-            useStudyTrailStore.setState({
-              currentlyInBranch: isBranchThisHop || s.currentlyInBranch,
+            useStudyTrailStore.setState((st) => ({
+              currentlyInBranch: isBranchThisHop || st.currentlyInBranch,
               currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
-            })
+              // Record THIS connection's own destination verse as a lookup key — a later
+              // cross-ref clicked from THIS verse (same chapter, same verse) chains one level
+              // deeper than it, per tangentParentFor's own comment.
+              ...(isBranchThisHop && to.verse != null && to.bookId
+                ? { sessionTangentIndex: { ...st.sessionTangentIndex, [`${to.bookId}:${to.chapter}:${to.verse}`]: { connectionId: conn.id, depth: conn.chainDepth } } }
+                : {}),
+            }))
           })
           .catch((err) => console.error('[TrailDebug] addConnection (same-chapter branch) FAILED', err))
       } else if (window.__bereanTrailDebug) {

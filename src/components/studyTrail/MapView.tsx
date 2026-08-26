@@ -194,23 +194,19 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   originBookId?: string
   originChapter?: number
 }) {
-  const [expandedCollapsed, setExpandedCollapsed] = useState(false)
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
-  // Full "Jeremiah 23:3" origin reference (not just a bare "v.3") whenever the origin
-  // chapter is known — always true for a top-level row (its parent NodeBlock IS that
-  // chapter); still falls back to the bare verse number for the rare caller that can't
-  // supply it (e.g. a glance-group's expanded list, several chapters removed from any one
-  // origin) rather than showing nothing at all.
-  const originLabel = (v: number) => originBookId && originChapter != null
-    ? `${bookLabel(originBookId)} ${originChapter}:${v}`
-    : `v.${v}`
   const destVerseSuffix = conn.toVerse
     ? conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `:${conn.toVerse}–${conn.toVerseEnd}` : `:${conn.toVerse}`
     : ''
   const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${destVerseSuffix}`
-  const baseLabel = isLexicon
+  // Each tangent bullet shows ONLY its own destination reference now — per the confirmed branch
+  // model, "Deuteronomy 32:1" and "Isaiah 1:2" are two separate stacked bullets, never one
+  // combined "32:1 → Isaiah 1:2" line. The origin verse isn't repeated here at all: it's simply
+  // whichever bullet (a node or an earlier tangent bullet) sits right above this one — that's
+  // what the origin already visually IS, no need to restate it inline.
+  const label = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
       ? `compare · ${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}`
@@ -218,8 +214,8 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         ? 'note'
         : conn.toKind === 'video'
           ? 'video'
-          : conn.originVersePinFrom != null
-            ? `${originLabel(conn.originVersePinFrom)} → ${chapterDestLabel}`
+          : conn.isSameChapterBranch
+            ? `v.${conn.toVerse ?? '?'}${conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `–${conn.toVerseEnd}` : ''}`
             : chapterDestLabel
   // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
   // step 6'") — the arrow itself (curved/subtle, see TrailConnectorOverlay's routing) carries
@@ -229,25 +225,27 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   // a branch/tangent) instead of bespoke unicode characters, per direct feedback ("make sure
   // that all the icons are using the same icons in the rest of the app").
   const labelIcon: 'return' | 'branch' | null = conn.isReturn ? 'return' : conn.isSameChapterBranch ? 'branch' : null
-  const label = conn.isSameChapterBranch
-    ? conn.originVersePinFrom != null ? `${originLabel(conn.originVersePinFrom)} → v.${conn.toVerse ?? '?'}` : `v.${conn.toVerse ?? '?'}`
-    : baseLabel
   const ref = refFor(conn)
+  // Indent by actual chain depth — chainDepth (already tracked per connection: 0 = a fresh
+  // sibling hanging directly off the anchor, 1+ = nested that many levels deeper) maps directly
+  // to render depth (+1, since even a depth-0/sibling tangent is one indent step in from its
+  // main bullet). No cap, per direct feedback — nest as deep as it actually goes.
+  const indent = 22 * (conn.chainDepth + 1)
 
-  // One flat list for the whole chain, one indent level — see flattenChain above. A very long
-  // chain (rare, but a real risk once nothing caps depth) still gets a soft cap so the list
-  // itself can't run away; raised generously (8, vs. the old 2-LEVEL nesting cap) since the
-  // actual complaint was indentation depth, not list length.
-  const FLAT_CHAIN_VISIBLE_CAP = 8
+  // DIRECT children only, each rendered as its own recursive <ConnRow> — no more flattening to
+  // one shared indent level. Per the confirmed branch model, each further hop nests one visual
+  // level deeper than whichever bullet it actually chained off (a real call-stack shape), not a
+  // flat sibling list under the chain's root. chainDepth already carries the true depth (see
+  // `indent` above), so a child's own recursive render just works without passing depth down
+  // separately.
+  const directChildren = (rowsForConnection?.get(conn.id) ?? []).slice().sort((a, b) => a.createdAt - b.createdAt)
+  const childItems = groupForRender(directChildren)
   const fullChain = conn.hasChainChildren ? flattenChain(conn.id, rowsForConnection) : []
-  const visibleChain = expandedCollapsed ? fullChain : fullChain.slice(0, FLAT_CHAIN_VISIBLE_CAP)
-  const collapsedChainCount = expandedCollapsed ? 0 : Math.max(0, fullChain.length - FLAT_CHAIN_VISIBLE_CAP)
-  const chainItems = groupForRender(visibleChain)
   const isPromotedChain = fullChain.length > 0 && (
     fullChain.length >= BRANCH_PROMOTE_DEPTH_THRESHOLD ||
     (fullChain[fullChain.length - 1].createdAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS
   )
-  const hasNested = chainItems.length > 0 || collapsedChainCount > 0
+  const hasNested = childItems.length > 0
 
   const hoverDisabled = useContext(HoverDisabledContext)
   return (
@@ -257,7 +255,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       content={<TrailConnectionHoverContent conn={conn} />}
       secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
         <span
           ref={registerPoint(`row:${conn.id}`)}
           style={{
@@ -329,22 +327,12 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       </div>
     </TrailHoverCard>
     {hasNested && (
-      // Fully flat, no indent at all — per direct feedback ("straight down"), a chain hop
-      // renders as a plain sibling row at the EXACT same level as the one before it, not
-      // nested one step in. The chaining data (fromConnectionId) still exists and still drives
-      // correct arrow-origin behavior (see pushRowEdges) — it just no longer implies any visual
-      // indentation of its own.
-      <>
-        {chainItems.map((it) => it.type === 'single'
-          ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} originBookId={originBookId} originChapter={originChapter} />
-          : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
-        {collapsedChainCount > 0 && (
-          <button
-            onClick={() => setExpandedCollapsed(true)}
-            style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', margin: '2px 0' }}
-          >+{collapsedChainCount} more</button>
-        )}
-      </>
+      // Each DIRECT child recurses through ConnRow again, so its own `indent` (chainDepth+1)
+      // naturally nests one level deeper than this row — per the confirmed model, a real
+      // call-stack shape, not a flat sibling list under the chain's root.
+      childItems.map((it) => it.type === 'single'
+        ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} originBookId={originBookId} originChapter={originChapter} />
+        : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)
     )}
     </div>
   )
@@ -962,8 +950,11 @@ export default function MapView({
     // line itself, not just the label between the two nodes.
     const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
     edges.push({
+      // Muted, not accent — per the confirmed depth-change model, plain reading-onward (both
+      // sides depth 0, no tangent involved) is a "same depth" hop, which stays the normal muted
+      // color; only a stub INTO a tangent (going deeper — see pushRowEdges above) gets accent.
       key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
-      color: 'rgb(var(--color-accent))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
+      color: 'rgb(var(--color-text-secondary))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
     })
   }
 
@@ -974,8 +965,12 @@ export default function MapView({
   // at; isReturn/isForwardBranch edges are identical either way since they're keyed off the
   // row's own `row:${c.id}` point, which exists regardless of nesting depth.
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
-    const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
-    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
+    // Accent-colored — per the confirmed depth-change model, a stub edge (parent node/row →
+    // this tangent bullet) is always "going one level deeper," which gets its own distinct
+    // accent color (as opposed to a plain same-depth spine hop, which stays muted — see the
+    // main spine edge below).
+    const color = c.weight === 'glance' ? (TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))') : 'rgb(var(--color-accent))'
+    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
     if (c.isReturn && c.toBookId && c.toChapter != null) {
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       if (target) {
@@ -997,9 +992,11 @@ export default function MapView({
       // CHAIN's terminal hop reconverges into the spine — the target is still "the next node
       // after the chain's ROOT chapter" (fromNodeId always stays the root), which is correct
       // because arriving at a new chapter only ever happens right when this connection is
-      // written, so it's always the true next spine entry chronologically.
+      // written, so it's always the true next spine entry chronologically. Dashed/muted, not
+      // accent — per the confirmed model, RETURNING to main (depth decreasing) always gets the
+      // dashed/faint treatment, whether the return was explicit or automatic.
       const target = nextNodeById.get(c.fromNodeId)
-      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true, opacity: 0.85 })
+      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-muted))', curved: true, arrow: true, opacity: 0.5, dashed: true })
     }
   }
 
