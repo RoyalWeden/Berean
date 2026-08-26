@@ -939,7 +939,6 @@ app.whenReady().then(async () => {
   // a session started in one window's UI is ever known to the other's recorder.
   ipcMain.on('app:broadcastStudyTrailState', (_e, state) => {
     const allWins = BrowserWindow.getAllWindows()
-    if (is.dev) console.log('[TrailDebug:main] app:broadcastStudyTrailState relaying', { state, windowCount: allWins.length })
     allWins.forEach((win) => {
       if (!win.isDestroyed()) win.webContents.send('app:studyTrailStateChanged', state)
     })

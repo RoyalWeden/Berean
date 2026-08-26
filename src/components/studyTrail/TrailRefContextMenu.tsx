@@ -7,13 +7,13 @@ import { bookName } from '@/lib/parseRef'
 
 // Shared right-click menu for every chapter/Strong's label in the Study Trail window.
 //
-// Redesigned to be compact — per direct feedback ("the rightclick menu is now getting really
-// busy... find a way to clean it up and make it simple or compact"): the three "Open in ___"
-// actions collapse into one row of icon buttons (was three full-width text rows), and the
-// Tangent/New-topic toggles (moved HERE from the note popover, see ReasonPromptPopover.tsx's own
-// comment on why) are a second compact icon row instead of two more full rows — active state
-// shown by fill color, not a checkbox. Only "Scroll to origin" and "Delete" stay as their own
-// text rows, since those are one-shot actions/destructive, not a quick toggle to glance at.
+// Every item is one vertical row, icon on the left and its label to the right — per direct
+// feedback: a compact icon-only row (tried first) wasn't identifiable at a glance, and a row of
+// icon+caption-underneath (tried next) still read as an unfamiliar grid rather than an ordinary
+// menu. Back to the standard "icon, then text" menu-item shape throughout, just consistently
+// applied to every item including the Tangent/New-topic toggles (moved HERE from the note
+// popover — see ReasonPromptPopover.tsx's own comment on why), whose active state now shows as
+// a filled/tinted row rather than a checkbox.
 export function useTrailRefMenu() {
   return usePositionedMenu<{
     ref: TrailRef
@@ -45,24 +45,22 @@ export function openTrailRefMenu(
   openMenu({ ref, onJumpToOrigin, onDelete, topicBreak, tangentToggle, x: e.clientX, y: e.clientY })
 }
 
-// A short caption under the icon — per direct feedback ("the rightclick menu is now too
-// simplified because i cant figure out what each thing is by just the icons"), icon-only wasn't
-// actually readable at a glance. Keeps the row compact (one row instead of a full-width text
-// button per action) while still being self-explanatory without hovering for a tooltip first.
-function IconBtn({ icon, caption, title, onClick, active }: { icon: React.ReactNode; caption: string; title: string; onClick: () => void; active?: boolean }) {
+function MenuItem({ icon, label, title, onClick, active, color }: {
+  icon: React.ReactNode; label: string; title?: string; onClick: () => void; active?: boolean; color?: string
+}) {
   return (
     <button
       onClick={onClick}
       title={title}
       className="trail-ctx-btn"
       style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '6px 2px',
-        background: active ? 'rgb(var(--color-accent) / 0.16)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
-        color: active ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))',
+        display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px',
+        background: active ? 'rgb(var(--color-accent) / 0.14)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+        color: color ?? (active ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-primary))'), textAlign: 'left', fontSize: 12,
       }}
     >
-      {icon}
-      <span style={{ fontSize: 9, fontWeight: 600, lineHeight: 1 }}>{caption}</span>
+      <span style={{ display: 'flex', flexShrink: 0, opacity: 0.85 }}>{icon}</span>
+      {label}
     </button>
   )
 }
@@ -94,46 +92,37 @@ export function TrailRefContextMenu({
     <div
       ref={menuRef}
       style={{
-        position: 'fixed', top: menu.y, left: menu.x, zIndex: 10001, minWidth: 200,
+        position: 'fixed', top: menu.y, left: menu.x, zIndex: 10001, minWidth: 190,
         background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
         borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
       }}
     >
       <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))', padding: '3px 8px 5px' }}>{label}</div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: (menu.topicBreak || menu.tangentToggle) ? 2 : 0 }}>
-        <IconBtn icon={<ArrowRight size={14} />} caption="This tab" title="Open in current tab" onClick={() => { navigateTrailRef(menu.ref, false); onClose() }} />
-        <IconBtn icon={<ExternalLink size={14} />} caption="New tab" title="Open in new tab" onClick={() => { navigateTrailRef(menu.ref, true); onClose() }} />
-        <IconBtn icon={<PictureInPicture2 size={14} />} caption="Floating" title="Open in floating tab" onClick={() => { trailRefOpenFloating(menu.ref); onClose() }} />
-      </div>
+      <MenuItem icon={<ArrowRight size={13} />} label="Open in current tab" onClick={() => { navigateTrailRef(menu.ref, false); onClose() }} />
+      <MenuItem icon={<ExternalLink size={13} />} label="Open in new tab" onClick={() => { navigateTrailRef(menu.ref, true); onClose() }} />
+      <MenuItem icon={<PictureInPicture2 size={13} />} label="Open in floating tab" onClick={() => { trailRefOpenFloating(menu.ref); onClose() }} />
 
-      {/* Tangent/New-topic — a compact icon+caption row, active state shown by fill color
-          rather than a checkbox, per direct feedback on decluttering this menu. */}
-      {(menu.tangentToggle || menu.topicBreak) && (
-        <div style={{ display: 'flex', gap: 2 }}>
-          {menu.tangentToggle && (
-            <IconBtn
-              icon={<GitBranch size={14} />} caption="Tangent" active={menu.tangentToggle.active}
-              title={menu.tangentToggle.active ? 'Tangent (on) — click to unmark' : 'Mark as tangent'}
-              onClick={() => { menu.tangentToggle!.onToggle(); onClose() }}
-            />
-          )}
-          {menu.topicBreak && (
-            <IconBtn
-              icon={<Flag size={14} />} caption="New topic" active={menu.topicBreak.active}
-              title={menu.topicBreak.active ? 'New topic (on) — click to remove' : 'Mark as new topic'}
-              onClick={() => { menu.topicBreak!.onToggle(); onClose() }}
-            />
-          )}
-        </div>
+      {(menu.tangentToggle || menu.topicBreak) && <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />}
+      {menu.tangentToggle && (
+        <MenuItem
+          icon={<GitBranch size={13} />} active={menu.tangentToggle.active}
+          label={menu.tangentToggle.active ? 'Tangent (unmark)' : 'Mark as tangent'}
+          onClick={() => { menu.tangentToggle!.onToggle(); onClose() }}
+        />
+      )}
+      {menu.topicBreak && (
+        <MenuItem
+          icon={<Flag size={13} />} active={menu.topicBreak.active}
+          label={menu.topicBreak.active ? 'New topic (remove)' : 'Mark as new topic'}
+          onClick={() => { menu.topicBreak!.onToggle(); onClose() }}
+        />
       )}
 
       {menu.onJumpToOrigin && (
         <>
           <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
-          <button
-            className="trail-ctx-btn" onClick={() => { menu.onJumpToOrigin!(); onClose() }} style={menuBtnStyle}
-          ><CornerUpLeft size={12} style={{ marginRight: 6, verticalAlign: -2 }} />Scroll to where this came from</button>
+          <MenuItem icon={<CornerUpLeft size={13} />} label="Scroll to where this came from" onClick={() => { menu.onJumpToOrigin!(); onClose() }} />
         </>
       )}
 
@@ -149,10 +138,7 @@ export function TrailRefContextMenu({
               <button className="trail-ctx-btn" onClick={() => setConfirmingDelete(false)} style={{ ...menuBtnStyle, flex: 1 }}>Cancel</button>
             </div>
           ) : (
-            <button
-              className="trail-ctx-btn" onClick={() => setConfirmingDelete(true)}
-              style={{ ...menuBtnStyle, color: '#e08468' }}
-            ><Trash2 size={12} style={{ marginRight: 6, verticalAlign: -2 }} />Delete</button>
+            <MenuItem icon={<Trash2 size={13} />} label="Delete" color="#e08468" onClick={() => setConfirmingDelete(true)} />
           )}
         </>
       )}

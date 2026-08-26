@@ -170,7 +170,17 @@ export default function TrailConnectorOverlay({
       </defs>
       {edges.map((e) => {
         const rawA = coords.get(e.from), rawB = coords.get(e.to)
-        if (!rawA || !rawB) return null
+        if (!rawA || !rawB) {
+          // Directly diagnoses "both ends of the connection is not on the two bullets it
+          // should be" — a missing point here means this edge's from/to key never got
+          // registered (or was unregistered/stale) at the time coords were last measured, so
+          // it silently draws nothing instead of landing on the wrong spot. Gated behind the
+          // same __bereanTrailDebug flag as Study Trail's other diagnostic logging — set
+          // `window.__bereanTrailDebug = true` in devtools (persists across restarts; see
+          // main.tsx's definePersistentDebugFlag) to turn it on.
+          if (window.__bereanTrailDebug) console.warn('[TrailDebug] edge endpoint missing — not drawn', { key: e.key, from: e.from, to: e.to, hasFrom: !!rawA, hasTo: !!rawB })
+          return null
+        }
         const startGap = radiusFor(e.from) + ENDPOINT_GAP
         // A laned+arrowed edge (a branch's return arrow) needs more clearance than that — per
         // direct feedback ("i cant even see the arrow pointing back to the bullet"), the old

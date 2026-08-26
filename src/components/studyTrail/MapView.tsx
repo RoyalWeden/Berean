@@ -1299,7 +1299,16 @@ export default function MapView({
     edges.push({ ...e, lane })
   }
   const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
-  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING : 0
+  // TrailConnectorOverlay's own laned-edge curve can bow out considerably further left than
+  // this lane-count-only formula reserves (its extraBow grows with how much vertical distance
+  // a given return has to clear, which isn't known here) — per direct feedback ("the entire
+  // timeline should be shifted right so that the entire revisit arrow thing can be seen"), a
+  // curve bowing further than the reserved column was getting clipped by the scroll
+  // container's own left edge (you can't scroll to negative x). A generous flat allowance
+  // covers the common case without needing this file and the overlay's bow math to stay in
+  // exact sync — a little extra unused margin costs nothing.
+  const EXTRA_BOW_RESERVE = 220
+  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
   // and dim everything else out"), this walks the FULL causal chain backward from whatever's
@@ -1374,6 +1383,16 @@ export default function MapView({
   // — every edge stays at normal opacity — rather than let one orphaned key blank out the whole
   // diagram.
   const hoveredKeyIsLive = !!hoveredKey && edges.some((e) => e.from === hoveredKey || e.to === hoveredKey)
+  if (window.__bereanTrailDebug && hoveredKey) {
+    // Confirms (or rules out) the exact "lines disappear on right-click" mechanism this safety
+    // net guards against — if hoveredKeyIsLive is ever false here right after a right-click,
+    // that's the bug caught in the act; if it stays true throughout, the disappearing-lines
+    // report has a different cause and this rules the orphaned-key theory out.
+    console.log('[TrailDebug] hover chain', {
+      hoveredKey, live: hoveredKeyIsLive,
+      chainPoints: [...hoverChainPointKeys], chainEdges: [...hoverChainEdgeKeys],
+    })
+  }
   const finalEdges = hoveredKeyIsLive
     ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
