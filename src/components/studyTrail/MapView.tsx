@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Pencil, Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2 } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2 } from 'lucide-react'
 import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -69,8 +69,12 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
 // the gap's own full height and centers its label vertically within it — per direct feedback
 // ("the gap label needs to show in the vertical middle of the gap").
 function GapDivider({ gapMs }: { gapMs: number }) {
+  // No left padding/inset — per direct feedback ("the minutes later divider should go across
+  // the entire thing horizontally"), this now spans edge-to-edge (through the left gutter too),
+  // not just the bullet/text column's own width; the fixed 21px inset was tuned before that
+  // gutter reservation existed.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), paddingLeft: 21 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
         <span style={{
@@ -416,18 +420,11 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         ) : null}
         {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
         {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
-        {/* Unified reason/note trigger — ALWAYS present now, not gated to tier-3 needsInput the
-            way the "?" badge above is. Opens the same popover pre-filled with whatever's
-            already stored; the "?" badge stays as its own distinct always-nagging affordance
-            for a genuinely unresolved ambiguous jump, this is the calm "add a note anytime" one. */}
-        <button
-          onClick={() => onOpenPrompt(conn)}
-          title={conn.reasonText || conn.ties.length > 0 ? 'Edit your note for this connection' : 'Add a note for this connection'}
-          style={{
-            background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
-            padding: 0, flexShrink: 0, opacity: 0.55, display: 'flex', alignItems: 'center',
-          }}
-        ><Pencil size={10.5} /></button>
+        {/* The always-visible row-level pencil that used to live here was removed — per direct
+            feedback ("the revisit item has the pencil icon outside of the hover popup but it
+            should only be inside the hover popup thing"), the note-edit trigger now lives
+            exclusively inside the hover card (TrailConnectionHoverContent's own EditNoteBtn),
+            not duplicated as a second always-visible affordance on the row itself. */}
       </div>
     </TrailHoverCard>
     {hasNested && (
@@ -1307,8 +1304,16 @@ export default function MapView({
   // container's own left edge (you can't scroll to negative x). A generous flat allowance
   // covers the common case without needing this file and the overlay's bow math to stay in
   // exact sync — a little extra unused margin costs nothing.
-  const EXTRA_BOW_RESERVE = 220
+  // Trimmed back slightly from 220 — per direct feedback ("i think the entire timeline can be
+  // moved to the left slightly"), that first pass over-reserved; this still comfortably covers
+  // the overlay's own bow formula (see TrailConnectorOverlay's extraBow) for the vertical runs
+  // actually seen in practice.
+  const EXTRA_BOW_RESERVE = 170
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
+
+  // Deepest tangent depth actually present anywhere in this view — drives how many faint
+  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below).
+  const maxChainDepth = detail.connections.reduce((m, c) => Math.max(m, c.chainDepth), 0)
 
   // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
   // and dim everything else out"), this walks the FULL causal chain backward from whatever's
@@ -1441,6 +1446,22 @@ export default function MapView({
       <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
+            {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
+                on a musical paper that show the indent levels so the user can follow which
+                level things are at"). One vertical line per tangent depth actually present,
+                positioned at that depth's own indent (matching TangentBullet/ConnRow's own
+                `22 * (depth + 1)` formula, offset by gutterWidth since that's where the content
+                column itself starts) — purely decorative, so it sits behind everything else and
+                never intercepts a click. */}
+            {maxChainDepth >= 0 && Array.from({ length: maxChainDepth + 1 }, (_, depth) => (
+              <div
+                key={`guide:${depth}`}
+                style={{
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 22 * (depth + 1) + 3.5,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.35)', pointerEvents: 'none', zIndex: 0,
+                }}
+              />
+            ))}
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (

@@ -219,7 +219,10 @@ export default function TrailConnectorOverlay({
           // vertical run) — per direct feedback that it was STILL cutting through the main
           // spine even after the previous round's widening. Every laned edge now gets a
           // healthy guaranteed clearance, growing further for a longer run.
-          const extraBow = 50 + Math.max(0, vertRun - 60) * 0.4
+          // Reach bumped up again per direct feedback ("the revisit arc can be increased
+          // slightly... reach the full distance") — paired with MapView's own gutterWidth
+          // reservation (EXTRA_BOW_RESERVE), which still comfortably covers this.
+          const extraBow = 65 + Math.max(0, vertRun - 60) * 0.45
           const laneX = baseLaneX - extraBow
           // A "stadium" shape, not a gentle lean: control points sit at the lane (same X) close
           // to their own endpoint's Y — a cubic bezier built this way exits each endpoint
@@ -230,7 +233,7 @@ export default function TrailConnectorOverlay({
           // curve instead of a sharp near-right-angle — per direct feedback ("the revisit
           // connection can probably be made a bit less curved" — i.e. less of a hard corner,
           // said right after the previous round's fully-square version).
-          const CORNER_SOFTEN = Math.min(24, vertRun * 0.15)
+          const CORNER_SOFTEN = Math.min(36, vertRun * 0.2)
           d = `M${start.x},${start.y} C${laneX},${start.y + dir * CORNER_SOFTEN} ${laneX},${end.y - dir * CORNER_SOFTEN} ${end.x},${end.y}`
         } else {
           const curved = !!e.curved

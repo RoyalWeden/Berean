@@ -36,7 +36,11 @@ function EditNoteBtn({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick} title="Add/edit a note for this"
-      style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}
+      className="trail-ctx-btn"
+      style={{
+        background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
+        padding: 3, borderRadius: 5, display: 'flex', flexShrink: 0,
+      }}
     ><Pencil size={11} /></button>
   )
 }
