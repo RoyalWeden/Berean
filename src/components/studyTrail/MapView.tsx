@@ -175,6 +175,21 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
   )
 }
 
+// A lightweight tangent bullet — used for the origin/destination pair shown above a
+// cross-chapter branch's own spine-point node (see NodeBlock). Deliberately plain/read-only (no
+// hover card, no click-to-navigate, no context menu) — these two rows exist purely to name the
+// specific verses a tangent connects; the full connection detail is on the node/ConnRow they sit
+// beside. Visually matches ConnRow's own dot+text so a tangent bullet looks the same whether it
+// came from a same-chapter or cross-chapter hop, per direct feedback unifying the two.
+function TangentBullet({ label, indent }: { label: string; indent: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
+      <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
+      <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
+    </div>
+  )
+}
+
 function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey, originBookId, originChapter }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
@@ -577,16 +592,19 @@ function NodeBlock({
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
         </div>
       )}
-      {/* The specific verse this branch departed FROM, as its own small stacked bullet right
-          above the destination — exactly the two-bullet look described directly: "deuteronomy
-          32:1 goes on the side branch, isaiah 1:2 is the next entry on that same side branch." */}
+      {/* Two full, equally-styled tangent bullets — the verse departed FROM and the verse
+          arrived AT — as siblings at this tangent's own indent, both distinct from (and sitting
+          right above) this node's own plain "Isaiah 11"-style spine-point row below. Per direct
+          feedback: "show Isaiah 11:13 as a sibling of the tangent instead of a spine point, and
+          it also needs a spine point to Isaiah 11" — the node itself stays the bare-chapter
+          spine point; these two rows are the actual tangent hop that led to it. */}
       {isBranchNode && originVerseLabel && (
-        <div style={{ display: 'flex', gap: 12, marginBottom: 2 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-            <span style={{ width: 5, height: 5, background: 'rgb(var(--color-text-muted))', borderRadius: '50%', marginTop: 5, flexShrink: 0, opacity: 0.6 }} />
-            <span style={{ flex: 1, width: 1, minHeight: 8, background: 'rgb(var(--color-surface-4))', marginTop: 2 }} />
-          </div>
-          <div style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', fontStyle: 'italic' }}>{originVerseLabel}</div>
+        <div style={{ marginBottom: 2 }}>
+          <TangentBullet label={originVerseLabel} indent={indent} />
+          <TangentBullet
+            label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
+            indent={indent}
+          />
         </div>
       )}
       <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
@@ -637,17 +655,6 @@ function NodeBlock({
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookLabel(node.bookId)} {node.chapter}
-            {/* A cross-chapter tangent's destination verse was never shown anywhere — a node's
-                own title only ever carries book+chapter (nodes represent whole chapters), so
-                the specific verse the cross-ref actually landed on silently vanished. Per direct
-                feedback ("it isnt tracking all the verses for the cross refs"), show it here
-                whenever this arrival IS a tangent (isBranchNode) and the connection that caused
-                it recorded a destination verse. */}
-            {isBranchNode && originConn?.toVerse != null && (
-              <span style={{ fontWeight: 700 }}>
-                :{originConn.toVerse}{originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}
-              </span>
-            )}
             {isRevisit && !bounceBadge && (
               <span style={{
                 fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
