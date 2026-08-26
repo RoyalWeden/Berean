@@ -635,14 +635,24 @@ function NodeBlock({
   const tangentIndent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
   const hoverDimmed = !!hoverChain && !hoverChain.has(`node:${node.id}`)
   return (
-    <div
-      ref={blockRef}
-      style={{
-        opacity: dimmed || hoverDimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
-        boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
-        marginLeft: indent,
-      }}
-    >
+    // Left gutter — per the plan's "revisit arcs move to a left gutter": the WHOLE block (its
+    // tangent bullets included, not just this node's own row) shifts right by gutterWidth,
+    // reserving space on the left for the laned return/revisit-link edges built in MapView to
+    // route through, so they can arc in from the left with nothing — no text, no bullets — ever
+    // in their way. One shared spacer here (not one per row) keeps every node's own tangent
+    // bullets aligned with its own main-row dot, since both now live inside this same shifted
+    // wrapper.
+    <div style={{ display: 'flex' }}>
+      {gutterWidth > 0 && <div ref={registerPoint('gutter:x')} style={{ width: gutterWidth, flexShrink: 0 }} />}
+      <div
+        ref={blockRef}
+        style={{
+          flex: 1, minWidth: 0,
+          opacity: dimmed || hoverDimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
+          boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          marginLeft: indent,
+        }}
+      >
       {boundaryLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
@@ -789,14 +799,8 @@ function NodeBlock({
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
-      {gutterWidth > 0 && (
-        // Reserved space for laned return/revisit edges to route through — a fixed width
-        // shared by EVERY row (registering the point from each row is harmless/idempotent
-        // since they all land at the same x once layout resolves; simpler and more robust
-        // than assuming any one particular row is guaranteed to render).
-        <div ref={registerPoint('gutter:x')} style={{ width: gutterWidth, flexShrink: 0 }} />
-      )}
       </div>
+    </div>
     </div>
   )
 }
