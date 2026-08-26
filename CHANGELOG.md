@@ -122,6 +122,36 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.6] - 2026-08-26
+
+Study Trail
+
+- Reworked how cross-references, Strong's lookups, and search hits that land
+  on a specific verse show up in the timeline: each one is now its own
+  indented "tangent" bullet, showing exactly how deep a rabbit hole you
+  followed and which bullet led to which — including chains of tangents
+  branching off other tangents, several levels deep.
+- Revisit backlinks (jumping back to a chapter you recently left) now route
+  through a dedicated lane on the left instead of crossing over other
+  content, and reach further out to actually clear it.
+- Added a "revisit within" slider so you control how recent a chapter visit
+  has to be before returning to it counts as a revisit versus a fresh,
+  independent stop.
+- Hovering any bullet now traces and highlights the exact chain of
+  connections that led to it, dimming everything unrelated.
+- Added faint vertical guide lines marking each indentation depth in the
+  timeline, and the "N minutes later" divider now spans the full width of
+  the window instead of stopping partway across.
+- Right-clicking a timeline item to open its menu no longer leaves the rest
+  of the timeline's connecting lines dimmed afterward.
+- Numerous smaller fixes to gap spacing and arrow/line routing throughout
+  the timeline.
+
+Reading
+
+- Fixed the text-selection toolbar not appearing when selecting a word
+  next to a Strong's number chip.
+
 ## [0.5.5] - 2026-08-25
 
 Study Trail
