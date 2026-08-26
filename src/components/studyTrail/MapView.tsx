@@ -52,11 +52,13 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   // grows to gapSegmentHeight, same as before.
   const showsDivider = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
   // A null gapMs only ever means "adjacent to a tangent bullet" (see the isBranchNode/
-  // nextIsBranchNode force-to-null at the call site) — that case should stay genuinely tight,
-  // not just avoid the divider. It was still reserving the same 18px as a real short gap,
-  // which (via this column's own flex stretch onto its sibling content column) is exactly what
-  // kept showing up as unexplained empty space before the first tangent bullet.
-  const height = showsDivider ? 18 : gapMs == null ? 4 : gapSegmentHeight(gapMs)
+  // nextIsBranchNode force-to-null at the call site). Per direct feedback ("look at all the
+  // gaps and make them uniform... tangent gaps should be about half [the main spine gap]"),
+  // this reserves NO artificial chrome at all for that case — natural stacking (this node's own
+  // row height plus the tangent bullet's own padding, see TANGENT_BULLET_PAD) is what makes
+  // every tangent-adjacent step (node→bullet, bullet→bullet, bullet→arrival) consistent with
+  // each other, instead of three different bespoke constants each producing a different gap.
+  const height = showsDivider ? 18 : gapMs == null ? 0 : gapSegmentHeight(gapMs)
   return <div style={{ flex: 1, width: 2, minHeight: height }} />
 }
 
@@ -186,9 +188,21 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
 // specific verses a tangent connects; the full connection detail is on the node/ConnRow they sit
 // beside. Visually matches ConnRow's own dot+text so a tangent bullet looks the same whether it
 // came from a same-chapter or cross-chapter hop, per direct feedback unifying the two.
+// The sole source of spacing for every tangent-adjacent step (node→first bullet, bullet→
+// bullet, last bullet→arrival node) — 8px top + 8px bottom gives 16px between two stacked
+// bullets, and (per direct feedback) that's deliberately about half of MAIN_SPINE_GAP below.
+const TANGENT_BULLET_PAD = 8
+
+// Extra breathing room between two ordinary, back-to-back main-spine nodes (no tangent
+// involved, no real elapsed-time gap large enough to earn its own scaled height) — per direct
+// feedback ("increase the gap for the main spine but generally the gap for the tangents should
+// maybe be around half"), deliberately about double a stacked pair of tangent bullets
+// (2 * TANGENT_BULLET_PAD = 16).
+const MAIN_SPINE_GAP = 32
+
 function TangentBullet({ label, indent, pointKey, registerPoint }: { label: string; indent: number; pointKey: string; registerPoint: (key: string) => (el: HTMLElement | null) => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent }}>
       <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
       <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
     </div>
@@ -617,7 +631,7 @@ function NodeBlock({
           />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : (gapToNextMs == null ? 2 : 8) }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
@@ -638,7 +652,7 @@ function NodeBlock({
           div) far out to the right of THIS row's own short text along with it — which is
           exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
           a wide loop well past nearby text instead of hugging close to the actual content. */}
-      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? 2 : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
+      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? 0 : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
