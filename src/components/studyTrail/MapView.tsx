@@ -58,7 +58,7 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   // row height plus the tangent bullet's own padding, see TANGENT_BULLET_PAD) is what makes
   // every tangent-adjacent step (node→bullet, bullet→bullet, bullet→arrival) consistent with
   // each other, instead of three different bespoke constants each producing a different gap.
-  const height = showsDivider ? 18 : gapMs == null ? 0 : gapSegmentHeight(gapMs)
+  const height = showsDivider ? 18 : gapMs == null ? TANGENT_EXTRA_GAP : gapSegmentHeight(gapMs)
   return <div style={{ flex: 1, width: 2, minHeight: height }} />
 }
 
@@ -188,17 +188,22 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
 // specific verses a tangent connects; the full connection detail is on the node/ConnRow they sit
 // beside. Visually matches ConnRow's own dot+text so a tangent bullet looks the same whether it
 // came from a same-chapter or cross-chapter hop, per direct feedback unifying the two.
-// The sole source of spacing for every tangent-adjacent step (node→first bullet, bullet→
-// bullet, last bullet→arrival node) — 8px top + 8px bottom gives 16px between two stacked
-// bullets, and (per direct feedback) that's deliberately about half of MAIN_SPINE_GAP below.
-const TANGENT_BULLET_PAD = 8
+// The baseline source of spacing for every tangent-adjacent step (node→first bullet, bullet→
+// bullet, last bullet→arrival node) — 14px top + 14px bottom gives 28px between two stacked
+// bullets. Raised from 8 per direct feedback ("make all the tangent related gaps bigger").
+const TANGENT_BULLET_PAD = 14
+
+// A small additional reservation (on top of TANGENT_BULLET_PAD) for the two transitions that
+// don't get it "for free" from a bullet's own padding alone — node→first-bullet and last-
+// bullet→arrival-node — so those two steps grow in step with bullet→bullet instead of staying
+// pinned at zero forever. Kept the same uniform value everywhere it's used so all four tangent
+// transitions still track each other.
+const TANGENT_EXTRA_GAP = 10
 
 // Extra breathing room between two ordinary, back-to-back main-spine nodes (no tangent
 // involved, no real elapsed-time gap large enough to earn its own scaled height) — per direct
-// feedback ("increase the gap for the main spine but generally the gap for the tangents should
-// maybe be around half"), deliberately about double a stacked pair of tangent bullets
-// (2 * TANGENT_BULLET_PAD = 16).
-const MAIN_SPINE_GAP = 32
+// feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
+const MAIN_SPINE_GAP = 44
 
 function TangentBullet({ label, indent, pointKey, registerPoint }: { label: string; indent: number; pointKey: string; registerPoint: (key: string) => (el: HTMLElement | null) => void }) {
   return (
@@ -655,7 +660,7 @@ function NodeBlock({
           div) far out to the right of THIS row's own short text along with it — which is
           exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
           a wide loop well past nearby text instead of hugging close to the actual content. */}
-      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? 0 : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
+      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
@@ -989,6 +994,23 @@ export default function MapView({
   interface LanedEdge extends TrailEdge { minIdx: number; maxIdx: number }
   const lanedRaw: LanedEdge[] = []
 
+  // The full edge language, rethought as one coherent set of rules (per direct feedback: "lets
+  // rethink the style of the lines... i want it actually to make sense") instead of each edge
+  // kind picking its own color/dash/arrow combination ad hoc:
+  //   • COLOR encodes this edge's own depth change: accent = going deeper (main→tangent, or a
+  //     tangent chaining off an earlier tangent), text-secondary = same depth (an ordinary
+  //     main→main read, or a confidently-traced same-depth continuation), faint text-muted =
+  //     shallower/reconverging (any return to a shallower depth, automatic or explicit).
+  //   • DASH encodes confidence/weight, independent of color: a normal connection is solid, a
+  //     low-confidence "glance" connection is dashed, thinner, and fainter. A reconverge/return
+  //     is ALSO always dashed, but for a different reason (it's a jump backward in the reading
+  //     order, not a forward step) — those two are the only edges allowed to be dashed.
+  //   • ARROWHEADS are always shown — every edge here is an actual step in the reading order,
+  //     so direction always matters. (The one deliberate exception is the revisit "same chapter
+  //     as" identity backlink, which isn't a travel step at all — see its own comment below.)
+  //   • CURVATURE is reserved for edges that visually reach across other content (a lane-routed
+  //     return, or a short reconverge into the next node); a same-row/stacked-bullet hop stays
+  //     a straight line.
   const edges: TrailEdge[] = []
   for (let i = 0; i < detail.nodes.length - 1; i++) {
     // Skip across a session boundary (merged all-sessions timeline) — chronologically
@@ -1025,9 +1047,9 @@ export default function MapView({
     if (!originConn?.isBranch) continue
     const fromNode = nodeById.get(originConn.fromNodeId)
     if (!fromNode) continue
-    // Same-depth solid stub out of the departure node — the same "going one level deeper" accent
-    // treatment every other tangent stub gets.
-    edges.push({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, opacity: 0.75 })
+    // Solid accent, arrowed — "going one level deeper," the same treatment every other tangent
+    // stub gets.
+    edges.push({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, arrow: true, opacity: 0.75 })
     // Origin verse → destination verse — the actual cross-ref hop itself.
     edges.push({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
     // Dashed/muted reconverge into the arrival node — "returning to the spine," same visual
@@ -1051,7 +1073,7 @@ export default function MapView({
     // accent color (as opposed to a plain same-depth spine hop, which stays muted — see the
     // main spine edge below).
     const color = c.weight === 'glance' ? (TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))') : 'rgb(var(--color-accent))'
-    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
+    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, arrow: true, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
     if (c.isReturn && c.toBookId && c.toChapter != null) {
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       if (target) {
@@ -1062,22 +1084,22 @@ export default function MapView({
         // 1.75 default, on top of the arc-rounded routing above.
         lanedRaw.push({
           key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          color: 'rgb(var(--color-text-muted))', arrow: true, opacity: 0.45, strokeWidth: 1.25,
+          color: 'rgb(var(--color-text-muted))', arrow: true, dashed: true, opacity: 0.45, strokeWidth: 1.25,
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
         })
       }
     }
     if (c.isForwardBranch) {
-      // The specific-origin trace for an otherwise-plain forward move — short (always the
-      // very next node), so a direct curved line is fine, no lane needed. Also how a branch
-      // CHAIN's terminal hop reconverges into the spine — the target is still "the next node
-      // after the chain's ROOT chapter" (fromNodeId always stays the root), which is correct
-      // because arriving at a new chapter only ever happens right when this connection is
-      // written, so it's always the true next spine entry chronologically. Dashed/muted, not
-      // accent — per the confirmed model, RETURNING to main (depth decreasing) always gets the
-      // dashed/faint treatment, whether the return was explicit or automatic.
+      // isForwardBranch now only ever fires for a NON-branch connection (any c.isBranch=true
+      // connection whose destination is a fresh next node is fully diverted to the dedicated
+      // tangent-stub/tangent-hop/tangent-arrive pass above instead — see that pass's own
+      // comment) — so this is always a confidently-traced, SAME-DEPTH continuation (a plain
+      // read, just one whose specific origin is worth tracing rather than the generic spine
+      // arrow). Same-depth styling to match: solid text-secondary, not the dashed/muted
+      // "reconverging" look this used to (incorrectly) always carry. Short (always the very
+      // next node), so a direct curved line is fine, no lane needed.
       const target = nextNodeById.get(c.fromNodeId)
-      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-muted))', curved: true, arrow: true, opacity: 0.5, dashed: true })
+      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-secondary))', curved: true, arrow: true, opacity: 0.6 })
     }
   }
 
@@ -1088,7 +1110,7 @@ export default function MapView({
         pushRowEdges(it.item, `node:${n.id}`)
       } else {
         const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
+        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, arrow: true, opacity: 0.4 })
       }
     }
     // The quiet "same chapter as" backlink for a promoted revisit — deliberately muted/thin/

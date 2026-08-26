@@ -18,12 +18,12 @@ export function effectiveGapMs(prevEndedAt: number, nextStartedAt: number, pause
 
 // Log-scaled spine-segment height: near-instant follow-ups stay at a fixed floor, a 40min gap
 // visibly opens up, multi-hour/day gaps hit a 96px ceiling rather than blowing out the layout.
-// The floor was raised from 18 to 28px per direct feedback ("increase the gap for the main
-// spine") — paired with MapView's own MAIN_SPINE_GAP margin, this is what makes an ordinary
-// back-to-back main-spine hop visibly roomier than a tangent bullet's own tight stacking.
+// The floor was raised 18 -> 28 -> 36px across two rounds of direct feedback ("increase the gap
+// for the main spine") — paired with MapView's own MAIN_SPINE_GAP margin, this is what makes an
+// ordinary back-to-back main-spine hop visibly roomier than a tangent bullet's own stacking.
 export function gapSegmentHeight(gapMs: number): number {
   const minutes = gapMs / 60_000
-  return Math.min(96, Math.max(28, 28 + 10 * Math.log2(1 + minutes)))
+  return Math.min(104, Math.max(36, 36 + 10 * Math.log2(1 + minutes)))
 }
 
 // Below this, the gap stays implicit (just the slightly taller segment) — showing a chip for
