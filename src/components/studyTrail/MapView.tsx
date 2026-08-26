@@ -1389,11 +1389,11 @@ export default function MapView({
   const ROW_HEIGHT_ESTIMATE = 90
   const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
   const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
-  // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (85) — keep these in sync if either one
+  // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (105) — keep these in sync if either one
   // is retuned, or the reservation and the actual curve drift apart again (see the negative-
   // laneX bug this whole reservation formula exists to prevent). Safety margin also widened
   // 40 -> 70 for the same underreservation reason above.
-  const dynamicExtraBow = 85 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
+  const dynamicExtraBow = 105 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
   const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 70)
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 

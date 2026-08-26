@@ -204,12 +204,21 @@ export default function TrailConnectorOverlay({
           }
           return null
         }
-        const startGap = radiusFor(e.from) + ENDPOINT_GAP
-        // A laned+arrowed edge (a branch's return arrow) needs more clearance than that — per
-        // direct feedback ("i cant even see the arrow pointing back to the bullet"), the old
-        // gap left the arrowhead's own 7-unit length overlapping the dot itself instead of
-        // reading as a distinct triangle pointing at it.
-        const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 9 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
+        // Trimmed 1 -> ... per direct feedback ("the endpoints of the arc are still off... the
+        // bottom endpoint can be shifted down") — the START side of a laned edge (the revisit/
+        // return dot itself) had no special-casing at all, just the generic gap every edge uses;
+        // shaving it slightly lets a laned edge's line reach a little further toward its own
+        // source dot before the small clearance kicks in.
+        const startGap = radiusFor(e.from) + (e.lane != null ? 1 : ENDPOINT_GAP)
+        // A laned+arrowed edge (a branch's return arrow) needs SOME extra clearance so the
+        // arrowhead reads as a distinct triangle rather than overlapping the dot — but the old
+        // +9 was tuned generously and, per direct feedback this round ("the endpoints of the arc
+        // are still off... it needs to extend up more"), reads as landing well short of the
+        // actual dot rather than pointing at it: radiusFor(node)=5 + ENDPOINT_GAP(3) + 9 = 17px
+        // of dead space between the arrow tip and the dot's own center for a 9px-wide dot.
+        // Trimmed to +3 (11px total) — still enough separation for the arrowhead to read as its
+        // own shape, not so much that the curve visibly falls short of the target.
+        const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 3 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
 
         let d: string
         if (e.lane != null) {
@@ -246,7 +255,9 @@ export default function TrailConnectorOverlay({
           // not just lean slightly left of it. MapView's own gutterWidth reservation
           // (EXTRA_BOW_RESERVE) mirrors this same formula so the reserved scroll room actually
           // covers it.
-          const EXTRA_BOW_BASE = 85
+          // Bumped 85 -> 105 per direct feedback ("shifted to the left a little") — MapView's
+          // own EXTRA_BOW_BASE mirrors this constant for its reservation, keep them in sync.
+          const EXTRA_BOW_BASE = 105
           const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
           // Floor is a last-resort safety net only — with the new construction above, laneX
           // going small just makes for a narrower (not broken) bulge; nothing here can loop.
