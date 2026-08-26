@@ -1308,7 +1308,25 @@ export default function MapView({
   // moved to the left slightly"), that first pass over-reserved; this still comfortably covers
   // the overlay's own bow formula (see TrailConnectorOverlay's extraBow) for the vertical runs
   // actually seen in practice.
-  const EXTRA_BOW_RESERVE = 170
+  // BUG FOUND (this round of "arc still isn't right" feedback): this used to be a flat
+  // constant, but TrailConnectorOverlay's own extraBow (how far a laned edge's belly swings
+  // left) grows with that edge's actual vertical run — and past a run of roughly
+  // GUTTER_BASE+maxLane*LANE_SPACING+170 px worth of extraBow, its `laneX` calc gets clamped to
+  // a small positive floor (see the "Clamped to a small positive floor" comment there). A flat
+  // 170px reserve was tuned against short/medium revisits; a revisit spanning MANY nodes (a
+  // long read before circling back) needs a much bigger reserve, and once the clamp kicks in
+  // the curve stops growing wider even though it still has that much further to visually
+  // "get around" — it reads as a disproportionately cramped loop for how much content it
+  // spans, which is exactly what a several-node-distant revisit looks like. Scale the reserve
+  // by the longest laned edge's own node-index span (using the same 60px/60-node-distance
+  // knee and 0.45 slope TrailConnectorOverlay uses, translated from pixels to an estimated
+  // ~50px-per-item row height) instead of a constant, with the old 170 as a floor so short
+  // revisits are unaffected.
+  const ROW_HEIGHT_ESTIMATE = 50
+  const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
+  const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
+  const dynamicExtraBow = 65 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
+  const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 40)
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Deepest tangent depth actually present anywhere in this view — drives how many faint
