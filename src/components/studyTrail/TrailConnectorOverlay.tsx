@@ -237,16 +237,20 @@ export default function TrailConnectorOverlay({
           const gutterRightEdge = gutter ? gutter.x * 2 : 0
           const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const dir = Math.sign(rawB.y - rawA.y || 1)
-          // Exit distance bumped 30 -> 38 -> 70 — per direct feedback, TWICE now ("the top of
-          // the arc needs to be shifted up a little and the bottom needs to be shifted down a
-          // hair", then again "it is still coming short on the top and bottom" after the first
-          // bump read as no visible change at all). Going substantially bigger this round rather
-          // than incrementing again — the curve's straight exit run out of each endpoint (before
-          // it starts bending toward the lane) needed to reach much further past both dots for
-          // the loop to visibly extend beyond them, not just hug the two bullets it connects.
-          const EXIT_RUN = 70
-          const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * EXIT_RUN }, false, startGap)
-          const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * EXIT_RUN }, rawB, false, endGap)
+          // FOUND THE REAL BUG (why two straight rounds of "EXIT_RUN" bumps — 30->38->70 — never
+          // visibly changed anything, confirmed by the logged arc-geometry values matching this
+          // exactly): pushOffStart/pullBackEnd's non-curved branch computes a UNIT vector
+          // (dx/len, dy/len) from the synthetic point back to rawA/rawB, then moves `dist` along
+          // it — since the synthetic point was built as `rawA.y + dir*EXIT_RUN`, its only
+          // surviving effect on the unit vector is the SIGN (dir), because dividing by `len`
+          // (which equals EXIT_RUN) cancels the magnitude out completely. `start`/`end` were
+          // ALWAYS exactly `startGap`/`endGap` away from rawA/rawB — EXIT_RUN never touched the
+          // result at all, at any of the three values tried. Replaced with a plain call against
+          // the REAL rawA/rawB (equivalent to what the old code silently reduced to) — the actual
+          // lever for "how far past the dots the curve visibly reaches" is CORNER_SOFTEN below,
+          // which now controls this directly instead of a parameter that did nothing.
+          const start = pushOffStart(rawA, rawB, false, startGap)
+          const end = pullBackEnd(rawA, rawB, false, endGap)
           const vertRun = Math.abs(end.y - start.y)
           // The reserved gutter column only needs to be wide enough to keep the curve clear of
           // the DOT column itself — but a return spanning a long vertical run (crossing another
@@ -281,10 +285,20 @@ export default function TrailConnectorOverlay({
           // moving mostly SIDEWAYS right away (committing to the lane almost immediately)
           // rather than staying near-vertical through most of its length, so the curve reads as
           // "swings out and clearly goes around," not "leans slightly left of the spine." A
-          // small Y offset (not 0) toward the OTHER end softens the corner into a rounded
-          // curve instead of a sharp near-right-angle — per direct feedback ("the revisit
-          // connection can probably be made a bit less curved" — i.e. less of a hard corner,
-          // said right after the previous round's fully-square version).
+          // small Y offset TOWARD the other end softens the corner into a rounded curve instead
+          // of a sharp near-right-angle.
+          // REVERTED an attempt to flip this sign (control point AWAY from the other end,
+          // meant to overshoot past start/end outward) — per direct feedback with a screenshot:
+          // "you made the arc worse... its not that you need to make it look like a circle".
+          // With `start`/`end` already sitting almost exactly ON the two dots (see the fix just
+          // above — pushOffStart/pullBackEnd against the real rawA/rawB, only a few px of
+          // clearance), a large away-from-target control offset made the curve's own visual
+          // extremes bulge out well before/after reaching start/end at all, reading as a closed
+          // loop floating apart from both bullets rather than a line connecting them. Back to the
+          // original toward-the-other-end sign and a modest cap — the actual open question
+          // (why the arc still looked like it fell short) is about where `start`/`end`
+          // THEMSELVES land, not this softening term, and needs a precise example of the
+          // expected vs. actual endpoint position rather than another blind curvature tweak.
           const CORNER_SOFTEN = Math.min(36, vertRun * 0.2)
           d = `M${start.x},${start.y} C${laneX},${start.y + dir * CORNER_SOFTEN} ${laneX},${end.y - dir * CORNER_SOFTEN} ${end.x},${end.y}`
           if (window.__bereanTrailDebug) {

@@ -970,6 +970,21 @@ export default function MapView({
     setHoveredKey(null)
     openMenuRaw(data)
   }
+  // ROOT CAUSE of "the connecting lines are going invisible when i rightclick the items" (the
+  // debug log above confirmed it): right-clicking never moves the cursor, so the very row whose
+  // menu you just opened is still sitting under the mouse — its own onMouseEnter had already
+  // fired before the click, and nothing stopped it from firing AGAIN (a re-render moving/
+  // resizing the row under a stationary cursor is enough to resynthesize one) while the menu is
+  // still open, re-setting hoveredKey right back and re-triggering the aggressive
+  // dim-everything-else effect for as long as the menu stays up — openMenu's own clear only
+  // wins for one render. Route every onHoverKey call through this instead of setHoveredKey
+  // directly: while a menu is open, a new (non-null) hover claim is ignored outright — clearing
+  // back to null (a real mouseleave) still goes through, so nothing gets stuck once the menu
+  // closes and the cursor genuinely leaves.
+  function handleHoverKey(key: string | null) {
+    if (menu && key) return
+    setHoveredKey(key)
+  }
   // Generalizes the fix above to its actual root cause rather than patching one trigger at a
   // time — per direct feedback ("some items in the study trail going invisible... seems when i
   // go to a new scripture"): navigating in the separate MAIN Bible window never fires a
@@ -1581,7 +1596,7 @@ export default function MapView({
                 key={`cluster:${item.nodes[0].id}`}
                 nodes={item.nodes}
                 registerPoint={registerPoint}
-                onHoverKey={setHoveredKey}
+                onHoverKey={handleHoverKey}
                 connectionsByNodeId={rowsForNode}
                 nodeOrderIndex={nodeOrderIndex}
                 onOpenPrompt={setPromptConn}
@@ -1639,7 +1654,7 @@ export default function MapView({
               onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
               onToggleTopicBreak={(nodeId, current) => window.studyTrail.setNodeTopicBreak(nodeId, !current).then(onChanged)}
               step={i + 1}
-              onHoverKey={setHoveredKey}
+              onHoverKey={handleHoverKey}
               keyboardFocused={keyboardFocusId === n.id}
               dimmed={!!q && !matchedNodeIds.has(n.id)}
               searchMatched={!!q && matchedNodeIds.has(n.id)}
