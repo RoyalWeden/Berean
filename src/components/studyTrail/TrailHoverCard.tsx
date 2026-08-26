@@ -49,6 +49,13 @@ export default function TrailHoverCard({ content, children, disabled, secondaryC
   function scheduleOpen(e: React.MouseEvent) {
     if (disabled) return
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
+    // Already open — per direct feedback ("when i put my cursor over the hover popup, it should
+    // stay where it is instead of moving again"), don't recompute/reschedule a new position.
+    // The trigger's own onMouseEnter can re-fire even while the card is already showing (the
+    // cursor grazing back over part of the trigger while actually heading toward the card,
+    // which sits right next to/over it) — that used to restart the SHOW_DELAY timer with the
+    // cursor's LATEST coordinates, visibly jumping the card to a new spot a moment later.
+    if (open) return
     const x = e.clientX, y = e.clientY
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
