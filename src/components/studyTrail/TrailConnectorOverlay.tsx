@@ -112,6 +112,14 @@ export default function TrailConnectorOverlay({
   // (endpoint starts resolving) or a genuine regression (a previously-fine edge goes missing)
   // both still surface — only the identical-every-render spam is suppressed.
   const warnedRef = useRef<Set<string>>(new Set())
+  // Per direct feedback ("can you create some logs for the arc, its still having the same
+  // issues") — logs every laned (revisit/return) edge's actual computed geometry, keyed and
+  // deduped by edge key + a rounded summary of the values so it only re-logs when something
+  // ACTUALLY changes (a resize, a new edge, real values shifting) rather than every render.
+  // Reading gutterX/gutterRightEdge/extraBow/laneX/vertRun straight from here settles definitively
+  // whether the constants bumped this round (EXIT_RUN, EXTRA_BOW_BASE, the laneX floor) are
+  // actually being used with the values expected, or whether stale code/props are still in play.
+  const lastArcLogRef = useRef<Map<string, string>>(new Map())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -279,6 +287,22 @@ export default function TrailConnectorOverlay({
           // said right after the previous round's fully-square version).
           const CORNER_SOFTEN = Math.min(36, vertRun * 0.2)
           d = `M${start.x},${start.y} C${laneX},${start.y + dir * CORNER_SOFTEN} ${laneX},${end.y - dir * CORNER_SOFTEN} ${end.x},${end.y}`
+          if (window.__bereanTrailDebug) {
+            const summary = {
+              key: e.key,
+              gutterRightEdge: Math.round(gutterRightEdge), baseLaneX: Math.round(baseLaneX),
+              vertRun: Math.round(vertRun), extraBow: Math.round(extraBow), laneX: Math.round(laneX),
+              clampedToFloor: laneX === 24,
+              rawA: { x: Math.round(rawA.x), y: Math.round(rawA.y) }, rawB: { x: Math.round(rawB.x), y: Math.round(rawB.y) },
+              start: { x: Math.round(start.x), y: Math.round(start.y) }, end: { x: Math.round(end.x), y: Math.round(end.y) },
+              d,
+            }
+            const logStr = JSON.stringify(summary)
+            if (lastArcLogRef.current.get(e.key) !== logStr) {
+              lastArcLogRef.current.set(e.key, logStr)
+              console.log('[TrailDebug] arc geometry', summary)
+            }
+          }
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
