@@ -229,8 +229,14 @@ export default function TrailConnectorOverlay({
           const gutterRightEdge = gutter ? gutter.x * 2 : 0
           const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const dir = Math.sign(rawB.y - rawA.y || 1)
-          const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * 30 }, false, startGap)
-          const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * 30 }, rawB, false, endGap)
+          // Exit distance bumped 30 -> 38 — per direct feedback ("the top of the arc needs to
+          // be shifted up a little and the bottom needs to be shifted down a hair"), the curve's
+          // straight exit run out of each endpoint (before it starts bending toward the lane)
+          // needed to reach a bit further past both dots for the whole loop to read as fuller/
+          // rounder rather than hugging tight to the two bullets it connects.
+          const EXIT_RUN = 38
+          const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * EXIT_RUN }, false, startGap)
+          const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * EXIT_RUN }, rawB, false, endGap)
           const vertRun = Math.abs(end.y - start.y)
           // The reserved gutter column only needs to be wide enough to keep the curve clear of
           // the DOT column itself — but a return spanning a long vertical run (crossing another
@@ -249,7 +255,10 @@ export default function TrailConnectorOverlay({
           // Reach bumped up again per direct feedback ("the revisit arc can be increased
           // slightly... reach the full distance") — paired with MapView's own gutterWidth
           // reservation (EXTRA_BOW_RESERVE), which still comfortably covers this.
-          const extraBow = 65 + Math.max(0, vertRun - 60) * 0.45
+          // Base bumped 65 -> 85 per direct feedback ("the arc needs to be moved to the left a
+          // little") — MapView's own EXTRA_BOW_BASE mirrors this constant for its reservation.
+          const EXTRA_BOW_BASE = 85
+          const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
           // Clamped to a small positive floor — a last-resort safety net so a future formula
           // tweak on either side of this (extraBow here, or gutterWidth in MapView) can never
           // reintroduce the negative-laneX bug above even if they drift out of sync again.

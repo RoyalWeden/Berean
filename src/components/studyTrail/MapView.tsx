@@ -68,13 +68,20 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
 // either shows like zig zag or is like dots or something to show a break in time"). Reserves
 // the gap's own full height and centers its label vertically within it — per direct feedback
 // ("the gap label needs to show in the vertical middle of the gap").
-function GapDivider({ gapMs }: { gapMs: number }) {
+function GapDivider({ gapMs, minWidth }: { gapMs: number; minWidth?: number }) {
   // No left padding/inset — per direct feedback ("the minutes later divider should go across
   // the entire thing horizontally"), this now spans edge-to-edge (through the left gutter too),
   // not just the bullet/text column's own width; the fixed 21px inset was tuned before that
   // gutter reservation existed.
+  // `width: '100%'` alone only reaches as wide as this row's own containing block — which is
+  // the `width: 'max-content'` zoom wrapper in MapView, i.e. exactly as wide as the WIDEST row
+  // actually rendered, not the visible scroll viewport. Per direct feedback ("the blank area on
+  // the right of the timeline still needs to have the horizontal line"): when every row happens
+  // to be narrower than the viewport, there's leftover blank space to the right the line never
+  // reached. `minWidth` (the scroll container's own live clientWidth, normalized back to local/
+  // pre-zoom units by MapView) forces this row at least that wide regardless of content width.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%', minWidth }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
         <span style={{
@@ -878,6 +885,20 @@ export default function MapView({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
 
+  // Tracks the scroll viewport's own live width so GapDivider (below) can force its dashed line
+  // at least that wide — the timeline's content wrapper is `width: max-content` (sized to its
+  // widest row), so a GapDivider row narrower than the viewport otherwise leaves the visible
+  // blank area to its right with no line through it. See GapDivider's own comment.
+  const [viewportWidth, setViewportWidth] = useState(0)
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setViewportWidth(el.clientWidth))
+    ro.observe(el)
+    setViewportWidth(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
   // Open scrolled to the MOST RECENT event by default, not the earliest — per direct feedback
   // ("when opening any of the timeline things, even in everything, it should scroll to the
   // bottom by default"). Same idiom as AiLookupPanel.tsx's chat auto-scroll. Keyed on the node
@@ -1325,7 +1346,10 @@ export default function MapView({
   const ROW_HEIGHT_ESTIMATE = 50
   const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
   const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
-  const dynamicExtraBow = 65 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
+  // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (85) — keep these in sync if either one
+  // is retuned, or the reservation and the actual curve drift apart again (see the negative-
+  // laneX bug this whole reservation formula exists to prevent).
+  const dynamicExtraBow = 85 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
   const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 40)
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
@@ -1470,11 +1494,24 @@ export default function MapView({
           <div ref={containerRef} style={{ position: 'relative' }}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
                 on a musical paper that show the indent levels so the user can follow which
-                level things are at"). One vertical line per tangent depth actually present,
-                positioned at that depth's own indent (matching TangentBullet/ConnRow's own
-                `22 * (depth + 1)` formula, offset by gutterWidth since that's where the content
-                column itself starts) — purely decorative, so it sits behind everything else and
-                never intercepts a click. */}
+                level things are at"). One line for the main spine itself (indent 0, where every
+                chapter-arrival bullet sits — per follow-up feedback "there needs to be one for
+                the main spine, for the tangent and for all the tangent columns", the original
+                pass only drew the tangent columns and left the main spine with no line of its
+                own), plus one per tangent depth actually present, positioned at that depth's own
+                indent (matching TangentBullet/ConnRow's own `22 * (depth + 1)` formula, offset
+                by gutterWidth since that's where the content column itself starts) — purely
+                decorative, so every line sits behind everything else and never intercepts a
+                click. */}
+            {maxChainDepth >= 0 && (
+              <div
+                key="guide:main"
+                style={{
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 3.5,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+                }}
+              />
+            )}
             {maxChainDepth >= 0 && Array.from({ length: maxChainDepth + 1 }, (_, depth) => (
               <div
                 key={`guide:${depth}`}
@@ -1573,7 +1610,7 @@ export default function MapView({
               hoverChain={hoveredKeyIsLive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
-            {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} />}
             </div>
           )
         })}
