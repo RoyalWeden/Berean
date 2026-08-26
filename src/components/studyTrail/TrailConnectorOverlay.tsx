@@ -40,7 +40,12 @@ export interface TrailEdge {
 // Shared with MapView.tsx, which needs these to size the reserved gutter column — a lane
 // routes at `gutterBaseX - lane * LANE_SPACING` (see the `d` construction below), so the
 // column must be at least `GUTTER_BASE + maxLane * LANE_SPACING` wide to fit every lane.
-export const GUTTER_BASE = 16
+// GUTTER_BASE raised 16 -> 30 per direct feedback on the left-gutter revisit/return arcs
+// ("make sure that it is going past the main spine bullet too, so the arc will need to be
+// curved more") — the old 16px reservation put lane 0 barely left of the dot column at all,
+// so the curve's belly (at 55% reach, see the bezier construction below) never visibly cleared
+// the bullets it was supposed to arc around.
+export const GUTTER_BASE = 30
 export const LANE_SPACING = 10
 
 /** One shared registry of "connector point key → its DOM element", plus the ref-callback
@@ -193,9 +198,12 @@ export default function TrailConnectorOverlay({
           const BEND = Math.min(60, Math.max(24, vertRun * 0.4))
           const reachA = laneX - start.x
           const reachB = laneX - end.x
+          // Control points pulled to 90% of the way to the lane (was 55%) — per direct
+          // feedback, the curve needs to visibly swing PAST the main spine's own bullets, not
+          // just lean toward the gutter without clearly clearing them.
           d = `M${start.x},${start.y} `
-            + `C${start.x + reachA * 0.55},${start.y + dir * BEND} `
-            + `${end.x + reachB * 0.55},${end.y - dir * BEND} `
+            + `C${start.x + reachA * 0.9},${start.y + dir * BEND} `
+            + `${end.x + reachB * 0.9},${end.y - dir * BEND} `
             + `${end.x},${end.y}`
         } else {
           const curved = !!e.curved

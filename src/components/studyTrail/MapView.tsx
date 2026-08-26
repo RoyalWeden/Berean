@@ -1249,6 +1249,25 @@ export default function MapView({
   if (hoveredKey) {
     hoverChainPointKeys.add(hoveredKey)
     const stack = [hoveredKey]
+    // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are two
+    // HALVES of the exact same hop, not an ancestor/descendant pair — but the backward-only
+    // walk below only reaches origin FROM dest (via the tangent-hop edge), never the other way
+    // (dest is a forward step from origin, so a strictly-backward walk never finds it). That
+    // left hovering the ORIGIN half incorrectly dimming its own destination sibling, per direct
+    // feedback ("it dims all of the bullets... only those that didn't lead to the current
+    // tangent item [should dim] — the destination clearly IS led to by the origin"). Seeding the
+    // walk with this hop's own arrival node too (whichever half is hovered) fixes it: the
+    // existing backward walk from that node already naturally pulls in BOTH tangent bullets
+    // (tangent-arrive → tangent-dest → tangent-hop → tangent-origin) plus everything further
+    // back, so seeding just this one extra point makes the whole hop — and its real ancestry —
+    // pronounce together regardless of which half you're actually hovering.
+    const tangentNodeId = hoveredKey.startsWith('tangent-origin:') ? hoveredKey.slice('tangent-origin:'.length)
+      : hoveredKey.startsWith('tangent-dest:') ? hoveredKey.slice('tangent-dest:'.length)
+      : null
+    if (tangentNodeId != null) {
+      const nodeKey = `node:${tangentNodeId}`
+      if (!hoverChainPointKeys.has(nodeKey)) { hoverChainPointKeys.add(nodeKey); stack.push(nodeKey) }
+    }
     while (stack.length) {
       const cur = stack.pop()!
       for (const e of edgesByTo.get(cur) ?? []) {
