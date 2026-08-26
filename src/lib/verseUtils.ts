@@ -303,21 +303,37 @@ export function mapOriginalOffsetToDisplay(displayText: string, originalText: st
   return interp(oBreaks, dBreaks, originalOffset)
 }
 
-/** Extracts a 14-word window around the first match index when the match is far from the start.
- *  Returns null when the first match is within the first 10 words (no windowing needed). */
+// Below this many characters, a verse is short enough to trivially fit a single search-result
+// row — no reason to pre-slice it in JS at all; the row's own CSS line-clamp is the only
+// truncation that should ever kick in, and only if the text genuinely doesn't fit. Per direct
+// feedback ("it should only truncate when it will take up more than the entire line"), the old
+// version windowed purely off the matched word's POSITION, with no regard for whether the whole
+// verse would already fit — chopping short verses whose match just happened to fall late.
+const WINDOW_MIN_CHARS = 160
+
+/** Extracts a 14-word window around the first match index — but only for a verse long enough
+ *  that it wouldn't fit a single row anyway (see WINDOW_MIN_CHARS), and only when the match
+ *  index actually falls within the verse's own word count. Returns null (no windowing — show
+ *  the full verse, truncated by CSS only if needed) when either condition fails. */
 export function getWordWindow(
   text: string,
   matchWordIndices?: number[]
 ): { windowText: string; windowMatchIndices: number[] } | null {
   if (!matchWordIndices?.length) return null
+  if (text.length < WINDOW_MIN_CHARS) return null
   const words = text.split(' ').filter(Boolean)
   const firstMatch = matchWordIndices[0]
-  if (firstMatch < 10) return null
+  // A Strong's-tag word index computed against text_tagged can land past the plain-text word
+  // count (text_tagged sometimes carries extra markup tokens text doesn't) — previously this
+  // silently produced an out-of-order slice() that collapsed to just "…" with no real text at
+  // all. Treat an out-of-range index as "nothing to window," not "window to nothing."
+  if (firstMatch < 10 || firstMatch >= words.length) return null
 
   const BEFORE = 3
   const TOTAL = 14
   const windowStart = Math.max(0, firstMatch - BEFORE)
   const windowEnd = Math.min(words.length, windowStart + TOTAL)
+  if (windowStart >= windowEnd) return null
   const hasPrefix = windowStart > 0
   const hasSuffix = windowEnd < words.length
 

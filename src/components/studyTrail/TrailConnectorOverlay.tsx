@@ -40,7 +40,12 @@ export interface TrailEdge {
 // Shared with MapView.tsx, which needs these to size the reserved gutter column — a lane
 // routes at `gutterBaseX - lane * LANE_SPACING` (see the `d` construction below), so the
 // column must be at least `GUTTER_BASE + maxLane * LANE_SPACING` wide to fit every lane.
-export const GUTTER_BASE = 16
+// GUTTER_BASE raised 16 -> 30 per direct feedback on the left-gutter revisit/return arcs
+// ("make sure that it is going past the main spine bullet too, so the arc will need to be
+// curved more") — the old 16px reservation put lane 0 barely left of the dot column at all,
+// so the curve's belly (at 55% reach, see the bezier construction below) never visibly cleared
+// the bullets it was supposed to arc around.
+export const GUTTER_BASE = 30
 export const LANE_SPACING = 10
 
 /** One shared registry of "connector point key → its DOM element", plus the ref-callback
@@ -69,12 +74,13 @@ const ENDPOINT_GAP = 3
 
 /** Pulls a path's endpoint back off the target point by its radius + a visible gap, along the
  *  path's actual approach direction — for curved edges (the cubic bezier this file draws) the
- *  end tangent is ALWAYS horizontal regardless of the two points' relative positions (both
- *  control points are offset the same +36 in x from their own endpoint — see the `d` build
- *  below), so the pullback is a pure x-shift; straight edges pull back along the literal a→b
- *  direction. */
+ *  tangent at each end is VERTICAL (not horizontal — see the `d` build below, which is what a
+ *  branch row reconverging into the main spine should look like: pointing down out of the
+ *  bullet, curving over, then pointing down into the target, rather than shooting sideways out
+ *  of the bullet first), so the pullback is a pure y-shift in the direction from A to B;
+ *  straight edges pull back along the literal a→b direction. */
 function pullBackEnd(from: TrailPoint, to: TrailPoint, curved: boolean, dist: number): TrailPoint {
-  if (curved) return { x: to.x + dist, y: to.y }
+  if (curved) return { x: to.x, y: to.y - Math.sign(to.y - from.y || 1) * dist }
   const dx = to.x - from.x, dy = to.y - from.y
   const len = Math.hypot(dx, dy) || 1
   return { x: to.x - (dx / len) * dist, y: to.y - (dy / len) * dist }
@@ -82,7 +88,7 @@ function pullBackEnd(from: TrailPoint, to: TrailPoint, curved: boolean, dist: nu
 /** Same idea for the START point — the path begins slightly clear of the source dot too,
  *  rather than dead-center inside it. */
 function pushOffStart(from: TrailPoint, to: TrailPoint, curved: boolean, dist: number): TrailPoint {
-  if (curved) return { x: from.x + dist, y: from.y }
+  if (curved) return { x: from.x, y: from.y + Math.sign(to.y - from.y || 1) * dist }
   const dx = to.x - from.x, dy = to.y - from.y
   const len = Math.hypot(dx, dy) || 1
   return { x: from.x + (dx / len) * dist, y: from.y + (dy / len) * dist }
@@ -97,6 +103,23 @@ export default function TrailConnectorOverlay({
   zoom?: number
 }) {
   const [coords, setCoords] = useState<Map<string, TrailPoint>>(new Map())
+  // Dedupe the missing-endpoint warning below — without this it re-fires identically on EVERY
+  // render forever for any edge whose endpoint is legitimately not currently mounted (most
+  // commonly: a spine edge touching a node hidden inside a collapsed "bounced Nx" cluster,
+  // which only renders its first/last node — see NodeClusterGroup in MapView.tsx). That's
+  // expected, not a bug, but logging it every render made the console useless for spotting a
+  // REAL missing-endpoint case. Keyed by edge key + which side was missing, so a genuine fix
+  // (endpoint starts resolving) or a genuine regression (a previously-fine edge goes missing)
+  // both still surface — only the identical-every-render spam is suppressed.
+  const warnedRef = useRef<Set<string>>(new Set())
+  // Per direct feedback ("can you create some logs for the arc, its still having the same
+  // issues") — logs every laned (revisit/return) edge's actual computed geometry, keyed and
+  // deduped by edge key + a rounded summary of the values so it only re-logs when something
+  // ACTUALLY changes (a resize, a new edge, real values shifting) rather than every render.
+  // Reading gutterX/gutterRightEdge/extraBow/laneX/vertRun straight from here settles definitively
+  // whether the constants bumped this round (EXIT_RUN, EXTRA_BOW_BASE, the laneX floor) are
+  // actually being used with the values expected, or whether stale code/props are still in play.
+  const lastArcLogRef = useRef<Map<string, string>>(new Map())
 
   // setCoords with a genuinely new Map object on EVERY call (even when nothing actually
   // moved) was the bug: useLayoutEffect below has no dependency array so it reruns after
@@ -164,40 +187,109 @@ export default function TrailConnectorOverlay({
       </defs>
       {edges.map((e) => {
         const rawA = coords.get(e.from), rawB = coords.get(e.to)
-        if (!rawA || !rawB) return null
-        const startGap = radiusFor(e.from) + ENDPOINT_GAP
-        const endGap = radiusFor(e.to) + (e.arrow ? ENDPOINT_GAP + 2 : ENDPOINT_GAP)
+        if (!rawA || !rawB) {
+          // Directly diagnoses "both ends of the connection is not on the two bullets it
+          // should be" — a missing point here means this edge's from/to key never got
+          // registered (or was unregistered/stale) at the time coords were last measured, so
+          // it silently draws nothing instead of landing on the wrong spot. Gated behind the
+          // same __bereanTrailDebug flag as Study Trail's other diagnostic logging — set
+          // `window.__bereanTrailDebug = true` in devtools (persists across restarts; see
+          // main.tsx's definePersistentDebugFlag) to turn it on.
+          if (window.__bereanTrailDebug) {
+            const warnKey = `${e.key}:${!!rawA}:${!!rawB}`
+            if (!warnedRef.current.has(warnKey)) {
+              warnedRef.current.add(warnKey)
+              console.warn('[TrailDebug] edge endpoint missing — not drawn', { key: e.key, from: e.from, to: e.to, hasFrom: !!rawA, hasTo: !!rawB })
+            }
+          }
+          return null
+        }
+        // Trimmed 1 -> ... per direct feedback ("the endpoints of the arc are still off... the
+        // bottom endpoint can be shifted down") — the START side of a laned edge (the revisit/
+        // return dot itself) had no special-casing at all, just the generic gap every edge uses;
+        // shaving it slightly lets a laned edge's line reach a little further toward its own
+        // source dot before the small clearance kicks in.
+        const startGap = radiusFor(e.from) + (e.lane != null ? 1 : ENDPOINT_GAP)
+        // A laned+arrowed edge (a branch's return arrow) needs SOME extra clearance so the
+        // arrowhead reads as a distinct triangle rather than overlapping the dot — but the old
+        // +9 was tuned generously and, per direct feedback this round ("the endpoints of the arc
+        // are still off... it needs to extend up more"), reads as landing well short of the
+        // actual dot rather than pointing at it: radiusFor(node)=5 + ENDPOINT_GAP(3) + 9 = 17px
+        // of dead space between the arrow tip and the dot's own center for a 9px-wide dot.
+        // Trimmed to +3 (11px total) — still enough separation for the arrowhead to read as its
+        // own shape, not so much that the curve visibly falls short of the target.
+        const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 3 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
 
         let d: string
         if (e.lane != null) {
-          // Laned (gutter) routing: a vertical run confined to this lane's column, jogging
-          // horizontally only right at each end — never crosses through intervening content
-          // regardless of how far apart the two points are. The two jog corners are true
-          // quarter-circle arcs (Q command), not hard L-to-L corners — per direct feedback
-          // ("i also hate the boxing looking arrow... this whole line and arrow thing needs to
-          // be curved"), strokeLinejoin:"round" alone only bevels a corner's visual join, it
-          // doesn't actually curve the path's geometry the way these arcs do.
+          // REWRITTEN FROM SCRATCH per direct feedback ("both of those are still not fixed...
+          // maybe for the revisit arc, you just recreate the entire arc for that from scratch")
+          // after several rounds of tuning a "toward/away from the other end" Y-offset on the
+          // control points kept producing either a curve that fell visibly short of one dot
+          // (the original, safe direction) or a closed loop that floated apart from both dots
+          // entirely (an attempt at the opposite direction) — that whole family of "offset the
+          // control point in Y by some tunable amount" was the wrong lever regardless of which
+          // way it pointed or how big it was.
+          //
+          // New construction, deliberately as simple as it can be: a single cubic bezier whose
+          // TWO CONTROL POINTS SIT EXACTLY AT THEIR OWN ENDPOINT'S OWN Y — control1 = (laneX,
+          // start.y), control2 = (laneX, end.y). This is mathematically guaranteed to never
+          // overshoot past start or end (a cubic bezier's points are a weighted average of its
+          // four control points; with both middle points already inside the Y-range
+          // [start.y, end.y], the whole curve's Y stays inside that range too) — so it can never
+          // degenerate into a loop no matter how large the horizontal reach (laneX) is, and it
+          // reaches EXACTLY from start's height to end's height by construction, not by tuning
+          // some separate softening constant to approximate that span — solving "coming up
+          // short" the same move that also makes "turning into a circle" structurally
+          // impossible, instead of trading one for the other.
           const gutter = coords.get('gutter:x')
-          const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          const start = pushOffStart(rawA, { x: laneX, y: rawA.y }, false, startGap)
-          const end = pullBackEnd({ x: laneX, y: rawB.y }, rawB, false, endGap)
-          const CORNER_R = 7
-          const vertRun = Math.abs(rawB.y - rawA.y)
-          const r = Math.min(CORNER_R, vertRun / 2 || CORNER_R, Math.abs(laneX - start.x) || CORNER_R, Math.abs(end.x - laneX) || CORNER_R)
-          const signX1 = laneX >= start.x ? 1 : -1
-          const signY = rawB.y >= rawA.y ? 1 : -1
-          const signX2 = end.x >= laneX ? 1 : -1
-          const c1a = { x: laneX - signX1 * r, y: rawA.y }
-          const c1b = { x: laneX, y: rawA.y + signY * r }
-          const c2a = { x: laneX, y: rawB.y - signY * r }
-          const c2b = { x: laneX + signX2 * r, y: rawB.y }
-          d = `M${start.x},${start.y} L${c1a.x},${c1a.y} Q${laneX},${rawA.y} ${c1b.x},${c1b.y} L${c2a.x},${c2a.y} Q${laneX},${rawB.y} ${c2b.x},${c2b.y} L${end.x},${end.y}`
+          // Anchored to the spacer's own RIGHT edge (gutter.x*2 — the registered point is the
+          // spacer's CENTER, and its left edge sits at containerRef's own x=0), not its center.
+          const gutterRightEdge = gutter ? gutter.x * 2 : 0
+          const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
+          const start = pushOffStart(rawA, rawB, false, startGap)
+          const end = pullBackEnd(rawA, rawB, false, endGap)
+          const vertRun = Math.abs(end.y - start.y)
+          // How far left of the dot column the curve bulges — scales with vertRun so a return
+          // spanning a lot of intervening content swings out further to visibly "go around" it,
+          // not just lean slightly left of it. MapView's own gutterWidth reservation
+          // (EXTRA_BOW_RESERVE) mirrors this same formula so the reserved scroll room actually
+          // covers it.
+          // Bumped 85 -> 105 per direct feedback ("shifted to the left a little") — MapView's
+          // own EXTRA_BOW_BASE mirrors this constant for its reservation, keep them in sync.
+          const EXTRA_BOW_BASE = 105
+          const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
+          // Floor is a last-resort safety net only — with the new construction above, laneX
+          // going small just makes for a narrower (not broken) bulge; nothing here can loop.
+          const laneX = Math.max(24, baseLaneX - extraBow)
+          d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
+          if (window.__bereanTrailDebug) {
+            const summary = {
+              key: e.key,
+              gutterRightEdge: Math.round(gutterRightEdge), baseLaneX: Math.round(baseLaneX),
+              vertRun: Math.round(vertRun), extraBow: Math.round(extraBow), laneX: Math.round(laneX),
+              clampedToFloor: laneX === 24,
+              rawA: { x: Math.round(rawA.x), y: Math.round(rawA.y) }, rawB: { x: Math.round(rawB.x), y: Math.round(rawB.y) },
+              start: { x: Math.round(start.x), y: Math.round(start.y) }, end: { x: Math.round(end.x), y: Math.round(end.y) },
+              d,
+            }
+            const logStr = JSON.stringify(summary)
+            if (lastArcLogRef.current.get(e.key) !== logStr) {
+              lastArcLogRef.current.set(e.key, logStr)
+              console.log('[TrailDebug] arc geometry', summary)
+            }
+          }
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
           const b = pullBackEnd(rawA, rawB, curved, endGap)
+          // Vertical control-point offsets (not the old +36 in x) — per direct feedback
+          // ("start the arrow line from below the branch bullet instead of the right side"),
+          // the curve should point straight down (or up) out of the source bullet and into the
+          // target, bowing sideways only as much as their x-difference actually requires.
+          const dir = Math.sign(b.y - a.y || 1)
           d = curved
-            ? `M${a.x},${a.y} C${a.x + 36},${a.y} ${b.x + 36},${b.y} ${b.x},${b.y}`
+            ? `M${a.x},${a.y} C${a.x},${a.y + dir * 28} ${b.x},${b.y - dir * 28} ${b.x},${b.y}`
             : `M${a.x},${a.y} L${b.x},${b.y}`
         }
         return (

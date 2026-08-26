@@ -381,6 +381,8 @@ contextBridge.exposeInMainWorld('studyTrail', {
   reopenNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:reopenNode', nodeId),
   promoteRevisit: (args: unknown) => ipcRenderer.invoke('studyTrail:promoteRevisit', args),
   updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
+  setNodeTopicBreak: (nodeId: string, isTopicBreak: boolean) => ipcRenderer.invoke('studyTrail:setNodeTopicBreak', nodeId, isTopicBreak),
+  deleteNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:deleteNode', nodeId),
   addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
   markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),
   updateConnectionReason: (connectionId: string, update: unknown) => ipcRenderer.invoke('studyTrail:updateConnectionReason', connectionId, update),
@@ -389,6 +391,18 @@ contextBridge.exposeInMainWorld('studyTrail', {
   updateRecap: (trailSessionId: string, recapText: string) => ipcRenderer.invoke('studyTrail:updateRecap', trailSessionId, recapText),
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => ipcRenderer.invoke('studyTrail:getBacklinks', bookId, chapter, excludeSessionId),
   search: (query: string) => ipcRenderer.invoke('studyTrail:search', query),
+  // Push-based live update — see broadcastDataChanged's comment in electron/ipc/studyTrail.ts.
+  // Fires in every window immediately after any node/connection/session write, so the Study
+  // Trail window can refetch right away instead of waiting on its own poll interval. Unlike
+  // this file's other on*Changed helpers, more than one call site in the SAME window needs its
+  // own independent listener at once (the session-list poll and the selected-session poll both
+  // react to this) — `removeAllListeners` would silently clobber whichever registered first, so
+  // this adds/removes its own listener specifically and hands back an unsubscribe function.
+  onDataChanged: (cb: (trailSessionId: string | undefined) => void) => {
+    const listener = (_e: unknown, trailSessionId: string | undefined) => cb(trailSessionId)
+    ipcRenderer.on('studyTrail:dataChanged', listener)
+    return () => ipcRenderer.removeListener('studyTrail:dataChanged', listener)
+  },
 })
 
 contextBridge.exposeInMainWorld('workspaces', {

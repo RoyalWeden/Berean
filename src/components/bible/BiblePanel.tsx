@@ -2149,6 +2149,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 justNavigatedAwayFromSearchRef.current = false
               } else {
                 searchTabRenameTimerRef.current = setTimeout(() => {
+                  // ScriptureSearchView can also unmount because the user switched the active
+                  // scripture tab away from this one entirely (click, keyboard nav, Cmd+L
+                  // landing elsewhere) — that path never touches justNavigatedAwayFromSearchRef,
+                  // since it's not a "click a result" navigation. Its own unmount-flush still
+                  // fires this onStateChange with stale (pre-switch) state, which would
+                  // otherwise restomp whatever title the newly-active tab just picked up. Guard
+                  // against that generically: only rename if tabId is still the active tab.
+                  if (useAppStore.getState().activeTabId.scripture !== tabId) return
                   const trimmedQuery = (s.query ?? '').trim()
                   useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
                 }, 150)

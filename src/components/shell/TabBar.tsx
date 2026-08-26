@@ -610,10 +610,13 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
                     // group-hover here is what actually gives an ALREADY-active tab hover
                     // feedback — without it, hovering an active tab (whose own row has no
                     // hover: classes, since its highlight comes entirely from this pill) showed
-                    // nothing at all. A distinct accent tint (matching the isCrossSpaceTarget
-                    // treatment above) rather than another neutral surface shade, since
-                    // surface-3 vs surface-4 don't reliably order the same way across themes.
-                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))] group-hover:bg-[rgb(var(--color-accent))/15]"
+                    // nothing at all. Previously this swapped the pill's background to a much
+                    // lower-opacity accent tint on hover, which *replaced* (rather than layered
+                    // on top of) the solid active fill — reading as the tab losing its selected
+                    // look the instant you hovered it. `brightness` composites on top of
+                    // whatever color is already there instead of overriding it, so the active
+                    // fill stays fully visible and simply intensifies on hover.
+                    className="absolute inset-0 rounded-shell bg-[rgb(var(--color-surface-4))] transition-[filter] duration-100 group-hover:brightness-125"
                     transition={{ type: 'spring', stiffness: 800, damping: 45 }}
                   />
                 )}

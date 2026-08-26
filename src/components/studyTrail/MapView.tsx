@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
-import { Pencil, Copy } from 'lucide-react'
-import { bookName } from '@/lib/parseRef'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2 } from 'lucide-react'
+import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
-import { TrailNodeHoverContent, TrailConnectionHoverContent } from './TrailHoverContent'
+import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
 import { useTrailRefMenu, openTrailRefMenu, TrailRefContextMenu } from './TrailRefContextMenu'
 import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS } from '@/store/studyTrailSlice'
+
+// Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
+// in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
+// NodeClusterGroup call site) so hover cards uniformly disappear and stay hidden while the popup
+// is up. Per direct feedback: "when i click the edit button, the hover thing should go away and
+// shouldnt show until i close out of the whyd you jump here thing."
+const HoverDisabledContext = createContext(false)
 
 // The Map: a time-ordered vertical spine of chapter-anchor nodes, each with its off-spine
 // connections listed underneath it, all physically connected by a measured SVG overlay
@@ -39,24 +46,50 @@ function bookLabel(bookId: string): string {
 }
 
 function GapConnector({ gapMs }: { gapMs: number | null }) {
-  const height = gapMs == null ? 18 : gapSegmentHeight(gapMs)
-  const showChip = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
+  // Only reserves a small fixed connecting stub now — for a gap big enough to show its own
+  // GapDivider row (below), that row owns the rest of the reserved height itself, so the two
+  // don't stack and double the visual gap. For a small gap (no divider shown), this still
+  // grows to gapSegmentHeight, same as before.
+  const showsDivider = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
+  // A null gapMs only ever means "adjacent to a tangent bullet" (see the isBranchNode/
+  // nextIsBranchNode force-to-null at the call site). Per direct feedback ("look at all the
+  // gaps and make them uniform... tangent gaps should be about half [the main spine gap]"),
+  // this reserves NO artificial chrome at all for that case — natural stacking (this node's own
+  // row height plus the tangent bullet's own padding, see TANGENT_BULLET_PAD) is what makes
+  // every tangent-adjacent step (node→bullet, bullet→bullet, bullet→arrival) consistent with
+  // each other, instead of three different bespoke constants each producing a different gap.
+  const height = showsDivider ? 18 : gapMs == null ? TANGENT_EXTRA_GAP : gapSegmentHeight(gapMs)
+  return <div style={{ flex: 1, width: 2, minHeight: height }} />
+}
+
+// A full-width row between two node blocks for a long gap — guaranteed not to overlap
+// anything (it's its own block-level row in normal flow, not an overlay), and the dashed rule
+// itself is the "break in time" visual cue per direct feedback ("the line at this region
+// either shows like zig zag or is like dots or something to show a break in time"). Reserves
+// the gap's own full height and centers its label vertically within it — per direct feedback
+// ("the gap label needs to show in the vertical middle of the gap").
+function GapDivider({ gapMs, minWidth }: { gapMs: number; minWidth?: number }) {
+  // No left padding/inset — per direct feedback ("the minutes later divider should go across
+  // the entire thing horizontally"), this now spans edge-to-edge (through the left gutter too),
+  // not just the bullet/text column's own width; the fixed 21px inset was tuned before that
+  // gutter reservation existed.
+  // `width: '100%'` alone only reaches as wide as this row's own containing block — which is
+  // the `width: 'max-content'` zoom wrapper in MapView, i.e. exactly as wide as the WIDEST row
+  // actually rendered, not the visible scroll viewport. Per direct feedback ("the blank area on
+  // the right of the timeline still needs to have the horizontal line"): when every row happens
+  // to be narrower than the viewport, there's leftover blank space to the right the line never
+  // reached. `minWidth` (the scroll container's own live clientWidth, normalized back to local/
+  // pre-zoom units by MapView) forces this row at least that wide regardless of content width.
   return (
-    // The connecting LINE itself is now drawn by TrailConnectorOverlay (spine-dot to
-    // spine-dot) — this just reserves the vertical space the gap math calls for, and hosts
-    // the "42m later" chip when the gap is big enough to call out.
-    <div style={{ position: 'relative', flex: 1, width: 2, minHeight: height }}>
-      {showChip && (
-        // Anchored near the TOP of this connector (not vertically centered) — the column
-        // stretches to match whatever tall content sits beside it, so a centered chip used to
-        // drift down into unrelated row content several items below instead of reading as
-        // "attached to the incoming spine segment."
-        <div style={{
-          position: 'absolute', top: 10, left: 6, whiteSpace: 'nowrap', zIndex: 1,
-          fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
-          border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '1px 6px',
-        }}>{formatGap(gapMs!)} later</div>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%', minWidth }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+        <span style={{
+          fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
+          letterSpacing: '.02em',
+        }}>{formatGap(gapMs)} later</span>
+        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+      </div>
     </div>
   )
 }
@@ -140,14 +173,27 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
     const lines = [conn.userNote?.trim(), ...conn.tiesFrom, ...conn.tiesTo].filter(Boolean) as string[]
     try { await navigator.clipboard.writeText(lines.join('\n')) } catch { /* clipboard unavailable — no-op */ }
   }
+  // Per direct feedback ("the user should also be able to delete the note") — clears the same
+  // fields ReasonPromptPopover's own Delete button does; the existing onDataChanged broadcast
+  // (see electron/ipc/studyTrail.ts) is what makes this bubble disappear once the DB catches up,
+  // no separate refresh callback needed here.
+  function deleteNote() {
+    window.studyTrail.clearConnectionNote(conn.id).catch(() => {})
+  }
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Your note</span>
-        <button
-          onClick={copy} title="Copy this note"
-          style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
-        ><Copy size={11} /></button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={copy} title="Copy this note"
+            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+          ><Copy size={11} /></button>
+          <button
+            onClick={deleteNote} title="Delete this note"
+            style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+          ><Trash2 size={11} /></button>
+        </span>
       </div>
       {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (conn.tiesFrom.length || conn.tiesTo.length) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
       {conn.tiesFrom.length > 0 && (
@@ -160,7 +206,84 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
   )
 }
 
-function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey }: {
+// A lightweight tangent bullet — used for the origin/destination pair shown above a
+// cross-chapter branch's own spine-point node (see NodeBlock). Now carries the same hover card
+// as an ordinary ConnRow (per direct feedback: "put the hover thing for tangents too") — still
+// no click-to-navigate/context menu, since both bullets describe the SAME connection between
+// them and the full detail (note, tie-ins, edit) already lives on the node/ConnRow they sit
+// beside; this is just the same at-a-glance preview. Visually matches ConnRow's own dot+text so
+// a tangent bullet looks the same whether it came from a same-chapter or cross-chapter hop, per
+// direct feedback unifying the two.
+// The baseline source of spacing for every tangent-adjacent step (node→first bullet, bullet→
+// bullet, last bullet→arrival node) — 14px top + 14px bottom gives 28px between two stacked
+// bullets. Raised from 8 per direct feedback ("make all the tangent related gaps bigger").
+const TANGENT_BULLET_PAD = 14
+
+// A small additional reservation (on top of TANGENT_BULLET_PAD) for the two transitions that
+// don't get it "for free" from a bullet's own padding alone — node→first-bullet and last-
+// bullet→arrival-node — so those two steps grow in step with bullet→bullet instead of staying
+// pinned at zero forever. Kept the same uniform value everywhere it's used so all four tangent
+// transitions still track each other.
+const TANGENT_EXTRA_GAP = 10
+
+// Extra breathing room between two ordinary, back-to-back main-spine nodes (no tangent
+// involved, no real elapsed-time gap large enough to earn its own scaled height) — per direct
+// feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
+const MAIN_SPINE_GAP = 44
+
+function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
+  label: string; indent: number; pointKey: string
+  registerPoint: (key: string) => (el: HTMLElement | null) => void
+  /** What this SPECIFIC bullet's own hover card should show — the origin bullet and the
+   *  destination bullet describe two different verses, so each gets its own content rather
+   *  than sharing one (previously both showed the connection's destination, even when hovering
+   *  the origin bullet — see TrailVersePreview's own comment). */
+  hoverContent: React.ReactNode
+  /** The verse THIS bullet represents — clicking/right-clicking navigates there, same as any
+   *  other clickable reference in the trail. Named targetRef, not `ref` — React (18) treats a
+   *  prop literally named `ref` specially even on a plain function component, which would
+   *  silently strip it/warn instead of passing it through as a normal value. */
+  targetRef: TrailRef | null
+  openMenu?: (data: { ref: TrailRef; tangentToggle?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
+  onHoverKey?: (key: string | null) => void
+  dimmed?: boolean
+  /** The connection both bullets in a pair are two ends of — needed for the note bubble/note
+   *  button and the tangent-toggle context-menu item, all three of which act on the connection
+   *  itself, not on either bullet individually. */
+  conn?: TrailConnection
+  onOpenPrompt?: (c: TrailConnection) => void
+}) {
+  const hoverDisabled = useContext(HoverDisabledContext)
+  return (
+    <div onMouseEnter={() => onHoverKey?.(pointKey)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: dimmed ? 0.25 : 1, transition: 'opacity 120ms' }}>
+    <TrailHoverCard
+      disabled={hoverDisabled}
+      content={hoverContent}
+      secondaryContent={conn && (conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+    >
+      {/* Click/cursor moved to the WHOLE row (dot + label), not just the label text — per direct
+          feedback ("turn the cursor into the pointing when over the tangents too"), hovering the
+          dot itself is a perfectly reasonable place to click a bullet, matching how the main
+          spine's own node dot is clickable too. */}
+      <div
+        onClick={targetRef ? (e) => trailRefClick(targetRef, e) : undefined}
+        onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e, undefined, undefined, undefined, conn ? {
+          active: conn.isBranch,
+          onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
+        } : undefined) : undefined}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent, cursor: targetRef ? 'pointer' : undefined }}
+        onMouseEnter={(e) => { if (targetRef) (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'underline') }}
+        onMouseLeave={(e) => { (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'none') }}
+      >
+        <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
+        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
+      </div>
+    </TrailHoverCard>
+    </div>
+  )
+}
+
+function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForConnection, onHoverKey, originBookId, originChapter, hoverChain }: {
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
@@ -171,22 +294,30 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
    *  INSIDE that flat list never looks up its own children again (would double-render). */
   rowsForConnection?: Map<string, AnnotatedConn[]>
   onHoverKey?: (key: string | null) => void
+  /** The chapter this row's connection actually originates FROM — its parent NodeBlock's own
+   *  book/chapter. Used to render the full "Jeremiah 23:3" origin reference (not just a bare
+   *  "v.3") per direct feedback: "when the chapter or whatever comes from a verse, this should
+   *  be seen not just in the hover but also in the branch showing something like 'Jeremiah
+   *  23:3'." */
+  originBookId?: string
+  originChapter?: number
+  /** See NodeBlock's own hoverChain prop — same full hover-trace point-key set, threaded down
+   *  so a same-chapter tangent row dims/pronounces exactly like everything else. */
+  hoverChain?: Set<string> | null
 }) {
-  const [expandedCollapsed, setExpandedCollapsed] = useState(false)
   const replace = useWordReplace()
   const isLexicon = conn.toKind === 'lexicon'
   const needsInput = conn.clarityTier === 3 && !conn.reasonText && !conn.dismissedPromptAt
-  // "v.17 → Isa 52" instead of just "Isaiah 52" with a stray v.17 chip floating next to it —
-  // when the SPECIFIC verse on this row's own (origin) chapter is known (a cross-ref click
-  // always knows this; see NavOrigin's cross-ref.fromVerse and the recorder's automatic
-  // originVersePinFrom capture), it belongs IN the row label, not reassembled by the reader.
-  // No book/chapter prefix on the origin side — this row already lives directly under that
-  // chapter's own node block, so which chapter v.17 belongs to is never in question.
   const destVerseSuffix = conn.toVerse
     ? conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `:${conn.toVerse}–${conn.toVerseEnd}` : `:${conn.toVerse}`
     : ''
   const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${destVerseSuffix}`
-  const baseLabel = isLexicon
+  // Each tangent bullet shows ONLY its own destination reference now — per the confirmed branch
+  // model, "Deuteronomy 32:1" and "Isaiah 1:2" are two separate stacked bullets, never one
+  // combined "32:1 → Isaiah 1:2" line. The origin verse isn't repeated here at all: it's simply
+  // whichever bullet (a node or an earlier tangent bullet) sits right above this one — that's
+  // what the origin already visually IS, no need to restate it inline.
+  const label = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
       ? `compare · ${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}`
@@ -194,41 +325,49 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         ? 'note'
         : conn.toKind === 'video'
           ? 'video'
-          : conn.originVersePinFrom != null
-            ? `v.${conn.originVersePinFrom} → ${chapterDestLabel}`
+          : conn.isSameChapterBranch
+            ? `v.${conn.toVerse ?? '?'}${conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `–${conn.toVerseEnd}` : ''}`
             : chapterDestLabel
   // "back to step N" text was tried and explicitly rejected ("i dont like the text 'back to
-  // step 6'") — reverted to the plain ↺ prefix; the arrow itself (now curved/subtle, see
-  // TrailConnectorOverlay's arc routing) carries the "this is a return" signal instead of text.
-  const label = conn.isReturn
-    ? `↺ ${baseLabel}`
-    : conn.isSameChapterBranch
-      ? conn.originVersePinFrom != null ? `↳ v.${conn.originVersePinFrom} → v.${conn.toVerse ?? '?'}` : `↳ v.${conn.toVerse ?? '?'}`
-      : baseLabel
+  // step 6'") — the arrow itself (curved/subtle, see TrailConnectorOverlay's routing) carries
+  // the "this is a return" signal, this is just a small icon, not spelled-out text. Uses the
+  // same lucide icons the rest of the app already uses for these concepts (RotateCcw for
+  // revisit/return, GitBranch — literally Study Trail's own sidebar icon, see Ribbon.tsx — for
+  // a branch/tangent) instead of bespoke unicode characters, per direct feedback ("make sure
+  // that all the icons are using the same icons in the rest of the app").
+  const labelIcon: 'return' | 'branch' | null = conn.isReturn ? 'return' : conn.isSameChapterBranch ? 'branch' : null
   const ref = refFor(conn)
+  // Indent by actual chain depth — chainDepth (already tracked per connection: 0 = a fresh
+  // sibling hanging directly off the anchor, 1+ = nested that many levels deeper) maps directly
+  // to render depth (+1, since even a depth-0/sibling tangent is one indent step in from its
+  // main bullet). No cap, per direct feedback — nest as deep as it actually goes.
+  const indent = 22 * (conn.chainDepth + 1)
 
-  // One flat list for the whole chain, one indent level — see flattenChain above. A very long
-  // chain (rare, but a real risk once nothing caps depth) still gets a soft cap so the list
-  // itself can't run away; raised generously (8, vs. the old 2-LEVEL nesting cap) since the
-  // actual complaint was indentation depth, not list length.
-  const FLAT_CHAIN_VISIBLE_CAP = 8
+  // DIRECT children only, each rendered as its own recursive <ConnRow> — no more flattening to
+  // one shared indent level. Per the confirmed branch model, each further hop nests one visual
+  // level deeper than whichever bullet it actually chained off (a real call-stack shape), not a
+  // flat sibling list under the chain's root. chainDepth already carries the true depth (see
+  // `indent` above), so a child's own recursive render just works without passing depth down
+  // separately.
+  const directChildren = (rowsForConnection?.get(conn.id) ?? []).slice().sort((a, b) => a.createdAt - b.createdAt)
+  const childItems = groupForRender(directChildren)
   const fullChain = conn.hasChainChildren ? flattenChain(conn.id, rowsForConnection) : []
-  const visibleChain = expandedCollapsed ? fullChain : fullChain.slice(0, FLAT_CHAIN_VISIBLE_CAP)
-  const collapsedChainCount = expandedCollapsed ? 0 : Math.max(0, fullChain.length - FLAT_CHAIN_VISIBLE_CAP)
-  const chainItems = groupForRender(visibleChain)
   const isPromotedChain = fullChain.length > 0 && (
     fullChain.length >= BRANCH_PROMOTE_DEPTH_THRESHOLD ||
     (fullChain[fullChain.length - 1].createdAt - conn.createdAt) >= BRANCH_PROMOTE_DWELL_MS
   )
-  const hasNested = chainItems.length > 0 || collapsedChainCount > 0
+  const hasNested = childItems.length > 0
 
+  const hoverDisabled = useContext(HoverDisabledContext)
+  const hoverDimmed = !!hoverChain && !hoverChain.has(`row:${conn.id}`)
   return (
-    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)}>
+    <div onMouseEnter={() => onHoverKey?.(`row:${conn.id}`)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms' }}>
     <TrailHoverCard
-      content={<TrailConnectionHoverContent conn={conn} />}
+      disabled={hoverDisabled}
+      content={<TrailConnectionHoverContent conn={conn} onEditNote={() => onOpenPrompt(conn)} />}
       secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
         <span
           ref={registerPoint(`row:${conn.id}`)}
           style={{
@@ -241,14 +380,21 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         />
         <span
           onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
-          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e) : undefined}
+          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, undefined, undefined, {
+            active: conn.isBranch,
+            onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
+          }) : undefined}
           style={{
             fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
-            cursor: ref ? 'pointer' : undefined,
+            cursor: ref ? 'pointer' : undefined, display: 'inline-flex', alignItems: 'center', gap: 4,
           }}
           onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
-        >{label}</span>
+        >
+          {labelIcon === 'return' && <RotateCcw size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {labelIcon === 'branch' && <GitBranch size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {label}
+        </span>
         {isPromotedChain && (
           <span
             title={`A ${fullChain.length + 1}-hop word-study chain`}
@@ -281,37 +427,20 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         ) : null}
         {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
         {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
-        {/* Unified reason/note trigger — ALWAYS present now, not gated to tier-3 needsInput the
-            way the "?" badge above is. Opens the same popover pre-filled with whatever's
-            already stored; the "?" badge stays as its own distinct always-nagging affordance
-            for a genuinely unresolved ambiguous jump, this is the calm "add a note anytime" one. */}
-        <button
-          onClick={() => onOpenPrompt(conn)}
-          title={conn.reasonText || conn.ties.length > 0 ? 'Edit your note for this connection' : 'Add a note for this connection'}
-          style={{
-            background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
-            padding: 0, flexShrink: 0, opacity: 0.55, display: 'flex', alignItems: 'center',
-          }}
-        ><Pencil size={10.5} /></button>
+        {/* The always-visible row-level pencil that used to live here was removed — per direct
+            feedback ("the revisit item has the pencil icon outside of the hover popup but it
+            should only be inside the hover popup thing"), the note-edit trigger now lives
+            exclusively inside the hover card (TrailConnectionHoverContent's own EditNoteBtn),
+            not duplicated as a second always-visible affordance on the row itself. */}
       </div>
     </TrailHoverCard>
     {hasNested && (
-      // Fully flat, no indent at all — per direct feedback ("straight down"), a chain hop
-      // renders as a plain sibling row at the EXACT same level as the one before it, not
-      // nested one step in. The chaining data (fromConnectionId) still exists and still drives
-      // correct arrow-origin behavior (see pushRowEdges) — it just no longer implies any visual
-      // indentation of its own.
-      <>
-        {chainItems.map((it) => it.type === 'single'
-          ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} />
-          : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
-        {collapsedChainCount > 0 && (
-          <button
-            onClick={() => setExpandedCollapsed(true)}
-            style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', margin: '2px 0' }}
-          >+{collapsedChainCount} more</button>
-        )}
-      </>
+      // Each DIRECT child recurses through ConnRow again, so its own `indent` (chainDepth+1)
+      // naturally nests one level deeper than this row — per the confirmed model, a real
+      // call-stack shape, not a flat sibling list under the chain's root.
+      childItems.map((it) => it.type === 'single'
+        ? <ConnRow key={it.item.id} conn={it.item} onHoverKey={onHoverKey} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} originBookId={originBookId} originChapter={originChapter} hoverChain={hoverChain} />
+        : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)
     )}
     </div>
   )
@@ -397,7 +526,7 @@ function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
 
 function NodeClusterGroup({
   nodes, registerPoint, onHoverKey, connectionsByNodeId, nodeOrderIndex,
-  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection,
+  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection, hoverChain,
 }: {
   nodes: TrailNode[]
   registerPoint: (key: string) => (el: HTMLElement | null) => void
@@ -410,6 +539,12 @@ function NodeClusterGroup({
   originConnByNodeId: Map<string, TrailConnection>
   jumpToOrigin: (conn: TrailConnection) => void
   rowsForConnection: Map<string, AnnotatedConn[]>
+  /** Was missing entirely before — every node rendered through this cluster (a "bounced Nx"
+   *  run of revisits) never dimmed no matter what was hovered elsewhere, since hoverChain
+   *  defaults to undefined when not passed. Per direct feedback ("i hovered over an item that
+   *  had a revisit and it is highlighting everything else too... it should dim everything past
+   *  it including the revisit stuff"). */
+  hoverChain?: Set<string> | null
 }) {
   const [expanded, setExpanded] = useState(false)
   if (expanded) {
@@ -422,7 +557,7 @@ function NodeClusterGroup({
             onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
             originConn={originConnByNodeId.get(n.id)}
             onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
-            gutterWidth={0} rowsForConnection={rowsForConnection}
+            gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
         <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0 8px 21px' }}>▾ collapse</button>
@@ -431,45 +566,83 @@ function NodeClusterGroup({
   }
   const first = nodes[0], last = nodes[nodes.length - 1]
   const spanMs = (last.anchorEndedAt ?? last.anchorStartedAt) - first.anchorStartedAt
-  // The distinct chapters bounced between, in first-seen order — usually 2 (A<->B), but the
-  // broader (not-chapter-scoped) cluster query can catch a 3+-way flurry too.
-  const distinctChapters: string[] = []
-  for (const n of nodes) {
-    const label = `${bookLabel(n.bookId)} ${n.chapter}`
-    if (!distinctChapters.includes(label)) distinctChapters.push(label)
-  }
+  // No separate summary row anymore — per direct feedback ("i dont like having the bounced
+  // between as a separate bullet... show these things better and more simply without so much
+  // text"), the collapsed state renders the FIRST and LAST node of the run as ordinary bullets
+  // (full connections, hover card, context menu — nothing lost), with everything in between
+  // hidden until expanded, and a small "⇄ Nx" badge on the last one standing in for the whole
+  // "bounced between X and Y over 3m" sentence (still available via the badge's tooltip).
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
-        <span
-          ref={(el) => { registerPoint(`node:${first.id}`)(el); registerPoint(`node:${last.id}`)(el) }}
-          style={{ width: 7, height: 7, background: 'rgb(var(--color-text-muted))', borderRadius: 2, marginTop: 5, flexShrink: 0, opacity: 0.6 }}
-        />
-      </div>
-      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', fontStyle: 'italic' }}>
-          ↺ Bounced between {distinctChapters.join(' and ')} over {formatGap(spanMs)}
-        </span>
-        <button onClick={() => setExpanded(true)} style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}>
-          ▸ {nodes.length}×
-        </button>
-      </div>
+    <div>
+      <NodeBlock
+        node={first} connections={connectionsByNodeId.get(first.id) ?? []} gapToNextMs={null} isLast={false}
+        step={(nodeOrderIndex.get(first.id) ?? -1) + 1} registerPoint={registerPoint} onHoverKey={onHoverKey}
+        onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
+        originConn={originConnByNodeId.get(first.id)}
+        onJumpToOrigin={originConnByNodeId.has(first.id) ? () => jumpToOrigin(originConnByNodeId.get(first.id)!) : undefined}
+        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
+      />
+      <NodeBlock
+        node={last} connections={connectionsByNodeId.get(last.id) ?? []} gapToNextMs={null} isLast={false}
+        step={(nodeOrderIndex.get(last.id) ?? -1) + 1} registerPoint={registerPoint} onHoverKey={onHoverKey}
+        onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
+        originConn={originConnByNodeId.get(last.id)}
+        onJumpToOrigin={originConnByNodeId.has(last.id) ? () => jumpToOrigin(originConnByNodeId.get(last.id)!) : undefined}
+        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
+        bounceBadge={{ count: nodes.length - 1, spanMs, onExpand: () => setExpanded(true) }}
+      />
     </div>
   )
 }
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
   originConn?: TrailConnection
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   boundaryLabel?: string
   onJumpToOrigin?: () => void
+  /** Right-click "Delete" on this node's bullet — removes the node and its directly-attached
+   *  branch connections, with a confirmation step (see TrailRefContextMenu). */
+  onDeleteNode?: (nodeId: string) => void
+  /** Right-click toggle for marking/unmarking this node as a topic break (a divider on the
+   *  main spine) — the direct, popup-free way to add one, per direct feedback. */
+  onToggleTopicBreak?: (nodeId: string, current: boolean) => void
+  /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
+   *  separate row — see NodeClusterGroup. */
+  bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
+  /** This node was reached via a user-marked tangent/branch connection (not a normal spine
+   *  continuation) — per direct feedback describing the exact expected look: "deuteronomy 32
+   *  is on the main branch then deuteronomy 32:1 goes on the side branch, isaiah 1:2 is the
+   *  next entry on that same side branch." Rendered indented, with a small mini-bullet showing
+   *  the specific verse the branch left FROM stacked right above this node's own title. */
+  isBranchNode?: boolean
+  /** How many branch hops deep (0 = first hop off main) — additional indentation per level, so
+   *  a tangent-off-a-tangent reads as visibly nested further, not just flat. */
+  branchDepth?: number
+  /** "Deuteronomy 32:1" — the specific verse this branch departed FROM, when known. */
+  originVerseLabel?: string
+  /** The same verse as originVerseLabel, structured as a clickable TrailRef — lets the origin
+   *  tangent bullet navigate/right-click like any other reference (per direct feedback: "make
+   *  sure to show the tangents as clickable to go to the verse"). */
+  originVerseRef?: TrailRef | null
+  /** The full hover-trace chain of point keys (node:/row:/tangent-origin:/tangent-dest:) built
+   *  by MapView when something is hovered — null when nothing is hovered. Everything NOT in
+   *  this set dims out; per direct feedback ("pronounce the arrows that led to that point and
+   *  dim everything else out — other lines and labels and bullets"), that includes this node's
+   *  own bullet/label whenever it isn't part of whatever's being traced. */
+  hoverChain?: Set<string> | null
+  /** Whether a recorded revisit (node.revisitOfNodeId) still counts as one at render time — the
+   *  revisit time-window slider's live gate (see isRevisitWithinWindow in MapView). Defaults to
+   *  true (always honor a recorded revisit) for callers — NodeClusterGroup's own bounce-cluster
+   *  path — that don't have an opinion here. */
+  revisitAllowed?: boolean
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -493,19 +666,48 @@ function NodeBlock({
   rowsForConnection?: Map<string, AnnotatedConn[]>
 }) {
   const replace = useWordReplace()
+  const hoverDisabled = useContext(HoverDisabledContext)
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
-  const isRevisit = !!node.revisitOfNodeId
+  const isRevisit = !!node.revisitOfNodeId && revisitAllowed
+  // A chapter ARRIVAL never indents — only the tangent bullets that led to it (the two
+  // TangentBullet rows above) do. Per direct feedback: "luke 4 should be indented back to the
+  // main spine and not looking indented like how it is" — the node itself always sits flush at
+  // the spine's own left edge, whether it was reached plainly or via a tangent.
+  const indent = 0
+  const tangentIndent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
+  const hoverDimmed = !!hoverChain && !hoverChain.has(`node:${node.id}`)
   return (
-    <div
-      ref={blockRef}
-      onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
-      onMouseLeave={() => onHoverKey?.(null)}
-      style={{
-        opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
-        boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
-      }}
-    >
+    // Left gutter — per the plan's "revisit arcs move to a left gutter": the WHOLE block (its
+    // tangent bullets included, not just this node's own row) shifts right by gutterWidth,
+    // reserving space on the left for the laned return/revisit-link edges built in MapView to
+    // route through, so they can arc in from the left with nothing — no text, no bullets — ever
+    // in their way. One shared spacer here (not one per row) keeps every node's own tangent
+    // bullets aligned with its own main-row dot, since both now live inside this same shifted
+    // wrapper.
+    <div style={{ display: 'flex' }}>
+      {gutterWidth > 0 && <div ref={registerPoint('gutter:x')} style={{ width: gutterWidth, flexShrink: 0 }} />}
+      <div
+        ref={blockRef}
+        style={{
+          flex: 1, minWidth: 0,
+          // hoverDimmed dropped from here — per direct feedback ("hovering over deut 32:29 is
+          // dimming deut 32:29 and the previous tangent item isaiah 1:3, that shouldn't be
+          // happening"): this wrapper is the ANCESTOR of both this node's own tangent-origin/
+          // tangent-dest bullets below (each already independently opacity-managed against the
+          // exact same hoverChain) AND its own plain spine-point row. Applying hoverDimmed HERE
+          // multiplied a 0.3 opacity onto the whole subtree regardless of what each child's own
+          // (correctly-computed) opacity said — dimming the tangent bullets even while hovering
+          // one of them, since `node:${node.id}` itself (as opposed to its own tangent-dest/
+          // origin) isn't always part of the pronounced chain for that hover. Only `dimmed`
+          // (the unrelated search-match dim, where dimming the WHOLE node together is actually
+          // correct) stays here; hover-driven dimming moves to the specific row it's about
+          // below, next to the other two already-independent bullets.
+          opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
+          boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          marginLeft: indent,
+        }}
+      >
       {boundaryLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
@@ -515,7 +717,71 @@ function NodeBlock({
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
+      {/* v36 — a user-marked topic break: a plain divider on the main spine (not a new
+          sub-spine), same visual language as the session boundaryLabel above but distinct
+          styling (accent-tinted) so it's clearly a deliberate user marker, not an automatic
+          session/date grouping. */}
+      {node.isTopicBreak && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
+          fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-accent))', textTransform: 'uppercase', letterSpacing: '.05em',
+        }}>
+          <span style={{ flexShrink: 0 }}>New topic</span>
+          <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
+        </div>
+      )}
+      {/* Two full, equally-styled tangent bullets — the verse departed FROM and the verse
+          arrived AT — as siblings at this tangent's own indent, both distinct from (and sitting
+          right above) this node's own plain "Isaiah 11"-style spine-point row below. Per direct
+          feedback: "show Isaiah 11:13 as a sibling of the tangent instead of a spine point, and
+          it also needs a spine point to Isaiah 11" — the node itself stays the bare-chapter
+          spine point; these two rows are the actual tangent hop that led to it. */}
+      {isBranchNode && originVerseLabel && (
+        <div style={{ marginBottom: 2 }}>
+          <TangentBullet
+            label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint}
+            hoverContent={originVerseRef?.kind === 'chapter'
+              ? <TrailVersePreview bookId={originVerseRef.bookId} chapter={originVerseRef.chapter} verse={originVerseRef.verse!} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />
+              : null}
+            targetRef={originVerseRef ?? null} openMenu={openMenu} onHoverKey={onHoverKey}
+            dimmed={!!hoverChain && !hoverChain.has(`tangent-origin:${node.id}`)}
+            conn={originConn} onOpenPrompt={onOpenPrompt}
+          />
+          <TangentBullet
+            label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
+            indent={tangentIndent}
+            pointKey={`tangent-dest:${node.id}`}
+            registerPoint={registerPoint}
+            hoverContent={originConn ? <TrailConnectionHoverContent conn={originConn} onEditNote={() => onOpenPrompt(originConn)} /> : null}
+            targetRef={originConn ? refFor(originConn) : null}
+            openMenu={openMenu}
+            onHoverKey={onHoverKey}
+            dimmed={!!hoverChain && !hoverChain.has(`tangent-dest:${node.id}`)}
+            conn={originConn} onOpenPrompt={onOpenPrompt}
+          />
+        </div>
+      )}
+      {/* gap: 3 (was 12, then 6) — per direct feedback ("move the main spine labels ... closer
+          to the bullet more"), the label sits right next to its own bullet. */}
+      {/* onMouseEnter/onMouseLeave own hover claim moved HERE from the outer wrapper — per direct
+          feedback ("sometimes when i go from hovering over one bullet to the next it doesnt
+          update the dimness correctly... typically when i go from a tangent to a main spine").
+          React's onMouseEnter/onMouseLeave don't bubble, so when the outer wrapper owned this,
+          it fired ENTER once on first crossing into the whole NodeBlock, then never again —
+          leaving a child TangentBullet (which sets hoveredKey to null on its own leave) had
+          nothing to restore `node:${node.id}`, since re-entering THIS row from a sibling child
+          within the same still-hovered outer block doesn't re-trigger the outer's enter. Giving
+          this row (a sibling to the tangent bullets and nested ConnRows, not their ancestor) its
+          own enter/leave pair fixes it: every hoverable region here is now a flat sibling, so
+          moving between any two of them correctly fires leave(prev) then enter(next). */}
+      <div
+        onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
+        onMouseLeave={() => onHoverKey?.(null)}
+        style={{
+          display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP),
+          opacity: hoverDimmed ? 0.3 : 1, transition: 'opacity 120ms',
+        }}
+      >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
@@ -530,7 +796,13 @@ function NodeBlock({
         />
         {!isLast && <GapConnector gapMs={gapToNextMs} />}
       </div>
-      <div style={{ paddingBottom: 24, flex: 1, minWidth: 0 }}>
+      {/* maxWidth caps how far this stretches — `flex:1` alone lets it grow to match whatever
+          the WIDEST row anywhere in the whole spine happens to need (a long note preview, a
+          long Strong's list, etc.), dragging the gutter column (registered right after this
+          div) far out to the right of THIS row's own short text along with it — which is
+          exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
+          a wide loop well past nearby text instead of hugging close to the actual content. */}
+      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
@@ -538,10 +810,22 @@ function NodeBlock({
             clean (bare chapter/verse/Strong's-number labels only) so the connection lines
             themselves read more clearly; the full "via ..." fact is still one hover away, see
             TrailNodeHoverContent below. */}
-        <TrailHoverCard content={<TrailNodeHoverContent node={node} originConn={originConn} />}>
+        <TrailHoverCard
+          disabled={hoverDisabled}
+          content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
+          secondaryContent={originConn && (originConn.userNote || originConn.tiesFrom.length > 0 || originConn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={originConn} /> : undefined}
+        >
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
-            onContextMenu={(e) => openTrailRefMenu(openMenu, nodeRef, e, onJumpToOrigin)}
+            onContextMenu={(e) => openTrailRefMenu(
+              openMenu, nodeRef, e, onJumpToOrigin,
+              onDeleteNode ? () => onDeleteNode(node.id) : undefined,
+              onToggleTopicBreak ? { active: node.isTopicBreak, onToggle: () => onToggleTopicBreak(node.id, node.isTopicBreak) } : undefined,
+              originConn ? {
+                active: originConn.isBranch,
+                onToggle: () => window.studyTrail.updateConnectionReason(originConn.id, { isBranch: !originConn.isBranch }),
+              } : undefined,
+            )}
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
@@ -553,29 +837,40 @@ function NodeBlock({
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookLabel(node.bookId)} {node.chapter}
-            {isRevisit && (
+            {isRevisit && !bounceBadge && (
               <span style={{
                 fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
                 borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
               }}>revisit</span>
+            )}
+            {/* Replaces the old standalone "↺ Bounced between X and Y over 3m · 2x" text row —
+                per direct feedback ("i dont like having the bounced between as a separate
+                bullet... show these things better and more simply without so much text"), a
+                quick back-and-forth collapses into a small badge right on the node it ended on
+                instead of its own row. Full detail (span, count, both chapters) lives in the
+                title tooltip; clicking expands the individual bounce visits, same as before. */}
+            {bounceBadge && (
+              <button
+                onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
+                title={`Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
+                  border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', letterSpacing: '.01em',
+                }}
+              ><ArrowLeftRight size={10} /> {bounceBadge.count}x</button>
             )}
           </div>
         </TrailHoverCard>
         {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {items.map((it) => it.type === 'single'
-            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} />
+            ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} hoverChain={hoverChain} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
       </div>
-      {gutterWidth > 0 && (
-        // Reserved space for laned return/revisit edges to route through — a fixed width
-        // shared by EVERY row (registering the point from each row is harmless/idempotent
-        // since they all land at the same x once layout resolves; simpler and more robust
-        // than assuming any one particular row is guaranteed to render).
-        <div ref={registerPoint('gutter:x')} style={{ width: gutterWidth, flexShrink: 0 }} />
-      )}
       </div>
+    </div>
     </div>
   )
 }
@@ -584,7 +879,7 @@ export const ZOOM_MIN = 0.5
 export const ZOOM_MAX = 2
 
 export default function MapView({
-  detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange,
+  detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
   /** Zoom is normally OWNED by StudyTrailApp (rendered in its title bar, top-right, so it
@@ -593,6 +888,11 @@ export default function MapView({
    *  without a controlling parent. */
   zoom?: number
   onZoomChange?: (zoom: number) => void
+  /** How much real elapsed time still counts a chapter re-arrival as a REVISIT (dashed backlink
+   *  + badge) rather than a fresh, independent bullet — owned by StudyTrailApp's floating
+   *  slider (1h–1wk), same reasoning as `zoom` above. undefined = no cutoff (always treat a
+   *  recorded revisit as a revisit), for the same standalone-mount fallback reason as zoom. */
+  revisitWindowMs?: number
 }) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
@@ -600,12 +900,42 @@ export default function MapView({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const needsInputCount = detail.connections.filter((c) => c.clarityTier === 3 && !c.reasonText && !c.dismissedPromptAt).length
 
+  // Tracks the scroll viewport's own live width so GapDivider (below) can force its dashed line
+  // at least that wide — the timeline's content wrapper is `width: max-content` (sized to its
+  // widest row), so a GapDivider row narrower than the viewport otherwise leaves the visible
+  // blank area to its right with no line through it. See GapDivider's own comment.
+  const [viewportWidth, setViewportWidth] = useState(0)
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setViewportWidth(el.clientWidth))
+    ro.observe(el)
+    setViewportWidth(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
   // Open scrolled to the MOST RECENT event by default, not the earliest — per direct feedback
   // ("when opening any of the timeline things, even in everything, it should scroll to the
   // bottom by default"). Same idiom as AiLookupPanel.tsx's chat auto-scroll. Keyed on the node
-  // count so it re-fires once data actually finishes loading (detail starts empty on mount).
+  // count so it re-fires once data actually finishes loading (detail starts empty on mount) —
+  // but ONLY when the user was already at/near the bottom (see isAtBottomRef below); a new node
+  // streaming in via the push update while they've scrolled up to review earlier history must
+  // not yank them back down.
+  const isAtBottomRef = useRef(true)
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false)
+  const NEAR_BOTTOM_PX = 40
+  function checkAtBottom() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX
+    isAtBottomRef.current = atBottom
+    setShowScrollToLatest(!atBottom)
+  }
+  function scrollToLatest() {
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
+  }
   useEffect(() => {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+    if (isAtBottomRef.current) scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
   }, [detail.nodes.length])
 
   const [ownZoom, setOwnZoom] = useState(1)
@@ -622,6 +952,7 @@ export default function MapView({
   // or connection row dims every edge that doesn't touch it, no topology change required. Wired
   // into the edges array just before it's passed to the overlay (see below).
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  const lastVisibilityLogRef = useRef<string | null>(null)
   const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
   // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
   // elsewhere WITHOUT first moving the mouse back over the original row, never fires that
@@ -630,9 +961,42 @@ export default function MapView({
   // lines and stuff and they dont come back"). Clearing it the moment a menu opens closes that
   // gap regardless of how the menu later gets dismissed.
   function openMenu(data: Parameters<typeof openMenuRaw>[0]) {
+    // Per direct feedback ("the connecting lines are going invisible when i rightclick the
+    // items... put a log for what happens") — logs the actual hoveredKey transition right-click
+    // causes, so a report of lines vanishing on right-click can be matched against whether
+    // hoveredKey really did clear here (working as this function intends) or something else
+    // entirely is dimming things afterward (a stuck menu-open state, a stale hoverChain, etc.).
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] openMenu — clearing hoveredKey', { prevHoveredKey: hoveredKey, ref: data.ref })
     setHoveredKey(null)
     openMenuRaw(data)
   }
+  // ROOT CAUSE of "the connecting lines are going invisible when i rightclick the items" (the
+  // debug log above confirmed it): right-clicking never moves the cursor, so the very row whose
+  // menu you just opened is still sitting under the mouse — its own onMouseEnter had already
+  // fired before the click, and nothing stopped it from firing AGAIN (a re-render moving/
+  // resizing the row under a stationary cursor is enough to resynthesize one) while the menu is
+  // still open, re-setting hoveredKey right back and re-triggering the aggressive
+  // dim-everything-else effect for as long as the menu stays up — openMenu's own clear only
+  // wins for one render. Route every onHoverKey call through this instead of setHoveredKey
+  // directly: while a menu is open, a new (non-null) hover claim is ignored outright — clearing
+  // back to null (a real mouseleave) still goes through, so nothing gets stuck once the menu
+  // closes and the cursor genuinely leaves.
+  function handleHoverKey(key: string | null) {
+    if (menu && key) return
+    setHoveredKey(key)
+  }
+  // Generalizes the fix above to its actual root cause rather than patching one trigger at a
+  // time — per direct feedback ("some items in the study trail going invisible... seems when i
+  // go to a new scripture"): navigating in the separate MAIN Bible window never fires a
+  // mouseleave in THIS window's DOM at all (it's a different renderer), so hoveredKey stayed
+  // stuck pointing at whatever was hovered before focus moved away, leaving every other edge
+  // dimmed to 15% opacity indefinitely. Clearing on window blur covers that case and any other
+  // way focus can leave this window without the cursor visibly moving off the hovered element.
+  useEffect(() => {
+    const onBlur = () => setHoveredKey(null)
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [])
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
   // whenever an input/textarea has focus (renaming a session, typing in the search box above,
@@ -682,6 +1046,8 @@ export default function MapView({
   // between them.
   const nodeByKey = new Map<string, TrailNode>()
   for (const n of detail.nodes) nodeByKey.set(`${n.trailSessionId}:${n.bookId}:${n.chapter}`, n)
+  const nodeById = new Map<string, TrailNode>()
+  for (const n of detail.nodes) nodeById.set(n.id, n)
   const nextNodeById = new Map<string, TrailNode | undefined>()
   detail.nodes.forEach((n, i) => nextNodeById.set(n.id, detail.nodes[i + 1]))
   // 1-based chronological position — lets a return row read "back to step 4" in plain text
@@ -690,6 +1056,21 @@ export default function MapView({
   // build below can already resolve a return's target step while annotating isReturn.
   const nodeOrderIndex = new Map<string, number>()
   detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
+
+  // Gates whether a recorded revisit (n.revisitOfNodeId) still COUNTS as one at render time —
+  // per the plan's revisit time-window slider: `revisitOfNodeId` itself is never rewritten (the
+  // recorder's own judgment call stands), but a chapter re-arrival past the user's current
+  // slider setting renders as a plain independent bullet instead of the dashed-backlink/badge
+  // treatment, live-adjustable without touching the database at all. undefined revisitWindowMs
+  // (no controlling parent) means "no cutoff" — always honor whatever was recorded.
+  function isRevisitWithinWindow(n: TrailNode): boolean {
+    if (!n.revisitOfNodeId) return false
+    if (revisitWindowMs == null) return true
+    const original = nodeById.get(n.revisitOfNodeId)
+    if (!original) return true
+    const gapMs = n.anchorStartedAt - (original.anchorEndedAt ?? original.anchorStartedAt)
+    return gapMs <= revisitWindowMs
+  }
 
   // The EARLIEST connection that ever led to a given chapter — its "origin story," shown
   // above the node always (OriginBadgeLine) and in its hover card, regardless of how many
@@ -770,6 +1151,16 @@ export default function MapView({
         const next = nextNodeById.get(c.fromNodeId)
         const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
         if (isForward) {
+          // A cross-CHAPTER tangent whose destination is a brand-new node right away — fully
+          // handled by the dedicated TangentBullet + edge-building pass below instead (the
+          // node's own arrival gets the origin/destination bullet pair above it, connected by
+          // its own dedicated lines) — no ConnRow for it at all, this connection's only other
+          // job is already done via originConnByNodeId. Suppresses the generic spine arrow the
+          // same way the old isForwardBranch path did.
+          if (annotated.isBranch) {
+            nodesWithTracedArrival.add(next!.id)
+            continue
+          }
           if (!isConfidentOrigin(c) && !annotated.isChainedBranch) continue // no row at all — matches prior behavior exactly
           annotated = { ...annotated, isForwardBranch: true }
           nodesWithTracedArrival.add(next!.id)
@@ -803,6 +1194,23 @@ export default function MapView({
   interface LanedEdge extends TrailEdge { minIdx: number; maxIdx: number }
   const lanedRaw: LanedEdge[] = []
 
+  // The full edge language, rethought as one coherent set of rules (per direct feedback: "lets
+  // rethink the style of the lines... i want it actually to make sense") instead of each edge
+  // kind picking its own color/dash/arrow combination ad hoc:
+  //   • COLOR encodes this edge's own depth change: accent = going deeper (main→tangent, or a
+  //     tangent chaining off an earlier tangent), text-secondary = same depth (an ordinary
+  //     main→main read, or a confidently-traced same-depth continuation), faint text-muted =
+  //     shallower/reconverging (any return to a shallower depth, automatic or explicit).
+  //   • DASH encodes confidence/weight, independent of color: a normal connection is solid, a
+  //     low-confidence "glance" connection is dashed, thinner, and fainter. A reconverge/return
+  //     is ALSO always dashed, but for a different reason (it's a jump backward in the reading
+  //     order, not a forward step) — those two are the only edges allowed to be dashed.
+  //   • ARROWHEADS are always shown — every edge here is an actual step in the reading order,
+  //     so direction always matters. (The one deliberate exception is the revisit "same chapter
+  //     as" identity backlink, which isn't a travel step at all — see its own comment below.)
+  //   • CURVATURE is reserved for edges that visually reach across other content (a lane-routed
+  //     return, or a short reconverge into the next node); a same-row/stacked-bullet hop stays
+  //     a straight line.
   const edges: TrailEdge[] = []
   for (let i = 0; i < detail.nodes.length - 1; i++) {
     // Skip across a session boundary (merged all-sessions timeline) — chronologically
@@ -814,7 +1222,43 @@ export default function MapView({
     // specific one was exactly the redundant "arrow from the previous chapter" the branch-traced
     // line already makes clear.
     if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
-    edges.push({ key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`, color: 'rgb(var(--color-accent))', arrow: true })
+    // Dashed instead of solid across a long gap — the same visual "break in time" cue as
+    // GapDivider's own dashed rule (and threshold), reinforcing it right on the connecting
+    // line itself, not just the label between the two nodes.
+    const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
+    edges.push({
+      // Muted, not accent — per the confirmed depth-change model, plain reading-onward (both
+      // sides depth 0, no tangent involved) is a "same depth" hop, which stays the normal muted
+      // color; only a stub INTO a tangent (going deeper — see pushRowEdges above) gets accent.
+      key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
+      color: 'rgb(var(--color-text-secondary))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
+    })
+  }
+
+  // The dedicated 3-segment path for a branch-node ARRIVAL (a cross-chapter tangent whose
+  // destination is a brand-new node, suppressed out of rowsForNode/isForwardBranch above): the
+  // node it left from → the origin-verse bullet → the destination-verse bullet → the arrival
+  // node itself. Replaces the old single long "reconverge" line that skipped straight from the
+  // departure chapter to the arrival chapter with no visible stop at either verse, per direct
+  // feedback: "there needs to be connecting lines going this route: Isaiah 11 → Isaiah 11:2 →
+  // Luke 4:18 → Luke 4. It should not have been just the single line of: Isaiah 11 → Luke 4."
+  for (const n of detail.nodes) {
+    const originConn = originConnByNodeId.get(n.id)
+    if (!originConn?.isBranch) continue
+    const fromNode = nodeById.get(originConn.fromNodeId)
+    if (!fromNode) continue
+    // Solid accent, arrowed — "going one level deeper," the same treatment every other tangent
+    // stub gets.
+    edges.push({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, arrow: true, opacity: 0.75 })
+    // Origin verse → destination verse — the actual cross-ref hop itself.
+    edges.push({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
+    // Dashed/muted reconverge into the arrival node — "returning to the spine," same visual
+    // language as every other depth-decrease edge in this diagram.
+    // Straight, not curved — over the short vertical distance typical of this hop, the curved
+    // bezier's fixed ±28 control-point offset can exceed the actual gap and overshoot, reading
+    // as a squiggle/zigzag rather than a clean line. Per direct feedback ("looks odd because
+    // its squiggly instead of being straight").
+    edges.push({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: false, arrow: true, opacity: 0.5, dashed: true })
   }
 
   // Shared per-row edge logic — called for every row regardless of whether it's a top-level
@@ -824,8 +1268,12 @@ export default function MapView({
   // at; isReturn/isForwardBranch edges are identical either way since they're keyed off the
   // row's own `row:${c.id}` point, which exists regardless of nesting depth.
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
-    const color = TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))'
-    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, opacity: 0.5 })
+    // Accent-colored — per the confirmed depth-change model, a stub edge (parent node/row →
+    // this tangent bullet) is always "going one level deeper," which gets its own distinct
+    // accent color (as opposed to a plain same-depth spine hop, which stays muted — see the
+    // main spine edge below).
+    const color = c.weight === 'glance' ? (TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))') : 'rgb(var(--color-accent))'
+    edges.push({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, arrow: true, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
     if (c.isReturn && c.toBookId && c.toChapter != null) {
       const target = nodeByKey.get(`${c.trailSessionId}:${c.toBookId}:${c.toChapter}`)
       if (target) {
@@ -836,20 +1284,22 @@ export default function MapView({
         // 1.75 default, on top of the arc-rounded routing above.
         lanedRaw.push({
           key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          color: 'rgb(var(--color-text-muted))', arrow: true, opacity: 0.45, strokeWidth: 1.25,
+          color: 'rgb(var(--color-text-muted))', arrow: true, dashed: true, opacity: 0.45, strokeWidth: 1.25,
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
         })
       }
     }
     if (c.isForwardBranch) {
-      // The specific-origin trace for an otherwise-plain forward move — short (always the
-      // very next node), so a direct curved line is fine, no lane needed. Also how a branch
-      // CHAIN's terminal hop reconverges into the spine — the target is still "the next node
-      // after the chain's ROOT chapter" (fromNodeId always stays the root), which is correct
-      // because arriving at a new chapter only ever happens right when this connection is
-      // written, so it's always the true next spine entry chronologically.
+      // isForwardBranch now only ever fires for a NON-branch connection (any c.isBranch=true
+      // connection whose destination is a fresh next node is fully diverted to the dedicated
+      // tangent-stub/tangent-hop/tangent-arrive pass above instead — see that pass's own
+      // comment) — so this is always a confidently-traced, SAME-DEPTH continuation (a plain
+      // read, just one whose specific origin is worth tracing rather than the generic spine
+      // arrow). Same-depth styling to match: solid text-secondary, not the dashed/muted
+      // "reconverging" look this used to (incorrectly) always carry. Short (always the very
+      // next node), so a direct curved line is fine, no lane needed.
       const target = nextNodeById.get(c.fromNodeId)
-      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color, curved: true, arrow: true, opacity: 0.85 })
+      if (target) edges.push({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-secondary))', curved: true, arrow: true, opacity: 0.6 })
     }
   }
 
@@ -860,14 +1310,14 @@ export default function MapView({
         pushRowEdges(it.item, `node:${n.id}`)
       } else {
         const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
+        edges.push({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, arrow: true, opacity: 0.4 })
       }
     }
     // The quiet "same chapter as" backlink for a promoted revisit — deliberately muted/thin/
     // dashed (structural chrome, not a clarity-tier signal, hence gray not TIER_COLOR) and
     // never arrowed, since it signals identity ("this is the same chapter"), not a direction
     // of travel the way the primary forward spine edge into this node already does.
-    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId)) {
+    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId) && isRevisitWithinWindow(n)) {
       const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
       lanedRaw.push({
         key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
@@ -904,12 +1354,167 @@ export default function MapView({
     edges.push({ ...e, lane })
   }
   const maxLane = laneEnds.length > 0 ? laneEnds.length - 1 : -1
-  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING : 0
+  // TrailConnectorOverlay's own laned-edge curve can bow out considerably further left than
+  // this lane-count-only formula reserves (its extraBow grows with how much vertical distance
+  // a given return has to clear, which isn't known here) — per direct feedback ("the entire
+  // timeline should be shifted right so that the entire revisit arrow thing can be seen"), a
+  // curve bowing further than the reserved column was getting clipped by the scroll
+  // container's own left edge (you can't scroll to negative x). A generous flat allowance
+  // covers the common case without needing this file and the overlay's bow math to stay in
+  // exact sync — a little extra unused margin costs nothing.
+  // Trimmed back slightly from 220 — per direct feedback ("i think the entire timeline can be
+  // moved to the left slightly"), that first pass over-reserved; this still comfortably covers
+  // the overlay's own bow formula (see TrailConnectorOverlay's extraBow) for the vertical runs
+  // actually seen in practice.
+  // BUG FOUND (this round of "arc still isn't right" feedback): this used to be a flat
+  // constant, but TrailConnectorOverlay's own extraBow (how far a laned edge's belly swings
+  // left) grows with that edge's actual vertical run — and past a run of roughly
+  // GUTTER_BASE+maxLane*LANE_SPACING+170 px worth of extraBow, its `laneX` calc gets clamped to
+  // a small positive floor (see the "Clamped to a small positive floor" comment there). A flat
+  // 170px reserve was tuned against short/medium revisits; a revisit spanning MANY nodes (a
+  // long read before circling back) needs a much bigger reserve, and once the clamp kicks in
+  // the curve stops growing wider even though it still has that much further to visually
+  // "get around" — it reads as a disproportionately cramped loop for how much content it
+  // spans, which is exactly what a several-node-distant revisit looks like. Scale the reserve
+  // by the longest laned edge's own node-index span (using the same 60px/60-node-distance
+  // knee and 0.45 slope TrailConnectorOverlay uses, translated from pixels to an estimated
+  // ~90px-per-item row height) instead of a constant, with the old 170 as a floor so short
+  // revisits are unaffected.
+  // Estimate raised 50 -> 90 — per direct feedback that a follow-up arc tweak "didn't change"
+  // anything visible: a real NodeBlock (title + tangent bullets + connections + note preview)
+  // routinely renders taller than a bare 50px/item guess, so the ESTIMATED vertRun was coming in
+  // well under the REAL one TrailConnectorOverlay measures live off the DOM — underreserving,
+  // so the overlay's own laneX floor clamp was still kicking in for exactly the same multi-node
+  // revisits this formula was meant to cover, making the reservation bump invisible in practice.
+  const ROW_HEIGHT_ESTIMATE = 90
+  const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
+  const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
+  // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (105) — keep these in sync if either one
+  // is retuned, or the reservation and the actual curve drift apart again (see the negative-
+  // laneX bug this whole reservation formula exists to prevent). Safety margin also widened
+  // 40 -> 70 for the same underreservation reason above.
+  const dynamicExtraBow = 105 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
+  const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 70)
+  const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
-  // Hover-to-isolate — dim every edge that doesn't touch the hovered node/row, no topology
-  // change required. hoveredKey/onHoverKey are reported by NodeBlock and ConnRow below.
-  const touchesHover = (e: TrailEdge) => !hoveredKey || e.from === hoveredKey || e.to === hoveredKey
-  const finalEdges = hoveredKey ? edges.map((e) => touchesHover(e) ? e : { ...e, opacity: (e.opacity ?? 1) * 0.15 }) : edges
+  // Deepest tangent depth actually present anywhere in this view — drives how many faint
+  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below). Real
+  // bug in the first version: chainDepth defaults to 0 on EVERY connection, tangent or not, so
+  // reducing over ALL connections with a 0 floor always produced at least one guide line even
+  // in a session with zero actual tangents — filtering to isBranch connections only, with -1 as
+  // the true "nothing to show" floor, is what makes `maxChainDepth >= 0` below mean what it says.
+  const maxChainDepth = detail.connections.filter((c) => c.isBranch).reduce((m, c) => Math.max(m, c.chainDepth), -1)
+
+  // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
+  // and dim everything else out"), this walks the FULL causal chain backward from whatever's
+  // hovered (not just the edges directly touching it): starting at the hovered point, repeatedly
+  // follow "whichever edge(s) end here" back to their own `from` point, and keep going from
+  // there, until the walk runs out of predecessors (the session's very first node). Every edge
+  // and every point visited along the way gets pronounced (full opacity, thicker stroke);
+  // everything else — other lines, AND (via hoverChainPointKeys passed down to
+  // NodeBlock/ConnRow/TangentBullet below) their labels and bullets — dims out.
+  // A return/revisit-link edge points chronologically BACKWARD (its `to` is an EARLIER node
+  // than its `from`) — the opposite of every other edge here. Feeding it into the generic
+  // backward-walk below (which treats "whatever an edge's `from` is" as an ancestor of whatever
+  // it points `to`) has it exactly backwards: hovering the REVISITED node discovers this edge
+  // (since the edge's `to` IS that node) and then incorrectly treats the LATER row that pointed
+  // back to it as an "ancestor," continuing the walk from there into thingsafter the hover
+  // point — per direct feedback ("i highlight on a revisited item and it also is highlighting
+  // too much" / "it should dim everything past it including the revisit stuff"). Excluded from
+  // the general walk entirely; handled as its own direct, single-hop case below instead (hovering
+  // one of its two endpoints pronounces just that one arc, never chased further).
+  const isBackwardEdge = (key: string) => key.startsWith('return:') || key.startsWith('revisit-link:')
+  const edgesByTo = new Map<string, TrailEdge[]>()
+  for (const e of edges) {
+    if (isBackwardEdge(e.key)) continue
+    const bucket = edgesByTo.get(e.to) ?? []
+    bucket.push(e)
+    edgesByTo.set(e.to, bucket)
+  }
+  const hoverChainEdgeKeys = new Set<string>()
+  const hoverChainPointKeys = new Set<string>()
+  if (hoveredKey) {
+    hoverChainPointKeys.add(hoveredKey)
+    // Direct, single-hop only: a return/revisit-link edge pronounces when the hovered point is
+    // literally one of its own two ends, without chasing anything further through it.
+    for (const e of edges) {
+      if (!isBackwardEdge(e.key)) continue
+      if (e.from === hoveredKey || e.to === hoveredKey) hoverChainEdgeKeys.add(e.key)
+    }
+    const stack = [hoveredKey]
+    // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are the two
+    // ends of the same hop, chronologically origin-then-dest — origin is dest's CAUSAL ANCESTOR,
+    // dest is origin's DESCENDANT (something that happens AFTER it). Per direct feedback ("make
+    // sure to dim the tangent parts that are after the one that is getting hovered"): hovering
+    // dest should pronounce origin (an ancestor — the ordinary backward walk below already finds
+    // it via the tangent-hop edge, `tangent-origin → tangent-dest`, same as any other edge, no
+    // special-casing needed), but hovering ORIGIN must NOT pull dest in — dest is forward of it,
+    // and should dim like anything else after the hover point. An earlier round deliberately made
+    // this symmetric (see git blame) per different feedback at the time; this reverses that half
+    // of it back per the current, more specific ask.
+    while (stack.length) {
+      const cur = stack.pop()!
+      for (const e of edgesByTo.get(cur) ?? []) {
+        if (hoverChainEdgeKeys.has(e.key)) continue
+        hoverChainEdgeKeys.add(e.key)
+        if (!hoverChainPointKeys.has(e.from)) {
+          hoverChainPointKeys.add(e.from)
+          stack.push(e.from)
+        }
+      }
+    }
+  }
+  // Safety net for "when i rightclick one of the items, all the connection lines are not
+  // visible" — if hoveredKey is somehow stuck pointing at a key that doesn't actually touch
+  // anything in THIS render's edge graph (stale from a prior render, a point that no longer
+  // exists, a timing edge case around a right-click), dimming everything to 12% opacity reads
+  // as "all the lines disappeared." Treat that specific case as if nothing were hovered at all
+  // — every edge stays at normal opacity — rather than let one orphaned key blank out the whole
+  // diagram.
+  const hoveredKeyIsLive = !!hoveredKey && edges.some((e) => e.from === hoveredKey || e.to === hoveredKey)
+  // REFACTORED per direct feedback ("the right click is still hiding the connection lines")
+  // after the previous fix (suppressing new hover claims at the SETTER while a menu is open)
+  // still wasn't enough — rather than keep chasing exactly which event re-sets hoveredKey while
+  // a menu is up, gate the OUTPUT directly: whenever any context menu is open, dimming is off,
+  // full stop, regardless of what hoveredKey happens to hold. This can't be defeated by a stray
+  // re-fired mouseenter, a stale key, or any other path into hoveredKey — the single place that
+  // actually paints the dim effect refuses to do it at all while `menu` is truthy.
+  const hoverActive = hoveredKeyIsLive && !menu
+  if (window.__bereanTrailDebug && hoveredKey) {
+    // Confirms (or rules out) the exact "lines disappear on right-click" mechanism this safety
+    // net guards against — if hoveredKeyIsLive is ever false here right after a right-click,
+    // that's the bug caught in the act; if it stays true throughout, the disappearing-lines
+    // report has a different cause and this rules the orphaned-key theory out.
+    console.log('[TrailDebug] hover chain', {
+      hoveredKey, live: hoveredKeyIsLive,
+      chainPoints: [...hoverChainPointKeys], chainEdges: [...hoverChainEdgeKeys],
+    })
+  }
+  const finalEdges = hoverActive
+    ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
+        ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
+        : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
+    : edges
+  // Per direct feedback ("the connecting lines are going invisible when i rightclick the
+  // items... put a log for what happens") — unlike the hover-chain log above (gated on
+  // hoveredKey being truthy, so it goes silent the instant openMenu clears it), this fires on
+  // every render regardless, so the render right after a right-click — where lines are reported
+  // vanishing — actually shows up: whether hoveredKey truly went back to null (openMenu's own
+  // fix working), whether `menu` is open, and how many edges ended up dimmed either way. If
+  // dimmedCount is ever > 0 while hoveredKey is null here, the dimming isn't coming from this
+  // hover mechanism at all and the bug is somewhere else entirely.
+  if (window.__bereanTrailDebug) {
+    const dimmedCount = finalEdges.filter((e) => (e.opacity ?? 1) < 0.5).length
+    // Deduped the same way as TrailConnectorOverlay's missing-endpoint warning — only logs when
+    // this specific combination actually changes, not on every render, so it stays readable.
+    const logKey = `${hoveredKey}:${hoveredKeyIsLive}:${!!menu}:${dimmedCount}`
+    if (lastVisibilityLogRef.current !== logKey) {
+      lastVisibilityLogRef.current = logKey
+      console.log('[TrailDebug] right-click/edge-visibility check', {
+        hoveredKey, hoveredKeyIsLive, menuOpen: !!menu, totalEdges: finalEdges.length, dimmedCount,
+      })
+    }
+  }
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
@@ -929,8 +1534,15 @@ export default function MapView({
   }
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ marginBottom: 10 }}>
+    <HoverDisabledContext.Provider value={!!promptConn}>
+    {/* flex column + minHeight:0 down this whole chain (through the scroll container below) is
+        what actually makes ITS OWN `overflow: auto` the one that scrolls — without a real
+        bounded height, the browser just grows this div to fit its content and an ANCESTOR ends
+        up scrolling instead (see StudyTrailApp.tsx's "Main pane", which previously had its own
+        overflow:auto too), so this component's onScroll/checkAtBottom (and the "Latest" button
+        it drives) never fired in practice. */}
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <div style={{ marginBottom: 10, flexShrink: 0 }}>
         <input
           ref={searchInputRef}
           value={searchQuery}
@@ -943,9 +1555,38 @@ export default function MapView({
           }}
         />
       </div>
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} style={{ overflow: 'auto' }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
+            {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
+                on a musical paper that show the indent levels so the user can follow which
+                level things are at"). One line for the main spine itself (indent 0, where every
+                chapter-arrival bullet sits — per follow-up feedback "there needs to be one for
+                the main spine, for the tangent and for all the tangent columns", the original
+                pass only drew the tangent columns and left the main spine with no line of its
+                own), plus one per tangent depth actually present, positioned at that depth's own
+                indent (matching TangentBullet/ConnRow's own `22 * (depth + 1)` formula, offset
+                by gutterWidth since that's where the content column itself starts) — purely
+                decorative, so every line sits behind everything else and never intercepts a
+                click. */}
+            {maxChainDepth >= 0 && (
+              <div
+                key="guide:main"
+                style={{
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 3.5,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+                }}
+              />
+            )}
+            {maxChainDepth >= 0 && Array.from({ length: maxChainDepth + 1 }, (_, depth) => (
+              <div
+                key={`guide:${depth}`}
+                style={{
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 22 * (depth + 1) + 3.5,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+                }}
+              />
+            ))}
             <TrailConnectorOverlay containerRef={containerRef} pointsRef={pointsRef} edges={finalEdges} zoom={zoom} />
             <div style={{ position: 'relative', zIndex: 1 }}>
         {needsInputCount > 0 && (
@@ -963,7 +1604,7 @@ export default function MapView({
                 key={`cluster:${item.nodes[0].id}`}
                 nodes={item.nodes}
                 registerPoint={registerPoint}
-                onHoverKey={setHoveredKey}
+                onHoverKey={handleHoverKey}
                 connectionsByNodeId={rowsForNode}
                 nodeOrderIndex={nodeOrderIndex}
                 onOpenPrompt={setPromptConn}
@@ -972,15 +1613,41 @@ export default function MapView({
                 originConnByNodeId={originConnByNodeId}
                 jumpToOrigin={jumpToOrigin}
                 rowsForConnection={rowsForConnection}
+                hoverChain={hoverActive ? hoverChainPointKeys : null}
               />
             )
           }
           const { node: n, index: i } = item
           const next = detail.nodes[i + 1]
-          const gapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
+          const originConn = originConnByNodeId.get(n.id)
+          const isBranchNode = !!originConn?.isBranch
+          const nextIsBranchNode = next ? !!originConnByNodeId.get(next.id)?.isBranch : false
+          const rawGapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
+          // Only the UPCOMING node being a tangent arrival forces tight spacing — that's the
+          // node→bullet stack right before it, already fully handled by the dedicated
+          // TangentBullet/3-segment-edge mechanism, not by this GapConnector at all. Whether
+          // THIS node (`n`) itself was reached via a tangent is irrelevant to its own outgoing
+          // gap: once a tangent has reconverged and landed on n, leaving n for a plain next
+          // read is an ordinary main-spine hop and deserves the full main-spine gap. Per direct
+          // feedback ("the gap from Luke 4 to Isaiah 1 needs a lot larger gap because that is
+          // the main spine") — the old `isBranchNode ||` here was incorrectly keeping that
+          // outgoing gap tight just because n itself had arrived via a branch.
+          const gapToNextMs = nextIsBranchNode ? null : rawGapToNextMs
+          const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
+          const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
+          const originVerseLabel = originConn?.originVersePinFrom != null && originNode
+            ? bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)
+            : undefined
+          // The origin bullet's own verse (book/chapter/verse it was clicked FROM) — used for
+          // its click-to-navigate ref and its own hover preview, distinct from the destination
+          // bullet's (which is just refFor(originConn)/TrailConnectionHoverContent, already
+          // available where TangentBullet is rendered).
+          const originVerseRef: TrailRef | null = originConn?.originVersePinFrom != null && originNode
+            ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
+            : null
           return (
+            <div key={n.id}>
             <NodeBlock
-              key={n.id}
               node={n}
               connections={rowsForNode.get(n.id) ?? []}
               gapToNextMs={gapToNextMs}
@@ -988,19 +1655,29 @@ export default function MapView({
               onOpenPrompt={setPromptConn}
               refFor={refFor}
               openMenu={openMenu}
-              originConn={originConnByNodeId.get(n.id)}
+              originConn={originConn}
               registerPoint={registerPoint}
               boundaryLabel={boundaryLabelForNodeId?.get(n.id)}
               onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
+              onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
+              onToggleTopicBreak={(nodeId, current) => window.studyTrail.setNodeTopicBreak(nodeId, !current).then(onChanged)}
               step={i + 1}
-              onHoverKey={setHoveredKey}
+              onHoverKey={handleHoverKey}
               keyboardFocused={keyboardFocusId === n.id}
               dimmed={!!q && !matchedNodeIds.has(n.id)}
               searchMatched={!!q && matchedNodeIds.has(n.id)}
               blockRef={(el) => { if (el) nodeBlockRefs.current.set(n.id, el); else nodeBlockRefs.current.delete(n.id) }}
               gutterWidth={gutterWidth}
               rowsForConnection={rowsForConnection}
+              isBranchNode={isBranchNode}
+              branchDepth={originConn?.chainDepth}
+              originVerseLabel={originVerseLabel}
+              originVerseRef={originVerseRef}
+              hoverChain={hoverActive ? hoverChainPointKeys : null}
+              revisitAllowed={isRevisitWithinWindow(n)}
             />
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} />}
+            </div>
           )
         })}
         {detail.nodes.length === 0 && (
@@ -1010,6 +1687,8 @@ export default function MapView({
         {promptConn && (
           <ReasonPromptPopover
             connection={promptConn}
+            originBookId={nodeById.get(promptConn.fromNodeId)?.bookId}
+            originChapter={nodeById.get(promptConn.fromNodeId)?.chapter}
             onClose={() => setPromptConn(null)}
             onSaved={() => { setPromptConn(null); onChanged() }}
           />
@@ -1018,7 +1697,25 @@ export default function MapView({
             </div>
           </div>
         </div>
+        {/* Outside the zoomed/transformed content div (a sibling, not nested inside it) — a
+            `transform` ancestor would otherwise make itself the containing block for
+            `position: fixed`, anchoring this to the SCALED content instead of the real window.
+            Per direct feedback: "if the user scrolls away from the latest, there should be a
+            button that pops up to scroll back to latest." */}
+        {showScrollToLatest && (
+          <button
+            onClick={scrollToLatest}
+            title="Scroll to latest"
+            style={{
+              position: 'fixed', bottom: 24, right: 24, zIndex: 50,
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
+              border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          ><ArrowDown size={13} /> Latest</button>
+        )}
       </div>
     </div>
+    </HoverDisabledContext.Provider>
   )
 }

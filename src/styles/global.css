@@ -1944,3 +1944,12 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
     animation: none;
   }
 }
+
+/* Study Trail's right-click context menu (TrailRefContextMenu.tsx) — every option renders a
+   `trail-ctx-btn` button but never had a hover/focus rule defined anywhere, so hovering an
+   option gave no visual feedback at all about which one you were about to click. Uses the same
+   theme-aware surface token every other hover affordance in the app already uses. */
+.trail-ctx-btn:hover,
+.trail-ctx-btn:focus-visible {
+  background: rgb(var(--color-surface-3)) !important;
+}

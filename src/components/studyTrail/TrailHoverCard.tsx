@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 // Generic hover-card wrapper for Study Trail's Map/Everything views — spine nodes, branch
@@ -49,6 +49,13 @@ export default function TrailHoverCard({ content, children, disabled, secondaryC
   function scheduleOpen(e: React.MouseEvent) {
     if (disabled) return
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null }
+    // Already open — per direct feedback ("when i put my cursor over the hover popup, it should
+    // stay where it is instead of moving again"), don't recompute/reschedule a new position.
+    // The trigger's own onMouseEnter can re-fire even while the card is already showing (the
+    // cursor grazing back over part of the trigger while actually heading toward the card,
+    // which sits right next to/over it) — that used to restart the SHOW_DELAY timer with the
+    // cursor's LATEST coordinates, visibly jumping the card to a new spot a moment later.
+    if (open) return
     const x = e.clientX, y = e.clientY
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
@@ -85,6 +92,13 @@ export default function TrailHoverCard({ content, children, disabled, secondaryC
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
     setOpen(false)
   }
+
+  // `disabled` (e.g. the "why'd you jump here" edit popup being open) previously only blocked
+  // scheduleOpen from arming — an ALREADY-open card (the one under the cursor when you clicked
+  // the pencil icon that opens the popup) stayed open regardless. Force it shut the moment
+  // disabled flips true, so clicking Edit reliably clears the hover card instead of leaving it
+  // floating on top of/behind the popup until the mouse happens to move away.
+  useEffect(() => { if (disabled) closeNow() }, [disabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div onMouseEnter={scheduleOpen} onMouseLeave={scheduleClose} style={{ display: 'contents' }}>

@@ -21,22 +21,39 @@ function fmtBoundaryDate(ms: number): string {
   return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default function EverythingView({ sessions, zoom, onZoomChange }: {
+export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs }: {
   sessions: TrailSession[]
   zoom?: number
   onZoomChange?: (zoom: number) => void
+  revisitWindowMs?: number
 }) {
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
   const [loading, setLoading] = useState(true)
 
-  async function loadAll() {
-    setLoading(true)
+  async function loadAll(showLoading: boolean) {
+    if (showLoading) setLoading(true)
     const rows = await Promise.all(sessions.map((s) => window.studyTrail.getSession(s.id)))
     setDetails(rows.filter((r): r is TrailSessionDetail => !!r))
-    setLoading(false)
+    if (showLoading) setLoading(false)
   }
 
-  useEffect(() => { loadAll() }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAll(true) }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // This view previously only reloaded when the SET of sessions changed (a session created/
+  // deleted) — new nodes/connections streaming into an already-open session while you keep
+  // studying never showed up here until you switched away and back. Per direct feedback
+  // ("make sure that the study trail auto updates as i am studying"), poll the same way the
+  // per-session Map view already does (StudyTrailApp.tsx's own 2s interval) — no push channel
+  // yet (deferred, see that file's comment), so a short poll while this view is open is the
+  // honest v1 rather than a fake "live" claim. `showLoading: false` so this never flashes
+  // "Loading…" over content that's already on screen.
+  useEffect(() => {
+    const interval = setInterval(() => loadAll(false), 2000)
+    return () => clearInterval(interval)
+  }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Push-based near-instant refresh — the poll above is a fallback; per direct feedback
+  // ("want it faster / near-instant"), this reacts the moment anything is actually written.
+  useEffect(() => window.studyTrail.onDataChanged(() => loadAll(false)), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalConnections = details.reduce((n, d) => n + d.connections.length, 0)
   const totalNodes = details.reduce((n, d) => n + d.nodes.length, 0)
@@ -71,15 +88,20 @@ export default function EverythingView({ sessions, zoom, onZoomChange }: {
   }
 
   return (
-    <div>
-      <h2 style={{ margin: '0 0 4px', fontSize: 17 }}>Everything</h2>
-      <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18 }}>
+    // flex column filling the full height handed down by StudyTrailApp's "Main pane" — MapView
+    // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
+    // one that actually scrolls (see MapView.tsx's own comment on this).
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 17, flexShrink: 0 }}>Everything</h2>
+      <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18, flexShrink: 0 }}>
         {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
       </div>
       {mergedNodes.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
-        <MapView detail={merged} onChanged={loadAll} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} />
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} />
+        </div>
       )}
     </div>
   )

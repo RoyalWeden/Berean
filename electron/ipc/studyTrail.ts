@@ -1,13 +1,20 @@
 import type { IpcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
-import { is } from '@electron-toolkit/utils'
 import { getBereanDb } from '../db/berean'
 
-// Terminal-visible (not devtools) logging for the "Study Trail records nothing" investigation —
-// dev-only (mirrors youtube.ts's is.dev gating), always-on in dev rather than requiring a
-// separate opt-in flag: main-process console output only reaches the terminal running
-// `npm run dev`, which is far less noisy than devtools, so there's little cost to leaving it on.
-const DEBUG = is.dev
+// Push-based live update — per direct feedback ("make sure that the study trail auto updates
+// as i am studying... want it faster / near-instant"), every window gets told IMMEDIATELY
+// whenever a node/connection/session is written, instead of relying solely on the Study Trail
+// window's own 2s poll (StudyTrailApp.tsx/EverythingView.tsx keep that poll too, as a cheap
+// safety net — this is the fast path, not a replacement for it). Payload is just the session id
+// (or undefined for a session-list-level change) — listeners re-fetch rather than trust a
+// pushed snapshot, so this can't drift out of sync with the DB.
+function broadcastDataChanged(trailSessionId?: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('studyTrail:dataChanged', trailSessionId)
+  }
+}
 
 // Prepared-statement cache, mirroring highlights.ts's pattern — every navigation potentially
 // writes a connection, so this is a hot path worth not re-preparing SQL on every call.
@@ -28,7 +35,7 @@ interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
   anchor_started_at: number; anchor_ended_at: number | null; cached_subnote: string | null; origin_label: string | null
   revisit_of_node_id: string | null; promoted_from_connection_id: string | null; translation: string | null
-  cluster_id: string | null
+  cluster_id: string | null; is_topic_break: number
 }
 interface TrailConnectionRow {
   id: string; trail_session_id: string; from_node_id: string; to_kind: string
@@ -42,6 +49,7 @@ interface TrailConnectionRow {
   from_connection_id: string | null; chain_depth: number; to_verse_end: number | null
   ties: string | null
   user_note: string | null; ties_from: string | null; ties_to: string | null
+  is_branch: number; is_branch_return: number
 }
 
 function rowToSession(r: TrailSessionRow) {
@@ -63,6 +71,7 @@ function rowToNode(r: TrailNodeRow) {
     promotedFromConnectionId: r.promoted_from_connection_id ?? undefined,
     translation: r.translation ?? undefined,
     clusterId: r.cluster_id ?? undefined,
+    isTopicBreak: !!r.is_topic_break,
   }
 }
 function rowToConnection(r: TrailConnectionRow) {
@@ -88,6 +97,8 @@ function rowToConnection(r: TrailConnectionRow) {
     fromConnectionId: r.from_connection_id ?? undefined,
     chainDepth: r.chain_depth,
     toVerseEnd: r.to_verse_end ?? undefined,
+    isBranch: !!r.is_branch,
+    isBranchReturn: !!r.is_branch_return,
   }
 }
 
@@ -98,16 +109,14 @@ const CLUSTER_WINDOW_MS = 5 * 60 * 1000
 const CLUSTER_MIN_COUNT = 2
 
 export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
-  if (DEBUG) console.log('[TrailDebug:main] registerStudyTrailHandlers() called — registering all studyTrail:* IPC handlers')
   ipcMain.handle('studyTrail:startSession', (_e, name: string) => {
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:startSession called', { name })
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
     prep(db, `INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, ?, 'live', ?, ?)`)
       .run(id, name, now, now)
     const result = rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(id) as TrailSessionRow)
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:startSession inserted', result)
+    broadcastDataChanged(result.id)
     return result
   })
 
@@ -117,6 +126,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     prep(db, `UPDATE trail_sessions SET status = 'paused', updated_at = ? WHERE id = ?`).run(now, trailSessionId)
     prep(db, `INSERT INTO trail_paused_intervals (id, trail_session_id, paused_at) VALUES (?, ?, ?)`)
       .run(randomUUID(), trailSessionId, now)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
@@ -130,11 +140,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       WHERE trail_session_id = ? AND resumed_at IS NULL
       ORDER BY paused_at DESC LIMIT 1
     `).run(now, trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
   ipcMain.handle('studyTrail:renameSession', (_e, trailSessionId: string, name: string) => {
     prep(getBereanDb(), `UPDATE trail_sessions SET name = ?, updated_at = ? WHERE id = ?`).run(name, Date.now(), trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 
@@ -154,6 +166,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     const accidental = !!session && nodeCount <= 1 && connCount === 0 && (now - session.created_at) < 30_000
     prep(db, `UPDATE trail_sessions SET status = 'ended', possibly_accidental = ?, updated_at = ? WHERE id = ?`)
       .run(accidental ? 1 : 0, now, trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return rowToSession(prep(db, 'SELECT * FROM trail_sessions WHERE id = ?').get(trailSessionId) as TrailSessionRow)
   })
 
@@ -169,6 +182,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       prep(db, 'DELETE FROM trail_sessions WHERE id = ?').run(id)
     })
     del(trailSessionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -184,6 +198,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       }
     })
     delAll(trailSessionIds)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -211,13 +226,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string
     translation?: string
   }) => {
-    // Prints to the TERMINAL running `npm run dev` (this is the Electron MAIN process — not
-    // devtools console), gated the same as the renderer-side [TrailDebug] logs via a global
-    // this process reads once at startup — see the module-level DEBUG const below. Deliberately
-    // NOT wrapped in try/catch: a thrown error here (e.g. a constraint violation) should
-    // propagate back through ipcMain.handle's rejected promise to the renderer's own
+    // Deliberately NOT wrapped in try/catch: a thrown error here (e.g. a constraint violation)
+    // should propagate back through ipcMain.handle's rejected promise to the renderer's own
     // .catch((err) => console.error(...)) rather than being swallowed at either end.
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode called', node)
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
@@ -230,7 +241,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null, node.translation ?? null)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addNode inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
@@ -256,7 +267,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       .run(now, node.trail_session_id, nodeId)
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = NULL WHERE id = ?`).run(nodeId)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow)
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:reopenNode reopened', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
@@ -272,7 +283,6 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number
     translation?: string
   }) => {
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit called', args)
     const db = getBereanDb()
     const now = Date.now()
     const id = randomUUID()
@@ -307,12 +317,54 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     })
     promote()
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:promoteRevisit inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
   ipcMain.handle('studyTrail:updateNodeSubnote', (_e, nodeId: string, subnote: string) => {
     prep(getBereanDb(), `UPDATE trail_nodes SET cached_subnote = ? WHERE id = ?`).run(subnote, nodeId)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  // Topic break (v36) — a horizontal divider on the main spine, set from the "ask why" popup's
+  // "new topic" checkbox (applies to the node the user just arrived at) or edited later from
+  // the Study Trail window.
+  ipcMain.handle('studyTrail:setNodeTopicBreak', (_e, nodeId: string, isTopicBreak: boolean) => {
+    prep(getBereanDb(), `UPDATE trail_nodes SET is_topic_break = ? WHERE id = ?`).run(isTopicBreak ? 1 : 0, nodeId)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  // Delete a single trail node — right-click "Delete" on a bullet (§8 of the plan). Cascades to
+  // its directly-attached connections (both those originating FROM it, and any same-chapter/
+  // branch connections chained off one of those via from_connection_id), but leaves every OTHER
+  // node/connection in the session untouched. The renderer confirms with the user first (this
+  // handler itself performs no confirmation — it's a hard, immediate delete once called).
+  ipcMain.handle('studyTrail:deleteNode', (_e, nodeId: string) => {
+    const db = getBereanDb()
+    const delNode = db.transaction((id: string) => {
+      const directConnIds = (prep(db, 'SELECT id FROM trail_connections WHERE from_node_id = ?').all(id) as Array<{ id: string }>).map((r) => r.id)
+      // Chained connections (a lexicon click off a lexicon click, etc.) reference their parent
+      // via from_connection_id, not from_node_id — walk the chain outward so a delete doesn't
+      // leave orphaned rows dangling off a connection that no longer exists.
+      let frontier = directConnIds
+      const allConnIds = new Set(directConnIds)
+      while (frontier.length > 0) {
+        const placeholders = frontier.map(() => '?').join(',')
+        const next = (prep(db, `SELECT id FROM trail_connections WHERE from_connection_id IN (${placeholders})`).all(...frontier) as Array<{ id: string }>)
+          .map((r) => r.id).filter((cid) => !allConnIds.has(cid))
+        next.forEach((cid) => allConnIds.add(cid))
+        frontier = next
+      }
+      if (allConnIds.size > 0) {
+        const placeholders = [...allConnIds].map(() => '?').join(',')
+        prep(db, `DELETE FROM trail_connections WHERE id IN (${placeholders})`).run(...allConnIds)
+      }
+      prep(db, 'DELETE FROM trail_nodes WHERE id = ?').run(id)
+    })
+    delNode(nodeId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -336,8 +388,12 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     fromConnectionId?: string
     chainDepth?: number
     toVerseEnd?: number
+    // User-marked tangent (v36) — set at capture time from the "ask why" popup's minimal
+    // checkbox, or later via updateConnectionReason when reclassified from the Study Trail
+    // window itself.
+    isBranch?: boolean
+    isBranchReturn?: boolean
   }) => {
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection called', conn)
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
@@ -364,23 +420,25 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
         id, trail_session_id, from_node_id, to_kind, to_book_id, to_chapter, to_verse,
         to_strongs_num, to_note_id, to_video_id, clarity_tier, reason_text, reason_tags,
         weight, strongs_depth, cluster_id, origin_verse_pin_from,
-        from_connection_id, chain_depth, to_verse_end, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        from_connection_id, chain_depth, to_verse_end, is_branch, is_branch_return, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, conn.trailSessionId, conn.fromNodeId, conn.toKind,
       conn.toBookId ?? null, conn.toChapter ?? null, conn.toVerse ?? null,
       conn.toStrongsNum ?? null, conn.toNoteId ?? null, conn.toVideoId ?? null,
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
       conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null,
-      conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null, now
+      conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null,
+      conn.isBranch ? 1 : 0, conn.isBranchReturn ? 1 : 0, now
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
-    if (DEBUG) console.log('[TrailDebug:main] studyTrail:addConnection inserted', result)
+    broadcastDataChanged(result.trailSessionId)
     return result
   })
 
   ipcMain.handle('studyTrail:markGlance', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET weight = 'glance' WHERE id = ?`).run(connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -394,6 +452,9 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     // param for any other caller that legitimately wants to set it). ties_from/ties_to replace
     // the single `ties` list with the two labeled sections the popup now has.
     userNote?: string; tiesFrom?: string[]; tiesTo?: string[]
+    // Editable after the fact from the Study Trail window — reclassify a tangent as having
+    // been the real main branch, or mark that this connection is where a branch rejoins main.
+    isBranch?: boolean; isBranchReturn?: boolean
   }) => {
     const db = getBereanDb()
     const sets: string[] = []
@@ -408,9 +469,12 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     if (update.userNote !== undefined) { sets.push('user_note = ?'); vals.push(update.userNote) }
     if (update.tiesFrom !== undefined) { sets.push('ties_from = ?'); vals.push(JSON.stringify(update.tiesFrom)) }
     if (update.tiesTo !== undefined) { sets.push('ties_to = ?'); vals.push(JSON.stringify(update.tiesTo)) }
+    if (update.isBranch !== undefined) { sets.push('is_branch = ?'); vals.push(update.isBranch ? 1 : 0) }
+    if (update.isBranchReturn !== undefined) { sets.push('is_branch_return = ?'); vals.push(update.isBranchReturn ? 1 : 0) }
     if (sets.length === 0) return { success: true }
     vals.push(connectionId)
     db.prepare(`UPDATE trail_connections SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -420,6 +484,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // captured automatically at record time) are left alone — those were never user-authored.
   ipcMain.handle('studyTrail:clearConnectionNote', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET user_note = NULL, ties_from = NULL, ties_to = NULL WHERE id = ?`).run(connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
@@ -428,12 +493,14 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // fact of dismissal so the renderer knows not to auto-surface it again).
   ipcMain.handle('studyTrail:dismissPrompt', (_e, connectionId: string) => {
     prep(getBereanDb(), `UPDATE trail_connections SET dismissed_prompt_at = ? WHERE id = ?`).run(Date.now(), connectionId)
+    broadcastDataChanged()
     return { success: true }
   })
 
   ipcMain.handle('studyTrail:updateRecap', (_e, trailSessionId: string, recapText: string) => {
     prep(getBereanDb(), `UPDATE trail_sessions SET recap_text = ?, recap_user_edited = 1, updated_at = ? WHERE id = ?`)
       .run(recapText, Date.now(), trailSessionId)
+    broadcastDataChanged(trailSessionId)
     return { success: true }
   })
 

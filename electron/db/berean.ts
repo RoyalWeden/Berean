@@ -923,6 +923,24 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_connections ADD COLUMN ties_to TEXT;`)
       console.log('[berean-db] v35: trail_connections.user_note/ties_from/ties_to')
     }
+  },
+  {
+    // Study Trail — user-marked tangents and topic breaks, from the "ask why" popup's new
+    // minimal checkboxes. A tangent is a connection the user has explicitly flagged as NOT
+    // part of the main branch (is_branch=1) — it and everything recorded after it stay
+    // attributed to that branch (via from_connection_id chaining, same mechanism as v31) until
+    // the user marks a later connection is_branch_return=1, or reclassifies it from the Study
+    // Trail window itself (editable after the fact, not just at capture time). A topic break is
+    // a flag on the NODE (is_topic_break=1) — it renders as a horizontal divider on the main
+    // spine, not a new sub-spine, so it stays a node-level fact rather than a connection-level
+    // one.
+    version: 36,
+    up(db) {
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN is_branch INTEGER NOT NULL DEFAULT 0;`)
+      db.exec(`ALTER TABLE trail_connections ADD COLUMN is_branch_return INTEGER NOT NULL DEFAULT 0;`)
+      db.exec(`ALTER TABLE trail_nodes ADD COLUMN is_topic_break INTEGER NOT NULL DEFAULT 0;`)
+      console.log('[berean-db] v36: trail_connections.is_branch/is_branch_return, trail_nodes.is_topic_break')
+    }
   }
 ]
 

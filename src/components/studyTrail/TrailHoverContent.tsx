@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { bookName, getTranslationForBook } from '@/lib/parseRef'
 import { originDisplayText } from './trailNav'
 import { useWordReplace } from './useWordReplace'
@@ -26,6 +27,24 @@ const dividerStyle: React.CSSProperties = { height: 1, background: 'rgb(var(--co
 const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 const TIER_LABEL: Record<number, string> = { 1: 'clear', 2: 'soft', 3: 'ambiguous' }
 
+// A small note/pencil button shared by every hover card (node, connection, tangent bullet) —
+// per direct feedback ("there should be a note button in the hover popup so that i can add a
+// note"). Opens the SAME ReasonPromptPopover editor the row-level pencil icon already does (one
+// unified note concept everywhere, not a separate quick-note system) — this is just another
+// place to reach it, right where you're already looking at the fact card.
+function EditNoteBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} title="Add/edit a note for this"
+      className="trail-ctx-btn"
+      style={{
+        background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer',
+        padding: 3, borderRadius: 5, display: 'flex', flexShrink: 0,
+      }}
+    ><Pencil size={11} /></button>
+  )
+}
+
 function ClarityBadge({ tier }: { tier: 1 | 2 | 3 }) {
   const color = TIER_COLOR[tier]
   return (
@@ -50,8 +69,7 @@ function OriginLine({ conn }: { conn: TrailConnection }) {
   )
 }
 
-export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; originConn?: TrailConnection }) {
-  const [verseText, setVerseText] = useState<string | null>(null)
+export function TrailNodeHoverContent({ node, originConn, onEditNote }: { node: TrailNode; originConn?: TrailConnection; onEditNote?: () => void }) {
   const replace = useWordReplace()
   // A dedicated-translation book (Enoch, Jubilees, etc.) only ever lives in ITS OWN db, never
   // 'kjva' (the default queryVerse falls back to when no textId is passed) — that mismatch was
@@ -60,19 +78,22 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
   // node.translation; for a canon book, fall back to what was actually recorded at arrival
   // (node.translation, v32) — the user's own KJV-vs-LXX choice, not derivable from bookId alone.
   const effectiveTranslation = getTranslationForBook(node.bookId) ?? node.translation
-  useEffect(() => {
-    let cancelled = false
-    window.bible.queryVerse(node.bookId, node.chapter, 1, effectiveTranslation ?? undefined).then((v) => { if (!cancelled) setVerseText(v?.text ?? null) }).catch(() => {})
-    return () => { cancelled = true }
-  }, [node.bookId, node.chapter, effectiveTranslation])
+  // No verse-1 preview here anymore — per direct feedback ("dont show the preview of the
+  // chapter when it is the main bullet because those are entire chapters, only show the
+  // preview of the verses for the bullets that are specific verses or verse ranges"), a whole-
+  // chapter node's hover shouldn't imply "verse 1 represents this chapter." Verse-specific
+  // previews still show on connection rows/branch bullets — see TrailConnectionHoverContent.
 
   const duration = (node.anchorEndedAt ?? Date.now()) - node.anchorStartedAt
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>
         <span>{bookName(node.bookId)} {node.chapter}</span>
-        <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontWeight: 500, color: 'rgb(var(--color-text-muted))', fontSize: 10.5 }}>{fmtClock(node.anchorStartedAt)}</span>
+          {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+        </span>
       </div>
       <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span>{fmtDuration(duration)} on this chapter</span>
@@ -89,18 +110,45 @@ export function TrailNodeHoverContent({ node, originConn }: { node: TrailNode; o
       </div>
       {originConn && <div style={dividerStyle} />}
       {originConn && <OriginLine conn={originConn} />}
-      {(verseText || node.cachedSubnote) && <div style={dividerStyle} />}
-      {verseText && (
-        <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          &ldquo;{replace(verseText)}&rdquo;
-        </div>
-      )}
-      {node.cachedSubnote && <div style={{ ...rowStyle, marginTop: verseText ? 3 : 0 }}>{replace(node.cachedSubnote)}</div>}
+      {node.cachedSubnote && <div style={dividerStyle} />}
+      {node.cachedSubnote && <div style={rowStyle}>{replace(node.cachedSubnote)}</div>}
     </div>
   )
 }
 
-export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection }) {
+// The ORIGIN half of a tangent bullet pair (see MapView.tsx's TangentBullet) — the verse a
+// cross-ref/lexicon/AI-lookup click was made FROM, not its destination. Fixes a real bug: both
+// bullets used to share the same TrailConnectionHoverContent (which only ever describes the
+// connection's own destination), so hovering the origin bullet showed the SAME preview as the
+// destination bullet right below it. This fetches and previews the origin verse itself instead.
+export function TrailVersePreview({ bookId, chapter, verse, onEditNote }: { bookId: string; chapter: number; verse: number; onEditNote?: () => void }) {
+  const [preview, setPreview] = useState<string | null>(null)
+  const replace = useWordReplace()
+  useEffect(() => {
+    let cancelled = false
+    window.bible.queryVerse(bookId, chapter, verse, getTranslationForBook(bookId) ?? undefined)
+      .then((v) => { if (!cancelled) setPreview(v?.text ?? null) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [bookId, chapter, verse])
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{bookName(bookId)} {chapter}:{verse}</div>
+        {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+      </div>
+      {preview && (
+        <>
+          <div style={dividerStyle} />
+          <div style={{ ...rowStyle, fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            “{replace(preview)}”
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function TrailConnectionHoverContent({ conn, onEditNote }: { conn: TrailConnection; onEditNote?: () => void }) {
   const [preview, setPreview] = useState<string | null>(null)
   const replace = useWordReplace()
   useEffect(() => {
@@ -110,10 +158,13 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
         if (cancelled || !e) return
         setPreview(`${e.lemma} (${e.transliteration}) — ${e.gloss}`)
       }).catch(() => {})
-    } else if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null) {
-      // Same non-canon-book gap as TrailNodeHoverContent above — a dedicated-translation
+    } else if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null && conn.toVerse != null) {
+      // Only when this row actually targets a SPECIFIC verse (or range) — per direct feedback,
+      // a bare chapter destination has no one verse that represents it, so no preview is shown
+      // at all for those (see TrailNodeHoverContent, which dropped its own verse-1 preview for
+      // the same reason). Same non-canon-book gap as there — a dedicated-translation
       // destination silently returned no preview with queryVerse defaulting to 'kjva'.
-      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse ?? conn.versePinFrom ?? 1, getTranslationForBook(conn.toBookId) ?? undefined)
+      window.bible.queryVerse(conn.toBookId, conn.toChapter, conn.toVerse, getTranslationForBook(conn.toBookId) ?? undefined)
         .then((v) => { if (!cancelled) setPreview(v?.text ?? null) }).catch(() => {})
     }
     return () => { cancelled = true }
@@ -126,7 +177,10 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
 
   return (
     <div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'rgb(var(--color-text-primary))' }}>{label}</div>
+        {onEditNote && <EditNoteBtn onClick={onEditNote} />}
+      </div>
       <div style={{ ...rowStyle, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <ClarityBadge tier={conn.clarityTier} />
         <span>{fmtClock(conn.createdAt)}{conn.weight === 'glance' ? ' · glance' : ''}</span>
@@ -139,11 +193,14 @@ export function TrailConnectionHoverContent({ conn }: { conn: TrailConnection })
           </div>
         </>
       )}
-      {(conn.reasonText || conn.reasonTags.length > 0) && (
+      {/* The raw reasonTags list ("tags: cross-ref, notes") was removed per direct feedback —
+          it's internal bookkeeping (what KIND of thing this connection is, already implied by
+          the label/icon above it), not something worth restating as visible text. The actual
+          user-authored reasonText (a real note about WHY) still shows. */}
+      {conn.reasonText && (
         <>
           <div style={dividerStyle} />
-          {conn.reasonText && <div style={rowStyle}>{replace(conn.reasonText)}</div>}
-          {conn.reasonTags.length > 0 && <div style={{ ...rowStyle, color: 'rgb(var(--color-text-muted))' }}>tags: {conn.reasonTags.join(', ')}</div>}
+          <div style={rowStyle}>{replace(conn.reasonText)}</div>
         </>
       )}
     </div>

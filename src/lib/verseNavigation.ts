@@ -85,9 +85,6 @@ export function navigateToVerse(args: NavigateToVerseArgs): void {
   // Study Trail recording — a no-op until Phase 1 installs a recorder via setNavRecorder().
   // Kept as an injected callback (not a direct import) so this module has zero dependency
   // on Study Trail's IPC/store wiring; verseNavigation.ts works standalone either way.
-  if (typeof window !== 'undefined' && window.__bereanTrailDebug) {
-    console.log('[TrailDebug] navigateToVerse fired', { origin, to: { bookId, chapter, verse }, recorderInstalled: !!navRecorder })
-  }
   navRecorder?.(
     { bookId: cur?.bookId, chapter: cur?.chapter, verse: cur?.targetVerse, translation: currentTranslation },
     { bookId, chapter, verse, endVerse: endVerse ?? undefined, translation: newTranslation ?? currentTranslation },
@@ -108,13 +105,10 @@ export function recordNavigation(
   to: { bookId: string; chapter: number; verse?: number },
   origin: NavOrigin,
 ): void {
-  if (typeof window !== 'undefined' && window.__bereanTrailDebug) {
-    console.log('[TrailDebug] recordNavigation fired', { origin, from, to, recorderInstalled: !!navRecorder })
-  }
   navRecorder?.(from, to, origin)
 }
 
-type NavRecorder = (
+export type NavRecorder = (
   from: { bookId?: string; chapter?: number; verse?: number; translation?: string },
   to: { bookId: string; chapter: number; verse?: number; endVerse?: number; translation?: string },
   origin: NavOrigin,
