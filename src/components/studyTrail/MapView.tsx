@@ -1312,8 +1312,12 @@ export default function MapView({
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Deepest tangent depth actually present anywhere in this view — drives how many faint
-  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below).
-  const maxChainDepth = detail.connections.reduce((m, c) => Math.max(m, c.chainDepth), 0)
+  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below). Real
+  // bug in the first version: chainDepth defaults to 0 on EVERY connection, tangent or not, so
+  // reducing over ALL connections with a 0 floor always produced at least one guide line even
+  // in a session with zero actual tangents — filtering to isBranch connections only, with -1 as
+  // the true "nothing to show" floor, is what makes `maxChainDepth >= 0` below mean what it says.
+  const maxChainDepth = detail.connections.filter((c) => c.isBranch).reduce((m, c) => Math.max(m, c.chainDepth), -1)
 
   // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
   // and dim everything else out"), this walks the FULL causal chain backward from whatever's
@@ -1458,7 +1462,7 @@ export default function MapView({
                 key={`guide:${depth}`}
                 style={{
                   position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 22 * (depth + 1) + 3.5,
-                  width: 1, background: 'rgb(var(--color-surface-4) / 0.35)', pointerEvents: 'none', zIndex: 0,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
                 }}
               />
             ))}
