@@ -617,7 +617,7 @@ function NodeBlock({
           />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : 8 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: isLast ? 0 : (gapToNextMs == null ? 2 : 8) }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
