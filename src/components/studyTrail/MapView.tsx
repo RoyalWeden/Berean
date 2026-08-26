@@ -51,7 +51,12 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   // don't stack and double the visual gap. For a small gap (no divider shown), this still
   // grows to gapSegmentHeight, same as before.
   const showsDivider = gapMs != null && gapMs >= GAP_CHIP_THRESHOLD_MS
-  const height = showsDivider ? 18 : gapMs == null ? 18 : gapSegmentHeight(gapMs)
+  // A null gapMs only ever means "adjacent to a tangent bullet" (see the isBranchNode/
+  // nextIsBranchNode force-to-null at the call site) — that case should stay genuinely tight,
+  // not just avoid the divider. It was still reserving the same 18px as a real short gap,
+  // which (via this column's own flex stretch onto its sibling content column) is exactly what
+  // kept showing up as unexplained empty space before the first tangent bullet.
+  const height = showsDivider ? 18 : gapMs == null ? 4 : gapSegmentHeight(gapMs)
   return <div style={{ flex: 1, width: 2, minHeight: height }} />
 }
 
@@ -1010,7 +1015,11 @@ export default function MapView({
     edges.push({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
     // Dashed/muted reconverge into the arrival node — "returning to the spine," same visual
     // language as every other depth-decrease edge in this diagram.
-    edges.push({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: true, arrow: true, opacity: 0.5, dashed: true })
+    // Straight, not curved — over the short vertical distance typical of this hop, the curved
+    // bezier's fixed ±28 control-point offset can exceed the actual gap and overshoot, reading
+    // as a squiggle/zigzag rather than a clean line. Per direct feedback ("looks odd because
+    // its squiggly instead of being straight").
+    edges.push({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: false, arrow: true, opacity: 0.5, dashed: true })
   }
 
   // Shared per-row edge logic — called for every row regardless of whether it's a top-level
