@@ -494,7 +494,7 @@ function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
 
 function NodeClusterGroup({
   nodes, registerPoint, onHoverKey, connectionsByNodeId, nodeOrderIndex,
-  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection,
+  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection, hoverChain,
 }: {
   nodes: TrailNode[]
   registerPoint: (key: string) => (el: HTMLElement | null) => void
@@ -507,6 +507,12 @@ function NodeClusterGroup({
   originConnByNodeId: Map<string, TrailConnection>
   jumpToOrigin: (conn: TrailConnection) => void
   rowsForConnection: Map<string, AnnotatedConn[]>
+  /** Was missing entirely before — every node rendered through this cluster (a "bounced Nx"
+   *  run of revisits) never dimmed no matter what was hovered elsewhere, since hoverChain
+   *  defaults to undefined when not passed. Per direct feedback ("i hovered over an item that
+   *  had a revisit and it is highlighting everything else too... it should dim everything past
+   *  it including the revisit stuff"). */
+  hoverChain?: Set<string> | null
 }) {
   const [expanded, setExpanded] = useState(false)
   if (expanded) {
@@ -519,7 +525,7 @@ function NodeClusterGroup({
             onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
             originConn={originConnByNodeId.get(n.id)}
             onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
-            gutterWidth={0} rowsForConnection={rowsForConnection}
+            gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
         <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0 8px 21px' }}>▾ collapse</button>
@@ -542,7 +548,7 @@ function NodeClusterGroup({
         onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
         originConn={originConnByNodeId.get(first.id)}
         onJumpToOrigin={originConnByNodeId.has(first.id) ? () => jumpToOrigin(originConnByNodeId.get(first.id)!) : undefined}
-        gutterWidth={0} rowsForConnection={rowsForConnection}
+        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
       />
       <NodeBlock
         node={last} connections={connectionsByNodeId.get(last.id) ?? []} gapToNextMs={null} isLast={false}
@@ -550,7 +556,7 @@ function NodeClusterGroup({
         onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
         originConn={originConnByNodeId.get(last.id)}
         onJumpToOrigin={originConnByNodeId.has(last.id) ? () => jumpToOrigin(originConnByNodeId.get(last.id)!) : undefined}
-        gutterWidth={0} rowsForConnection={rowsForConnection}
+        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
         bounceBadge={{ count: nodes.length - 1, spanMs, onExpand: () => setExpanded(true) }}
       />
     </div>
@@ -1278,20 +1284,17 @@ export default function MapView({
     // HALVES of the exact same hop, not an ancestor/descendant pair — but the backward-only
     // walk below only reaches origin FROM dest (via the tangent-hop edge), never the other way
     // (dest is a forward step from origin, so a strictly-backward walk never finds it). That
-    // left hovering the ORIGIN half incorrectly dimming its own destination sibling, per direct
-    // feedback ("it dims all of the bullets... only those that didn't lead to the current
-    // tangent item [should dim] — the destination clearly IS led to by the origin"). Seeding the
-    // walk with this hop's own arrival node too (whichever half is hovered) fixes it: the
-    // existing backward walk from that node already naturally pulls in BOTH tangent bullets
-    // (tangent-arrive → tangent-dest → tangent-hop → tangent-origin) plus everything further
-    // back, so seeding just this one extra point makes the whole hop — and its real ancestry —
-    // pronounce together regardless of which half you're actually hovering.
+    // left hovering the ORIGIN half incorrectly dimming its own destination sibling. Seed the
+    // walk with JUST the sibling half (not the resulting arrival node, an earlier attempt at
+    // this — per direct feedback, "it isn't stopping at the tangent for the highlighting... but
+    // going to the next main spine item," the arrival node's own main-spine bullet should stay
+    // dimmed unless it's independently part of the real backward chain).
     const tangentNodeId = hoveredKey.startsWith('tangent-origin:') ? hoveredKey.slice('tangent-origin:'.length)
       : hoveredKey.startsWith('tangent-dest:') ? hoveredKey.slice('tangent-dest:'.length)
       : null
     if (tangentNodeId != null) {
-      const nodeKey = `node:${tangentNodeId}`
-      if (!hoverChainPointKeys.has(nodeKey)) { hoverChainPointKeys.add(nodeKey); stack.push(nodeKey) }
+      const siblingKey = hoveredKey.startsWith('tangent-origin:') ? `tangent-dest:${tangentNodeId}` : `tangent-origin:${tangentNodeId}`
+      if (!hoverChainPointKeys.has(siblingKey)) { hoverChainPointKeys.add(siblingKey); stack.push(siblingKey) }
     }
     while (stack.length) {
       const cur = stack.pop()!
@@ -1379,6 +1382,7 @@ export default function MapView({
                 originConnByNodeId={originConnByNodeId}
                 jumpToOrigin={jumpToOrigin}
                 rowsForConnection={rowsForConnection}
+                hoverChain={hoveredKey ? hoverChainPointKeys : null}
               />
             )
           }

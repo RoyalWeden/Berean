@@ -2440,7 +2440,13 @@ export const useAppStore = create<AppState>()(
         wordReplacerRules: s.wordReplacerRules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r),
       })),
 
-      setStudyTrailAskChapterJumpReason: (v) => set({ studyTrailAskChapterJumpReason: v }),
+      setStudyTrailAskChapterJumpReason: (v) => {
+        set({ studyTrailAskChapterJumpReason: v })
+        // Also written immediately to its OWN dedicated (non-debounced) localStorage key — see
+        // the ASK_WHY_SYNC_KEY listener below for why this exists separately from the general
+        // CROSS_WINDOW_SYNCED_KEYS/'berean-app-state' path.
+        try { localStorage.setItem(ASK_WHY_SYNC_KEY, v ? '1' : '0') } catch { /* storage disabled/quota — live sync just won't fire this time */ }
+      },
 
       setTheme: (theme) => set({ theme }),
       setAppZoom: (level) => set({ appZoom: clampZoom(level) }),
@@ -2656,9 +2662,27 @@ export const useAppStore = create<AppState>()(
 // batches the actual disk write up to ~500ms, so this lands with that same small delay, which is
 // fine for a settings toggle. Scoped to an explicit allowlist (not a full-state overwrite) so a
 // tab/UI-state field mid-edit in one window is never clobbered by a stale snapshot from another.
-const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = ['studyTrailAskChapterJumpReason']
+// v37 — studyTrailAskChapterJumpReason moved OFF this general path (CROSS_WINDOW_SYNCED_KEYS is
+// now empty, kept as an array in case another key needs the same treatment later): it was the
+// actual cause of "sometimes when i click the ask why toggle it doesnt stay toggled". Root
+// cause was debouncedLocalStorage.ts — 'berean-app-state' writes are debounced/coalesced to ONE
+// pending write per window (up to 500ms), so if window B does ANY other persisted-state change
+// shortly after window A flips this toggle, B's own debounced writer eventually flushes B's
+// FULL state snapshot — including B's own still-stale in-memory copy of this one field, since
+// B's storage-event handler may not have processed A's change yet — clobbering A's just-written
+// value. A boolean this small doesn't need the big-blob's debounce at all: see
+// setStudyTrailAskChapterJumpReason above, which now ALSO writes straight to `localStorage`
+// (not the debounced wrapper) under its own dedicated key, immediately, every time it changes —
+// nothing else ever touches that key, so there's no snapshot for another window to clobber it
+// with.
+const ASK_WHY_SYNC_KEY = 'berean-ask-why-sync'
+const CROSS_WINDOW_SYNCED_KEYS: Array<keyof AppState> = []
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
+    if (e.key === ASK_WHY_SYNC_KEY) {
+      if (e.newValue != null) useAppStore.setState({ studyTrailAskChapterJumpReason: e.newValue === '1' })
+      return
+    }
     if (e.key !== 'berean-app-state' || !e.newValue) return
     try {
       const parsed = JSON.parse(e.newValue) as { state?: Partial<AppState> }

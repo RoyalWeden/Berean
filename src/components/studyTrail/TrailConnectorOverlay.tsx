@@ -190,11 +190,23 @@ export default function TrailConnectorOverlay({
           // (pointing down out of the bullet, down into the target) while smoothly bowing
           // through the lane in between — genuinely one curve, no straight run.
           const gutter = coords.get('gutter:x')
-          const laneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
+          const baseLaneX = gutter ? gutter.x - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const dir = Math.sign(rawB.y - rawA.y || 1)
           const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * 30 }, false, startGap)
           const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * 30 }, rawB, false, endGap)
           const vertRun = Math.abs(end.y - start.y)
+          // The reserved gutter column only needs to be wide enough to keep the curve clear of
+          // the DOT column itself — but a return spanning a long vertical run (crossing another
+          // whole node's title, a gap divider, etc.) needs to bow out much further than that to
+          // actually read as "going around" everything in between, not just leaning slightly
+          // left of it. Since there's nothing else rendered further left of the reserved column
+          // (just the window's own margin), the curve is free to swing further out than the
+          // gutter's own reserved width without any layout consequence — per direct feedback
+          // ("the revisit connection line needs to go completely around everything else... the
+          // arc will need to be curved more"), scale that extra swing with how much vertical
+          // distance this particular edge actually has to clear.
+          const extraBow = Math.max(0, vertRun - 80) * 0.35
+          const laneX = baseLaneX - extraBow
           const BEND = Math.min(60, Math.max(24, vertRun * 0.4))
           const reachA = laneX - start.x
           const reachB = laneX - end.x
