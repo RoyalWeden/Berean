@@ -72,7 +72,6 @@ interface StudyTrailState {
   // non-blocking/async, so this only actually engages if the user answers before navigating
   // further) when the user checks "this is a tangent" in the popup.
   currentlyInBranch: boolean
-  markBranchReturn: (connectionId?: string) => void
 
   // A just-created chapter-to-chapter connection waiting on the opt-in "why did you jump here?"
   // arrival prompt (Settings → studyTrailAskChapterJumpReason) — set right after the recorder
@@ -190,12 +189,6 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   currentBranchTipDepth: 0,
   currentBranchTipActivatedAt: null,
   currentlyInBranch: false,
-  markBranchReturn: (connectionId?: string) => {
-    const tipId = useStudyTrailStore.getState().currentBranchTipConnectionId
-    const target = connectionId ?? tipId ?? undefined
-    if (target) window.studyTrail.updateConnectionReason(target, { isBranchReturn: true }).catch(() => {})
-    set({ currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null })
-  },
   pendingArrivalPrompt: null, pendingArrivalNodeId: null,
   clearPendingArrivalPrompt: () => set({ pendingArrivalPrompt: null, pendingArrivalNodeId: null }),
   sessionNodeIndex: {}, sessionTangentIndex: {},

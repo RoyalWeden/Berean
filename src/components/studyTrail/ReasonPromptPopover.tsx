@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { GripHorizontal, X, Trash2, Plus, ChevronRight, CornerUpLeft } from 'lucide-react'
+import { GripHorizontal, X, Trash2, Plus, ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { parseRef, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection } from '@/types/studyTrail'
 
@@ -128,7 +127,6 @@ export default function ReasonPromptPopover({
   const [isBranch, setIsBranch] = useState(connection.isBranch)
   const [isTopicBreak, setIsTopicBreak] = useState(!!nodeIsTopicBreak)
   const [detailOpen, setDetailOpen] = useState(false)
-  const markBranchReturn = useStudyTrailStore((s) => s.markBranchReturn)
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
   // already recorded is invisible in the new UI, then always end with one blank row per section.
   const legacyFrom = connection.originVersePinFrom != null
@@ -186,22 +184,10 @@ export default function ReasonPromptPopover({
         isBranch,
       })
       if (nodeId) await window.studyTrail.setNodeTopicBreak(nodeId, isTopicBreak)
-      // Best-effort live continuation — see currentlyInBranch's own comment in
-      // studyTrailSlice.ts: checking "tangent" here means whatever the user does NEXT (before
-      // marking a return) also stays flagged as part of this same branch, not just this one
-      // connection. Only meaningful if this popup is still open/answered promptly; a later
-      // reclassification from the Study Trail window (this same checkbox, on an old
-      // connection) intentionally does NOT retroactively affect live recording.
-      if (isBranch) useStudyTrailStore.setState({ currentlyInBranch: true })
       onSaved()
     } finally {
       setSaving(false)
     }
-  }
-
-  function backToMain() {
-    markBranchReturn(connection.id)
-    onSaved()
   }
 
   async function notNow() {
@@ -266,10 +252,13 @@ export default function ReasonPromptPopover({
           style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 10 }}
         />
 
-        {/* When this connection is already part of an active tangent chain, checking the box
-            again isn't a no-op toggle — it (and every further hop while still in branch mode)
-            nests one level deeper automatically, shown here so it's not a mystery why the
-            indentation grows. Per direct feedback on how tangent depth should read. */}
+        {/* Tangent depth (chainDepth) and when a tangent ends are both fully automatic now —
+            computed from which verse each cross-ref/lexicon/AI-lookup click actually landed on
+            and left from (see tangentParentFor in studyTrailSlice.ts), not from any manual
+            flag. This checkbox still does something real (it's conn.isBranch itself, read
+            directly by the Study Trail's rendering), but there is deliberately no "back to
+            main" action here anymore — a stale manual mechanism from before that automatic
+            model existed, which had stopped affecting the rendered trail at all. */}
         {isBranch && connection.chainDepth > 0 && (
           <div style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', marginBottom: 6 }}>
             Already {connection.chainDepth} level{connection.chainDepth === 1 ? '' : 's'} deep in this tangent
@@ -280,13 +269,6 @@ export default function ReasonPromptPopover({
             <input type="checkbox" checked={isBranch} onChange={(e) => setIsBranch(e.target.checked)} />
             Tangent
           </label>
-          {isBranch && (
-            <button
-              onClick={backToMain}
-              title="Everything after this goes back to the main branch"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-            ><CornerUpLeft size={11} /> back to main</button>
-          )}
           {nodeId && (
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}>
               <input type="checkbox" checked={isTopicBreak} onChange={(e) => setIsTopicBreak(e.target.checked)} />
