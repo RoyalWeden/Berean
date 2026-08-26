@@ -229,12 +229,14 @@ export default function TrailConnectorOverlay({
           const gutterRightEdge = gutter ? gutter.x * 2 : 0
           const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
           const dir = Math.sign(rawB.y - rawA.y || 1)
-          // Exit distance bumped 30 -> 38 — per direct feedback ("the top of the arc needs to
-          // be shifted up a little and the bottom needs to be shifted down a hair"), the curve's
-          // straight exit run out of each endpoint (before it starts bending toward the lane)
-          // needed to reach a bit further past both dots for the whole loop to read as fuller/
-          // rounder rather than hugging tight to the two bullets it connects.
-          const EXIT_RUN = 38
+          // Exit distance bumped 30 -> 38 -> 70 — per direct feedback, TWICE now ("the top of
+          // the arc needs to be shifted up a little and the bottom needs to be shifted down a
+          // hair", then again "it is still coming short on the top and bottom" after the first
+          // bump read as no visible change at all). Going substantially bigger this round rather
+          // than incrementing again — the curve's straight exit run out of each endpoint (before
+          // it starts bending toward the lane) needed to reach much further past both dots for
+          // the loop to visibly extend beyond them, not just hug the two bullets it connects.
+          const EXIT_RUN = 70
           const start = pushOffStart(rawA, { x: rawA.x, y: rawA.y + dir * EXIT_RUN }, false, startGap)
           const end = pullBackEnd({ x: rawB.x, y: rawB.y - dir * EXIT_RUN }, rawB, false, endGap)
           const vertRun = Math.abs(end.y - start.y)
@@ -259,10 +261,13 @@ export default function TrailConnectorOverlay({
           // little") — MapView's own EXTRA_BOW_BASE mirrors this constant for its reservation.
           const EXTRA_BOW_BASE = 85
           const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
-          // Clamped to a small positive floor — a last-resort safety net so a future formula
+          // Clamped to a small positive floor (raised 10 -> 24 — the previous floor was tight
+          // enough that a badly-underestimated gutter reservation elsewhere could clamp the
+          // curve down to almost nothing with zero visible change between rounds of tuning,
+          // which is exactly what happened) — a last-resort safety net so a future formula
           // tweak on either side of this (extraBow here, or gutterWidth in MapView) can never
           // reintroduce the negative-laneX bug above even if they drift out of sync again.
-          const laneX = Math.max(10, baseLaneX - extraBow)
+          const laneX = Math.max(24, baseLaneX - extraBow)
           // A "stadium" shape, not a gentle lean: control points sit at the lane (same X) close
           // to their own endpoint's Y — a cubic bezier built this way exits each endpoint
           // moving mostly SIDEWAYS right away (committing to the lane almost immediately)

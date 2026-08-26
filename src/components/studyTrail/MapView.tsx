@@ -952,6 +952,7 @@ export default function MapView({
   // or connection row dims every edge that doesn't touch it, no topology change required. Wired
   // into the edges array just before it's passed to the overlay (see below).
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  const lastVisibilityLogRef = useRef<string | null>(null)
   const { menu, menuRef, openMenu: openMenuRaw, closeMenu } = useTrailRefMenu()
   // Right-clicking a row/node to open its context menu, then dismissing the menu by clicking
   // elsewhere WITHOUT first moving the mouse back over the original row, never fires that
@@ -960,6 +961,12 @@ export default function MapView({
   // lines and stuff and they dont come back"). Clearing it the moment a menu opens closes that
   // gap regardless of how the menu later gets dismissed.
   function openMenu(data: Parameters<typeof openMenuRaw>[0]) {
+    // Per direct feedback ("the connecting lines are going invisible when i rightclick the
+    // items... put a log for what happens") — logs the actual hoveredKey transition right-click
+    // causes, so a report of lines vanishing on right-click can be matched against whether
+    // hoveredKey really did clear here (working as this function intends) or something else
+    // entirely is dimming things afterward (a stuck menu-open state, a stale hoverChain, etc.).
+    if (window.__bereanTrailDebug) console.log('[TrailDebug] openMenu — clearing hoveredKey', { prevHoveredKey: hoveredKey, ref: data.ref })
     setHoveredKey(null)
     openMenuRaw(data)
   }
@@ -1420,22 +1427,16 @@ export default function MapView({
       if (e.from === hoveredKey || e.to === hoveredKey) hoverChainEdgeKeys.add(e.key)
     }
     const stack = [hoveredKey]
-    // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are two
-    // HALVES of the exact same hop, not an ancestor/descendant pair — but the backward-only
-    // walk below only reaches origin FROM dest (via the tangent-hop edge), never the other way
-    // (dest is a forward step from origin, so a strictly-backward walk never finds it). That
-    // left hovering the ORIGIN half incorrectly dimming its own destination sibling. Seed the
-    // walk with JUST the sibling half (not the resulting arrival node, an earlier attempt at
-    // this — per direct feedback, "it isn't stopping at the tangent for the highlighting... but
-    // going to the next main spine item," the arrival node's own main-spine bullet should stay
-    // dimmed unless it's independently part of the real backward chain).
-    const tangentNodeId = hoveredKey.startsWith('tangent-origin:') ? hoveredKey.slice('tangent-origin:'.length)
-      : hoveredKey.startsWith('tangent-dest:') ? hoveredKey.slice('tangent-dest:'.length)
-      : null
-    if (tangentNodeId != null) {
-      const siblingKey = hoveredKey.startsWith('tangent-origin:') ? `tangent-dest:${tangentNodeId}` : `tangent-origin:${tangentNodeId}`
-      if (!hoverChainPointKeys.has(siblingKey)) { hoverChainPointKeys.add(siblingKey); stack.push(siblingKey) }
-    }
+    // A tangent's origin/destination bullets (tangent-origin:ID / tangent-dest:ID) are the two
+    // ends of the same hop, chronologically origin-then-dest — origin is dest's CAUSAL ANCESTOR,
+    // dest is origin's DESCENDANT (something that happens AFTER it). Per direct feedback ("make
+    // sure to dim the tangent parts that are after the one that is getting hovered"): hovering
+    // dest should pronounce origin (an ancestor — the ordinary backward walk below already finds
+    // it via the tangent-hop edge, `tangent-origin → tangent-dest`, same as any other edge, no
+    // special-casing needed), but hovering ORIGIN must NOT pull dest in — dest is forward of it,
+    // and should dim like anything else after the hover point. An earlier round deliberately made
+    // this symmetric (see git blame) per different feedback at the time; this reverses that half
+    // of it back per the current, more specific ask.
     while (stack.length) {
       const cur = stack.pop()!
       for (const e of edgesByTo.get(cur) ?? []) {
@@ -1471,6 +1472,26 @@ export default function MapView({
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
         : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
     : edges
+  // Per direct feedback ("the connecting lines are going invisible when i rightclick the
+  // items... put a log for what happens") — unlike the hover-chain log above (gated on
+  // hoveredKey being truthy, so it goes silent the instant openMenu clears it), this fires on
+  // every render regardless, so the render right after a right-click — where lines are reported
+  // vanishing — actually shows up: whether hoveredKey truly went back to null (openMenu's own
+  // fix working), whether `menu` is open, and how many edges ended up dimmed either way. If
+  // dimmedCount is ever > 0 while hoveredKey is null here, the dimming isn't coming from this
+  // hover mechanism at all and the bug is somewhere else entirely.
+  if (window.__bereanTrailDebug) {
+    const dimmedCount = finalEdges.filter((e) => (e.opacity ?? 1) < 0.5).length
+    // Deduped the same way as TrailConnectorOverlay's missing-endpoint warning — only logs when
+    // this specific combination actually changes, not on every render, so it stays readable.
+    const logKey = `${hoveredKey}:${hoveredKeyIsLive}:${!!menu}:${dimmedCount}`
+    if (lastVisibilityLogRef.current !== logKey) {
+      lastVisibilityLogRef.current = logKey
+      console.log('[TrailDebug] right-click/edge-visibility check', {
+        hoveredKey, hoveredKeyIsLive, menuOpen: !!menu, totalEdges: finalEdges.length, dimmedCount,
+      })
+    }
+  }
 
   const q = searchQuery.trim().toLowerCase()
   const matchedNodeIds = new Set<string>()
