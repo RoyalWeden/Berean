@@ -637,6 +637,17 @@ function NodeBlock({
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookLabel(node.bookId)} {node.chapter}
+            {/* A cross-chapter tangent's destination verse was never shown anywhere — a node's
+                own title only ever carries book+chapter (nodes represent whole chapters), so
+                the specific verse the cross-ref actually landed on silently vanished. Per direct
+                feedback ("it isnt tracking all the verses for the cross refs"), show it here
+                whenever this arrival IS a tangent (isBranchNode) and the connection that caused
+                it recorded a destination verse. */}
+            {isBranchNode && originConn?.toVerse != null && (
+              <span style={{ fontWeight: 700 }}>
+                :{originConn.toVerse}{originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}
+              </span>
+            )}
             {isRevisit && !bounceBadge && (
               <span style={{
                 fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
