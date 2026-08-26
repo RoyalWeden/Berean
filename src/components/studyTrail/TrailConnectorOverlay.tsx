@@ -221,15 +221,17 @@ export default function TrailConnectorOverlay({
           // healthy guaranteed clearance, growing further for a longer run.
           const extraBow = 50 + Math.max(0, vertRun - 60) * 0.4
           const laneX = baseLaneX - extraBow
-          // A "stadium" shape, not a gentle lean: both control points sit directly at the lane
-          // (same X), at the SAME Y as their own endpoint — a cubic bezier built this way exits
-          // each endpoint moving mostly SIDEWAYS right away (committing to the lane almost
-          // immediately) rather than staying near-vertical through most of its length, so the
-          // curve reads as "swings out and clearly goes around," not "leans slightly left of
-          // the spine." Per direct feedback across two rounds ("the revisit connection line
-          // needs to go completely around everything else... it still is going through
-          // things").
-          d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
+          // A "stadium" shape, not a gentle lean: control points sit at the lane (same X) close
+          // to their own endpoint's Y — a cubic bezier built this way exits each endpoint
+          // moving mostly SIDEWAYS right away (committing to the lane almost immediately)
+          // rather than staying near-vertical through most of its length, so the curve reads as
+          // "swings out and clearly goes around," not "leans slightly left of the spine." A
+          // small Y offset (not 0) toward the OTHER end softens the corner into a rounded
+          // curve instead of a sharp near-right-angle — per direct feedback ("the revisit
+          // connection can probably be made a bit less curved" — i.e. less of a hard corner,
+          // said right after the previous round's fully-square version).
+          const CORNER_SOFTEN = Math.min(24, vertRun * 0.15)
+          d = `M${start.x},${start.y} C${laneX},${start.y + dir * CORNER_SOFTEN} ${laneX},${end.y - dir * CORNER_SOFTEN} ${end.x},${end.y}`
         } else {
           const curved = !!e.curved
           const a = pushOffStart(rawA, rawB, curved, startGap)
