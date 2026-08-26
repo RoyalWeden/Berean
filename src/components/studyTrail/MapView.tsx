@@ -181,10 +181,10 @@ function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
 // specific verses a tangent connects; the full connection detail is on the node/ConnRow they sit
 // beside. Visually matches ConnRow's own dot+text so a tangent bullet looks the same whether it
 // came from a same-chapter or cross-chapter hop, per direct feedback unifying the two.
-function TangentBullet({ label, indent }: { label: string; indent: number }) {
+function TangentBullet({ label, indent, pointKey, registerPoint }: { label: string; indent: number; pointKey: string; registerPoint: (key: string) => (el: HTMLElement | null) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
-      <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
+      <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
       <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
     </div>
   )
@@ -556,9 +556,12 @@ function NodeBlock({
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
   const isRevisit = !!node.revisitOfNodeId
-  // Indent per branch depth (0 = first hop off main) — a tangent off a tangent nests visibly
-  // further, not just flat, per direct feedback on the tangent-indentation design.
-  const indent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
+  // A chapter ARRIVAL never indents — only the tangent bullets that led to it (the two
+  // TangentBullet rows above) do. Per direct feedback: "luke 4 should be indented back to the
+  // main spine and not looking indented like how it is" — the node itself always sits flush at
+  // the spine's own left edge, whether it was reached plainly or via a tangent.
+  const indent = 0
+  const tangentIndent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
   return (
     <div
       ref={blockRef}
@@ -600,10 +603,12 @@ function NodeBlock({
           spine point; these two rows are the actual tangent hop that led to it. */}
       {isBranchNode && originVerseLabel && (
         <div style={{ marginBottom: 2 }}>
-          <TangentBullet label={originVerseLabel} indent={indent} />
+          <TangentBullet label={originVerseLabel} indent={tangentIndent} pointKey={`tangent-origin:${node.id}`} registerPoint={registerPoint} />
           <TangentBullet
             label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
-            indent={indent}
+            indent={tangentIndent}
+            pointKey={`tangent-dest:${node.id}`}
+            registerPoint={registerPoint}
           />
         </div>
       )}
@@ -919,6 +924,16 @@ export default function MapView({
         const next = nextNodeById.get(c.fromNodeId)
         const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
         if (isForward) {
+          // A cross-CHAPTER tangent whose destination is a brand-new node right away — fully
+          // handled by the dedicated TangentBullet + edge-building pass below instead (the
+          // node's own arrival gets the origin/destination bullet pair above it, connected by
+          // its own dedicated lines) — no ConnRow for it at all, this connection's only other
+          // job is already done via originConnByNodeId. Suppresses the generic spine arrow the
+          // same way the old isForwardBranch path did.
+          if (annotated.isBranch) {
+            nodesWithTracedArrival.add(next!.id)
+            continue
+          }
           if (!isConfidentOrigin(c) && !annotated.isChainedBranch) continue // no row at all — matches prior behavior exactly
           annotated = { ...annotated, isForwardBranch: true }
           nodesWithTracedArrival.add(next!.id)
@@ -974,6 +989,28 @@ export default function MapView({
       key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
       color: 'rgb(var(--color-text-secondary))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
     })
+  }
+
+  // The dedicated 3-segment path for a branch-node ARRIVAL (a cross-chapter tangent whose
+  // destination is a brand-new node, suppressed out of rowsForNode/isForwardBranch above): the
+  // node it left from → the origin-verse bullet → the destination-verse bullet → the arrival
+  // node itself. Replaces the old single long "reconverge" line that skipped straight from the
+  // departure chapter to the arrival chapter with no visible stop at either verse, per direct
+  // feedback: "there needs to be connecting lines going this route: Isaiah 11 → Isaiah 11:2 →
+  // Luke 4:18 → Luke 4. It should not have been just the single line of: Isaiah 11 → Luke 4."
+  for (const n of detail.nodes) {
+    const originConn = originConnByNodeId.get(n.id)
+    if (!originConn?.isBranch) continue
+    const fromNode = nodeById.get(originConn.fromNodeId)
+    if (!fromNode) continue
+    // Same-depth solid stub out of the departure node — the same "going one level deeper" accent
+    // treatment every other tangent stub gets.
+    edges.push({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, opacity: 0.75 })
+    // Origin verse → destination verse — the actual cross-ref hop itself.
+    edges.push({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
+    // Dashed/muted reconverge into the arrival node — "returning to the spine," same visual
+    // language as every other depth-decrease edge in this diagram.
+    edges.push({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: true, arrow: true, opacity: 0.5, dashed: true })
   }
 
   // Shared per-row edge logic — called for every row regardless of whether it's a top-level
