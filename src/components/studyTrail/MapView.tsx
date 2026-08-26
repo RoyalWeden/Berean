@@ -228,15 +228,19 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
   return (
     <div onMouseEnter={() => onHoverKey?.(pointKey)} onMouseLeave={() => onHoverKey?.(null)} style={{ opacity: dimmed ? 0.25 : 1, transition: 'opacity 120ms' }}>
     <TrailHoverCard disabled={hoverDisabled} content={hoverContent}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent }}>
+      {/* Click/cursor moved to the WHOLE row (dot + label), not just the label text — per direct
+          feedback ("turn the cursor into the pointing when over the tangents too"), hovering the
+          dot itself is a perfectly reasonable place to click a bullet, matching how the main
+          spine's own node dot is clickable too. */}
+      <div
+        onClick={targetRef ? (e) => trailRefClick(targetRef, e) : undefined}
+        onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e) : undefined}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: `${TANGENT_BULLET_PAD}px 0`, marginLeft: indent, cursor: targetRef ? 'pointer' : undefined }}
+        onMouseEnter={(e) => { if (targetRef) (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'underline') }}
+        onMouseLeave={(e) => { (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'none') }}
+      >
         <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
-        <span
-          onClick={targetRef ? (e) => trailRefClick(targetRef, e) : undefined}
-          onContextMenu={targetRef && openMenu ? (e) => openTrailRefMenu(openMenu, targetRef, e) : undefined}
-          style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', cursor: targetRef ? 'pointer' : undefined }}
-          onMouseEnter={(e) => { if (targetRef) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
-        >{label}</span>
+        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
       </div>
     </TrailHoverCard>
     </div>
@@ -633,8 +637,6 @@ function NodeBlock({
   return (
     <div
       ref={blockRef}
-      onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
-      onMouseLeave={() => onHoverKey?.(null)}
       style={{
         opacity: dimmed || hoverDimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
         boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
@@ -692,7 +694,22 @@ function NodeBlock({
       )}
       {/* gap: 3 (was 12, then 6) — per direct feedback ("move the main spine labels ... closer
           to the bullet more"), the label sits right next to its own bullet. */}
-      <div style={{ display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}>
+      {/* onMouseEnter/onMouseLeave own hover claim moved HERE from the outer wrapper — per direct
+          feedback ("sometimes when i go from hovering over one bullet to the next it doesnt
+          update the dimness correctly... typically when i go from a tangent to a main spine").
+          React's onMouseEnter/onMouseLeave don't bubble, so when the outer wrapper owned this,
+          it fired ENTER once on first crossing into the whole NodeBlock, then never again —
+          leaving a child TangentBullet (which sets hoveredKey to null on its own leave) had
+          nothing to restore `node:${node.id}`, since re-entering THIS row from a sibling child
+          within the same still-hovered outer block doesn't re-trigger the outer's enter. Giving
+          this row (a sibling to the tangent bullets and nested ConnRows, not their ancestor) its
+          own enter/leave pair fixes it: every hoverable region here is now a flat sibling, so
+          moving between any two of them correctly fires leave(prev) then enter(next). */}
+      <div
+        onMouseEnter={() => onHoverKey?.(`node:${node.id}`)}
+        onMouseLeave={() => onHoverKey?.(null)}
+        style={{ display: 'flex', gap: 3, marginBottom: isLast ? 0 : (gapToNextMs == null ? 0 : MAIN_SPINE_GAP) }}
+      >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 }}>
         {/* A promoted revisit's own dot is smaller/dimmer than a first-time chapter stop —
             still a full, real spine entry (own connections, own hover card), just visually
