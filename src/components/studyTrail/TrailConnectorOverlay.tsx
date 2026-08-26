@@ -213,94 +213,45 @@ export default function TrailConnectorOverlay({
 
         let d: string
         if (e.lane != null) {
-          // ONE continuous bezier now — not a line+arc+line+arc+line chain. Per direct
-          // feedback ("the entire curve should actually be one continuous curve... it should
-          // be just round and not go straight and then go to the right"), any hard segment
-          // boundary read as a kink no matter how rounded each individual corner was. A single
-          // cubic bezier whose control points sit near the shared lane (so multiple laned
-          // edges still visually separate, same as before) but are offset heavily in Y relative
-          // to their own endpoint gives an exit/entry tangent that's still close to vertical
-          // (pointing down out of the bullet, down into the target) while smoothly bowing
-          // through the lane in between — genuinely one curve, no straight run.
+          // REWRITTEN FROM SCRATCH per direct feedback ("both of those are still not fixed...
+          // maybe for the revisit arc, you just recreate the entire arc for that from scratch")
+          // after several rounds of tuning a "toward/away from the other end" Y-offset on the
+          // control points kept producing either a curve that fell visibly short of one dot
+          // (the original, safe direction) or a closed loop that floated apart from both dots
+          // entirely (an attempt at the opposite direction) — that whole family of "offset the
+          // control point in Y by some tunable amount" was the wrong lever regardless of which
+          // way it pointed or how big it was.
+          //
+          // New construction, deliberately as simple as it can be: a single cubic bezier whose
+          // TWO CONTROL POINTS SIT EXACTLY AT THEIR OWN ENDPOINT'S OWN Y — control1 = (laneX,
+          // start.y), control2 = (laneX, end.y). This is mathematically guaranteed to never
+          // overshoot past start or end (a cubic bezier's points are a weighted average of its
+          // four control points; with both middle points already inside the Y-range
+          // [start.y, end.y], the whole curve's Y stays inside that range too) — so it can never
+          // degenerate into a loop no matter how large the horizontal reach (laneX) is, and it
+          // reaches EXACTLY from start's height to end's height by construction, not by tuning
+          // some separate softening constant to approximate that span — solving "coming up
+          // short" the same move that also makes "turning into a circle" structurally
+          // impossible, instead of trading one for the other.
           const gutter = coords.get('gutter:x')
           // Anchored to the spacer's own RIGHT edge (gutter.x*2 — the registered point is the
           // spacer's CENTER, and its left edge sits at containerRef's own x=0), not its center.
-          // Real bug found tracing through this by hand: MapView's gutterWidth got a large flat
-          // EXTRA_BOW_RESERVE added on top specifically so this file's own extraBow (below) had
-          // room to swing into — but anchoring from the spacer's CENTER meant that reservation
-          // only bought HALF as much usable room as intended, and extraBow now regularly
-          // exceeds it, driving laneX NEGATIVE — off the left edge of the scrollable area
-          // entirely (you can't scroll to negative x), which is exactly what "the arc for the
-          // revisit wasnt adjusted at all, it needs to be wider because it isnt hitting either
-          // of the bullets" looks like: a curve whose control points request space that doesn't
-          // exist. Clamped to a small positive floor as a last-resort safety net regardless.
           const gutterRightEdge = gutter ? gutter.x * 2 : 0
           const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          const dir = Math.sign(rawB.y - rawA.y || 1)
-          // FOUND THE REAL BUG (why two straight rounds of "EXIT_RUN" bumps — 30->38->70 — never
-          // visibly changed anything, confirmed by the logged arc-geometry values matching this
-          // exactly): pushOffStart/pullBackEnd's non-curved branch computes a UNIT vector
-          // (dx/len, dy/len) from the synthetic point back to rawA/rawB, then moves `dist` along
-          // it — since the synthetic point was built as `rawA.y + dir*EXIT_RUN`, its only
-          // surviving effect on the unit vector is the SIGN (dir), because dividing by `len`
-          // (which equals EXIT_RUN) cancels the magnitude out completely. `start`/`end` were
-          // ALWAYS exactly `startGap`/`endGap` away from rawA/rawB — EXIT_RUN never touched the
-          // result at all, at any of the three values tried. Replaced with a plain call against
-          // the REAL rawA/rawB (equivalent to what the old code silently reduced to) — the actual
-          // lever for "how far past the dots the curve visibly reaches" is CORNER_SOFTEN below,
-          // which now controls this directly instead of a parameter that did nothing.
           const start = pushOffStart(rawA, rawB, false, startGap)
           const end = pullBackEnd(rawA, rawB, false, endGap)
           const vertRun = Math.abs(end.y - start.y)
-          // The reserved gutter column only needs to be wide enough to keep the curve clear of
-          // the DOT column itself — but a return spanning a long vertical run (crossing another
-          // whole node's title, a gap divider, etc.) needs to bow out much further than that to
-          // actually read as "going around" everything in between, not just leaning slightly
-          // left of it. Since there's nothing else rendered further left of the reserved column
-          // (just the window's own margin), the curve is free to swing further out than the
-          // gutter's own reserved width without any layout consequence — per direct feedback
-          // ("the revisit connection line needs to go completely around everything else... the
-          // arc will need to be curved more"), scale that extra swing with how much vertical
-          // distance this particular edge actually has to clear.
-          // Raised the floor substantially (was scaling from 0, only kicking in past 80px of
-          // vertical run) — per direct feedback that it was STILL cutting through the main
-          // spine even after the previous round's widening. Every laned edge now gets a
-          // healthy guaranteed clearance, growing further for a longer run.
-          // Reach bumped up again per direct feedback ("the revisit arc can be increased
-          // slightly... reach the full distance") — paired with MapView's own gutterWidth
-          // reservation (EXTRA_BOW_RESERVE), which still comfortably covers this.
-          // Base bumped 65 -> 85 per direct feedback ("the arc needs to be moved to the left a
-          // little") — MapView's own EXTRA_BOW_BASE mirrors this constant for its reservation.
+          // How far left of the dot column the curve bulges — scales with vertRun so a return
+          // spanning a lot of intervening content swings out further to visibly "go around" it,
+          // not just lean slightly left of it. MapView's own gutterWidth reservation
+          // (EXTRA_BOW_RESERVE) mirrors this same formula so the reserved scroll room actually
+          // covers it.
           const EXTRA_BOW_BASE = 85
           const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
-          // Clamped to a small positive floor (raised 10 -> 24 — the previous floor was tight
-          // enough that a badly-underestimated gutter reservation elsewhere could clamp the
-          // curve down to almost nothing with zero visible change between rounds of tuning,
-          // which is exactly what happened) — a last-resort safety net so a future formula
-          // tweak on either side of this (extraBow here, or gutterWidth in MapView) can never
-          // reintroduce the negative-laneX bug above even if they drift out of sync again.
+          // Floor is a last-resort safety net only — with the new construction above, laneX
+          // going small just makes for a narrower (not broken) bulge; nothing here can loop.
           const laneX = Math.max(24, baseLaneX - extraBow)
-          // A "stadium" shape, not a gentle lean: control points sit at the lane (same X) close
-          // to their own endpoint's Y — a cubic bezier built this way exits each endpoint
-          // moving mostly SIDEWAYS right away (committing to the lane almost immediately)
-          // rather than staying near-vertical through most of its length, so the curve reads as
-          // "swings out and clearly goes around," not "leans slightly left of the spine." A
-          // small Y offset TOWARD the other end softens the corner into a rounded curve instead
-          // of a sharp near-right-angle.
-          // REVERTED an attempt to flip this sign (control point AWAY from the other end,
-          // meant to overshoot past start/end outward) — per direct feedback with a screenshot:
-          // "you made the arc worse... its not that you need to make it look like a circle".
-          // With `start`/`end` already sitting almost exactly ON the two dots (see the fix just
-          // above — pushOffStart/pullBackEnd against the real rawA/rawB, only a few px of
-          // clearance), a large away-from-target control offset made the curve's own visual
-          // extremes bulge out well before/after reaching start/end at all, reading as a closed
-          // loop floating apart from both bullets rather than a line connecting them. Back to the
-          // original toward-the-other-end sign and a modest cap — the actual open question
-          // (why the arc still looked like it fell short) is about where `start`/`end`
-          // THEMSELVES land, not this softening term, and needs a precise example of the
-          // expected vs. actual endpoint position rather than another blind curvature tweak.
-          const CORNER_SOFTEN = Math.min(36, vertRun * 0.2)
-          d = `M${start.x},${start.y} C${laneX},${start.y + dir * CORNER_SOFTEN} ${laneX},${end.y - dir * CORNER_SOFTEN} ${end.x},${end.y}`
+          d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
           if (window.__bereanTrailDebug) {
             const summary = {
               key: e.key,

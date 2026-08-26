@@ -1472,6 +1472,14 @@ export default function MapView({
   // — every edge stays at normal opacity — rather than let one orphaned key blank out the whole
   // diagram.
   const hoveredKeyIsLive = !!hoveredKey && edges.some((e) => e.from === hoveredKey || e.to === hoveredKey)
+  // REFACTORED per direct feedback ("the right click is still hiding the connection lines")
+  // after the previous fix (suppressing new hover claims at the SETTER while a menu is open)
+  // still wasn't enough — rather than keep chasing exactly which event re-sets hoveredKey while
+  // a menu is up, gate the OUTPUT directly: whenever any context menu is open, dimming is off,
+  // full stop, regardless of what hoveredKey happens to hold. This can't be defeated by a stray
+  // re-fired mouseenter, a stale key, or any other path into hoveredKey — the single place that
+  // actually paints the dim effect refuses to do it at all while `menu` is truthy.
+  const hoverActive = hoveredKeyIsLive && !menu
   if (window.__bereanTrailDebug && hoveredKey) {
     // Confirms (or rules out) the exact "lines disappear on right-click" mechanism this safety
     // net guards against — if hoveredKeyIsLive is ever false here right after a right-click,
@@ -1482,7 +1490,7 @@ export default function MapView({
       chainPoints: [...hoverChainPointKeys], chainEdges: [...hoverChainEdgeKeys],
     })
   }
-  const finalEdges = hoveredKeyIsLive
+  const finalEdges = hoverActive
     ? edges.map((e) => hoverChainEdgeKeys.has(e.key)
         ? { ...e, opacity: 1, strokeWidth: (e.strokeWidth ?? (e.thick ? 3 : 1.75)) * 1.35 }
         : { ...e, opacity: (e.opacity ?? 1) * 0.12 })
@@ -1605,7 +1613,7 @@ export default function MapView({
                 originConnByNodeId={originConnByNodeId}
                 jumpToOrigin={jumpToOrigin}
                 rowsForConnection={rowsForConnection}
-                hoverChain={hoveredKeyIsLive ? hoverChainPointKeys : null}
+                hoverChain={hoverActive ? hoverChainPointKeys : null}
               />
             )
           }
@@ -1665,7 +1673,7 @@ export default function MapView({
               branchDepth={originConn?.chainDepth}
               originVerseLabel={originVerseLabel}
               originVerseRef={originVerseRef}
-              hoverChain={hoveredKeyIsLive ? hoverChainPointKeys : null}
+              hoverChain={hoverActive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} />}
