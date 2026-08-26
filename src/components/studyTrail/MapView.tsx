@@ -560,7 +560,7 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
-  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   onOpenPrompt: (c: TrailConnection) => void
@@ -600,6 +600,11 @@ function NodeBlock({
    *  dim everything else out — other lines and labels and bullets"), that includes this node's
    *  own bullet/label whenever it isn't part of whatever's being traced. */
   hoverChain?: Set<string> | null
+  /** Whether a recorded revisit (node.revisitOfNodeId) still counts as one at render time — the
+   *  revisit time-window slider's live gate (see isRevisitWithinWindow in MapView). Defaults to
+   *  true (always honor a recorded revisit) for callers — NodeClusterGroup's own bounce-cluster
+   *  path — that don't have an opinion here. */
+  revisitAllowed?: boolean
   /** Currently selected via ArrowUp/ArrowDown keyboard navigation. */
   keyboardFocused?: boolean
   /** A search filter is active and this node/its rows don't match it. */
@@ -626,7 +631,7 @@ function NodeBlock({
   const hoverDisabled = useContext(HoverDisabledContext)
   const nodeRef: TrailRef = { kind: 'chapter', bookId: node.bookId, chapter: node.chapter }
   const items = groupForRender(connections)
-  const isRevisit = !!node.revisitOfNodeId
+  const isRevisit = !!node.revisitOfNodeId && revisitAllowed
   // A chapter ARRIVAL never indents — only the tangent bullets that led to it (the two
   // TangentBullet rows above) do. Per direct feedback: "luke 4 should be indented back to the
   // main spine and not looking indented like how it is" — the node itself always sits flush at
@@ -809,7 +814,7 @@ export const ZOOM_MIN = 0.5
 export const ZOOM_MAX = 2
 
 export default function MapView({
-  detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange,
+  detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
   /** Zoom is normally OWNED by StudyTrailApp (rendered in its title bar, top-right, so it
@@ -818,6 +823,11 @@ export default function MapView({
    *  without a controlling parent. */
   zoom?: number
   onZoomChange?: (zoom: number) => void
+  /** How much real elapsed time still counts a chapter re-arrival as a REVISIT (dashed backlink
+   *  + badge) rather than a fresh, independent bullet — owned by StudyTrailApp's floating
+   *  slider (1h–1wk), same reasoning as `zoom` above. undefined = no cutoff (always treat a
+   *  recorded revisit as a revisit), for the same standalone-mount fallback reason as zoom. */
+  revisitWindowMs?: number
 }) {
   const [promptConn, setPromptConn] = useState<TrailConnection | null>(null)
   const { pointsRef, registerPoint } = useTrailConnectorPoints()
@@ -945,6 +955,21 @@ export default function MapView({
   // build below can already resolve a return's target step while annotating isReturn.
   const nodeOrderIndex = new Map<string, number>()
   detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
+
+  // Gates whether a recorded revisit (n.revisitOfNodeId) still COUNTS as one at render time —
+  // per the plan's revisit time-window slider: `revisitOfNodeId` itself is never rewritten (the
+  // recorder's own judgment call stands), but a chapter re-arrival past the user's current
+  // slider setting renders as a plain independent bullet instead of the dashed-backlink/badge
+  // treatment, live-adjustable without touching the database at all. undefined revisitWindowMs
+  // (no controlling parent) means "no cutoff" — always honor whatever was recorded.
+  function isRevisitWithinWindow(n: TrailNode): boolean {
+    if (!n.revisitOfNodeId) return false
+    if (revisitWindowMs == null) return true
+    const original = nodeById.get(n.revisitOfNodeId)
+    if (!original) return true
+    const gapMs = n.anchorStartedAt - (original.anchorEndedAt ?? original.anchorStartedAt)
+    return gapMs <= revisitWindowMs
+  }
 
   // The EARLIEST connection that ever led to a given chapter — its "origin story," shown
   // above the node always (OriginBadgeLine) and in its hover card, regardless of how many
@@ -1191,7 +1216,7 @@ export default function MapView({
     // dashed (structural chrome, not a clarity-tier signal, hence gray not TIER_COLOR) and
     // never arrowed, since it signals identity ("this is the same chapter"), not a direction
     // of travel the way the primary forward spine edge into this node already does.
-    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId)) {
+    if (n.revisitOfNodeId && detail.nodes.some((on) => on.id === n.revisitOfNodeId) && isRevisitWithinWindow(n)) {
       const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
       lanedRaw.push({
         key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
@@ -1414,6 +1439,7 @@ export default function MapView({
               originVerseLabel={originVerseLabel}
               originVerseRef={originVerseRef}
               hoverChain={hoveredKey ? hoverChainPointKeys : null}
+              revisitAllowed={isRevisitWithinWindow(n)}
             />
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} />}
             </div>

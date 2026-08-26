@@ -6,6 +6,7 @@ import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX } from './MapView'
 import ReviewView from './ReviewView'
 import EverythingView from './EverythingView'
+import { formatGap } from './trailTime'
 
 type MainTab = 'map' | 'review'
 
@@ -48,10 +49,17 @@ export default function StudyTrailApp() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
-  // Owned here (not inside MapView) so it applies consistently in the title bar whether
+  // Owned here (not inside MapView) so it applies consistently in a floating pill whether
   // you're looking at one session's Map or the merged Everything timeline.
   const [zoom, setZoom] = useState(1)
   const ZOOM_STEP = 0.1
+  // Revisit time-window slider — per the plan: "the revisit slider should be from 1 hour to 1
+  // week," live-gating whether a chapter re-arrival still renders as a REVISIT (dashed backlink
+  // + badge) vs. a fresh independent bullet, past the cutoff. Stored in hours (not ms) since
+  // that's the natural slider unit; default 24h (a same-day return still reads as "revisiting,"
+  // a return after several days usually doesn't).
+  const [revisitWindowHours, setRevisitWindowHours] = useState(24)
+  const revisitWindowMs = revisitWindowHours * 3_600_000
   // Auto-select whatever session is actually live/paused the FIRST time we learn about it —
   // otherwise reopening the window always lands on "Everything" by default, which looked
   // exactly like "nothing got tracked while the window was closed" even though every
@@ -467,16 +475,6 @@ export default function StudyTrailApp() {
             </button>
           </>
         )}
-        {mainTab === 'map' && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 2, marginLeft: 8, background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2, WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties}>
-            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
-            <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 42, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
-            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
-          </div>
-        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -591,7 +589,7 @@ export default function StudyTrailApp() {
           {mainTab === 'review' ? (
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ReviewView sessions={sessions} /></div>
           ) : selectedId === null ? (
-            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} />
+            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={revisitWindowMs} />
           ) : !detail ? (
             <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
@@ -629,6 +627,7 @@ export default function StudyTrailApp() {
                   onChanged={() => window.studyTrail.getSession(detail.session.id).then((d) => d && setDetail(d))}
                   zoom={zoom}
                   onZoomChange={setZoom}
+                  revisitWindowMs={revisitWindowMs}
                 />
               </div>
             </>
@@ -636,6 +635,37 @@ export default function StudyTrailApp() {
           </div>
         </div>
       </div>
+      {/* Floating pills, bottom-right — per the plan: zoom moved here from the title bar, and a
+          new revisit-window slider alongside it ("put the zoom and revisit window to actually
+          be floating pills at the bottom right of the window"). Only shown on the Map tab
+          (Review doesn't use MapView, so neither control means anything there). */}
+      {mainTab === 'map' && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, zIndex: 50 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '6px 12px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Revisit within</span>
+            <input
+              type="range" min={1} max={168} step={1} value={revisitWindowHours}
+              onChange={(e) => setRevisitWindowHours(Number(e.target.value))}
+              title={`A chapter re-arrival within ${formatGap(revisitWindowMs)} still counts as a revisit`}
+              style={{ width: 110 }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-secondary))', minWidth: 26, textAlign: 'right' }}>{formatGap(revisitWindowMs)}</span>
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 2, background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          }}>
+            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
+            <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 42, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

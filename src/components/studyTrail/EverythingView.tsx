@@ -21,10 +21,11 @@ function fmtBoundaryDate(ms: number): string {
   return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default function EverythingView({ sessions, zoom, onZoomChange }: {
+export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs }: {
   sessions: TrailSession[]
   zoom?: number
   onZoomChange?: (zoom: number) => void
+  revisitWindowMs?: number
 }) {
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,7 +100,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange }: {
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} />
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} />
         </div>
       )}
     </div>
