@@ -112,25 +112,30 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
         transition: 'max-height 160ms ease, opacity 130ms ease',
         padding: expanded ? '8px 10px 10px' : '0 10px', fontSize: 11,
       }}>
+        {/* Dismiss in normal flow (right-aligned) rather than absolutely positioned — with the
+            form's own Save/Delete row gone in this auto-save mode, an overlapping absolute ×
+            would just sit on top of the note box. Keeping it inline also lets both tie
+            columns use the full width, uniform left and right. */}
         {expanded && (
-          <button
-            className="trail-ctx-btn"
-            onClick={onClose}
-            title="Dismiss"
-            style={{
-              position: 'absolute', top: 6, right: 6, background: 'transparent', border: 'none', borderRadius: 6,
-              color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', zIndex: 1,
-            }}
-          ><X size={11} /></button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
+            <button
+              className="trail-ctx-btn"
+              onClick={onClose}
+              title="Dismiss"
+              style={{
+                background: 'transparent', border: 'none', borderRadius: 6,
+                color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex',
+              }}
+            ><X size={11} /></button>
+          </div>
         )}
-        <div style={{ paddingRight: 16 }}>
-          <TrailReasonFormBody
-            connection={conn}
-            onClose={onClose}
-            onSaved={onClose}
-            onFieldTouched={() => setTouched(true)}
-          />
-        </div>
+        <TrailReasonFormBody
+          connection={conn}
+          onClose={onClose}
+          onSaved={onClose}
+          onFieldTouched={() => setTouched(true)}
+          autoSave
+        />
       </div>
     </div>,
     document.body

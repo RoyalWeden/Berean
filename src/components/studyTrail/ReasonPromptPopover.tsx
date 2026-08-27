@@ -53,7 +53,7 @@ function defaultPos() {
 /** A typed tie, resolved against parseRef on every render — cheap, pure, no need to persist the
  *  parsed form separately. Unparseable text still shows (never silently dropped), just without
  *  the "resolved to X" confirmation/click-to-navigate affordance. */
-function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: string) => void; onRemove: () => void }) {
+function TieRow({ value, onChange, onRemove, onBlur, hideRemove }: { value: string; onChange: (v: string) => void; onRemove: () => void; onBlur?: () => void; hideRemove?: boolean }) {
   const parsed = value.trim() ? parseRef(value.trim()) : null
   const resolved = parsed ? bookChapterVerseLabel(parsed.bookId, parsed.chapter, parsed.verse) + (parsed.endVerse ? `–${parsed.endVerse}` : '') : null
   return (
@@ -62,14 +62,17 @@ function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: st
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder="e.g. Mark 13:1"
           style={{ flex: 1, minWidth: 0, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '5px 7px', color: 'rgb(var(--color-text-primary))', fontSize: 12 }}
         />
-        <button
-          onClick={onRemove}
-          title="Remove this tie"
-          style={{ flexShrink: 0, background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: '0 4px' }}
-        ><X size={13} /></button>
+        {!hideRemove && (
+          <button
+            onClick={onRemove}
+            title="Remove this tie"
+            style={{ flexShrink: 0, background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: '0 4px' }}
+          ><X size={13} /></button>
+        )}
       </div>
       {value.trim() && (
         <div style={{ fontSize: 9.5, marginTop: 2, paddingLeft: 2, color: resolved ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))' }}>
@@ -83,7 +86,7 @@ function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: st
 /** One "+add another" tie-list column — used twice below (from-chapter / to-chapter), side by
  *  side. Short labels ("From"/"To") per direct feedback ("the labels for those should be
  *  shorter/simpler"), replacing the old full-sentence "Ties to the chapter you left/landed on". */
-export function TieColumn({ label, values, onChange }: { label: string; values: string[]; onChange: (next: string[]) => void }) {
+export function TieColumn({ label, values, onChange, hideRemove }: { label: string; values: string[]; onChange: (next: string[]) => void; hideRemove?: boolean }) {
   function update(i: number, v: string) {
     const next = [...values]
     next[i] = v
@@ -98,10 +101,22 @@ export function TieColumn({ label, values, onChange }: { label: string; values: 
       <div style={{ fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
         {label}
       </div>
-      {values.map((t, i) => <TieRow key={i} value={t} onChange={(v) => update(i, v)} onRemove={() => remove(i)} />)}
+      {values.map((t, i) => (
+        <TieRow
+          key={i}
+          value={t}
+          onChange={(v) => update(i, v)}
+          onRemove={() => remove(i)}
+          hideRemove={hideRemove}
+          // With the explicit × gone (autoSave/toast mode), clearing a row's text and
+          // clicking away is how you delete it — never removing the single trailing blank.
+          onBlur={hideRemove ? () => { if (!values[i]?.trim() && values.length > 1) remove(i) } : undefined}
+        />
+      ))}
       <button
+        className="trail-ctx-btn"
         onClick={() => onChange([...values, ''])}
-        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: 'rgb(var(--color-accent))', background: 'transparent', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '2px 4px' }}
       ><Plus size={11} /> add</button>
     </div>
   )
@@ -116,11 +131,15 @@ export function TieColumn({ label, values, onChange }: { label: string; values: 
  *  the note or any tie actually gets typed into — the toast uses this to switch itself from
  *  hover-triggered to click-committed ("stays open until explicitly dismissed") mode. */
 export function TrailReasonFormBody({
-  connection, onClose, onSaved, originBookId, originChapter, onFieldTouched, autoFocusNote,
+  connection, onClose, onSaved, originBookId, originChapter, onFieldTouched, autoFocusNote, autoSave,
 }: {
   connection: TrailConnection
   onClose: () => void
   onSaved: () => void
+  /** Toast mode (the "ask why" toggle is OFF): no Delete/Not now/Save row and no
+   *  "auto-detected: …" context line — the note just auto-saves (debounced + on unmount),
+   *  and per-tie × buttons are replaced by "clear the text + click away to remove". */
+  autoSave?: boolean
   /** The chapter this connection departed FROM — needed only to format the legacy
    *  originVersePinFrom fallback tie as a full reference ("Deuteronomy 32:3") instead of a bare
    *  "v.3", per direct feedback. The connection itself has no book/chapter for its own origin
@@ -147,6 +166,33 @@ export function TrailReasonFormBody({
   const [tiesFrom, setTiesFrom] = useState<string[]>(connection.tiesFrom.length > 0 ? [...connection.tiesFrom, ''] : [...legacyFrom, ''])
   const [tiesTo, setTiesTo] = useState<string[]>(connection.tiesTo.length > 0 ? [...connection.tiesTo, ''] : [...legacyTo, ''])
   const [saving, setSaving] = useState(false)
+
+  // ── Auto-save (toast mode) ────────────────────────────────────────────────
+  // Persist silently on a short debounce after any edit, and flush once more on unmount
+  // (dismiss/navigate away) so the last keystrokes are never lost. Refs keep the unmount
+  // flush reading the latest values without re-registering the effect each render.
+  const latestRef = useRef({ note, tiesFrom, tiesTo })
+  latestRef.current = { note, tiesFrom, tiesTo }
+  function persist() {
+    const { note, tiesFrom, tiesTo } = latestRef.current
+    return window.studyTrail.updateConnectionReason(connection.id, {
+      userNote: note.trim() || undefined,
+      tiesFrom: tiesFrom.map((t) => t.trim()).filter(Boolean),
+      tiesTo: tiesTo.map((t) => t.trim()).filter(Boolean),
+    })
+  }
+  useEffect(() => {
+    if (!autoSave) return
+    const dirty = note !== (connection.userNote ?? '')
+      || tiesFrom.some(Boolean) || tiesTo.some(Boolean)
+    if (!dirty) return
+    const t = setTimeout(() => { void persist() }, 500)
+    return () => clearTimeout(t)
+  }, [autoSave, note, tiesFrom, tiesTo]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!autoSave) return
+    return () => { void persist() }
+  }, [autoSave]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     setSaving(true)
@@ -181,7 +227,7 @@ export function TrailReasonFormBody({
 
   return (
     <>
-      {connection.reasonText && (
+      {!autoSave && connection.reasonText && (
         <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
           auto-detected: {connection.reasonText}
         </div>
@@ -197,30 +243,32 @@ export function TrailReasonFormBody({
       />
 
       <div style={{ display: 'flex', gap: 14, marginBottom: 4 }} onFocus={onFieldTouched}>
-        <TieColumn label="From" values={tiesFrom} onChange={(v) => { setTiesFrom(v); onFieldTouched?.() }} />
-        <TieColumn label="To" values={tiesTo} onChange={(v) => { setTiesTo(v); onFieldTouched?.() }} />
+        <TieColumn label="From" values={tiesFrom} hideRemove={autoSave} onChange={(v) => { setTiesFrom(v); onFieldTouched?.() }} />
+        <TieColumn label="To" values={tiesTo} hideRemove={autoSave} onChange={(v) => { setTiesTo(v); onFieldTouched?.() }} />
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
-        <button
-          className="trail-ctx-btn"
-          onClick={deleteNote} title="Delete your note"
-          style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
-        ><Trash2 size={12} /></button>
-        <div style={{ display: 'flex', gap: 8 }}>
+      {!autoSave && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
           <button
             className="trail-ctx-btn"
-            onClick={notNow}
-            style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', borderRadius: 7, padding: '3px 6px', cursor: 'pointer' }}
-          >Not now</button>
-          <button
-            className="trail-btn-accent"
-            onClick={save}
-            disabled={saving}
-            style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
-          >Save</button>
+            onClick={deleteNote} title="Delete your note"
+            style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
+          ><Trash2 size={12} /></button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="trail-ctx-btn"
+              onClick={notNow}
+              style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', borderRadius: 7, padding: '3px 6px', cursor: 'pointer' }}
+            >Not now</button>
+            <button
+              className="trail-btn-accent"
+              onClick={save}
+              disabled={saving}
+              style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+            >Save</button>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }
