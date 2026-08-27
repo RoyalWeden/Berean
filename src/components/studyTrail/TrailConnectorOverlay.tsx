@@ -141,6 +141,14 @@ export default function TrailConnectorOverlay({
     const container = containerRef.current
     if (!container) return
     const cRect = container.getBoundingClientRect()
+    // Hidden right now (an inactive tab/panel toggled to display:none, or a background window
+    // whose renderer isn't laying out) — every getBoundingClientRect() here comes back all
+    // zeros. Measuring anyway would collapse every edge onto the origin, so the whole overlay
+    // draws blank until some LATER event (a scroll, a resize) happens to run recompute() again
+    // while visible — exactly the "outline disappears until I start scrolling after switching
+    // tabs" report. Bail without touching coords so the last good positions stay put; the
+    // visibilitychange / IntersectionObserver hooks below re-run this the moment it's shown.
+    if (cRect.width === 0 && cRect.height === 0) return
     const next = new Map<string, TrailPoint>()
     pointsRef.current.forEach((el, key) => {
       const r = el.getBoundingClientRect()
@@ -202,7 +210,27 @@ export default function TrailConnectorOverlay({
     const ro = new ResizeObserver(() => recompute())
     ro.observe(container)
     window.addEventListener('resize', recompute)
-    return () => { ro.disconnect(); window.removeEventListener('resize', recompute) }
+    // Re-measure the moment this overlay becomes visible again. Switching away from the Study
+    // Trail tab (react-mosaic toggles the inactive panel to display:none) or backgrounding its
+    // window freezes layout at all-zero rects; nothing re-renders on the way back, so without
+    // these the edges stayed blank until an unrelated scroll/resize nudged recompute(). An
+    // IntersectionObserver covers the display:none tab case; visibilitychange / focus / pageshow
+    // cover the separate-window case; the double rAF lets layout settle first after a show.
+    const nudge = () => { requestAnimationFrame(() => requestAnimationFrame(recompute)) }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) nudge()
+    })
+    io.observe(container)
+    document.addEventListener('visibilitychange', nudge)
+    window.addEventListener('focus', nudge)
+    window.addEventListener('pageshow', nudge)
+    return () => {
+      ro.disconnect(); io.disconnect()
+      window.removeEventListener('resize', recompute)
+      document.removeEventListener('visibilitychange', nudge)
+      window.removeEventListener('focus', nudge)
+      window.removeEventListener('pageshow', nudge)
+    }
   }, [containerRef, recompute])
 
   return (

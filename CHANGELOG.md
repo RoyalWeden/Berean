@@ -122,6 +122,19 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.8] - 2026-08-27
+
+Study Trail
+
+- Fixed revisit rows drifting further and further left of the main timeline
+  the more times a chapter was revisited, leaving a large empty gap between
+  them and the spine.
+- Fixed the connecting lines not appearing when returning to the timeline
+  after switching tabs or windows — they now redraw immediately instead of
+  staying blank until you scroll.
+
+---
+
 ## [0.5.7] - 2026-08-27
 
 Study Trail

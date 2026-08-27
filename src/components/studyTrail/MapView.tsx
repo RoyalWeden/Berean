@@ -575,7 +575,7 @@ function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
 
 function NodeClusterGroup({
   nodes, registerPoint, onHoverKey, connectionsByNodeId, nodeOrderIndex,
-  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection, hoverChain,
+  onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection, hoverChain, gutterWidth,
 }: {
   nodes: TrailNode[]
   registerPoint: (key: string) => (el: HTMLElement | null) => void
@@ -594,6 +594,12 @@ function NodeClusterGroup({
    *  had a revisit and it is highlighting everything else too... it should dim everything past
    *  it including the revisit stuff"). */
   hoverChain?: Set<string> | null
+  /** Same reserved left-gutter width every main-spine NodeBlock gets — a "bounced Nx" run is
+   *  still on the main spine, so its nodes' dots must line up vertically with every other spine
+   *  dot. Was hardcoded to 0 here, which (once the gutter grew for the revisit-link lanes those
+   *  very bounces create) planted the whole collapsed cluster `gutterWidth` px left of the
+   *  spine — the "revisit rows drift further left the more I revisit" bug. */
+  gutterWidth: number
 }) {
   const [expanded, setExpanded] = useState(false)
   if (expanded) {
@@ -606,7 +612,7 @@ function NodeClusterGroup({
             onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
             originConn={originConnByNodeId.get(n.id)}
             onJumpToOrigin={originConnByNodeId.has(n.id) ? () => jumpToOrigin(originConnByNodeId.get(n.id)!) : undefined}
-            gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
+            gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
           />
         ))}
         <button onClick={() => setExpanded(false)} style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0 8px 21px' }}>▾ collapse</button>
@@ -629,7 +635,7 @@ function NodeClusterGroup({
         onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
         originConn={originConnByNodeId.get(first.id)}
         onJumpToOrigin={originConnByNodeId.has(first.id) ? () => jumpToOrigin(originConnByNodeId.get(first.id)!) : undefined}
-        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
+        gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
       />
       <NodeBlock
         node={last} connections={connectionsByNodeId.get(last.id) ?? []} gapToNextMs={null} isLast={false}
@@ -637,7 +643,7 @@ function NodeClusterGroup({
         onOpenPrompt={onOpenPrompt} refFor={refFor} openMenu={openMenu}
         originConn={originConnByNodeId.get(last.id)}
         onJumpToOrigin={originConnByNodeId.has(last.id) ? () => jumpToOrigin(originConnByNodeId.get(last.id)!) : undefined}
-        gutterWidth={0} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
+        gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
         bounceBadge={{ count: nodes.length - 1, spanMs, onExpand: () => setExpanded(true) }}
       />
     </div>
@@ -1599,35 +1605,31 @@ export default function MapView({
   // moved to the left slightly"), that first pass over-reserved; this still comfortably covers
   // the overlay's own bow formula (see TrailConnectorOverlay's extraBow) for the vertical runs
   // actually seen in practice.
-  // BUG FOUND (this round of "arc still isn't right" feedback): this used to be a flat
-  // constant, but TrailConnectorOverlay's own extraBow (how far a laned edge's belly swings
-  // left) grows with that edge's actual vertical run — and past a run of roughly
-  // GUTTER_BASE+maxLane*LANE_SPACING+170 px worth of extraBow, its `laneX` calc gets clamped to
-  // a small positive floor (see the "Clamped to a small positive floor" comment there). A flat
-  // 170px reserve was tuned against short/medium revisits; a revisit spanning MANY nodes (a
-  // long read before circling back) needs a much bigger reserve, and once the clamp kicks in
-  // the curve stops growing wider even though it still has that much further to visually
-  // "get around" — it reads as a disproportionately cramped loop for how much content it
-  // spans, which is exactly what a several-node-distant revisit looks like. Scale the reserve
-  // by the longest laned edge's own node-index span (using the same 60px/60-node-distance
-  // knee and 0.45 slope TrailConnectorOverlay uses, translated from pixels to an estimated
-  // ~90px-per-item row height) instead of a constant, with the old 170 as a floor so short
-  // revisits are unaffected.
-  // Estimate raised 50 -> 90 — per direct feedback that a follow-up arc tweak "didn't change"
-  // anything visible: a real NodeBlock (title + tangent bullets + connections + note preview)
-  // routinely renders taller than a bare 50px/item guess, so the ESTIMATED vertRun was coming in
-  // well under the REAL one TrailConnectorOverlay measures live off the DOM — underreserving,
-  // so the overlay's own laneX floor clamp was still kicking in for exactly the same multi-node
-  // revisits this formula was meant to cover, making the reservation bump invisible in practice.
+  // BUG FOUND ("the more times I revisit, the further left the main spine moves"): this
+  // reservation was still using the OLD unbounded LINEAR bow formula (105 + vertRun·0.45) long
+  // after TrailConnectorOverlay's own extraBow was reworked to a CAPPED, sub-linear one
+  // (min(cap, base + scale·√(vertRun−60)) — see its REVISIT_BOW_* / RETURN_BOW_* constants,
+  // caps 85 / 180). A revisit spanning many nodes therefore reserved 800–1000+px of gutter for
+  // a curve the overlay now hard-caps at ≤180px — and since the whole content column is shifted
+  // right by gutterWidth while a collapsed "bounced Nx" revisit cluster is not (NodeClusterGroup
+  // used to force gutterWidth:0 — also fixed), the spine drifted that far right of the revisit
+  // rows, growing every time another (later, longer-spanning) revisit bumped the estimate.
+  // Fix: mirror the overlay's ACTUAL current formula, per laned edge, and take the max — so the
+  // reservation tracks the real (bounded) curve instead of a removed one. Keep the three
+  // base/scale/cap pairs in sync with TrailConnectorOverlay if either side is retuned.
   const ROW_HEIGHT_ESTIMATE = 90
-  const maxLanedSpanItems = lanedRaw.length ? Math.max(...lanedRaw.map((e) => e.maxIdx - e.minIdx)) : 0
-  const estimatedMaxVertRun = maxLanedSpanItems * ROW_HEIGHT_ESTIMATE
-  // Mirrors TrailConnectorOverlay's own EXTRA_BOW_BASE (105) — keep these in sync if either one
-  // is retuned, or the reservation and the actual curve drift apart again (see the negative-
-  // laneX bug this whole reservation formula exists to prevent). Safety margin also widened
-  // 40 -> 70 for the same underreservation reason above.
-  const dynamicExtraBow = 105 + Math.max(0, estimatedMaxVertRun - 60) * 0.45
-  const EXTRA_BOW_RESERVE = Math.max(170, dynamicExtraBow + 70)
+  const overlayBowFor = (spanItems: number, arrow: boolean) => {
+    const vertRun = spanItems * ROW_HEIGHT_ESTIMATE
+    const base = arrow ? 70 : 30
+    const scale = arrow ? 6 : 3
+    const cap = arrow ? 180 : 85
+    return Math.min(cap, base + scale * Math.sqrt(Math.max(0, vertRun - 60)))
+  }
+  const maxExtraBow = lanedRaw.reduce((m, e) => Math.max(m, overlayBowFor(e.maxIdx - e.minIdx, !!e.arrow)), 0)
+  // + safety margin: covers the estimate-vs-measured row-height slack and the little the bezier
+  // belly sits left of laneX. Over-reserving a bit costs nothing (unused blank gutter); under-
+  // reserving clips the arc against the scroll container's un-scrollable left edge.
+  const EXTRA_BOW_RESERVE = maxLane >= 0 ? maxExtraBow + 70 : 0
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Deepest tangent depth actually present anywhere in this view — drives how many faint
@@ -1918,6 +1920,7 @@ export default function MapView({
                 jumpToOrigin={jumpToOrigin}
                 rowsForConnection={rowsForConnection}
                 hoverChain={hoverActive ? hoverChainPointKeys : null}
+                gutterWidth={gutterWidth}
               />
             )
           }
