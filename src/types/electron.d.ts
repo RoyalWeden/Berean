@@ -175,6 +175,10 @@ interface StudyTrailAPI {
   deleteSession: (trailSessionId: string) => Promise<{ success: boolean }>
   deleteSessions: (trailSessionIds: string[]) => Promise<{ success: boolean }>
   listSessions: () => Promise<import('./studyTrail').TrailSession[]>
+  /** Every session INCLUDING the implicit "Loose stops" bucket — Everything view only. */
+  listAllSessions: () => Promise<import('./studyTrail').TrailSession[]>
+  /** Create (or re-activate) the implicit "Loose stops" bucket and return it. */
+  ensureLooseSession: () => Promise<import('./studyTrail').TrailSession>
   getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
   addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string; translation?: string }) => Promise<import('./studyTrail').TrailNode>
   reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>

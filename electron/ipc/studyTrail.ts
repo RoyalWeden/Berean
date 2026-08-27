@@ -3,6 +3,15 @@ import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
 
+// The implicit "Loose stops" bucket — where navigation is recorded when the user has NOT
+// created a session of their own. Per direct feedback: "i don't want an untitled study session
+// created if i didn't create one... only i can create a session... if the user continues to
+// study, then these things are just put in everything". This row exists so recording never
+// silently drops, but it is filtered OUT of listSessions (so it never appears in the session
+// rail) and only surfaces in the merged Everything timeline. Kept in sync with the same
+// constant in src/store/studyTrailSlice.ts.
+export const LOOSE_SESSION_ID = '__loose_stops__'
+
 // Push-based live update — per direct feedback ("make sure that the study trail auto updates
 // as i am studying... want it faster / near-instant"), every window gets told IMMEDIATELY
 // whenever a node/connection/session is written, instead of relying solely on the Study Trail
@@ -203,8 +212,34 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('studyTrail:listSessions', () => {
-    const rows = getBereanDb().prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC').all() as TrailSessionRow[]
+    // Excludes the implicit "Loose stops" bucket — it must never show in the session rail.
+    const rows = getBereanDb().prepare('SELECT * FROM trail_sessions WHERE id != ? ORDER BY updated_at DESC').all(LOOSE_SESSION_ID) as TrailSessionRow[]
     return rows.map(rowToSession)
+  })
+
+  // Every session INCLUDING the loose bucket — for the merged Everything timeline only. The
+  // loose bucket is returned only when it actually holds stops, so an empty bucket never adds
+  // a "Loose stops" divider to Everything for nothing.
+  ipcMain.handle('studyTrail:listAllSessions', () => {
+    const db = getBereanDb()
+    const rows = db.prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC').all() as TrailSessionRow[]
+    const looseHasNodes = (db.prepare('SELECT COUNT(*) as n FROM trail_nodes WHERE trail_session_id = ?').get(LOOSE_SESSION_ID) as { n: number }).n > 0
+    return rows.filter((r) => r.id !== LOOSE_SESSION_ID || looseHasNodes).map(rowToSession)
+  })
+
+  // Create (or re-activate) the implicit loose bucket and return it. Idempotent — called by the
+  // renderer's ensureLiveSession() whenever navigation happens with no user session live.
+  ipcMain.handle('studyTrail:ensureLooseSession', () => {
+    const db = getBereanDb()
+    const now = Date.now()
+    const existing = db.prepare('SELECT * FROM trail_sessions WHERE id = ?').get(LOOSE_SESSION_ID) as TrailSessionRow | undefined
+    if (!existing) {
+      prep(db, `INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, 'Loose stops', 'live', ?, ?)`)
+        .run(LOOSE_SESSION_ID, now, now)
+    } else if (existing.status !== 'live') {
+      prep(db, `UPDATE trail_sessions SET status = 'live', updated_at = ? WHERE id = ?`).run(now, LOOSE_SESSION_ID)
+    }
+    return rowToSession(db.prepare('SELECT * FROM trail_sessions WHERE id = ?').get(LOOSE_SESSION_ID) as TrailSessionRow)
   })
 
   ipcMain.handle('studyTrail:getSession', (_e, trailSessionId: string) => {

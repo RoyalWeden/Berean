@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
-import { useStudyTrailStore, installStudyTrailStateSync } from '@/store/studyTrailSlice'
+import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX } from './MapView'
@@ -144,7 +144,9 @@ export default function StudyTrailApp() {
 
   useEffect(() => {
     if (autoSelectedRef.current) return
-    if (currentTrailSessionId) {
+    // The implicit loose bucket is never individually selectable — when it's the recording
+    // target (no user session), the window stays on the Everything timeline by default.
+    if (currentTrailSessionId && currentTrailSessionId !== LOOSE_SESSION_ID) {
       autoSelectedRef.current = true
       setSelectedId(currentTrailSessionId)
       setMainTab('map')

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
+import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import MapView from './MapView'
 
 // The default landing view — everything recorded across EVERY session, with no session
@@ -28,11 +29,17 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   revisitWindowMs?: number
 }) {
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
+  const [allSessions, setAllSessions] = useState<TrailSession[]>([])
   const [loading, setLoading] = useState(true)
 
   async function loadAll(showLoading: boolean) {
     if (showLoading) setLoading(true)
-    const rows = await Promise.all(sessions.map((s) => window.studyTrail.getSession(s.id)))
+    // listAllSessions (not the `sessions` prop) so the implicit "Loose stops" bucket — every
+    // stop recorded while the user had no session of their own — is merged into the timeline
+    // too. It's filtered out of the session rail, so it only ever appears here.
+    const all = await window.studyTrail.listAllSessions().catch(() => [] as TrailSession[])
+    setAllSessions(all)
+    const rows = await Promise.all(all.map((s) => window.studyTrail.getSession(s.id)))
     setDetails(rows.filter((r): r is TrailSessionDetail => !!r))
     if (showLoading) setLoading(false)
   }
@@ -66,14 +73,18 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   const mergedNodes: TrailNode[] = details.flatMap((d) => d.nodes).sort((a, b) => a.anchorStartedAt - b.anchorStartedAt)
   const mergedConnections = details.flatMap((d) => d.connections)
   const mergedPausedIntervals = details.flatMap((d) => d.pausedIntervals)
-  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const sessionById = new Map(allSessions.map((s) => [s.id, s]))
 
   const boundaryLabelForNodeId = new Map<string, string>()
   let lastSessionId: string | null = null
   for (const n of mergedNodes) {
     if (n.trailSessionId !== lastSessionId) {
       const s = sessionById.get(n.trailSessionId)
-      boundaryLabelForNodeId.set(n.id, `${s?.name ?? 'Session'} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
+      // The implicit bucket renders as a plain "Loose stops" divider (no session name to
+      // show — the user never named it) so a run of un-sessioned stops still reads as its
+      // own stretch of the timeline.
+      const label = s?.id === LOOSE_SESSION_ID || !s ? 'Loose stops' : s.name
+      boundaryLabelForNodeId.set(n.id, `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
       lastSessionId = n.trailSessionId
     }
   }

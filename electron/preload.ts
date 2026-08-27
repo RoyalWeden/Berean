@@ -376,6 +376,8 @@ contextBridge.exposeInMainWorld('studyTrail', {
   deleteSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:deleteSession', trailSessionId),
   deleteSessions: (trailSessionIds: string[]) => ipcRenderer.invoke('studyTrail:deleteSessions', trailSessionIds),
   listSessions: () => ipcRenderer.invoke('studyTrail:listSessions'),
+  listAllSessions: () => ipcRenderer.invoke('studyTrail:listAllSessions'),
+  ensureLooseSession: () => ipcRenderer.invoke('studyTrail:ensureLooseSession'),
   getSession: (trailSessionId: string) => ipcRenderer.invoke('studyTrail:getSession', trailSessionId),
   addNode: (node: unknown) => ipcRenderer.invoke('studyTrail:addNode', node),
   reopenNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:reopenNode', nodeId),
