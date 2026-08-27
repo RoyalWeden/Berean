@@ -186,6 +186,8 @@ interface StudyTrailAPI {
   updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
   setNodeTopicBreak: (nodeId: string, isTopicBreak: boolean) => Promise<{ success: boolean }>
   deleteNode: (nodeId: string) => Promise<{ success: boolean }>
+  /** Reassign nodes (and their connections) to another session — Study Trail marquee-select. */
+  moveNodes: (nodeIds: string[], targetSessionId: string) => Promise<{ success: boolean }>
   addConnection: (conn: {
     trailSessionId: string; fromNodeId: string; toKind: import('./studyTrail').ConnectionKind
     toBookId?: string; toChapter?: number; toVerse?: number

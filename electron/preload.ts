@@ -385,6 +385,7 @@ contextBridge.exposeInMainWorld('studyTrail', {
   updateNodeSubnote: (nodeId: string, subnote: string) => ipcRenderer.invoke('studyTrail:updateNodeSubnote', nodeId, subnote),
   setNodeTopicBreak: (nodeId: string, isTopicBreak: boolean) => ipcRenderer.invoke('studyTrail:setNodeTopicBreak', nodeId, isTopicBreak),
   deleteNode: (nodeId: string) => ipcRenderer.invoke('studyTrail:deleteNode', nodeId),
+  moveNodes: (nodeIds: string[], targetSessionId: string) => ipcRenderer.invoke('studyTrail:moveNodes', nodeIds, targetSessionId),
   addConnection: (conn: unknown) => ipcRenderer.invoke('studyTrail:addConnection', conn),
   markGlance: (connectionId: string) => ipcRenderer.invoke('studyTrail:markGlance', connectionId),
   updateConnectionReason: (connectionId: string, update: unknown) => ipcRenderer.invoke('studyTrail:updateConnectionReason', connectionId, update),

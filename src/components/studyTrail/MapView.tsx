@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair } from 'lucide-react'
 import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
-import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
+import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
@@ -10,7 +10,7 @@ import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
-import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS } from '@/store/studyTrailSlice'
+import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 
 // Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
 // in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
@@ -658,9 +658,11 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
-  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true, selected,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
+  /** Part of the current marquee selection (drag-select in the timeline). */
+  selected?: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
   openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
@@ -764,7 +766,8 @@ function NodeBlock({
           // correct) stays here; hover-driven dimming moves to the specific row it's about
           // below, next to the other two already-independent bullets.
           opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
-          boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          boxShadow: selected ? '0 0 0 2px rgb(var(--color-accent))' : keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          background: selected ? 'rgb(var(--color-accent) / 0.10)' : undefined,
           marginLeft: indent,
         }}
       >
@@ -1316,6 +1319,98 @@ export default function MapView({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [detail.nodes, keyboardFocusId])
+
+  // ── Marquee drag-select ───────────────────────────────────────────────────
+  // Drag a rectangle over the timeline (from empty space — starting on a node keeps that
+  // node's own click) to select multiple chapter stops, then reassign them to another session
+  // or delete them. Works the same in a single session's Map and in the merged Everything view.
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set())
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const marqueeStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false)
+  const [moveTargets, setMoveTargets] = useState<TrailSession[]>([])
+  const [busySelection, setBusySelection] = useState(false)
+  // Clear any selection when the session/timeline being viewed changes.
+  useEffect(() => { setSelectedNodeIds(new Set()); setMarquee(null); setMoveMenuOpen(false) }, [detail.session.id])
+  // Validate selection against the current node set (a node deleted elsewhere shouldn't linger).
+  useEffect(() => {
+    setSelectedNodeIds((prev) => {
+      const valid = new Set([...prev].filter((id) => detail.nodes.some((n) => n.id === id)))
+      return valid.size === prev.size ? prev : valid
+    })
+  }, [detail.nodes])
+
+  function onMarqueeMouseDown(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    const t = e.target as HTMLElement
+    // Starting on a node, a button, a link, or an input is that element's own interaction.
+    if (t.closest('[data-trailnode], button, a, input, textarea, [role="menu"]')) return
+    marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false }
+  }
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      const s = marqueeStartRef.current
+      if (!s) return
+      if (!s.moved && Math.abs(e.clientX - s.x) + Math.abs(e.clientY - s.y) < 4) return
+      s.moved = true
+      document.body.style.userSelect = 'none'
+      const rect = {
+        x0: Math.min(s.x, e.clientX), y0: Math.min(s.y, e.clientY),
+        x1: Math.max(s.x, e.clientX), y1: Math.max(s.y, e.clientY),
+      }
+      setMarquee(rect)
+      const next = new Set<string>()
+      for (const [id, el] of nodeBlockRefs.current) {
+        const r = el.getBoundingClientRect()
+        if (r.left < rect.x1 && r.right > rect.x0 && r.top < rect.y1 && r.bottom > rect.y0) next.add(id)
+      }
+      setSelectedNodeIds(next)
+    }
+    function onUp() {
+      const s = marqueeStartRef.current
+      marqueeStartRef.current = null
+      setMarquee(null)
+      document.body.style.userSelect = ''
+      // A plain click on empty space (no drag) clears the current selection.
+      if (s && !s.moved) { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
+  async function deleteSelection() {
+    if (busySelection || selectedNodeIds.size === 0) return
+    setBusySelection(true)
+    try {
+      for (const id of selectedNodeIds) await window.studyTrail.deleteNode(id)
+      setSelectedNodeIds(new Set())
+      onChanged()
+    } finally { setBusySelection(false) }
+  }
+  async function openMoveMenu() {
+    const all = await window.studyTrail.listAllSessions().catch(() => [] as TrailSession[])
+    // Offer every session except the one currently being viewed (moving into it is a no-op);
+    // the loose bucket shows as "Loose stops".
+    setMoveTargets(all.filter((s) => s.id !== detail.session.id))
+    setMoveMenuOpen(true)
+  }
+  async function moveSelectionTo(targetSessionId: string) {
+    if (busySelection || selectedNodeIds.size === 0) return
+    setBusySelection(true)
+    try {
+      await window.studyTrail.moveNodes([...selectedNodeIds], targetSessionId)
+      setSelectedNodeIds(new Set())
+      setMoveMenuOpen(false)
+      onChanged()
+    } finally { setBusySelection(false) }
+  }
+  async function moveSelectionToNewSession() {
+    const name = window.prompt('New session name:')?.trim()
+    if (!name) return
+    const s = await window.studyTrail.startSession(name).catch(() => null)
+    if (s) await moveSelectionTo(s.id)
+  }
 
   // Real proportional zoom (a CSS transform on the whole spine), not just a spacing/font-size
   // slider — trackpad pinch and Ctrl+scroll both arrive as wheel events with ctrlKey=true (the
@@ -1922,7 +2017,7 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
             centered as the user likes"): without this, the scrollable range was clamped exactly
             to the content's own natural width (native browser overflow behavior for a plain
@@ -2030,9 +2125,10 @@ export default function MapView({
             ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
             : null
           return (
-            <div key={n.id}>
+            <div key={n.id} data-trailnode={n.id}>
             <NodeBlock
               node={n}
+              selected={selectedNodeIds.has(n.id)}
               connections={rowsForNode.get(n.id) ?? []}
               gapToNextMs={gapToNextMs}
               isLast={i === detail.nodes.length - 1}
@@ -2118,6 +2214,76 @@ export default function MapView({
             ><ArrowDown size={13} /> Latest</button>
           )}
         </div>
+
+        {/* Marquee rectangle while dragging */}
+        {marquee && (
+          <div style={{
+            position: 'fixed', left: marquee.x0, top: marquee.y0,
+            width: marquee.x1 - marquee.x0, height: marquee.y1 - marquee.y0,
+            border: '1px solid rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.12)',
+            zIndex: 60, pointerEvents: 'none',
+          }} />
+        )}
+
+        {/* Selection action bar */}
+        {selectedNodeIds.size > 0 && (
+          <div style={{
+            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+            borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.35)', fontSize: 12,
+          }}>
+            <span style={{ color: 'rgb(var(--color-text-secondary))', fontWeight: 600 }}>
+              {selectedNodeIds.size} selected
+            </span>
+            <div style={{ position: 'relative' }}>
+              <button
+                className="trail-ctx-btn"
+                disabled={busySelection}
+                onClick={() => (moveMenuOpen ? setMoveMenuOpen(false) : openMoveMenu())}
+                style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
+              >Move to session ▾</button>
+              {moveMenuOpen && (
+                <div style={{
+                  position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, minWidth: 180, maxHeight: 260, overflowY: 'auto',
+                  background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+                  borderRadius: 9, boxShadow: '0 10px 30px rgba(0,0,0,0.4)', padding: 5,
+                }}>
+                  {moveTargets.length === 0 && (
+                    <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', padding: '6px 8px' }}>No other sessions</div>
+                  )}
+                  {moveTargets.map((s) => (
+                    <button
+                      key={s.id}
+                      className="trail-ctx-btn"
+                      disabled={busySelection}
+                      onClick={() => moveSelectionTo(s.id)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 12 }}
+                    >{s.id === LOOSE_SESSION_ID ? 'Loose stops' : s.name}</button>
+                  ))}
+                  <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
+                  <button
+                    className="trail-ctx-btn"
+                    disabled={busySelection}
+                    onClick={moveSelectionToNewSession}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-accent))', cursor: 'pointer', fontSize: 12 }}
+                  >+ New session…</button>
+                </div>
+              )}
+            </div>
+            <button
+              className="trail-ctx-btn"
+              disabled={busySelection}
+              onClick={deleteSelection}
+              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: '#e08468', cursor: 'pointer' }}
+            >Delete</button>
+            <button
+              className="trail-ctx-btn"
+              onClick={() => { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }}
+              style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '4px 6px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}
+            >Clear</button>
+          </div>
+        )}
       </div>
     </div>
     </HoverDisabledContext.Provider>

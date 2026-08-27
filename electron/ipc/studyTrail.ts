@@ -403,6 +403,40 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
+  // Reassign nodes (and every connection hanging off them, including chained descendants) to a
+  // different session — the "change the session of the selection" half of the Study Trail
+  // marquee-select feature. Target may be the implicit loose bucket. order_index is set from
+  // each node's own anchor_started_at so it slots into the target session chronologically.
+  ipcMain.handle('studyTrail:moveNodes', (_e, nodeIds: string[], targetSessionId: string) => {
+    const db = getBereanDb()
+    const move = db.transaction((ids: string[], target: string) => {
+      if (ids.length === 0) return
+      // Collect all connection ids reachable from these nodes (direct + chained).
+      const idPlaceholders = ids.map(() => '?').join(',')
+      const directConnIds = (prep(db, `SELECT id FROM trail_connections WHERE from_node_id IN (${idPlaceholders})`).all(...ids) as Array<{ id: string }>).map((r) => r.id)
+      let frontier = directConnIds
+      const allConnIds = new Set(directConnIds)
+      while (frontier.length > 0) {
+        const ph = frontier.map(() => '?').join(',')
+        const next = (prep(db, `SELECT id FROM trail_connections WHERE from_connection_id IN (${ph})`).all(...frontier) as Array<{ id: string }>)
+          .map((r) => r.id).filter((cid) => !allConnIds.has(cid))
+        next.forEach((cid) => allConnIds.add(cid))
+        frontier = next
+      }
+      for (const id of ids) {
+        prep(db, 'UPDATE trail_nodes SET trail_session_id = ?, order_index = COALESCE(anchor_started_at, order_index) WHERE id = ?').run(target, id)
+      }
+      if (allConnIds.size > 0) {
+        const ph = [...allConnIds].map(() => '?').join(',')
+        prep(db, `UPDATE trail_connections SET trail_session_id = ? WHERE id IN (${ph})`).run(target, ...allConnIds)
+      }
+      prep(db, `UPDATE trail_sessions SET updated_at = ? WHERE id = ?`).run(Date.now(), target)
+    })
+    move(nodeIds, targetSessionId)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
   ipcMain.handle('studyTrail:addConnection', (_e, conn: {
     trailSessionId: string; fromNodeId: string; toKind: string
     toBookId?: string; toChapter?: number; toVerse?: number
