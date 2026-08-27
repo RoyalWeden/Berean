@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
 import { bookName } from '@/lib/parseRef'
-import ReasonPromptPopover from './ReasonPromptPopover'
+import type { TrailConnection } from '@/types/studyTrail'
+import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
+
+// Fixed width for the toast in BOTH collapsed and expanded states — per direct feedback ("width
+// should be a fixed narrow width in both states, not shrink-to-fit; text wraps instead of the
+// box growing/shrinking horizontally"). Round 4/5 had this grow 190->300px between states; that
+// horizontal resize itself was part of what read as "busy."
+const PILL_WIDTH = 250
 
 // Mounted once in the main Bible-reader window (src/App.tsx) — per the plan's Phase 1 "auto-
 // prompt in the main window" note, the "why did you jump chapters?" prompt needs to surface
@@ -13,11 +20,11 @@ import ReasonPromptPopover from './ReasonPromptPopover'
 // right after it records a tier-2/3 chapter connection) — nothing to fetch, nothing to poll.
 //
 // studyTrailAskChapterJumpReason now only decides WHICH of two UIs shows for that same
-// pendingArrivalPrompt fact — the full draggable popup (on), or a small non-blocking topbar
-// pill (off) that still lets a reason be jotted down without the fuller "why did you jump here"
-// workflow. Per direct feedback: "i think when i dont have the ask why thing toggle, i might
-// want to still put the reason why i went to where i went so there should maybe be a little
-// thing that pops up in the topbar."
+// pendingArrivalPrompt fact — the full draggable popup (on), or a small non-blocking toast (off)
+// that still lets a reason be jotted down without the fuller "why did you jump here" workflow.
+// Per direct feedback: "i think when i dont have the ask why thing toggle, i might want to still
+// put the reason why i went to where i went so there should maybe be a little thing that pops up
+// in the topbar."
 export default function StudyTrailArrivalPrompt() {
   const conn = useStudyTrailStore((s) => s.pendingArrivalPrompt)
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
@@ -36,59 +43,95 @@ export default function StudyTrailArrivalPrompt() {
       />
     )
   }
-  return <ArrivalPill connectionId={conn.id} onClose={clear} />
+  return <ArrivalPill conn={conn} onClose={clear} />
 }
 
-/** The lightweight, non-blocking alternative to the full popup — a small pill in the topbar
- *  area. Per direct feedback ("the thing of 'whyd you go here' shouldnt go away until
- *  dismissed"), this stays up until the user explicitly closes it (the × button) or saves —
- *  no auto-dismiss timer. Typing something and pressing Enter/blur saves it as the
- *  connection's own userNote, same field the full popup writes to. */
-function ArrivalPill({ connectionId, onClose }: { connectionId: string; onClose: () => void }) {
-  const [text, setText] = useState('')
-  const [expanded, setExpanded] = useState(false)
-
-  async function save() {
-    const trimmed = text.trim()
-    if (trimmed) await window.studyTrail.updateConnectionReason(connectionId, { userNote: trimmed }).catch(() => {})
-    onClose()
-  }
+/** The lightweight, non-blocking alternative to the full popup — a small toast pinned to the
+ *  bottom-right corner (same corner/shape/z-index idiom as BgImportProgress.tsx, the app's
+ *  existing floating-toast pattern — reused here rather than inventing a new one). Originally
+ *  docked top-center, which sat directly over the presenter outline/trail sidebar area and
+ *  effectively hid it on every tier-2/3 chapter jump; a corner toast never overlaps that.
+ *
+ *  Two states now, simplified per direct feedback ("the note box + two verse-tie columns should
+ *  appear directly on hover — no click required" — the earlier three-state collapsed→hover-
+ *  preview→click-to-commit design added a step nobody wanted):
+ *   1. Collapsed — a single compact CTA line + dismiss ×.
+ *   2. Hover-expanded — hovering alone reveals the REAL form (TrailReasonFormBody, the same
+ *      note-textarea + From/To verse-tie columns the full popup uses — reused, not a second
+ *      hand-rolled input). `autoFocusNote` is deliberately false here: hover shouldn't yank
+ *      keyboard focus away from wherever the user actually is.
+ *  `touched` (fires the first time any field in the form is actually typed into or focused —
+ *  see TrailReasonFormBody's onFieldTouched) is what carries the round-3 "stays open once you've
+ *  started" behavior forward: once true, mouseleave/blur/tab-switch is a total no-op — per direct
+ *  feedback, "users will realistically alt-tab or switch Berean tabs mid-way through filling this
+ *  in to go check a verse," so only Save, Not now, or the × can close it from then on. Before
+ *  `touched`, it's still purely hover-driven (a glance that costs nothing to back out of). */
+function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => void }) {
+  const [hovering, setHovering] = useState(false)
+  const [touched, setTouched] = useState(false)
+  const expanded = touched || hovering
+  // Icon-first collapsed state — per direct feedback ("icon-first with text-on-demand: show just
+  // an icon + short reference at rest, explanatory text/buttons only once expanded"). Falls back
+  // to the plain CTA text on the rare non-chapter connection (a Strong's/video/note destination)
+  // where there's no book/chapter to shorten.
+  const shortRef = conn.toBookId && conn.toChapter != null ? `${bookName(conn.toBookId)} ${conn.toChapter}` : null
 
   return createPortal(
     <div
       className="no-drag"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
-        display: 'flex', alignItems: 'center', gap: 6,
+        position: 'fixed', right: 16, bottom: 16, zIndex: 200, width: PILL_WIDTH,
         background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
-        borderRadius: 999, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', padding: expanded ? '4px 6px 4px 10px' : '5px 6px 5px 12px',
-        fontSize: 11.5,
+        borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', overflow: 'hidden',
       }}
     >
-      {expanded ? (
-        <input
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') save(); else if (e.key === 'Escape') onClose() }}
-          onBlur={save}
-          placeholder="Why'd you go here?"
-          style={{
-            width: 200, background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))',
-            borderRadius: 999, padding: '3px 10px', color: 'rgb(var(--color-text-primary))', fontSize: 11.5,
-          }}
-        />
-      ) : (
-        <button
-          onClick={() => setExpanded(true)}
-          style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-secondary))', cursor: 'pointer', fontSize: 11.5, padding: 0 }}
-        >Why'd you go here? <span style={{ color: 'rgb(var(--color-text-muted))' }}>(optional)</span></button>
+      {/* Collapsed CTA — hidden once expanded (hover or touched); the form's own Save/Not now
+          row plus the always-present × below take over as the toast's controls at that point.
+          Text wraps within the fixed PILL_WIDTH rather than the box resizing to fit it. */}
+      {!expanded && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 6px 10px', fontSize: 11 }}>
+          <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, color: 'rgb(var(--color-text-secondary))' }}>
+            {shortRef ? `Why'd you go to ${shortRef}?` : "Why'd you go here?"}
+          </span>
+          <button
+            className="trail-ctx-btn"
+            onClick={onClose}
+            title="Dismiss"
+            style={{ background: 'transparent', border: 'none', borderRadius: 6, color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0 }}
+          ><X size={11} /></button>
+        </div>
       )}
-      <button
-        onClick={onClose}
-        title="Dismiss"
-        style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex' }}
-      ><X size={12} /></button>
+      {/* Real form — always mounted (so expanding never pops in unmeasured), collapsed to
+          max-height:0/opacity:0 until hover or touch. Compact per direct feedback ("less text/
+          explanation, tighter layout"): smaller padding/font than the full popup. */}
+      <div style={{
+        position: 'relative', maxHeight: expanded ? 2000 : 0, opacity: expanded ? 1 : 0, overflow: 'hidden',
+        transition: 'max-height 160ms ease, opacity 130ms ease',
+        padding: expanded ? '8px 10px 10px' : '0 10px', fontSize: 11,
+      }}>
+        {expanded && (
+          <button
+            className="trail-ctx-btn"
+            onClick={onClose}
+            title="Dismiss"
+            style={{
+              position: 'absolute', top: 6, right: 6, background: 'transparent', border: 'none', borderRadius: 6,
+              color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', zIndex: 1,
+            }}
+          ><X size={11} /></button>
+        )}
+        <div style={{ paddingRight: 16 }}>
+          <TrailReasonFormBody
+            connection={conn}
+            onClose={onClose}
+            onSaved={onClose}
+            onFieldTouched={() => setTouched(true)}
+          />
+        </div>
+      </div>
     </div>,
     document.body
   )

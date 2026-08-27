@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowRight, ExternalLink, PictureInPicture2, CornerUpLeft, GitBranch, Flag, Trash2 } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import { navigateTrailRef, trailRefOpenFloating, trailRefLabel, type TrailRef } from './trailNav'
-import { bookName } from '@/lib/parseRef'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
 
 // Shared right-click menu for every chapter/Strong's label in the Study Trail window.
 //
@@ -84,7 +84,7 @@ export function TrailRefContextMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   useEffect(() => { setConfirmingDelete(false) }, [menu])
   if (!menu) return null
-  const label = trailRefLabel(menu.ref, bookName)
+  const label = trailRefLabel(menu.ref, bookChapterVerseLabel)
   // Portaled to document.body — same reason as TrailHoverCard: MapView's zoom feature wraps
   // the spine in `transform: scale(...)`, which makes that ancestor the containing block for
   // `position: fixed` descendants instead of the real viewport.

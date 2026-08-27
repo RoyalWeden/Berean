@@ -12,8 +12,12 @@ import type { TrailConnection } from '@/types/studyTrail'
 //    card opens this pre-filled with whatever's already stored.
 //  - The opt-in arrival prompt (pendingArrivalPrompt in studyTrailSlice.ts), mounted in the main
 //    Bible reader via StudyTrailArrivalPrompt.tsx, for a tier-2/3 chapter jump.
-//  - (Both share the same component/fields — the arrival prompt is just one way to fill this
-//    in, not its own separate mechanism.)
+//  - The bottom-right toast's OWN "committed" expanded state (StudyTrailArrivalPrompt.tsx's
+//    ArrivalPill) — per direct feedback ("it should also show a text box for the note and two
+//    columns for typing verse connections"), the toast needed the SAME real inputs this popover
+//    already has, not a re-invented lightweight version of them.
+//  - (All three share the same TrailReasonFormBody below — the arrival prompt/toast are just two
+//    more ways to reach it, not a separate mechanism.)
 //
 // Draggable, non-blocking card (same pointer-capture pattern as AudioQueuePopover.tsx/
 // AiLookupPanel.tsx) — deliberately NO click-outside-to-close, since the whole point is that
@@ -79,7 +83,7 @@ function TieRow({ value, onChange, onRemove }: { value: string; onChange: (v: st
 /** One "+add another" tie-list column — used twice below (from-chapter / to-chapter), side by
  *  side. Short labels ("From"/"To") per direct feedback ("the labels for those should be
  *  shorter/simpler"), replacing the old full-sentence "Ties to the chapter you left/landed on". */
-function TieColumn({ label, values, onChange }: { label: string; values: string[]; onChange: (next: string[]) => void }) {
+export function TieColumn({ label, values, onChange }: { label: string; values: string[]; onChange: (next: string[]) => void }) {
   function update(i: number, v: string) {
     const next = [...values]
     next[i] = v
@@ -103,13 +107,20 @@ function TieColumn({ label, values, onChange }: { label: string; values: string[
   )
 }
 
-export default function ReasonPromptPopover({
-  connection, onClose, onSaved, title, originBookId, originChapter,
+/** The actual note-textarea + From/To tie-columns + Delete/Not now/Save row — factored out of
+ *  ReasonPromptPopover so the toast (StudyTrailArrivalPrompt.tsx's ArrivalPill, once "committed")
+ *  can render the exact same real inputs instead of a separate, smaller reimplementation. Owns
+ *  its own note/ties/saving state (seeded from `connection`) and the save/delete/dismiss IPC
+ *  calls — callers just supply layout (this renders unstyled/unwrapped, a plain fragment-like
+ *  block) and get `onSaved`/`onClose` callbacks. `onFieldTouched` (optional) fires the first time
+ *  the note or any tie actually gets typed into — the toast uses this to switch itself from
+ *  hover-triggered to click-committed ("stays open until explicitly dismissed") mode. */
+export function TrailReasonFormBody({
+  connection, onClose, onSaved, originBookId, originChapter, onFieldTouched, autoFocusNote,
 }: {
   connection: TrailConnection
   onClose: () => void
   onSaved: () => void
-  title?: string
   /** The chapter this connection departed FROM — needed only to format the legacy
    *  originVersePinFrom fallback tie as a full reference ("Deuteronomy 32:3") instead of a bare
    *  "v.3", per direct feedback. The connection itself has no book/chapter for its own origin
@@ -118,6 +129,8 @@ export default function ReasonPromptPopover({
    *  easy node list to resolve it from, which is fine since that path rarely has legacy data. */
   originBookId?: string
   originChapter?: number
+  onFieldTouched?: () => void
+  autoFocusNote?: boolean
 }) {
   const [note, setNote] = useState(connection.userNote ?? '')
   // Seed from tiesFrom/To; fall back to the legacy numeric pins (old data, pre-v35) so nothing
@@ -134,36 +147,6 @@ export default function ReasonPromptPopover({
   const [tiesFrom, setTiesFrom] = useState<string[]>(connection.tiesFrom.length > 0 ? [...connection.tiesFrom, ''] : [...legacyFrom, ''])
   const [tiesTo, setTiesTo] = useState<string[]>(connection.tiesTo.length > 0 ? [...connection.tiesTo, ''] : [...legacyTo, ''])
   const [saving, setSaving] = useState(false)
-
-  const storedPos = useAppStore((s) => s.reasonPromptPopoverPos)
-  const setStoredPos = useAppStore((s) => s.setReasonPromptPopoverPos)
-  const [pos, setPosLocal] = useState(() => (storedPos ? clampPos(storedPos, 320) : defaultPos()))
-  function setPos(next: { x: number; y: number } | ((p: { x: number; y: number }) => { x: number; y: number })) {
-    setPosLocal((p) => {
-      const resolved = typeof next === 'function' ? next(p) : next
-      setStoredPos(resolved)
-      return resolved
-    })
-  }
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function onResize() { setPos((p) => clampPos(p, cardRef.current?.offsetHeight ?? 320)) }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  function onDragStart(e: React.PointerEvent) {
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-  }
-  function onDragMove(e: React.PointerEvent) {
-    if (!dragRef.current) return
-    const dx = e.clientX - dragRef.current.startX, dy = e.clientY - dragRef.current.startY
-    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, cardRef.current?.offsetHeight ?? 320))
-  }
-  function onDragEnd() { dragRef.current = null }
 
   async function save() {
     setSaving(true)
@@ -196,6 +179,92 @@ export default function ReasonPromptPopover({
     }
   }
 
+  return (
+    <>
+      {connection.reasonText && (
+        <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
+          auto-detected: {connection.reasonText}
+        </div>
+      )}
+      <textarea
+        value={note}
+        autoFocus={autoFocusNote}
+        onChange={(e) => { setNote(e.target.value); onFieldTouched?.() }}
+        onFocus={onFieldTouched}
+        placeholder="Add a note (optional)"
+        rows={2}
+        style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }}
+      />
+
+      <div style={{ display: 'flex', gap: 14, marginBottom: 4 }} onFocus={onFieldTouched}>
+        <TieColumn label="From" values={tiesFrom} onChange={(v) => { setTiesFrom(v); onFieldTouched?.() }} />
+        <TieColumn label="To" values={tiesTo} onChange={(v) => { setTiesTo(v); onFieldTouched?.() }} />
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+        <button
+          className="trail-ctx-btn"
+          onClick={deleteNote} title="Delete your note"
+          style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
+        ><Trash2 size={12} /></button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="trail-ctx-btn"
+            onClick={notNow}
+            style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', borderRadius: 7, padding: '3px 6px', cursor: 'pointer' }}
+          >Not now</button>
+          <button
+            className="trail-btn-accent"
+            onClick={save}
+            disabled={saving}
+            style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+          >Save</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export default function ReasonPromptPopover({
+  connection, onClose, onSaved, title, originBookId, originChapter,
+}: {
+  connection: TrailConnection
+  onClose: () => void
+  onSaved: () => void
+  title?: string
+  originBookId?: string
+  originChapter?: number
+}) {
+  const storedPos = useAppStore((s) => s.reasonPromptPopoverPos)
+  const setStoredPos = useAppStore((s) => s.setReasonPromptPopoverPos)
+  const [pos, setPosLocal] = useState(() => (storedPos ? clampPos(storedPos, 320) : defaultPos()))
+  function setPos(next: { x: number; y: number } | ((p: { x: number; y: number }) => { x: number; y: number })) {
+    setPosLocal((p) => {
+      const resolved = typeof next === 'function' ? next(p) : next
+      setStoredPos(resolved)
+      return resolved
+    })
+  }
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onResize() { setPos((p) => clampPos(p, cardRef.current?.offsetHeight ?? 320)) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  function onDragStart(e: React.PointerEvent) {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  function onDragMove(e: React.PointerEvent) {
+    if (!dragRef.current) return
+    const dx = e.clientX - dragRef.current.startX, dy = e.clientY - dragRef.current.startY
+    setPos(clampPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy }, cardRef.current?.offsetHeight ?? 320))
+  }
+  function onDragEnd() { dragRef.current = null }
+
   return createPortal(
     <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 100 }}>
       <TrailPopoverShell
@@ -204,41 +273,7 @@ export default function ReasonPromptPopover({
         width={WIDTH}
         dragHandleProps={{ onPointerDown: onDragStart, onPointerMove: onDragMove, onPointerUp: onDragEnd }}
       >
-        {connection.reasonText && (
-          <div style={{ fontSize: 10.5, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', marginBottom: 8 }}>
-            auto-detected: {connection.reasonText}
-          </div>
-        )}
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Add a note (optional)"
-          rows={2}
-          style={{ width: '100%', background: 'rgb(var(--color-surface-1))', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 6, padding: '6px 8px', color: 'rgb(var(--color-text-primary))', fontSize: 12, resize: 'none', fontFamily: 'inherit', marginBottom: 12 }}
-        />
-
-        <div style={{ display: 'flex', gap: 14, marginBottom: 4 }}>
-          <TieColumn label="From" values={tiesFrom} onChange={setTiesFrom} />
-          <TieColumn label="To" values={tiesTo} onChange={setTiesTo} />
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
-          <button
-            onClick={deleteNote} title="Delete your note"
-            style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '5px 8px', color: '#e08468', cursor: 'pointer' }}
-          ><Trash2 size={12} /></button>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={notNow}
-              style={{ fontSize: 11.5, color: 'rgb(var(--color-text-muted))', background: 'transparent', border: 'none', cursor: 'pointer' }}
-            >Not now</button>
-            <button
-              onClick={save}
-              disabled={saving}
-              style={{ fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))', border: 'none', borderRadius: 7, padding: '5px 12px', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
-            >Save</button>
-          </div>
-        </div>
+        <TrailReasonFormBody connection={connection} onClose={onClose} onSaved={onSaved} originBookId={originBookId} originChapter={originChapter} />
       </TrailPopoverShell>
     </div>,
     document.body

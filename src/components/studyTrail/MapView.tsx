@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2 } from 'lucide-react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair } from 'lucide-react'
 import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -68,7 +68,7 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
 // either shows like zig zag or is like dots or something to show a break in time"). Reserves
 // the gap's own full height and centers its label vertically within it — per direct feedback
 // ("the gap label needs to show in the vertical middle of the gap").
-function GapDivider({ gapMs, minWidth }: { gapMs: number; minWidth?: number }) {
+function GapDivider({ gapMs, minWidth, gutterWidth = 0 }: { gapMs: number; minWidth?: number; gutterWidth?: number }) {
   // No left padding/inset — per direct feedback ("the minutes later divider should go across
   // the entire thing horizontally"), this now spans edge-to-edge (through the left gutter too),
   // not just the bullet/text column's own width; the fixed 21px inset was tuned before that
@@ -80,10 +80,40 @@ function GapDivider({ gapMs, minWidth }: { gapMs: number; minWidth?: number }) {
   // to be narrower than the viewport, there's leftover blank space to the right the line never
   // reached. `minWidth` (the scroll container's own live clientWidth, normalized back to local/
   // pre-zoom units by MapView) forces this row at least that wide regardless of content width.
+  //
+  // The left dash segment used to be `flex: 1`, splitting the row exactly in half — which only
+  // lands the "Nm later" label on top of the main spine when the spine happens to sit at the
+  // row's own midpoint. It doesn't: NodeBlock's own left gutter spacer (gutterWidth, reserved
+  // for the return/revisit-link lanes) plus its ~3.5px bullet inset is what actually pushes the
+  // spine's dashed vertical line to `gutterWidth + 3.5` from this row's left edge (see the
+  // matching `left: gutterWidth + 3.5` used for the between-node arrow below). Per direct
+  // feedback ("the entire component... needs to be shifted left so it is on top of the main
+  // spine line... the label should be on top of that"), the left segment is now a FIXED width
+  // matching that same offset instead of an even flex split, so the label always lands exactly
+  // over the spine regardless of how wide the gutter reservation is this session.
+  // Round 12: the label still wasn't landing on the spine after making this segment fixed-width
+  // — found a real, separate bug on top of that fix. The row below is `display:flex, gap:8`,
+  // and CSS `gap` inserts its 8px BETWEEN every pair of flex children, including between this
+  // dash and the label that follows it — so the label's actual left edge was landing at
+  // `leftDashWidth + 8`, not `leftDashWidth`, no matter how precisely leftDashWidth itself was
+  // computed. Subtracting the row's own gap back out of the dash's width (floored at 0) cancels
+  // that out, so the LABEL's left edge — not the dash's — is what actually lands at
+  // `gutterWidth + 3.5`, matching the spine guide line's own `left: gutterWidth + 3.5` exactly.
+  const ROW_GAP = 8
+  const leftDashWidth = Math.max(0, gutterWidth + 3.5 - ROW_GAP)
+  if (window.__bereanTrailDebug) {
+    // Per direct feedback ("give me the actual leftDashWidth value you see for a real session")
+    // — logs the raw gutterWidth this divider actually received alongside the final (gap-
+    // corrected) dash width, so it's directly checkable against the spine's own real position
+    // rather than assumed. Not deduped (GapDivider instances are cheap/few per render, and each
+    // one's gutterWidth is session-shared so they're all identical anyway — a single set of
+    // lines per render is already quiet).
+    console.log('[TrailDebug] GapDivider', { gutterWidth, leftDashWidth, rowGap: ROW_GAP })
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%', minWidth }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: ROW_GAP }}>
+        <span style={{ flex: `0 0 ${leftDashWidth}px`, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
         <span style={{
           fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
           letterSpacing: '.02em',
@@ -167,7 +197,11 @@ function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedCo
 // nothing worth a second bubble for). Its own copy button per direct feedback: "the copy
 // button... should be in the note when the user hovers over the connection... that'll have a
 // copy button" — copying no longer requires opening the editor popover at all.
-function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
+// Exported (this used to be MapView-local only) so StudyTrailArrivalPrompt.tsx's bottom-right
+// toast can reuse this exact "verse connections + note" content for its own hover-to-expand
+// area, instead of building a second, parallel note display — per direct feedback, one look
+// for "here's the note/ties for this connection" everywhere it shows up.
+export function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
   const replace = useWordReplace()
   async function copy() {
     const lines = [conn.userNote?.trim(), ...conn.tiesFrom, ...conn.tiesTo].filter(Boolean) as string[]
@@ -230,6 +264,17 @@ const TANGENT_EXTRA_GAP = 10
 // involved, no real elapsed-time gap large enough to earn its own scaled height) — per direct
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
 const MAIN_SPINE_GAP = 44
+
+// LAST-RESORT floor for the blank horizontal scroll room reserved on each side of the timeline
+// — see the scroll container's own comment for why this needs to exist at all. Round 9 first
+// tried a blanket "half the viewport" guess here, which round 12 replaced with the real, precise
+// minimum (computeMinCenteringPad(), MapView's own render) measured from live DOM rects — that
+// blanket guess was almost always LARGER than what any actual session needed, so it never let the
+// scroll range genuinely tighten the way it's supposed to. This constant now only matters in the
+// genuinely-degenerate case computeMinCenteringPad() can't measure at all (no anchor node
+// resolvable yet — an empty or not-yet-rendered session), so scrolling isn't completely stuck at
+// zero slack while waiting for real content to measure against.
+const HORIZONTAL_SCROLL_PAD_MIN = 220
 
 function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
@@ -311,7 +356,11 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   const destVerseSuffix = conn.toVerse
     ? conn.toVerseEnd && conn.toVerseEnd !== conn.toVerse ? `:${conn.toVerse}–${conn.toVerseEnd}` : `:${conn.toVerse}`
     : ''
-  const chapterDestLabel = `${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}${destVerseSuffix}`
+  // bookChapterVerseLabel (not a plain `${bookLabel} ${chapter}` join) so multi-level editions
+  // like Recognitions of Clement or Shepherd of Hermas read as "Recognitions, Book 1, 2" —
+  // comma-separated, book AND chapter both shown — instead of the old bare-space join, which
+  // for those books read as an ambiguous run-together "Recognitions, Book 1 2".
+  const chapterDestLabel = `${bookChapterVerseLabel(conn.toBookId ?? '', conn.toChapter ?? 0)}${destVerseSuffix}`
   // Each tangent bullet shows ONLY its own destination reference now — per the confirmed branch
   // model, "Deuteronomy 32:1" and "Isaiah 1:2" are two separate stacked bullets, never one
   // combined "32:1 → Isaiah 1:2" line. The origin verse isn't repeated here at all: it's simply
@@ -320,7 +369,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   const label = isLexicon
     ? `Strong's ${conn.toStrongsNum}`
     : conn.toKind === 'compare'
-      ? `compare · ${bookLabel(conn.toBookId ?? '')} ${conn.toChapter}`
+      ? `compare · ${bookChapterVerseLabel(conn.toBookId ?? '', conn.toChapter ?? 0)}`
       : conn.toKind === 'note'
         ? 'note'
         : conn.toKind === 'video'
@@ -455,7 +504,7 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
 }) {
   const [expanded, setExpanded] = useState(false)
   const first = items[0], last = items[items.length - 1]
-  const labelFor = (c: TrailConnection) => c.toKind === 'lexicon' ? `Strong's ${c.toStrongsNum}` : `${bookLabel(c.toBookId ?? '')} ${c.toChapter}`
+  const labelFor = (c: TrailConnection) => c.toKind === 'lexicon' ? `Strong's ${c.toStrongsNum}` : bookChapterVerseLabel(c.toBookId ?? '', c.toChapter ?? 0)
   if (expanded) {
     return (
       <div>
@@ -748,7 +797,7 @@ function NodeBlock({
             conn={originConn} onOpenPrompt={onOpenPrompt}
           />
           <TangentBullet
-            label={`${bookLabel(node.bookId)} ${node.chapter}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
+            label={`${bookChapterVerseLabel(node.bookId, node.chapter)}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
             indent={tangentIndent}
             pointKey={`tangent-dest:${node.id}`}
             registerPoint={registerPoint}
@@ -829,17 +878,31 @@ function NodeBlock({
             style={{
               fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
+              // isRevisit italicizes the WHOLE row (step number + reference), not just the
+              // REVISIT pill — per direct feedback, the pill alone read as an inconsistent
+              // "half italic" row; the label itself should read as a revisit too.
+              fontStyle: isRevisit ? 'italic' : 'normal',
               display: 'flex', alignItems: 'center', gap: 6,
+              // whiteSpace:nowrap — without it, a book/chapter label long enough to hit the
+              // ancestor's 460px maxWidth (multi-level editions like Recognitions/Hermas are the
+              // common case, and got noticeably longer with the "Book N" formatting fix above)
+              // wraps its text onto a second line instead of just overflowing horizontally. That
+              // second line pushes the REVISIT/bounce badge down with it and grows this row's
+              // height past what the fixed-width dot column (vertically centered for a single
+              // line) expects — the "REVISIT badge row overlaps/misaligns with the node above it"
+              // indenting bug. Overflowing sideways here is harmless (this row already isn't
+              // clipped), so nowrap is a strict improvement over letting it wrap.
+              whiteSpace: 'nowrap',
             }}
           >
             <span style={{
               fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
-            {bookLabel(node.bookId)} {node.chapter}
+            {bookChapterVerseLabel(node.bookId, node.chapter)}
             {isRevisit && !bounceBadge && (
               <span style={{
-                fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+                fontSize: 9, fontWeight: 700, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
                 borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
               }}>revisit</span>
             )}
@@ -931,12 +994,182 @@ export default function MapView({
     isAtBottomRef.current = atBottom
     setShowScrollToLatest(!atBottom)
   }
+  // Suppresses the app-wide scrollbar auto-reveal (src/lib/scrollbarAutoHide.ts) for OUR OWN
+  // programmatic scrolls (Latest/Recenter) — that global listener treats ANY native 'scroll'
+  // event as "the user is actively scrolling" and reveals the (normally invisible-at-rest)
+  // thumb for ~900ms, including scroll events a `scrollTo({behavior:'smooth'})` animation fires
+  // on its own. Per direct feedback ("don't show scrollbars on programmatic scroll if they
+  // weren't already showing"). Fixed entirely within this file rather than touching that shared,
+  // app-wide script: a capture-phase listener on `window` — an ANCESTOR of `document`, where the
+  // global listener is registered, and capture fires ancestor-first — intercepts our own scroll
+  // events and calls stopImmediatePropagation() on them while `suppressFlashRef` is armed, so
+  // they never reach the global listener at all. Scoped to exactly this one container (checks
+  // `e.target`), so a manual scroll anywhere — including THIS container, once the programmatic
+  // scroll has finished — behaves exactly as before.
+  const suppressFlashRef = useRef(false)
+  useEffect(() => {
+    function onScrollCapture(e: Event) {
+      if (suppressFlashRef.current && e.target === scrollContainerRef.current) e.stopImmediatePropagation()
+    }
+    window.addEventListener('scroll', onScrollCapture, true)
+    return () => window.removeEventListener('scroll', onScrollCapture, true)
+  }, [])
+  function scrollToSuppressingFlash(run: () => void) {
+    const el = scrollContainerRef.current
+    suppressFlashRef.current = true
+    run()
+    const clear = () => { suppressFlashRef.current = false; el?.removeEventListener('scrollend', clear) }
+    el?.addEventListener('scrollend', clear)
+    // Fallback in case `scrollend` never fires (older engines, or the scroll was a no-op because
+    // we were already there) — a smooth scroll never legitimately takes anywhere near this long.
+    setTimeout(clear, 1000)
+  }
+
   function scrollToLatest() {
-    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
+    const el = scrollContainerRef.current
+    if (!el) return
+    scrollToSuppressingFlash(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }))
+  }
+  // The main-spine anchor point used to center the timeline — round 5 hardcoded `detail.nodes[0]`
+  // (the chronologically first node), which is a real `node:${id}` dot (main spine, not a
+  // tangent/glance-group bullet — those register under `tangent-origin:`/`tangent-dest:`/glance
+  // group keys instead, so there's no risk of accidentally grabbing one of those). But per direct
+  // feedback ("not actually landing on the main spine") that first node specifically can be
+  // UNREGISTERED: a "bounced Nx" run of consecutive revisits collapses into NodeClusterGroup,
+  // which only renders (and therefore only registers a point for) the run's FIRST and LAST node —
+  // any node strictly BETWEEN them is skipped entirely while collapsed. If the session happens to
+  // open on a collapsed run, `nodes[0]` could be one of those un-rendered middle nodes, silently
+  // returning no point and falling back to the old (asymmetric, wrong) whole-range midpoint. Walk
+  // the node list in order and use the first one that's ACTUALLY registered instead of assuming
+  // index 0 always is — every real main-spine node shares the exact same horizontal position
+  // (indent is a constant 0 for the node's own row, see NodeBlock's own comment on that), so any
+  // resolvable one is an equally valid anchor.
+  function findAnchorNodeEl(): HTMLElement | null {
+    for (const n of detail.nodes) {
+      const el = pointsRef.current.get(`node:${n.id}`)
+      if (el) return el
+    }
+    return null
+  }
+  // The signed horizontal distance between the main spine's actual on-screen center and the
+  // viewport's own center — shared by recenterHorizontal() (which scrolls by this amount) and
+  // checkCentered() below (which just reads it to decide whether the recenter button should even
+  // show). Measures a REAL spine dot's live position (already zoom-scaled since it's an actual
+  // rendered DOM element — no separate "convert local units by the current zoom factor" math to
+  // get wrong), not the padded content wrapper's own bounding box — tangent columns, glance-group
+  // rows, and the left-side revisit-arc gutter all extend asymmetrically off the spine, so that
+  // wrapper's own midpoint never actually lines up with where the spine dots sit. Returns null
+  // when there's nothing resolvable to measure yet (empty session, or nothing registered at all).
+  function horizontalCenterDelta(): number | null {
+    const el = scrollContainerRef.current
+    const anchorEl = findAnchorNodeEl()
+    if (!el || !anchorEl) return null
+    const cRect = el.getBoundingClientRect()
+    const aRect = anchorEl.getBoundingClientRect()
+    return (aRect.left + aRect.width / 2) - (cRect.left + cRect.width / 2)
+  }
+  // `behavior: 'auto'` (instant, no animation) is what the session-open effect uses — per direct
+  // feedback ("should already BE centered on first render, no visible motion"), setting
+  // `scrollLeft` directly never fires the smooth-scroll animation frames the recenter BUTTON
+  // deliberately still wants, and — since it's not an animated scroll — never trips the
+  // scrollbar-auto-reveal flash either, so scrollToSuppressingFlash isn't needed for that path.
+  function recenterHorizontal(behavior: 'smooth' | 'auto' = 'smooth') {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const delta = horizontalCenterDelta()
+    const targetLeft = delta == null ? (el.scrollWidth - el.clientWidth) / 2 : el.scrollLeft + delta
+    if (window.__bereanTrailDebug) {
+      // Per direct feedback ("get actual before/after scroll-position numbers via console
+      // logging, don't just eyeball it") — logs exactly what was measured and what it decided to
+      // scroll to, so a report of "still not landing on the spine" can be checked against real
+      // numbers instead of guessing: is `anchorFound` even true, does `delta` look sane, does
+      // `afterScrollLeft` (read back a tick later) actually match `targetLeft`.
+      const anchorEl = findAnchorNodeEl()
+      console.log('[TrailDebug] recenterHorizontal', {
+        behavior, beforeScrollLeft: el.scrollLeft, delta, targetLeft,
+        anchorFound: !!anchorEl,
+        anchorRect: anchorEl ? (() => { const r = anchorEl.getBoundingClientRect(); return { left: Math.round(r.left), width: Math.round(r.width) } })() : null,
+        containerRect: (() => { const r = el.getBoundingClientRect(); return { left: Math.round(r.left), width: Math.round(r.width) } })(),
+      })
+      setTimeout(() => console.log('[TrailDebug] recenterHorizontal — after', { afterScrollLeft: scrollContainerRef.current?.scrollLeft }), behavior === 'smooth' ? 400 : 0)
+    }
+    if (behavior === 'auto') {
+      el.scrollLeft = targetLeft
+    } else {
+      scrollToSuppressingFlash(() => el.scrollTo({ left: targetLeft, behavior: 'smooth' }))
+    }
+  }
+  // Hides the recenter button once the spine is already close enough to centered — per direct
+  // feedback ("hide recenter when already centered"). Re-checked on every scroll (wired into the
+  // scroll container's onScroll below) and whenever zoom or the node count changes (both can move
+  // the spine's on-screen position without a scroll event of their own).
+  const CENTER_TOLERANCE_PX = 40
+  const [nearCenter, setNearCenter] = useState(true)
+  function checkCentered() {
+    const delta = horizontalCenterDelta()
+    setNearCenter(delta == null || Math.abs(delta) <= CENTER_TOLERANCE_PX)
+  }
+  useEffect(() => { checkCentered() }) // eslint-disable-line react-hooks/exhaustive-deps
+  // Centers `el` inside `scrollContainerRef` — used instead of the native `el.scrollIntoView()`
+  // for every jump-to-node action below (arrow-key nav, "scroll to where this came from",
+  // search's jump-to-first-match). Native scrollIntoView miscalculates badly here: the whole
+  // spine sits inside a `transform: scale(zoom)` wrapper (see the render below), and on a
+  // session with enough content BEFORE the target node to make the scaled child's rendered
+  // (visual) height diverge a lot from its layout height, Chromium's built-in algorithm has been
+  // seen to overshoot the scroll target completely off the end of the scrollable range — reported
+  // as "the outline scrolls way past the chapter content, it's not reachable" on a session where
+  // Zechariah 4 was deep in a long spine. Computing the delta ourselves in plain getBoundingClientRect
+  // (visual/client) pixels sidesteps the transform entirely — a scrollTop delta of N always moves
+  // the container's own viewport by exactly N visual px, regardless of what's scaled inside it —
+  // and clamping the result to [0, scrollHeight - clientHeight] makes "scrolls past the content"
+  // structurally impossible no matter what the underlying miscalculation might have been.
+  // Double rAF (not a single one, not a bare call) waits for TWO real paint cycles first, so a
+  // node that just became visible via search/filter/glance-group-expand has actually settled into
+  // its final layout position before we measure it — a same-tick call was the "race" this also
+  // fixes: measuring against still-animating/pre-layout geometry silently reintroduces the exact
+  // overshoot this is meant to prevent.
+  function scrollNodeIntoView(el: HTMLElement | null | undefined, behavior: ScrollBehavior = 'smooth') {
+    if (!el) return
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const container = scrollContainerRef.current
+      if (!container || !el.isConnected) return
+      const cRect = container.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+      const target = container.scrollTop + (elRect.top - cRect.top) - (cRect.height - elRect.height) / 2
+      const clamped = Math.max(0, Math.min(target, container.scrollHeight - container.clientHeight))
+      container.scrollTo({ top: clamped, behavior })
+    }))
   }
   useEffect(() => {
     if (isAtBottomRef.current) scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
   }, [detail.nodes.length])
+  // Auto-recenter HORIZONTALLY the first time a session actually has real node data to center
+  // on — per direct feedback ("center the timeline automatically when first opening any
+  // session, not just via the recenter button"). Guarded by `centeredSessionRef` so this fires
+  // exactly once per genuine session-open (keyed on `detail.session.id`, which changes whenever
+  // StudyTrailApp swaps to a different session or into/out of the merged Everything timeline —
+  // MapView itself is never remounted on a plain session switch, see recenterHorizontal's own
+  // comment on why that matters elsewhere), not on every later data update (a new node/connection
+  // streaming into the session you already have open must never yank the horizontal scroll
+  // out from under you).
+  //
+  // useLayoutEffect + instant `behavior: 'auto'`, NOT useEffect + a smooth scroll — per direct
+  // feedback ("should already BE centered on first render, no visible motion; the manual recenter
+  // BUTTON should stay animated, this specific path shouldn't be"). useLayoutEffect fires
+  // synchronously after this commit's DOM mutations but BEFORE the browser paints, and the node
+  // dots' ref callbacks (registerPoint) already fired as part of THIS SAME commit — so the anchor
+  // point is already resolvable with no rAF/layout-settle wait needed here (unlike
+  // scrollNodeIntoView's jump-to-node cases, which can involve content still animating/expanding
+  // after a click). Setting `scrollLeft` directly (inside recenterHorizontal's `behavior: 'auto'`
+  // branch) never animates and therefore never paints an intermediate, off-center frame at all.
+  const centeredSessionRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (detail.nodes.length === 0) return
+    if (centeredSessionRef.current === detail.session.id) return
+    centeredSessionRef.current = detail.session.id
+    recenterHorizontal('auto')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.session.id, detail.nodes.length])
 
   const [ownZoom, setOwnZoom] = useState(1)
   const zoom = zoomProp ?? ownZoom
@@ -1020,7 +1253,7 @@ export default function MapView({
         : Math.max(0, curIdx === -1 ? detail.nodes.length - 1 : curIdx - 1)
       const nextId = detail.nodes[nextIdx].id
       setKeyboardFocusId(nextId)
-      nodeBlockRefs.current.get(nextId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      scrollNodeIntoView(nodeBlockRefs.current.get(nextId))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -1090,7 +1323,7 @@ export default function MapView({
   // even when there's nothing more specific to point at.
   function jumpToOrigin(conn: TrailConnection) {
     const el = pointsRef.current.get(`row:${conn.id}`) ?? pointsRef.current.get(`node:${conn.fromNodeId}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    scrollNodeIntoView(el)
   }
 
   function refFor(conn: TrailConnection): TrailRef | null {
@@ -1530,11 +1763,66 @@ export default function MapView({
   }
   function jumpToFirstMatch() {
     const first = detail.nodes.find((n) => matchedNodeIds.has(n.id))
-    if (first) nodeBlockRefs.current.get(first.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (first) scrollNodeIntoView(nodeBlockRefs.current.get(first.id))
   }
 
+  // Round 12 — replaced the round-9 blanket `viewport/2/zoom` guess (which never actually
+  // tightened anything, since it dominates gutterWidth almost every session and dwarfs what
+  // centering genuinely needs) with the ACTUAL minimum padding required, measured the same way
+  // recenterHorizontal()/horizontalCenterDelta() already do: real live DOM rects, not an assumed
+  // fraction of the viewport.
+  //
+  // Reasoning: the anchor's offset from containerRef's own left/right edges (contentRect) is
+  // fixed by the CONTENT's own layout — entirely independent of whatever padding currently sits
+  // outside containerRef (padding is applied to containerRef's PARENT, never touches containerRef
+  // itself), so this measurement is stable and self-correcting regardless of the padding value
+  // from the previous render. To scroll the anchor to the viewport's exact center, the padding on
+  // whichever side it needs to travel toward must be at least `clientWidth/2` minus however much
+  // of that distance the content's OWN width already covers on that side — computed for both
+  // sides since which direction is the worst case depends on where the anchor happens to sit
+  // within the content (usually left-heavy, but not guaranteed, e.g. an EverythingView merged
+  // timeline scrolled deep into a later session).
+  function computeMinCenteringPad(): number {
+    const scrollEl = scrollContainerRef.current
+    const contentEl = containerRef.current
+    const anchorEl = findAnchorNodeEl()
+    if (!scrollEl || !contentEl || !anchorEl) return HORIZONTAL_SCROLL_PAD_MIN
+    const clientWidth = scrollEl.clientWidth
+    const contentRect = contentEl.getBoundingClientRect()
+    const anchorRect = anchorEl.getBoundingClientRect()
+    const distFromContentLeft = anchorRect.left - contentRect.left
+    const distFromContentRight = contentRect.width - distFromContentLeft
+    const neededScreenPx = Math.max(clientWidth / 2 - distFromContentLeft, clientWidth / 2 - distFromContentRight, 0)
+    return neededScreenPx / zoom // local (pre-scale) units, same wrapper the padding itself sits in
+  }
+  // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
+  // far the revisit lines go to the left, and the same distance on the right"): the natural
+  // bound is `gutterWidth` itself — it's already exactly "how far the revisit/return lines
+  // reach left" (see its own computation below: GUTTER_BASE + lanes + arc-bow reserve). Folded
+  // into the same Math.max as the real centering need (not a flat floor any more) rather than
+  // replacing it, since capping BELOW what centering needs would make true dead-center
+  // unreachable — this way the bound is whichever is actually larger: enough to truly center
+  // THIS session's real spine position, or enough to reach the farthest visible arc, with
+  // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
+  // case (no anchor resolvable yet to measure against).
+  const minCenteringPad = computeMinCenteringPad()
+  const horizontalScrollPad = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad, gutterWidth)
+  if (window.__bereanTrailDebug) {
+    console.log('[TrailDebug] horizontalScrollPad', {
+      horizontalScrollPad: Math.round(horizontalScrollPad), gutterWidth: Math.round(gutterWidth), minCenteringPad: Math.round(minCenteringPad),
+    })
+  }
+
+  // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
+  // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
+  // shared condition that all the relevant hover-driven components check, rather than
+  // duplicating the logic in each one"). HoverDisabledContext already existed for the "why'd you
+  // jump here" edit popup (promptConn); ORing in `!!menu` here means every TrailHoverCard in the
+  // spine (which all read this same context as their `disabled` prop) now also hides the instant
+  // the right-click context menu opens, with zero changes needed in any of the individual
+  // NodeBlock/ConnRow/TangentBullet/GlanceGroupRow call sites.
   return (
-    <HoverDisabledContext.Provider value={!!promptConn}>
+    <HoverDisabledContext.Provider value={!!promptConn || !!menu}>
     {/* flex column + minHeight:0 down this whole chain (through the scroll container below) is
         what actually makes ITS OWN `overflow: auto` the one that scrolls — without a real
         bounded height, the browser just grows this div to fit its content and an ANCESTOR ends
@@ -1555,8 +1843,24 @@ export default function MapView({
           }}
         />
       </div>
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={checkAtBottom} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content' }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+        {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
+            centered as the user likes"): without this, the scrollable range was clamped exactly
+            to the content's own natural width (native browser overflow behavior for a plain
+            `width: max-content` child), so there was never any slack to actually SCROLL the
+            timeline to a centered position — only exactly enough range to see every pixel of
+            content, flush against both edges. Blank padding on both sides of the scaled content
+            (inside the transform, so it grows with zoom too, exactly when more slack is needed)
+            gives real room to pan the timeline left/right; recenterHorizontal() scrolls into that
+            padded range. Sized to at least half the live viewport width (not just a flat 220px
+            floor — see HORIZONTAL_SCROLL_PAD_MIN's own comment) so there's ALWAYS enough room to
+            reach true dead-center regardless of window size — a flat cap that's smaller than
+            half the viewport makes true centering unreachable no matter what the scroll math
+            computes, since the browser silently clamps scrollLeft at its own max first. */}
+        <div style={{
+          transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content',
+          paddingLeft: horizontalScrollPad, paddingRight: horizontalScrollPad,
+        }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
                 on a musical paper that show the indent levels so the user can follow which
@@ -1676,7 +1980,7 @@ export default function MapView({
               hoverChain={hoverActive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
-            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} />}
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} gutterWidth={gutterWidth} />}
             </div>
           )
         })}
@@ -1700,20 +2004,40 @@ export default function MapView({
         {/* Outside the zoomed/transformed content div (a sibling, not nested inside it) — a
             `transform` ancestor would otherwise make itself the containing block for
             `position: fixed`, anchoring this to the SCALED content instead of the real window.
-            Per direct feedback: "if the user scrolls away from the latest, there should be a
-            button that pops up to scroll back to latest." */}
-        {showScrollToLatest && (
-          <button
-            onClick={scrollToLatest}
-            title="Scroll to latest"
-            style={{
-              position: 'fixed', bottom: 24, right: 24, zIndex: 50,
-              display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
-              border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            }}
-          ><ArrowDown size={13} /> Latest</button>
-        )}
+            bottom:58 (not 24) — per direct feedback ("the Latest button is covered by the zoom
+            button"), StudyTrailApp.tsx's own zoom pill floats at bottom:20/right:20 in the SAME
+            corner (a separate component, so it can't just be reflowed into one shared stack) —
+            this whole cluster sits stacked just above it (20 + ~28px zoom pill height + 10px
+            gap) instead of overlapping it. Recenter (new, see #3) always shows once there's any
+            content to recenter (and not already close enough to centered, per direct feedback
+            "hide recenter when already centered" — see nearCenter/checkCentered above);
+            "Latest" only pops up once you've actually scrolled away from the bottom, per direct
+            feedback: "if the user scrolls away from the latest, there should be a button that
+            pops up to scroll back to latest." */}
+        <div style={{ position: 'fixed', bottom: 58, right: 24, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          {detail.nodes.length > 0 && !nearCenter && (
+            <button
+              onClick={() => recenterHorizontal()}
+              title="Recenter the timeline"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30,
+                color: 'rgb(var(--color-text-secondary))', background: 'rgb(var(--color-surface-2))',
+                border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              }}
+            ><Crosshair size={14} /></button>
+          )}
+          {showScrollToLatest && (
+            <button
+              onClick={scrollToLatest}
+              title="Scroll to latest"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
+                border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+              }}
+            ><ArrowDown size={13} /> Latest</button>
+          )}
+        </div>
       </div>
     </div>
     </HoverDisabledContext.Provider>
