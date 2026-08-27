@@ -2162,6 +2162,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // otherwise restomp whatever title the newly-active tab just picked up. Guard
                   // against that generically: only rename if tabId is still the active tab.
                   if (useAppStore.getState().activeTabId.scripture !== tabId) return
+                  // Also bail if this tab is no longer in search mode at all — e.g. a Cmd+L
+                  // reference jump (FloatingSearch) navigated this same tab straight to a
+                  // chapter and already set its title ("Jeremiah 4"). ScriptureSearchView's
+                  // unmount-flush still fires this with the stale query, which would otherwise
+                  // rename the tab back to `"shall call"` ~150ms later.
+                  const liveTab = useAppStore.getState().tabs.scripture.find((t) => t.id === tabId)
+                  if (!liveTab || !(liveTab.state as { searchMode?: boolean }).searchMode) return
                   const trimmedQuery = (s.query ?? '').trim()
                   useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
                 }, 150)
