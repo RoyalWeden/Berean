@@ -1880,15 +1880,18 @@ export default function MapView({
         overflow:auto too), so this component's onScroll/checkAtBottom (and the "Latest" button
         it drives) never fired in practice. */}
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ marginBottom: 10, flexShrink: 0 }}>
+      {/* Compact, left-aligned filter — per direct feedback ("the thing to filter the timeline
+          is taking too much space"): a narrow control near the top-left rather than a full-
+          width bar that ate a whole horizontal strip. */}
+      <div style={{ marginBottom: 8, flexShrink: 0 }}>
         <input
           ref={searchInputRef}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
-          placeholder="Filter this timeline… (chapter, Strong's number, reason)"
+          placeholder="Filter timeline…"
           style={{
-            width: '100%', fontSize: 12, padding: '6px 9px', background: 'rgb(var(--color-surface-2))',
+            width: '100%', maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
             border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
           }}
         />
