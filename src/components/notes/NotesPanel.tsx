@@ -1535,7 +1535,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   className={`p-1 cursor-pointer transition-colors ${edgeRounding}
                     ${viewMode === mode
                       ? 'bg-[rgb(var(--color-surface-2))] text-[rgb(var(--color-accent))] shadow-sm'
-                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-secondary))]'
+                      : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/15]'
                     }`}
                 >
                   <Icon size={14} />

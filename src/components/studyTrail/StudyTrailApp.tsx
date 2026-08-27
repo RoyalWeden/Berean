@@ -281,8 +281,8 @@ export default function StudyTrailApp() {
           // (no feedback at all). Bump selected's own tint up a notch on hover instead
           // of falling through to the plain hover shade.
           background: selectedId === s.id && mainTab === 'map' && !selectMode
-            ? isHovered ? 'rgb(var(--color-accent) / 0.22)' : 'rgb(var(--color-accent) / 0.14)'
-            : isHovered ? 'rgb(var(--color-surface-3))' : 'transparent',
+            ? isHovered ? 'rgb(var(--color-accent) / 0.32)' : 'rgb(var(--color-accent) / 0.14)'
+            : isHovered ? 'rgb(var(--color-surface-4))' : 'transparent',
         }}
       >
         {selectMode && (

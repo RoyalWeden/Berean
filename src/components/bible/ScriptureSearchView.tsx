@@ -991,7 +991,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           return (
             <button
               onClick={() => openScopePalette()}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer flex-shrink-0 min-w-0 ${isFiltered ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer flex-shrink-0 min-w-0 ${isFiltered ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))]/20' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-accent))]/15'}`}
               title="Scope: edition, testament, and books"
             >
               <BookOpen size={11} className="flex-shrink-0" />
@@ -1027,7 +1027,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   setSortMenuOpen((v) => !v)
                 }}
                 title="Sort order"
-                className="flex items-center gap-1.5 text-[10px] font-medium pl-2 pr-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-[10px] font-medium pl-2 pr-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-accent))]/15 transition-colors cursor-pointer"
               >
                 {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
                 {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
@@ -1037,7 +1037,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               <button
                 onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
                 title={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
-                className="flex items-center px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-accent))]/15 transition-colors cursor-pointer"
               >
                 {sortDirection === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
               </button>
@@ -1081,7 +1081,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   setContextMenuOpen((v) => !v)
                 }}
                 title="Result length"
-                className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${showContext ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${showContext ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))]/20' : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-accent))]/15'}`}
               >
                 {contextMode === 'default' && <AlignJustify size={11} />}
                 {contextMode === 'full' && <Rows size={11} />}
