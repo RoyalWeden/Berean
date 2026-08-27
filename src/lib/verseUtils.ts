@@ -225,24 +225,100 @@ function splitWordSpans(text: string): WordSpan[] {
   return out
 }
 
-/** Indices of words common to both sequences, in order (word-level LCS). */
+// ── Cosmetic-drift normalization (COMPARISON ONLY — never touches what's rendered
+// or highlighted; only how offsets are matched/interpolated between two texts) ──
+//
+// `text_tagged`-reconstructed display text is rejoined from tokens rather than substituted
+// in place on `verse.text`, so it can drift from `verse.text` on pure data-formatting noise
+// (a comma the tagging dropped, a curly vs straight apostrophe, stray trailing whitespace)
+// even when no word-replacer rule actually changed anything in that verse. Before this
+// normalization, that drift alone was enough to knock mapDisplayOffsetToOriginal/
+// mapOriginalOffsetToDisplay off their exact `===` fast path and into the word-level LCS
+// below, where "void" (display) and "void," (original) — or curly "Lamb’s" and
+// straight "Lamb's" — counted as two entirely different words and failed to match at all,
+// producing wrong highlight ranges or (via VerseRow's startChar<0/endChar<=startChar guard)
+// no selection toolbar at all. Confirmed present in real data: ~9% of KJVA/Revelation verses
+// have a token-reconstruction that differs from verse.text only in exactly this way.
+const CURLY_SINGLE_QUOTES = /[‘’‚‛′]/g
+const CURLY_DOUBLE_QUOTES = /[“”„‟″]/g
+
+/** Unify curly/smart quote variants to their plain ASCII form. Length-preserving. */
+function normalizeQuotes(s: string): string {
+  return s.replace(CURLY_SINGLE_QUOTES, "'").replace(CURLY_DOUBLE_QUOTES, '"')
+}
+
+/** Normalize a WHOLE text for the top-level "are these basically the same text" check:
+ *  unify quotes and collapse/trim all whitespace runs to a single space. */
+function normalizeForAlign(s: string): string {
+  return normalizeQuotes(s).replace(/\s+/g, ' ').trim()
+}
+
+/** Normalize a single WORD (no internal whitespace) for LCS word-equality: unify quotes
+ *  and drop trailing sentence punctuation, so "void" and "void," (or their curly-quote
+ *  equivalents) still count as the same word for alignment purposes. */
+function normalizeWordForAlign(w: string): string {
+  return normalizeQuotes(w).replace(/[,;:.!?]+$/, '')
+}
+
+/** Indices of words common to both sequences, in order (word-level LCS). Word equality is
+ *  checked on the COSMETICALLY-NORMALIZED form (see normalizeWordForAlign) so trailing
+ *  punctuation or quote-style drift between `text_tagged`-reconstructed text and verse.text
+ *  doesn't break alignment — the actual `.text`/`.start` spans stay the real (raw) substrings,
+ *  only the equality check is normalized. */
 function wordLcsPairs(D: WordSpan[], O: WordSpan[]): Array<[number, number]> {
   const n = D.length, m = O.length
+  const dn = D.map((d) => normalizeWordForAlign(d.text))
+  const on = O.map((o) => normalizeWordForAlign(o.text))
   // dp[i][j] = LCS length of D[i..] and O[j..]
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0))
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = D[i].text === O[j].text ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+      dp[i][j] = dn[i] === on[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
     }
   }
   const pairs: Array<[number, number]> = []
   let i = 0, j = 0
   while (i < n && j < m) {
-    if (D[i].text === O[j].text) { pairs.push([i, j]); i++; j++ }
+    if (dn[i] === on[j]) { pairs.push([i, j]); i++; j++ }
     else if (dp[i + 1][j] >= dp[i][j + 1]) i++
     else j++
   }
   return pairs
+}
+
+/**
+ * Map an offset in `from` to the corresponding offset in `to` when the two strings are equal
+ * after normalizeForAlign() — i.e. they differ ONLY in whitespace runs and/or quote-character
+ * style, never in actual word content. Walks both strings in lockstep, char by char; a run of
+ * whitespace on either side (any length, including a run present on only one side — e.g. a
+ * trailing space, or a doubled internal space) is treated as a single alignment step so
+ * extra/missing/trailing spaces don't desync the two pointers the way they would under a plain
+ * index-for-index walk. This is more precise than the word-level LCS below (which only anchors
+ * at word boundaries): it's used for whole-string cosmetic drift where every character otherwise
+ * corresponds 1:1, so it can resolve an offset that falls INSIDE a word exactly, not just at its
+ * edges. Returns null if content actually diverges (should not happen once the caller has
+ * confirmed normalizeForAlign(from) === normalizeForAlign(to); the check exists as a safety net
+ * against normalizeForAlign not being a perfect equivalence for degenerate inputs).
+ */
+function mapOffsetViaCosmeticEquivalence(from: string, to: string, offset: number): number | null {
+  const target = Math.max(0, Math.min(offset, from.length))
+  let fi = 0, ti = 0
+  while (fi < target) {
+    const fWs = fi < from.length && /\s/.test(from[fi])
+    const tWs = ti < to.length && /\s/.test(to[ti])
+    if (fWs || tWs) {
+      if (fWs) fi++
+      if (tWs) ti++
+      continue
+    }
+    if (fi >= from.length || ti >= to.length) return null
+    if (normalizeQuotes(from[fi]) !== normalizeQuotes(to[ti])) return null
+    fi++
+    ti++
+  }
+  // `target` may sit inside a whitespace run that only `from` has (e.g. trailing space) —
+  // don't advance `ti` past `to`'s own length chasing whitespace that isn't there.
+  return Math.max(0, Math.min(ti, to.length))
 }
 
 interface Alignment { dBreaks: number[]; oBreaks: number[] }
@@ -289,6 +365,10 @@ function interp(from: number[], to: number[], x: number): number {
  */
 export function mapDisplayOffsetToOriginal(displayText: string, originalText: string, displayOffset: number): number {
   if (displayText === originalText) return Math.max(0, Math.min(displayOffset, originalText.length))
+  if (normalizeForAlign(displayText) === normalizeForAlign(originalText)) {
+    const mapped = mapOffsetViaCosmeticEquivalence(displayText, originalText, displayOffset)
+    if (mapped !== null) return mapped
+  }
   const { dBreaks, oBreaks } = buildAlignment(displayText, originalText)
   return interp(dBreaks, oBreaks, displayOffset)
 }
@@ -299,6 +379,10 @@ export function mapDisplayOffsetToOriginal(displayText: string, originalText: st
  */
 export function mapOriginalOffsetToDisplay(displayText: string, originalText: string, originalOffset: number): number {
   if (displayText === originalText) return Math.max(0, Math.min(originalOffset, displayText.length))
+  if (normalizeForAlign(displayText) === normalizeForAlign(originalText)) {
+    const mapped = mapOffsetViaCosmeticEquivalence(originalText, displayText, originalOffset)
+    if (mapped !== null) return mapped
+  }
   const { dBreaks, oBreaks } = buildAlignment(displayText, originalText)
   return interp(oBreaks, dBreaks, originalOffset)
 }
