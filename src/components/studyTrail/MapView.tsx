@@ -274,7 +274,12 @@ const MAIN_SPINE_GAP = 44
 // genuinely-degenerate case computeMinCenteringPad() can't measure at all (no anchor node
 // resolvable yet — an empty or not-yet-rendered session), so scrolling isn't completely stuck at
 // zero slack while waiting for real content to measure against.
-const HORIZONTAL_SCROLL_PAD_MIN = 220
+// Kept deliberately SMALL (was 220) per direct feedback: "there's a horizontal scroll bar but
+// it's not really necessary a lot" — a big flat floor forced ~220px of dead scroll room on BOTH
+// sides of every session, so a timeline that already fit the viewport still showed a scrollbar.
+// computeMinCenteringPad() supplies the real, measured slack a given session actually needs to
+// reach dead-center; this is only the pre-measurement fallback.
+const HORIZONTAL_SCROLL_PAD_MIN = 24
 
 function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
@@ -1116,6 +1121,11 @@ export default function MapView({
     setNearCenter(delta == null || Math.abs(delta) <= CENTER_TOLERANCE_PX)
   }
   useEffect(() => { checkCentered() }) // eslint-disable-line react-hooks/exhaustive-deps
+  // Kept fresh for the zoom / tab-return recenter effects below, which need to know whether the
+  // spine was ALREADY centered at the moment the trigger fired (per direct feedback: re-center
+  // on zoom and on tab return, "but only do when it was already centered before").
+  const nearCenterRef = useRef(nearCenter)
+  useEffect(() => { nearCenterRef.current = nearCenter }, [nearCenter])
   // Centers `el` inside `scrollContainerRef` — used instead of the native `el.scrollIntoView()`
   // for every jump-to-node action below (arrow-key nav, "scroll to where this came from",
   // search's jump-to-first-match). Native scrollIntoView miscalculates badly here: the whole
@@ -1181,6 +1191,23 @@ export default function MapView({
   const zoom = zoomProp ?? ownZoom
   const setZoom = onZoomChange ?? setOwnZoom
 
+  // Re-center horizontally after a zoom change — but ONLY if the spine was already centered
+  // before the zoom (per direct feedback: "if it was centered before and the user zooms, make
+  // sure to recenter... but only do when it was already centered before"). A zoom that happens
+  // while the user has deliberately scrolled off-center is left where it is. `nearCenter` here
+  // is still the pre-zoom value on the render that triggers this effect (checkCentered's own
+  // state update for the new zoom hasn't committed yet). rAF lets the scaled layout settle
+  // first so recenterHorizontal measures the anchor at its final position.
+  const prevZoomRef = useRef(zoom)
+  useEffect(() => {
+    if (prevZoomRef.current === zoom) return
+    prevZoomRef.current = zoom
+    if (!nearCenter) return
+    const id = requestAnimationFrame(() => recenterHorizontal('auto'))
+    return () => cancelAnimationFrame(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom])
+
   // Quick filter/highlight while looking at a (possibly long) spine — not a replacement for
   // the Review tab's cross-session search, just a way to spot things without scrolling/reading
   // every row. Matches against the chapter label and every connection's label/reasonText.
@@ -1231,10 +1258,24 @@ export default function MapView({
   // stuck pointing at whatever was hovered before focus moved away, leaving every other edge
   // dimmed to 15% opacity indefinitely. Clearing on window blur covers that case and any other
   // way focus can leave this window without the cursor visibly moving off the hovered element.
+  // Also snap the spine back to center when focus RETURNS to this window/tab — but only if it
+  // was centered when focus left (per direct feedback: recenter "on tab return... but only do
+  // when it was already centered before"). Layout/scroll can drift while the window is
+  // backgrounded (font metrics, a zoom prop change from the main window, etc.); this keeps a
+  // deliberately-centered view centered without disturbing one the user had scrolled off.
+  const wasCenteredOnBlurRef = useRef(true)
   useEffect(() => {
-    const onBlur = () => setHoveredKey(null)
+    const onBlur = () => {
+      setHoveredKey(null)
+      wasCenteredOnBlurRef.current = nearCenterRef.current
+    }
+    const onFocus = () => {
+      if (!wasCenteredOnBlurRef.current) return
+      requestAnimationFrame(() => recenterHorizontal('auto'))
+    }
     window.addEventListener('blur', onBlur)
-    return () => window.removeEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => { window.removeEventListener('blur', onBlur); window.removeEventListener('focus', onFocus) }
   }, [])
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
@@ -1808,10 +1849,17 @@ export default function MapView({
   // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
   // case (no anchor resolvable yet to measure against).
   const minCenteringPad = computeMinCenteringPad()
-  const horizontalScrollPad = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad, gutterWidth)
+  // Split left/right rather than reserving the SAME (larger) pad on both sides. The revisit-arc
+  // reach (`gutterWidth`) is a LEFT-side concern only — mirroring it onto the right just added
+  // dead scroll room there for no reason (part of "the scroll bar isn't really necessary a
+  // lot"). Both sides still get `minCenteringPad`, which already accounts for how far the spine
+  // must travel in EITHER direction to reach dead-center.
+  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad, gutterWidth)
+  const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad)
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] horizontalScrollPad', {
-      horizontalScrollPad: Math.round(horizontalScrollPad), gutterWidth: Math.round(gutterWidth), minCenteringPad: Math.round(minCenteringPad),
+      horizontalScrollPadLeft: Math.round(horizontalScrollPadLeft), horizontalScrollPadRight: Math.round(horizontalScrollPadRight),
+      gutterWidth: Math.round(gutterWidth), minCenteringPad: Math.round(minCenteringPad),
     })
   }
 
@@ -1861,7 +1909,7 @@ export default function MapView({
             computes, since the browser silently clamps scrollLeft at its own max first. */}
         <div style={{
           transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content',
-          paddingLeft: horizontalScrollPad, paddingRight: horizontalScrollPad,
+          paddingLeft: horizontalScrollPadLeft, paddingRight: horizontalScrollPadRight,
         }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
