@@ -31,6 +31,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
   const [allSessions, setAllSessions] = useState<TrailSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('')
 
   async function loadAll(showLoading: boolean) {
     if (showLoading) setLoading(true)
@@ -103,7 +104,19 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
     // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
     // one that actually scrolls (see MapView.tsx's own comment on this).
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <h2 style={{ margin: '0 0 4px', fontSize: 17, flexShrink: 0 }}>Everything</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px', flexShrink: 0 }}>
+        <h2 style={{ margin: 0, fontSize: 17 }}>Everything</h2>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
+          placeholder="Filter timeline…"
+          style={{
+            width: 200, flexShrink: 0, fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+          }}
+        />
+      </div>
       <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18, flexShrink: 0 }}>
         {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
       </div>
@@ -111,7 +124,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} />
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} />
         </div>
       )}
     </div>

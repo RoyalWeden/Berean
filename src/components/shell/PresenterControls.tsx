@@ -43,6 +43,10 @@ function ToggleRow({ icon, label, on, onClick }: { icon: React.ReactNode; label:
 }
 
 export default function PresenterControls() {
+  // Drop behind the floating search / settings modal (both z-50) when one is open, so those
+  // overlays sit fully in front of the presenter pill instead of it floating over them.
+  const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
+  const zClass = modalOpen ? 'z-40' : 'z-[9998]'
   const viewerWindowOpen = useAppStore((s) => s.viewerWindowOpen)
   const viewerPaused = useAppStore((s) => s.viewerPaused)
   const setViewerPaused = useAppStore((s) => s.setViewerPaused)
@@ -128,7 +132,7 @@ export default function PresenterControls() {
         data-presenter-controls
         onMouseDown={startDrag}
         onClick={() => setCollapsed(false)}
-        className="fixed z-[9998] flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur cursor-pointer"
+        className={`fixed ${zClass} flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur cursor-pointer`}
         style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
         title="Expand presenter controls"
       >
@@ -143,7 +147,7 @@ export default function PresenterControls() {
   return createPortal(
     <div
       data-presenter-controls
-      className="fixed z-[9998] w-[224px] rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur"
+      className={`fixed ${zClass} w-[224px] rounded-xl shadow-2xl border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-1))/95] backdrop-blur`}
       style={{ ...(pos ? { left: pos.left, top: pos.top } : { right: 20, bottom: 20 }), userSelect: 'none', WebkitAppRegion: 'no-drag' } as unknown as React.CSSProperties}
     >
       {/* Header: drag handle + collapse + close */}

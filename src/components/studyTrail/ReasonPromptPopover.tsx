@@ -283,6 +283,8 @@ export default function ReasonPromptPopover({
   originBookId?: string
   originChapter?: number
 }) {
+  // Sit behind the floating search / settings modal (z-50) while one is open.
+  const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   const storedPos = useAppStore((s) => s.reasonPromptPopoverPos)
   const setStoredPos = useAppStore((s) => s.setReasonPromptPopoverPos)
   const [pos, setPosLocal] = useState(() => (storedPos ? clampPos(storedPos, 320) : defaultPos()))
@@ -314,7 +316,7 @@ export default function ReasonPromptPopover({
   function onDragEnd() { dragRef.current = null }
 
   return createPortal(
-    <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 100 }}>
+    <div ref={cardRef} style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: modalOpen ? 40 : 100 }}>
       <TrailPopoverShell
         title={title ?? 'Why did you jump here?'}
         onClose={onClose}

@@ -954,8 +954,16 @@ export const ZOOM_MAX = 2
 
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
+  filterValue, onFilterChange,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Timeline filter, hoisted into the parent's title row (per direct feedback: "the filter
+   *  timeline thing should be moved to the right of the name of the session"). When
+   *  onFilterChange is supplied MapView renders NO input of its own and reads filterValue
+   *  instead; Enter in the parent's input dispatches `berean:trailFilterSubmit` to jump to the
+   *  first match. Uncontrolled (own input) when omitted, for a standalone mount. */
+  filterValue?: string
+  onFilterChange?: (v: string) => void
   /** Zoom is normally OWNED by StudyTrailApp (rendered in its title bar, top-right, so it
    *  applies consistently whether you're looking at one session or the merged Everything
    *  timeline) — these are optional purely so MapView still works if ever mounted standalone
@@ -1211,7 +1219,10 @@ export default function MapView({
   // Quick filter/highlight while looking at a (possibly long) spine — not a replacement for
   // the Review tab's cross-session search, just a way to spot things without scrolling/reading
   // every row. Matches against the chapter label and every connection's label/reasonText.
-  const [searchQuery, setSearchQuery] = useState('')
+  const [ownSearchQuery, setOwnSearchQuery] = useState('')
+  const controlledFilter = onFilterChange != null
+  const searchQuery = controlledFilter ? (filterValue ?? '') : ownSearchQuery
+  const setSearchQuery = controlledFilter ? onFilterChange! : setOwnSearchQuery
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Hover-to-isolate — the design persona's highest-value/lowest-effort fix: hovering any node
@@ -1808,6 +1819,14 @@ export default function MapView({
     const first = detail.nodes.find((n) => matchedNodeIds.has(n.id))
     if (first) scrollNodeIntoView(nodeBlockRefs.current.get(first.id))
   }
+  const jumpToFirstMatchRef = useRef(jumpToFirstMatch)
+  jumpToFirstMatchRef.current = jumpToFirstMatch
+  // Enter in the parent-hosted filter input asks us to scroll to the first match.
+  useEffect(() => {
+    const h = () => jumpToFirstMatchRef.current()
+    window.addEventListener('berean:trailFilterSubmit', h)
+    return () => window.removeEventListener('berean:trailFilterSubmit', h)
+  }, [])
 
   // Round 12 — replaced the round-9 blanket `viewport/2/zoom` guess (which never actually
   // tightened anything, since it dominates gutterWidth almost every session and dwarfs what
@@ -1825,18 +1844,26 @@ export default function MapView({
   // sides since which direction is the worst case depends on where the anchor happens to sit
   // within the content (usually left-heavy, but not guaranteed, e.g. an EverythingView merged
   // timeline scrolled deep into a later session).
-  function computeMinCenteringPad(): number {
+  // Returns the minimum blank padding each side INDEPENDENTLY needs for the anchor to reach the
+  // viewport's exact centre. Previously this returned a single value (the max of both sides)
+  // used for BOTH paddings — so a session whose RIGHT side needed a lot of slack to centre also
+  // got that same slack on the LEFT, letting you scroll well past the leftmost real content
+  // ("i still am able to scroll a little too far left"). Left need depends only on the anchor's
+  // distance from the content's own left edge; right need only on its distance from the right.
+  function computeMinCenteringPad(): { left: number; right: number } {
     const scrollEl = scrollContainerRef.current
     const contentEl = containerRef.current
     const anchorEl = findAnchorNodeEl()
-    if (!scrollEl || !contentEl || !anchorEl) return HORIZONTAL_SCROLL_PAD_MIN
+    if (!scrollEl || !contentEl || !anchorEl) return { left: HORIZONTAL_SCROLL_PAD_MIN, right: HORIZONTAL_SCROLL_PAD_MIN }
     const clientWidth = scrollEl.clientWidth
     const contentRect = contentEl.getBoundingClientRect()
     const anchorRect = anchorEl.getBoundingClientRect()
     const distFromContentLeft = anchorRect.left - contentRect.left
     const distFromContentRight = contentRect.width - distFromContentLeft
-    const neededScreenPx = Math.max(clientWidth / 2 - distFromContentLeft, clientWidth / 2 - distFromContentRight, 0)
-    return neededScreenPx / zoom // local (pre-scale) units, same wrapper the padding itself sits in
+    return {
+      left: Math.max(0, clientWidth / 2 - distFromContentLeft) / zoom,
+      right: Math.max(0, clientWidth / 2 - distFromContentRight) / zoom,
+    }
   }
   // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
   // far the revisit lines go to the left, and the same distance on the right"): the natural
@@ -1849,17 +1876,15 @@ export default function MapView({
   // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
   // case (no anchor resolvable yet to measure against).
   const minCenteringPad = computeMinCenteringPad()
-  // Split left/right rather than reserving the SAME (larger) pad on both sides. The revisit-arc
-  // reach (`gutterWidth`) is a LEFT-side concern only — mirroring it onto the right just added
-  // dead scroll room there for no reason (part of "the scroll bar isn't really necessary a
-  // lot"). Both sides still get `minCenteringPad`, which already accounts for how far the spine
-  // must travel in EITHER direction to reach dead-center.
-  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad, gutterWidth)
-  const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad)
+  // Each side gets only what IT needs to reach dead-centre. The revisit-arc reach
+  // (`gutterWidth`) is a left-side concern only. The right side no longer inherits the left's
+  // (often larger) need, which is what let the view slide past the leftmost content.
+  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.left, gutterWidth)
+  const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.right)
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] horizontalScrollPad', {
       horizontalScrollPadLeft: Math.round(horizontalScrollPadLeft), horizontalScrollPadRight: Math.round(horizontalScrollPadRight),
-      gutterWidth: Math.round(gutterWidth), minCenteringPad: Math.round(minCenteringPad),
+      gutterWidth: Math.round(gutterWidth), minCenteringPadLeft: Math.round(minCenteringPad.left), minCenteringPadRight: Math.round(minCenteringPad.right),
     })
   }
 
@@ -1880,22 +1905,23 @@ export default function MapView({
         overflow:auto too), so this component's onScroll/checkAtBottom (and the "Latest" button
         it drives) never fired in practice. */}
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Compact, left-aligned filter — per direct feedback ("the thing to filter the timeline
-          is taking too much space"): a narrow control near the top-left rather than a full-
-          width bar that ate a whole horizontal strip. */}
-      <div style={{ marginBottom: 8, flexShrink: 0 }}>
-        <input
-          ref={searchInputRef}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
-          placeholder="Filter timeline…"
-          style={{
-            width: '100%', maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-          }}
-        />
-      </div>
+      {/* When the parent hosts the filter (next to the session title), MapView renders no
+          input of its own — it just consumes filterValue + listens for the submit event. */}
+      {!controlledFilter && (
+        <div style={{ marginBottom: 8, flexShrink: 0 }}>
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
+            placeholder="Filter timeline…"
+            style={{
+              width: '100%', maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
+              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+            }}
+          />
+        </div>
+      )}
       <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
             centered as the user likes"): without this, the scrollable range was clamped exactly

@@ -570,10 +570,30 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const computePresenterBand = useCallback(() => {
     const region = viewerVisibleRegion
     const c = getScrollEl()
-    if (floating || !viewerWindowOpen || !region || !c) { setPresenterBand(null); return }
-    if (region.bookId !== tabState.bookId || region.chapter !== tabState.chapter) { setPresenterBand(null); return }
+    // Hard no-band conditions (presenter closed, no scroll element): clear immediately.
+    if (floating || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
+    // SOFT conditions — a stale/in-flight region for the previous chapter, a not-yet-settled
+    // visibleFraction, or verse nodes not mounted yet — all happen for a beat right after a
+    // chapter change while the presenter is catching up. Nulling the band on any of them made
+    // the outline "show for a second then go invisible until I scroll". Instead: keep the
+    // current band, ask the presenter for a fresh region, and retry for up to ~1.3s of frames
+    // before finally giving up and clearing.
+    const chapterMismatch = !region || region.bookId !== tabState.bookId || region.chapter !== tabState.chapter
+    const fractionNotReady = !!region && !(region.visibleFraction > 0)
+    if (chapterMismatch || fractionNotReady || c.scrollHeight <= 0) {
+      if (bandRetryRef.current < 80) {
+        if (bandRetryRef.current === 0 && chapterMismatch) window.app.requestViewerVisibleRegion?.()
+        bandRetryRef.current += 1
+        cancelAnimationFrame(bandRetryRafRef.current)
+        bandRetryRafRef.current = requestAnimationFrame(() => computePresenterBandRef.current())
+        return
+      }
+      setPresenterBand(null)
+      bandRetryRef.current = 0
+      return
+    }
+    if (!region) return // unreachable past the guard above — narrows the type for TS
     const f = region.visibleFraction
-    if (!(f > 0) || c.scrollHeight <= 0) { setPresenterBand(null); return }
 
     // Measure this panel's verse content-tops live (cheap for one chapter) so the band can
     // never drift from a stale layout cache.
@@ -593,13 +613,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // verse nodes haven't mounted yet. Don't null the band on this — hold what's there and
     // retry, so the outline doesn't blink out until the next manual scroll.
     if (Object.keys(tops).length === 0 || contentBottom <= 0) {
-      if (bandRetryRef.current < 12) {
+      if (bandRetryRef.current < 80) {
         bandRetryRef.current += 1
         cancelAnimationFrame(bandRetryRafRef.current)
         bandRetryRafRef.current = requestAnimationFrame(() => computePresenterBandRef.current())
         return
       }
       setPresenterBand(null)
+      bandRetryRef.current = 0
       return
     }
     bandRetryRef.current = 0
