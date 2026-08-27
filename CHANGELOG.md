@@ -122,6 +122,52 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.7] - 2026-08-27
+
+Study Trail
+
+- The "why'd you go here?" prompt is now a small toast in the bottom-right
+  corner instead of an overlay across the top, so it no longer covers the
+  outline when you flip chapters. Hovering it shows the note and verse-tie
+  fields directly; once you start filling it in, it stays open — even if you
+  switch tabs to go look something up — until you close it yourself.
+- Fixed the outline scrolling way past the chapter on some targets (e.g.
+  Zechariah 4), leaving the chapter itself out of view.
+- Fixed connecting lines fully disappearing whenever you right-clicked any
+  timeline item.
+- Reworked the revisit and return-arrow arc lines' shape and endpoints after
+  several rounds of tuning, and fixed long-distance revisit arcs ballooning
+  out far wider than nearby ones.
+- Removed the "revisit within" slider in favor of a fixed, sensible default.
+- Multi-level books and editions (Recognitions, Hermas, etc.) now show
+  consistent "Book, Chapter" labels throughout the timeline.
+- REVISIT labels and their chapter reference are now italic for clarity.
+- Fixed a row's indentation shifting when a longer label wrapped to a second
+  line.
+- A session's timeline now centers itself on opening, and a small recenter
+  button appears whenever the view drifts off-center; how far you can scroll
+  left or right is now bounded sensibly instead of nearly unlimited.
+- Fixed the "N minutes later" divider not lining up with the main timeline.
+- Fixed the "Latest" button being covered by the zoom control, and
+  scrollbars briefly flashing during Latest/recenter jumps.
+
+Reading
+
+- Fixed the reading panel opening a newly-selected chapter scrolled to
+  wherever the previous chapter had been left, instead of at its own
+  position.
+- Fixed the highlight/selection toolbar sometimes failing to appear when
+  selecting text in Revelation or Recognitions of Clement, caused by minor
+  cosmetic text differences (quote style, spacing) throwing off where a
+  selection actually landed.
+
+Text data
+
+- Corrected several passages in the Shepherd of Hermas (Taylor translation)
+  where a scanned page footnote had been spliced into the middle of the
+  body text, including the Mandate 3 passage between its second and third
+  paragraphs.
+
 ## [0.5.6] - 2026-08-26
 
 Study Trail
