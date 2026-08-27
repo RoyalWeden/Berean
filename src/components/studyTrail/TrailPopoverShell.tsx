@@ -41,7 +41,7 @@ export default function TrailPopoverShell({
           {dragHandleProps && <GripHorizontal size={12} color="rgb(var(--color-text-muted))" />}
           {title}
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}>
+        <button className="trail-ctx-btn" onClick={onClose} style={{ background: 'transparent', border: 'none', borderRadius: 6, padding: 2, color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}>
           <X size={14} />
         </button>
       </div>

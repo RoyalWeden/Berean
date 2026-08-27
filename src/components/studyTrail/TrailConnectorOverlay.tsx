@@ -111,7 +111,15 @@ export default function TrailConnectorOverlay({
   // REAL missing-endpoint case. Keyed by edge key + which side was missing, so a genuine fix
   // (endpoint starts resolving) or a genuine regression (a previously-fine edge goes missing)
   // both still surface — only the identical-every-render spam is suppressed.
-  const warnedRef = useRef<Set<string>>(new Set())
+  // Map, not a Set — per direct feedback ("right-click STILL hides connection lines... it comes
+  // back when I switch sessions and back"), a plain Set that only ever ADDS entries can mask a
+  // GENUINE regression: once `${key}:false:true}` (this edge's `to` missing) has fired once, it
+  // never fires again even if the edge recovers (goes fully-present) and THEN goes missing again
+  // later in the very same session — exactly the "state that only resets on a full remount"
+  // shape the report described. Recording only "is this edge CURRENTLY missing" (cleared the
+  // moment it resolves) instead of "has this exact combo ever been warned about" means a later,
+  // real recurrence of the same edge going missing always re-logs.
+  const missingRef = useRef<Map<string, string>>(new Map())
   // Per direct feedback ("can you create some logs for the arc, its still having the same
   // issues") — logs every laned (revisit/return) edge's actual computed geometry, keyed and
   // deduped by edge key + a rounded summary of the values so it only re-logs when something
@@ -142,6 +150,32 @@ export default function TrailConnectorOverlay({
       })
     })
     setCoords((prev) => {
+      // THE FIX for "right-click hides every connector line" (100%-reproducible per direct
+      // feedback, confirmed via the debug snapshot log below: pointsRegistered stayed at 10 the
+      // whole time — the DOM points never actually left the registry — while coordsResolved (this
+      // very state) dropped to 0 the instant the context menu opened). `registerPoint(key)` is
+      // called fresh inline in JSX on every render (`ref={registerPoint(pointKey)}`), which hands
+      // React a NEW ref-callback function identity every time — and a changed ref identity makes
+      // React detach the OLD callback (firing it with `null`, which deletes the entry from
+      // pointsRef) and attach the NEW one (firing it with the element, re-adding the entry) as
+      // TWO SEPARATE steps of the SAME commit, not one atomic swap. Opening the context menu
+      // triggers exactly the kind of tree-wide re-render (via `menu` state) that hits every
+      // single spine row in one commit, so recompute() — this component's OWN layout effect, with
+      // no dependency array, so it can run at any point relative to that churn — can catch
+      // pointsRef mid-detach, see EVERY point momentarily gone, and (before this fix) would
+      // happily replace a fully-populated coords map with a fully-EMPTY one for that one tick,
+      // rendering the whole overlay blank until the next recompute happened to catch it fully
+      // repopulated again — which, per Michael's report, evidently never reliably occurred while
+      // the menu stayed open, only on some later unrelated event.
+      //
+      // The fix: never let a recompute regress a POPULATED coords map down to nothing. A
+      // genuinely empty session (no nodes at all) is unaffected — next and prev both start empty,
+      // so there's nothing to regress from. This is a targeted invariant on the SYMPTOM (an empty
+      // registry snapshot must never blank out real, already-known positions) that holds
+      // regardless of the exact commit-ordering quirk that produces the transient empty read —
+      // the very next recompute (this effect reruns after every render) picks the real,
+      // repopulated positions back up once the churn settles.
+      if (next.size === 0 && prev.size > 0) return prev
       if (prev.size === next.size) {
         let same = true
         for (const [key, pt] of next) {
@@ -196,28 +230,24 @@ export default function TrailConnectorOverlay({
           // `window.__bereanTrailDebug = true` in devtools (persists across restarts; see
           // main.tsx's definePersistentDebugFlag) to turn it on.
           if (window.__bereanTrailDebug) {
-            const warnKey = `${e.key}:${!!rawA}:${!!rawB}`
-            if (!warnedRef.current.has(warnKey)) {
-              warnedRef.current.add(warnKey)
+            const warnKey = `${!!rawA}:${!!rawB}`
+            if (missingRef.current.get(e.key) !== warnKey) {
+              missingRef.current.set(e.key, warnKey)
               console.warn('[TrailDebug] edge endpoint missing — not drawn', { key: e.key, from: e.from, to: e.to, hasFrom: !!rawA, hasTo: !!rawB })
             }
           }
           return null
         }
-        // Trimmed 1 -> ... per direct feedback ("the endpoints of the arc are still off... the
-        // bottom endpoint can be shifted down") — the START side of a laned edge (the revisit/
-        // return dot itself) had no special-casing at all, just the generic gap every edge uses;
-        // shaving it slightly lets a laned edge's line reach a little further toward its own
-        // source dot before the small clearance kicks in.
+        // Resolved — clear any recorded "missing" state for this edge so a LATER regression
+        // (this same edge going missing again after having been fine) logs again instead of
+        // staying silently suppressed by an earlier warning from earlier in the session.
+        if (window.__bereanTrailDebug && missingRef.current.has(e.key)) missingRef.current.delete(e.key)
+        // Only actually reached by NON-laned edges now (round 9 moved BOTH laned edge types —
+        // revisit-link and return — onto their own dedicated virtual-anchor constructions below,
+        // neither of which uses this gap/pullback approach any more; see that branch's own
+        // comment for why the return edge in particular needed to move off of it, not just get a
+        // bigger number here).
         const startGap = radiusFor(e.from) + (e.lane != null ? 1 : ENDPOINT_GAP)
-        // A laned+arrowed edge (a branch's return arrow) needs SOME extra clearance so the
-        // arrowhead reads as a distinct triangle rather than overlapping the dot — but the old
-        // +9 was tuned generously and, per direct feedback this round ("the endpoints of the arc
-        // are still off... it needs to extend up more"), reads as landing well short of the
-        // actual dot rather than pointing at it: radiusFor(node)=5 + ENDPOINT_GAP(3) + 9 = 17px
-        // of dead space between the arrow tip and the dot's own center for a 9px-wide dot.
-        // Trimmed to +3 (11px total) — still enough separation for the arrowhead to read as its
-        // own shape, not so much that the curve visibly falls short of the target.
         const endGap = radiusFor(e.to) + (e.arrow ? (e.lane != null ? ENDPOINT_GAP + 3 : ENDPOINT_GAP + 2) : ENDPOINT_GAP)
 
         let d: string
@@ -247,8 +277,46 @@ export default function TrailConnectorOverlay({
           // spacer's CENTER, and its left edge sits at containerRef's own x=0), not its center.
           const gutterRightEdge = gutter ? gutter.x * 2 : 0
           const baseLaneX = gutter ? gutterRightEdge - e.lane * LANE_SPACING : Math.max(rawA.x, rawB.x) + 40
-          const start = pushOffStart(rawA, rawB, false, startGap)
-          const end = pullBackEnd(rawA, rawB, false, endGap)
+          // Round 9 — Michael gave precise, opposite-direction corrections for the two laned
+          // edge types, so both now get their own dedicated virtual-anchor construction (neither
+          // goes through pushOffStart/pullBackEnd's diagonal-chord pullback any more, which for
+          // the return edge was pulling back along the A→B straight-line CHORD rather than the
+          // actual bezier's own vertical-ish approach — a real direction mismatch, not just a
+          // magnitude one, whenever `from`/`to` have any real x-difference, exactly the case for
+          // a `row:` origin point vs. its target node dot).
+          //
+          //  - revisit-link (no arrow): was landing OUTSIDE the bullet pair (round 3's anchors
+          //    pointed away from the span — top endpoint above the top bullet, bottom endpoint
+          //    below the bottom bullet). Flipped INWARD: the higher point's anchor now sits BELOW
+          //    it (toward the lower bullet) and the lower point's anchor sits ABOVE it (toward the
+          //    higher bullet) — landing inside the span between the two bullets, not past either.
+          //  - return (arrow): was landing INSIDE the bullet, overlapping its circle. Anchors now
+          //    point OUTWARD — the higher point's anchor sits ABOVE it, the lower point's sits
+          //    BELOW it — clearing the bullet's edge instead of cutting into it.
+          //  - both: nudged further left (8px, up from revisit-link's old 3px; return had no left
+          //    offset at all before) — per direct feedback both were still reading as too far
+          //    right.
+          //  - round 10 tuning per direct feedback ("[return] arcs are now too far out on both
+          //    sides... do in between, prob around the same distance as the [revisit] ones" /
+          //    "[revisit] can be shifted a tiny bit outward"): return's outward distance brought
+          //    down from 12 to 6 (near revisit-link's distance), revisit-link's inward pull eased
+          //    from 5 to 2 (a small nudge back outward from where it was).
+          //  - round 11 per direct feedback ("the [return] arcs need the top node moved slightly
+          //    down and the bottom node slightly up") — that's INWARD, same direction as
+          //    revisit-link now, not outward: return flipped from an outward push to a small
+          //    inward pull (its own, smaller-than-revisit-link magnitude, since it was reading as
+          //    already close before this nudge).
+          const REVISIT_ANCHOR_IN = 2
+          const REVISIT_ANCHOR_LEFT = 8
+          const RETURN_ANCHOR_IN = 3
+          const RETURN_ANCHOR_LEFT = 8
+          const aIsHigher = rawA.y <= rawB.y
+          const start = e.arrow
+            ? { x: rawA.x - RETURN_ANCHOR_LEFT, y: rawA.y + (aIsHigher ? RETURN_ANCHOR_IN : -RETURN_ANCHOR_IN) }
+            : { x: rawA.x - REVISIT_ANCHOR_LEFT, y: rawA.y + (aIsHigher ? REVISIT_ANCHOR_IN : -REVISIT_ANCHOR_IN) }
+          const end = e.arrow
+            ? { x: rawB.x - RETURN_ANCHOR_LEFT, y: rawB.y + (aIsHigher ? -RETURN_ANCHOR_IN : RETURN_ANCHOR_IN) }
+            : { x: rawB.x - REVISIT_ANCHOR_LEFT, y: rawB.y + (aIsHigher ? -REVISIT_ANCHOR_IN : REVISIT_ANCHOR_IN) }
           const vertRun = Math.abs(end.y - start.y)
           // How far left of the dot column the curve bulges — scales with vertRun so a return
           // spanning a lot of intervening content swings out further to visibly "go around" it,
@@ -257,15 +325,69 @@ export default function TrailConnectorOverlay({
           // covers it.
           // Bumped 85 -> 105 per direct feedback ("shifted to the left a little") — MapView's
           // own EXTRA_BOW_BASE mirrors this constant for its reservation, keep them in sync.
-          const EXTRA_BOW_BASE = 105
-          const extraBow = EXTRA_BOW_BASE + Math.max(0, vertRun - 60) * 0.45
+          // Split by arrow/non-arrow per direct feedback ("the [revisit] arcs are too wide now")
+          // — the revisit-link backlink (no arrowhead, using the virtual-anchor endpoints above)
+          // wants a visibly tighter bow than the branch-return arrow, which keeps its own wider
+          // 105/0.45 LINEAR formula unchanged (not asked to shrink, and it's still doing the
+          // "swing wide enough to visibly go around the intervening content" job it was tuned
+          // for).
+          //
+          // The first pass at the revisit-link's own numbers (base 44, still linear in vertRun)
+          // didn't actually look any narrower for a longer revisit — confirmed from Michael's own
+          // logged geometry: vertRun 202/298/878 → extraBow 75/96/224. A flat base term is a small
+          // fraction of the total once vertRun gets large (base=44 vs. ~193px from the linear
+          // term alone at vertRun=878) — shrinking ONLY the base barely moves the needle for any
+          // revisit spanning real vertical distance, which is exactly what he reported. Switching
+          // the GROWING part from linear-in-vertRun to sqrt(vertRun) (a much shallower curve at
+          // large inputs) plus a hard ceiling fixes all three logged cases at once, not just the
+          // short ones — sqrt(142)≈12, sqrt(238)≈15, sqrt(818)≈29, so even the 878 case's growth
+          // term is only ~3x the 202 case's instead of ~6x under the old linear formula.
+          const REVISIT_BOW_BASE = 30
+          const REVISIT_BOW_SQRT_SCALE = 3
+          const REVISIT_BOW_CAP = 85
+          // Round 7: "the arcs still didn't change at all" turned out to (at least partly) mean
+          // the ARROWED `return:` edges too — round 6's sqrt/cap rework only ever touched the
+          // non-arrow revisit-link edge; `return:` was still running the original, unbounded
+          // LINEAR formula (105 base, 0.45/px), which is exactly why a long-vertical-span return
+          // arc would still balloon out just as far as it always did. Same sub-linear treatment
+          // here, sized up from the revisit-link's own constants (not identical — a return arc is
+          // still meant to read as more prominent, per the "swing wide enough to visibly go
+          // around it" tuning goal that hasn't changed) so the two edge types stay visually
+          // distinct rather than converging on one look.
+          const RETURN_BOW_BASE = 70
+          const RETURN_BOW_SQRT_SCALE = 6
+          const RETURN_BOW_CAP = 180
+          const EXTRA_BOW_BASE = e.arrow ? RETURN_BOW_BASE : REVISIT_BOW_BASE
+          const EXTRA_BOW_SCALE = e.arrow ? RETURN_BOW_SQRT_SCALE : REVISIT_BOW_SQRT_SCALE
+          const extraBowCap = e.arrow ? RETURN_BOW_CAP : REVISIT_BOW_CAP
+          const extraBow = Math.min(extraBowCap, EXTRA_BOW_BASE + EXTRA_BOW_SCALE * Math.sqrt(Math.max(0, vertRun - 60)))
+          // Sanity check against Michael's actual logged vertRun values (all narrower than
+          // before, both edge types):
+          //   revisit-link  vertRun=202 → 30 + 3·√142 ≈ 66   (was 75, old linear)
+          //                 vertRun=298 → 30 + 3·√238 ≈ 76   (was 96)
+          //                 vertRun=878 → 30 + 3·√818 ≈ 116 → capped to 85   (was 224)
+          //   return        vertRun=202 → 70 + 6·√142 ≈ 141  (was 169, old linear)
+          //                 vertRun=298 → 70 + 6·√238 ≈ 163  (was 212)
+          //                 vertRun=878 → 70 + 6·√818 ≈ 242 → capped to 180 (was 473)
           // Floor is a last-resort safety net only — with the new construction above, laneX
           // going small just makes for a narrower (not broken) bulge; nothing here can loop.
           const laneX = Math.max(24, baseLaneX - extraBow)
           d = `M${start.x},${start.y} C${laneX},${start.y} ${laneX},${end.y} ${end.x},${end.y}`
           if (window.__bereanTrailDebug) {
+            // Per direct feedback ("the revisit arc width fix isn't visible at all") — logs
+            // exactly which branch this edge resolved to (arrow vs non-arrow) and the actual
+            // EXTRA_BOW_BASE/SCALE values used, alongside the geometry those values produced, so
+            // it's directly checkable whether: (a) this code path is even being hit for the edge
+            // in question, (b) `edgeType`/`arrow` classifies it the way it's expected to
+            // (`revisit-link:` should show arrow:false/edgeType containing "revisit-link", the
+            // narrow 44/0.22 constants; `return:` should show arrow:true, the wide 105/0.45
+            // ones), and (c) the resulting extraBow/laneX actually reflects that — every field
+            // needed to settle "is my fix even running" without guessing.
             const summary = {
               key: e.key,
+              edgeType: e.key.split(':')[0],
+              arrow: !!e.arrow,
+              extraBowBase: EXTRA_BOW_BASE, extraBowScale: EXTRA_BOW_SCALE,
               gutterRightEdge: Math.round(gutterRightEdge), baseLaneX: Math.round(baseLaneX),
               vertRun: Math.round(vertRun), extraBow: Math.round(extraBow), laneX: Math.round(laneX),
               clampedToFloor: laneX === 24,

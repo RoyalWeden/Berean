@@ -30,6 +30,18 @@ export function gapSegmentHeight(gapMs: number): number {
 // every few-minute gap would make the trail chatty rather than legible.
 export const GAP_CHIP_THRESHOLD_MS = 20 * 60_000
 
+// Fixed "revisit within" window — a chapter re-arrival inside this span of real elapsed time
+// still renders as a REVISIT (dashed backlink + badge) rather than a fresh independent bullet;
+// past it, it reads as an unrelated new visit. Used to be a user-facing slider (1h–168h) in
+// StudyTrailApp.tsx's title bar; per direct feedback that control was useless UI and got
+// removed outright, with this constant taking over as the always-on default. 24h was the
+// slider's own previous default (a same-day return still reads as "revisiting," a return after
+// several days usually doesn't) — carried forward unchanged rather than picked fresh, since it
+// was already tuned to the intended behavior, just via a control nobody needed to touch. Never
+// persisted to settings.json (the slider's value lived in local component state only), so there
+// is no old on-disk value to migrate away from.
+export const DEFAULT_REVISIT_WINDOW_MS = 24 * 3_600_000
+
 export function formatGap(gapMs: number): string {
   const minutes = gapMs / 60_000
   if (minutes < 60) return `${Math.round(minutes)}m`

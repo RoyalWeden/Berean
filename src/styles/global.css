@@ -1953,3 +1953,14 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
 .trail-ctx-btn:focus-visible {
   background: rgb(var(--color-surface-3)) !important;
 }
+
+/* Same idea, for the ACCENT-filled buttons in Study Trail's note/reason forms (Save, in
+   TrailReasonFormBody — ReasonPromptPopover.tsx, shared by the full popup and the arrival-prompt
+   toast) — those buttons already have a solid accent background, so overlaying the plain
+   surface-3 tint `.trail-ctx-btn` uses would barely read against it. A slight brightness dip
+   gives the same "something is about to happen" feedback without fighting the button's own
+   color. Per direct feedback: "toast buttons have no hover highlight." */
+.trail-btn-accent:hover,
+.trail-btn-accent:focus-visible {
+  filter: brightness(0.9);
+}

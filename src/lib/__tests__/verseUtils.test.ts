@@ -331,6 +331,50 @@ describe('mapDisplayOffsetToOriginal', () => {
     expect(r).toBeGreaterThanOrEqual(0)
     expect(r).toBeLessThanOrEqual('aaaa bbbb'.length)
   })
+
+  // ── Cosmetic drift (text_tagged reconstruction vs verse.text): no real word-replacer
+  // substitution here at all — these are the exact classes of data noise found in real
+  // Revelation verses (dropped/extra comma, curly vs straight apostrophe, trailing
+  // whitespace). Before hardening, any of these alone was enough to fail the `===` fast
+  // path and fall into the word-level LCS, where a punctuation- or quote-attached word
+  // like "void," / "Lamb’s" simply didn't match its cosmetic twin and could misplace the
+  // highlight or (via the caller's startChar<0 guard) suppress the toolbar outright.
+
+  it('CASE: missing comma (data drift, not a replacement) — words after it still land exactly', () => {
+    const orig = 'without form, and void'
+    const disp = 'without form and void' // text_tagged reconstruction dropped the comma
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('and'))).toBe(orig.indexOf('and'))
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.length)).toBe(orig.length)
+  })
+
+  it('CASE: curly vs straight apostrophe — the affected word itself still maps exactly', () => {
+    const orig = 'the Lamb’s wife' // curly ’
+    const disp = "the Lamb's wife"      // straight '
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf("Lamb's"))).toBe(orig.indexOf('Lamb’s'))
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('wife'))).toBe(orig.indexOf('wife'))
+  })
+
+  it('CASE: trailing whitespace only — offsets inside the shared text still map exactly', () => {
+    const orig = 'Amen. '
+    const disp = 'Amen.'
+    expect(mapDisplayOffsetToOriginal(disp, orig, 0)).toBe(0)
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.length)).toBe(5) // not orig.length (6) — no trailing space in disp to map onto
+  })
+
+  it('CASE: doubled internal whitespace — words after it still land exactly', () => {
+    const orig = 'grace  and truth' // accidental double space in source data
+    const disp = 'grace and truth'
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('truth'))).toBe(orig.indexOf('truth'))
+  })
+
+  it('CASE: cosmetic drift combined with a real replacement still resolves the replaced word via LCS fallback', () => {
+    // "void" vs "void," is cosmetic (comma dropped); "LORD" vs "Yehovah" is a real replacement.
+    // The whole-string cosmetic check must NOT fire here (content genuinely differs), so this
+    // exercises the word-level LCS path — normalizeWordForAlign must still match "void,"/"void".
+    const orig = 'without form, and void; the LORD moved'
+    const disp = 'without form and void; the Yehovah moved'
+    expect(mapDisplayOffsetToOriginal(disp, orig, disp.indexOf('moved'))).toBe(orig.indexOf('moved'))
+  })
 })
 
 // ─── mapOriginalOffsetToDisplay (inverse — used to paint stored highlights) ─────
@@ -371,6 +415,23 @@ describe('mapOriginalOffsetToDisplay', () => {
   it('clamps out-of-range offsets', () => {
     expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', -1)).toBe(0)
     expect(mapOriginalOffsetToDisplay('Yehovah', 'LORD', 99)).toBe('Yehovah'.length)
+  })
+
+  // ── Cosmetic drift, inverse direction — painting a highlight (stored against verse.text)
+  // onto display text that differs only by data-formatting noise, no real replacement.
+
+  it('CASE: missing comma (data drift) — a highlight after the gap still paints on the exact word', () => {
+    const orig = 'without form, and void'
+    const disp = 'without form and void'
+    expect(mapOriginalOffsetToDisplay(disp, orig, orig.indexOf('and'))).toBe(disp.indexOf('and'))
+  })
+
+  it('CASE: curly vs straight apostrophe — round-trips exactly', () => {
+    const orig = 'the Lamb’s wife'
+    const disp = "the Lamb's wife"
+    const dPos = disp.indexOf("Lamb's")
+    const oPos = mapDisplayOffsetToOriginal(disp, orig, dPos)
+    expect(mapOriginalOffsetToDisplay(disp, orig, oPos)).toBe(dPos)
   })
 })
 

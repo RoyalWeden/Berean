@@ -165,6 +165,14 @@ function charOffsetInVerse(node: Node, offset: number, containerEl: HTMLElement)
 // Cap how many items a hover popup shows so it never grows unmanageably tall.
 const MAX_HOVER_ITEMS = 8
 
+// ── TEMP DIAGNOSTIC ──────────────────────────────────────────────────────────────
+// Set to true to log every text-selection's offset computation to the console (prefixed
+// "[berean-highlight-debug]"), for confirming the Revelation/Recognitions-of-Clement
+// highlight-mapping investigation live. See the console.log call in handleVerseMouseUp
+// below. Flip back to false — or delete this const and that block — once confirmed;
+// this is not meant to ship on.
+const HIGHLIGHT_OFFSET_DEBUG = true
+
 /**
  * Decide whether a hover popup should open above or below its trigger, and return the
  * y anchor. `estItemPx` is the approximate height of a single row. Popup is capped to
@@ -647,6 +655,23 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     const startChar = rawStart < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawStart)
     const endChar = rawEnd < 0 ? -1 : mapDisplayOffsetToOriginal(dispText, verse.text, rawEnd)
 
+    // ── TEMP DIAGNOSTIC — Revelation/Recognitions-of-Clement highlight investigation ──
+    // Flip HIGHLIGHT_OFFSET_DEBUG to false (or delete this block) once the repro is confirmed;
+    // not meant to ship. Logs every mouseup's offset computation so a live repro can show
+    // whether dispText/verse.text actually diverge on the verse where highlighting fails.
+    if (HIGHLIGHT_OFFSET_DEBUG) {
+      // eslint-disable-next-line no-console
+      console.log('[berean-highlight-debug]', {
+        ref: `${verse.book_id} ${verse.chapter}:${verse.verse_num}`,
+        textId,
+        dispText,
+        verseText: verse.text,
+        matches: dispText === verse.text,
+        rawStart, rawEnd, startChar, endChar,
+        toolbarSuppressed: startChar < 0 || endChar <= startChar,
+      })
+    }
+
     if (startChar < 0 || endChar <= startChar) {
       setSelToolbar(null)
       return
@@ -678,7 +703,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     menuY = Math.max(pad, Math.min(menuY, vh - MENU_H_INIT - pad))
 
     setSelToolbar({ x: menuX, y: menuY, startChar, endChar })
-  }, [])
+    // `verse.text` is read directly above (not via a ref) to compute startChar/endChar, so
+    // it MUST be a dep: an empty deps array here previously froze this closure to whichever
+    // verse was mounted first and never picked up a later verse.text for the same VerseRow
+    // instance (React reuses instances across chapter navigation when the row's key is just
+    // the verse number — see ChapterView.tsx) — every highlight/selection after that point
+    // silently mapped offsets against the WRONG chapter's text via mapDisplayOffsetToOriginal's
+    // unrelated-text alignment path, producing bogus ranges or (via the startChar<0 guard
+    // above) no toolbar at all. This callback is only ever used as this row's own onMouseUp,
+    // not handed to a memoized child, so recreating it when verse.text changes is free.
+  }, [verse.text])
 
   // After the selection toolbar renders, measure its actual size and clamp all four edges.
   // useLayoutEffect runs before the browser paints, so there is no visible flicker.

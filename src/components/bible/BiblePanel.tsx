@@ -494,7 +494,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSpace, activeTabId, continuousChapterScroll])
 
-  // Cancel any pending debounced scroll save when the tab changes.
+  // Cancel any pending debounced scroll save when the tab changes — and also when the
+  // chapter/book changes within the same tab. Without the latter, a scroll-triggered save
+  // queued just before navigate() (e.g. nextChapter/prevChapter fired within 150ms of the
+  // last scroll) still lands afterward with the OLD chapter's scrollTop, clobbering the
+  // scrollPosition:0 that navigate() had just written for the NEW chapter — so the next
+  // time this tab is restored, the new chapter opens at the previous chapter's offset.
   // The actual save now happens via berean:saveScrollBeforeTabChange (fired synchronously
   // from the Sidebar before activateTab, so the DOM still holds the old position).
   useEffect(() => {
@@ -504,7 +509,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         scrollSaveTimerRef.current = null
       }
     }
-  }, [activeTabId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTabId, tabState.bookId, tabState.chapter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Presenter visible-region outline ─────────────────────────────────────────
   // Subscribe to the presenter's visible fraction (changes only on its load/zoom/resize).
@@ -2905,6 +2910,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             ))
           : (
               <ChapterView
+                // Without a key here, this instance survives chapter navigation (only
+                // tabState.chapter changes), so React reuses the same VerseRow fibers by
+                // verse_num across chapters — exposing stale-closure bugs like VerseRow's
+                // handleVerseMouseUp (useCallback([]) capturing the FIRST-mounted verse.text
+                // forever). The sibling ChapterView instances above (line ~2888) and inside
+                // ContinuousChapterScroll.tsx already key by book+chapter; this was the one
+                // path that didn't, since it's the "plain single chapter" case.
+                key={`${tabState.bookId}-${tabState.chapter}`}
                 bookId={tabState.bookId}
                 chapter={tabState.chapter}
                 showStrongs={tabState.showStrongs}
