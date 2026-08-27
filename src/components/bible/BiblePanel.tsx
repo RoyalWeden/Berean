@@ -108,6 +108,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Last region actually applied — lets onViewerVisibleRegion below skip redundant reports.
   const lastViewerRegionRef = useRef<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
+  // Bounded retry when a recompute lands in the transient window right after a tab switch where
+  // the new chapter's verses aren't in the DOM yet — measuring then gives an empty result, and
+  // nulling the band on that would hide the outline until the next real scroll event ("shows for
+  // a second then goes away until I scroll"). Instead we keep the current band and try again a
+  // few frames later. Reset to 0 on any successful measurement.
+  const bandRetryRef = useRef(0)
+  const bandRetryRafRef = useRef(0)
   const laserRAFRef = useRef<number | null>(null)
   const selectionRAFRef = useRef<number | null>(null)
   const lastSelectionSentRef = useRef(false)
@@ -372,6 +379,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     setViewerVisibleRegion(null)
     setPresenterBand(null)
     lastViewerRegionRef.current = null
+    bandRetryRef.current = 0
+    cancelAnimationFrame(bandRetryRafRef.current)
     findCenterVerseRef.current = null
     findScrollSuppressRef.current = 0
     virtualScrollPctRef.current = 0
@@ -580,6 +589,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const bottom = r.bottom - cTop + c.scrollTop
       if (bottom > contentBottom) contentBottom = bottom
     }
+    // Transient post-tab-switch window: region is valid for THIS chapter but the chapter's
+    // verse nodes haven't mounted yet. Don't null the band on this — hold what's there and
+    // retry, so the outline doesn't blink out until the next manual scroll.
+    if (Object.keys(tops).length === 0 || contentBottom <= 0) {
+      if (bandRetryRef.current < 12) {
+        bandRetryRef.current += 1
+        cancelAnimationFrame(bandRetryRafRef.current)
+        bandRetryRafRef.current = requestAnimationFrame(() => computePresenterBandRef.current())
+        return
+      }
+      setPresenterBand(null)
+      return
+    }
+    bandRetryRef.current = 0
     // Use content height (last verse bottom), matching the presenter's reporting, so the band
     // doesn't extend into the empty space below the last verse on short chapters. Shared
     // measureContentHeight helper (not a locally re-typed "+ 4") so this can't independently
