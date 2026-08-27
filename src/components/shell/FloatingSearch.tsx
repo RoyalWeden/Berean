@@ -577,6 +577,13 @@ export default function FloatingSearch() {
       // state update applied to a tab the user wasn't looking at — the visible tab never
       // scrolled anywhere.
       activateTab(targetTab)
+      // Land at the top of the opened chapter — a no-verse reference jump into the SAME
+      // chapter the tab is already scrolled into wouldn't otherwise move (BiblePanel's
+      // chapter-keyed scroll reset only fires on a real book/chapter change). A verse jump
+      // owns its own scroll, so skip it there.
+      if (targetVerse == null) {
+        requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('berean:scriptureScrollToTop')))
+      }
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
       const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`

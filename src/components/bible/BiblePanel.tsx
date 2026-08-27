@@ -875,6 +875,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
   }, [])
 
+  // Cmd+L / Cmd+T reference jump: land at the TOP of whatever chapter was opened, per direct
+  // feedback ("if doing cmd+l or cmd+t, make sure to start at the top of the chapter"). The
+  // chapter-keyed reset effect above only fires when book/chapter actually changed, so a jump
+  // to the SAME chapter the tab is already scrolled into would otherwise leave the old offset
+  // in place. FloatingSearch fires this right after updating the tab (no targetVerse case only
+  // — a verse jump owns its own scroll).
+  useEffect(() => {
+    function onScrollTop() {
+      const el = getScrollEl()
+      if (el) el.scrollTop = 0
+      pendingScrollRef.current = null
+      virtualScrollPctRef.current = 0
+      lastMainScrollTopRef.current = 0
+    }
+    window.addEventListener('berean:scriptureScrollToTop', onScrollTop)
+    return () => window.removeEventListener('berean:scriptureScrollToTop', onScrollTop)
+  }, [])
+
   // Switch the active text. A switch within the SAME edition (e.g. Hermas Roberts-Donaldson
   // ↔ Charles Taylor) keeps the book/chapter/verse; a switch to a DIFFERENT edition keeps the
   // current book if the target has it, otherwise navigates to the target's first book.
