@@ -1964,3 +1964,16 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
 .trail-btn-accent:focus-visible {
   filter: brightness(0.9);
 }
+
+/* Sidebar's "new tab per space" tiles + the search / location bar (and its "+" button) all
+   sit on `--color-surface-4` at rest. Their previous `hover:bg-[rgb(var(--color-accent))/NN]`
+   Tailwind arbitrary-opacity utilities barely shifted the colour — the hover read as "not
+   being hovered" (direct feedback). A solid accent-mixed fill is unmistakable and stays
+   theme-correct across every preset. */
+.sidebar-new-btn {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.sidebar-new-btn:hover {
+  background-color: color-mix(in srgb, rgb(var(--color-accent)) 45%, rgb(var(--color-surface-4)));
+  color: rgb(var(--color-text-primary));
+}

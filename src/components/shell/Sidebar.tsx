@@ -629,7 +629,7 @@ export default function Sidebar() {
             {/* Location bar — shows breadcrumb, click to search in current tab */}
             <button
               onClick={() => openSearch('current')}
-              className="flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-accent))/35] hover:text-[rgb(var(--color-text-primary))] text-left transition-colors cursor-pointer min-w-0"
+              className="sidebar-new-btn flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-left cursor-pointer min-w-0"
             >
               <Search size={14} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
               {tabTitle ? (
@@ -659,7 +659,7 @@ export default function Sidebar() {
               <Tooltip.Trigger asChild>
                 <button
                   onClick={() => openSearch('new')}
-                  className="p-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] hover:bg-[rgb(var(--color-accent))/40] hover:text-[rgb(var(--color-accent))] text-[rgb(var(--color-text-muted))] transition-colors cursor-pointer flex-shrink-0"
+                  className="sidebar-new-btn p-1.5 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer flex-shrink-0"
                 >
                   <Plus size={14} />
                 </button>
@@ -686,7 +686,7 @@ export default function Sidebar() {
               <Tooltip.Trigger asChild>
                 <button
                   onClick={() => createTab(type)}
-                  className="no-drag group relative flex-1 flex items-center justify-center aspect-square max-h-9 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/40] transition-colors cursor-pointer overflow-hidden"
+                  className="sidebar-new-btn no-drag group relative flex-1 flex items-center justify-center aspect-square max-h-9 rounded-shell bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] cursor-pointer overflow-hidden"
                 >
                   <Icon size={15} className="transition-opacity group-hover:opacity-0" />
                   <Plus size={15} className="absolute opacity-0 group-hover:opacity-100 transition-opacity" />
