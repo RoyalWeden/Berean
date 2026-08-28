@@ -122,6 +122,54 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.9] - 2026-08-27
+
+Study Trail
+
+- Berean no longer starts an "Untitled study" session on its own. Chapters
+  you visit without having started a session of your own now appear in the
+  Everything timeline under a "Loose stops" divider, so a session only ever
+  exists because you made one — and a new session only captures the chapters
+  you visit from the moment you start it.
+- Added drag-select: drag a box over the timeline to select several chapter
+  stops at once, then move them to another session (or a brand-new one) or
+  delete them. Shift or Cmd click adds individual stops, and the timeline
+  scrolls on its own while you drag near the top or bottom edge.
+- The timeline filter box now sits next to the session name instead of
+  taking up its own strip across the top.
+- With the "ask why you jumped" prompt turned off, the small pop-up in the
+  corner now saves your note automatically — no Save, Delete, or "Not now"
+  buttons, no per-line remove buttons (clear a line and click away to drop
+  it), and the "Why'd you go to…?" question stays visible while you type.
+- The timeline no longer scrolls far past its own left edge into empty
+  space. The spine rests near the left with everything flowing to the
+  right, and re-centres itself when you zoom or come back to the tab if it
+  was centred before.
+
+Scripture reading
+
+- The presenter-view outline no longer appears for a second and then
+  vanishes after you switch to a different chapter while presenting.
+- Jumping to a reference with Cmd+L or Cmd+T now lands at the top of the
+  chapter instead of keeping the previous scroll position.
+
+Tabs and navigation
+
+- Fixed the Advanced Search tab title flickering back to the old search
+  text right after you opened a chapter from it, and fixed the back button
+  then jumping to Genesis 1 instead of returning to the search results.
+- Back and forward (Cmd+[ and Cmd+]) now return you to where you were
+  scrolled in each chapter, not the top.
+- The floating search bar and Settings now sit in front of the presenter
+  controls and the Study Trail pop-ups instead of behind them.
+
+Interface
+
+- The new-tab buttons, the search bar, and the session switcher in the
+  sidebar now show a clear highlight on hover, matching the tabs.
+
+---
+
 ## [0.5.8] - 2026-08-27
 
 Study Trail

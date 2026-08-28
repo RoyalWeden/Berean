@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
-import { useStudyTrailStore, installStudyTrailStateSync } from '@/store/studyTrailSlice'
+import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import MapView, { ZOOM_MIN, ZOOM_MAX } from './MapView'
@@ -52,6 +52,10 @@ export default function StudyTrailApp() {
   // Owned here (not inside MapView) so it applies consistently in a floating pill whether
   // you're looking at one session's Map or the merged Everything timeline.
   const [zoom, setZoom] = useState(1)
+  // Timeline filter, hosted here beside the session name (per direct feedback) rather than as
+  // its own strip inside MapView. Cleared whenever the selected session changes.
+  const [trailFilter, setTrailFilter] = useState('')
+  useEffect(() => { setTrailFilter('') }, [selectedId])
   const ZOOM_STEP = 0.1
   // Auto-select whatever session is actually live/paused the FIRST time we learn about it —
   // otherwise reopening the window always lands on "Everything" by default, which looked
@@ -144,7 +148,9 @@ export default function StudyTrailApp() {
 
   useEffect(() => {
     if (autoSelectedRef.current) return
-    if (currentTrailSessionId) {
+    // The implicit loose bucket is never individually selectable — when it's the recording
+    // target (no user session), the window stays on the Everything timeline by default.
+    if (currentTrailSessionId && currentTrailSessionId !== LOOSE_SESSION_ID) {
       autoSelectedRef.current = true
       setSelectedId(currentTrailSessionId)
       setMainTab('map')
@@ -604,12 +610,24 @@ export default function StudyTrailApp() {
                   }}
                 />
               ) : (
-                <h2
-                  onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
-                  onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
-                  title="Double-click or right-click to rename"
-                  style={{ margin: '0 0 4px', fontSize: 17, cursor: 'text', flexShrink: 0 }}
-                >{detail.session.name}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px', flexShrink: 0 }}>
+                  <h2
+                    onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
+                    onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
+                    title="Double-click or right-click to rename"
+                    style={{ margin: 0, fontSize: 17, cursor: 'text', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >{detail.session.name}</h2>
+                  <input
+                    value={trailFilter}
+                    onChange={(e) => setTrailFilter(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
+                    placeholder="Filter timeline…"
+                    style={{
+                      width: 200, flexShrink: 0, fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
+                      border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+                    }}
+                  />
+                </div>
               )}
               <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 16, flexShrink: 0 }}>
                 {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
@@ -621,6 +639,8 @@ export default function StudyTrailApp() {
                   zoom={zoom}
                   onZoomChange={setZoom}
                   revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS}
+                  filterValue={trailFilter}
+                  onFilterChange={setTrailFilter}
                 />
               </div>
             </>

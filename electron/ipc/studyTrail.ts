@@ -3,6 +3,15 @@ import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
 
+// The implicit "Loose stops" bucket — where navigation is recorded when the user has NOT
+// created a session of their own. Per direct feedback: "i don't want an untitled study session
+// created if i didn't create one... only i can create a session... if the user continues to
+// study, then these things are just put in everything". This row exists so recording never
+// silently drops, but it is filtered OUT of listSessions (so it never appears in the session
+// rail) and only surfaces in the merged Everything timeline. Kept in sync with the same
+// constant in src/store/studyTrailSlice.ts.
+export const LOOSE_SESSION_ID = '__loose_stops__'
+
 // Push-based live update — per direct feedback ("make sure that the study trail auto updates
 // as i am studying... want it faster / near-instant"), every window gets told IMMEDIATELY
 // whenever a node/connection/session is written, instead of relying solely on the Study Trail
@@ -203,8 +212,34 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('studyTrail:listSessions', () => {
-    const rows = getBereanDb().prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC').all() as TrailSessionRow[]
+    // Excludes the implicit "Loose stops" bucket — it must never show in the session rail.
+    const rows = getBereanDb().prepare('SELECT * FROM trail_sessions WHERE id != ? ORDER BY updated_at DESC').all(LOOSE_SESSION_ID) as TrailSessionRow[]
     return rows.map(rowToSession)
+  })
+
+  // Every session INCLUDING the loose bucket — for the merged Everything timeline only. The
+  // loose bucket is returned only when it actually holds stops, so an empty bucket never adds
+  // a "Loose stops" divider to Everything for nothing.
+  ipcMain.handle('studyTrail:listAllSessions', () => {
+    const db = getBereanDb()
+    const rows = db.prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC').all() as TrailSessionRow[]
+    const looseHasNodes = (db.prepare('SELECT COUNT(*) as n FROM trail_nodes WHERE trail_session_id = ?').get(LOOSE_SESSION_ID) as { n: number }).n > 0
+    return rows.filter((r) => r.id !== LOOSE_SESSION_ID || looseHasNodes).map(rowToSession)
+  })
+
+  // Create (or re-activate) the implicit loose bucket and return it. Idempotent — called by the
+  // renderer's ensureLiveSession() whenever navigation happens with no user session live.
+  ipcMain.handle('studyTrail:ensureLooseSession', () => {
+    const db = getBereanDb()
+    const now = Date.now()
+    const existing = db.prepare('SELECT * FROM trail_sessions WHERE id = ?').get(LOOSE_SESSION_ID) as TrailSessionRow | undefined
+    if (!existing) {
+      prep(db, `INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, 'Loose stops', 'live', ?, ?)`)
+        .run(LOOSE_SESSION_ID, now, now)
+    } else if (existing.status !== 'live') {
+      prep(db, `UPDATE trail_sessions SET status = 'live', updated_at = ? WHERE id = ?`).run(now, LOOSE_SESSION_ID)
+    }
+    return rowToSession(db.prepare('SELECT * FROM trail_sessions WHERE id = ?').get(LOOSE_SESSION_ID) as TrailSessionRow)
   })
 
   ipcMain.handle('studyTrail:getSession', (_e, trailSessionId: string) => {
@@ -364,6 +399,40 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       prep(db, 'DELETE FROM trail_nodes WHERE id = ?').run(id)
     })
     delNode(nodeId)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  // Reassign nodes (and every connection hanging off them, including chained descendants) to a
+  // different session — the "change the session of the selection" half of the Study Trail
+  // marquee-select feature. Target may be the implicit loose bucket. order_index is set from
+  // each node's own anchor_started_at so it slots into the target session chronologically.
+  ipcMain.handle('studyTrail:moveNodes', (_e, nodeIds: string[], targetSessionId: string) => {
+    const db = getBereanDb()
+    const move = db.transaction((ids: string[], target: string) => {
+      if (ids.length === 0) return
+      // Collect all connection ids reachable from these nodes (direct + chained).
+      const idPlaceholders = ids.map(() => '?').join(',')
+      const directConnIds = (prep(db, `SELECT id FROM trail_connections WHERE from_node_id IN (${idPlaceholders})`).all(...ids) as Array<{ id: string }>).map((r) => r.id)
+      let frontier = directConnIds
+      const allConnIds = new Set(directConnIds)
+      while (frontier.length > 0) {
+        const ph = frontier.map(() => '?').join(',')
+        const next = (prep(db, `SELECT id FROM trail_connections WHERE from_connection_id IN (${ph})`).all(...frontier) as Array<{ id: string }>)
+          .map((r) => r.id).filter((cid) => !allConnIds.has(cid))
+        next.forEach((cid) => allConnIds.add(cid))
+        frontier = next
+      }
+      for (const id of ids) {
+        prep(db, 'UPDATE trail_nodes SET trail_session_id = ?, order_index = COALESCE(anchor_started_at, order_index) WHERE id = ?').run(target, id)
+      }
+      if (allConnIds.size > 0) {
+        const ph = [...allConnIds].map(() => '?').join(',')
+        prep(db, `UPDATE trail_connections SET trail_session_id = ? WHERE id IN (${ph})`).run(target, ...allConnIds)
+      }
+      prep(db, `UPDATE trail_sessions SET updated_at = ? WHERE id = ?`).run(Date.now(), target)
+    })
+    move(nodeIds, targetSessionId)
     broadcastDataChanged()
     return { success: true }
   })

@@ -146,6 +146,26 @@ const TYPE_TO_SPACE: Record<TabType, SpaceId> = {
 // fresh — exactly right, since a restored tab's state IS a real prior position).
 const freshlyCreatedBibleTabIds = new Set<string>()
 
+/** Writes `scrollPosition` onto a tab's CURRENT (top) nav-stack entry — used to remember where
+ *  the reader was before navigation moves away, so Cmd+[ / Cmd+] can restore it. No-op if the
+ *  tab has no stack yet or the scroll is undefined/0. */
+function stampNavEntryScroll(get: () => AppState, tabId: string, scrollPosition: number | undefined): void {
+  if (!scrollPosition || scrollPosition <= 0) return
+  const cur = get().tabNavStacks[tabId]
+  if (!cur || cur.idx < 0 || !cur.stack[cur.idx]) return
+  cur.stack[cur.idx] = { ...cur.stack[cur.idx], scrollPosition }
+}
+
+/** Flush the live panel scroll into tab state (synchronous, via the same event tab-switch uses),
+ *  then stamp it onto the tab's current nav-stack entry — so Cmd+[ / Cmd+] can return to it. */
+function captureActiveScrollIntoNavEntry(get: () => AppState, tabId: string, spaceId: SpaceId): void {
+  if (spaceId !== 'scripture') return
+  try { window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange')) } catch { /* no window (tests) */ }
+  const tab = get().tabs[spaceId]?.find((t) => t.id === tabId)
+  const sp = (tab?.state as { scrollPosition?: number } | undefined)?.scrollPosition
+  stampNavEntryScroll(get, tabId, sp)
+}
+
 export interface AppState {
   // Navigation
   activeSpace: SpaceId
@@ -1222,6 +1242,8 @@ export const useAppStore = create<AppState>()(
         const stackType = tabStack.stack[0]?.type
         const supportsHome = stackType === 'note' || stackType === 'lexicon' || stackType === 'youtube'
         if (tabStack.idx <= (supportsHome ? -1 : 0)) return
+        // Remember where the reader is in the entry we're leaving, so Cmd+] forward restores it.
+        captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx - 1
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
         if (newIdx === -1) {
@@ -1244,7 +1266,7 @@ export const useAppStore = create<AppState>()(
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: 0, targetVerse: undefined, searchMode: false,
+            scrollPosition: entry.scrollPosition ?? 0, targetVerse: undefined, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -1264,6 +1286,7 @@ export const useAppStore = create<AppState>()(
         if (!activeTabId) return
         const tabStack = s.tabNavStacks[activeTabId]
         if (!tabStack || tabStack.idx >= tabStack.stack.length - 1) return
+        captureActiveScrollIntoNavEntry(get, activeTabId, s.activeSpace)
         const newIdx = tabStack.idx + 1
         const entry = tabStack.stack[newIdx]
         set({ isNavJumping: true, tabNavStacks: { ...s.tabNavStacks, [activeTabId]: { ...tabStack, idx: newIdx } } })
@@ -1276,7 +1299,7 @@ export const useAppStore = create<AppState>()(
           get().updateTabState(s.activeSpace, activeTabId, {
             bookId: entry.bookId, chapter: entry.chapter ?? 1,
             ...(entry.translation ? { translation: entry.translation } : {}),
-            scrollPosition: 0, targetVerse: undefined, searchMode: false,
+            scrollPosition: entry.scrollPosition ?? 0, targetVerse: undefined, searchMode: false,
           })
         } else if (entry.strongsNum) {
           set({ pendingLexiconEntry: entry.strongsNum })
@@ -2015,6 +2038,10 @@ export const useAppStore = create<AppState>()(
                   }
                 }
                 freshlyCreatedBibleTabIds.delete(tabId)
+                // Stamp the entry we're leaving with the scroll offset the panel was last at,
+                // so Cmd+[ back to it returns to where the user was reading. cur.scrollPosition
+                // is the pre-navigation value (this runs before newState is merged below).
+                stampNavEntryScroll(get, tabId, cur.scrollPosition as number | undefined)
                 get().pushTabNav(tabId, {
                   type: 'bible', title: `${bookName(newBookId)} ${newChapter}`,
                   bookId: newBookId, chapter: newChapter, translation: newTranslation,

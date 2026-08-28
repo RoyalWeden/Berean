@@ -70,6 +70,8 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
   const [hovering, setHovering] = useState(false)
   const [touched, setTouched] = useState(false)
   const expanded = touched || hovering
+  // Sit behind the floating search / settings modal (z-50) while one is open.
+  const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
   // Icon-first collapsed state — per direct feedback ("icon-first with text-on-demand: show just
   // an icon + short reference at rest, explanatory text/buttons only once expanded"). Falls back
   // to the plain CTA text on the rare non-chapter connection (a Strong's/video/note destination)
@@ -82,7 +84,7 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', right: 16, bottom: 16, zIndex: 200, width: PILL_WIDTH,
+        position: 'fixed', right: 16, bottom: 16, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
         background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
         borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', overflow: 'hidden',
       }}
@@ -112,25 +114,34 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
         transition: 'max-height 160ms ease, opacity 130ms ease',
         padding: expanded ? '8px 10px 10px' : '0 10px', fontSize: 11,
       }}>
+        {/* Header when expanded — keeps the "Why'd you go to …?" question visible at the top of
+            the hover form (per direct feedback), with the dismiss × on the same row. Inline
+            (not an absolute ×) so it never overlaps the note box and both tie columns keep the
+            full uniform width. */}
         {expanded && (
-          <button
-            className="trail-ctx-btn"
-            onClick={onClose}
-            title="Dismiss"
-            style={{
-              position: 'absolute', top: 6, right: 6, background: 'transparent', border: 'none', borderRadius: 6,
-              color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', zIndex: 1,
-            }}
-          ><X size={11} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <MessageSquarePlus size={12} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-secondary))' }}>
+              {shortRef ? `Why'd you go to ${shortRef}?` : "Why'd you go here?"}
+            </span>
+            <button
+              className="trail-ctx-btn"
+              onClick={onClose}
+              title="Dismiss"
+              style={{
+                background: 'transparent', border: 'none', borderRadius: 6,
+                color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0,
+              }}
+            ><X size={11} /></button>
+          </div>
         )}
-        <div style={{ paddingRight: 16 }}>
-          <TrailReasonFormBody
-            connection={conn}
-            onClose={onClose}
-            onSaved={onClose}
-            onFieldTouched={() => setTouched(true)}
-          />
-        </div>
+        <TrailReasonFormBody
+          connection={conn}
+          onClose={onClose}
+          onSaved={onClose}
+          onFieldTouched={() => setTouched(true)}
+          autoSave
+        />
       </div>
     </div>,
     document.body

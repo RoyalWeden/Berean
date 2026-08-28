@@ -547,6 +547,18 @@ export default function FloatingSearch() {
       : undefined
 
     if (targetTab) {
+      // If this tab was showing Advanced Search, record the search itself as a nav-stack
+      // entry BEFORE leaving it, so Cmd+[ (navTabBack) returns to those results (query
+      // restored) instead of skipping past to whatever chapter was open before the search
+      // (previously it fell back to the tab's GEN/1 seed — "back went to Genesis 1").
+      const leavingSearch = (targetTab.state as { searchMode?: boolean; scriptureSearchQuery?: string })
+      if (leavingSearch.searchMode && leavingSearch.scriptureSearchQuery) {
+        useAppStore.getState().pushTabNav(targetTab.id, {
+          type: 'bible',
+          title: `Search: "${leavingSearch.scriptureSearchQuery}"`,
+          query: leavingSearch.scriptureSearchQuery,
+        })
+      }
       // Navigating to a verse exits the advanced-search view if the tab was in it.
       // Field set mirrors BiblePanel.tsx's own onNavigate (the prop ScriptureSearchView's
       // Enter/click uses, which scrolls to the verse correctly) exactly — this one used to
@@ -565,6 +577,13 @@ export default function FloatingSearch() {
       // state update applied to a tab the user wasn't looking at — the visible tab never
       // scrolled anywhere.
       activateTab(targetTab)
+      // Land at the top of the opened chapter — a no-verse reference jump into the SAME
+      // chapter the tab is already scrolled into wouldn't otherwise move (BiblePanel's
+      // chapter-keyed scroll reset only fires on a real book/chapter change). A verse jump
+      // owns its own scroll, so skip it there.
+      if (targetVerse == null) {
+        requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('berean:scriptureScrollToTop')))
+      }
     } else {
       // 'new' mode, or 'current' mode with no existing bible tab
       const id = `bible-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`

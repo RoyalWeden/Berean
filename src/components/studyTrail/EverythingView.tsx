@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
+import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import MapView from './MapView'
 
 // The default landing view — everything recorded across EVERY session, with no session
@@ -28,11 +29,18 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   revisitWindowMs?: number
 }) {
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
+  const [allSessions, setAllSessions] = useState<TrailSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('')
 
   async function loadAll(showLoading: boolean) {
     if (showLoading) setLoading(true)
-    const rows = await Promise.all(sessions.map((s) => window.studyTrail.getSession(s.id)))
+    // listAllSessions (not the `sessions` prop) so the implicit "Loose stops" bucket — every
+    // stop recorded while the user had no session of their own — is merged into the timeline
+    // too. It's filtered out of the session rail, so it only ever appears here.
+    const all = await window.studyTrail.listAllSessions().catch(() => [] as TrailSession[])
+    setAllSessions(all)
+    const rows = await Promise.all(all.map((s) => window.studyTrail.getSession(s.id)))
     setDetails(rows.filter((r): r is TrailSessionDetail => !!r))
     if (showLoading) setLoading(false)
   }
@@ -66,14 +74,18 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   const mergedNodes: TrailNode[] = details.flatMap((d) => d.nodes).sort((a, b) => a.anchorStartedAt - b.anchorStartedAt)
   const mergedConnections = details.flatMap((d) => d.connections)
   const mergedPausedIntervals = details.flatMap((d) => d.pausedIntervals)
-  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const sessionById = new Map(allSessions.map((s) => [s.id, s]))
 
   const boundaryLabelForNodeId = new Map<string, string>()
   let lastSessionId: string | null = null
   for (const n of mergedNodes) {
     if (n.trailSessionId !== lastSessionId) {
       const s = sessionById.get(n.trailSessionId)
-      boundaryLabelForNodeId.set(n.id, `${s?.name ?? 'Session'} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
+      // The implicit bucket renders as a plain "Loose stops" divider (no session name to
+      // show — the user never named it) so a run of un-sessioned stops still reads as its
+      // own stretch of the timeline.
+      const label = s?.id === LOOSE_SESSION_ID || !s ? 'Loose stops' : s.name
+      boundaryLabelForNodeId.set(n.id, `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
       lastSessionId = n.trailSessionId
     }
   }
@@ -92,7 +104,19 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
     // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
     // one that actually scrolls (see MapView.tsx's own comment on this).
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <h2 style={{ margin: '0 0 4px', fontSize: 17, flexShrink: 0 }}>Everything</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px', flexShrink: 0 }}>
+        <h2 style={{ margin: 0, fontSize: 17 }}>Everything</h2>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
+          placeholder="Filter timeline…"
+          style={{
+            width: 200, flexShrink: 0, fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
+            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+          }}
+        />
+      </div>
       <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18, flexShrink: 0 }}>
         {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
       </div>
@@ -100,7 +124,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} />
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} />
         </div>
       )}
     </div>

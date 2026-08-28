@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair } from 'lucide-react'
 import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
-import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/studyTrail'
+import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
 import { TrailNodeHoverContent, TrailConnectionHoverContent, TrailVersePreview } from './TrailHoverContent'
@@ -10,7 +10,7 @@ import { trailRefClick, navigateTrailRef, type TrailRef } from './trailNav'
 import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
-import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS } from '@/store/studyTrailSlice'
+import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 
 // Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
 // in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
@@ -274,7 +274,12 @@ const MAIN_SPINE_GAP = 44
 // genuinely-degenerate case computeMinCenteringPad() can't measure at all (no anchor node
 // resolvable yet — an empty or not-yet-rendered session), so scrolling isn't completely stuck at
 // zero slack while waiting for real content to measure against.
-const HORIZONTAL_SCROLL_PAD_MIN = 220
+// Kept deliberately SMALL (was 220) per direct feedback: "there's a horizontal scroll bar but
+// it's not really necessary a lot" — a big flat floor forced ~220px of dead scroll room on BOTH
+// sides of every session, so a timeline that already fit the viewport still showed a scrollbar.
+// computeMinCenteringPad() supplies the real, measured slack a given session actually needs to
+// reach dead-center; this is only the pre-measurement fallback.
+const HORIZONTAL_SCROLL_PAD_MIN = 24
 
 function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
@@ -653,9 +658,11 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
-  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true, selected,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
+  /** Part of the current marquee selection (drag-select in the timeline). */
+  selected?: boolean
   onOpenPrompt: (c: TrailConnection) => void
   refFor: (conn: TrailConnection) => TrailRef | null
   openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; topicBreak?: { active: boolean; onToggle: () => void }; x: number; y: number }) => void
@@ -759,7 +766,8 @@ function NodeBlock({
           // correct) stays here; hover-driven dimming moves to the specific row it's about
           // below, next to the other two already-independent bullets.
           opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
-          boxShadow: keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          boxShadow: selected ? '0 0 0 2px rgb(var(--color-accent))' : keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
+          background: selected ? 'rgb(var(--color-accent) / 0.16)' : undefined,
           marginLeft: indent,
         }}
       >
@@ -949,8 +957,16 @@ export const ZOOM_MAX = 2
 
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
+  filterValue, onFilterChange,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Timeline filter, hoisted into the parent's title row (per direct feedback: "the filter
+   *  timeline thing should be moved to the right of the name of the session"). When
+   *  onFilterChange is supplied MapView renders NO input of its own and reads filterValue
+   *  instead; Enter in the parent's input dispatches `berean:trailFilterSubmit` to jump to the
+   *  first match. Uncontrolled (own input) when omitted, for a standalone mount. */
+  filterValue?: string
+  onFilterChange?: (v: string) => void
   /** Zoom is normally OWNED by StudyTrailApp (rendered in its title bar, top-right, so it
    *  applies consistently whether you're looking at one session or the merged Everything
    *  timeline) — these are optional purely so MapView still works if ever mounted standalone
@@ -1066,13 +1082,38 @@ export default function MapView({
   // rows, and the left-side revisit-arc gutter all extend asymmetrically off the spine, so that
   // wrapper's own midpoint never actually lines up with where the spine dots sit. Returns null
   // when there's nothing resolvable to measure yet (empty session, or nothing registered at all).
+  // The spine no longer parks at dead-centre. A left-heavy timeline centred there leaves half
+  // the viewport blank on its left, which repeatedly read as "i can scroll the left of the
+  // study trail really far". Instead the spine sits a modest fixed distance in from the left
+  // edge (just clear of its revisit-arc gutter) with everything else flowing right. That same
+  // distance is the minimum left padding, so scrollLeft can't run any further left than this.
+  function spineInsetFromLeft(): number {
+    // Matches horizontalScrollPadLeft: the spine's resting on-screen X is its arc gutter plus
+    // the small left padding. "Centred" and the recenter target are defined against THIS, so
+    // recenter and the nearCenter check agree that scrollLeft ~0 (spine near the left, content
+    // flowing right) IS the intended resting position — no left blank to scroll into.
+    return gutterWidth * zoom + HORIZONTAL_SCROLL_PAD_MIN
+  }
   function horizontalCenterDelta(): number | null {
     const el = scrollContainerRef.current
     const anchorEl = findAnchorNodeEl()
     if (!el || !anchorEl) return null
     const cRect = el.getBoundingClientRect()
     const aRect = anchorEl.getBoundingClientRect()
-    return (aRect.left + aRect.width / 2) - (cRect.left + cRect.width / 2)
+    return (aRect.left + aRect.width / 2) - (cRect.left + spineInsetFromLeft())
+  }
+  // Hard stop on scrolling LEFT past the spine's resting inset. If a scroll leaves the spine
+  // more than a small tolerance to the RIGHT of that inset (i.e. we've dragged too far left
+  // into blank), snap it straight back. Fires from the scroll container's onScroll.
+  const LEFT_OVERSCROLL_TOLERANCE = 40
+  function clampLeftOverscroll() {
+    if (suppressFlashRef.current) return // don't fight a programmatic recenter animation
+    const el = scrollContainerRef.current
+    const delta = horizontalCenterDelta()
+    if (!el || delta == null) return
+    if (delta > LEFT_OVERSCROLL_TOLERANCE) {
+      el.scrollLeft = Math.max(0, el.scrollLeft + (delta - LEFT_OVERSCROLL_TOLERANCE))
+    }
   }
   // `behavior: 'auto'` (instant, no animation) is what the session-open effect uses — per direct
   // feedback ("should already BE centered on first render, no visible motion"), setting
@@ -1116,6 +1157,11 @@ export default function MapView({
     setNearCenter(delta == null || Math.abs(delta) <= CENTER_TOLERANCE_PX)
   }
   useEffect(() => { checkCentered() }) // eslint-disable-line react-hooks/exhaustive-deps
+  // Kept fresh for the zoom / tab-return recenter effects below, which need to know whether the
+  // spine was ALREADY centered at the moment the trigger fired (per direct feedback: re-center
+  // on zoom and on tab return, "but only do when it was already centered before").
+  const nearCenterRef = useRef(nearCenter)
+  useEffect(() => { nearCenterRef.current = nearCenter }, [nearCenter])
   // Centers `el` inside `scrollContainerRef` — used instead of the native `el.scrollIntoView()`
   // for every jump-to-node action below (arrow-key nav, "scroll to where this came from",
   // search's jump-to-first-match). Native scrollIntoView miscalculates badly here: the whole
@@ -1181,10 +1227,30 @@ export default function MapView({
   const zoom = zoomProp ?? ownZoom
   const setZoom = onZoomChange ?? setOwnZoom
 
+  // Re-center horizontally after a zoom change — but ONLY if the spine was already centered
+  // before the zoom (per direct feedback: "if it was centered before and the user zooms, make
+  // sure to recenter... but only do when it was already centered before"). A zoom that happens
+  // while the user has deliberately scrolled off-center is left where it is. `nearCenter` here
+  // is still the pre-zoom value on the render that triggers this effect (checkCentered's own
+  // state update for the new zoom hasn't committed yet). rAF lets the scaled layout settle
+  // first so recenterHorizontal measures the anchor at its final position.
+  const prevZoomRef = useRef(zoom)
+  useEffect(() => {
+    if (prevZoomRef.current === zoom) return
+    prevZoomRef.current = zoom
+    if (!nearCenter) return
+    const id = requestAnimationFrame(() => recenterHorizontal('auto'))
+    return () => cancelAnimationFrame(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom])
+
   // Quick filter/highlight while looking at a (possibly long) spine — not a replacement for
   // the Review tab's cross-session search, just a way to spot things without scrolling/reading
   // every row. Matches against the chapter label and every connection's label/reasonText.
-  const [searchQuery, setSearchQuery] = useState('')
+  const [ownSearchQuery, setOwnSearchQuery] = useState('')
+  const controlledFilter = onFilterChange != null
+  const searchQuery = controlledFilter ? (filterValue ?? '') : ownSearchQuery
+  const setSearchQuery = controlledFilter ? onFilterChange! : setOwnSearchQuery
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Hover-to-isolate — the design persona's highest-value/lowest-effort fix: hovering any node
@@ -1231,10 +1297,24 @@ export default function MapView({
   // stuck pointing at whatever was hovered before focus moved away, leaving every other edge
   // dimmed to 15% opacity indefinitely. Clearing on window blur covers that case and any other
   // way focus can leave this window without the cursor visibly moving off the hovered element.
+  // Also snap the spine back to center when focus RETURNS to this window/tab — but only if it
+  // was centered when focus left (per direct feedback: recenter "on tab return... but only do
+  // when it was already centered before"). Layout/scroll can drift while the window is
+  // backgrounded (font metrics, a zoom prop change from the main window, etc.); this keeps a
+  // deliberately-centered view centered without disturbing one the user had scrolled off.
+  const wasCenteredOnBlurRef = useRef(true)
   useEffect(() => {
-    const onBlur = () => setHoveredKey(null)
+    const onBlur = () => {
+      setHoveredKey(null)
+      wasCenteredOnBlurRef.current = nearCenterRef.current
+    }
+    const onFocus = () => {
+      if (!wasCenteredOnBlurRef.current) return
+      requestAnimationFrame(() => recenterHorizontal('auto'))
+    }
     window.addEventListener('blur', onBlur)
-    return () => window.removeEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => { window.removeEventListener('blur', onBlur); window.removeEventListener('focus', onFocus) }
   }, [])
 
   // Basic ArrowUp/ArrowDown spine navigation — Enter opens the focused chapter. Ignored
@@ -1264,6 +1344,155 @@ export default function MapView({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [detail.nodes, keyboardFocusId])
+
+  // ── Marquee drag-select ───────────────────────────────────────────────────
+  // Drag a rectangle over the timeline (from empty space — starting on a node keeps that
+  // node's own click) to select multiple chapter stops, then reassign them to another session
+  // or delete them. Works the same in a single session's Map and in the merged Everything view.
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set())
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const marqueeStartRef = useRef<{ x: number; y: number; moved: boolean; additive: boolean } | null>(null)
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false)
+  const [moveTargets, setMoveTargets] = useState<TrailSession[]>([])
+  const [busySelection, setBusySelection] = useState(false)
+  // Clear any selection when the session/timeline being viewed changes.
+  useEffect(() => { setSelectedNodeIds(new Set()); setMarquee(null); setMoveMenuOpen(false) }, [detail.session.id])
+  // Validate selection against the current node set (a node deleted elsewhere shouldn't linger).
+  useEffect(() => {
+    setSelectedNodeIds((prev) => {
+      const valid = new Set([...prev].filter((id) => detail.nodes.some((n) => n.id === id)))
+      return valid.size === prev.size ? prev : valid
+    })
+  }, [detail.nodes])
+
+  // Base selection to union with while an additive (Shift/Cmd) drag is in progress.
+  const marqueeBaseRef = useRef<Set<string>>(new Set())
+  const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const autoScrollRafRef = useRef(0)
+
+  function recomputeMarqueeSelection() {
+    const s = marqueeStartRef.current
+    if (!s) return
+    const p = lastPointerRef.current
+    const rect = {
+      x0: Math.min(s.x, p.x), y0: Math.min(s.y, p.y),
+      x1: Math.max(s.x, p.x), y1: Math.max(s.y, p.y),
+    }
+    setMarquee(rect)
+    const hit = new Set<string>(s.additive ? marqueeBaseRef.current : [])
+    for (const [id, el] of nodeBlockRefs.current) {
+      const r = el.getBoundingClientRect()
+      // "Anything it touches" — any overlap counts.
+      if (r.left < rect.x1 && r.right > rect.x0 && r.top < rect.y1 && r.bottom > rect.y0) hit.add(id)
+    }
+    setSelectedNodeIds(hit)
+  }
+
+  function onMarqueeMouseDown(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    const t = e.target as HTMLElement
+    // Only a real control (a button/link/field, a hover card, the filter input, a menu) blocks
+    // a marquee start. Everything else on the timeline — the whitespace of a chapter row, the
+    // gutter, the padding, the area below the last stop — begins a drag box. A plain click
+    // (no drag) still runs a chapter's own navigation; the box only forms once you actually
+    // move. This is looser than "gaps between rows only", which left almost nothing grabbable
+    // on a dense spine ("i dont see a drag select thing").
+    if (t.closest('button, a, input, textarea, select, [role="menu"], [role="dialog"], [contenteditable="true"]')) return
+    e.preventDefault() // don't start a native text selection (doesn't block a later click)
+    marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false, additive: e.shiftKey || e.metaKey }
+    marqueeBaseRef.current = new Set(selectedNodeIds)
+    lastPointerRef.current = { x: e.clientX, y: e.clientY }
+  }
+
+  useEffect(() => {
+    // Auto-scroll the timeline while the pointer is held near the top/bottom edge mid-drag, so
+    // a selection can extend past what's currently on screen.
+    function tickAutoScroll() {
+      autoScrollRafRef.current = 0
+      const s = marqueeStartRef.current
+      const el = scrollContainerRef.current
+      if (!s || !s.moved || !el) return
+      const r = el.getBoundingClientRect()
+      const EDGE = 48, SPEED = 14
+      const y = lastPointerRef.current.y
+      let dy = 0
+      if (y < r.top + EDGE) dy = -SPEED * (1 - Math.max(0, y - r.top) / EDGE)
+      else if (y > r.bottom - EDGE) dy = SPEED * (1 - Math.max(0, r.bottom - y) / EDGE)
+      if (dy !== 0) {
+        el.scrollTop += dy
+        recomputeMarqueeSelection()
+        autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll)
+      }
+    }
+    function onMove(e: MouseEvent) {
+      const s = marqueeStartRef.current
+      if (!s) return
+      lastPointerRef.current = { x: e.clientX, y: e.clientY }
+      if (!s.moved && Math.abs(e.clientX - s.x) + Math.abs(e.clientY - s.y) < 4) return
+      s.moved = true
+      document.body.style.userSelect = 'none'
+      recomputeMarqueeSelection()
+      if (!autoScrollRafRef.current) autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll)
+    }
+    function onUp() {
+      const s = marqueeStartRef.current
+      marqueeStartRef.current = null
+      setMarquee(null)
+      document.body.style.userSelect = ''
+      if (autoScrollRafRef.current) { cancelAnimationFrame(autoScrollRafRef.current); autoScrollRafRef.current = 0 }
+      // A plain click on empty space (no drag) clears the current selection.
+      if (s && !s.moved && !s.additive) { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Shift/Cmd-click a chapter stop to add or remove just that one from the selection.
+  function onTrailNodeClickCapture(e: React.MouseEvent, nodeId: string) {
+    if (!(e.shiftKey || e.metaKey)) return
+    e.preventDefault()
+    e.stopPropagation()
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId)
+      return next
+    })
+  }
+
+  async function deleteSelection() {
+    if (busySelection || selectedNodeIds.size === 0) return
+    setBusySelection(true)
+    try {
+      for (const id of selectedNodeIds) await window.studyTrail.deleteNode(id)
+      setSelectedNodeIds(new Set())
+      onChanged()
+    } finally { setBusySelection(false) }
+  }
+  async function openMoveMenu() {
+    const all = await window.studyTrail.listAllSessions().catch(() => [] as TrailSession[])
+    // Offer every session except the one currently being viewed (moving into it is a no-op);
+    // the loose bucket shows as "Loose stops".
+    setMoveTargets(all.filter((s) => s.id !== detail.session.id))
+    setMoveMenuOpen(true)
+  }
+  async function moveSelectionTo(targetSessionId: string) {
+    if (busySelection || selectedNodeIds.size === 0) return
+    setBusySelection(true)
+    try {
+      await window.studyTrail.moveNodes([...selectedNodeIds], targetSessionId)
+      setSelectedNodeIds(new Set())
+      setMoveMenuOpen(false)
+      onChanged()
+    } finally { setBusySelection(false) }
+  }
+  async function moveSelectionToNewSession() {
+    const name = window.prompt('New session name:')?.trim()
+    if (!name) return
+    const s = await window.studyTrail.startSession(name).catch(() => null)
+    if (s) await moveSelectionTo(s.id)
+  }
 
   // Real proportional zoom (a CSS transform on the whole spine), not just a spacing/font-size
   // slider — trackpad pinch and Ctrl+scroll both arrive as wheel events with ctrlKey=true (the
@@ -1767,6 +1996,14 @@ export default function MapView({
     const first = detail.nodes.find((n) => matchedNodeIds.has(n.id))
     if (first) scrollNodeIntoView(nodeBlockRefs.current.get(first.id))
   }
+  const jumpToFirstMatchRef = useRef(jumpToFirstMatch)
+  jumpToFirstMatchRef.current = jumpToFirstMatch
+  // Enter in the parent-hosted filter input asks us to scroll to the first match.
+  useEffect(() => {
+    const h = () => jumpToFirstMatchRef.current()
+    window.addEventListener('berean:trailFilterSubmit', h)
+    return () => window.removeEventListener('berean:trailFilterSubmit', h)
+  }, [])
 
   // Round 12 — replaced the round-9 blanket `viewport/2/zoom` guess (which never actually
   // tightened anything, since it dominates gutterWidth almost every session and dwarfs what
@@ -1784,18 +2021,31 @@ export default function MapView({
   // sides since which direction is the worst case depends on where the anchor happens to sit
   // within the content (usually left-heavy, but not guaranteed, e.g. an EverythingView merged
   // timeline scrolled deep into a later session).
-  function computeMinCenteringPad(): number {
+  // Returns the minimum blank padding each side INDEPENDENTLY needs for the anchor to reach the
+  // viewport's exact centre. Previously this returned a single value (the max of both sides)
+  // used for BOTH paddings — so a session whose RIGHT side needed a lot of slack to centre also
+  // got that same slack on the LEFT, letting you scroll well past the leftmost real content
+  // ("i still am able to scroll a little too far left"). Left need depends only on the anchor's
+  // distance from the content's own left edge; right need only on its distance from the right.
+  function computeMinCenteringPad(): { left: number; right: number } {
     const scrollEl = scrollContainerRef.current
     const contentEl = containerRef.current
     const anchorEl = findAnchorNodeEl()
-    if (!scrollEl || !contentEl || !anchorEl) return HORIZONTAL_SCROLL_PAD_MIN
+    if (!scrollEl || !contentEl || !anchorEl) return { left: HORIZONTAL_SCROLL_PAD_MIN, right: HORIZONTAL_SCROLL_PAD_MIN }
     const clientWidth = scrollEl.clientWidth
     const contentRect = contentEl.getBoundingClientRect()
     const anchorRect = anchorEl.getBoundingClientRect()
     const distFromContentLeft = anchorRect.left - contentRect.left
     const distFromContentRight = contentRect.width - distFromContentLeft
-    const neededScreenPx = Math.max(clientWidth / 2 - distFromContentLeft, clientWidth / 2 - distFromContentRight, 0)
-    return neededScreenPx / zoom // local (pre-scale) units, same wrapper the padding itself sits in
+    const inset = spineInsetFromLeft()
+    // Only reserve right-side scroll room when the content is ALREADY wider than the viewport
+    // (i.e. it genuinely scrolls). Adding it for a timeline that fits gave "a horizontal scroll
+    // bar that isn't really necessary".
+    const overflows = contentRect.width > clientWidth + 2
+    return {
+      left: Math.max(0, inset - distFromContentLeft) / zoom,
+      right: overflows ? Math.max(0, (clientWidth - inset) - distFromContentRight) / zoom : 0,
+    }
   }
   // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
   // far the revisit lines go to the left, and the same distance on the right"): the natural
@@ -1808,10 +2058,18 @@ export default function MapView({
   // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
   // case (no anchor resolvable yet to measure against).
   const minCenteringPad = computeMinCenteringPad()
-  const horizontalScrollPad = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad, gutterWidth)
+  // LEFT padding is now ONLY the revisit-arc reach (+ a tiny floor) — deliberately NOT the
+  // centering allowance. Reserving centering room on the left is exactly what let the timeline
+  // scroll far past its own leftmost content into blank ("i still can scroll too much to the
+  // left", repeatedly). The spine simply rests near the left edge instead of dead-centre; the
+  // RIGHT still gets full centering room so a right-heavy timeline (Everything, scrolled into a
+  // late session) can still pull its spine back toward the middle.
+  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, gutterWidth)
+  const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.right)
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] horizontalScrollPad', {
-      horizontalScrollPad: Math.round(horizontalScrollPad), gutterWidth: Math.round(gutterWidth), minCenteringPad: Math.round(minCenteringPad),
+      horizontalScrollPadLeft: Math.round(horizontalScrollPadLeft), horizontalScrollPadRight: Math.round(horizontalScrollPadRight),
+      gutterWidth: Math.round(gutterWidth), minCenteringPadLeft: Math.round(minCenteringPad.left), minCenteringPadRight: Math.round(minCenteringPad.right),
     })
   }
 
@@ -1832,20 +2090,24 @@ export default function MapView({
         overflow:auto too), so this component's onScroll/checkAtBottom (and the "Latest" button
         it drives) never fired in practice. */}
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ marginBottom: 10, flexShrink: 0 }}>
-        <input
-          ref={searchInputRef}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
-          placeholder="Filter this timeline… (chapter, Strong's number, reason)"
-          style={{
-            width: '100%', fontSize: 12, padding: '6px 9px', background: 'rgb(var(--color-surface-2))',
-            border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-          }}
-        />
-      </div>
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+      {/* When the parent hosts the filter (next to the session title), MapView renders no
+          input of its own — it just consumes filterValue + listens for the submit event. */}
+      {!controlledFilter && (
+        <div style={{ marginBottom: 8, flexShrink: 0 }}>
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') jumpToFirstMatch() }}
+            placeholder="Filter timeline…"
+            style={{
+              width: '100%', maxWidth: 260, fontSize: 12, padding: '5px 9px', background: 'rgb(var(--color-surface-2))',
+              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+            }}
+          />
+        </div>
+      )}
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered(); clampLeftOverscroll() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
             centered as the user likes"): without this, the scrollable range was clamped exactly
             to the content's own natural width (native browser overflow behavior for a plain
@@ -1861,7 +2123,7 @@ export default function MapView({
             computes, since the browser silently clamps scrollLeft at its own max first. */}
         <div style={{
           transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content',
-          paddingLeft: horizontalScrollPad, paddingRight: horizontalScrollPad,
+          paddingLeft: horizontalScrollPadLeft, paddingRight: horizontalScrollPadRight,
         }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
@@ -1953,9 +2215,10 @@ export default function MapView({
             ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
             : null
           return (
-            <div key={n.id}>
+            <div key={n.id} data-trailnode={n.id} onClickCapture={(e) => onTrailNodeClickCapture(e, n.id)}>
             <NodeBlock
               node={n}
+              selected={selectedNodeIds.has(n.id)}
               connections={rowsForNode.get(n.id) ?? []}
               gapToNextMs={gapToNextMs}
               isLast={i === detail.nodes.length - 1}
@@ -2041,6 +2304,76 @@ export default function MapView({
             ><ArrowDown size={13} /> Latest</button>
           )}
         </div>
+
+        {/* Marquee rectangle while dragging */}
+        {marquee && (
+          <div style={{
+            position: 'fixed', left: marquee.x0, top: marquee.y0,
+            width: marquee.x1 - marquee.x0, height: marquee.y1 - marquee.y0,
+            border: '1.5px solid rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.15)',
+            borderRadius: 3, zIndex: 80, pointerEvents: 'none',
+          }} />
+        )}
+
+        {/* Selection action bar */}
+        {selectedNodeIds.size > 0 && (
+          <div style={{
+            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 70,
+            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+            background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+            borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.35)', fontSize: 12,
+          }}>
+            <span style={{ color: 'rgb(var(--color-text-secondary))', fontWeight: 600 }}>
+              {selectedNodeIds.size} selected
+            </span>
+            <div style={{ position: 'relative' }}>
+              <button
+                className="trail-ctx-btn"
+                disabled={busySelection}
+                onClick={() => (moveMenuOpen ? setMoveMenuOpen(false) : openMoveMenu())}
+                style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer' }}
+              >Move to session ▾</button>
+              {moveMenuOpen && (
+                <div style={{
+                  position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, minWidth: 180, maxHeight: 260, overflowY: 'auto',
+                  background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+                  borderRadius: 9, boxShadow: '0 10px 30px rgba(0,0,0,0.4)', padding: 5,
+                }}>
+                  {moveTargets.length === 0 && (
+                    <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', padding: '6px 8px' }}>No other sessions</div>
+                  )}
+                  {moveTargets.map((s) => (
+                    <button
+                      key={s.id}
+                      className="trail-ctx-btn"
+                      disabled={busySelection}
+                      onClick={() => moveSelectionTo(s.id)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-text-primary))', cursor: 'pointer', fontSize: 12 }}
+                    >{s.id === LOOSE_SESSION_ID ? 'Loose stops' : s.name}</button>
+                  ))}
+                  <div style={{ height: 1, background: 'rgb(var(--color-surface-4))', margin: '4px 0' }} />
+                  <button
+                    className="trail-ctx-btn"
+                    disabled={busySelection}
+                    onClick={moveSelectionToNewSession}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 6, padding: '5px 8px', color: 'rgb(var(--color-accent))', cursor: 'pointer', fontSize: 12 }}
+                  >+ New session…</button>
+                </div>
+              )}
+            </div>
+            <button
+              className="trail-ctx-btn"
+              disabled={busySelection}
+              onClick={deleteSelection}
+              style={{ background: 'transparent', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, padding: '4px 9px', color: '#e08468', cursor: 'pointer' }}
+            >Delete</button>
+            <button
+              className="trail-ctx-btn"
+              onClick={() => { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }}
+              style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '4px 6px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}
+            >Clear</button>
+          </div>
+        )}
       </div>
     </div>
     </HoverDisabledContext.Provider>

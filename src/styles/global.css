@@ -1964,3 +1964,26 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
 .trail-btn-accent:focus-visible {
   filter: brightness(0.9);
 }
+
+/* Sidebar's "new tab per space" tiles, the search / location bar (+ its "+" button), and the
+   session switcher rows. Their old `hover:bg-[rgb(var(--color-accent))/NN]` Tailwind
+   arbitrary-opacity utilities barely shifted the colour — the hover read as "not being
+   hovered" (direct feedback). Match how the tab rows highlight: a neutral light-grey lift, not
+   an accent tint. Mixing white into the resting surface lifts both the transparent-rest
+   buttons (session switcher) and the surface-4-rest ones (tiles, search bar) in the right
+   direction. */
+.sidebar-new-btn {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.sidebar-new-btn:hover {
+  background-color: color-mix(in srgb, white 16%, rgb(var(--color-surface-4)));
+  color: rgb(var(--color-text-primary));
+}
+/* The currently-selected session row keeps its accent tint at rest; on hover it gets the same
+   neutral lift layered a little brighter so it still clearly reacts. */
+.sidebar-new-btn.is-active {
+  background-color: color-mix(in srgb, rgb(var(--color-accent)) 15%, transparent);
+}
+.sidebar-new-btn.is-active:hover {
+  background-color: color-mix(in srgb, white 12%, color-mix(in srgb, rgb(var(--color-accent)) 18%, rgb(var(--color-surface-4))));
+}

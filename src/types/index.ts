@@ -377,6 +377,9 @@ export interface TabNavEntry {
    *  to the search itself instead of skipping straight to whatever chapter
    *  was open before the search. */
   query?: string
+  /** Scroll offset (px) the panel was at when navigation last left this entry — restored on
+   *  Cmd+[ / Cmd+] so back/forward returns to where the user was reading, not the chapter top. */
+  scrollPosition?: number
 }
 
 /** A single entry in the global back/forward navigation stack (all tab types). */

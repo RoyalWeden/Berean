@@ -11,6 +11,14 @@ import { setNavRecorder } from '@/lib/verseNavigation'
 import type { ClarityTier, TrailSessionStatus, TrailConnection } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 
+// The implicit "Loose stops" bucket — navigation is recorded here when the user has NOT created
+// a session of their own. Never shown in the session rail (listSessions filters it out); only
+// surfaces in the merged Everything timeline. Per direct feedback: "i don't want an untitled
+// study session created if i didn't create one... if the user continues to study, then these
+// things are just put in everything". Kept in sync with the same constant in
+// electron/ipc/studyTrail.ts.
+export const LOOSE_SESSION_ID = '__loose_stops__'
+
 interface StudyTrailState {
   currentTrailSessionId: string | null
   trailSessionStatus: TrailSessionStatus | null
@@ -199,7 +207,9 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     // old row just sat orphaned in the DB, still showing a green "live" dot in the rail even
     // though nothing was recording to it anymore).
     const prevId = get().currentTrailSessionId
-    if (prevId) await window.studyTrail.pauseSession(prevId).catch(() => {})
+    // Never pause the implicit loose bucket — it stays live in the DB as the fallback target
+    // for whenever no user session is active. Only a real prior session gets paused.
+    if (prevId && prevId !== LOOSE_SESSION_ID) await window.studyTrail.pauseSession(prevId).catch(() => {})
     const session = await window.studyTrail.startSession(name)
 
     // Seed the session's first spine node from whatever chapter is ACTUALLY open right now in
@@ -256,9 +266,12 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   },
   endTrailSession: async () => {
     const id = get().currentTrailSessionId
-    if (id) await window.studyTrail.endSession(id)
+    if (id && id !== LOOSE_SESSION_ID) await window.studyTrail.endSession(id)
     set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
     window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+    // Recording falls back to the implicit loose bucket — continued study after ending a
+    // session still shows up in Everything, it just isn't attached to a named session.
+    void get().ensureLiveSession()
   },
   // Thin wrappers so UI (session rail / Everything view) has one place to call for deletion —
   // if the session being deleted is the one currently live/paused in THIS window, also clears
@@ -268,6 +281,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (get().currentTrailSessionId === trailSessionId) {
       set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+      void get().ensureLiveSession()
     }
   },
   deleteTrailSessions: async (trailSessionIds: string[]) => {
@@ -275,6 +289,7 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
     if (get().currentTrailSessionId && trailSessionIds.includes(get().currentTrailSessionId!)) {
       set({ currentTrailSessionId: null, trailSessionStatus: null, currentAnchorNodeId: null, currentAnchorBookId: null, currentAnchorChapter: null, currentAnchorVerseCount: 0, currentAnchorActivatedAt: null, currentAnchorIsRevisit: false, currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null, pendingArrivalPrompt: null, pendingArrivalNodeId: null, sessionNodeIndex: {}, sessionTangentIndex: {} })
       window.app.broadcastStudyTrailState?.({ currentTrailSessionId: null, trailSessionStatus: null })
+      void get().ensureLiveSession()
     }
   },
   activateExistingSession: async (trailSessionId: string) => {
@@ -297,14 +312,28 @@ export const useStudyTrailStore = create<StudyTrailState>()((set, get) => ({
   ensureLiveSession: async () => {
     const existing = get().currentTrailSessionId
     if (existing && get().trailSessionStatus === 'live') return existing
-    // Guard against multiple navigations racing this before the first create() resolves —
-    // everyone piggybacks on the one in-flight request instead of each starting its own
-    // session (which would silently orphan all-but-the-last).
+    // Guard against multiple navigations racing this before the first request resolves —
+    // everyone piggybacks on the one in-flight request instead of each provisioning its own.
     if (ensureLiveSessionInFlight) return ensureLiveSessionInFlight
     ensureLiveSessionInFlight = (async () => {
       try {
-        await get().startTrailSession('Untitled study')
-        return get().currentTrailSessionId!
+        // No named "Untitled study" session any more — recording with no user session lands in
+        // the implicit loose bucket, which only shows in the Everything timeline. Adopts the
+        // bucket's own still-open anchor (if any) so recording resumes from where it left off.
+        const s = await window.studyTrail.ensureLooseSession()
+        const detail = await window.studyTrail.getSession(s.id).catch(() => null)
+        const sessionNodeIndex: Record<string, string> = {}
+        if (detail) for (const n of detail.nodes) sessionNodeIndex[`${n.bookId}:${n.chapter}`] = n.id
+        const openNode = detail?.nodes.find((n) => n.anchorEndedAt == null)
+        set({
+          currentTrailSessionId: s.id, trailSessionStatus: 'live', sessionNodeIndex, sessionTangentIndex: {},
+          currentAnchorNodeId: openNode?.id ?? null, currentAnchorBookId: openNode?.bookId ?? null,
+          currentAnchorChapter: openNode?.chapter ?? null, currentAnchorVerseCount: 0,
+          currentAnchorActivatedAt: openNode ? Date.now() : null, currentAnchorIsRevisit: false,
+          currentlyInBranch: false, currentBranchTipConnectionId: null, currentBranchTipDepth: 0, currentBranchTipActivatedAt: null,
+        })
+        window.app.broadcastStudyTrailState?.({ currentTrailSessionId: s.id, trailSessionStatus: 'live' })
+        return s.id
       } finally {
         ensureLiveSessionInFlight = null
       }
@@ -413,10 +442,9 @@ export function installStudyTrailStateSync(): void {
   window.studyTrail.listSessions().then(async (rows) => {
     const active = rows.find((r) => r.status === 'live' || r.status === 'paused')
     if (!active) {
-      // Nothing live or paused anywhere (first run ever, or every prior session was ended) —
-      // recording must never sit idle just because the user hasn't clicked "New session".
-      // Auto-provision one now so the very first navigation of this app launch is captured,
-      // not silently dropped until the user notices and starts one manually.
+      // No user-created session is live or paused — point recording at the implicit loose
+      // bucket (ensureLiveSession) so navigation is still captured for the Everything timeline
+      // without ever fabricating a named "Untitled study" session the user didn't create.
       void useStudyTrailStore.getState().ensureLiveSession()
       return
     }

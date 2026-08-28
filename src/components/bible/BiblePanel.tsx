@@ -108,6 +108,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Last region actually applied — lets onViewerVisibleRegion below skip redundant reports.
   const lastViewerRegionRef = useRef<ViewerVisibleRegion | null>(null)
   const [presenterBand, setPresenterBand] = useState<{ top: number; height: number; firstVerse: number | null; lastVerse: number | null } | null>(null)
+  // Bounded retry when a recompute lands in the transient window right after a tab switch where
+  // the new chapter's verses aren't in the DOM yet — measuring then gives an empty result, and
+  // nulling the band on that would hide the outline until the next real scroll event ("shows for
+  // a second then goes away until I scroll"). Instead we keep the current band and try again a
+  // few frames later. Reset to 0 on any successful measurement.
+  const bandRetryRef = useRef(0)
+  const bandRetryRafRef = useRef(0)
   const laserRAFRef = useRef<number | null>(null)
   const selectionRAFRef = useRef<number | null>(null)
   const lastSelectionSentRef = useRef(false)
@@ -372,6 +379,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     setViewerVisibleRegion(null)
     setPresenterBand(null)
     lastViewerRegionRef.current = null
+    bandRetryRef.current = 0
+    cancelAnimationFrame(bandRetryRafRef.current)
     findCenterVerseRef.current = null
     findScrollSuppressRef.current = 0
     virtualScrollPctRef.current = 0
@@ -561,10 +570,30 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const computePresenterBand = useCallback(() => {
     const region = viewerVisibleRegion
     const c = getScrollEl()
-    if (floating || !viewerWindowOpen || !region || !c) { setPresenterBand(null); return }
-    if (region.bookId !== tabState.bookId || region.chapter !== tabState.chapter) { setPresenterBand(null); return }
+    // Hard no-band conditions (presenter closed, no scroll element): clear immediately.
+    if (floating || !viewerWindowOpen || !c) { setPresenterBand(null); bandRetryRef.current = 0; return }
+    // SOFT conditions — a stale/in-flight region for the previous chapter, a not-yet-settled
+    // visibleFraction, or verse nodes not mounted yet — all happen for a beat right after a
+    // chapter change while the presenter is catching up. Nulling the band on any of them made
+    // the outline "show for a second then go invisible until I scroll". Instead: keep the
+    // current band, ask the presenter for a fresh region, and retry for up to ~1.3s of frames
+    // before finally giving up and clearing.
+    const chapterMismatch = !region || region.bookId !== tabState.bookId || region.chapter !== tabState.chapter
+    const fractionNotReady = !!region && !(region.visibleFraction > 0)
+    if (chapterMismatch || fractionNotReady || c.scrollHeight <= 0) {
+      if (bandRetryRef.current < 80) {
+        if (bandRetryRef.current === 0 && chapterMismatch) window.app.requestViewerVisibleRegion?.()
+        bandRetryRef.current += 1
+        cancelAnimationFrame(bandRetryRafRef.current)
+        bandRetryRafRef.current = requestAnimationFrame(() => computePresenterBandRef.current())
+        return
+      }
+      setPresenterBand(null)
+      bandRetryRef.current = 0
+      return
+    }
+    if (!region) return // unreachable past the guard above — narrows the type for TS
     const f = region.visibleFraction
-    if (!(f > 0) || c.scrollHeight <= 0) { setPresenterBand(null); return }
 
     // Measure this panel's verse content-tops live (cheap for one chapter) so the band can
     // never drift from a stale layout cache.
@@ -580,6 +609,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const bottom = r.bottom - cTop + c.scrollTop
       if (bottom > contentBottom) contentBottom = bottom
     }
+    // Transient post-tab-switch window: region is valid for THIS chapter but the chapter's
+    // verse nodes haven't mounted yet. Don't null the band on this — hold what's there and
+    // retry, so the outline doesn't blink out until the next manual scroll.
+    if (Object.keys(tops).length === 0 || contentBottom <= 0) {
+      if (bandRetryRef.current < 80) {
+        bandRetryRef.current += 1
+        cancelAnimationFrame(bandRetryRafRef.current)
+        bandRetryRafRef.current = requestAnimationFrame(() => computePresenterBandRef.current())
+        return
+      }
+      setPresenterBand(null)
+      bandRetryRef.current = 0
+      return
+    }
+    bandRetryRef.current = 0
     // Use content height (last verse bottom), matching the presenter's reporting, so the band
     // doesn't extend into the empty space below the last verse on short chapters. Shared
     // measureContentHeight helper (not a locally re-typed "+ 4") so this can't independently
@@ -850,6 +894,24 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     }
     window.addEventListener('berean:saveScrollBeforeTabChange', onSave)
     return () => window.removeEventListener('berean:saveScrollBeforeTabChange', onSave)
+  }, [])
+
+  // Cmd+L / Cmd+T reference jump: land at the TOP of whatever chapter was opened, per direct
+  // feedback ("if doing cmd+l or cmd+t, make sure to start at the top of the chapter"). The
+  // chapter-keyed reset effect above only fires when book/chapter actually changed, so a jump
+  // to the SAME chapter the tab is already scrolled into would otherwise leave the old offset
+  // in place. FloatingSearch fires this right after updating the tab (no targetVerse case only
+  // — a verse jump owns its own scroll).
+  useEffect(() => {
+    function onScrollTop() {
+      const el = getScrollEl()
+      if (el) el.scrollTop = 0
+      pendingScrollRef.current = null
+      virtualScrollPctRef.current = 0
+      lastMainScrollTopRef.current = 0
+    }
+    window.addEventListener('berean:scriptureScrollToTop', onScrollTop)
+    return () => window.removeEventListener('berean:scriptureScrollToTop', onScrollTop)
   }, [])
 
   // Switch the active text. A switch within the SAME edition (e.g. Hermas Roberts-Donaldson
@@ -2162,6 +2224,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                   // otherwise restomp whatever title the newly-active tab just picked up. Guard
                   // against that generically: only rename if tabId is still the active tab.
                   if (useAppStore.getState().activeTabId.scripture !== tabId) return
+                  // Also bail if this tab is no longer in search mode at all — e.g. a Cmd+L
+                  // reference jump (FloatingSearch) navigated this same tab straight to a
+                  // chapter and already set its title ("Jeremiah 4"). ScriptureSearchView's
+                  // unmount-flush still fires this with the stale query, which would otherwise
+                  // rename the tab back to `"shall call"` ~150ms later.
+                  const liveTab = useAppStore.getState().tabs.scripture.find((t) => t.id === tabId)
+                  if (!liveTab || !(liveTab.state as { searchMode?: boolean }).searchMode) return
                   const trimmedQuery = (s.query ?? '').trim()
                   useAppStore.getState().renameTab('scripture', tabId, trimmedQuery ? `"${trimmedQuery}"` : 'Search')
                 }, 150)
