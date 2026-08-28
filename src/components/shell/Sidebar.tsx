@@ -555,7 +555,7 @@ export default function Sidebar() {
           <Popover.Root open={sessionPopoverOpen} onOpenChange={(v) => { if (v) { setSessionMenu(null); setSessionMenuMode('default') }; setSessionPopoverOpen(v) }}>
             <Popover.Trigger asChild>
               <button
-                className="no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-shell hover:bg-[rgb(var(--color-surface-3))] text-left transition-colors cursor-pointer min-w-0"
+                className="sidebar-new-btn no-drag w-full flex items-center gap-1.5 px-2 py-1 rounded-shell text-left cursor-pointer min-w-0"
                 onContextMenu={(e) => {
                   e.preventDefault()
                   if (currentSession) openSessionMenu(e.clientX, e.clientY, currentSession.id, currentSession.name)
@@ -586,10 +586,10 @@ export default function Sidebar() {
                   return (
                     <button
                       key={session.id}
-                      className={`no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left transition-colors
+                      className={`sidebar-new-btn no-drag w-full flex items-center gap-2 rounded-shell px-2 py-1.5 cursor-pointer text-left
                         ${session.id === currentSessionId
-                          ? 'bg-[rgb(var(--color-accent))/15] hover:bg-[rgb(var(--color-accent))/22] text-[rgb(var(--color-accent))]'
-                          : 'hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))]'
+                          ? 'is-active text-[rgb(var(--color-accent))]'
+                          : 'text-[rgb(var(--color-text-secondary))]'
                         }`}
                       onClick={() => { if (session.id !== currentSessionId) { switchSession(session.id); setSessionPopoverOpen(false) } }}
                       onContextMenu={(e) => { e.preventDefault(); openSessionMenu(e.clientX, e.clientY, session.id, session.name, false) }}
@@ -602,7 +602,7 @@ export default function Sidebar() {
                 })}
                 <div className="my-1 h-px bg-[rgb(var(--color-surface-4))]" />
                 <button
-                  className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  className="sidebar-new-btn no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] cursor-pointer"
                   onClick={() => { createSession(); setSessionPopoverOpen(false) }}
                 >
                   <Plus size={12} />
@@ -610,7 +610,7 @@ export default function Sidebar() {
                   New session <ShortcutKeys keys="⌘⇧0" className="ml-auto flex-shrink-0" />
                 </button>
                 <button
-                  className="no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+                  className="sidebar-new-btn no-drag w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-xs text-[rgb(var(--color-text-muted))] cursor-pointer"
                   onClick={() => { openSettingsToSessions(); setSessionPopoverOpen(false) }}
                 >
                   <Settings size={12} />

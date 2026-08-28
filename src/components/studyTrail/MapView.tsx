@@ -767,7 +767,7 @@ function NodeBlock({
           // below, next to the other two already-independent bullets.
           opacity: dimmed ? 0.3 : 1, borderRadius: 8, transition: 'opacity 120ms, box-shadow 120ms',
           boxShadow: selected ? '0 0 0 2px rgb(var(--color-accent))' : keyboardFocused ? '0 0 0 2px rgb(var(--color-accent))' : searchMatched ? '0 0 0 2px rgb(var(--color-accent) / 0.4)' : 'none',
-          background: selected ? 'rgb(var(--color-accent) / 0.10)' : undefined,
+          background: selected ? 'rgb(var(--color-accent) / 0.16)' : undefined,
           marginLeft: indent,
         }}
       >
@@ -1326,7 +1326,7 @@ export default function MapView({
   // or delete them. Works the same in a single session's Map and in the merged Everything view.
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set())
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
-  const marqueeStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const marqueeStartRef = useRef<{ x: number; y: number; moved: boolean; additive: boolean } | null>(null)
   const [moveMenuOpen, setMoveMenuOpen] = useState(false)
   const [moveTargets, setMoveTargets] = useState<TrailSession[]>([])
   const [busySelection, setBusySelection] = useState(false)
@@ -1340,44 +1340,101 @@ export default function MapView({
     })
   }, [detail.nodes])
 
+  // Base selection to union with while an additive (Shift/Cmd) drag is in progress.
+  const marqueeBaseRef = useRef<Set<string>>(new Set())
+  const lastPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const autoScrollRafRef = useRef(0)
+
+  function recomputeMarqueeSelection() {
+    const s = marqueeStartRef.current
+    if (!s) return
+    const p = lastPointerRef.current
+    const rect = {
+      x0: Math.min(s.x, p.x), y0: Math.min(s.y, p.y),
+      x1: Math.max(s.x, p.x), y1: Math.max(s.y, p.y),
+    }
+    setMarquee(rect)
+    const hit = new Set<string>(s.additive ? marqueeBaseRef.current : [])
+    for (const [id, el] of nodeBlockRefs.current) {
+      const r = el.getBoundingClientRect()
+      // "Anything it touches" — any overlap counts.
+      if (r.left < rect.x1 && r.right > rect.x0 && r.top < rect.y1 && r.bottom > rect.y0) hit.add(id)
+    }
+    setSelectedNodeIds(hit)
+  }
+
   function onMarqueeMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return
     const t = e.target as HTMLElement
-    // Starting on a node, a button, a link, or an input is that element's own interaction.
-    if (t.closest('[data-trailnode], button, a, input, textarea, [role="menu"]')) return
-    marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false }
+    // Only a real control (a button/link/field, a hover card, the filter input, a menu) blocks
+    // a marquee start. Everything else on the timeline — the whitespace of a chapter row, the
+    // gutter, the padding, the area below the last stop — begins a drag box. A plain click
+    // (no drag) still runs a chapter's own navigation; the box only forms once you actually
+    // move. This is looser than "gaps between rows only", which left almost nothing grabbable
+    // on a dense spine ("i dont see a drag select thing").
+    if (t.closest('button, a, input, textarea, select, [role="menu"], [role="dialog"], [contenteditable="true"]')) return
+    e.preventDefault() // don't start a native text selection (doesn't block a later click)
+    marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false, additive: e.shiftKey || e.metaKey }
+    marqueeBaseRef.current = new Set(selectedNodeIds)
+    lastPointerRef.current = { x: e.clientX, y: e.clientY }
   }
+
   useEffect(() => {
+    // Auto-scroll the timeline while the pointer is held near the top/bottom edge mid-drag, so
+    // a selection can extend past what's currently on screen.
+    function tickAutoScroll() {
+      autoScrollRafRef.current = 0
+      const s = marqueeStartRef.current
+      const el = scrollContainerRef.current
+      if (!s || !s.moved || !el) return
+      const r = el.getBoundingClientRect()
+      const EDGE = 48, SPEED = 14
+      const y = lastPointerRef.current.y
+      let dy = 0
+      if (y < r.top + EDGE) dy = -SPEED * (1 - Math.max(0, y - r.top) / EDGE)
+      else if (y > r.bottom - EDGE) dy = SPEED * (1 - Math.max(0, r.bottom - y) / EDGE)
+      if (dy !== 0) {
+        el.scrollTop += dy
+        recomputeMarqueeSelection()
+        autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll)
+      }
+    }
     function onMove(e: MouseEvent) {
       const s = marqueeStartRef.current
       if (!s) return
+      lastPointerRef.current = { x: e.clientX, y: e.clientY }
       if (!s.moved && Math.abs(e.clientX - s.x) + Math.abs(e.clientY - s.y) < 4) return
       s.moved = true
       document.body.style.userSelect = 'none'
-      const rect = {
-        x0: Math.min(s.x, e.clientX), y0: Math.min(s.y, e.clientY),
-        x1: Math.max(s.x, e.clientX), y1: Math.max(s.y, e.clientY),
-      }
-      setMarquee(rect)
-      const next = new Set<string>()
-      for (const [id, el] of nodeBlockRefs.current) {
-        const r = el.getBoundingClientRect()
-        if (r.left < rect.x1 && r.right > rect.x0 && r.top < rect.y1 && r.bottom > rect.y0) next.add(id)
-      }
-      setSelectedNodeIds(next)
+      recomputeMarqueeSelection()
+      if (!autoScrollRafRef.current) autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll)
     }
     function onUp() {
       const s = marqueeStartRef.current
       marqueeStartRef.current = null
       setMarquee(null)
       document.body.style.userSelect = ''
+      if (autoScrollRafRef.current) { cancelAnimationFrame(autoScrollRafRef.current); autoScrollRafRef.current = 0 }
       // A plain click on empty space (no drag) clears the current selection.
-      if (s && !s.moved) { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }
+      if (s && !s.moved && !s.additive) { setSelectedNodeIds(new Set()); setMoveMenuOpen(false) }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Shift/Cmd-click a chapter stop to add or remove just that one from the selection.
+  function onTrailNodeClickCapture(e: React.MouseEvent, nodeId: string) {
+    if (!(e.shiftKey || e.metaKey)) return
+    e.preventDefault()
+    e.stopPropagation()
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId)
+      return next
+    })
+  }
 
   async function deleteSelection() {
     if (busySelection || selectedNodeIds.size === 0) return
@@ -2125,7 +2182,7 @@ export default function MapView({
             ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
             : null
           return (
-            <div key={n.id} data-trailnode={n.id}>
+            <div key={n.id} data-trailnode={n.id} onClickCapture={(e) => onTrailNodeClickCapture(e, n.id)}>
             <NodeBlock
               node={n}
               selected={selectedNodeIds.has(n.id)}
@@ -2220,8 +2277,8 @@ export default function MapView({
           <div style={{
             position: 'fixed', left: marquee.x0, top: marquee.y0,
             width: marquee.x1 - marquee.x0, height: marquee.y1 - marquee.y0,
-            border: '1px solid rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.12)',
-            zIndex: 60, pointerEvents: 'none',
+            border: '1.5px solid rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.15)',
+            borderRadius: 3, zIndex: 80, pointerEvents: 'none',
           }} />
         )}
 
