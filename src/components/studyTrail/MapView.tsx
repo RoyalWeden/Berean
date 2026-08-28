@@ -1082,13 +1082,35 @@ export default function MapView({
   // rows, and the left-side revisit-arc gutter all extend asymmetrically off the spine, so that
   // wrapper's own midpoint never actually lines up with where the spine dots sit. Returns null
   // when there's nothing resolvable to measure yet (empty session, or nothing registered at all).
+  // The spine no longer parks at dead-centre. A left-heavy timeline centred there leaves half
+  // the viewport blank on its left, which repeatedly read as "i can scroll the left of the
+  // study trail really far". Instead the spine sits a modest fixed distance in from the left
+  // edge (just clear of its revisit-arc gutter) with everything else flowing right. That same
+  // distance is the minimum left padding, so scrollLeft can't run any further left than this.
+  function spineInsetFromLeft(): number {
+    const cw = scrollContainerRef.current?.clientWidth ?? 800
+    return gutterWidth * zoom + Math.min(120, cw * 0.16)
+  }
   function horizontalCenterDelta(): number | null {
     const el = scrollContainerRef.current
     const anchorEl = findAnchorNodeEl()
     if (!el || !anchorEl) return null
     const cRect = el.getBoundingClientRect()
     const aRect = anchorEl.getBoundingClientRect()
-    return (aRect.left + aRect.width / 2) - (cRect.left + cRect.width / 2)
+    return (aRect.left + aRect.width / 2) - (cRect.left + spineInsetFromLeft())
+  }
+  // Hard stop on scrolling LEFT past the spine's resting inset. If a scroll leaves the spine
+  // more than a small tolerance to the RIGHT of that inset (i.e. we've dragged too far left
+  // into blank), snap it straight back. Fires from the scroll container's onScroll.
+  const LEFT_OVERSCROLL_TOLERANCE = 40
+  function clampLeftOverscroll() {
+    if (suppressFlashRef.current) return // don't fight a programmatic recenter animation
+    const el = scrollContainerRef.current
+    const delta = horizontalCenterDelta()
+    if (!el || delta == null) return
+    if (delta > LEFT_OVERSCROLL_TOLERANCE) {
+      el.scrollLeft = Math.max(0, el.scrollLeft + (delta - LEFT_OVERSCROLL_TOLERANCE))
+    }
   }
   // `behavior: 'auto'` (instant, no animation) is what the session-open effect uses — per direct
   // feedback ("should already BE centered on first render, no visible motion"), setting
@@ -2012,9 +2034,12 @@ export default function MapView({
     const anchorRect = anchorEl.getBoundingClientRect()
     const distFromContentLeft = anchorRect.left - contentRect.left
     const distFromContentRight = contentRect.width - distFromContentLeft
+    const inset = spineInsetFromLeft()
     return {
-      left: Math.max(0, clientWidth / 2 - distFromContentLeft) / zoom,
-      right: Math.max(0, clientWidth / 2 - distFromContentRight) / zoom,
+      // just enough left blank for the spine to sit `inset` from the viewport's left edge
+      left: Math.max(0, inset - distFromContentLeft) / zoom,
+      // enough right blank to push the spine left to `inset` and still reach the rightmost content
+      right: Math.max(0, (clientWidth - inset) - distFromContentRight) / zoom,
     }
   }
   // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
@@ -2074,7 +2099,7 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered(); clampLeftOverscroll() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
         {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
             centered as the user likes"): without this, the scrollable range was clamped exactly
             to the content's own natural width (native browser overflow behavior for a plain
