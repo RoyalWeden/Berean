@@ -1088,8 +1088,11 @@ export default function MapView({
   // edge (just clear of its revisit-arc gutter) with everything else flowing right. That same
   // distance is the minimum left padding, so scrollLeft can't run any further left than this.
   function spineInsetFromLeft(): number {
-    const cw = scrollContainerRef.current?.clientWidth ?? 800
-    return gutterWidth * zoom + Math.min(120, cw * 0.16)
+    // Matches horizontalScrollPadLeft: the spine's resting on-screen X is its arc gutter plus
+    // the small left padding. "Centred" and the recenter target are defined against THIS, so
+    // recenter and the nearCenter check agree that scrollLeft ~0 (spine near the left, content
+    // flowing right) IS the intended resting position — no left blank to scroll into.
+    return gutterWidth * zoom + HORIZONTAL_SCROLL_PAD_MIN
   }
   function horizontalCenterDelta(): number | null {
     const el = scrollContainerRef.current
@@ -2035,11 +2038,13 @@ export default function MapView({
     const distFromContentLeft = anchorRect.left - contentRect.left
     const distFromContentRight = contentRect.width - distFromContentLeft
     const inset = spineInsetFromLeft()
+    // Only reserve right-side scroll room when the content is ALREADY wider than the viewport
+    // (i.e. it genuinely scrolls). Adding it for a timeline that fits gave "a horizontal scroll
+    // bar that isn't really necessary".
+    const overflows = contentRect.width > clientWidth + 2
     return {
-      // just enough left blank for the spine to sit `inset` from the viewport's left edge
       left: Math.max(0, inset - distFromContentLeft) / zoom,
-      // enough right blank to push the spine left to `inset` and still reach the rightmost content
-      right: Math.max(0, (clientWidth - inset) - distFromContentRight) / zoom,
+      right: overflows ? Math.max(0, (clientWidth - inset) - distFromContentRight) / zoom : 0,
     }
   }
   // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
@@ -2053,10 +2058,13 @@ export default function MapView({
   // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
   // case (no anchor resolvable yet to measure against).
   const minCenteringPad = computeMinCenteringPad()
-  // Each side gets only what IT needs to reach dead-centre. The revisit-arc reach
-  // (`gutterWidth`) is a left-side concern only. The right side no longer inherits the left's
-  // (often larger) need, which is what let the view slide past the leftmost content.
-  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.left, gutterWidth)
+  // LEFT padding is now ONLY the revisit-arc reach (+ a tiny floor) — deliberately NOT the
+  // centering allowance. Reserving centering room on the left is exactly what let the timeline
+  // scroll far past its own leftmost content into blank ("i still can scroll too much to the
+  // left", repeatedly). The spine simply rests near the left edge instead of dead-centre; the
+  // RIGHT still gets full centering room so a right-heavy timeline (Everything, scrolled into a
+  // late session) can still pull its spine back toward the middle.
+  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, gutterWidth)
   const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.right)
   if (window.__bereanTrailDebug) {
     console.log('[TrailDebug] horizontalScrollPad', {
