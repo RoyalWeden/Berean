@@ -3,7 +3,7 @@ import { useAppStore } from '@/store'
 import { useStudyTrailStore, installStudyTrailStateSync, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import type { TrailSession, TrailSessionDetail } from '@/types/studyTrail'
-import MapView, { ZOOM_MIN, ZOOM_MAX } from './MapView'
+import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
 import ReviewView from './ReviewView'
 import EverythingView from './EverythingView'
 import { DEFAULT_REVISIT_WINDOW_MS } from './trailTime'
@@ -52,6 +52,15 @@ export default function StudyTrailApp() {
   // Owned here (not inside MapView) so it applies consistently in a floating pill whether
   // you're looking at one session's Map or the merged Everything timeline.
   const [zoom, setZoom] = useState(1)
+  // Live per-side clear space around the active MapView's trail content — drives which side the
+  // floating header pill and zoom pill sit on (default left; swap right if they'd cover the
+  // spine/branches). Reported up from MapView / EverythingView.
+  const [layoutRoom, setLayoutRoom] = useState<{ left: number; right: number }>({ left: 9999, right: 9999 })
+  const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
+  const zoomSide = pickControlSide(layoutRoom, CTRL_W.zoom)
+  // Live clock hour of whatever's at the top of the trail — shown as a line inside the header
+  // pill so there's ONE floating thing (per direct feedback the separate hour pill "i cant see").
+  const [currentHour, setCurrentHour] = useState<string | null>(null)
   // Timeline filter, hosted here beside the session name (per direct feedback) rather than as
   // its own strip inside MapView. Cleared whenever the selected session changes.
   const [trailFilter, setTrailFilter] = useState('')
@@ -580,7 +589,7 @@ export default function StudyTrailApp() {
             scrolling (see its own comment) — a second, ALSO-scrollable ancestor here meant
             MapView's onScroll/checkAtBottom (and the "Latest" button it drives) rarely fired,
             since the browser let this outer div do the scrolling in practice instead. */}
-        <div style={{ flex: 1, padding: 20, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, padding: '16px 20px 16px 10px', overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* This div is what actually fills the remaining height and hands MapView a real
               bounded ancestor to scroll within — see the "Main pane" comment above. ReviewView
               gets its own overflow:auto here too, now that the outer pane no longer scrolls. */}
@@ -588,11 +597,25 @@ export default function StudyTrailApp() {
           {mainTab === 'review' ? (
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}><ReviewView sessions={sessions} /></div>
           ) : selectedId === null ? (
-            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS} />
+            <EverythingView sessions={sessions} zoom={zoom} onZoomChange={setZoom} revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS} onLayoutRoomChange={setLayoutRoom} layoutRoom={layoutRoom} onCurrentHourChange={setCurrentHour} currentHour={currentHour} />
           ) : !detail ? (
             <div style={{ color: 'rgb(var(--color-text-muted))', fontSize: 13 }}>Loading…</div>
           ) : (
-            <>
+            <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              {/* Floating session header — a small shrink-wrapped pill (name + filter + stats +
+                  a live current-hour line). NOT a full-width strip. Defaults to the top-LEFT
+                  (per direct feedback "put it back on the left"); flips to the top-right only
+                  when the trail's spine/branches would sit under it there (headerSide, from the
+                  measured layoutRoom). The trail scrolls under it. */}
+              <div style={{
+                position: 'absolute', top: 0, zIndex: 6, width: 'fit-content', maxWidth: 260,
+                ...(headerSide === 'left' ? { left: 0 } : { right: 0 }),
+                display: 'flex', flexDirection: 'column', gap: 4,
+                background: 'rgb(var(--color-surface-1) / 0.7)',
+                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 10,
+                boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '7px 9px',
+              }}>
               {renamingId === detail.session.id ? (
                 <input
                   ref={renameInputRef}
@@ -604,33 +627,36 @@ export default function StudyTrailApp() {
                   }}
                   onBlur={commitRename}
                   style={{
-                    display: 'block', fontSize: 17, fontWeight: 700, margin: '0 0 4px', background: 'rgb(var(--color-surface-2))',
+                    display: 'block', fontSize: 15, fontWeight: 700, background: 'rgb(var(--color-surface-2))',
                     border: '1px solid rgb(var(--color-accent))', borderRadius: 6, padding: '2px 6px', color: 'rgb(var(--color-text-primary))',
-                    flexShrink: 0,
                   }}
                 />
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px', flexShrink: 0 }}>
-                  <h2
-                    onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
-                    onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
-                    title="Double-click or right-click to rename"
-                    style={{ margin: 0, fontSize: 17, cursor: 'text', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >{detail.session.name}</h2>
-                  <input
-                    value={trailFilter}
-                    onChange={(e) => setTrailFilter(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
-                    placeholder="Filter timeline…"
-                    style={{
-                      width: 200, flexShrink: 0, fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
-                      border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
-                    }}
-                  />
+                <h2
+                  onDoubleClick={() => startRename(detail.session.id, detail.session.name)}
+                  onContextMenu={(e) => openSessionMenu(e, detail.session.id)}
+                  title="Double-click or right-click to rename"
+                  style={{ margin: 0, fontSize: 15, fontWeight: 700, cursor: 'text', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >{detail.session.name}</h2>
+              )}
+              <input
+                value={trailFilter}
+                onChange={(e) => setTrailFilter(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
+                placeholder="Filter timeline…"
+                style={{
+                  width: '100%', fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
+                  border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
+                }}
+              />
+              <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>
+                {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
+              </div>
+              {currentHour && (
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))' }}>
+                  {currentHour}
                 </div>
               )}
-              <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 16, flexShrink: 0 }}>
-                {detail.nodes.length} chapter stop{detail.nodes.length === 1 ? '' : 's'} · {detail.connections.length} connection{detail.connections.length === 1 ? '' : 's'}
               </div>
               <div style={{ flex: 1, minHeight: 0 }}>
                 <MapView
@@ -641,9 +667,12 @@ export default function StudyTrailApp() {
                   revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS}
                   filterValue={trailFilter}
                   onFilterChange={setTrailFilter}
+                  topInset={8}
+                  onLayoutRoomChange={setLayoutRoom}
+                  onCurrentHourChange={setCurrentHour}
                 />
               </div>
-            </>
+            </div>
           )}
           </div>
         </div>
@@ -655,7 +684,12 @@ export default function StudyTrailApp() {
           removed per direct feedback (useless UI, nobody adjusted it) — the revisit window
           is now just DEFAULT_REVISIT_WINDOW_MS (see trailTime.ts), no control needed. */}
       {mainTab === 'map' && (
-        <div style={{ position: 'fixed', right: 20, bottom: 20, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, zIndex: 50 }}>
+        <div style={{
+          position: 'fixed', bottom: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 50,
+          // Same side as MapView's Recenter/Latest cluster (both decided from `layoutRoom` with
+          // CTRL_W.zoom); on the left, `left: 240` clears the 220px session rail.
+          ...(zoomSide === 'left' ? { left: 240, alignItems: 'flex-start' } : { right: 20, alignItems: 'flex-end' }),
+        }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 2, background: 'rgb(var(--color-surface-2))',
             border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2,

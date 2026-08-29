@@ -260,21 +260,26 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('studyTrail:addNode', (_e, node: {
     trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string
     translation?: string
+    // Wall-clock time the user actually navigated to this chapter (captured synchronously in the
+    // renderer's nav recorder). Used for BOTH this node's anchor_started_at AND the close-out of
+    // the previous anchor — the arrival dwell + IPC hop otherwise stamps everything ~1.2s+ late.
+    // Falls back to now for any caller that doesn't pass it.
+    anchorStartedAt?: number
   }) => {
     // Deliberately NOT wrapped in try/catch: a thrown error here (e.g. a constraint violation)
     // should propagate back through ipcMain.handle's rejected promise to the renderer's own
     // .catch((err) => console.error(...)) rather than being swallowed at either end.
     const db = getBereanDb()
     const id = randomUUID()
-    const now = Date.now()
+    const startedAt = node.anchorStartedAt ?? Date.now()
     // Close out the previous anchor (if any) so its anchor_ended_at reflects when the user
-    // actually left that chapter, before opening the new one.
+    // actually left that chapter (= when they navigated here), before opening the new one.
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE trail_session_id = ? AND anchor_ended_at IS NULL`)
-      .run(now, node.trailSessionId)
+      .run(startedAt, node.trailSessionId)
     prep(db, `
       INSERT INTO trail_nodes (id, trail_session_id, book_id, chapter, order_index, anchor_started_at, origin_label, translation)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, now, node.originLabel ?? null, node.translation ?? null)
+    `).run(id, node.trailSessionId, node.bookId, node.chapter, node.orderIndex, startedAt, node.originLabel ?? null, node.translation ?? null)
     const result = rowToNode(prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(id) as TrailNodeRow)
     broadcastDataChanged(result.trailSessionId)
     return result
@@ -293,9 +298,11 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   // known simplification (tracking disjoint open/close intervals per node would need its own
   // child table) rather than a bug; see MapView's round-trip rendering, which is what actually
   // needs this to exist and not the interval accounting.
-  ipcMain.handle('studyTrail:reopenNode', (_e, nodeId: string) => {
+  ipcMain.handle('studyTrail:reopenNode', (_e, nodeId: string, at?: number) => {
     const db = getBereanDb()
-    const now = Date.now()
+    // `at` = when the user actually navigated back here (renderer nav-recorder time); the
+    // previous anchor is closed out at that moment, not this handler's own later clock.
+    const now = at ?? Date.now()
     const node = prep(db, 'SELECT * FROM trail_nodes WHERE id = ?').get(nodeId) as TrailNodeRow | undefined
     if (!node) return null
     prep(db, `UPDATE trail_nodes SET anchor_ended_at = ? WHERE trail_session_id = ? AND anchor_ended_at IS NULL AND id != ?`)
@@ -403,6 +410,35 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return { success: true }
   })
 
+  // Delete a single trail CONNECTION (a branch/tangent bullet) — right-click "Delete" on a
+  // ConnRow in the Study Trail window. Cascades to any connections chained off it via
+  // from_connection_id (a lexicon hop off a lexicon hop, etc.), the same outward walk deleteNode
+  // does, so nothing is left dangling. Nodes are never touched — only the branch(es).
+  ipcMain.handle('studyTrail:deleteConnection', (_e, connectionId: string) => {
+    const db = getBereanDb()
+    const del = db.transaction((id: string) => {
+      const row = prep(db, 'SELECT trail_session_id FROM trail_connections WHERE id = ?').get(id) as
+        { trail_session_id: string } | undefined
+      if (!row) return null
+      // Outward chain walk — collect this connection + everything chained off it.
+      let frontier = [id]
+      const allIds = new Set(frontier)
+      while (frontier.length > 0) {
+        const placeholders = frontier.map(() => '?').join(',')
+        const next = (prep(db, `SELECT id FROM trail_connections WHERE from_connection_id IN (${placeholders})`).all(...frontier) as Array<{ id: string }>)
+          .map((r) => r.id).filter((cid) => !allIds.has(cid))
+        next.forEach((cid) => allIds.add(cid))
+        frontier = next
+      }
+      const placeholders = [...allIds].map(() => '?').join(',')
+      prep(db, `DELETE FROM trail_connections WHERE id IN (${placeholders})`).run(...allIds)
+      return row.trail_session_id
+    })
+    const sessionId = del(connectionId)
+    broadcastDataChanged(sessionId ?? undefined)
+    return { success: true }
+  })
+
   // Reassign nodes (and every connection hanging off them, including chained descendants) to a
   // different session — the "change the session of the selection" half of the Study Trail
   // marquee-select feature. Target may be the implicit loose bucket. order_index is set from
@@ -462,12 +498,20 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     // window itself.
     isBranch?: boolean
     isBranchReturn?: boolean
+    // Wall-clock time the navigation actually happened (renderer nav-recorder time), so
+    // created_at — and therefore the connection's timeline position and displayed clock — is
+    // when the user really jumped, not the later moment this dwell-delayed write runs. Falls
+    // back to now.
+    createdAt?: number
   }) => {
     const db = getBereanDb()
     const id = randomUUID()
     const now = Date.now()
+    const createdAt = conn.createdAt ?? now
 
-    // Revisit-cluster detection: same destination chapter-pair, recently, more than once.
+    // Revisit-cluster detection: same destination chapter-pair, recently, more than once. The
+    // recency window is still measured against real wall-clock `now` (a stale createdAt
+    // shouldn't widen it), only the stored timestamp uses createdAt.
     let clusterId: string | null = null
     if (conn.toKind === 'chapter' && conn.toBookId && conn.toChapter != null) {
       const recent = prep(db, `
@@ -498,7 +542,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       conn.clarityTier, conn.reasonText ?? null, conn.reasonTags ? JSON.stringify(conn.reasonTags) : null,
       conn.weight ?? 'full', conn.strongsDepth ?? null, clusterId, conn.originVersePinFrom ?? null,
       conn.fromConnectionId ?? null, conn.chainDepth ?? 0, conn.toVerseEnd ?? null,
-      conn.isBranch ? 1 : 0, conn.isBranchReturn ? 1 : 0, now
+      conn.isBranch ? 1 : 0, conn.isBranchReturn ? 1 : 0, createdAt
     )
     const result = rowToConnection(prep(db, 'SELECT * FROM trail_connections WHERE id = ?').get(id) as TrailConnectionRow)
     broadcastDataChanged(result.trailSessionId)

@@ -122,6 +122,38 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.11] - 2026-08-28
+
+Study Trail
+
+- Chapter stops are now timestamped to when you actually opened them, so the
+  timeline's spacing and the "opened at" times reflect your real reading
+  instead of lagging a moment behind.
+- The "why did you go here?" prompt now spells out the full book, chapter and
+  verse on both ends ("Genesis 3:5 from Matthew 5:17") instead of bare
+  numbers.
+- Opening the Advanced Scripture Search tab no longer records a stray
+  "Genesis 1" stop.
+- A branch drawn from your own from/to verses now starts at the chapter you
+  were actually reading, and the plain arrow between two stops is dropped once
+  a branch already connects them — so the line runs through the branch rather
+  than alongside it.
+- Revisit and return arcs now fan out at more varied distances, so a stack of
+  overlapping ones is easier to follow.
+- You can right-click a branch on the timeline to delete it.
+- The drag-to-select box no longer appears while you're dragging a note
+  popover around.
+- The session header (name, filter, counts) is now a small floating card
+  rather than a full-width bar, freeing up vertical space; it also shows the
+  clock hour of whatever's at the top of the view and moves to whichever side
+  keeps it clear of the timeline. The zoom, Recenter and Latest controls do
+  the same.
+- The timeline sits further to the left, and the Everything view no longer
+  shows a stray horizontal scrollbar or a small square in the bottom-right
+  corner.
+
+---
+
 ## [0.5.10] - 2026-08-28
 
 Study Trail

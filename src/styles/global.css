@@ -1305,6 +1305,13 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+/* The little box where a horizontal and vertical scrollbar (or a reserved
+   `scrollbar-gutter` track) meet — left unstyled, Chromium paints it its
+   default light grey, which showed as a stray white square in the dark Study
+   Trail window's bottom-right corner. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 3px;
