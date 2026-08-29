@@ -69,7 +69,9 @@ export default function App() {
       const tabId = s.activeTabId['scripture']
       const tab = s.tabs['scripture'].find((t) => t.id === tabId)
       const bs = tab?.state as BibleTabState | undefined
-      return bs?.bookId && bs.chapter != null ? { bookId: bs.bookId, chapter: bs.chapter } : null
+      // Skip a tab that's showing Advanced Scripture Search — its bookId/chapter is stale
+      // last-read state sitting behind the search view, not what the user is actually reading.
+      return bs?.bookId && bs.chapter != null && !bs.searchMode ? { bookId: bs.bookId, chapter: bs.chapter } : null
     })
   }, [])
   // The receiving half of Study Trail's (or any secondary window's) "navigate the main

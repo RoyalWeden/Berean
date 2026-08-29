@@ -1775,7 +1775,11 @@ export const useAppStore = create<AppState>()(
             const prevTab = prevState.tabs.scripture.find((t) => t.id === prevTabId)
             const prevBs = prevTab?.state as BibleTabState | undefined
             const bs = tab.state as BibleTabState
-            if (bs.bookId) {
+            // A bible tab currently showing Advanced Scripture Search isn't "a chapter you moved
+            // your attention to" — its bookId/chapter is just the last-read (or default Genesis 1)
+            // state sitting behind the search view. Recording that as a Study Trail stop produced
+            // the reported bogus "genesis 1" node every time the search tab was focused.
+            if (bs.bookId && !bs.searchMode) {
               recordNavigation(
                 { bookId: prevBs?.bookId, chapter: prevBs?.chapter, verse: prevBs?.verse ?? prevBs?.targetVerse },
                 { bookId: bs.bookId, chapter: bs.chapter, verse: bs.verse ?? bs.targetVerse },

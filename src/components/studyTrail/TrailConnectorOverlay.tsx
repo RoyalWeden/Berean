@@ -46,7 +46,11 @@ export interface TrailEdge {
 // so the curve's belly (at 55% reach, see the bezier construction below) never visibly cleared
 // the bullets it was supposed to arc around.
 export const GUTTER_BASE = 30
-export const LANE_SPACING = 10
+// Bumped 10 -> 18 per direct feedback ("make the revisit arcs more varied in how far out they
+// go so it's easier to follow") — concurrently-overlapping arcs (each in its own lane) now
+// step out ~2x further apart, so a stack of them stays individually traceable instead of
+// visually merging. MapView.tsx's gutter reservation mirrors this constant.
+export const LANE_SPACING = 18
 
 /** One shared registry of "connector point key → its DOM element", plus the ref-callback
  *  factory every anchor (spine dot, row marker) uses to register itself. Lives in the parent
@@ -370,9 +374,13 @@ export default function TrailConnectorOverlay({
           // large inputs) plus a hard ceiling fixes all three logged cases at once, not just the
           // short ones — sqrt(142)≈12, sqrt(238)≈15, sqrt(818)≈29, so even the 878 case's growth
           // term is only ~3x the 202 case's instead of ~6x under the old linear formula.
-          const REVISIT_BOW_BASE = 30
-          const REVISIT_BOW_SQRT_SCALE = 3
-          const REVISIT_BOW_CAP = 85
+          // scale bumped 3 -> 4.5 and base eased 30 -> 26 per direct feedback ("more varied in
+          // how far out they go") — a long revisit now bows visibly further than a short one
+          // (the range between them roughly doubles) instead of the old near-flat sqrt curve.
+          // Keep MapView's overlayBowFor mirror (base/scale/cap) in sync.
+          const REVISIT_BOW_BASE = 26
+          const REVISIT_BOW_SQRT_SCALE = 4.5
+          const REVISIT_BOW_CAP = 100
           // Round 7: "the arcs still didn't change at all" turned out to (at least partly) mean
           // the ARROWED `return:` edges too — round 6's sqrt/cap rework only ever touched the
           // non-arrow revisit-link edge; `return:` was still running the original, unbounded
@@ -382,8 +390,9 @@ export default function TrailConnectorOverlay({
           // still meant to read as more prominent, per the "swing wide enough to visibly go
           // around it" tuning goal that hasn't changed) so the two edge types stay visually
           // distinct rather than converging on one look.
-          const RETURN_BOW_BASE = 70
-          const RETURN_BOW_SQRT_SCALE = 6
+          // scale bumped 6 -> 8 (same "more varied" feedback); cap held at 180.
+          const RETURN_BOW_BASE = 66
+          const RETURN_BOW_SQRT_SCALE = 8
           const RETURN_BOW_CAP = 180
           const EXTRA_BOW_BASE = e.arrow ? RETURN_BOW_BASE : REVISIT_BOW_BASE
           const EXTRA_BOW_SCALE = e.arrow ? RETURN_BOW_SQRT_SCALE : REVISIT_BOW_SQRT_SCALE

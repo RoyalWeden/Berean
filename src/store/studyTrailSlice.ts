@@ -376,6 +376,9 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
   // instead of leaving it looking like a sibling click straight from the chapter. This is what
   // makes a Strong's A -> B -> C click sequence read as a real chain.
   const chained = s.currentBranchTipConnectionId != null
+  // When the entry was actually opened — this fn can be called from a deferred path, so stamp
+  // the connection with now rather than letting the IPC handler's own (later) clock win.
+  const navAt = Date.now()
   window.studyTrail.addConnection({
     trailSessionId: s.currentTrailSessionId,
     fromNodeId: s.currentAnchorNodeId,
@@ -392,10 +395,11 @@ export function recordLexiconConnection(strongsNum: string, depth: 'click' | 'oc
     // entry (SidebarLexicon/LexiconPanel's own navToEntry, depth 'related') has no originating
     // verse at all, correctly left undefined by those call sites.
     originVersePinFrom: fromVerse,
+    createdAt: navAt,
   })
     .then((conn) => {
       useStudyTrailStore.setState({
-        currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
+        currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: navAt,
       })
     })
     .catch((err) => console.error('[TrailDebug] addConnection (lexicon) FAILED — this was previously silently swallowed', err))
@@ -571,15 +575,20 @@ let pendingChapterArrivalTimer: ReturnType<typeof setTimeout> | null = null
  *  at schedule time), since real time has passed and branch-mode state in particular
  *  (currentlyInBranch/currentBranchTipConnectionId) may have changed via the "ask why" popup
  *  in the meantime. */
-function scheduleChapterArrival(from: Parameters<NavRecorder>[0], to: Parameters<NavRecorder>[1], origin: NavOrigin): void {
+function scheduleChapterArrival(from: Parameters<NavRecorder>[0], to: Parameters<NavRecorder>[1], origin: NavOrigin, navAt: number): void {
   if (pendingChapterArrivalTimer) clearTimeout(pendingChapterArrivalTimer)
   pendingChapterArrivalTimer = setTimeout(() => {
     pendingChapterArrivalTimer = null
-    commitChapterArrival(from, to, origin).catch((err) => console.error('[TrailDebug] commitChapterArrival FAILED', err))
+    commitChapterArrival(from, to, origin, navAt).catch((err) => console.error('[TrailDebug] commitChapterArrival FAILED', err))
   }, CHAPTER_ARRIVAL_DWELL_MS)
 }
 
-async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parameters<NavRecorder>[1], origin: NavOrigin): Promise<void> {
+/** `navAt` is the wall-clock time the user ACTUALLY navigated (captured synchronously in the
+ *  recorder, before the arrival dwell + IPC round-trip), so the node/connection it writes is
+ *  stamped with when the chapter was opened — not the ~1.2s-plus-later moment this code finally
+ *  runs. Per direct feedback: "the timestamps ... are not accurate ... make sure that they are
+ *  accurate to when the user actually opened them." */
+async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parameters<NavRecorder>[1], origin: NavOrigin, navAt: number): Promise<void> {
   const s = useStudyTrailStore.getState()
   // The session/anchor could in principle have changed (session ended, etc.) during the dwell
   // — bail out the same way the live recorder itself would rather than recording against stale
@@ -607,7 +616,7 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
       window.studyTrail.addConnection({
         trailSessionId, fromNodeId: prevNodeId, toKind: 'compare',
         toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
-        clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
+        clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full', createdAt: navAt,
       })
         .catch((err) => console.error('[TrailDebug] addConnection (compare) FAILED', err))
     }
@@ -654,10 +663,10 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
   }
 
   let node = await (existingNodeId
-    ? window.studyTrail.reopenNode(existingNodeId)
-    : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation }))
+    ? window.studyTrail.reopenNode(existingNodeId, navAt)
+    : window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: navAt, anchorStartedAt: navAt, originLabel: origin.kind, translation: to.translation }))
   if (!node) { // reopenNode found nothing (stale index entry) — fall back to a fresh node
-    node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: Date.now(), originLabel: origin.kind, translation: to.translation })
+    node = await window.studyTrail.addNode({ trailSessionId, bookId: to.bookId, chapter: to.chapter, orderIndex: navAt, anchorStartedAt: navAt, originLabel: origin.kind, translation: to.translation })
   }
   // Arriving at a chapter normally means "back at depth 0" for the branch chain — UNLESS THIS
   // hop is itself a deliberate cross-ref/lexicon-occurrence/ai-lookup jump to a SPECIFIC VERSE.
@@ -676,7 +685,7 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
   const isBranchThisHop = SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind) && to.verse != null
   useStudyTrailStore.setState((st) => ({
     currentAnchorNodeId: node!.id, currentAnchorBookId: to.bookId, currentAnchorChapter: to.chapter, currentAnchorVerseCount: 1,
-    currentAnchorActivatedAt: Date.now(), currentAnchorIsRevisit: !!existingNodeId,
+    currentAnchorActivatedAt: navAt, currentAnchorIsRevisit: !!existingNodeId,
     // A plain/non-tangent hop is back at depth 0 — the whole tangent group (and its lookup
     // index) closes out; the NEXT tangent, whenever it starts, begins clean rather than
     // possibly chaining onto a stale entry from an unrelated earlier excursion.
@@ -701,11 +710,11 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
     toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
     clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
     originVersePinFrom: originFromVerse(origin),
-    isBranch: isBranchThisHop,
+    isBranch: isBranchThisHop, createdAt: navAt,
   })
   if (isBranchThisHop) {
     useStudyTrailStore.setState((st) => ({
-      currentlyInBranch: true, currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
+      currentlyInBranch: true, currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: navAt,
       // Record THIS connection's own destination verse so a later cross-ref clicked FROM it
       // (once its chapter becomes the anchor, which it does above) chains one level deeper.
       ...(to.verse != null && to.bookId
@@ -738,6 +747,11 @@ async function commitChapterArrival(from: Parameters<NavRecorder>[0], to: Parame
  *  in the app feeds Study Trail without those call sites needing to know it exists. */
 export function installStudyTrailRecorder(): void {
   setNavRecorder((from, to, origin) => {
+    // Captured NOW, synchronously with the navigation itself — every node/connection this event
+    // ultimately writes is stamped with this, not the later moment the (dwell-delayed, async,
+    // IPC-round-tripped) write actually runs. "make sure that they are accurate to when the user
+    // actually opened them."
+    const navAt = Date.now()
     const s = useStudyTrailStore.getState()
     // Recording never requires the user to have created/started a session — a session is
     // just a named label over the continuous trail now. If nothing is live yet, kick off an
@@ -799,12 +813,12 @@ export function installStudyTrailRecorder(): void {
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse, toVerseEnd: to.endVerse,
           clarityTier: tierForOrigin(origin), reasonText: text, reasonTags: tags, weight: 'full',
           originVersePinFrom: originFromVerse(origin),
-          isBranch: isBranchThisHop,
+          isBranch: isBranchThisHop, createdAt: navAt,
         })
           .then((conn) => {
             useStudyTrailStore.setState((st) => ({
               currentlyInBranch: isBranchThisHop || st.currentlyInBranch,
-              currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: Date.now(),
+              currentBranchTipConnectionId: conn.id, currentBranchTipDepth: conn.chainDepth, currentBranchTipActivatedAt: navAt,
               // Record THIS connection's own destination verse as a lookup key — a later
               // cross-ref clicked from THIS verse (same chapter, same verse) chains one level
               // deeper than it, per tangentParentFor's own comment.
@@ -832,7 +846,7 @@ export function installStudyTrailRecorder(): void {
         window.studyTrail.addConnection({
           trailSessionId, fromNodeId: prevNodeId, toKind: 'compare',
           toBookId: to.bookId, toChapter: to.chapter, toVerse: to.verse,
-          clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full',
+          clarityTier: tier, reasonText: text, reasonTags: tags, weight: 'full', createdAt: navAt,
         })
           .catch((err) => console.error('[TrailDebug] addConnection (compare) FAILED', err))
       }
@@ -856,9 +870,9 @@ export function installStudyTrailRecorder(): void {
     // branch already does.
     if (SAME_CHAPTER_BRANCH_WORTHY_KINDS.has(origin.kind)) {
       if (pendingChapterArrivalTimer) { clearTimeout(pendingChapterArrivalTimer); pendingChapterArrivalTimer = null }
-      commitChapterArrival(from, to, origin).catch((err) => console.error('[TrailDebug] commitChapterArrival (immediate, always-worthy origin) FAILED', err))
+      commitChapterArrival(from, to, origin, navAt).catch((err) => console.error('[TrailDebug] commitChapterArrival (immediate, always-worthy origin) FAILED', err))
     } else {
-      scheduleChapterArrival(from, to, origin)
+      scheduleChapterArrival(from, to, origin, navAt)
     }
 
     // If THIS navigation is itself the "bounce back" a previous connection was waiting on,

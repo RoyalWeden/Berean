@@ -372,7 +372,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   conn: AnnotatedConn
   refFor: (conn: TrailConnection) => TrailRef | null
   onOpenPrompt: (c: TrailConnection) => void
-  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; x: number; y: number }) => void
+  openMenu: (data: { ref: TrailRef; onJumpToOrigin?: () => void; onDelete?: () => void; x: number; y: number }) => void
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   /** Branch chaining (v31) — connId → the connections chained directly off it. Only read by a
    *  ROOT row (one not itself chained off another) — see flattenChain above; a row rendered
@@ -469,7 +469,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
         />
         <span
           onClick={ref ? (e) => trailRefClick(ref, e) : undefined}
-          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, undefined, undefined, {
+          onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, () => window.studyTrail.deleteConnection(conn.id), undefined, {
             active: conn.isBranch,
             onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
           }) : undefined}
@@ -913,7 +913,7 @@ function NodeBlock({
           div) far out to the right of THIS row's own short text along with it — which is
           exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
           a wide loop well past nearby text instead of hugging close to the actual content. */}
-      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24, flex: 1, minWidth: 0, maxWidth: 460 }}>
+      <div style={{ paddingBottom: (!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24, flex: 1, minWidth: 0, maxWidth: 'var(--trail-row-max, 460px)' }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
@@ -1006,11 +1006,37 @@ function NodeBlock({
 export const ZOOM_MIN = 0.5
 export const ZOOM_MAX = 2
 
+// Approx rendered widths of the floating controls, for the left-vs-right placement decision.
+export const CTRL_W = { header: 236, zoom: 108, latest: 88 }
+/** Prefer the LEFT side; fall back to the right only if the control wouldn't fit clear of the
+ *  spine/branches there (per direct feedback). `room` is MapView's reported per-side clearance. */
+export function pickControlSide(room: { left: number; right: number } | undefined, w: number): 'left' | 'right' {
+  if (!room) return 'left'
+  const need = w + 16
+  if (room.left >= need) return 'left'
+  if (room.right >= need) return 'right'
+  return room.left >= room.right ? 'left' : 'right'
+}
+
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
-  filterValue, onFilterChange,
+  filterValue, onFilterChange, topInset = 0, onLayoutRoomChange, onCurrentHourChange,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Reports the live clear space (px) on each side of the trail's SOLID content (spine +
+   *  branch bullets — faint arcs don't count) so the parent can decide which side to float its
+   *  own header / zoom controls on. Per direct feedback: those controls default to the left and
+   *  "swap to the right if they will get in the way of the main spine/branches". */
+  onLayoutRoomChange?: (room: { left: number; right: number }) => void
+  /** Reports the clock hour of whichever chapter stop is currently at the top of the scroll
+   *  view (advances as you scroll) — the parent shows it INSIDE the session header pill so
+   *  there's one floating thing, not a separate hour pill the user couldn't spot. */
+  onCurrentHourChange?: (hour: string | null) => void
+  /** Extra top padding inside the scroll area — used when the parent floats its session-header
+   *  bar over the top of the map (StudyTrailApp) so the first stop isn't pinned flush to the
+   *  window edge. Kept small on purpose: the whole point of floating the header is that trail
+   *  content is allowed to scroll UNDER it, reclaiming that vertical space. */
+  topInset?: number
   /** Timeline filter, hoisted into the parent's title row (per direct feedback: "the filter
    *  timeline thing should be moved to the right of the name of the session"). When
    *  onFilterChange is supplied MapView renders NO input of its own and reads filterValue
@@ -1397,7 +1423,11 @@ export default function MapView({
     // (no drag) still runs a chapter's own navigation; the box only forms once you actually
     // move. This is looser than "gaps between rows only", which left almost nothing grabbable
     // on a dense spine ("i dont see a drag select thing").
-    if (t.closest('button, a, input, textarea, select, [role="menu"], [role="dialog"], [contenteditable="true"]')) return
+    // `.no-drag` covers the note/reason popovers (TrailPopoverShell) — they portal to
+    // document.body but stay React children of this container, so a React synthetic mousedown
+    // inside one still bubbles here; without this, dragging a popover's header started a marquee
+    // behind it ("selection box shows when i drag a popup around").
+    if (t.closest('button, a, input, textarea, select, [role="menu"], [role="dialog"], .no-drag, [contenteditable="true"]')) return
     e.preventDefault() // don't start a native text selection (doesn't block a later click)
     marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false, additive: e.shiftKey || e.metaKey }
     marqueeBaseRef.current = new Set(selectedNodeIds)
@@ -1525,6 +1555,56 @@ export default function MapView({
   const nodeOrderIndex = new Map<string, number>()
   detail.nodes.forEach((n, i) => nodeOrderIndex.set(n.id, i))
 
+  // ── Hour markers ─────────────────────────────────────────────────────────
+  // The spine isn't linear time (gaps are log-scaled), so an hour marker can only ATTACH to a
+  // chapter stop — the first stop that falls in each new clock hour. Surfaced as a live line
+  // INSIDE the session-header pill (reported up via onCurrentHourChange): whichever hour marker
+  // is currently at the top of the scroll view, advancing as you scroll. 12-hour clock; date
+  // shown when the day rolls over — unless a date DIVIDER is already rendered above this node
+  // (Everything view's own boundaryLabel), in which case it drops the date to avoid repeating.
+  const hourLabelForNodeId = new Map<string, string>()
+  {
+    let prevHourStart: number | null = null
+    let prevDayKey: string | null = null
+    for (const n of detail.nodes) {
+      const d = new Date(n.anchorStartedAt)
+      const hourStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime()
+      if (prevHourStart != null && hourStart === prevHourStart) continue
+      const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+      const h12 = ((d.getHours() + 11) % 12) + 1
+      const time = `${h12} ${d.getHours() < 12 ? 'AM' : 'PM'}`
+      const dayRolled = prevDayKey != null && dayKey !== prevDayKey
+      const label = (dayRolled && !boundaryLabelForNodeId?.has(n.id))
+        ? `${d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} · ${time}`
+        : time
+      hourLabelForNodeId.set(n.id, label)
+      prevHourStart = hourStart
+      prevDayKey = dayKey
+    }
+  }
+  // Ordered [nodeId, label] for the hour markers — read by the scroll tracker below to pick the
+  // one currently at the top of the view.
+  const hourMarkers = detail.nodes.map((n) => n.id).filter((id) => hourLabelForNodeId.has(id)).map((id) => ({ id, label: hourLabelForNodeId.get(id)! }))
+  const firstHour = hourMarkers[0]?.label ?? null
+
+  // The node a connection actually LANDED on: among the nodes for its destination chapter, the
+  // one whose anchor opened closest in time to the jump itself. Position-robust where a naive
+  // `nextNodeById.get(fromNodeId)` isn't — a later revisit promotion can splice a same-chapter
+  // node between the connection's fromNode and the real arrival, so "the node right after
+  // fromNode in spine order" stops being the arrival. Used to recognise a user verse-tie branch
+  // as the arrival path into its chapter even when that's happened.
+  function arrivalNodeFor(c: TrailConnection): TrailNode | undefined {
+    if (c.toKind !== 'chapter' || !c.toBookId || c.toChapter == null) return undefined
+    let best: TrailNode | undefined
+    let bestDelta = Infinity
+    for (const nn of detail.nodes) {
+      if (nn.trailSessionId !== c.trailSessionId || nn.bookId !== c.toBookId || nn.chapter !== c.toChapter) continue
+      const d = Math.abs(nn.anchorStartedAt - c.createdAt)
+      if (d < bestDelta) { bestDelta = d; best = nn }
+    }
+    return best
+  }
+
   // Gates whether a recorded revisit (n.revisitOfNodeId) still COUNTS as one at render time —
   // per the plan's revisit time-window slider: `revisitOfNodeId` itself is never rewritten (the
   // recorder's own judgment call stands), but a chapter re-arrival past the user's current
@@ -1616,6 +1696,29 @@ export default function MapView({
       if (selfTarget && selfTarget.id === c.fromNodeId) {
         annotated = { ...annotated, isSameChapterBranch: true }
       } else {
+        // Any branch path that lands on a real chapter node makes the plain straight spine
+        // arrow into that node redundant — the branch itself already visibly joins the two
+        // stops. Per direct feedback: "remove the main spine connector if there is branch
+        // connectors that connect the two main spine bullets." Covers recorded cross-refs,
+        // user verse-ties, AND chained lexicon/branch hops (isChainedBranch). `arrivalNodeFor`
+        // is position-robust — survives a later revisit promotion splicing the spine between
+        // fromNode and the real landing (the "from arrow points from something far in the past"
+        // case). `fromNodeId` is always the chain's ROOT chapter node, so `fromIdx <=
+        // arrivalIdx - 1` confirms the branch genuinely spans from an earlier stop.
+        const isBranchish = renderAsBranch(annotated) || annotated.isChainedBranch
+        const arrival = isBranchish ? arrivalNodeFor(c) : undefined
+        if (arrival) {
+          const arrivalIdx = nodeOrderIndex.get(arrival.id) ?? -1
+          const fromIdx = nodeOrderIndex.get(c.fromNodeId) ?? -1
+          if (arrivalIdx > 0 && fromIdx >= 0 && fromIdx <= arrivalIdx - 1) {
+            nodesWithTracedArrival.add(arrival.id)
+            // The dedicated 3-segment pass fully OWNS the rendering only for the node's own
+            // origin connection (and never for a nested chained row) — there, emit no ConnRow.
+            // Otherwise keep the ConnRow so the branch stays visible, just minus the duplicate
+            // straight arrow.
+            if (renderAsBranch(annotated) && !annotated.isChainedBranch && originConnByNodeId.get(arrival.id)?.id === c.id) continue
+          }
+        }
         const next = nextNodeById.get(c.fromNodeId)
         const isForward = next && next.trailSessionId === c.trailSessionId && next.bookId === c.toBookId && next.chapter === c.toChapter
         if (isForward) {
@@ -1713,7 +1816,15 @@ export default function MapView({
   for (const n of detail.nodes) {
     const originConn = originConnByNodeId.get(n.id)
     if (!originConn || !renderAsBranch(originConn)) continue
-    const fromNode = nodeById.get(originConn.fromNodeId)
+    // A user verse-tie branch departs from wherever the reader actually WAS — the previous
+    // main-spine stop, i.e. the node immediately before this one — not the (possibly long-ago,
+    // revisit-displaced) node the underlying connection happens to be recorded against. Per
+    // direct feedback: "the from arrow ... should be coming from the previous main spine instead
+    // of something far in the past from a revisit." A recorded cross-ref branch keeps its own
+    // true fromNode (its recorder already resolves the promoted/current node at capture time).
+    const idx = nodeOrderIndex.get(n.id) ?? 0
+    const prevSpine = idx > 0 && detail.nodes[idx - 1].trailSessionId === n.trailSessionId ? detail.nodes[idx - 1] : undefined
+    const fromNode = (hasUserVerseTies(originConn) && prevSpine) ? prevSpine : nodeById.get(originConn.fromNodeId)
     if (!fromNode) continue
     // Solid accent, arrowed — "going one level deeper," the same treatment every other tangent
     // stub gets.
@@ -1849,16 +1960,23 @@ export default function MapView({
   const ROW_HEIGHT_ESTIMATE = 90
   const overlayBowFor = (spanItems: number, arrow: boolean) => {
     const vertRun = spanItems * ROW_HEIGHT_ESTIMATE
-    const base = arrow ? 70 : 30
-    const scale = arrow ? 6 : 3
-    const cap = arrow ? 180 : 85
+    // Mirror of TrailConnectorOverlay's REVISIT_BOW_* / RETURN_BOW_* — keep in sync.
+    const base = arrow ? 66 : 26
+    const scale = arrow ? 8 : 4.5
+    const cap = arrow ? 180 : 100
     return Math.min(cap, base + scale * Math.sqrt(Math.max(0, vertRun - 60)))
   }
   const maxExtraBow = lanedRaw.reduce((m, e) => Math.max(m, overlayBowFor(e.maxIdx - e.minIdx, !!e.arrow)), 0)
   // + safety margin: covers the estimate-vs-measured row-height slack and the little the bezier
   // belly sits left of laneX. Over-reserving a bit costs nothing (unused blank gutter); under-
   // reserving clips the arc against the scroll container's un-scrollable left edge.
-  const EXTRA_BOW_RESERVE = maxLane >= 0 ? maxExtraBow + 70 : 0
+  // Reserve exactly the deepest arc's own (bounded) bow — no arbitrary cap. An earlier round
+  // clamped this to 40px to pull the trail left, but that squashed every arc onto the laneX>=24
+  // floor so they all bowed the SAME amount and merged; per direct feedback ("make the revisit
+  // arcs more varied ... easier to follow") they need real room to spread. `maxExtraBow`
+  // mirrors the overlay's actual capped sqrt formula, so this tracks the real curve, not the
+  // old removed unbounded one. (Still far under the ~220px the very first pass over-reserved.)
+  const EXTRA_BOW_RESERVE = maxLane >= 0 ? maxExtraBow + 20 : 0
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
   // Deepest indent level actually RENDERED anywhere in this view — drives how many faint
@@ -2020,9 +2138,108 @@ export default function MapView({
   // PARENT), so measuring it to compute `pad` never feeds back. When the content is wider than
   // the viewport, `pad` is 0 and the browser clamps scrollLeft to the two content edges — no
   // overscroll either side, no clamp hack needed.
+  // The `- H_SAFETY/zoom` keeps the laid-out content a few CSS px narrower than the viewport so
+  // sub-pixel rounding of the widest row (or the full-width GapDivider line) can never spill
+  // past the edge and spawn a spurious horizontal scrollbar — the one Michael kept seeing on
+  // the dense Everything timeline.
+  const H_SAFETY = 10
   const pad = viewportWidth > 0 && contentWidth > 0
-    ? Math.max(0, (viewportWidth / zoom - contentWidth) / 2)
+    ? Math.max(0, (viewportWidth / zoom - contentWidth - H_SAFETY / zoom) / 2)
     : 0
+  // Cap how wide any single row's content may get so `gutterWidth + row` can't itself exceed
+  // the viewport (a big arc gutter + a 460px note preview did, on Everything). Applied via a CSS
+  // var so it reaches every NodeBlock/ConnRow without prop-drilling. Never below 200 (rows stay
+  // usable even in a very narrow window / very deep gutter).
+  const rowMaxWidth = Math.round(Math.min(460, Math.max(200, (viewportWidth || 700) / zoom - gutterWidth - 40)))
+  // Pull the content as far left as it will go — consume the ENTIRE centring slack so the trail
+  // hugs the left edge instead of sitting centred with dead space on its left. Per direct
+  // feedback ("move it as far left as possible").
+  const centreNudge = pad
+
+  // Live per-side clear space around the trail's SOLID content, reported up so the parent can
+  // place its floating header / zoom controls on whichever side won't cover the spine/branches
+  // (default left). `left` = viewport-left → spine-dot column (faint arcs in the gutter don't
+  // count as "in the way"); `right` = widest rendered row's right edge → viewport-right.
+  const [layoutRoom, setLayoutRoom] = useState<{ left: number; right: number }>({ left: 9999, right: 9999 })
+  useEffect(() => {
+    const v = scrollContainerRef.current, c = containerRef.current
+    if (!v || !c) return
+    let raf = 0
+    const measure = () => {
+      raf = 0
+      const vr = v.getBoundingClientRect()
+      // Bound the ACTUAL node rows currently on screen — not containerRef, whose width is padded
+      // out to the viewport by the full-width GapDivider chrome (which isn't "spine/branches").
+      // blockRef sits just RIGHT of the gutter spacer, so its left edge is already the spine
+      // column (no gutterWidth to add); its right edge covers the node + all its branch rows.
+      let minLeft = Infinity, maxRight = 0
+      for (const el of nodeBlockRefs.current.values()) {
+        const r = el.getBoundingClientRect()
+        if (r.bottom < vr.top || r.top > vr.bottom) continue
+        minLeft = Math.min(minLeft, r.left - vr.left)
+        maxRight = Math.max(maxRight, r.right - vr.left)
+      }
+      const spineLeft = minLeft === Infinity ? gutterWidth * zoom : minLeft
+      const contentRight = maxRight || vr.width
+      setLayoutRoom((prev) => {
+        const next = { left: Math.max(0, Math.round(spineLeft)), right: Math.max(0, Math.round(vr.width - contentRight)) }
+        return next.left === prev.left && next.right === prev.right ? prev : next
+      })
+    }
+    const sched = () => { if (!raf) raf = requestAnimationFrame(measure) }
+    sched()
+    v.addEventListener('scroll', sched, { passive: true })
+    const ro = new ResizeObserver(sched)
+    ro.observe(v); ro.observe(c)
+    window.addEventListener('resize', sched)
+    return () => {
+      v.removeEventListener('scroll', sched)
+      ro.disconnect()
+      window.removeEventListener('resize', sched)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [gutterWidth, zoom, detail.nodes.length, contentWidth, viewportWidth])
+  useEffect(() => { onLayoutRoomChange?.(layoutRoom) }, [layoutRoom]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Decided with the ZOOM pill's width (the wider of the two) so Recenter/Latest and the zoom
+  // pill always end up on the same side and can stack cleanly.
+  const latestSide = pickControlSide(layoutRoom, CTRL_W.zoom)
+
+  // ── Current-hour tracker (fed into the parent's header pill) ──────────────
+  // `firstHour` is the synchronous fallback so the pill's hour line shows immediately; the
+  // effect then refines it to whichever marker is at the top of the view, live on scroll.
+  const hourMarkersRef = useRef(hourMarkers)
+  hourMarkersRef.current = hourMarkers
+  const hourRafRef = useRef(0)
+  useEffect(() => {
+    onCurrentHourChange?.(firstHour)
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const measure = () => {
+      hourRafRef.current = 0
+      const markers = hourMarkersRef.current
+      if (markers.length === 0) { onCurrentHourChange?.(null); return }
+      const sTop = scroller.getBoundingClientRect().top + topInset
+      let active = markers[0].label
+      for (const m of markers) {
+        const el = nodeBlockRefs.current.get(m.id)
+        if (!el) continue
+        if (el.getBoundingClientRect().top - sTop <= 12) active = m.label
+        else break
+      }
+      onCurrentHourChange?.(active)
+    }
+    const schedule = () => { if (!hourRafRef.current) hourRafRef.current = requestAnimationFrame(measure) }
+    schedule()
+    scroller.addEventListener('scroll', schedule, { passive: true })
+    const ro = new ResizeObserver(schedule)
+    ro.observe(scroller)
+    return () => {
+      scroller.removeEventListener('scroll', schedule)
+      ro.disconnect()
+      if (hourRafRef.current) cancelAnimationFrame(hourRafRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstHour, detail.nodes.length, zoom, topInset])
 
   // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
   // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
@@ -2058,7 +2275,7 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
             whole content block — gutter + spine + indents + labels — in the viewport. It
             collapses to 0 once the content is wider than the viewport, so the native scroll
@@ -2067,9 +2284,9 @@ export default function MapView({
             the timeline scroll past its own leftmost content. */}
         <div style={{
           transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content',
-          paddingLeft: pad, paddingRight: pad,
+          paddingLeft: pad - centreNudge, paddingRight: pad + centreNudge,
         }}>
-          <div ref={containerRef} style={{ position: 'relative' }}>
+          <div ref={containerRef} style={{ position: 'relative', ['--trail-row-max' as string]: `${rowMaxWidth}px` } as React.CSSProperties}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
                 on a musical paper that show the indent levels so the user can follow which
                 level things are at", plus "there needs to be one for the main spine, for the
@@ -2149,7 +2366,14 @@ export default function MapView({
           // outgoing gap tight just because n itself had arrived via a branch.
           const gapToNextMs = nextIsBranchNode ? null : rawGapToNextMs
           const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
-          const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
+          // For a user verse-tie branch, "departed from" is the previous main-spine node (matches
+          // the tangent-stub edge's own origin, fixed above) — not the connection's possibly
+          // long-ago / revisit-displaced recorded fromNode.
+          const originNode = originConn
+            ? ((hasUserVerseTies(originConn) && i > 0 && detail.nodes[i - 1].trailSessionId === n.trailSessionId)
+                ? detail.nodes[i - 1]
+                : nodeById.get(originConn.fromNodeId))
+            : undefined
           // The specific verse this branch departed FROM, for the origin tangent bullet's label,
           // click-to-navigate ref and hover preview. Priority: the structured originVersePinFrom
           // pin, then a hand-entered "From" verse tie, then — when ties exist only on the "To"
@@ -2211,7 +2435,9 @@ export default function MapView({
               hoverChain={hoverActive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
-            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={viewportWidth / zoom} gutterWidth={gutterWidth} />}
+            {/* Stay a touch inside the H_SAFETY-narrowed content box so the full-width dashed
+                line never spills past the edge and spawns a horizontal scrollbar. */}
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={Math.max(0, viewportWidth - 16) / zoom} gutterWidth={gutterWidth} />}
             </div>
           )
         })}
@@ -2231,43 +2457,6 @@ export default function MapView({
         <TrailRefContextMenu menu={menu} menuRef={menuRef} onClose={closeMenu} />
             </div>
           </div>
-        </div>
-        {/* Outside the zoomed/transformed content div (a sibling, not nested inside it) — a
-            `transform` ancestor would otherwise make itself the containing block for
-            `position: fixed`, anchoring this to the SCALED content instead of the real window.
-            bottom:58 (not 24) — per direct feedback ("the Latest button is covered by the zoom
-            button"), StudyTrailApp.tsx's own zoom pill floats at bottom:20/right:20 in the SAME
-            corner (a separate component, so it can't just be reflowed into one shared stack) —
-            this whole cluster sits stacked just above it (20 + ~28px zoom pill height + 10px
-            gap) instead of overlapping it. Recenter (new, see #3) always shows once there's any
-            content to recenter (and not already close enough to centered, per direct feedback
-            "hide recenter when already centered" — see nearCenter/checkCentered above);
-            "Latest" only pops up once you've actually scrolled away from the bottom, per direct
-            feedback: "if the user scrolls away from the latest, there should be a button that
-            pops up to scroll back to latest." */}
-        <div style={{ position: 'fixed', bottom: 58, right: 24, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-          {detail.nodes.length > 0 && !nearCenter && (
-            <button
-              onClick={() => recenterHorizontal()}
-              title="Recenter the timeline"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30,
-                color: 'rgb(var(--color-text-secondary))', background: 'rgb(var(--color-surface-2))',
-                border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-              }}
-            ><Crosshair size={14} /></button>
-          )}
-          {showScrollToLatest && (
-            <button
-              onClick={scrollToLatest}
-              title="Scroll to latest"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
-                border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-              }}
-            ><ArrowDown size={13} /> Latest</button>
-          )}
         </div>
 
         {/* Marquee rectangle while dragging */}
@@ -2338,6 +2527,39 @@ export default function MapView({
               style={{ background: 'transparent', border: 'none', borderRadius: 7, padding: '4px 6px', color: 'rgb(var(--color-text-muted))', cursor: 'pointer' }}
             >Clear</button>
           </div>
+        )}
+      </div>
+
+      {/* Recenter + Latest — window-fixed, stacked just above StudyTrailApp's own zoom pill in
+          the SAME bottom corner. Default left; flips right when the trail's spine/branches would
+          sit under it (latestSide, from the measured layoutRoom — decided with the zoom pill's
+          own width so the two always land on the same side). On the left, `left: 240` clears the
+          220px session rail; the zoom pill uses the matching offset. */}
+      <div style={{
+        position: 'fixed', bottom: 56, zIndex: 50, display: 'flex', flexDirection: 'column', gap: 8,
+        ...(latestSide === 'left' ? { left: 240, alignItems: 'flex-start' } : { right: 24, alignItems: 'flex-end' }),
+      }}>
+        {detail.nodes.length > 0 && !nearCenter && (
+          <button
+            onClick={() => recenterHorizontal()}
+            title="Recenter the timeline"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30,
+              color: 'rgb(var(--color-text-secondary))', background: 'rgb(var(--color-surface-2))',
+              border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}
+          ><Crosshair size={14} /></button>
+        )}
+        {showScrollToLatest && (
+          <button
+            onClick={scrollToLatest}
+            title="Scroll to latest"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11.5, fontWeight: 600, color: 'rgb(var(--color-surface-1))', background: 'rgb(var(--color-accent))',
+              border: 'none', borderRadius: 999, padding: '7px 12px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          ><ArrowDown size={13} /> Latest</button>
         )}
       </div>
     </div>

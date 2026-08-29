@@ -1,11 +1,50 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, MessageSquarePlus } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useStudyTrailStore } from '@/store/studyTrailSlice'
-import { bookName } from '@/lib/parseRef'
+import { bookChapterVerseLabel } from '@/lib/parseRef'
 import type { TrailConnection } from '@/types/studyTrail'
 import ReasonPromptPopover, { TrailReasonFormBody } from './ReasonPromptPopover'
+
+/** Resolves the ORIGIN chapter (the node the connection left) — the connection row only stores
+ *  fromNodeId, not its book/chapter, so this round-trips the session once. Lets the prompt read
+ *  "Why'd you go to <dest> from <origin>?" with a real reference on both ends. */
+function useOriginRef(conn: TrailConnection | null) {
+  const [origin, setOrigin] = useState<{ bookId: string; chapter: number } | null>(null)
+  useEffect(() => {
+    setOrigin(null)
+    if (!conn) return
+    let cancelled = false
+    window.studyTrail.getSession(conn.trailSessionId)
+      .then((detail) => {
+        if (cancelled) return
+        const n = detail?.nodes.find((x) => x.id === conn.fromNodeId)
+        setOrigin(n ? { bookId: n.bookId, chapter: n.chapter } : null)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [conn?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  return origin
+}
+
+/** "Genesis 3:5" / "Genesis 3:5–7" — full book + chapter, plus the verse (range) when the
+ *  connection actually targeted one. Never a bare number. */
+function refLabel(bookId?: string, chapter?: number | null, verse?: number | null, endVerse?: number | null): string | null {
+  if (!bookId || chapter == null) return null
+  const base = bookChapterVerseLabel(bookId, chapter, verse ?? undefined)
+  return verse != null && endVerse != null && endVerse !== verse ? `${base}–${endVerse}` : base
+}
+
+/** The prompt's headline — per direct feedback the bottom-right toast should read "Why'd you go
+ *  to <book chapter:verse> from <book chapter:verse>?", with both ends spelled out properly
+ *  rather than bare chapter numbers. */
+function arrivalQuestion(conn: TrailConnection, origin: { bookId: string; chapter: number } | null): string {
+  const dest = refLabel(conn.toBookId, conn.toChapter, conn.toVerse, conn.toVerseEnd)
+  const from = origin ? refLabel(origin.bookId, origin.chapter, conn.originVersePinFrom) : null
+  if (!dest) return "Why'd you go here?"
+  return from ? `Why'd you go to ${dest} from ${from}?` : `Why'd you go to ${dest}?`
+}
 
 // Fixed width for the toast in BOTH collapsed and expanded states — per direct feedback ("width
 // should be a fixed narrow width in both states, not shrink-to-fit; text wraps instead of the
@@ -29,21 +68,21 @@ export default function StudyTrailArrivalPrompt() {
   const conn = useStudyTrailStore((s) => s.pendingArrivalPrompt)
   const clear = useStudyTrailStore((s) => s.clearPendingArrivalPrompt)
   const askChapterJumpReason = useAppStore((s) => s.studyTrailAskChapterJumpReason)
+  const origin = useOriginRef(conn)
   if (!conn) return null
   if (askChapterJumpReason) {
-    const title = conn.toBookId && conn.toChapter != null
-      ? `Why did you jump to ${bookName(conn.toBookId)} ${conn.toChapter}?`
-      : undefined
     return (
       <ReasonPromptPopover
         connection={conn}
-        title={title}
+        title={arrivalQuestion(conn, origin)}
+        originBookId={origin?.bookId}
+        originChapter={origin?.chapter}
         onClose={clear}
         onSaved={clear}
       />
     )
   }
-  return <ArrivalPill conn={conn} onClose={clear} />
+  return <ArrivalPill conn={conn} origin={origin} onClose={clear} />
 }
 
 /** The lightweight, non-blocking alternative to the full popup — a small toast pinned to the
@@ -66,17 +105,15 @@ export default function StudyTrailArrivalPrompt() {
  *  feedback, "users will realistically alt-tab or switch Berean tabs mid-way through filling this
  *  in to go check a verse," so only Save, Not now, or the × can close it from then on. Before
  *  `touched`, it's still purely hover-driven (a glance that costs nothing to back out of). */
-function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => void }) {
+function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin: { bookId: string; chapter: number } | null; onClose: () => void }) {
   const [hovering, setHovering] = useState(false)
   const [touched, setTouched] = useState(false)
   const expanded = touched || hovering
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
-  // Icon-first collapsed state — per direct feedback ("icon-first with text-on-demand: show just
-  // an icon + short reference at rest, explanatory text/buttons only once expanded"). Falls back
-  // to the plain CTA text on the rare non-chapter connection (a Strong's/video/note destination)
-  // where there's no book/chapter to shorten.
-  const shortRef = conn.toBookId && conn.toChapter != null ? `${bookName(conn.toBookId)} ${conn.toChapter}` : null
+  // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
+  // ends, never bare chapter numbers (per direct feedback).
+  const question = arrivalQuestion(conn, origin)
 
   return createPortal(
     <div
@@ -96,7 +133,7 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 4px 6px 10px', fontSize: 11 }}>
           <MessageSquarePlus size={13} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 0, color: 'rgb(var(--color-text-secondary))' }}>
-            {shortRef ? `Why'd you go to ${shortRef}?` : "Why'd you go here?"}
+            {question}
           </span>
           <button
             className="trail-ctx-btn"
@@ -122,7 +159,7 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <MessageSquarePlus size={12} style={{ color: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 600, color: 'rgb(var(--color-text-secondary))' }}>
-              {shortRef ? `Why'd you go to ${shortRef}?` : "Why'd you go here?"}
+              {question}
             </span>
             <button
               className="trail-ctx-btn"
@@ -137,6 +174,8 @@ function ArrivalPill({ conn, onClose }: { conn: TrailConnection; onClose: () => 
         )}
         <TrailReasonFormBody
           connection={conn}
+          originBookId={origin?.bookId}
+          originChapter={origin?.chapter}
           onClose={onClose}
           onSaved={onClose}
           onFieldTouched={() => setTouched(true)}

@@ -180,8 +180,8 @@ interface StudyTrailAPI {
   /** Create (or re-activate) the implicit "Loose stops" bucket and return it. */
   ensureLooseSession: () => Promise<import('./studyTrail').TrailSession>
   getSession: (trailSessionId: string) => Promise<import('./studyTrail').TrailSessionDetail | null>
-  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string; translation?: string }) => Promise<import('./studyTrail').TrailNode>
-  reopenNode: (nodeId: string) => Promise<import('./studyTrail').TrailNode | null>
+  addNode: (node: { trailSessionId: string; bookId: string; chapter: number; orderIndex: number; originLabel?: string; translation?: string; anchorStartedAt?: number }) => Promise<import('./studyTrail').TrailNode>
+  reopenNode: (nodeId: string, at?: number) => Promise<import('./studyTrail').TrailNode | null>
   promoteRevisit: (args: { trailSessionId: string; originalNodeId: string; bookId: string; chapter: number; activatedAt: number; translation?: string }) => Promise<import('./studyTrail').TrailNode>
   updateNodeSubnote: (nodeId: string, subnote: string) => Promise<{ success: boolean }>
   setNodeTopicBreak: (nodeId: string, isTopicBreak: boolean) => Promise<{ success: boolean }>
@@ -197,7 +197,10 @@ interface StudyTrailAPI {
     originVersePinFrom?: number
     fromConnectionId?: string; chainDepth?: number; toVerseEnd?: number
     isBranch?: boolean; isBranchReturn?: boolean
+    createdAt?: number
   }) => Promise<import('./studyTrail').TrailConnection>
+  /** Delete one branch connection (+ anything chained off it). Right-click "Delete" on a ConnRow. */
+  deleteConnection: (connectionId: string) => Promise<{ success: boolean }>
   markGlance: (connectionId: string) => Promise<{ success: boolean }>
   updateConnectionReason: (connectionId: string, update: { reasonText?: string; reasonTags?: string[]; versePinFrom?: number; versePinTo?: number; originVersePinFrom?: number; originVersePinTo?: number; ties?: string[]; userNote?: string; tiesFrom?: string[]; tiesTo?: string[]; isBranch?: boolean; isBranchReturn?: boolean }) => Promise<{ success: boolean }>
   dismissPrompt: (connectionId: string) => Promise<{ success: boolean }>

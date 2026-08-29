@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
-import MapView from './MapView'
+import MapView, { pickControlSide, CTRL_W } from './MapView'
 
 // The default landing view — everything recorded across EVERY session, with no session
 // selected. Answers "I'm not in any particular session right now, just show me what's been
@@ -22,12 +22,17 @@ function fmtBoundaryDate(ms: number): string {
   return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs }: {
+export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom, onCurrentHourChange, currentHour }: {
   sessions: TrailSession[]
   zoom?: number
   onZoomChange?: (zoom: number) => void
   revisitWindowMs?: number
+  onLayoutRoomChange?: (room: { left: number; right: number }) => void
+  layoutRoom?: { left: number; right: number }
+  onCurrentHourChange?: (hour: string | null) => void
+  currentHour?: string | null
 }) {
+  const headerSide = pickControlSide(layoutRoom, CTRL_W.header)
   const [details, setDetails] = useState<TrailSessionDetail[]>([])
   const [allSessions, setAllSessions] = useState<TrailSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,28 +108,43 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
     // flex column filling the full height handed down by StudyTrailApp's "Main pane" — MapView
     // needs a genuinely bounded ancestor chain for ITS OWN internal scroll container to be the
     // one that actually scrolls (see MapView.tsx's own comment on this).
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 4px', flexShrink: 0 }}>
-        <h2 style={{ margin: 0, fontSize: 17 }}>Everything</h2>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* Same shrink-wrapped translucent pill as the per-session header — defaults top-left,
+          flips top-right only if the spine/branches would sit under it there. */}
+      <div style={{
+        position: 'absolute', top: 0, zIndex: 6, width: 'fit-content', maxWidth: 260,
+        ...(headerSide === 'left' ? { left: 0 } : { right: 0 }),
+        display: 'flex', flexDirection: 'column', gap: 4,
+        background: 'rgb(var(--color-surface-1) / 0.7)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        border: '1px solid rgb(var(--color-surface-4) / 0.6)', borderRadius: 10,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: '7px 9px',
+      }}>
+        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Everything</h2>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') window.dispatchEvent(new CustomEvent('berean:trailFilterSubmit')) }}
           placeholder="Filter timeline…"
           style={{
-            width: 200, flexShrink: 0, fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
+            width: '100%', fontSize: 12, padding: '4px 9px', background: 'rgb(var(--color-surface-2))',
             border: '1px solid rgb(var(--color-surface-4))', borderRadius: 7, color: 'rgb(var(--color-text-primary))',
           }}
         />
-      </div>
-      <div style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))', marginBottom: 18, flexShrink: 0 }}>
-        {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
+        <div style={{ fontSize: 11, color: 'rgb(var(--color-text-secondary))' }}>
+          {sessions.length} session{sessions.length === 1 ? '' : 's'} · {totalNodes} chapter stop{totalNodes === 1 ? '' : 's'} · {totalConnections} connection{totalConnections === 1 ? '' : 's'} total
+        </div>
+        {currentHour && (
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.03em', color: 'rgb(var(--color-text-muted))' }}>
+            {currentHour}
+          </div>
+        )}
       </div>
       {mergedNodes.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} />
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
         </div>
       )}
     </div>
