@@ -67,10 +67,18 @@ export const FALLBACK_SCROLL_SENSITIVITY = 0.0012
  * Floored so a chapter that barely overflows in the PRESENTER (f→1) doesn't produce a
  * near-infinite (instant-jump-to-end) sensitivity — the floor still lets a deliberate scroll
  * move it, just not on a single wheel tick / scroll event.
+ *
+ * The floor is a fraction of the presenter's own clientHeight (not a flat 40px, which was
+ * still tiny enough that one ~110px wheel notch covered 2–3× the whole range — reported as
+ * "the outline scrolling was really weird" on a short chapter like Hosea 6 that the presenter
+ * shows almost all of at once). 0.6·clientHeight means the hidden sliver always takes at
+ * least ~5–6 deliberate notches to cross, regardless of how little of it is actually hidden.
  */
+export const MIN_SCROLLABLE_RANGE_FRACTION = 0.6
+
 export function presenterScrollSensitivity(clientHeight: number | undefined, visibleFraction: number | undefined): number {
   if (!clientHeight || !visibleFraction || visibleFraction <= 0 || visibleFraction >= 1) return FALLBACK_SCROLL_SENSITIVITY
-  const scrollableRangePx = Math.max(40, clientHeight * (1 - visibleFraction) / visibleFraction)
+  const scrollableRangePx = Math.max(clientHeight * MIN_SCROLLABLE_RANGE_FRACTION, clientHeight * (1 - visibleFraction) / visibleFraction)
   return 1 / scrollableRangePx
 }
 

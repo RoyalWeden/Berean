@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair } from 'lucide-react'
-import { bookName, bookChapterVerseLabel } from '@/lib/parseRef'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, StickyNote } from 'lucide-react'
+import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
 import TrailHoverCard from './TrailHoverCard'
@@ -40,6 +40,49 @@ const HoverDisabledContext = createContext(false)
 // stop, square = chapter stop, ↺ = round trip back to an earlier stop.
 
 const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
+
+// ── Indent geometry (shared) ────────────────────────────────────────────────
+// ConnRow / TangentBullet marginLeft = INDENT_STEP * (depth + 1). The dot-center insets are
+// measured from each row's own left edge: an off-spine bullet is a 7px dot as the first child
+// of a `gap:8` flex row (center ≈ 3.5); a spine node dot is 9px centered in a 12px column
+// (center = 6). The faint indent guide lines below use these so a line lands exactly under
+// each bullet column at every zoom (all of it lives inside the same `scale(zoom)` wrapper).
+const INDENT_STEP = 22
+const OFFSPINE_DOT_INSET = 3.5
+const SPINE_DOT_INSET = 6
+// A node's sub-bullets (ConnRow) don't hang off the block's own left edge — they render
+// INSIDE the spine row's label column, which starts after the 12px dot column + the spine
+// row's own `gap: 3`. So a ConnRow at depth d actually sits at
+// `gutterWidth + SPINE_LABEL_COL_INSET + INDENT_STEP*(d+1) + OFFSPINE_DOT_INSET` from the
+// content's left edge. The guide lines (and a branch node's TangentBullet indent, which is
+// otherwise measured from the block's own edge) add this same offset so every off-spine
+// bullet at a given depth shares one x and the guide line lands on all of them.
+const SPINE_LABEL_COL_INSET = 15
+
+// ── Branch / note predicates (shared) ──────────────────────────────────────
+/** The connection's own free-text note (NOT its verse ties) is non-empty. */
+const hasNote = (c?: TrailConnection | null): boolean => !!c?.userNote?.trim()
+/** The user hand-entered at least one to/from verse tie on this connection. */
+const hasUserVerseTies = (c: TrailConnection): boolean => c.tiesFrom.length > 0 || c.tiesTo.length > 0
+/** Render this connection with the full branch treatment (origin/destination tangent bullets +
+ *  the 3-segment edge into the arrival node) — either it's a recorded branch, or the user
+ *  hand-entered verse ties, which should be shown that way rather than buried in a hover note. */
+const renderAsBranch = (c: TrailConnection): boolean => c.isBranch || hasUserVerseTies(c)
+/** Whether the hover "your note" bubble has anything to show for a connection: its own note
+ *  always, plus its verse ties ONLY when they aren't already drawn as a branch stub. */
+const showNoteBubble = (c?: TrailConnection | null): boolean =>
+  !!c && (hasNote(c) || (!renderAsBranch(c) && hasUserVerseTies(c)))
+
+/** Parse a free-text tie string ("Mark 13:1-5") into a clickable chapter ref, or null. */
+function tieToRef(s?: string): TrailRef | null {
+  const p = s?.trim() ? parseRef(s.trim()) : null
+  return p ? { kind: 'chapter', bookId: p.bookId, chapter: p.chapter, verse: p.verse } : null
+}
+/** Display label for a tie: the canonical ref label when parseable, else the raw string. */
+function tieLabel(ref: TrailRef | null, raw?: string): string | undefined {
+  if (ref && ref.kind === 'chapter') return bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)
+  return raw?.trim() || undefined
+}
 
 function bookLabel(bookId: string): string {
   return bookName(bookId)
@@ -100,7 +143,7 @@ function GapDivider({ gapMs, minWidth, gutterWidth = 0 }: { gapMs: number; minWi
   // that out, so the LABEL's left edge — not the dash's — is what actually lands at
   // `gutterWidth + 3.5`, matching the spine guide line's own `left: gutterWidth + 3.5` exactly.
   const ROW_GAP = 8
-  const leftDashWidth = Math.max(0, gutterWidth + 3.5 - ROW_GAP)
+  const leftDashWidth = Math.max(0, gutterWidth + SPINE_DOT_INSET - ROW_GAP)
   if (window.__bereanTrailDebug) {
     // Per direct feedback ("give me the actual leftDashWidth value you see for a real session")
     // — logs the raw gutterWidth this divider actually received alongside the final (gap-
@@ -203,8 +246,16 @@ function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedCo
 // for "here's the note/ties for this connection" everywhere it shows up.
 export function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
   const replace = useWordReplace()
+  // The to/from verse ties now render as the branch stub (origin/destination tangent bullets)
+  // whenever they're set — so they're only shown here for connections that AREN'T drawn as a
+  // branch (a same-chapter cross-ref, a return hop, a lexicon lookup — nothing to hang a stub on).
+  const showTies = !renderAsBranch(conn)
   async function copy() {
-    const lines = [conn.userNote?.trim(), ...conn.tiesFrom, ...conn.tiesTo].filter(Boolean) as string[]
+    const lines = [
+      conn.userNote?.trim(),
+      ...(showTies ? conn.tiesFrom : []),
+      ...(showTies ? conn.tiesTo : []),
+    ].filter(Boolean) as string[]
     try { await navigator.clipboard.writeText(lines.join('\n')) } catch { /* clipboard unavailable — no-op */ }
   }
   // Per direct feedback ("the user should also be able to delete the note") — clears the same
@@ -229,11 +280,11 @@ export function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
           ><Trash2 size={11} /></button>
         </span>
       </div>
-      {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (conn.tiesFrom.length || conn.tiesTo.length) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
-      {conn.tiesFrom.length > 0 && (
+      {conn.userNote && <div style={{ fontSize: 12, color: 'rgb(var(--color-text-primary))', lineHeight: 1.4, marginBottom: (showTies && (conn.tiesFrom.length || conn.tiesTo.length)) ? 6 : 0 }}>{replace(conn.userNote)}</div>}
+      {showTies && conn.tiesFrom.length > 0 && (
         <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))', marginBottom: 2 }}>From: {conn.tiesFrom.join(', ')}</div>
       )}
-      {conn.tiesTo.length > 0 && (
+      {showTies && conn.tiesTo.length > 0 && (
         <div style={{ fontSize: 10.5, color: 'rgb(var(--color-text-secondary))' }}>To: {conn.tiesTo.join(', ')}</div>
       )}
     </div>
@@ -265,22 +316,6 @@ const TANGENT_EXTRA_GAP = 10
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
 const MAIN_SPINE_GAP = 44
 
-// LAST-RESORT floor for the blank horizontal scroll room reserved on each side of the timeline
-// — see the scroll container's own comment for why this needs to exist at all. Round 9 first
-// tried a blanket "half the viewport" guess here, which round 12 replaced with the real, precise
-// minimum (computeMinCenteringPad(), MapView's own render) measured from live DOM rects — that
-// blanket guess was almost always LARGER than what any actual session needed, so it never let the
-// scroll range genuinely tighten the way it's supposed to. This constant now only matters in the
-// genuinely-degenerate case computeMinCenteringPad() can't measure at all (no anchor node
-// resolvable yet — an empty or not-yet-rendered session), so scrolling isn't completely stuck at
-// zero slack while waiting for real content to measure against.
-// Kept deliberately SMALL (was 220) per direct feedback: "there's a horizontal scroll bar but
-// it's not really necessary a lot" — a big flat floor forced ~220px of dead scroll room on BOTH
-// sides of every session, so a timeline that already fit the viewport still showed a scrollbar.
-// computeMinCenteringPad() supplies the real, measured slack a given session actually needs to
-// reach dead-center; this is only the pre-measurement fallback.
-const HORIZONTAL_SCROLL_PAD_MIN = 24
-
 function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
   registerPoint: (key: string) => (el: HTMLElement | null) => void
@@ -309,7 +344,7 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
     <TrailHoverCard
       disabled={hoverDisabled}
       content={hoverContent}
-      secondaryContent={conn && (conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn!} /> : undefined}
     >
       {/* Click/cursor moved to the WHOLE row (dot + label), not just the label text — per direct
           feedback ("turn the cursor into the pointing when over the tangents too"), hovering the
@@ -395,7 +430,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   // sibling hanging directly off the anchor, 1+ = nested that many levels deeper) maps directly
   // to render depth (+1, since even a depth-0/sibling tangent is one indent step in from its
   // main bullet). No cap, per direct feedback — nest as deep as it actually goes.
-  const indent = 22 * (conn.chainDepth + 1)
+  const indent = INDENT_STEP * (conn.chainDepth + 1)
 
   // DIRECT children only, each rendered as its own recursive <ConnRow> — no more flattening to
   // one shared indent level. Per the confirmed branch model, each further hop nests one visual
@@ -419,7 +454,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     <TrailHoverCard
       disabled={hoverDisabled}
       content={<TrailConnectionHoverContent conn={conn} onEditNote={() => onOpenPrompt(conn)} />}
-      secondaryContent={(conn.userNote || conn.tiesFrom.length > 0 || conn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
         <span
@@ -448,6 +483,9 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           {labelIcon === 'return' && <RotateCcw size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
           {labelIcon === 'branch' && <GitBranch size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
           {label}
+          {hasNote(conn) && (
+            <StickyNote size={11} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+          )}
         </span>
         {isPromotedChain && (
           <span
@@ -658,7 +696,7 @@ function NodeClusterGroup({
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
   keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, bounceBadge,
-  isBranchNode, branchDepth, originVerseLabel, originVerseRef, hoverChain, revisitAllowed = true, selected,
+  isBranchNode, branchDepth, originVerseLabel, originVerseRef, destVerseLabel, destVerseRef, hoverChain, revisitAllowed = true, selected,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
   /** Part of the current marquee selection (drag-select in the timeline). */
@@ -694,6 +732,12 @@ function NodeBlock({
    *  tangent bullet navigate/right-click like any other reference (per direct feedback: "make
    *  sure to show the tangents as clickable to go to the verse"). */
   originVerseRef?: TrailRef | null
+  /** Destination tangent bullet label — computed by MapView (a hand-entered "To" verse tie, or
+   *  the arrival chapter + landed-on verse). Falls back to the inline chapter/verse build when
+   *  not provided (NodeClusterGroup's non-branch NodeBlocks). */
+  destVerseLabel?: string
+  /** Destination tangent bullet's clickable ref. */
+  destVerseRef?: TrailRef | null
   /** The full hover-trace chain of point keys (node:/row:/tangent-origin:/tangent-dest:) built
    *  by MapView when something is hovered — null when nothing is hovered. Everything NOT in
    *  this set dims out; per direct feedback ("pronounce the arrows that led to that point and
@@ -737,7 +781,11 @@ function NodeBlock({
   // main spine and not looking indented like how it is" — the node itself always sits flush at
   // the spine's own left edge, whether it was reached plainly or via a tangent.
   const indent = 0
-  const tangentIndent = isBranchNode ? 22 * ((branchDepth ?? 0) + 1) : 0
+  // + SPINE_LABEL_COL_INSET: these tangent bullets render as direct children of the block's
+  // own left edge, but a same-depth ConnRow sits one dot-column + gap further in (inside the
+  // spine row's label column). Matching that offset keeps every off-spine bullet at a given
+  // depth on one x — and on the same faint guide line.
+  const tangentIndent = isBranchNode ? SPINE_LABEL_COL_INSET + INDENT_STEP * ((branchDepth ?? 0) + 1) : 0
   const hoverDimmed = !!hoverChain && !hoverChain.has(`node:${node.id}`)
   return (
     // Left gutter — per the plan's "revisit arcs move to a left gutter": the WHOLE block (its
@@ -811,12 +859,12 @@ function NodeBlock({
             conn={originConn} onOpenPrompt={onOpenPrompt}
           />
           <TangentBullet
-            label={`${bookChapterVerseLabel(node.bookId, node.chapter)}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
+            label={destVerseLabel ?? `${bookChapterVerseLabel(node.bookId, node.chapter)}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`}
             indent={tangentIndent}
             pointKey={`tangent-dest:${node.id}`}
             registerPoint={registerPoint}
             hoverContent={originConn ? <TrailConnectionHoverContent conn={originConn} onEditNote={() => onOpenPrompt(originConn)} /> : null}
-            targetRef={originConn ? refFor(originConn) : null}
+            targetRef={destVerseRef ?? (originConn ? refFor(originConn) : null)}
             openMenu={openMenu}
             onHoverKey={onHoverKey}
             dimmed={!!hoverChain && !hoverChain.has(`tangent-dest:${node.id}`)}
@@ -876,7 +924,7 @@ function NodeBlock({
         <TrailHoverCard
           disabled={hoverDisabled}
           content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
-          secondaryContent={originConn && (originConn.userNote || originConn.tiesFrom.length > 0 || originConn.tiesTo.length > 0) ? <TrailNoteBubbleContent conn={originConn} /> : undefined}
+          secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} /> : undefined}
         >
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
@@ -914,6 +962,9 @@ function NodeBlock({
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookChapterVerseLabel(node.bookId, node.chapter)}
+            {hasNote(originConn) && (
+              <StickyNote size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+            )}
             {isRevisit && !bounceBadge && (
               <span style={{
                 fontSize: 9, fontWeight: 700, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
@@ -1052,109 +1103,44 @@ export default function MapView({
     if (!el) return
     scrollToSuppressingFlash(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }))
   }
-  // The main-spine anchor point used to center the timeline — round 5 hardcoded `detail.nodes[0]`
-  // (the chronologically first node), which is a real `node:${id}` dot (main spine, not a
-  // tangent/glance-group bullet — those register under `tangent-origin:`/`tangent-dest:`/glance
-  // group keys instead, so there's no risk of accidentally grabbing one of those). But per direct
-  // feedback ("not actually landing on the main spine") that first node specifically can be
-  // UNREGISTERED: a "bounced Nx" run of consecutive revisits collapses into NodeClusterGroup,
-  // which only renders (and therefore only registers a point for) the run's FIRST and LAST node —
-  // any node strictly BETWEEN them is skipped entirely while collapsed. If the session happens to
-  // open on a collapsed run, `nodes[0]` could be one of those un-rendered middle nodes, silently
-  // returning no point and falling back to the old (asymmetric, wrong) whole-range midpoint. Walk
-  // the node list in order and use the first one that's ACTUALLY registered instead of assuming
-  // index 0 always is — every real main-spine node shares the exact same horizontal position
-  // (indent is a constant 0 for the node's own row, see NodeBlock's own comment on that), so any
-  // resolvable one is an equally valid anchor.
-  function findAnchorNodeEl(): HTMLElement | null {
-    for (const n of detail.nodes) {
-      const el = pointsRef.current.get(`node:${n.id}`)
-      if (el) return el
-    }
-    return null
+  // Horizontal placement model (reworked per direct feedback: "center the content block ... the
+  // revisit lines on the right should sit on the left side instead of being in the center"):
+  // the whole content block — the left revisit/return-arc gutter, the spine, every indent
+  // column, the labels — is CENTERED in the viewport. `pad` (computed in the render body from
+  // the live content width vs viewport width) is symmetric and collapses to 0 the moment the
+  // content is wider than the viewport, so:
+  //   • narrow content  → equal pad both sides → block sits centered, scrollWidth == clientWidth,
+  //                        no scrollbar, nothing to overscroll into on either side;
+  //   • wide content     → pad 0 → native scroll range is exactly the two content edges, and the
+  //                        browser clamps there — scrolling past the block is structurally
+  //                        impossible (this is what replaces the old clampLeftOverscroll hack and
+  //                        the asymmetric left padding that caused the repeated "i can scroll the
+  //                        left too far" regressions).
+  // "Centered" for the recenter button / target therefore just means "scrolled to the middle of
+  // whatever scroll range exists" — no spine-anchor measurement needed.
+  const CENTER_TOLERANCE_PX = 40
+  const [nearCenter, setNearCenter] = useState(true)
+  function centerScrollTarget(el: HTMLElement): number {
+    return Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
   }
-  // The signed horizontal distance between the main spine's actual on-screen center and the
-  // viewport's own center — shared by recenterHorizontal() (which scrolls by this amount) and
-  // checkCentered() below (which just reads it to decide whether the recenter button should even
-  // show). Measures a REAL spine dot's live position (already zoom-scaled since it's an actual
-  // rendered DOM element — no separate "convert local units by the current zoom factor" math to
-  // get wrong), not the padded content wrapper's own bounding box — tangent columns, glance-group
-  // rows, and the left-side revisit-arc gutter all extend asymmetrically off the spine, so that
-  // wrapper's own midpoint never actually lines up with where the spine dots sit. Returns null
-  // when there's nothing resolvable to measure yet (empty session, or nothing registered at all).
-  // The spine no longer parks at dead-centre. A left-heavy timeline centred there leaves half
-  // the viewport blank on its left, which repeatedly read as "i can scroll the left of the
-  // study trail really far". Instead the spine sits a modest fixed distance in from the left
-  // edge (just clear of its revisit-arc gutter) with everything else flowing right. That same
-  // distance is the minimum left padding, so scrollLeft can't run any further left than this.
-  function spineInsetFromLeft(): number {
-    // Matches horizontalScrollPadLeft: the spine's resting on-screen X is its arc gutter plus
-    // the small left padding. "Centred" and the recenter target are defined against THIS, so
-    // recenter and the nearCenter check agree that scrollLeft ~0 (spine near the left, content
-    // flowing right) IS the intended resting position — no left blank to scroll into.
-    return gutterWidth * zoom + HORIZONTAL_SCROLL_PAD_MIN
-  }
-  function horizontalCenterDelta(): number | null {
-    const el = scrollContainerRef.current
-    const anchorEl = findAnchorNodeEl()
-    if (!el || !anchorEl) return null
-    const cRect = el.getBoundingClientRect()
-    const aRect = anchorEl.getBoundingClientRect()
-    return (aRect.left + aRect.width / 2) - (cRect.left + spineInsetFromLeft())
-  }
-  // Hard stop on scrolling LEFT past the spine's resting inset. If a scroll leaves the spine
-  // more than a small tolerance to the RIGHT of that inset (i.e. we've dragged too far left
-  // into blank), snap it straight back. Fires from the scroll container's onScroll.
-  const LEFT_OVERSCROLL_TOLERANCE = 40
-  function clampLeftOverscroll() {
-    if (suppressFlashRef.current) return // don't fight a programmatic recenter animation
-    const el = scrollContainerRef.current
-    const delta = horizontalCenterDelta()
-    if (!el || delta == null) return
-    if (delta > LEFT_OVERSCROLL_TOLERANCE) {
-      el.scrollLeft = Math.max(0, el.scrollLeft + (delta - LEFT_OVERSCROLL_TOLERANCE))
-    }
-  }
-  // `behavior: 'auto'` (instant, no animation) is what the session-open effect uses — per direct
-  // feedback ("should already BE centered on first render, no visible motion"), setting
-  // `scrollLeft` directly never fires the smooth-scroll animation frames the recenter BUTTON
-  // deliberately still wants, and — since it's not an animated scroll — never trips the
-  // scrollbar-auto-reveal flash either, so scrollToSuppressingFlash isn't needed for that path.
+  // `behavior: 'auto'` (instant) is what the session-open / zoom / tab-return effects use — no
+  // visible motion; the recenter BUTTON keeps the animated 'smooth' path (and its flash
+  // suppression). When the content fits the viewport, scrollWidth == clientWidth → target 0 → a
+  // no-op, which is correct (the block is already centered by `pad`).
   function recenterHorizontal(behavior: 'smooth' | 'auto' = 'smooth') {
     const el = scrollContainerRef.current
     if (!el) return
-    const delta = horizontalCenterDelta()
-    const targetLeft = delta == null ? (el.scrollWidth - el.clientWidth) / 2 : el.scrollLeft + delta
-    if (window.__bereanTrailDebug) {
-      // Per direct feedback ("get actual before/after scroll-position numbers via console
-      // logging, don't just eyeball it") — logs exactly what was measured and what it decided to
-      // scroll to, so a report of "still not landing on the spine" can be checked against real
-      // numbers instead of guessing: is `anchorFound` even true, does `delta` look sane, does
-      // `afterScrollLeft` (read back a tick later) actually match `targetLeft`.
-      const anchorEl = findAnchorNodeEl()
-      console.log('[TrailDebug] recenterHorizontal', {
-        behavior, beforeScrollLeft: el.scrollLeft, delta, targetLeft,
-        anchorFound: !!anchorEl,
-        anchorRect: anchorEl ? (() => { const r = anchorEl.getBoundingClientRect(); return { left: Math.round(r.left), width: Math.round(r.width) } })() : null,
-        containerRect: (() => { const r = el.getBoundingClientRect(); return { left: Math.round(r.left), width: Math.round(r.width) } })(),
-      })
-      setTimeout(() => console.log('[TrailDebug] recenterHorizontal — after', { afterScrollLeft: scrollContainerRef.current?.scrollLeft }), behavior === 'smooth' ? 400 : 0)
-    }
+    const target = centerScrollTarget(el)
     if (behavior === 'auto') {
-      el.scrollLeft = targetLeft
+      el.scrollLeft = target
     } else {
-      scrollToSuppressingFlash(() => el.scrollTo({ left: targetLeft, behavior: 'smooth' }))
+      scrollToSuppressingFlash(() => el.scrollTo({ left: target, behavior: 'smooth' }))
     }
   }
-  // Hides the recenter button once the spine is already close enough to centered — per direct
-  // feedback ("hide recenter when already centered"). Re-checked on every scroll (wired into the
-  // scroll container's onScroll below) and whenever zoom or the node count changes (both can move
-  // the spine's on-screen position without a scroll event of their own).
-  const CENTER_TOLERANCE_PX = 40
-  const [nearCenter, setNearCenter] = useState(true)
   function checkCentered() {
-    const delta = horizontalCenterDelta()
-    setNearCenter(delta == null || Math.abs(delta) <= CENTER_TOLERANCE_PX)
+    const el = scrollContainerRef.current
+    if (!el) { setNearCenter(true); return }
+    setNearCenter(Math.abs(el.scrollLeft - centerScrollTarget(el)) <= CENTER_TOLERANCE_PX)
   }
   useEffect(() => { checkCentered() }) // eslint-disable-line react-hooks/exhaustive-deps
   // Kept fresh for the zoom / tab-return recenter effects below, which need to know whether the
@@ -1226,6 +1212,20 @@ export default function MapView({
   const [ownZoom, setOwnZoom] = useState(1)
   const zoom = zoomProp ?? ownZoom
   const setZoom = onZoomChange ?? setOwnZoom
+
+  // Live width of the content block (containerRef), in local/pre-transform units — drives the
+  // symmetric centering pad below. Re-measured on zoom change (getBoundingClientRect is
+  // post-transform) and whenever the content itself reflows (ResizeObserver).
+  const [contentWidth, setContentWidth] = useState(0)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const measure = () => setContentWidth(el.getBoundingClientRect().width / zoom)
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    measure()
+    return () => ro.disconnect()
+  }, [zoom])
 
   // Re-center horizontally after a zoom change — but ONLY if the spine was already centered
   // before the zoom (per direct feedback: "if it was centered before and the user zooms, make
@@ -1625,7 +1625,7 @@ export default function MapView({
           // its own dedicated lines) — no ConnRow for it at all, this connection's only other
           // job is already done via originConnByNodeId. Suppresses the generic spine arrow the
           // same way the old isForwardBranch path did.
-          if (annotated.isBranch) {
+          if (renderAsBranch(annotated)) {
             nodesWithTracedArrival.add(next!.id)
             continue
           }
@@ -1712,7 +1712,7 @@ export default function MapView({
   // Luke 4:18 → Luke 4. It should not have been just the single line of: Isaiah 11 → Luke 4."
   for (const n of detail.nodes) {
     const originConn = originConnByNodeId.get(n.id)
-    if (!originConn?.isBranch) continue
+    if (!originConn || !renderAsBranch(originConn)) continue
     const fromNode = nodeById.get(originConn.fromNodeId)
     if (!fromNode) continue
     // Solid accent, arrowed — "going one level deeper," the same treatment every other tangent
@@ -1861,13 +1861,22 @@ export default function MapView({
   const EXTRA_BOW_RESERVE = maxLane >= 0 ? maxExtraBow + 70 : 0
   const gutterWidth = maxLane >= 0 ? GUTTER_BASE + maxLane * LANE_SPACING + EXTRA_BOW_RESERVE : 0
 
-  // Deepest tangent depth actually present anywhere in this view — drives how many faint
-  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below). Real
-  // bug in the first version: chainDepth defaults to 0 on EVERY connection, tangent or not, so
-  // reducing over ALL connections with a 0 floor always produced at least one guide line even
-  // in a session with zero actual tangents — filtering to isBranch connections only, with -1 as
-  // the true "nothing to show" floor, is what makes `maxChainDepth >= 0` below mean what it says.
-  const maxChainDepth = detail.connections.filter((c) => c.isBranch).reduce((m, c) => Math.max(m, c.chainDepth), -1)
+  // Deepest indent level actually RENDERED anywhere in this view — drives how many faint
+  // indent-level guide lines get drawn (see the "staff lines" comment near the JSX below). Every
+  // ConnRow that survives into rowsForNode / rowsForConnection renders at its own
+  // `INDENT_STEP*(chainDepth+1)`, and a branch node's tangent bullets sit at that same depth. So
+  // walk exactly those buckets (plus the branch nodes) rather than filtering raw connections —
+  // the earlier `c.isBranch`-only filter missed non-branch rows that still indent (lexicon
+  // lookups, cross-refs, returns). -1 means "nothing off-spine" → only the spine line is drawn.
+  let maxRenderDepth = -1
+  for (const bucket of rowsForNode.values())
+    for (const c of bucket) maxRenderDepth = Math.max(maxRenderDepth, c.chainDepth)
+  for (const bucket of rowsForConnection.values())
+    for (const c of bucket) maxRenderDepth = Math.max(maxRenderDepth, c.chainDepth)
+  for (const n of detail.nodes) {
+    const oc = originConnByNodeId.get(n.id)
+    if (oc && renderAsBranch(oc)) maxRenderDepth = Math.max(maxRenderDepth, oc.chainDepth ?? 0)
+  }
 
   // Hover-to-trace — per direct feedback ("really pronounce the arrows that led to that point
   // and dim everything else out"), this walks the FULL causal chain backward from whatever's
@@ -2005,73 +2014,15 @@ export default function MapView({
     return () => window.removeEventListener('berean:trailFilterSubmit', h)
   }, [])
 
-  // Round 12 — replaced the round-9 blanket `viewport/2/zoom` guess (which never actually
-  // tightened anything, since it dominates gutterWidth almost every session and dwarfs what
-  // centering genuinely needs) with the ACTUAL minimum padding required, measured the same way
-  // recenterHorizontal()/horizontalCenterDelta() already do: real live DOM rects, not an assumed
-  // fraction of the viewport.
-  //
-  // Reasoning: the anchor's offset from containerRef's own left/right edges (contentRect) is
-  // fixed by the CONTENT's own layout — entirely independent of whatever padding currently sits
-  // outside containerRef (padding is applied to containerRef's PARENT, never touches containerRef
-  // itself), so this measurement is stable and self-correcting regardless of the padding value
-  // from the previous render. To scroll the anchor to the viewport's exact center, the padding on
-  // whichever side it needs to travel toward must be at least `clientWidth/2` minus however much
-  // of that distance the content's OWN width already covers on that side — computed for both
-  // sides since which direction is the worst case depends on where the anchor happens to sit
-  // within the content (usually left-heavy, but not guaranteed, e.g. an EverythingView merged
-  // timeline scrolled deep into a later session).
-  // Returns the minimum blank padding each side INDEPENDENTLY needs for the anchor to reach the
-  // viewport's exact centre. Previously this returned a single value (the max of both sides)
-  // used for BOTH paddings — so a session whose RIGHT side needed a lot of slack to centre also
-  // got that same slack on the LEFT, letting you scroll well past the leftmost real content
-  // ("i still am able to scroll a little too far left"). Left need depends only on the anchor's
-  // distance from the content's own left edge; right need only on its distance from the right.
-  function computeMinCenteringPad(): { left: number; right: number } {
-    const scrollEl = scrollContainerRef.current
-    const contentEl = containerRef.current
-    const anchorEl = findAnchorNodeEl()
-    if (!scrollEl || !contentEl || !anchorEl) return { left: HORIZONTAL_SCROLL_PAD_MIN, right: HORIZONTAL_SCROLL_PAD_MIN }
-    const clientWidth = scrollEl.clientWidth
-    const contentRect = contentEl.getBoundingClientRect()
-    const anchorRect = anchorEl.getBoundingClientRect()
-    const distFromContentLeft = anchorRect.left - contentRect.left
-    const distFromContentRight = contentRect.width - distFromContentLeft
-    const inset = spineInsetFromLeft()
-    // Only reserve right-side scroll room when the content is ALREADY wider than the viewport
-    // (i.e. it genuinely scrolls). Adding it for a timeline that fits gave "a horizontal scroll
-    // bar that isn't really necessary".
-    const overflows = contentRect.width > clientWidth + 2
-    return {
-      left: Math.max(0, inset - distFromContentLeft) / zoom,
-      right: overflows ? Math.max(0, (clientWidth - inset) - distFromContentRight) / zoom : 0,
-    }
-  }
-  // Per direct feedback ("the farthest the user should be allowed to scroll left/right is how
-  // far the revisit lines go to the left, and the same distance on the right"): the natural
-  // bound is `gutterWidth` itself — it's already exactly "how far the revisit/return lines
-  // reach left" (see its own computation below: GUTTER_BASE + lanes + arc-bow reserve). Folded
-  // into the same Math.max as the real centering need (not a flat floor any more) rather than
-  // replacing it, since capping BELOW what centering needs would make true dead-center
-  // unreachable — this way the bound is whichever is actually larger: enough to truly center
-  // THIS session's real spine position, or enough to reach the farthest visible arc, with
-  // HORIZONTAL_SCROLL_PAD_MIN only as a last-resort floor for the degenerate near-empty-session
-  // case (no anchor resolvable yet to measure against).
-  const minCenteringPad = computeMinCenteringPad()
-  // LEFT padding is now ONLY the revisit-arc reach (+ a tiny floor) — deliberately NOT the
-  // centering allowance. Reserving centering room on the left is exactly what let the timeline
-  // scroll far past its own leftmost content into blank ("i still can scroll too much to the
-  // left", repeatedly). The spine simply rests near the left edge instead of dead-centre; the
-  // RIGHT still gets full centering room so a right-heavy timeline (Everything, scrolled into a
-  // late session) can still pull its spine back toward the middle.
-  const horizontalScrollPadLeft = Math.max(HORIZONTAL_SCROLL_PAD_MIN, gutterWidth)
-  const horizontalScrollPadRight = Math.max(HORIZONTAL_SCROLL_PAD_MIN, minCenteringPad.right)
-  if (window.__bereanTrailDebug) {
-    console.log('[TrailDebug] horizontalScrollPad', {
-      horizontalScrollPadLeft: Math.round(horizontalScrollPadLeft), horizontalScrollPadRight: Math.round(horizontalScrollPadRight),
-      gutterWidth: Math.round(gutterWidth), minCenteringPadLeft: Math.round(minCenteringPad.left), minCenteringPadRight: Math.round(minCenteringPad.right),
-    })
-  }
+  // Symmetric padding that centers the whole content block in the viewport (see the "Horizontal
+  // placement model" comment above). `containerRef` wraps every NodeBlock; its own width is the
+  // content's true width and is independent of this padding (padding sits on containerRef's
+  // PARENT), so measuring it to compute `pad` never feeds back. When the content is wider than
+  // the viewport, `pad` is 0 and the browser clamps scrollLeft to the two content edges — no
+  // overscroll either side, no clamp hack needed.
+  const pad = viewportWidth > 0 && contentWidth > 0
+    ? Math.max(0, (viewportWidth / zoom - contentWidth) / 2)
+    : 0
 
   // Single shared "suppress hover UI" condition — per direct feedback ("right-click should hide
   // ALL hover UI... find wherever menuOpen/hoveredKey state already exists and add a single
@@ -2107,50 +2058,44 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered(); clampLeftOverscroll() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
-        {/* horizontalScrollPad — per direct feedback ("allow the timeline to be positioned/
-            centered as the user likes"): without this, the scrollable range was clamped exactly
-            to the content's own natural width (native browser overflow behavior for a plain
-            `width: max-content` child), so there was never any slack to actually SCROLL the
-            timeline to a centered position — only exactly enough range to see every pixel of
-            content, flush against both edges. Blank padding on both sides of the scaled content
-            (inside the transform, so it grows with zoom too, exactly when more slack is needed)
-            gives real room to pan the timeline left/right; recenterHorizontal() scrolls into that
-            padded range. Sized to at least half the live viewport width (not just a flat 220px
-            floor — see HORIZONTAL_SCROLL_PAD_MIN's own comment) so there's ALWAYS enough room to
-            reach true dead-center regardless of window size — a flat cap that's smaller than
-            half the viewport makes true centering unreachable no matter what the scroll math
-            computes, since the browser silently clamps scrollLeft at its own max first. */}
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0 }}>
+        {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
+            whole content block — gutter + spine + indents + labels — in the viewport. It
+            collapses to 0 once the content is wider than the viewport, so the native scroll
+            range then spans exactly the two content edges (nothing to overscroll into, no clamp
+            hack). Replaces the old asymmetric left/right centering padding that repeatedly let
+            the timeline scroll past its own leftmost content. */}
         <div style={{
           transform: `scale(${zoom})`, transformOrigin: 'top left', width: 'max-content',
-          paddingLeft: horizontalScrollPadLeft, paddingRight: horizontalScrollPadRight,
+          paddingLeft: pad, paddingRight: pad,
         }}>
           <div ref={containerRef} style={{ position: 'relative' }}>
             {/* Faint indent-level guide lines — per direct feedback ("really faint lines like
                 on a musical paper that show the indent levels so the user can follow which
-                level things are at"). One line for the main spine itself (indent 0, where every
-                chapter-arrival bullet sits — per follow-up feedback "there needs to be one for
-                the main spine, for the tangent and for all the tangent columns", the original
-                pass only drew the tangent columns and left the main spine with no line of its
-                own), plus one per tangent depth actually present, positioned at that depth's own
-                indent (matching TangentBullet/ConnRow's own `22 * (depth + 1)` formula, offset
-                by gutterWidth since that's where the content column itself starts) — purely
-                decorative, so every line sits behind everything else and never intercepts a
-                click. */}
-            {maxChainDepth >= 0 && (
+                level things are at", plus "there needs to be one for the main spine, for the
+                tangent and for all the tangent columns"). One line under the chapter-dot spine
+                column (at SPINE_DOT_INSET, the 9px dot's own centre in its 12px column — slightly
+                darker so the main line reads as the anchor), plus one under EVERY indent level
+                actually rendered (maxRenderDepth, which now counts non-branch rows too), each at
+                that depth's own `SPINE_LABEL_COL_INSET + INDENT_STEP*(depth+1) + OFFSPINE_DOT_INSET`
+                — the exact centre of that column's bullets, which hang inside the spine row's
+                label column (see SPINE_LABEL_COL_INSET). All of this lives inside the same `scale(zoom)` wrapper
+                as the bullets, so gutterWidth is used un-multiplied and alignment holds at every
+                zoom. Purely decorative: behind everything, never intercepts a click. */}
+            {detail.nodes.length > 0 && (
               <div
-                key="guide:main"
+                key="guide:spine"
                 style={{
-                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 3.5,
-                  width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + SPINE_DOT_INSET,
+                  width: 1, background: 'rgb(var(--color-surface-4) / 0.3)', pointerEvents: 'none', zIndex: 0,
                 }}
               />
             )}
-            {maxChainDepth >= 0 && Array.from({ length: maxChainDepth + 1 }, (_, depth) => (
+            {maxRenderDepth >= 0 && Array.from({ length: maxRenderDepth + 1 }, (_, depth) => (
               <div
                 key={`guide:${depth}`}
                 style={{
-                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + 22 * (depth + 1) + 3.5,
+                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + SPINE_LABEL_COL_INSET + INDENT_STEP * (depth + 1) + OFFSPINE_DOT_INSET,
                   width: 1, background: 'rgb(var(--color-surface-4) / 0.15)', pointerEvents: 'none', zIndex: 0,
                 }}
               />
@@ -2189,8 +2134,9 @@ export default function MapView({
           const { node: n, index: i } = item
           const next = detail.nodes[i + 1]
           const originConn = originConnByNodeId.get(n.id)
-          const isBranchNode = !!originConn?.isBranch
-          const nextIsBranchNode = next ? !!originConnByNodeId.get(next.id)?.isBranch : false
+          const isBranchNode = !!originConn && renderAsBranch(originConn)
+          const nextOriginConn = next ? originConnByNodeId.get(next.id) : undefined
+          const nextIsBranchNode = !!nextOriginConn && renderAsBranch(nextOriginConn)
           const rawGapToNextMs = next ? effectiveGapMs(n.anchorEndedAt ?? n.anchorStartedAt, next.anchorStartedAt, detail.pausedIntervals) : null
           // Only the UPCOMING node being a tangent arrival forces tight spacing — that's the
           // node→bullet stack right before it, already fully handled by the dedicated
@@ -2204,16 +2150,33 @@ export default function MapView({
           const gapToNextMs = nextIsBranchNode ? null : rawGapToNextMs
           const showGapDivider = gapToNextMs != null && gapToNextMs >= GAP_CHIP_THRESHOLD_MS
           const originNode = originConn ? nodeById.get(originConn.fromNodeId) : undefined
-          const originVerseLabel = originConn?.originVersePinFrom != null && originNode
-            ? bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)
-            : undefined
-          // The origin bullet's own verse (book/chapter/verse it was clicked FROM) — used for
-          // its click-to-navigate ref and its own hover preview, distinct from the destination
-          // bullet's (which is just refFor(originConn)/TrailConnectionHoverContent, already
-          // available where TangentBullet is rendered).
-          const originVerseRef: TrailRef | null = originConn?.originVersePinFrom != null && originNode
-            ? { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
-            : null
+          // The specific verse this branch departed FROM, for the origin tangent bullet's label,
+          // click-to-navigate ref and hover preview. Priority: the structured originVersePinFrom
+          // pin, then a hand-entered "From" verse tie, then — when ties exist only on the "To"
+          // side — the departed chapter with no verse (so the stub still has both endpoints).
+          let originVerseRef: TrailRef | null = null
+          let originVerseLabel: string | undefined
+          if (originConn) {
+            const fromTieRef = tieToRef(originConn.tiesFrom[0])
+            if (originConn.originVersePinFrom != null && originNode) {
+              originVerseRef = { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter, verse: originConn.originVersePinFrom }
+              originVerseLabel = bookChapterVerseLabel(originNode.bookId, originNode.chapter, originConn.originVersePinFrom)
+            } else if (fromTieRef || originConn.tiesFrom[0]) {
+              originVerseRef = fromTieRef
+              originVerseLabel = tieLabel(fromTieRef, originConn.tiesFrom[0])
+            } else if (originNode) {
+              originVerseRef = { kind: 'chapter', bookId: originNode.bookId, chapter: originNode.chapter }
+              originVerseLabel = bookChapterVerseLabel(originNode.bookId, originNode.chapter)
+            }
+          }
+          // The destination tangent bullet: a hand-entered "To" verse tie wins, otherwise the
+          // arrival chapter + the connection's own landed-on verse range (what NodeBlock used to
+          // build inline).
+          const toTieRef = originConn ? tieToRef(originConn.tiesTo[0]) : null
+          const destVerseRef: TrailRef | null = toTieRef ?? (originConn ? refFor(originConn) : null)
+          const destVerseLabel = toTieRef
+            ? tieLabel(toTieRef, originConn!.tiesTo[0])
+            : `${bookChapterVerseLabel(n.bookId, n.chapter)}${originConn?.toVerse != null ? `:${originConn.toVerse}${originConn.toVerseEnd && originConn.toVerseEnd !== originConn.toVerse ? `–${originConn.toVerseEnd}` : ''}` : ''}`
           return (
             <div key={n.id} data-trailnode={n.id} onClickCapture={(e) => onTrailNodeClickCapture(e, n.id)}>
             <NodeBlock
@@ -2243,6 +2206,8 @@ export default function MapView({
               branchDepth={originConn?.chainDepth}
               originVerseLabel={originVerseLabel}
               originVerseRef={originVerseRef}
+              destVerseLabel={destVerseLabel}
+              destVerseRef={destVerseRef}
               hoverChain={hoverActive ? hoverChainPointKeys : null}
               revisitAllowed={isRevisitWithinWindow(n)}
             />
