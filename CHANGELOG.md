@@ -122,6 +122,27 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.12] - 2026-08-29
+
+Study Trail
+
+- The note bubble that appears when you hover a connection no longer sits on
+  top of the connection's detail card — it now tucks to one side of it (or
+  below, when there's no room either side) so both are readable at once.
+- That note bubble now has an edit button, so you can jump straight into
+  editing the note without opening it separately.
+- Hover cards now open beside the pointer instead of underneath it, and flip
+  above or to the left of the cursor when they'd otherwise run off the edge of
+  the window.
+
+Scripture reading
+
+- Right-clicking one of the verses listed in a verse's cross-reference popup
+  keeps that popup open behind the menu, so you can pick another reference
+  without it disappearing; it closes once you choose an option or click away.
+
+---
+
 ## [0.5.11] - 2026-08-28
 
 Study Trail

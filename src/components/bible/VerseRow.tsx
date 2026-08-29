@@ -397,13 +397,30 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   // the icon that also drives the separate noteHover/crossRefHover preview popups — without
   // clearing those, the preview can visibly disappear a moment later (its own mouseleave timer)
   // right next to the still-open context menu, reading as "the menu went away."
-  function openIndicatorMenu(data: IndicatorMenuData & { x: number; y: number }) {
+  function openIndicatorMenu(data: IndicatorMenuData & { x: number; y: number }, opts?: { keepCrossRefHover?: boolean }) {
     if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current)
     if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current)
     setNoteHover(null)
-    setCrossRefHover(null)
+    // Right-clicking a verse row that lives INSIDE the cross-ref hover popup keeps that popup
+    // up (opts.keepCrossRefHover) — the list should stay visible behind the context menu until
+    // the menu itself goes away (option chosen, Escape, or a click outside). See the effect
+    // below that closes the popup once the indicator menu has closed.
+    if (!opts?.keepCrossRefHover) setCrossRefHover(null)
     openIndicatorMenuRaw(data)
   }
+
+  // Tie the cross-ref hover popup's lifetime to the indicator menu when it was opened from
+  // within that popup (see openIndicatorMenu): once the menu closes for any reason, dismiss
+  // the popup too.
+  const indicatorMenuOpenRef = useRef(false)
+  useEffect(() => {
+    if (indicatorMenu) {
+      indicatorMenuOpenRef.current = true
+    } else if (indicatorMenuOpenRef.current) {
+      indicatorMenuOpenRef.current = false
+      setCrossRefHover(null)
+    }
+  }, [indicatorMenu])
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
@@ -548,7 +565,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
   function handleCrossRefIconMouseLeave() {
     if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current)
-    crossRefHoverTimerRef.current = setTimeout(() => setCrossRefHover(null), 150)
+    crossRefHoverTimerRef.current = setTimeout(() => {
+      // Don't dismiss it out from under an open context menu that was opened from inside it.
+      if (!indicatorMenuOpenRef.current) setCrossRefHover(null)
+    }, 150)
   }
 
   function handleNoteIconMouseEnter(e: React.MouseEvent) {
@@ -1524,7 +1544,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               className="fixed z-[9999] w-[280px] max-h-[400px] overflow-y-auto rounded-shell glass-panel"
               style={{ left: crossRefHover.x, top: crossRefHover.y }}
               onMouseEnter={() => { if (crossRefHoverTimerRef.current) clearTimeout(crossRefHoverTimerRef.current) }}
-              onMouseLeave={() => setCrossRefHover(null)}
+              onMouseLeave={() => { if (!indicatorMenu) setCrossRefHover(null) }}
             >
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-[rgb(var(--color-surface-3))] sticky top-0 bg-[rgb(var(--color-surface-1))] z-10">
                 <p className="text-[9px] text-[rgb(var(--color-text-muted))] font-semibold uppercase tracking-wide">
@@ -1541,7 +1561,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               {crossRefHover.refs.slice(0, MAX_HOVER_ITEMS).map((r, i) => (
                 <button
                   key={i}
-                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }) }}
+                  onContextMenu={(e) => { e.preventDefault(); openIndicatorMenu({ type: 'verse', ref: r, x: e.clientX, y: e.clientY }, { keepCrossRefHover: true }) }}
                   onClick={() => {
                     setCrossRefHover(null)
                     navigateToVerse({ bookId: r.bookId, chapter: r.chapter, verse: r.verse, origin: { kind: 'cross-ref', source: 'notes', fromVerse: verse.verse_num } })
