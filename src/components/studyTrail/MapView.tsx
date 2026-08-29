@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, StickyNote } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, StickyNote, Pencil } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -244,7 +244,7 @@ function flattenChain(connId: string, rowsForConnection: Map<string, AnnotatedCo
 // toast can reuse this exact "verse connections + note" content for its own hover-to-expand
 // area, instead of building a second, parallel note display — per direct feedback, one look
 // for "here's the note/ties for this connection" everywhere it shows up.
-export function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
+export function TrailNoteBubbleContent({ conn, onEdit }: { conn: TrailConnection; onEdit?: () => void }) {
   const replace = useWordReplace()
   // The to/from verse ties now render as the branch stub (origin/destination tangent bullets)
   // whenever they're set — so they're only shown here for connections that AREN'T drawn as a
@@ -270,6 +270,12 @@ export function TrailNoteBubbleContent({ conn }: { conn: TrailConnection }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.04em' }}>Your note</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onEdit && (
+            <button
+              onClick={onEdit} title="Edit this note"
+              style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
+            ><Pencil size={11} /></button>
+          )}
           <button
             onClick={copy} title="Copy this note"
             style={{ background: 'transparent', border: 'none', color: 'rgb(var(--color-text-muted))', cursor: 'pointer', padding: 0, display: 'flex' }}
@@ -344,7 +350,7 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
     <TrailHoverCard
       disabled={hoverDisabled}
       content={hoverContent}
-      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn!} /> : undefined}
+      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn!} onEdit={onOpenPrompt ? () => onOpenPrompt(conn!) : undefined} /> : undefined}
     >
       {/* Click/cursor moved to the WHOLE row (dot + label), not just the label text — per direct
           feedback ("turn the cursor into the pointing when over the tangents too"), hovering the
@@ -454,7 +460,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
     <TrailHoverCard
       disabled={hoverDisabled}
       content={<TrailConnectionHoverContent conn={conn} onEditNote={() => onOpenPrompt(conn)} />}
-      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn} /> : undefined}
+      secondaryContent={showNoteBubble(conn) ? <TrailNoteBubbleContent conn={conn} onEdit={() => onOpenPrompt(conn)} /> : undefined}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent }}>
         <span
@@ -924,7 +930,7 @@ function NodeBlock({
         <TrailHoverCard
           disabled={hoverDisabled}
           content={<TrailNodeHoverContent node={node} originConn={originConn} onEditNote={originConn ? () => onOpenPrompt(originConn) : undefined} />}
-          secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} /> : undefined}
+          secondaryContent={showNoteBubble(originConn) ? <TrailNoteBubbleContent conn={originConn!} onEdit={() => onOpenPrompt(originConn!)} /> : undefined}
         >
           <div
             onClick={(e) => trailRefClick(nodeRef, e)}
