@@ -1694,7 +1694,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       return
     }
     const pos = pendingScrollRef.current
-    if (!pos || pos === 0) return
+    if (!pos || pos === 0) {
+      // No saved position to restore and no verse jump in flight — this is a fresh chapter
+      // load (sequential next/prev arrow, book/chapter picker, reference bar). The chapter-
+      // change effect above already did a synchronous `el.scrollTop = 0`, but that runs
+      // BEFORE the new chapter's verses are in the DOM — the async verse-text / highlight /
+      // cross-ref-banner commits that land between then and now each reflow the container and
+      // can leave it a few px (or more) down from the top. Re-assert top here, once, after the
+      // DOM has settled. Guarded so it never fights a pending verse jump, a saved-position
+      // restore (pos != 0, handled below), or continuous-scroll mode (where 0 = book top).
+      // continuousChapterScroll is read live off the store — this callback has empty deps.
+      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse) {
+        const el = getScrollEl()
+        if (el && el.scrollTop !== 0) {
+          el.scrollTop = 0
+          virtualScrollPctRef.current = 0
+          lastMainScrollTopRef.current = 0
+        }
+      }
+      return
+    }
     pendingScrollRef.current = null
     // A pending targetVerse means ChapterView's own scroll-to-verse effect owns scrolling
     // for this load — jumping to the old saved scrollPosition here would fight (or, in

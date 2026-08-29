@@ -122,6 +122,29 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.10] - 2026-08-28
+
+Study Trail
+
+- Connections where you've typed in a "from" or "to" verse of your own now
+  show as a branch on the timeline — with its own start and end bullets —
+  instead of tucking those verses away inside the hover note.
+- Stops and side-trips that carry a note of your own now show a small
+  note icon next to the reference.
+- The faint indent guide lines now run exactly through the bullets at each
+  level, instead of sitting slightly to their left.
+
+Scripture reading
+
+- Paging to the next or previous chapter now reliably starts you at the top
+  of the chapter, even when notes or cross-references finish loading a moment
+  later.
+- While presenting, the outline no longer lurches across the whole chapter on
+  a single scroll when the chapter is short enough to nearly fit the
+  presenter screen.
+
+---
+
 ## [0.5.9] - 2026-08-27
 
 Study Trail
