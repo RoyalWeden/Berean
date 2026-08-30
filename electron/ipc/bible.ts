@@ -98,11 +98,14 @@ export interface VerseSearchRow { book_id: string; chapter: number; verse_num: n
 /** Single-verse lookup, exported so other main-process modules (e.g.
  *  electron/ipc/aiLookup.ts, verifying AI-guessed references) can reuse it
  *  without re-opening the text DB themselves. */
-export function queryVerse(bookId: string, chapter: number, verseNum: number, textId = 'kjva'): { verse_num: number; text: string } | null {
+export function queryVerse(bookId: string, chapter: number, verseNum: number, textId = 'kjva'): { verse_num: number; text: string; text_tagged?: string } | null {
   const db = getTextDb(textId)
   if (!db) return null
-  return prep(db, 'SELECT verse_num, text FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ?')
-    .get(bookId, chapter, verseNum) as { verse_num: number; text: string } | undefined ?? null
+  // Include text_tagged where the text has it so callers can build Strong's-aware copy text
+  // (e.g. the floating verse-selection bar's "Copy verses", matching VerseRow's own copy).
+  const taggedCol = hasTaggedCol(db, textId) ? ', text_tagged' : ''
+  return prep(db, `SELECT verse_num, text${taggedCol} FROM verses WHERE book_id = ? AND chapter = ? AND verse_num = ?`)
+    .get(bookId, chapter, verseNum) as { verse_num: number; text: string; text_tagged?: string } | undefined ?? null
 }
 
 /** FTS5 verse search, exported so other main-process modules can reuse the exact

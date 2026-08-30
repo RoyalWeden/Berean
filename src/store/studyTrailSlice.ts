@@ -150,6 +150,23 @@ export function reasonForOrigin(origin: NavOrigin, fromRef?: { bookId: string; c
   // which call this with no fromRef, still pass unchanged). Per direct feedback: "this info in
   // the note... should actually say the book chapter and verse like 'Deuteronomy 32:1'."
   const fromLabel = (v: number) => fromRef ? bookChapterVerseLabel(fromRef.bookId, fromRef.chapter, v) : `v.${v}`
+  const base = reasonBaseForOrigin(origin, fromLabel)
+  // Selected verses (verse-number click) at nav time → append "(from Genesis 1:3, 1:7)" so the
+  // connection records what the user was looking at when they jumped. Additive only: origins
+  // with no fromSelection are returned exactly as before (see locked verbatim tests).
+  const sel = origin.fromSelection
+  if (sel && sel.length > 0) {
+    const label = sel.map((r) => bookChapterVerseLabel(r.bookId, r.chapter, r.verse)).join(', ')
+    const suffix = `(from ${label})`
+    return { text: base.text ? `${base.text} ${suffix}` : suffix, tags: base.tags }
+  }
+  return base
+}
+
+function reasonBaseForOrigin(
+  origin: NavOrigin,
+  fromLabel: (v: number) => string,
+): { text?: string; tags: string[] } {
   switch (origin.kind) {
     case 'cross-ref': {
       // fromVerse — when known (the right panel's specific active verse, not just "some verse
@@ -528,6 +545,10 @@ const SAME_CHAPTER_BRANCH_WORTHY_KINDS = new Set<NavOrigin['kind']>(['cross-ref'
 function originFromVerse(origin: NavOrigin): number | undefined {
   if (origin.kind === 'cross-ref') return origin.fromVerse
   if (origin.kind === 'ai-lookup') return origin.fromVerse
+  // Exactly one verse selected via verse-number click → treat it as the origin verse so the
+  // tangent pins/chains from it, same as a cross-ref's fromVerse. Multiple selected verses
+  // have no single pin, so fall through.
+  if (origin.fromSelection && origin.fromSelection.length === 1) return origin.fromSelection[0].verse
   return undefined
 }
 

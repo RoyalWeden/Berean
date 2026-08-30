@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { EditorState, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
 import { history, undo, redo } from 'prosemirror-history'
@@ -37,6 +38,7 @@ import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopu
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
 import { parseRef, getTranslationForBook, bookChapterVerseLabel, type ParsedRef } from '@/lib/parseRef'
 import { stripLxxMarker } from '@/lib/noteTextBlocks'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { computeCaretScrollDelta } from '@/lib/caretScroll'
 import { buildLexiconCopyText } from '@/components/lexicon/LexiconPanel'
 import { useAppStore } from '@/store'
@@ -100,6 +102,15 @@ export interface NoteEditorPMProps {
   // the note reading as cluttered. Selecting text still gets the on-selection bubble
   // toolbar (SelectionToolbar) either way — this only hides the always-visible docked bar.
   hideFormattingToolbar?: boolean
+}
+
+/** Verse text for the ref hover-preview / verse-block insertion, run through the same word
+ *  replacer the reader uses (LORD→Yehovah, Jesus→Yeshua, LXX/Strong's restoration) so these
+ *  popups don't show raw KJV wording the rest of the app never displays. */
+function wrVerseText(row: { text?: string | null; text_tagged?: string | null } | null | undefined, textId: string): string {
+  if (!row?.text) return ''
+  const s = useAppStore.getState()
+  return buildVerseDisplayText(row.text, row.text_tagged ?? null, textId, s.wordReplacerEnabled, s.wordReplacerRules)
 }
 
 export default function NoteEditorPM({
@@ -170,6 +181,10 @@ export default function NoteEditorPM({
   const [strongsTrigger, setStrongsTrigger] = useState<StrongsTrigger | null>(null)
   const [verseSuggestTrigger, setVerseSuggestTrigger] = useState<VerseSuggestTrigger | null>(null)
   const [slashTrigger, setSlashTrigger] = useState<SlashCommandTrigger | null>(null)
+  const [tagTrigger, setTagTrigger] = useState<import('./autocomplete').TagTrigger | null>(null)
+  const [tagIdx, setTagIdx] = useState(0)
+  const verseTags = useAppStore((s) => s.verseTags)
+  const setVerseTags = useAppStore((s) => s.setVerseTags)
   // Hover-preview popup (RefHoverPreview, AutocompletePopups.tsx) — verse refs show real verse
   // text, Strong's refs show the short definition, wikilinks show the target note's own preview
   // (WikilinkPopup's single-pane content, reused rather than building a second preview format).
@@ -232,7 +247,7 @@ export default function NoteEditorPM({
   // search (Cmd+K) — matching the task brief's explicit "do not break those" call-out.
   const popupsOpenRef = useRef(false)
   popupsOpenRef.current = !!(
-    wikilinkTrigger || strongsTrigger || verseSuggestTrigger || slashTrigger
+    wikilinkTrigger || strongsTrigger || verseSuggestTrigger || slashTrigger || tagTrigger
     || blockMenuTarget || verseCtxTarget || strongsCtxTarget || useAppStore.getState().searchOpen
   )
   const notesRef = useRef(notes)
@@ -260,6 +275,7 @@ export default function NoteEditorPM({
     onWikilinkHoverStart: (_title: string, _rect: DOMRect) => {},
     onVerseRefHoverStart: (_ref: ParsedRef & { forcedTranslation?: string }, _rect: DOMRect) => {},
     onLexiconRefHoverStart: (_id: string, _rect: DOMRect) => {},
+    onTagRefHoverStart: (_name: string, _rect: DOMRect) => {},
     onRefHoverEnd: () => {},
   })
 
@@ -402,6 +418,12 @@ export default function NoteEditorPM({
           onVerseRefHoverStart: (ref, rect) => hoverHandlersRef.current.onVerseRefHoverStart(ref, rect),
           onLexiconRefHoverStart: (id, rect) => hoverHandlersRef.current.onLexiconRefHoverStart(id, rect),
           onRefHoverEnd: () => hoverHandlersRef.current.onRefHoverEnd(),
+          onTagRefClick: (name) => {
+            const s = useAppStore.getState()
+            s.openScriptureSearchTab(undefined, { tagNames: [name] })
+            s.setActiveSpace('scripture')
+          },
+          onTagRefHoverStart: (name, rect) => hoverHandlersRef.current.onTagRefHoverStart(name, rect),
           onVerseRefContextMenu: (ref, x, y) => ctxMenuHandlersRef.current.onVerseRefContextMenu(ref, x, y),
           onLexiconRefContextMenu: (id, x, y) => ctxMenuHandlersRef.current.onLexiconRefContextMenu(id, x, y),
         }),
@@ -411,6 +433,7 @@ export default function NoteEditorPM({
           onStrongsTrigger: setStrongsTrigger,
           onVerseSuggestTrigger: setVerseSuggestTrigger,
           onSlashCommandTrigger: (t) => { setSlashTrigger(t); setSlashIdx(0) },
+          onTagTrigger: (t) => { setTagTrigger(t); setTagIdx(0) },
           enableStrongsSuggest: () => (isSidePanel ? useAppStore.getState().sidePanelScriptureBlock : useAppStore.getState().noteStrongsBlockSuggest) !== false,
           enableVerseSuggest: () => (isSidePanel ? useAppStore.getState().sidePanelScriptureBlock : useAppStore.getState().noteVerseBlockSuggest) !== false,
         }),
@@ -730,6 +753,29 @@ export default function NoteEditorPM({
     setSlashTrigger(null)
   }
 
+  // #tag autocomplete: existing verse tags matching the typed query, plus a "create" option.
+  const tagQ = (tagTrigger?.query ?? '').toLowerCase()
+  const filteredTags = tagTrigger
+    ? verseTags.filter((t) => !tagQ || t.name.toLowerCase().includes(tagQ))
+    : []
+  const tagExactExists = verseTags.some((t) => t.name.toLowerCase() === tagQ)
+  const tagOptionCount = filteredTags.length + (tagQ && !tagExactExists ? 1 : 0)
+
+  async function chooseTag(idx: number) {
+    const view = viewRef.current
+    if (!view || !tagTrigger) return
+    let name: string
+    if (idx < filteredTags.length) {
+      name = filteredTags[idx].name
+    } else {
+      name = tagTrigger.query.trim()
+      if (!name) return
+      try { setVerseTags(await window.verseTags.create(name)) } catch { /* keep going, insert text anyway */ }
+    }
+    replaceRangeWithText(view, tagTrigger.from, tagTrigger.to, `#${name} `)
+    setTagTrigger(null)
+  }
+
   async function insertStrongsBlock(num: string, from: number, to: number) {
     const view = viewRef.current
     if (!view) return
@@ -770,7 +816,7 @@ export default function NoteEditorPM({
       // ProseMirror's DOM diffing ("Cannot read properties of null (reading 'matchesNode')"),
       // since the destroyed view's DOM is gone.
       if (viewRef.current !== view) return
-      const bodyLines = rows.map((v, i) => (v?.text ? `${nums[i]} ${v.text}` : null)).filter(Boolean) as string[]
+      const bodyLines = rows.map((v, i) => (v?.text ? `${nums[i]} ${wrVerseText(v, tid)}` : null)).filter(Boolean) as string[]
       if (bodyLines.length === 0) { view.focus(); return }
       // Real separate paragraphs (one per verse line), not a joined string
       // through insertText — see autocomplete.ts's replaceRangeWithBlock
@@ -781,7 +827,7 @@ export default function NoteEditorPM({
       const v = await window.bible.queryVerse(parsed.bookId, parsed.chapter, parsed.verse, tid).catch(() => null)
       if (viewRef.current !== view) return // see the range branch's comment above
       if (!v?.text) { view.focus(); return }
-      replaceRangeWithText(view, from, to, `${label} ${v.text}`)
+      replaceRangeWithText(view, from, to, `${label} ${wrVerseText(v, tid)}`)
     }
   }
 
@@ -791,7 +837,7 @@ export default function NoteEditorPM({
     const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
     const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
     setVerseCtxTarget({
-      bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, text: v?.text ?? '',
+      bookId: ref.bookId, chapter: ref.chapter, verse: ref.verse, text: wrVerseText(v, tid),
       lxx: ref.forcedTranslation === 'LXX', x, y,
     })
   }
@@ -815,21 +861,35 @@ export default function NoteEditorPM({
     // only the start verse), same-chapter ranges only (endChapter ranges aren't produced by
     // the hover-trigger regex here).
     const endVerse = ref.endVerse != null && ref.endVerse > ref.verse ? ref.endVerse : undefined
-    const refLabel = `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${endVerse ? `-${endVerse}` : ''}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+    // A comma-grouped ref ("Deuteronomy 32:3,6,9-13") arrives with verseGroups (>1 entry) —
+    // preview every group's verse(s), not just the first.
+    const groups = ref.verseGroups && ref.verseGroups.length > 1 ? ref.verseGroups : null
+    const groupLabel = groups
+      ? groups.map((g) => (g.endVerse && g.endVerse > g.verse ? `${g.verse}-${g.endVerse}` : `${g.verse}`)).join(',')
+      : null
+    const refLabel = groupLabel
+      ? `${bookChapterVerseLabel(ref.bookId, ref.chapter)}:${groupLabel}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
+      : `${bookChapterVerseLabel(ref.bookId, ref.chapter, ref.verse)}${endVerse ? `-${endVerse}` : ''}${ref.forcedTranslation === 'LXX' ? ' LXX' : ''}`
     setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text: '', loading: true })
     const tid = ref.forcedTranslation === 'LXX' ? 'lxx' : (getTranslationForBook(ref.bookId) ?? 'kjva')
     let text = ''
-    if (endVerse) {
+    if (groups) {
+      const verses = await window.bible.queryChapter(ref.bookId, ref.chapter, tid).catch(() => null)
+      if (Array.isArray(verses)) {
+        const inGroups = (n: number) => groups.some((g) => n >= g.verse && n <= (g.endVerse && g.endVerse > g.verse ? g.endVerse : g.verse))
+        text = verses.filter((v) => inGroups(v.verse_num)).map((v) => `${v.verse_num} ${wrVerseText(v, tid)}`).join('  ')
+      }
+    } else if (endVerse) {
       const verses = await window.bible.queryChapter(ref.bookId, ref.chapter, tid).catch(() => null)
       if (Array.isArray(verses)) {
         text = verses
           .filter((v) => v.verse_num >= ref.verse! && v.verse_num <= endVerse)
-          .map((v) => v.text)
+          .map((v) => wrVerseText(v, tid))
           .join(' ')
       }
     } else {
       const v = await window.bible.queryVerse(ref.bookId, ref.chapter, ref.verse, tid).catch(() => null)
-      text = v?.text ?? ''
+      text = wrVerseText(v, tid)
     }
     if (seq !== refHoverSeqRef.current) return
     setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel, text, loading: false })
@@ -843,6 +903,25 @@ export default function NoteEditorPM({
     setRefHoverPreview({
       x: rect.left, y: rect.bottom + 4, refLabel: strongsId,
       text: entry ? buildLexiconCopyText(entry).split('\n').slice(1).join(' ') : '',
+      loading: false,
+    })
+  }
+
+  async function handleTagRefHoverStart(name: string, rect: DOMRect) {
+    const seq = ++refHoverSeqRef.current
+    const tag = useAppStore.getState().verseTags.find((t) => t.name.toLowerCase() === name.toLowerCase())
+    if (!tag) {
+      setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel: `#${name}`, text: 'No such tag', loading: false })
+      return
+    }
+    setRefHoverPreview({ x: rect.left, y: rect.bottom + 4, refLabel: `#${tag.name}`, text: '', loading: true })
+    const members = await window.verseTags.getMembers([tag.id]).catch(() => [])
+    if (seq !== refHoverSeqRef.current) return
+    const labels = members.slice(0, 8).map((m) => m.label)
+    const more = members.length > 8 ? `  …+${members.length - 8} more` : ''
+    setRefHoverPreview({
+      x: rect.left, y: rect.bottom + 4, refLabel: `#${tag.name}`,
+      text: labels.length ? labels.join(' · ') + more : 'No verses tagged yet',
       loading: false,
     })
   }
@@ -887,6 +966,7 @@ export default function NoteEditorPM({
     onWikilinkHoverStart: handleWikilinkHoverStart,
     onVerseRefHoverStart: handleVerseRefHoverStart,
     onLexiconRefHoverStart: handleLexiconRefHoverStart,
+    onTagRefHoverStart: handleTagRefHoverStart,
     onRefHoverEnd: handleRefHoverEnd,
   }
 
@@ -895,7 +975,7 @@ export default function NoteEditorPM({
   // wikilink list selection, Enter accepts the active item/block, Escape
   // dismisses and refocuses the editor).
   useEffect(() => {
-    if (!wikilinkTrigger && !strongsTrigger && !verseSuggestTrigger && !slashTrigger) return
+    if (!wikilinkTrigger && !strongsTrigger && !verseSuggestTrigger && !slashTrigger && !tagTrigger) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (wikilinkTrigger && filteredNotes.length > 0) {
         if (e.key === 'ArrowDown') { e.preventDefault(); setWikilinkIdx((i) => Math.min(i + 1, filteredNotes.length - 1)); return }
@@ -907,18 +987,23 @@ export default function NoteEditorPM({
         if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIdx((i) => Math.max(i - 1, 0)); return }
         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlashCommand(filteredSlashCommands[slashIdx] ?? filteredSlashCommands[0]); return }
       }
+      if (tagTrigger && tagOptionCount > 0) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setTagIdx((i) => Math.min(i + 1, tagOptionCount - 1)); return }
+        if (e.key === 'ArrowUp') { e.preventDefault(); setTagIdx((i) => Math.max(i - 1, 0)); return }
+        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); void chooseTag(Math.min(tagIdx, tagOptionCount - 1)); return }
+      }
       if (strongsTrigger && e.key === 'Enter') { e.preventDefault(); insertStrongsBlock(strongsTrigger.num, strongsTrigger.from, strongsTrigger.to); return }
       if (verseSuggestTrigger && e.key === 'Enter') { e.preventDefault(); insertVerseBlock(verseSuggestTrigger.ref, verseSuggestTrigger.from, verseSuggestTrigger.to); return }
       if (e.key === 'Escape') {
         e.preventDefault()
-        setWikilinkTrigger(null); setStrongsTrigger(null); setVerseSuggestTrigger(null); setSlashTrigger(null)
+        setWikilinkTrigger(null); setStrongsTrigger(null); setVerseSuggestTrigger(null); setSlashTrigger(null); setTagTrigger(null)
         viewRef.current?.focus()
       }
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wikilinkTrigger, strongsTrigger, verseSuggestTrigger, slashTrigger, wikilinkIdx, slashIdx, filteredNotes.length, filteredSlashCommands.length])
+  }, [wikilinkTrigger, strongsTrigger, verseSuggestTrigger, slashTrigger, tagTrigger, wikilinkIdx, slashIdx, tagIdx, tagOptionCount, filteredNotes.length, filteredSlashCommands.length])
 
   // Clicking below/around the actual note content (very common — e.g. a
   // short note with lots of empty space beneath it) should still focus the
@@ -1008,6 +1093,36 @@ export default function NoteEditorPM({
           onHoverIdx={setSlashIdx}
           onSelect={runSlashCommand}
         />
+      )}
+      {tagTrigger && tagOptionCount > 0 && createPortal(
+        <div
+          className="fixed z-[60] min-w-[180px] max-h-[240px] overflow-y-auto rounded-shell context-menu py-1 animate-radix-popup-in"
+          style={{ left: tagTrigger.coords.left, top: tagTrigger.coords.bottom + 4, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {filteredTags.map((t, i) => (
+            <button
+              key={t.id}
+              onMouseEnter={() => setTagIdx(i)}
+              onClick={() => void chooseTag(i)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer ${i === tagIdx ? 'bg-[rgb(var(--color-surface-4))]' : ''} text-[rgb(var(--color-text-primary))]`}
+            >
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color ? `rgb(var(--highlight-${t.color}))` : 'rgb(var(--color-text-muted))' }} />
+              <span className="truncate">{t.name}</span>
+              <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
+            </button>
+          ))}
+          {tagQ && !tagExactExists && (
+            <button
+              onMouseEnter={() => setTagIdx(filteredTags.length)}
+              onClick={() => void chooseTag(filteredTags.length)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left cursor-pointer ${tagIdx === filteredTags.length ? 'bg-[rgb(var(--color-surface-4))]' : ''} text-[rgb(var(--color-accent))]`}
+            >
+              + Create “{tagTrigger.query.trim()}”
+            </button>
+          )}
+        </div>,
+        document.body,
       )}
       {selectionToolbar && mode === 'edit' && viewRef.current && (
         <SelectionToolbar view={viewRef.current} toolbarState={selectionToolbar} />

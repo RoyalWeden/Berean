@@ -58,6 +58,20 @@ describe('reasonForOrigin', () => {
     expect(tags).toEqual(['manual'])
   })
 
+  it('appends "(from ...)" for verses selected via verse-number click, using their full refs', () => {
+    // Single selected verse, plain-text origin (book/chapter picker has no base text).
+    expect(reasonForOrigin({ kind: 'book-chapter-picker', fromSelection: [{ bookId: 'GEN', chapter: 1, verse: 3 }] }))
+      .toEqual({ text: '(from Genesis 1:3)', tags: ['manual'] })
+    // Multiple selected verses, appended after an existing reason.
+    const { text } = reasonForOrigin({
+      kind: 'search-result', query: 'light',
+      fromSelection: [{ bookId: 'GEN', chapter: 1, verse: 3 }, { bookId: 'GEN', chapter: 1, verse: 4 }],
+    })
+    expect(text).toBe('a search for "light" (from Genesis 1:3, Genesis 1:4)')
+    // No fromSelection — unchanged from the plain case.
+    expect(reasonForOrigin({ kind: 'search-result', query: 'light' }).text).toBe('a search for "light"')
+  })
+
   it('never throws for every NavOrigin variant', () => {
     const origins: NavOrigin[] = [
       { kind: 'verse-popover' },

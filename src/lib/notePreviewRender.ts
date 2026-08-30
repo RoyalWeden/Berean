@@ -10,7 +10,7 @@ import { marked } from 'marked'
 import pmEditorCss from '@/components/notes/pm/pmEditor.css?raw'
 import { renderMarkdownToHTML } from '@/components/notes/pm/staticRender'
 import { parseRef, AMBIGUOUS_PATTERNS, isExactBookToken } from '@/lib/parseRef'
-import { CALLOUT_META } from '@/lib/noteTextBlocks'
+import { CALLOUT_META, normalizeRefWhitespace } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
 // Configure marked for safe HTML output — gfm:true enables GitHub-Flavored Markdown tables
@@ -43,7 +43,7 @@ marked.use({ tokenizer: { lheading() { return undefined } } })
 // "Hermas, Similitudes" etc. — see noteTextBlocks.ts's copy of this regex for the full
 // reasoning) — kept in sync with that copy.
 export const SINGLE_VERSE_LINE_RE =
-  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
+  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*(?:[ \t]+(?:LXX|lxx)\b)?)[ \t]+(?!(?:LXX|lxx)[.\s]*$)(\S.*)$/
 // A body line in a multi-line block: starts with a verse number then text.
 export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
@@ -67,6 +67,7 @@ export interface VerseBlockMatch {
 }
 
 export function detectVerseBlock(text: string): VerseBlockMatch | null {
+  text = normalizeRefWhitespace(text)
   if (!text.trim()) return null
   const nonEmpty = text.split('\n').map(l => l.trimEnd()).filter(l => l.trim())
   if (nonEmpty.length === 0) return null
@@ -109,8 +110,13 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // The verse-range extension's trailing `(?:[ \t]*[:.][ \t]*\d{1,3})?` lets a genuine
 // cross-chapter range ("Isaiah 63:17-64:3") capture its full span instead of truncating
 // at "63:17-64" — kept in sync with noteTextBlocks.ts's copy of this same fix.
+// The trailing `(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*` inside the colon
+// sub-group is the comma-separated verse-list suffix ("Deuteronomy 32:3,6,9-13,23,25") —
+// each iteration requires the comma be immediately followed by digits, so it stops at a
+// `;` or a following word and renders the whole list as one linked ref. Kept in sync with
+// noteTextBlocks.ts's copy.
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number      // start offset of the recognised reference within `text`
@@ -120,6 +126,7 @@ export interface VerseRefMatch {
 }
 
 export function findVerseRefMatches(text: string): VerseRefMatch[] {
+  text = normalizeRefWhitespace(text)
   const out: VerseRefMatch[] = []
   VERSE_REF_SCAN_RE.lastIndex = 0
   let m: RegExpExecArray | null
@@ -140,7 +147,9 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
     // Try the full phrase, then drop leading words until parseRef succeeds.
     let matched = false
     for (let start = 0; start < words.length; start++) {
-      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart
+      // Fold the trailing " LXX" marker (m[4]) into candidateRef so refText round-trips
+      // through parseRef as an LXX-forced ref (kept in sync with noteTextBlocks.ts).
+      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart + (lxx ? ' LXX' : '')
       if (parseRef(candidateRef)) {
         // ── Ambiguous-pattern guard ────────────────────────────────────────────
         // If the last word of the book portion is a common English word/abbrev
@@ -216,7 +225,7 @@ function verseCacheKey(refText: string, candidate: string): string {
  * reference string. Returns the bare reference for parseRef plus whether LXX was present.
  */
 export function stripLxxMarker(refText: string): { ref: string; lxx: boolean } {
-  const suffix = refText.match(/^(.*?)[ \t]+LXX\s*$/i)
+  const suffix = refText.match(/^(.*?)(?:[ \t]+LXX)+\s*$/i)
   if (suffix) return { ref: suffix[1].trim(), lxx: true }
   const prefix = refText.match(/^(?:lxx|LXX):\s*(.*)$/)
   if (prefix) return { ref: prefix[1].trim(), lxx: true }
@@ -307,7 +316,7 @@ export function wrapVerseBlocksForPreview(content: string, stash?: (html: string
   const st = (typeof useAppStore?.getState === 'function') ? useAppStore.getState() : null
   if (!st?.noteScriptureBlock) return content
   const threshold = st.noteScriptureBlockThreshold ?? 0.9
-  const lines = content.split('\n')
+  const lines = normalizeRefWhitespace(content).split('\n')
   const out: string[] = []
   const emit = (blockHtml: string) => {
     if (stash) { out.push(stash(blockHtml)); return }
@@ -385,7 +394,7 @@ const LEXICON_BLOCK_DEF_STYLE =
  * Stashes the HTML so marked doesn't interfere.
  */
 export function wrapLexiconBlocksForPreview(content: string, stash?: (html: string) => string): string {
-  const lines = content.split('\n')
+  const lines = normalizeRefWhitespace(content).split('\n')
   const out: string[] = []
   const emit = (html: string) => {
     if (stash) { out.push(stash(html)); return }

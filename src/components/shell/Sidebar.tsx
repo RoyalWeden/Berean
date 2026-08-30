@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as Popover from '@radix-ui/react-popover'
 import { motion } from 'framer-motion'
-import { BookOpen, FileText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
+import { BookOpen, NotepadText, BookMarked, Youtube, Search, Settings, PanelLeft, Plus, ChevronRight, ChevronsUpDown, Check, Pencil, Palette, Hash, Trash2, Layers, Star, Flame, Leaf, Globe, Compass, Shield, Feather, Anchor, Crown, Zap, Heart, Cloud, Mountain, Fish, Key, Bell, Clock, Home, Map, Gem, Music2, Sun, Moon, CalendarDays, PanelRightOpen, ExternalLink, Monitor, type LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import TabBar from './TabBar'
@@ -18,7 +18,7 @@ import { dailyNoteTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
 
 const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip: string }[] = [
   { id: 'scripture', type: 'bible',   label: 'Scripture', icon: BookOpen,   tip: 'New Scripture tab' },
-  { id: 'notes',     type: 'note',    label: 'Notes',     icon: FileText,   tip: 'New Notes tab' },
+  { id: 'notes',     type: 'note',    label: 'Notes',     icon: NotepadText, tip: 'New Notes tab' },
   { id: 'lexicon',   type: 'lexicon', label: 'Lexicon',   icon: BookMarked, tip: 'New Lexicon tab' },
   { id: 'youtube',   type: 'youtube', label: 'YouTube',   icon: Youtube,    tip: 'New YouTube tab' },
 ]
@@ -29,7 +29,7 @@ const SPACES: { id: SpaceId; type: TabType; label: string; icon: LucideIcon; tip
 export const SESSION_ICONS: { name: string; Icon: LucideIcon }[] = [
   { name: 'BookOpen', Icon: BookOpen },
   { name: 'BookMarked', Icon: BookMarked },
-  { name: 'FileText', Icon: FileText },
+  { name: 'FileText', Icon: NotepadText },
   { name: 'Star', Icon: Star },
   { name: 'Flame', Icon: Flame },
   { name: 'Leaf', Icon: Leaf },

@@ -100,6 +100,9 @@ export interface BibleTabState {
   searchBookFilter?: string
   searchSortMode?: 'relevance' | 'bookOrder'
   searchScrollTop?: number
+  /** Verse-tag filter: comma-joined tag ids; `searchTagFilterAll` = AND (match every) vs OR. */
+  searchTagFilter?: string
+  searchTagFilterAll?: boolean
 }
 
 export interface NoteTabState {
@@ -356,6 +359,45 @@ export interface Highlight {
   createdAt: number
 }
 
+// ── Verse tags (translation-agnostic; SQLite-backed, see electron/ipc/verseTags.ts) ──
+export interface VerseTagRange {
+  bookId: string
+  chapter: number
+  /** Explicit verse spans within the chapter (omit / empty when `whole`). */
+  spans?: Array<{ s: number; e: number }>
+  /** Whole chapter. */
+  whole?: boolean
+}
+export interface VerseTag {
+  id: string
+  name: string
+  color: string | null
+  createdAt: number
+  memberCount: number
+  verseCount: number
+  chapterCount: number
+}
+export interface VerseTagLite { id: string; name: string; color: string | null }
+export interface VerseTagMember {
+  memberId: string
+  tagId: string
+  tagName: string
+  tagColor: string | null
+  kind: 'verses' | 'chapter'
+  label: string
+  ranges: VerseTagRange[]
+  verses: Array<{ bookId: string; chapter: number; verse: number }>
+  wholeChapters: Array<{ bookId: string; chapter: number }>
+}
+export interface VerseTagDeleteResult {
+  deleted: boolean
+  notFound?: boolean
+  blocked?: boolean
+  noteRefCount?: number
+  name?: string
+  list?: VerseTag[]
+}
+
 export type MosaicKey = 'bible-panel' | 'notes-panel' | 'lexicon-panel' | 'youtube-panel' | 'search-panel'
 
 /** A single entry in a per-tab navigation stack (back/forward within one tab). */
@@ -424,6 +466,8 @@ export interface HistoryEntry {
   strongsNum?: string   // lexicon / strongs-click
   videoId?: string      // youtube
   query?: string        // search
+  searchTagFilter?: string[]   // search — verse-tag names the search was filtered to
+  searchTagFilterAll?: boolean // search — AND (every) vs OR (any) for the tag filter
   // compare: what was open in each column
   compareColumns?: Array<{ textId: string; bookId: string; chapter: number; title: string }>
   // import: summary

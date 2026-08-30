@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   ZoomIn, ZoomOut, Search, X, ChevronUp, ChevronDown,
-  Link2, StickyNote, FileText, Trash2, BookOpen,
+  Link2, NotepadText, FileText, Trash2, BookOpen,
   ChevronDown as ChevronDownIcon, BookmarkPlus, Bookmark as BookmarkIcon, PanelRight as PanelRightIcon,
 } from 'lucide-react'
 import { loadPdfFromBytes, type PDFDocumentProxy } from '@/lib/pdfjs'
@@ -594,7 +594,7 @@ export default function PDFViewer({ floating = false }: { floating?: boolean }) 
               style={{ backgroundColor: hlColor(c).replace('0.45', '0.9') }} />
           ))}
           <div className="w-px h-4 bg-[rgb(var(--color-surface-4))] mx-0.5" />
-          <button onClick={highlightAndNote} title="Highlight + new note" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><StickyNote size={13} /></button>
+          <button onClick={highlightAndNote} title="Highlight + new note" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><NotepadText size={13} /></button>
           <button onClick={copyLinkToSelection} title="Copy link to selection" className="p-1 rounded text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer"><Link2 size={13} /></button>
         </div>
       )}

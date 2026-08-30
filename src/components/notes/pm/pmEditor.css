@@ -88,6 +88,18 @@
   cursor: pointer;
 }
 
+/* Inline #tag reference — a chip, not an underline, so it reads distinctly from verse refs. */
+.pm-tag-ref {
+  color: rgb(var(--color-accent));
+  background-color: rgb(var(--color-accent) / 0.10);
+  border-radius: 4px;
+  padding: 0 3px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .12s ease;
+}
+.pm-tag-ref:hover { background-color: rgb(var(--color-accent) / 0.18); }
+
 /* .pm-callout* colors/padding/margin are applied inline by nodeViews.ts's
    calloutNodeView and staticRender.ts's renderCallout (sourced from
    CALLOUT_META) — this covers what inline styles can't: paragraph spacing

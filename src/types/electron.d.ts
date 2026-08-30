@@ -1,4 +1,5 @@
-import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight } from './index'
+import type { Book, Verse, Note, NoteVersion, NoteFolder, LexiconEntry, SearchResult, PdfDoc, PdfHighlight,
+  VerseTag, VerseTagLite, VerseTagRange, VerseTagMember, VerseTagDeleteResult } from './index'
 
 interface BibleAPI {
   queryChapter: (bookId: string, chapter: number, textId?: string) => Promise<Verse[]>
@@ -22,6 +23,7 @@ interface NotesAPI {
   emptyTrash: () => Promise<{ success: boolean; purged: string[] }>
   deleteAllNotes: () => Promise<{ success: boolean }>
   deleteByTag: (tag: string) => Promise<{ success: boolean; deleted: number }>
+  countTagRefs: (name: string) => Promise<{ count: number }>
   getNotes: (limit?: number, offset?: number) => Promise<Note[]>
   getVerseNotes: (verseRef: string, textId?: string) => Promise<Note[]>
   getNote: (id: string) => Promise<Note | null>
@@ -59,6 +61,21 @@ interface HighlightsAPI {
   getChapter: (bookId: string, chapter: number, textId?: string) => Promise<Record<number, Array<{ id: string; color: HighlightColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>
   toggle: (params: { bookId: string; chapter: number; verseNum: number; color: HighlightColor; textId?: string; startWord?: number; endWord?: number; startChar?: number; endChar?: number }) => Promise<{ removed?: boolean; updated?: boolean; created?: boolean; id: string; color?: HighlightColor }>
   remove: (bookId: string, chapter: number, verseNum: number, textId?: string) => Promise<{ success: boolean }>
+}
+
+interface VerseTagsAPI {
+  list: () => Promise<VerseTag[]>
+  create: (name: string, color?: string | null) => Promise<VerseTag[]>
+  rename: (id: string, name: string) => Promise<VerseTag[]>
+  setColor: (id: string, color: string | null) => Promise<VerseTag[]>
+  reorder: (orderedIds: string[]) => Promise<VerseTag[]>
+  merge: (fromId: string, intoId: string) => Promise<VerseTag[]>
+  delete: (id: string, force?: boolean) => Promise<VerseTagDeleteResult>
+  addMembers: (args: { tagIds?: string[]; newTagNames?: string[]; ranges: VerseTagRange[]; label: string; kind?: 'verses' | 'chapter' }) => Promise<VerseTag[]>
+  removeMember: (memberId: string) => Promise<VerseTag[]>
+  updateMemberRanges: (memberId: string, ranges: VerseTagRange[], label: string) => Promise<VerseTag[]>
+  getForChapter: (bookId: string, chapter: number) => Promise<{ verseTags: Record<number, VerseTagLite[]>; chapterTags: VerseTagLite[] }>
+  getMembers: (tagIds: string[]) => Promise<VerseTagMember[]>
 }
 
 interface LexiconAPI {
@@ -721,6 +738,7 @@ declare global {
     bible: BibleAPI
     notes: NotesAPI
     highlights: HighlightsAPI
+    verseTags: VerseTagsAPI
     lexicon: LexiconAPI
     settings: SettingsAPI
     pdf: PdfAPI

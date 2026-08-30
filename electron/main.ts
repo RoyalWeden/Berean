@@ -74,6 +74,7 @@ import { registerVaultHandlers, runExportAll, setupAutoExport, AUTO_EXPORT_INTER
 import { registerSettingsHandlers } from './ipc/settings'
 import { registerLexiconHandlers } from './ipc/lexicon'
 import { registerHighlightHandlers } from './ipc/highlights'
+import { registerVerseTagHandlers } from './ipc/verseTags'
 import { registerYouTubeHandlers } from './ipc/youtube'
 import { registerCrossRefsHandlers } from './ipc/crossrefs'
 import { registerAiLookupHandlers } from './ipc/aiLookup'
@@ -848,6 +849,7 @@ app.whenReady().then(async () => {
   registerSettingsHandlers(ipcMain)
   registerLexiconHandlers(ipcMain)
   registerHighlightHandlers(ipcMain)
+  registerVerseTagHandlers(ipcMain)
   registerYouTubeHandlers(ipcMain)
   registerCrossRefsHandlers(ipcMain)
   registerAiLookupHandlers(ipcMain)

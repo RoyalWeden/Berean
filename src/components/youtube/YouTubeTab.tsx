@@ -4,7 +4,7 @@ import { MenuPositioner, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMe
 import {
   ArrowLeft, RefreshCw, Search, X, ChevronDown,
   ExternalLink, Download, Star, RotateCcw, Maximize2, Minimize2, Paperclip, Link2,
-  FileText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
+  NotepadText, Clock, ChevronRight, Edit3, Eye, Undo2, Redo2, Plus, LayoutGrid,
   BookOpen, BookMarked, Trash2, Captions,
 } from 'lucide-react'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
@@ -201,8 +201,8 @@ function PanelSlot({
 }) {
   // No panel chosen yet → show the 3 visual type buttons
   if (!panel) {
-    const TYPES: { type: 'notes' | 'scripture' | 'lexicon'; label: string; icon: typeof FileText; desc: string }[] = [
-      { type: 'notes',     label: 'Notes',     icon: FileText,  desc: 'Search & view a note' },
+    const TYPES: { type: 'notes' | 'scripture' | 'lexicon'; label: string; icon: typeof NotepadText; desc: string }[] = [
+      { type: 'notes',     label: 'Notes',     icon: NotepadText,  desc: 'Search & view a note' },
       { type: 'scripture', label: 'Scripture', icon: BookOpen,  desc: 'Open a chapter' },
       { type: 'lexicon',   label: 'Lexicon',   icon: BookMarked, desc: 'Look up a word' },
     ]
@@ -1984,7 +1984,7 @@ export default function YouTubeTab({ floating = false }: { floating?: boolean })
                     {videoNotes.filter(n => n.timestamp === 0).map((n) => (
                       <div key={`${n.noteId}-0`} className={`group flex items-center gap-1.5 rounded px-1 py-0.5 cursor-pointer transition-colors ${inlinePanelNoteId === n.noteId ? 'bg-[rgb(var(--color-surface-4))]' : 'hover:bg-[rgb(var(--color-surface-3))]'}`}
                         onClick={() => setInlinePanelNoteId(inlinePanelNoteId === n.noteId ? null : n.noteId)}>
-                        <FileText size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
+                        <NotepadText size={9} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
                         <span className="flex-1 text-[11px] text-[rgb(var(--color-text-secondary))] truncate">{n.noteTitle}</span>
                         <button onMouseDown={(e) => { e.stopPropagation(); useAppStore.getState().ensureTab('note'); useAppStore.getState().requestOpenNote(n.noteId) }}
                           title="Open in Notes tab"

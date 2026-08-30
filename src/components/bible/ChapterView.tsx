@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Copy, StickyNote, X, BookOpen } from 'lucide-react'
+import { Copy, NotepadText, X, BookOpen } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
@@ -26,6 +26,7 @@ const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLOR
 // equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
 type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
 const EMPTY_HIGHLIGHTS: VerseHighlight[] = []
+const EMPTY_VERSE_TAGS: import('@/types').VerseTagLite[] = []
 
 /**
  * Merge a freshly-fetched per-verse record into the previous one, keeping the OLD value
@@ -282,6 +283,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const bibleFontSize = zoomedFontSize(useAppStore((s) => s.bibleFontSize), useAppStore((s) => s.appZoom))
   const noteChangeToken = useAppStore((s) => s.noteChangeToken)
   const highlightChangeToken = useAppStore((s) => s.highlightChangeToken)
+  const verseTagChangeToken = useAppStore((s) => s.verseTagChangeToken)
   const bumpHighlightToken = useAppStore((s) => s.bumpHighlightToken)
   const bumpNoteToken = useAppStore((s) => s.bumpNoteToken)
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
@@ -319,6 +321,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
   const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
+  const [verseTagMap, setVerseTagMap] = useState<Record<number, import('@/types').VerseTagLite[]>>({})
   const [loading, setLoading] = useState(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) === null)
   // Shown only once a chapter/translation switch has been in flight longer than a beat —
   // most loads are near-instant (local SQLite), so this stays hidden for those; it's just a
@@ -563,6 +566,15 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     })
     return () => { cancelled = true }
   }, [bookId, chapter, textId, noteChangeToken, highlightChangeToken, verses.length])
+
+  // Verse tags for this chapter (translation-agnostic — not keyed on textId).
+  useEffect(() => {
+    let cancelled = false
+    window.verseTags.getForChapter(bookId, chapter)
+      .then((res) => { if (!cancelled) setVerseTagMap(res.verseTags ?? {}) })
+      .catch(() => { if (!cancelled) setVerseTagMap({}) })
+    return () => { cancelled = true }
+  }, [bookId, chapter, verseTagChangeToken])
 
   useEffect(() => {
     if (!targetVerse || !containerRef.current || verses.length === 0) return
@@ -1004,6 +1016,8 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
               notePrimaryColor={noteColorsMap[verse.verse_num]}
               hasNoteCrossRef={verseHasNoteCrossRefs[verse.verse_num] ?? false}
               isHighlighted={isHighlighted}
+              verseTags={verseTagMap[verse.verse_num] ?? EMPTY_VERSE_TAGS}
+              tabId={tabId}
               highlights={highlights[verse.verse_num] ?? EMPTY_HIGHLIGHTS}
               hiddenAnnotations={hiddenAnnotations}
               textId={textId}
@@ -1088,7 +1102,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
             onClick={addRangeNote}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
           >
-            <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+            <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Add note on range
           </button>
         </MenuPositioner>

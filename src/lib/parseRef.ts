@@ -584,6 +584,12 @@ export interface ParsedRef {
   verse?: number
   endVerse?: number
   endChapter?: number  // for chapter ranges like "Hosea 13-14"
+  /** Comma-separated verse list, e.g. "Deuteronomy 32:3-4,6" or
+   *  "Deuteronomy 32:3,6,9-13,23,25". Present ONLY when the input carried one or more
+   *  commas after the first chapter:verse; every group is captured (the FIRST group also
+   *  fills `verse`/`endVerse` above for back-compat, so single-ref callers are unaffected).
+   *  Each entry is a single verse (`{ verse }`) or an inline range (`{ verse, endVerse }`). */
+  verseGroups?: Array<{ verse: number; endVerse?: number }>
   /** Set to 'LXX' when the input carried a trailing " LXX" translation suffix
    *  ("Isaiah 66:3 LXX"). Callers already treat this as "show this ref in that text instead of
    *  the default" — see NotesPanel.tsx / BibleRightPanel.tsx's `ref.forcedTranslation ?? ...`.
@@ -631,7 +637,7 @@ export function parseRef(input: string): ParsedRef | null {
   // copy-verse output now puts a comma before the chapter:verse for those too ("Hermas,
   // Similitudes, 35:1"), so the book-token group needs to tolerate an embedded comma or the
   // whole match fails past the book name instead of just treating it as part of the name.
-  function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined, suffixRaw?: string): ParsedRef | null {
+  function finish(bookRawIn: string, bookNum: number | undefined, chapter: number, verse: number | undefined, endVerse: number | undefined, endChapter: number | undefined, suffixRaw?: string, commaListRaw?: string): ParsedRef | null {
     if (isNaN(chapter) || chapter < 1) return null
 
     let bookId = resolveBookToken(bookRawIn)
@@ -659,7 +665,31 @@ export function parseRef(input: string): ParsedRef | null {
     if (endVerse !== undefined && (isNaN(endVerse) || endVerse < 1 || endVerse > 200)) return null
 
     const forcedTranslation = suffixRaw ? TRANSLATION_SUFFIXES[suffixRaw.toUpperCase()] : undefined
-    return { bookId, chapter, verse, endVerse, endChapter, forcedTranslation }
+
+    // Comma-separated verse list ("32:3-4,6" / "32:3,6,9-13,23,25"). The first group is
+    // already represented by `verse`/`endVerse` above; the comma segments are appended
+    // after it. Every group's verse numbers are validated the same way a single verse is
+    // (1..200); any invalid group rejects the whole reference — kept strict on purpose.
+    let verseGroups: Array<{ verse: number; endVerse?: number }> | undefined
+    if (commaListRaw) {
+      verseGroups = []
+      if (verse !== undefined) {
+        verseGroups.push(endVerse !== undefined ? { verse, endVerse } : { verse })
+      }
+      for (const seg of commaListRaw.split(',')) {
+        const t = seg.trim()
+        if (!t) continue
+        const gm = t.match(/^(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/)
+        if (!gm) return null
+        const gv = parseInt(gm[1])
+        const gev = gm[2] ? parseInt(gm[2]) : undefined
+        if (isNaN(gv) || gv < 1 || gv > 200) return null
+        if (gev !== undefined && (isNaN(gev) || gev < 1 || gev > 200)) return null
+        verseGroups.push(gev !== undefined ? { verse: gv, endVerse: gev } : { verse: gv })
+      }
+    }
+
+    return { bookId, chapter, verse, endVerse, endChapter, forcedTranslation, verseGroups }
   }
 
   // Tail grammar after the chapter number (group 3), one of:
@@ -684,8 +714,16 @@ export function parseRef(input: string): ParsedRef | null {
   // Before this, LXX-awareness lived only in stripLxxMarker() pre-cleaning at a couple of note
   // surfaces, so every direct parseRef() caller (floating search, scripture search, history)
   // simply failed to resolve an LXX-suffixed reference. See TRANSLATION_SUFFIXES above.
+  // Group 8 (new, appended AFTER the same-chapter verse-range group so groups 5-7 keep
+  // their numbers): an optional comma-separated verse list following the first
+  // chapter:verse — "32:3-4,6", "32:3,6,9-13,23,25". Each comma segment is a bare verse or
+  // an inline "N-M" range. It only attaches inside the colon branch (never to a bare
+  // "Book N" chapter), stops at the first non-"comma + digits" token (so "32:3,6 and then"
+  // captures only ",6", and "32:3,6; Genesis 1:1" ends the whole match at the ";"), and is
+  // parsed/validated group-by-group in finish() above. The old group 8 (chapter-only range
+  // end chapter) is now group 9, and the trailing LXX group is now group 10.
   const m = norm.match(
-    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?|\s*[-–]\s*(\d+))?(?:\s+(LXX)\b)?$/i
+    /^((?:\d\s*)?\w[\w\s,]*?)\.?(?:,?\s*Book\s+(\d{1,3}))?,?\s*(\d+)(?:\s*[:.]\s*(\d+)(?:\s*[-–]\s*(?:(\d+)\s*[:.]\s*(\d+)|(\d+)))?((?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)+)?|\s*[-–]\s*(\d+))?(?:\s+(LXX)\b)?$/i
   )
   if (m) {
     const crossChapterEndChapter = m[5] ? parseInt(m[5]) : undefined
@@ -695,8 +733,9 @@ export function parseRef(input: string): ParsedRef | null {
       parseInt(m[3]),
       m[4] ? parseInt(m[4]) : undefined,
       crossChapterEndChapter !== undefined ? (m[6] ? parseInt(m[6]) : undefined) : (m[7] ? parseInt(m[7]) : undefined),
-      crossChapterEndChapter !== undefined ? crossChapterEndChapter : (m[8] ? parseInt(m[8]) : undefined),
-      m[9]
+      crossChapterEndChapter !== undefined ? crossChapterEndChapter : (m[9] ? parseInt(m[9]) : undefined),
+      m[10],
+      m[8],
     )
     if (result) return result
   }

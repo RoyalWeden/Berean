@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyWordReplacer, expandQueryForWordReplacer, getWordReplacerSearchVariants } from '../wordReplacer'
+import { applyWordReplacer, expandQueryForWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '../wordReplacer'
 import type { WordReplacerRule } from '@/store'
 
 // Mirrors the real default rule set's relevant subset (see store/index.ts's
@@ -104,5 +104,46 @@ describe('getWordReplacerSearchVariants — real bidirectional search variants',
 
   it('a query with no matching rule returns just itself', () => {
     expect(getWordReplacerSearchVariants('grace and truth', rules)).toEqual(['grace and truth'])
+  })
+})
+
+// The Strong's-number rules (H3068 → "Yehovah" etc.) carry no `queries`, so
+// getWordReplacerSearchVariants deliberately skips them — plain FTS can never find
+// "yehovah" (the index still says "LORD"). getWordReplacerStrongsSearch is the bridge:
+// it maps the typed restored word back to the Strong's numbers to search by occurrence.
+const strongsRules: WordReplacerRule[] = [
+  { id: 's-h3068', queries: [], strongsNum: 'H3068', replacement: 'Yehovah', wholeWord: false, enabled: true },
+  { id: 's-h3069', queries: [], strongsNum: 'H3069', replacement: 'Yehovah', wholeWord: false, enabled: true },
+  { id: 's-h3050', queries: [], strongsNum: 'H3050', replacement: 'Yah', wholeWord: false, enabled: true },
+  { id: 'jesus', queries: ['jesus'], replacement: 'Yeshua', wholeWord: false, enabled: true },
+]
+
+describe("getWordReplacerStrongsSearch — restored-word to Strong-number bridge", () => {
+  it("maps yehovah to every Strong number that restores to it (H3068 + H3069)", () => {
+    const r = getWordReplacerStrongsSearch('yehovah', strongsRules)
+    expect(r).not.toBeNull()
+    expect(new Set(r!.strongsNums)).toEqual(new Set(['H3068', 'H3069']))
+    expect(r!.residualWords).toEqual([])
+  })
+
+  it('is case-insensitive and ignores surrounding punctuation', () => {
+    const r = getWordReplacerStrongsSearch('YEHOVAH,', strongsRules)
+    expect(r?.strongsNums).toContain('H3068')
+  })
+
+  it('keeps the other typed words as residual words to AND against', () => {
+    const r = getWordReplacerStrongsSearch('yehovah said', strongsRules)
+    expect(r?.residualWords).toEqual(['said'])
+  })
+
+  it("a query with no Strong-rule word returns null", () => {
+    expect(getWordReplacerStrongsSearch('grace and truth', strongsRules)).toBeNull()
+    // a plain text-pattern rule ("jesus") is NOT a Strong's rule — still null
+    expect(getWordReplacerStrongsSearch('jesus wept', strongsRules)).toBeNull()
+  })
+
+  it("disabled Strong rules are ignored", () => {
+    const off = strongsRules.map((r) => r.strongsNum ? { ...r, enabled: false } : r)
+    expect(getWordReplacerStrongsSearch('yehovah', off)).toBeNull()
   })
 })

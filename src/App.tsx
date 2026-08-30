@@ -16,6 +16,8 @@ import ActivePanel from '@/components/shell/ActivePanel'
 import ShellHeader from '@/components/shell/ShellHeader'
 import { TopBarSlotContext } from '@/components/shell/TopBarSlotContext'
 import FloatingSearch from '@/components/shell/FloatingSearch'
+import VerseSelectionBar from '@/components/bible/VerseSelectionBar'
+import TagManagerPanel from '@/components/tags/TagManagerPanel'
 import MarkdownReferenceModal from '@/components/notes/MarkdownReferenceModal'
 import CrashReport from '@/components/shell/CrashReport'
 import TabSwitcher from '@/components/shell/TabSwitcher'
@@ -60,6 +62,7 @@ export default function App() {
   // call site needing to know Study Trail exists (see src/lib/verseNavigation.ts's injected
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
+  useEffect(() => { void useAppStore.getState().refreshVerseTags() }, [])
   // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
   // new session's first node from the currently-active tab) — see electron/main.ts's
   // app:getActiveScriptureRef comment for why this has to round-trip through the main process.
@@ -1098,6 +1101,8 @@ export default function App() {
       <LazyOnce when={tasksVisible}><TasksPanel /></LazyOnce>
       <LazyOnce when={aiLookupPanelOpen}><AiLookupPanel /></LazyOnce>
       <StudyTrailArrivalPrompt />
+      <VerseSelectionBar />
+      <TagManagerPanel />
     </div>
   )
 }

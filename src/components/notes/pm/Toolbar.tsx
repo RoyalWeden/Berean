@@ -17,6 +17,7 @@ import { insertBlockNode, buildEmptyTable } from './slashCommands'
 import { pickAndInsertImage } from './imageInsert'
 import { VersePickerPopup } from './AutocompletePopups'
 import { getTranslationForBook, bookChapterVerseLabel } from '@/lib/parseRef'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
@@ -255,11 +256,13 @@ export default function Toolbar({
     const textId = getTranslationForBook(bookId) ?? 'kjva'
     const v = await window.bible.queryVerse(bookId, chapter, verse, textId).catch(() => null)
     if (!v?.text) { editorView.focus(); return }
+    const s = useAppStore.getState()
+    const vText = buildVerseDisplayText(v.text, v.text_tagged ?? null, textId, s.wordReplacerEnabled, s.wordReplacerRules)
     const label = bookChapterVerseLabel(bookId, chapter, verse)
     const { from } = editorView.state.selection
     const fragment = Fragment.fromArray([
       schema.nodes.paragraph.create(null, schema.text(label)),
-      schema.nodes.paragraph.create(null, schema.text(`${verse} ${v.text}`)),
+      schema.nodes.paragraph.create(null, schema.text(`${verse} ${vText}`)),
     ])
     editorView.dispatch(editorView.state.tr.insert(from, fragment).scrollIntoView())
     editorView.focus()

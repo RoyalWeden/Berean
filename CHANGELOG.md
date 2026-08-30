@@ -122,6 +122,58 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.13] - 2026-08-30
+
+Verse tags
+
+- You can now tag verses. Select one or more verses (or a whole chapter) and
+  assign them to a named, colored tag; the reader shows small angled tag
+  badges on the verse number that fan out when you hover it, and clicking one
+  opens Advanced Scripture Search filtered to that tag.
+- A draggable Tag Manager panel (Settings → Notes → Manage tags) lists every
+  tag with its verse and group counts — rename, recolor, merge tags together,
+  or delete one (with a warning if it's referenced in notes). The panel stays
+  open while you keep reading.
+- Advanced Scripture Search has a Tags filter: pick several tags to match any
+  of them, or switch on "match all". With no search text it just lists the
+  tagged passages directly.
+- In a note, typing `#` and a tag name suggests existing tags (or offers to
+  create one). The resulting `#tag` is a link — click it to open the filtered
+  search, hover it to preview the tagged verses.
+
+Notes
+
+- Verse references written as a comma list — `Deuteronomy 32:3-4,6` — are now
+  recognized as a single reference covering the whole list.
+- A reference followed by `LXX` (e.g. `Isaiah 61:3 LXX`) is detected and
+  styled through the marker and opens the Brenton Septuagint, including when
+  the space before `LXX` is one the editor silently substituted.
+- The scripture-block suggestion no longer shows a doubled `LXX LXX` marker.
+- Hovering a verse reference in a note now previews the text with your word
+  replacements applied, matching what the reader shows.
+- The note icon is now consistent everywhere in the app.
+
+Scripture reading
+
+- Verse selection is remembered per tab — switching between scripture tabs
+  keeps each tab's own selection, and the floating action bar only appears on
+  the tab that has verses selected.
+- The floating selection action bar is slimmer and translucent, and stays
+  visible (dimmed) behind dialogs instead of vanishing.
+
+Search
+
+- Floating search results now show verse text with your word replacements
+  applied, trim the snippet to a window around the match, and highlight the
+  matched term even after replacement.
+
+Settings
+
+- Long settings sections have a sticky row of "jump to" chips at the top for
+  quicker navigation.
+
+---
+
 ## [0.5.12] - 2026-08-29
 
 Study Trail

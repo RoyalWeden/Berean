@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useLayoutEffect, Fragment } from 'react'
-import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, StickyNote, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
+import { X, Send, Loader2, Plus, History as HistoryIcon, Sparkles, ChevronDown, ChevronRight, BookMarked, Link2, MessageSquareText, SearchCheck, Pencil, NotepadText, BookOpenText, Quote, Copy, Check, Eye, Youtube } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { VerseCopyMenu, useVerseCopyMenu } from '@/components/bible/VerseCopyMenu'
@@ -181,7 +181,7 @@ function NoteCard({ note }: { note: AiLookupNoteResult }) {
       className="w-full text-left rounded-shell border border-[rgb(var(--color-surface-4))] hover:border-[rgb(var(--color-accent))] bg-[rgb(var(--color-surface-2))] px-2.5 py-2 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-1.5 mb-0.5">
-        <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+        <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
         <span className="text-[11px] font-semibold text-[rgb(var(--color-text-primary))] truncate">{note.title}</span>
         {note.isIdiom && (
           <span className="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-accent))/15] text-[rgb(var(--color-accent))]">

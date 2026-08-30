@@ -51,25 +51,34 @@ export function makeSnippet(
  * Berean find-bar. Marks receive the `berean-find-mark` class so the panel can
  * query them after render for navigation / active-mark management.
  *
+ * `query` may be a single string or an array of strings — with an array, a match
+ * on ANY of them is marked. This lets callers mark both the typed term and its
+ * word-replacer substitution (e.g. "LORD" typed, "Yehovah" shown) in one pass.
+ *
  * wordMode:
- *   'phrase' (default) — highlight the exact query phrase
+ *   'phrase' (default) — highlight the exact query phrase(s)
  *   'all' | 'any'      — highlight each individual word in the query separately
  */
-export function applyFindHighlight(text: string, query: string, wordMode: 'phrase' | 'all' | 'any' = 'phrase'): React.ReactNode {
-  if (!query.trim()) return text
-  let pattern: string
+export function applyFindHighlight(
+  text: string,
+  query: string | string[],
+  wordMode: 'phrase' | 'all' | 'any' = 'phrase',
+): React.ReactNode {
+  const queries = (Array.isArray(query) ? query : [query])
+    .map(q => q.trim())
+    .filter(q => q.length > 0)
+  if (queries.length === 0) return text
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  let tokens: string[]
   if (wordMode === 'phrase') {
-    const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    pattern = escaped
+    tokens = queries.map(esc)
   } else {
-    // all or any: highlight each individual word
-    const words = query.trim()
-      .split(/\s+/)
-      .map(w => w.trim())
-      .filter(w => w.length > 0)
-    if (words.length === 0) return text
-    pattern = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+    // all or any: highlight each individual word across every query
+    tokens = queries.flatMap(q => q.split(/\s+/).filter(w => w.length > 0).map(esc))
   }
+  tokens = [...new Set(tokens)].filter(Boolean)
+  if (tokens.length === 0) return text
+  const pattern = tokens.join('|')
   const splitRe = new RegExp(`(${pattern})`, 'gi')
   const matchRe = new RegExp(`^(?:${pattern})$`, 'i')
   const parts = text.split(splitRe)

@@ -3,6 +3,7 @@
  * Used by BibleRightPanel (cross-ref panel) and VerseRow (hover tooltip).
  */
 import { parseRef, AMBIGUOUS_PATTERNS, isExactBookToken } from './parseRef'
+import { stripLxxMarker, normalizeRefWhitespace } from './noteTextBlocks'
 
 export interface NoteVerseRef {
   bookId: string
@@ -13,6 +14,9 @@ export interface NoteVerseRef {
   /** True when the note referenced a whole chapter (no specific verse), e.g. "Genesis 5".
    *  Such a ref should match/indicate every verse in that chapter. */
   isChapter?: boolean
+  /** True when the note reference carried a trailing " LXX" marker ("Isaiah 6:4 LXX") —
+   *  cross-ref rows built from this entry should resolve against the Septuagint text. */
+  lxx?: boolean
   sourceNoteTitle: string
   context: string
 }
@@ -53,10 +57,19 @@ function makeVerseRefRe() {
   // truncated at "63:17-64", silently dropping the trailing ":3" (parseRef, given only
   // the truncated text, then happily accepted it as a bogus same-chapter range instead of
   // failing to match at all — see parseRef.ts's own matching cross-chapter grammar fix).
-  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
+  // The `(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*` after the verse-range suffix captures a
+  // comma-separated verse list ("Deuteronomy 32:3,6,9-13,23,25") into the same match; each
+  // comma segment is split into its own NoteVerseRef in extractRefsFromNote below. The
+  // trailing `(?:[ \t]+LXX\b)?` folds an "Isaiah 6:4 LXX" marker into the captured span so
+  // the resulting rows can be flagged `lxx` (stripped back off via stripLxxMarker).
+  return /\b((?:[1-3]\s+)?[A-Za-z][a-z]*\d*(?:\s+(?:of\s+)?(?!Book\s+\d)[A-Za-z][a-z]*\d*)*(?:,?\s*Book\s+\d{1,3})?\s+\d{1,3}(?::\d{1,3}(?:\s*[-–]\s*\d{1,3}(?:\s*[:.]\s*\d{1,3})?)?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)?(?:[ \t]+LXX\b)?)\b|\[\[([^\]]*\d+[:/][^\]]*)\]\]/gi
 }
 
 export function extractRefsFromNote(content: string, noteTitle: string): NoteVerseRef[] {
+  // Fold nbsp/thin spaces to a plain space (length-preserving, so every `content.indexOf`
+  // / slice offset below stays valid) — notes written in the contenteditable editor pick up
+  // U+00A0 where a space was typed, which this file's `[ \t]`-based regex would not match.
+  content = normalizeRefWhitespace(content)
   const results: NoteVerseRef[] = []
   const seen = new Set<string>()
   const re = makeVerseRefRe()
@@ -65,8 +78,11 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
   while ((m = re.exec(content)) !== null) {
     // Strip wikilink brackets and Obsidian display-text suffix ("[[Rom 9:21-22|potter]]" → "Rom 9:21-22")
     const isWikilink = m[2] != null
-    const raw = (m[1] ?? m[2] ?? '').trim().replace(/\[\[|\]\]/g, '').replace(/\|.*$/, '')
-    if (!raw) continue
+    const rawFull = (m[1] ?? m[2] ?? '').trim().replace(/\[\[|\]\]/g, '').replace(/\|.*$/, '')
+    if (!rawFull) continue
+    // Split off a trailing " LXX" marker ("Isaiah 6:4 LXX") — parsed against the bare ref,
+    // then re-flagged on every emitted row below. Wikilink titles are left untouched.
+    const { ref: raw, lxx: markerLxx } = isWikilink ? { ref: rawFull, lxx: false } : stripLxxMarker(rawFull)
     // The regex can greedily prepend a non-book word ("quotes Genesis 5").
     // Try the full phrase, then drop leading words until parseRef succeeds.
     let parsed = parseRef(raw)
@@ -119,23 +135,36 @@ export function extractRefsFromNote(content: string, noteTitle: string): NoteVer
     // inline ref detection/pills (noteTextBlocks.ts, used by the ProseMirror parser and
     // decorations) DOES carry endChapter through end-to-end.
     const isChapter = parsed.verse == null
-    const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : parsed.verse}${parsed.endVerse != null ? `-${parsed.endVerse}` : ''}`
-    if (seen.has(key)) continue
-    seen.add(key)
+    const refIsLxx = markerLxx || parsed.forcedTranslation === 'LXX'
     const context = content
       .slice(Math.max(0, m.index - 35), m.index + m[0].length + 35)
       .trim()
       .replace(/\[\[|\]\]/g, '')
-    results.push({
-      bookId: parsed.bookId,
-      chapter: parsed.chapter,
-      // verse 0 = whole chapter (matches the sidepanel RefLabel/VerseText display convention)
-      verse: parsed.verse ?? 0,
-      endVerse: parsed.endVerse,
-      isChapter,
-      sourceNoteTitle: noteTitle,
-      context,
-    })
+    // A comma-separated verse list ("Deuteronomy 32:3,6,9-13,23,25") parses into
+    // parsed.verseGroups — emit each segment as its own NoteVerseRef so the cross-ref
+    // panel/hover rows cover every verse. A plain single ref has no verseGroups; fall back
+    // to the parsed verse/endVerse pair.
+    const groups = parsed.verseGroups && parsed.verseGroups.length > 0
+      ? parsed.verseGroups
+      : [{ verse: parsed.verse ?? 0, endVerse: parsed.endVerse }]
+    for (const g of groups) {
+      const gVerse = isChapter ? 0 : g.verse
+      const gEnd = isChapter ? undefined : g.endVerse
+      const key = `${parsed.bookId}.${parsed.chapter}.${isChapter ? 'ch' : gVerse}${gEnd != null ? `-${gEnd}` : ''}${refIsLxx ? '.lxx' : ''}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      results.push({
+        bookId: parsed.bookId,
+        chapter: parsed.chapter,
+        // verse 0 = whole chapter (matches the sidepanel RefLabel/VerseText display convention)
+        verse: gVerse,
+        endVerse: gEnd,
+        isChapter,
+        ...(refIsLxx ? { lxx: true } : {}),
+        sourceNoteTitle: noteTitle,
+        context,
+      })
+    }
   }
   return results
 }

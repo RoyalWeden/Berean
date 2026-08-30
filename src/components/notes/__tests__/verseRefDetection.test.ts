@@ -135,6 +135,30 @@ describe('findVerseRefMatches — multiple refs per line', () => {
     expect(m[0].lxx).toBe(true)
   })
 
+  // Regression: contenteditable / ProseMirror substitutes a typed ASCII space with U+00A0
+  // (no-break space) in some positions. The ref regexes' `[ \t]` word-gaps don't accept it,
+  // so "isaiah 61:3<U+00A0>lxx" detected only "isaiah 61:3" (11 chars, lxx:false) and left
+  // the marker unstyled. normalizeRefWhitespace() now folds nbsp/thin spaces to a plain
+  // space (length-preserving) before every scan.
+  it('a no-break space (U+00A0) between the ref and its LXX marker still detects the marker', () => {
+    for (const gap of ['\u00A0', '\u2007', '\u202F', '\u2009']) {
+      const s = `isaiah 61:3${gap}lxx`
+      const m = findVerseRefMatches(s)
+      expect(m.length, s).toBe(1)
+      expect(m[0].lxx, s).toBe(true)
+      expect(m[0].length, s).toBe(s.length)
+      expect(parseRef(m[0].refText)?.bookId, s).toBe('ISA')
+    }
+  })
+
+  it('a no-break space anywhere in the reference is tolerated', () => {
+    const m = findVerseRefMatches('genesis 1:1 lxx and John 1:1')
+    expect(m.length).toBe(2)
+    expect(m[0].lxx).toBe(true)
+    expect(parseRef(m[0].refText)?.bookId).toBe('GEN')
+    expect(parseRef(m[1].refText)?.bookId).toBe('JHN')
+  })
+
   // Regression: the numeric-tail group used to stop at the first post-dash digit run,
   // truncating "63:17-64:3" at "63:17-64" and dropping the trailing ":3" — silently
   // mis-linking it as a bogus same-chapter range (Isaiah 63 doesn't have 64 verses)
@@ -470,6 +494,85 @@ describe('findVerseRefMatches — embedded-comma book name (Hermas)', () => {
     const matches = findVerseRefMatches('Hermas, Similitudes, 35:1.')
     expect(matches.length).toBeGreaterThan(0)
     expect(parseRef(matches[0].refText)?.bookId).toBe('HER_SIM')
+  })
+})
+
+// ── 8d. Comma-grouped verse lists ────────────────────────────────────────────
+// A comma-separated verse list is ONE reference spanning the whole string; detection
+// stops at a ";" or a following ordinary word.
+
+describe('findVerseRefMatches — comma-grouped verse lists', () => {
+  it('"Deuteronomy 32:3,6,9-13,23,25" is one match covering the whole string', () => {
+    const m = findVerseRefMatches('Deuteronomy 32:3,6,9-13,23,25')
+    expect(m.length).toBe(1)
+    expect(m[0].index).toBe(0)
+    expect(m[0].length).toBe('Deuteronomy 32:3,6,9-13,23,25'.length)
+    expect(m[0].refText).toBe('Deuteronomy 32:3,6,9-13,23,25')
+    expect(parseRef(m[0].refText)?.verseGroups).toEqual([
+      { verse: 3 }, { verse: 6 }, { verse: 9, endVerse: 13 }, { verse: 23 }, { verse: 25 },
+    ])
+  })
+
+  it('"Deut 32:3-4,6; Genesis 1:1" is two separate matches (";" terminates the list)', () => {
+    const m = findVerseRefMatches('Deut 32:3-4,6; Genesis 1:1')
+    expect(m.length).toBe(2)
+    expect(m[0].refText).toBe('Deut 32:3-4,6')
+    expect(parseRef(m[0].refText)?.bookId).toBe('DEU')
+    expect(parseRef(m[1].refText)?.bookId).toBe('GEN')
+  })
+
+  it('a following word terminates the list: "Deut 32:3,6 and then"', () => {
+    const m = findVerseRefMatches('Deut 32:3,6 and then more text')
+    expect(m.length).toBe(1)
+    expect(m[0].refText).toBe('Deut 32:3,6')
+  })
+
+  it('a range followed by ", <word>" is NOT extended into a comma group', () => {
+    // regression guard for the existing "John 3:16-17, and also Heb 11:1" behaviour
+    const m = findVerseRefMatches('John 3:16-17, and also Heb 11:1')
+    expect(m.map(x => x.refText)).toEqual(['John 3:16-17', 'Heb 11:1'])
+  })
+})
+
+// ── 8e. " LXX" marker inside the inline ref span ─────────────────────────────
+
+describe('findVerseRefMatches — trailing LXX marker', () => {
+  it('"isaiah 6:4 lxx" match length covers the marker and lxx is true', () => {
+    const m = findVerseRefMatches('isaiah 6:4 lxx')
+    expect(m.length).toBe(1)
+    expect(m[0].lxx).toBe(true)
+    expect(m[0].length).toBe('isaiah 6:4 lxx'.length)
+    expect(m[0].refText).toBe('isaiah 6:4 LXX')
+    expect(parseRef(m[0].refText)).toMatchObject({ bookId: 'ISA', chapter: 6, verse: 4, forcedTranslation: 'LXX' })
+  })
+
+  it('marker span is right when followed by punctuation or another ref', () => {
+    const a = findVerseRefMatches('(isaiah 6:4 lxx).')
+    expect(a[0].length).toBe('isaiah 6:4 lxx'.length)
+    const b = findVerseRefMatches('see isaiah 6:4 lxx and gen 1:1')
+    expect(b.map(x => x.lxx)).toEqual([true, false])
+    expect(b[0].length).toBe('isaiah 6:4 lxx'.length)
+  })
+
+  // Regression: a bare "book c:v lxx" line (no verse text) was being swallowed by the
+  // single-line verse-BLOCK detector, which treated the "lxx" marker as a body to verify,
+  // failed verification, and then produced no styling at all. It must NOT be a block — it's
+  // just an inline reference, and findVerseRefMatches must still detect it.
+  it('bare "book c:v lxx" with no body is an inline ref, never a verse block', () => {
+    for (const s of ['psalm 143:1 lxx', 'isaiah 14:2 lxx', 'isaiah 61:3 lxx', 'Psalm 143:1 LXX']) {
+      expect(detectVerseBlock(s), s).toBeNull()
+      const m = findVerseRefMatches(s)
+      expect(m.length, s).toBe(1)
+      expect(m[0].lxx, s).toBe(true)
+      expect(m[0].length, s).toBe(s.length)
+    }
+  })
+
+  it('"book c:v LXX <real body>" is still a single-line verse block', () => {
+    const r = detectVerseBlock('Isaiah 63:16 LXX For thou art our Father; for though Abraham knew us not')
+    expect(r).not.toBeNull()
+    expect(r!.kind).toBe('single')
+    expect(parseRef(r!.ref)?.bookId).toBe('ISA')
   })
 })
 

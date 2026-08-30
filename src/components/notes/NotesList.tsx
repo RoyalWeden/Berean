@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { FileText, Trash2, CheckSquare, Square, Pin, PinOff } from 'lucide-react'
+import { NotepadText, Trash2, CheckSquare, Square, Pin, PinOff } from 'lucide-react'
 import { applyFindHighlight } from '@/lib/highlight'
 import { isSystemNote } from '@/lib/noteUtils'
 import NoteContextMenu, { type SessionInfo } from './NoteContextMenu'
@@ -123,7 +123,7 @@ export default function NotesList({
   if (notes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
-        <FileText size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
+        <NotepadText size={32} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-40" />
         <p className="text-sm text-[rgb(var(--color-text-secondary))]">No notes yet</p>
         <p className="text-xs text-[rgb(var(--color-text-muted))] mt-1">
           Click a verse number to add a verse note, or press{' '}

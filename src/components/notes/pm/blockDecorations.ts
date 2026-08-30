@@ -4,7 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model'
 import { parseRef } from '@/lib/parseRef'
 import {
   SINGLE_VERSE_LINE_RE, VERSE_BODY_LINE_RE, LEXICON_BLOCK_HEADER_RE,
-  stripLxxMarker, splitLeadingLxx, verseTextAccepted,
+  stripLxxMarker, splitLeadingLxx, verseTextAccepted, normalizeRefWhitespace,
 } from '@/lib/noteTextBlocks'
 import { useAppStore } from '@/store'
 
@@ -60,7 +60,10 @@ function collectLineRuns(doc: PMNode): LineInfo[][] {
         cur = ''
         curFrom = pos + child.nodeSize
       } else {
-        cur += child.text ?? ''
+        // Normalise nbsp/thin spaces to a plain space (length-preserving, so every
+        // from/to offset below stays valid) — contenteditable swaps typed spaces for
+        // U+00A0, which the verse-block regexes' `[ \t]` gaps don't accept.
+        cur += normalizeRefWhitespace(child.text ?? '')
       }
       pos += child.nodeSize
     })

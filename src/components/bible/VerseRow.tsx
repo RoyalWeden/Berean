@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, StickyNote, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2 } from 'lucide-react'
+import { Copy, NotepadText, X, GitFork, Hash, ExternalLink, BookOpen, Search, Volume2, Tag as TagIcon } from 'lucide-react'
+import { TagPickPopover } from '@/components/tags/TagPickPopover'
+import { selectionToRanges, chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import StrongsInline from './StrongsInline'
 import type { WordSegment } from './StrongsInline'
 import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
@@ -15,7 +17,7 @@ import type { NoteVerseRef } from '@/lib/noteRefs'
 import { getCrossRefSources, reciprocalRefsFor } from '@/lib/crossRefIndex'
 import { copyVerse as copyVerseAtRef, copyVerseRef as copyRefOnly } from '@/lib/verseClipboard'
 import type { Verse, HighlightColor, Note } from '@/types'
-import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS, highlightDotColor } from '@/styles/highlightPalette'
 import { HIGHLIGHT_COLORS, WORD_HIGHLIGHT_BG, PLAYBACK_WORD_BG, getVerseRowStyle } from './verseRowStyles'
 import { splitStrongsHighlight } from '@/lib/strongsSearch'
 import { parseTaggedTokens, tokenHasNoPlainText, type TaggedToken } from '@/lib/taggedTokens'
@@ -44,6 +46,9 @@ interface VerseRowProps {
   notePrimaryColor?: string
   hasNoteCrossRef?: boolean
   isHighlighted?: boolean
+  /** Verse tags on this verse (translation-agnostic) — rendered as angled "luggage tag"
+   *  badges looped on the verse number. Absolutely positioned; never shifts verse text. */
+  verseTags?: import('@/types').VerseTagLite[]
   highlights?: HighlightEntry[]
   hiddenAnnotations?: string[]
   textId?: string
@@ -63,6 +68,8 @@ interface VerseRowProps {
   /** Index (SpokenWord.wordIndex — see extractSpokenText.ts) of the word currently being
    *  spoken, only meaningful when playbackVerse is true. null = between words / not yet known. */
   playbackWordIndex?: number | null
+  /** The scripture tab this row belongs to — verse selection is scoped per tab. */
+  tabId?: string | null
 }
 
 /**
@@ -292,7 +299,61 @@ function wrapIdiomTerms(
   return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : <>{parts}</>
 }
 
-function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null }: VerseRowProps) {
+const EMPTY_TAGS: import('@/types').VerseTagLite[] = []
+
+// Each tag hangs from the top-right corner of the verse number (its bottom-left corner is
+// pinned there via transform-origin), rotated up-and-out. Resting: tightly stacked at nearly
+// the same angle so they read as ONE little bundle. Hover: they swing apart around that same
+// pinned corner. Fixed strings so Tailwind's JIT emits the arbitrary-value classes.
+// Rotation ONLY — no per-tag translate. They all pivot around the exact same point, so the
+// fan opens like a hand of cards instead of each tag sitting at its own indent/offset.
+const TAG_FAN: Array<{ base: string; hover: string }> = [
+  { base: '[transform:rotate(-6deg)]',  hover: 'group-hover/vnum:[transform:rotate(-68deg)]' },
+  { base: '[transform:rotate(-12deg)]', hover: 'group-hover/vnum:[transform:rotate(-44deg)]' },
+  { base: '[transform:rotate(-18deg)]', hover: 'group-hover/vnum:[transform:rotate(-20deg)]' },
+  { base: '[transform:rotate(-24deg)]', hover: 'group-hover/vnum:[transform:rotate(4deg)]' },
+]
+
+/** Small "luggage tag" badges hinged at the verse number's top-right corner — absolutely
+ *  positioned inside the number's `relative` wrapper, so they never shift verse text. They
+ *  swing apart around that corner while the number (`group/vnum`) is hovered. */
+function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
+  const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const shown = tags.slice(0, 4)
+  const extra = tags.length - shown.length
+  return (
+    <div className="absolute right-[2px] top-[9px] pointer-events-none" style={{ width: 0, height: 0 }}>
+      {shown.map((t, i) => {
+        const fan = TAG_FAN[Math.min(i, TAG_FAN.length - 1)]
+        return (
+          <button
+            key={t.id}
+            onClick={(e) => { e.stopPropagation(); openScriptureSearchTab(undefined, { tagIds: [t.id] }) }}
+            title={t.name}
+            // left/top place the badge's BOTTOM-LEFT corner at the container point (the
+            // number's top-right corner); transform-origin matches so rotation pivots there.
+            className={`pointer-events-auto absolute transition-transform duration-200 ease-out ${fan.base} ${fan.hover}`}
+            style={{ left: 0, bottom: '-2px', transformOrigin: 'left bottom', zIndex: 12 - i }}
+          >
+            <svg width="15" height="10" viewBox="0 0 36 24" className="block drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.3)]">
+              <path
+                d="M12 1 H31 a4 4 0 0 1 4 4 V19 a4 4 0 0 1 -4 4 H12 L2 13.8 a3 3 0 0 1 0 -3.6 Z"
+                fill={t.color ? highlightDotColor(t.color as HighlightColor) : 'rgb(var(--color-accent))'}
+                stroke="rgba(0,0,0,0.25)"
+                strokeWidth="1.5"
+              />
+              <circle cx="8.5" cy="12" r="2.6" fill="rgb(var(--color-surface-1))" stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+            </svg>
+          </button>
+        )
+      })}
+      {extra > 0 && (
+        <span className="pointer-events-none absolute left-[3px] top-[-8px] text-[7px] font-bold text-[rgb(var(--color-text-muted))]">+{extra}</span>
+      )}
+    </div>
+  )
+}
+function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -421,8 +482,16 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       setCrossRefHover(null)
     }
   }, [indicatorMenu])
+  const selfTextId = textId ?? 'kjva'
+  const activeScriptureTabId = useAppStore((s) => s.activeTabId['scripture'])
+  const rowTabId: string | null | undefined = tabId ?? activeScriptureTabId
+  const isSelected = useAppStore((s) => (rowTabId ? (s.selectedVersesByTab[rowTabId] ?? []) : []).some(
+    (v) => v.bookId === verse.book_id && v.chapter === verse.chapter && v.verse === verse.verse_num && v.textId === selfTextId,
+  ))
+  const toggleVerseSelection = useAppStore((s) => s.toggleVerseSelection)
   const [popoverAbove, setPopoverAbove] = useState(false)
   const [popoverPos, setPopoverPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [tagPick, setTagPick] = useState<{ rect: DOMRect; scope: 'verse' | 'chapter' } | null>(null)
   const [selToolbar, setSelToolbar] = useState<SelToolbarPos | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const popoverPanelRef = useRef<HTMLDivElement>(null)
@@ -1257,27 +1326,34 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative transition-[background-color,border-color,margin-bottom] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'}`}
+      className={`flex gap-3 group relative transition-[background-color,border-color,margin-bottom] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
            right-clicking the verse text still opens the popover in that case */}
-      <div className={`relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
+      <div className={`group/vnum relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
         <button
-          onClick={(e) => popoverOpen ? setPopoverOpen(false) : openPopover(e)}
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleVerseSelection(rowTabId, { bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num, textId: selfTextId })
+          }}
           onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
+          title={isSelected ? 'Deselect verse' : 'Select verse'}
           className={`
-            text-right text-[0.72em] font-medium rounded
-            pt-0.5 cursor-pointer select-none transition-colors
-            ${isHighlighted
-              ? 'text-[rgb(var(--color-accent))] font-semibold'
-              : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10]'
+            inline-flex items-center justify-center text-[0.72em] font-medium leading-none
+            h-[1.5em] rounded-[0.4em] cursor-pointer select-none transition-colors
+            ${isSelected
+              ? 'text-white bg-[rgb(var(--color-accent))] font-semibold hover:brightness-110 shadow-sm'
+              : isHighlighted
+                ? 'text-[rgb(var(--color-accent))] font-semibold'
+                : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10]'
             }
           `}
           style={{ width: '1.9em', minWidth: '1.9em' }}
         >
           {verse.verse_num}
         </button>
+        {verseTags.length > 0 && <VerseTagBadges tags={verseTags} />}
 
         {popoverOpen && (
           <div
@@ -1310,14 +1386,14 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               onClick={addVerseNote}
               className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
             >
-              <StickyNote size={12} className="text-[rgb(var(--color-text-muted))]" />
+              <NotepadText size={12} className="text-[rgb(var(--color-text-muted))]" />
               Add note
             </button>
             <button
               onClick={() => { openVerseNotes(); setPopoverOpen(false) }}
               className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
             >
-              <StickyNote size={12} className="text-[rgb(var(--color-text-muted))]" />
+              <NotepadText size={12} className="text-[rgb(var(--color-text-muted))]" />
               Show all notes
             </button>
             <button
@@ -1333,6 +1409,20 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
             >
               <Volume2 size={12} className="text-[rgb(var(--color-text-muted))]" />
               Play audio from here
+            </button>
+            <button
+              onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'verse' }); setPopoverOpen(false) }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
+            >
+              <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
+              Tag verse…
+            </button>
+            <button
+              onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'chapter' }); setPopoverOpen(false) }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
+            >
+              <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
+              Tag chapter…
             </button>
             <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
             <div className="px-3 py-2 space-y-1.5">
@@ -1656,7 +1746,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
             onClick={() => { addVerseNote(); setSelToolbar(null) }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[rgb(var(--color-surface-4))] cursor-pointer transition-colors text-[rgb(var(--color-text-primary))]"
           >
-            <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+            <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
             Add note to verse
           </button>
           <button
@@ -1687,7 +1777,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeIndicatorMenu(); openNoteInBiblePanel(indicatorMenu.note.id) }}
               >
-                <StickyNote size={12} />
+                <NotepadText size={12} />
                 Open in panel
               </button>
               <button
@@ -1865,6 +1955,21 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         </>,
         document.body
       )}
+
+      {tagPick && (() => {
+        const ranges = tagPick.scope === 'chapter'
+          ? chapterRanges(verse.book_id, verse.chapter)
+          : selectionToRanges([{ bookId: verse.book_id, chapter: verse.chapter, verse: verse.verse_num }])
+        return (
+          <TagPickPopover
+            anchorRect={tagPick.rect}
+            ranges={ranges}
+            label={rangesLabel(ranges)}
+            kind={tagPick.scope === 'chapter' ? 'chapter' : 'verses'}
+            onClose={() => setTagPick(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -143,6 +143,45 @@ describe('parseRef', () => {
     expect(parseRef('III John 1:2')).toMatchObject({ bookId: '3JN', chapter: 1, verse: 2 })
     expect(parseRef('I Samuel 3:1')).toMatchObject({ bookId: '1SA', chapter: 3, verse: 1 })
   })
+
+  // ── Comma-grouped verse lists ──────────────────────────────────────────────
+  it('parses a comma list into verseGroups (range + single)', () => {
+    const r = parseRef('Deuteronomy 32:3-4,6')
+    expect(r).toMatchObject({ bookId: 'DEU', chapter: 32, verse: 3, endVerse: 4 })
+    expect(r?.verseGroups).toEqual([{ verse: 3, endVerse: 4 }, { verse: 6 }])
+  })
+
+  it('parses a long comma list with mixed singles and ranges', () => {
+    const r = parseRef('Deuteronomy 32:3,6,9-13,23,25')
+    expect(r).toMatchObject({ bookId: 'DEU', chapter: 32, verse: 3 })
+    expect(r?.verseGroups).toEqual([
+      { verse: 3 }, { verse: 6 }, { verse: 9, endVerse: 13 }, { verse: 23 }, { verse: 25 },
+    ])
+  })
+
+  it('leaves verseGroups undefined for a plain single ref', () => {
+    expect(parseRef('Genesis 1:1')?.verseGroups).toBeUndefined()
+    expect(parseRef('Isa 53:1-5')?.verseGroups).toBeUndefined()
+  })
+
+  it('rejects the whole ref when a comma group is out of range', () => {
+    expect(parseRef('Deuteronomy 32:3,600')).toBeNull()
+    expect(parseRef('Deuteronomy 32:3,6-400')).toBeNull()
+  })
+
+  it('a comma list still accepts a trailing LXX suffix', () => {
+    const r = parseRef('Deuteronomy 32:3,6 LXX')
+    expect(r).toMatchObject({ bookId: 'DEU', chapter: 32, verse: 3, forcedTranslation: 'LXX' })
+    expect(r?.verseGroups).toEqual([{ verse: 3 }, { verse: 6 }])
+  })
+
+  it('stops the comma list at a ";" or a following word', () => {
+    // ";" — parseRef only sees a single ref at a time, but the `$` anchor means the
+    // trailing "; Genesis 1:1" makes the whole string fail rather than silently truncating.
+    expect(parseRef('Deuteronomy 32:3,6; Genesis 1:1')).toBeNull()
+    // a following ordinary word likewise breaks the strict full-string match
+    expect(parseRef('Deuteronomy 32:3,6 and then')).toBeNull()
+  })
 })
 
 // ─── getTranslationForBook ────────────────────────────────────────────────────

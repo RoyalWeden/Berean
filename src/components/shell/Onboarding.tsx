@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion } from 'framer-motion'
-import { BookOpen, FolderOpen, Folder, FileText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
+import { BookOpen, FolderOpen, Folder, NotepadText, Keyboard, CheckCircle, ChevronRight, X, Layers, Download, List, FolderTree } from 'lucide-react'
 import { useAppStore } from '@/store'
 import BibleGatewayImporter from '@/components/settings/BibleGatewayImporter'
 import ESwordImporter from '@/components/settings/ESwordImporter'
@@ -1259,7 +1259,7 @@ function StepNotesView({ choice, onChoose }: { choice: 'list' | 'folder'; onChoo
               <div key={row.label} className="flex items-center gap-1.5 py-1 border-b border-[rgb(var(--color-surface-4))] last:border-0"
                 style={{ paddingLeft: 8 + row.indent * 12 }}>
                 {row.isFile
-                  ? <FileText size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  ? <NotepadText size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   : row.open
                     ? <FolderOpen size={9} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
                     : <Folder size={9} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />

@@ -4,6 +4,8 @@
 // left/right depending on whether an icon happens to be set. Purely display — the only
 // interactive/editable rendering lives in NotesPanel.tsx's editor header (a plain `<input>`
 // styled as a small button, not this component; see that file for why).
+import { NotepadText } from 'lucide-react'
+
 export default function NoteIcon({ icon, size = 14, className = '' }: { icon?: string | null; size?: number; className?: string }) {
   return (
     <span
@@ -11,7 +13,7 @@ export default function NoteIcon({ icon, size = 14, className = '' }: { icon?: s
       style={{ fontSize: size, width: size + 4, height: size + 4 }}
       aria-hidden={!icon}
     >
-      {icon || '📄'}
+      {icon || <NotepadText size={size} />}
     </span>
   )
 }

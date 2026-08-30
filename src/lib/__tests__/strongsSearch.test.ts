@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight, parseMultiStrongsQuery, searchMultiStrongs } from '../strongsSearch'
+import { parseStrongsQuery, isStrongsQuery, splitStrongsHighlight, parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '../strongsSearch'
 
 describe('parseStrongsQuery', () => {
   it('normalizes case and prefixes', () => {
@@ -98,5 +98,30 @@ describe('searchMultiStrongs', () => {
       n === 'G5485' ? [row('ROM', 1, 1, 'a', [0])] : [row('ROM', 2, 2, 'b', [0])]
     const result = await searchMultiStrongs({ strongsNums: ['G5485', 'G54'], words: [] }, getOccurrences)
     expect(result).toEqual([])
+  })
+})
+
+describe('searchAnyStrongs — OR across numbers (word-replacer bridge)', () => {
+  const row = (book_id: string, chapter: number, verse_num: number, text: string, matchWordIndices: number[]) =>
+    ({ book_id, chapter, verse_num, text, matchWordIndices })
+
+  it('unions occurrences of every number — a verse carrying ANY of them matches', async () => {
+    const h3068 = [row('GEN', 2, 4, 'the LORD God', [1]), row('GEN', 15, 2, 'Lord GOD', [0])]
+    const h3069 = [row('GEN', 15, 2, 'Lord GOD', [1]), row('AMO', 1, 8, 'saith the Lord GOD', [3])]
+    const getOccurrences = async (n: string) => (n === 'H3068' ? h3068 : h3069)
+    const result = await searchAnyStrongs(['H3068', 'H3069'], [], getOccurrences)
+    expect(result.map((r) => `${r.book_id} ${r.chapter}:${r.verse_num}`).sort())
+      .toEqual(['AMO 1:8', 'GEN 15:2', 'GEN 2:4'])
+    // Highlight indices union per verse across both numbers.
+    const gen152 = result.find((r) => r.book_id === 'GEN' && r.verse_num === 2 && r.chapter === 15)!
+    expect(gen152.matchWordIndices.sort()).toEqual([0, 1])
+  })
+
+  it('residual words still AND-filter by verse text', async () => {
+    const h3068 = [row('GEN', 2, 4, 'the LORD God made', [1]), row('PSA', 23, 1, 'The LORD is my shepherd', [1])]
+    const getOccurrences = async () => h3068
+    const result = await searchAnyStrongs(['H3068'], ['shepherd'], getOccurrences)
+    expect(result).toHaveLength(1)
+    expect(result[0].book_id).toBe('PSA')
   })
 })
