@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import {
-  Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, Trash2,
+  Folder, FolderOpen, FolderPlus, FilePlus, ChevronRight, FileText, NotepadText, Trash2,
   Pencil, Lock, CalendarDays, BookOpen, Download as DownloadIcon,
   BookMarked, CheckSquare, Square, FolderInput, FileType2, FolderTree,
   RotateCcw, AlertTriangle,
@@ -593,7 +593,7 @@ export default function NotesFolderView({
             {isSelected ? <CheckSquare size={14} className="text-[rgb(var(--color-accent))]" /> : <Square size={14} />}
           </button>
         )}
-        <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+        <NotepadText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
         {isRenaming ? (
           <input
             ref={noteRenameRef}
@@ -1022,7 +1022,7 @@ export default function NotesFolderView({
                 <div key={n.id}
                   style={{ paddingLeft: 28 }}
                   className="group flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
-                  <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                  <NotepadText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-xs text-[rgb(var(--color-text-secondary))]">{n.title || 'Untitled'}</div>
                     <div className="text-[10px] text-[rgb(var(--color-text-muted))]">{deletedAgoLabel(n.deletedAt)}</div>
@@ -1155,7 +1155,7 @@ export default function NotesFolderView({
           onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateNote() }}>
-            <FileText size={13} className="flex-shrink-0" /> New note
+            <NotepadText size={13} className="flex-shrink-0" /> New note
           </button>
           {onCreateIdiom && (
             <button className={MENU_ITEM} onClick={() => { setEmptyMenu(null); onCreateIdiom() }}>

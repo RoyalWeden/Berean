@@ -9,7 +9,14 @@ import type { BibleTabState } from '@/types'
  * since it's meaningful navigation metadata on its own, independent of whether Study Trail
  * recording is even wired up yet.
  */
-export type NavOrigin =
+/** Verses the user had selected (via verse-number click) at the moment they navigated away —
+ *  attached to any NavOrigin below so Study Trail can note "(from Gen 1:3, 1:7)" on the
+ *  connection and pin the tangent to that verse. Cleared once the navigation is recorded. */
+export interface NavFromSelectionRef { bookId: string; chapter: number; verse: number }
+
+export type NavOrigin = NavOriginKind & { fromSelection?: NavFromSelectionRef[] }
+
+type NavOriginKind =
   | { kind: 'verse-popover' }                                            // VerseRow "Open verse" / cross-ref hover
   | { kind: 'cross-ref'; source: 'tske' | 'classic' | 'notes'; reason?: string; fromVerse?: number } // BibleRightPanel ref rows — fromVerse is the SPECIFIC verse whose cross-ref list this came from (the right panel's activeVerseNum), not just "some verse in the chapter"
   | { kind: 'search-result'; query: string }                             // ScriptureSearchView / SearchTab / FloatingSearch
@@ -45,8 +52,27 @@ export interface NavigateToVerseArgs {
  * wired in Phase 1 — kept as a single optional side effect here rather than duplicated at
  * every call site).
  */
+/** Fold any active verse-number selection into `origin.fromSelection`, then clear it —
+ *  the selection's whole purpose is to say "I was looking at these when I jumped", so it's
+ *  consumed by the jump. No-op (returns origin unchanged) when nothing is selected. */
+function consumeSelectionInto(origin: NavOrigin): NavOrigin {
+  // A plain tab switch isn't "navigating away using the selection as context" — each scripture
+  // tab keeps its own selection, so switching tabs must NOT clear it.
+  if (origin.kind === 'tab-switch') return origin
+  const s = useAppStore.getState()
+  const tid = s.activeTabId['scripture']
+  const sel = tid ? (s.selectedVersesByTab[tid] ?? []) : []
+  if (sel.length === 0) return origin
+  s.clearVerseSelection(tid ?? undefined)
+  return {
+    ...origin,
+    fromSelection: sel.map((v) => ({ bookId: v.bookId, chapter: v.chapter, verse: v.verse })),
+  }
+}
+
 export function navigateToVerse(args: NavigateToVerseArgs): void {
-  const { bookId, chapter, verse, endVerse, origin, noteBack, translationOverride } = args
+  const { bookId, chapter, verse, endVerse, noteBack, translationOverride } = args
+  const origin = consumeSelectionInto(args.origin)
   const s = useAppStore.getState()
   s.ensureTab('bible')
   const fresh = useAppStore.getState()
@@ -105,7 +131,7 @@ export function recordNavigation(
   to: { bookId: string; chapter: number; verse?: number },
   origin: NavOrigin,
 ): void {
-  navRecorder?.(from, to, origin)
+  navRecorder?.(from, to, consumeSelectionInto(origin))
 }
 
 export type NavRecorder = (

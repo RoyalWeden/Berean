@@ -111,6 +111,43 @@ export async function searchMultiStrongs(
   }))
 }
 
+/** Like `searchMultiStrongs` but OR across the Strong's numbers (a verse carrying ANY of them
+ *  is a hit) rather than AND. Used by the word-replacer bridge: "yehovah" restores from
+ *  H3068 OR H3069, so both occurrence sets are unioned. `words` (if any) are still AND'd
+ *  against each hit's verse text, case-insensitively. Highlight indices from every matched
+ *  number are unioned per verse. */
+export async function searchAnyStrongs(
+  strongsNums: string[],
+  words: string[],
+  getOccurrences: (strongsNum: string) => Promise<StrongsOccurrenceRow[]>,
+): Promise<MultiStrongsResult[]> {
+  const lists = await Promise.all(strongsNums.map((n) => getOccurrences(n)))
+  const perVerse = new Map<string, { row: StrongsOccurrenceRow; indices: Set<number> }>()
+  for (const list of lists) {
+    for (const o of list) {
+      const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
+      let entry = perVerse.get(key)
+      if (!entry) { entry = { row: o, indices: new Set() }; perVerse.set(key, entry) }
+      for (const idx of o.matchWordIndices ?? []) entry.indices.add(idx)
+    }
+  }
+  let matched = [...perVerse.values()]
+  if (words.length > 0) {
+    const lowerWords = words.map((w) => w.toLowerCase())
+    matched = matched.filter((e) => {
+      const lt = e.row.text.toLowerCase()
+      return lowerWords.every((w) => lt.includes(w))
+    })
+  }
+  return matched.map((e) => ({
+    book_id: e.row.book_id,
+    chapter: e.row.chapter,
+    verse_num: e.row.verse_num,
+    text: e.row.text,
+    matchWordIndices: [...e.indices],
+  }))
+}
+
 export interface StrongsHighlightSegment {
   text: string
   /** True when this word carries the searched Strong's number and should be highlighted. */

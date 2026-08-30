@@ -941,6 +941,51 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       db.exec(`ALTER TABLE trail_nodes ADD COLUMN is_topic_break INTEGER NOT NULL DEFAULT 0;`)
       console.log('[berean-db] v36: trail_connections.is_branch/is_branch_return, trail_nodes.is_topic_break')
     }
+  },
+  {
+    // Verse tagging — user-created tags applied to verse selections, verse ranges, or whole
+    // chapters. Translation-agnostic (no text_id): a tag on "Isaiah 6:4" matches in any
+    // edition. `verse_tags` is the registry; `verse_tag_members` is one row per tagged
+    // selection ("group") or whole chapter, storing its ranges as JSON so a member like
+    // "Deuteronomy 32:3-4,6" stays one deletable unit; `verse_tag_verse` is the denormalised
+    // fan-out (rebuilt from a member's ranges on every write) for fast "tags on this chapter"
+    // and "verses for these tags" lookups. A verse_tag_verse row with verse = 0 means the
+    // whole chapter is tagged.
+    version: 37,
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS verse_tags (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          color      TEXT,
+          sort_order INTEGER,
+          created_at INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_verse_tags_name ON verse_tags(name COLLATE NOCASE);
+
+        CREATE TABLE IF NOT EXISTS verse_tag_members (
+          id         TEXT PRIMARY KEY,
+          tag_id     TEXT NOT NULL REFERENCES verse_tags(id) ON DELETE CASCADE,
+          kind       TEXT NOT NULL DEFAULT 'verses',
+          ranges     TEXT NOT NULL,
+          label      TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_vtm_tag ON verse_tag_members(tag_id);
+
+        CREATE TABLE IF NOT EXISTS verse_tag_verse (
+          tag_id    TEXT NOT NULL,
+          member_id TEXT NOT NULL,
+          book_id   TEXT NOT NULL,
+          chapter   INTEGER NOT NULL,
+          verse     INTEGER NOT NULL,
+          PRIMARY KEY (tag_id, book_id, chapter, verse, member_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_vtv_loc ON verse_tag_verse(book_id, chapter);
+        CREATE INDEX IF NOT EXISTS idx_vtv_tag ON verse_tag_verse(tag_id);
+      `)
+      console.log('[berean-db] v37: verse_tags / verse_tag_members / verse_tag_verse')
+    }
   }
 ]
 

@@ -2,7 +2,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ArrowLeft, ArrowRight, History, PanelLeft, Home, FileText, BookMarked, FileType, ScrollText, Youtube,
+  ArrowLeft, ArrowRight, History, PanelLeft, Home, NotepadText, BookMarked, FileType, ScrollText, Youtube,
   Download, RotateCcw,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
@@ -16,8 +16,8 @@ import ShortcutKeys from './ShortcutKeys'
 import WindowControls from './WindowControls'
 import type { TabNavEntry } from '@/types'
 
-const NAV_TYPE_ICON: Record<string, typeof FileText> = {
-  note: FileText,
+const NAV_TYPE_ICON: Record<string, typeof NotepadText> = {
+  note: NotepadText,
   lexicon: BookMarked,
   pdf: FileType,
   youtube: Youtube,

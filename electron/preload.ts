@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('notes', {
   emptyTrash: () => ipcRenderer.invoke('notes:emptyTrash'),
   deleteAllNotes: () => ipcRenderer.invoke('notes:deleteAll'),
   deleteByTag: (tag: string) => ipcRenderer.invoke('notes:deleteByTag', tag),
+  countTagRefs: (name: string) => ipcRenderer.invoke('notes:countTagRefs', name),
   getNotes: (limit?: number, offset?: number) =>
     ipcRenderer.invoke('notes:getAll', limit, offset),
   getVerseNotes: (verseRef: string, textId?: string) =>
@@ -84,6 +85,22 @@ contextBridge.exposeInMainWorld('highlights', {
   toggle: (params: unknown) => ipcRenderer.invoke('highlights:toggle', params),
   remove: (bookId: string, chapter: number, verseNum: number, textId?: string) =>
     ipcRenderer.invoke('highlights:remove', bookId, chapter, verseNum, textId)
+})
+
+contextBridge.exposeInMainWorld('verseTags', {
+  list: () => ipcRenderer.invoke('verseTags:list'),
+  create: (name: string, color?: string | null) => ipcRenderer.invoke('verseTags:create', name, color),
+  rename: (id: string, name: string) => ipcRenderer.invoke('verseTags:rename', id, name),
+  setColor: (id: string, color: string | null) => ipcRenderer.invoke('verseTags:setColor', id, color),
+  reorder: (orderedIds: string[]) => ipcRenderer.invoke('verseTags:reorder', orderedIds),
+  merge: (fromId: string, intoId: string) => ipcRenderer.invoke('verseTags:merge', fromId, intoId),
+  delete: (id: string, force?: boolean) => ipcRenderer.invoke('verseTags:delete', id, force),
+  addMembers: (args: unknown) => ipcRenderer.invoke('verseTags:addMembers', args),
+  removeMember: (memberId: string) => ipcRenderer.invoke('verseTags:removeMember', memberId),
+  updateMemberRanges: (memberId: string, ranges: unknown, label: string) =>
+    ipcRenderer.invoke('verseTags:updateMemberRanges', memberId, ranges, label),
+  getForChapter: (bookId: string, chapter: number) => ipcRenderer.invoke('verseTags:getForChapter', bookId, chapter),
+  getMembers: (tagIds: string[]) => ipcRenderer.invoke('verseTags:getMembers', tagIds),
 })
 
 contextBridge.exposeInMainWorld('settings', {

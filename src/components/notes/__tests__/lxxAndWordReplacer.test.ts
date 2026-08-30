@@ -41,6 +41,11 @@ describe('stripLxxMarker — B2 Septuagint reference markers', () => {
   it('does not treat a book whose name contains no LXX as LXX', () => {
     expect(stripLxxMarker('Malachi 4:5').lxx).toBe(false)
   })
+
+  it('collapses an accidentally-doubled marker ("Gen 1:1 LXX LXX")', () => {
+    expect(stripLxxMarker('Gen 1:1 LXX LXX')).toEqual({ ref: 'Gen 1:1', lxx: true })
+    expect(stripLxxMarker('Gen 1:1 lxx LXX')).toEqual({ ref: 'Gen 1:1', lxx: true })
+  })
 })
 
 describe('verseTextMatchRatio — B1 word-replacer sensitivity', () => {

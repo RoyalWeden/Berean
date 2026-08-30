@@ -77,7 +77,7 @@ export const CALLOUT_META: Record<string, { iconSvg: string; label: string; bg: 
 // between the two words, and verseClipboard.ts's copy-verse output for those now puts a
 // further comma before the chapter:verse too ("Hermas, Similitudes, 35:1 <text>").
 export const SINGLE_VERSE_LINE_RE =
-  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?)[ \t]+(\S.*)$/
+  /^(\s*)((?:[1-3][ \t]+)?[A-Za-z][a-z]+,?(?:[ \t]+[A-Za-z][a-z]+,?){0,2}(?:,?[ \t]+Book[ \t]+\d{1,3})?,?[ \t]+\d{1,3}:\d{1,3}(?:[-–]\d{1,3})?(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*(?:[ \t]+(?:LXX|lxx)\b)?)[ \t]+(?!(?:LXX|lxx)[.\s]*$)(\S.*)$/
 export const VERSE_BODY_LINE_RE = /^\s*\d{1,3}[ \t]+\S/
 
 /**
@@ -111,6 +111,7 @@ export interface VerseBlockMatch {
 
 export function detectVerseBlock(text: string): VerseBlockMatch | null {
   if (!text.trim()) return null
+  text = normalizeRefWhitespace(text)
   const nonEmpty = text.split('\n').map(l => l.trimEnd()).filter(l => l.trim())
   if (nonEmpty.length === 0) return null
 
@@ -185,8 +186,17 @@ export function detectVerseBlock(text: string): VerseBlockMatch | null {
 // an end CHAPTER, not an end verse — parseRef's own matching cross-chapter grammar (see
 // that file) is what actually disambiguates the two once the full numeric tail is captured
 // here.
+// The trailing `(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*` inside the colon
+// sub-group is the comma-separated verse-list suffix ("Deuteronomy 32:3-4,6",
+// "Deuteronomy 32:3,6,9-13,23,25") — repeated "comma + verse (or N-M range)" runs after
+// the first chapter:verse, so `m[0]` (and therefore VerseRefMatch.length) spans the whole
+// list. It only extends the colon branch, and each iteration REQUIRES the comma be
+// immediately followed by digits, so it stops at a `;` or a following word ("32:3,6 and
+// then" → only ",6" is consumed) and never lets the `,?` slots after book words / before
+// "Book N" swallow a following ", 6" (those slots already matched before the numeric tail
+// begins, and a lone book-word comma is only ever followed by whitespace + a letter here).
 const VERSE_REF_SCAN_RE =
-  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?)?)([ \t]+LXX\b)?/gi
+  /((?:[1-3][ \t]+)?(?:(?!Book[ \t]+\d)[A-Za-z][a-z]*\.?,?[ \t]+){0,2}(?!Book[ \t]+\d)[A-Za-z][a-z]+\d*\.?,?)(?:,?[ \t]*(Book[ \t]+\d{1,3}))?,?[ \t]+(\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3}(?:[ \t]*[:.][ \t]*\d{1,3})?)?(?:[ \t]*,[ \t]*\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)*)?)([ \t]+LXX\b)?/gi
 
 export interface VerseRefMatch {
   index: number
@@ -195,7 +205,19 @@ export interface VerseRefMatch {
   lxx: boolean
 }
 
+// contenteditable / ProseMirror silently substitutes a typed ASCII space with U+00A0
+// (no-break space) in various positions, and rich-text pastes can carry U+2007/U+202F/
+// U+2009 too. Every reference regex in this file (and its notePreviewRender.ts twin) only
+// treats `[ \t]` as a word gap, so a ref like "Isaiah 61:3<U+00A0>LXX" or a paste with an
+// nbsp before the verse number silently fails to detect. Normalising to a plain space is
+// length-preserving (1 char → 1 char), so every match `index`/`length` computed downstream
+// stays in 1:1 correspondence with real document positions.
+export function normalizeRefWhitespace(s: string): string {
+  return s.replace(/[    ]/g, ' ')
+}
+
 export function findVerseRefMatches(text: string): VerseRefMatch[] {
+  text = normalizeRefWhitespace(text)
   const out: VerseRefMatch[] = []
   VERSE_REF_SCAN_RE.lastIndex = 0
   let m: RegExpExecArray | null
@@ -214,7 +236,11 @@ export function findVerseRefMatches(text: string): VerseRefMatch[] {
     }
     let matched = false
     for (let start = 0; start < words.length; start++) {
-      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart
+      // Fold the trailing " LXX" marker (m[4]) into candidateRef so the returned refText —
+      // and therefore the decoration's data-ref attribute — round-trips through parseRef as
+      // an LXX-forced ref, instead of the marker being dropped and LXX resolution relying
+      // solely on the pm-lxx-ref class downstream. parseRef accepts the trailing " LXX".
+      const candidateRef = words.slice(start).join(' ') + (bookSub ? ' ' + bookSub : '') + ' ' + numPart + (lxx ? ' LXX' : '')
       if (parseRef(candidateRef)) {
         const bookWords = words.slice(start)
         const lastBookWord = bookWords[bookWords.length - 1].toLowerCase().replace(/\.$/, '')
@@ -322,7 +348,8 @@ interface BibleQueryWindow {
  * reference string. Returns the bare reference for parseRef plus whether LXX was present.
  */
 export function stripLxxMarker(refText: string): { ref: string; lxx: boolean } {
-  const suffix = refText.match(/^(.*?)[ \t]+LXX\s*$/i)
+  // Tolerate an accidentally-doubled marker ("Gen 1:1 LXX LXX") — strip every trailing run.
+  const suffix = refText.match(/^(.*?)(?:[ \t]+LXX)+\s*$/i)
   if (suffix) return { ref: suffix[1].trim(), lxx: true }
   const prefix = refText.match(/^(?:lxx|LXX):\s*(.*)$/)
   if (prefix) return { ref: prefix[1].trim(), lxx: true }
@@ -409,10 +436,18 @@ export function verseTextAccepted(
   // callback queued for an earlier, now-superseded candidate still gets called once the debounce
   // finally fires — harmless: it just prompts a repaint, and the doc has moved on since anyway.
   const existing = versePendingByRef.get(refText)
+  // Did the candidate BODY text actually change since the pending record was last touched?
+  // A rebuild triggered by some *other* ref's lookup resolving (its onResolved dispatches a
+  // refresh transaction → buildBlockDecorations re-runs → this is re-entered for every still-
+  // pending ref in the doc) arrives here with the SAME candidate as before. Only a real
+  // keystroke inside this ref's body changes it.
+  const candidateChanged = !existing || existing.candidate !== candidate
   if (existing) {
     existing.key = key
     existing.candidate = candidate
-    existing.callbacks.push(onResolved)
+    // Dedupe: the same plugin `onResolved` closure is passed on every rebuild; without this
+    // the array grew by one entry per unrelated rebuild and fired that many redundant repaints.
+    if (!existing.callbacks.includes(onResolved)) existing.callbacks.push(onResolved)
   } else {
     versePendingByRef.set(refText, { key, candidate, callbacks: [onResolved] })
   }
@@ -427,6 +462,13 @@ export function verseTextAccepted(
   // instantly formatted" actually needs; a genuine typing burst still resets to the full
   // window on every subsequent keystroke via the existingTimer branch below, unchanged.
   const existingTimer = verseDebounceTimers.get(refText)
+  // Only (re)arm the debounce when the candidate genuinely changed (a real edit) or nothing
+  // is scheduled yet. Re-arming on every re-entry meant an unrelated ref resolving kept
+  // pushing THIS ref's fetch another 300ms out — with two or more verse-like lines in one
+  // note their resolutions ping-ponged, rebuilding the decoration set dozens of times before
+  // the dust settled (observed: ~90 rebuilds for a 3-ref note). A pending timer with an
+  // unchanged candidate is already going to fetch the right text, so leave it alone.
+  if (!candidateChanged && existingTimer) return null
   const delay = existingTimer ? VERSE_LOOKUP_DEBOUNCE_MS : 0
   if (existingTimer) clearTimeout(existingTimer)
   verseDebounceTimers.set(refText, setTimeout(() => {

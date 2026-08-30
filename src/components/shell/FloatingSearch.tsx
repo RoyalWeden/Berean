@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, Hash, BookMarked, StickyNote, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -8,8 +8,9 @@ import { recordNavigation } from '@/lib/verseNavigation'
 import { parseRef, isStrongsRef, getTranslationForBook, bookName, bookChapterVerseLabel, resolveBookToken, normalizeBookName, type ParsedRef } from '@/lib/parseRef'
 import { parseMultiBookQuery } from '@/lib/multiBookSearch'
 import { applyFindHighlight, makeSnippet } from '@/lib/highlight'
-import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
-import { parseMultiStrongsQuery, searchMultiStrongs } from '@/lib/strongsSearch'
+import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
+import { buildVerseDisplayText } from '@/lib/verseUtils'
+import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
@@ -70,9 +71,28 @@ interface VerseResult {
   chapter: number
   verse_num: number
   text: string
+  /** Strong's-tagged form of `text` — carried through from window.bible.searchText where the
+   *  text's DB has the column (KJVA). Used to rebuild the exact word-replaced display string. */
+  text_tagged?: string
   /** Only set when the result comes from a non-default text */
   sourceTextId?: string
   sourceTextName?: string
+  /** Word-replacer → Strong's bridge rows only: the plain-text word indices carrying the
+   *  searched Strong's number, and the replacement string to substitute in at those words
+   *  (e.g. "the LORD God" + [1] + "Yehovah" → "the Yehovah God"). The bridge row's raw
+   *  `text` is un-tagged KJV, so this is the only way to word-replace it consistently. */
+  wrIndices?: number[]
+  wrReplacement?: string
+}
+
+/** Substitute `replacement` for a single space-delimited word, carrying over a possessive
+ *  suffix and any leading/trailing punctuation attached to the original word — mirrors
+ *  applyStrongsWordReplacer's affix handling for tagged tokens (wordReplacer.ts). */
+function replaceWordPreservingAffixes(word: string, replacement: string): string {
+  const m = word.match(/^(\W*)([A-Za-z]+)('[Ss])?(\W*)$/)
+  if (!m) return replacement
+  const [, lead, , poss, trail] = m
+  return lead + replacement + (poss ? "'s" : '') + (trail ?? '')
 }
 
 const TRANSLATION_PREFIXES: Array<[string[], string]> = [
@@ -378,10 +398,31 @@ export default function FloatingSearch() {
           .catch(() => [] as VerseResult[])
       )
 
+      // Word-replacer → Strong's bridge: a query like "yehovah" restores from H3068/H3069,
+      // which plain FTS (index still says "LORD") can never find. Search those by occurrence
+      // instead and merge alongside the variant results. See getWordReplacerStrongsSearch.
+      // KJVA-only: Strong's occurrence data (and the H-number rules) are Hebrew-OT tagging.
+      const wrStrongs = (wordReplacerEnabled && tid === 'kjva') ? getWordReplacerStrongsSearch(trimmed, wordReplacerRules) : null
+      // The replacement wording for whichever rule owns a searched Strong's number — the
+      // displayed word for every bridge row ("LORD"→"Yehovah"). Multiple matched rules are
+      // rare (H3068/H3069 share one "Yehovah" rule in practice); any one is fine.
+      const wrReplacement = wrStrongs
+        ? (wordReplacerRules.find((r) => r.enabled && r.strongsNum && wrStrongs.strongsNums.includes(r.strongsNum))?.replacement ?? '')
+        : ''
+      const wrStrongsSearch: Promise<VerseResult[]> = wrStrongs
+        ? searchAnyStrongs(wrStrongs.strongsNums, wrStrongs.residualWords, window.lexicon.getOccurrences)
+            .then((rows) => rows.map((o) => ({
+              book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text,
+              wrIndices: o.matchWordIndices, wrReplacement,
+            } as VerseResult)))
+            .catch(() => [] as VerseResult[])
+        : Promise.resolve([] as VerseResult[])
+
       try {
         // ── Fast phase — dispatched and awaited first ──────────────────────
-        const [notes, ...variantResults] = await Promise.allSettled([
+        const [notes, wrStrongsRes, ...variantResults] = await Promise.allSettled([
           window.notes.searchNotes(trimmed, 5, searchWordMode),
+          wrStrongsSearch,
           ...variantSearches,
         ])
         if (gen !== searchGenRef.current) return
@@ -390,14 +431,18 @@ export default function FloatingSearch() {
         // can return the same verse from more than one variant query).
         const seenVerse = new Set<string>()
         const primaryVerse: VerseResult[] = []
-        for (const r of variantResults) {
-          if (r.status !== 'fulfilled') continue
-          for (const row of r.value as unknown as VerseResult[]) {
+        const mergeRows = (rows: VerseResult[]) => {
+          for (const row of rows) {
             const key = `${row.book_id}|${row.chapter}|${row.verse_num}`
             if (seenVerse.has(key)) continue
             seenVerse.add(key)
             primaryVerse.push(row)
           }
+        }
+        if (wrStrongsRes.status === 'fulfilled') mergeRows(wrStrongsRes.value as VerseResult[])
+        for (const r of variantResults) {
+          if (r.status !== 'fulfilled') continue
+          mergeRows(r.value as unknown as VerseResult[])
         }
         setVerseResults(primaryVerse)
         setNoteResults(notes.status === 'fulfilled' ? notes.value : [])
@@ -696,6 +741,9 @@ export default function FloatingSearch() {
     label: string
     sub: string
     action: () => void
+    /** Verse rows only: every term that may actually appear in `sub` after word-replacement
+     *  (typed term + its replacer substitution + a bridge row's replaced word) — all marked. */
+    highlightTerms?: string[]
   }> = []
 
   // Command mode (">") — Obsidian's own convention: search/run ACTIONS
@@ -809,12 +857,37 @@ export default function FloatingSearch() {
   for (const v of scopedVerseResults.slice(0, 12)) {
     const book = books.find((b) => b.id === v.book_id)
     const sourceLabel = v.sourceTextName ? ` · ${v.sourceTextName}` : ''
-    const rawText = wr(v.text)
-    const subText = makeSnippet(rawText, cleanQuery, subLen, searchWordMode)
+
+    // Reproduce exactly what the reader would show for this verse, so a word-replaced query
+    // ("yehovah") finds its match in the snippet instead of the un-replaced "LORD".
+    let displayText: string
+    if (v.wrIndices?.length && v.wrReplacement) {
+      // Bridge row: raw un-tagged KJV text — substitute the replacement at the matched word
+      // indices, then run text-pattern rules over the result.
+      const idxSet = new Set(v.wrIndices)
+      const substituted = v.text.split(' ')
+        .map((w, i) => (idxSet.has(i) ? replaceWordPreservingAffixes(w, v.wrReplacement!) : w))
+        .join(' ')
+      displayText = wordReplacerEnabled ? applyWordReplacer(substituted, wordReplacerRules) : substituted
+    } else if (v.text_tagged) {
+      displayText = buildVerseDisplayText(
+        v.text, v.text_tagged, v.sourceTextId ?? searchTextId, wordReplacerEnabled, wordReplacerRules,
+      )
+    } else {
+      displayText = wr(v.text)
+    }
+
+    // The term that actually appears in `displayText` — prefer the concrete replacement word,
+    // then the text-pattern-replaced query, then the raw query.
+    const replacedQuery = wordReplacerEnabled ? applyWordReplacer(cleanQuery, wordReplacerRules) : cleanQuery
+    const snippetTerm = v.wrReplacement || replacedQuery || cleanQuery
+    const subText = makeSnippet(displayText, snippetTerm, subLen, searchWordMode)
+    const highlightTerms = [cleanQuery, replacedQuery, v.wrReplacement].filter((t): t is string => !!t && t.trim().length > 0)
     results.push({
       type: 'verse',
       label: `${book?.short_name ?? v.book_id} ${v.chapter}:${v.verse_num}${sourceLabel}`,
       sub: subText,
+      highlightTerms,
       action: () => { addRecentSearchQuery(query.trim()); navigate(v.book_id, v.chapter, v.verse_num, undefined, v.sourceTextId) },
     })
   }
@@ -1108,7 +1181,7 @@ export default function FloatingSearch() {
                     style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <StickyNote size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
                     </span>
                     <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="min-w-0">
@@ -1117,7 +1190,9 @@ export default function FloatingSearch() {
                         </span>
                         {r.type !== 'command' && (
                           <span className={`text-xs text-[rgb(var(--color-text-muted))] block whitespace-normal ${DENSITY_CLAMP[floatingSearchDensity]}`}>
-                            {highlightQ ? applyFindHighlight(r.sub, highlightQ, searchWordMode) : r.sub}
+                            {highlightQ
+                              ? applyFindHighlight(r.sub, r.highlightTerms?.length ? r.highlightTerms : highlightQ, searchWordMode)
+                              : r.sub}
                           </span>
                         )}
                       </span>
@@ -1201,7 +1276,7 @@ export default function FloatingSearch() {
                     — that entry point is scoped to scripture, so offering destinations for
                     other spaces there is out of place. */}
                 {(versesOnly ? [] : [
-                  { label: 'Notes',   icon: <StickyNote size={12} />, run: () => openNotesSearchTab(query.trim()) },
+                  { label: 'Notes',   icon: <NotepadText size={12} />, run: () => openNotesSearchTab(query.trim()) },
                   { label: 'Lexicon', icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
                   { label: 'YouTube', icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
                 ]).map((d) => {

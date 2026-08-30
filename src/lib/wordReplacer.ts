@@ -97,6 +97,47 @@ export function getWordReplacerSearchVariants(query: string, rules: WordReplacer
   return [...variants]
 }
 
+export interface WordReplacerStrongsSearch {
+  /** Strong's numbers whose restored word the user typed (e.g. "yehovah" → H3068 + H3069).
+   *  OR these together — a verse carrying ANY of them is a hit. */
+  strongsNums: string[]
+  /** The remaining typed words, to AND against each Strong's hit's verse text. */
+  residualWords: string[]
+}
+
+/**
+ * Detect when a search query contains the RESTORED word of a Strong's-number-based
+ * word-replacer rule (e.g. the user typed "yehovah", which the app only ever shows by
+ * restoring H3068/H3069 in tagged text — the FTS index still says "LORD"). Plain FTS can't
+ * find these, so `getWordReplacerSearchVariants` deliberately skips Strong's rules; this
+ * returns the Strong's numbers to search by occurrence instead, plus any other typed words
+ * to AND with them. Returns null when the query touches no Strong's rule.
+ */
+export function getWordReplacerStrongsSearch(
+  query: string,
+  rules: WordReplacerRule[],
+): WordReplacerStrongsSearch | null {
+  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return null
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '')
+  const normTokens = tokens.map(norm)
+  const strongsNums = new Set<string>()
+  const matchedIdx = new Set<number>()
+  for (const rule of rules) {
+    if (!rule.enabled || !rule.strongsNum) continue
+    const repl = norm(rule.replacement)
+    if (!repl) continue
+    normTokens.forEach((t, i) => {
+      if (t === repl) { strongsNums.add(rule.strongsNum!); matchedIdx.add(i) }
+    })
+  }
+  if (strongsNums.size === 0) return null
+  return {
+    strongsNums: [...strongsNums],
+    residualWords: tokens.filter((_, i) => !matchedIdx.has(i)),
+  }
+}
+
 /**
  * Apply Strong's-number-based replacement rules to a single tagged token.
  * Only rules with `strongsNum` set are checked. Returns the replacement string

@@ -800,3 +800,51 @@ describe('extractRefsFromNote — Recognitions of Clement "Book N" subdivision',
     expect(r!.verse).toBe(3)
   })
 })
+
+// ── Comma-grouped verse lists → one NoteVerseRef per segment ─────────────────
+
+describe('extractRefsFromNote — comma-grouped verse lists', () => {
+  it('"Deuteronomy 32:3,6,9-13,23,25" emits one row per segment', () => {
+    const refs = extractRefsFromNote('See Deuteronomy 32:3,6,9-13,23,25 for the song', 'Note')
+    const deu = refs.filter(r => r.bookId === 'DEU' && r.chapter === 32)
+    expect(deu.map(r => [r.verse, r.endVerse ?? null])).toEqual([
+      [3, null], [6, null], [9, 13], [23, null], [25, null],
+    ])
+  })
+
+  it('refMatchesVerse matches a verse in ANY segment', () => {
+    const refs = extractRefsFromNote('Deuteronomy 32:3-4,6,9-13', 'Note')
+    const hit = (v: number) => refs.some(r => refMatchesVerse(r, 'DEU', 32, v))
+    expect(hit(3)).toBe(true)   // first group (range 3-4)
+    expect(hit(4)).toBe(true)
+    expect(hit(6)).toBe(true)   // single
+    expect(hit(11)).toBe(true)  // second range 9-13
+    expect(hit(5)).toBe(false)  // gap between groups
+    expect(hit(14)).toBe(false)
+  })
+})
+
+// ── Trailing " LXX" marker → lxx flag on the row ────────────────────────────
+
+describe('extractRefsFromNote — LXX marker', () => {
+  it('flags a plain "Isaiah 6:4 LXX" ref as lxx', () => {
+    const refs = extractRefsFromNote('Compare Isaiah 6:4 LXX with the Hebrew', 'Note')
+    const isa = refs.find(r => r.bookId === 'ISA' && r.chapter === 6)
+    expect(isa).toBeTruthy()
+    expect(isa!.verse).toBe(4)
+    expect(isa!.lxx).toBe(true)
+  })
+
+  it('a non-LXX ref has no lxx flag', () => {
+    const refs = extractRefsFromNote('See Isaiah 6:4 here', 'Note')
+    expect(refs.find(r => r.bookId === 'ISA')!.lxx).toBeUndefined()
+  })
+
+  it('LXX and non-LXX refs to the same verse are distinct rows', () => {
+    const refs = extractRefsFromNote('Isaiah 6:4 and also Isaiah 6:4 LXX', 'Note')
+    const isa = refs.filter(r => r.bookId === 'ISA' && r.chapter === 6 && r.verse === 4)
+    expect(isa.length).toBe(2)
+    expect(isa.some(r => r.lxx)).toBe(true)
+    expect(isa.some(r => !r.lxx)).toBe(true)
+  })
+})

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, memo, useDeferredValue } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Clock, Layers, Columns2, Trash2, ChevronDown, SlidersHorizontal, LayoutGrid } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { recordNavigation } from '@/lib/verseNavigation'
 import type { HistoryEntry } from '@/types'
@@ -53,7 +53,7 @@ function EntryIcon({ type, size = 12 }: { type: EntryType; size?: number }) {
   const cls = 'flex-shrink-0'
   switch (type) {
     case 'bible':         return <BookOpen    size={size} className={cls} />
-    case 'note':          return <FileText    size={size} className={cls} />
+    case 'note':          return <NotepadText size={size} className={cls} />
     case 'lexicon':       return <BookMarked  size={size} className={cls} />
     case 'youtube':       return <Youtube     size={size} className={cls} />
     case 'search':        return <Search      size={size} className={cls} />
@@ -97,7 +97,7 @@ type HistoryTabKey = 'all' | 'scripture' | 'notes' | 'lexicon' | 'youtube' | 'se
 const HISTORY_TABS: { key: HistoryTabKey; label: string; icon: typeof BookOpen | null; types: EntryType[] | null }[] = [
   { key: 'all',       label: 'All',       icon: LayoutGrid,  types: null },
   { key: 'scripture', label: 'Scripture', icon: BookOpen,    types: ['bible', 'compare'] },
-  { key: 'notes',     label: 'Notes',     icon: FileText,    types: ['note'] },
+  { key: 'notes',     label: 'Notes',     icon: NotepadText, types: ['note'] },
   { key: 'lexicon',   label: 'Lexicon',   icon: BookMarked,  types: ['lexicon', 'strongs-click'] },
   { key: 'youtube',   label: 'YouTube',   icon: Youtube,     types: ['youtube'] },
   { key: 'search',    label: 'Search',    icon: Search,      types: ['search'] },
@@ -162,7 +162,11 @@ function useNavigate() {
         break
       }
       case 'search': {
-        if (entry.query) s.openSearchTab(entry.query)
+        if (entry.searchTagFilter?.length) {
+          s.openScriptureSearchTab(entry.query || undefined, { tagNames: entry.searchTagFilter, matchAll: entry.searchTagFilterAll })
+        } else if (entry.query) {
+          s.openSearchTab(entry.query)
+        }
         break
       }
     }

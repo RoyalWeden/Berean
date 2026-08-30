@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, StickyNote, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon, FileText, PanelRightOpen, Columns2 } from 'lucide-react'
+import { ArrowLeft, Plus, Search, X, Filter, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, GitFork, AlignJustify, BookOpen, NotepadText, Copy, Hash, ScanSearch, ArrowUpDown, Check as CheckIcon, PanelRightOpen, Columns2 } from 'lucide-react'
 import { buildLexiconCopyText, normalizeStrongsNums, DerivationText } from '@/components/lexicon/LexiconPanel'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import NoteEditor from '@/components/notes/pm/NoteEditorPM'
@@ -29,7 +29,7 @@ type NoteScope = 'all' | 'chapter'
 type NoteSort = 'modified' | 'created' | 'verse'
 
 const PANEL_TAB_LABEL: Record<PanelTab, string> = { notes: 'Notes', lexicon: 'Lexicon', crossrefs: 'Cross Refs' }
-const PANEL_TAB_ICON: Record<PanelTab, typeof StickyNote> = { notes: FileText, lexicon: BookOpen, crossrefs: GitFork }
+const PANEL_TAB_ICON: Record<PanelTab, typeof NotepadText> = { notes: NotepadText, lexicon: BookOpen, crossrefs: GitFork }
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000)
@@ -1025,7 +1025,7 @@ function UserNotesChapterView({
   if (loading) return <p className="text-[11px] text-[rgb(var(--color-text-muted))] text-center py-6 animate-pulse">Loading…</p>
   if (verseNoteRefs.length === 0 && indirectNotes.length === 0) return (
     <div className="flex flex-col items-center justify-center px-4 py-12 text-center gap-2 text-[rgb(var(--color-text-muted))]">
-      <StickyNote size={24} className="opacity-25" />
+      <NotepadText size={24} className="opacity-25" />
       <p className="text-xs">No cross-references found in your notes for this chapter.</p>
       <p className="text-[10px] opacity-60 max-w-[220px]">Write verse notes that reference other passages to see them here.</p>
     </div>
@@ -1071,7 +1071,7 @@ function UserNotesChapterView({
                       >
                         {isExpanded ? '▾' : '▸'}
                       </button>
-                      <StickyNote size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
+                      <NotepadText size={11} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                       <button
                         onClick={() => onNoteClick?.(note)}
                         className="flex-1 text-left text-[11px] font-medium text-[rgb(var(--color-text-secondary))] truncate cursor-pointer hover:text-[rgb(var(--color-text-primary))] transition-colors min-w-0"
@@ -1130,7 +1130,7 @@ function UserNotesChapterView({
                   <VerseText bookId={r.bookId} chapter={r.chapter} verse={r.verse} endVerse={r.endVerse} />
                 </p>
                 <span className="flex items-center gap-1 text-[9px] text-[rgb(var(--color-text-muted))]">
-                  <StickyNote size={8} className="flex-shrink-0 opacity-70" />
+                  <NotepadText size={8} className="flex-shrink-0 opacity-70" />
                   <span className="truncate">{r.sourceNoteTitle}</span>
                 </span>
               </button>
@@ -2194,7 +2194,7 @@ export default function BibleRightPanel({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-shell text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                 onClick={() => { closeSideCtxMenu(); openSidebarNote(sideCtxMenu.note) }}
               >
-                <StickyNote size={12} />
+                <NotepadText size={12} />
                 Open in panel
               </button>
               <button

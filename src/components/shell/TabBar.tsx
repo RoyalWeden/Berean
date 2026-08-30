@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { X, BookOpen, FileText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, NotepadText, BookMarked, Youtube, Search, Trash2, Layers, GitCompare, ExternalLink, Copy, FileType2, Archive, type LucideIcon } from 'lucide-react'
 import type { Tab, TabType, BibleTabState } from '@/types'
 import { useAppStore } from '@/store'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
@@ -10,7 +10,7 @@ import ShortcutKeys from './ShortcutKeys'
 
 const TAB_ICONS: Record<TabType, LucideIcon> = {
   bible:   BookOpen,
-  note:    FileText,
+  note:    NotepadText,
   lexicon: BookMarked,
   youtube: Youtube,
   search:  Search,

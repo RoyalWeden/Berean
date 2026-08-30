@@ -16,12 +16,14 @@ export interface WikilinkTrigger { query: string; from: number; to: number; coor
 export interface StrongsTrigger { num: string; from: number; to: number; coords: { left: number; bottom: number } }
 export interface VerseSuggestTrigger { ref: string; from: number; to: number; coords: { left: number; bottom: number } }
 export interface SlashCommandTrigger { query: string; from: number; to: number; coords: { left: number; bottom: number } }
+export interface TagTrigger { query: string; from: number; to: number; coords: { left: number; bottom: number } }
 
 export interface AutocompleteCallbacks {
   onWikilinkTrigger?: (t: WikilinkTrigger | null) => void
   onStrongsTrigger?: (t: StrongsTrigger | null) => void
   onVerseSuggestTrigger?: (t: VerseSuggestTrigger | null) => void
   onSlashCommandTrigger?: (t: SlashCommandTrigger | null) => void
+  onTagTrigger?: (t: TagTrigger | null) => void
   enableStrongsSuggest?: () => boolean
   enableVerseSuggest?: () => boolean
 }
@@ -59,6 +61,7 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
             callbacks.onStrongsTrigger?.(null)
             callbacks.onVerseSuggestTrigger?.(null)
             callbacks.onSlashCommandTrigger?.(null)
+            callbacks.onTagTrigger?.(null)
             return
           }
           if (view.state.doc.eq(prevState.doc) && view.state.selection.eq(prevState.selection)) return
@@ -67,6 +70,7 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
             callbacks.onStrongsTrigger?.(null)
             callbacks.onVerseSuggestTrigger?.(null)
             callbacks.onSlashCommandTrigger?.(null)
+            callbacks.onTagTrigger?.(null)
             return
           }
           const { text, lineStart } = textBeforeCursor(view)
@@ -93,6 +97,18 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
             callbacks.onSlashCommandTrigger?.({ query: slashMatch[1], from, to: cursor, coords: { left: coords.left, bottom: coords.bottom } })
           } else {
             callbacks.onSlashCommandTrigger?.(null)
+          }
+
+          // "#tag" trigger — "#" after start-of-line/whitespace, immediately followed by at
+          // least one word char (so a bare "# " markdown heading never triggers it), scanning
+          // to the cursor. Not offered inside code.
+          const tagMatch = /(?:^|\s)#([\p{L}\p{N}][\p{L}\p{N}_-]*)$/u.exec(text)
+          if (tagMatch && !$from.parent.type.spec.code) {
+            const from = lineStart + tagMatch.index + tagMatch[0].indexOf('#')
+            const coords = view.coordsAtPos(from)
+            callbacks.onTagTrigger?.({ query: tagMatch[1], from, to: cursor, coords: { left: coords.left, bottom: coords.bottom } })
+          } else {
+            callbacks.onTagTrigger?.(null)
           }
 
           // [[ wikilink trigger — unclosed "[[" with no "]]" after it yet.
@@ -136,7 +152,10 @@ export function createAutocompletePlugin(callbacks: AutocompleteCallbacks) {
             const endsNearCursor = last && last.index + last.length >= text.length - 1
             const parsed = last ? parseRef(last.refText) : null
             if (last && endsNearCursor && parsed?.verse) {
-              const candidate = last.lxx ? `${last.refText} LXX` : last.refText
+              // findVerseRefMatches already folds a trailing " LXX" marker into refText, so
+              // re-appending it here produced "genesis 1:1 LXX LXX" in the suggestion bubble.
+              // Strip any existing trailing marker first so the result carries exactly one.
+              const candidate = last.lxx ? `${last.refText.replace(/[ \t]+LXX$/i, '')} LXX` : last.refText
               const from = lineStart + last.index
               const coords = view.coordsAtPos(from)
               callbacks.onVerseSuggestTrigger?.({ ref: candidate, from, to: cursor, coords: { left: coords.left, bottom: coords.bottom } })

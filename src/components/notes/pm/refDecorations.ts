@@ -2,7 +2,7 @@ import { Plugin, PluginKey, type EditorState } from 'prosemirror-state'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import type { Node as PMNode } from 'prosemirror-model'
 import { parseRef, type ParsedRef } from '@/lib/parseRef'
-import { findVerseRefMatches } from '@/lib/noteTextBlocks'
+import { findVerseRefMatches, normalizeRefWhitespace } from '@/lib/noteTextBlocks'
 import { suppressRangesKey } from './suppressRanges'
 import { buildBlockDecorations, blockDecorationsKey } from './blockDecorations'
 
@@ -12,6 +12,10 @@ import { buildBlockDecorations, blockDecorationsKey } from './blockDecorations'
 // they're simple one-liners not worth threading through an export).
 const LXX_PREFIX_RE = /\b(?:lxx|LXX):(?:[1-3][ \t]*)?[A-Za-z][a-z]+(?:[ \t]+(?:of[ \t]+)?[A-Za-z][a-z]+)?[ \t]+\d{1,3}(?:[-–]\d{1,3})?(?::\d{1,3}(?:[ \t]*[-–][ \t]*\d{1,3})?)?\b/g
 const LEXICON_REF_RE = /\b[HGhg]\d{1,5}\b/g
+// "#tag" inline reference — "#" after start-of-line/whitespace, then a word char run.
+// Not preceded by a word char (so `a#b` doesn't match); a bare "# " heading never matches
+// (needs a word char right after "#"). Group 1 is the tag name; the match includes the "#".
+const TAG_REF_RE = /(?:^|[\s(])#([\p{L}\p{N}][\p{L}\p{N}_-]*)/gu
 
 // Doc-only variant of buildDecorations (below), reused by staticRender.ts's
 // read-only renderer (version history, print/export, daily scroll,
@@ -76,6 +80,10 @@ export function buildRefDecorationsForDoc(
     node.forEach((child) => {
       text += child.isText ? (child.text ?? '') : ' '.repeat(child.nodeSize)
     })
+    // nbsp/thin-space → plain space (length-preserving, so `base + match.index` stays
+    // exact) — contenteditable substitutes typed spaces with U+00A0, which the ref
+    // regexes' `[ \t]` gaps reject, so "Isaiah 61:3<nbsp>LXX" never matched the marker.
+    text = normalizeRefWhitespace(text)
     const base = pos + 1
 
     // Wikilink-marked ranges within this textblock, computed once by
@@ -106,8 +114,10 @@ export function buildRefDecorationsForDoc(
     for (const ma of findVerseRefMatches(text)) {
       const from = base + ma.index
       const to = from + ma.length
-      if (shouldSkip(from, to)) continue
-      if (lxxRanges.some((r) => r.from < to && r.to > from)) continue
+      const skipped = shouldSkip(from, to)
+      const lxxOverlap = lxxRanges.some((r) => r.from < to && r.to > from)
+      if (skipped) continue
+      if (lxxOverlap) continue
       decorations.push(
         Decoration.inline(from, to, {
           class: ma.lxx ? 'pm-lxx-ref' : 'pm-verse-ref',
@@ -123,6 +133,16 @@ export function buildRefDecorationsForDoc(
       const to = from + lm[0].length
       if (shouldSkip(from, to)) continue
       decorations.push(Decoration.inline(from, to, { class: 'pm-lexicon-ref', 'data-strongs-id': lm[0].toUpperCase() }))
+    }
+
+    TAG_REF_RE.lastIndex = 0
+    while ((lm = TAG_REF_RE.exec(text)) !== null) {
+      const name = lm[1]
+      const hashOffset = lm[0].indexOf('#')
+      const from = base + lm.index + hashOffset
+      const to = from + 1 + name.length
+      if (shouldSkip(from, to)) continue
+      decorations.push(Decoration.inline(from, to, { class: 'pm-tag-ref', 'data-tag': name }))
     }
 
     return false
@@ -158,6 +178,9 @@ export interface RefClickCallbacks {
   onVerseRefHoverStart?: (ref: ParsedRef & { forcedTranslation?: string }, rect: DOMRect) => void
   onLexiconRefHoverStart?: (strongsId: string, rect: DOMRect) => void
   onRefHoverEnd?: () => void
+  /** Click / 350ms-hover on an inline "#tag" reference. */
+  onTagRefClick?: (name: string) => void
+  onTagRefHoverStart?: (name: string, rect: DOMRect) => void
 }
 
 export const refDecorationsKey = new PluginKey('berean-ref-decorations')
@@ -243,7 +266,10 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
 
           // Verse/lxx refs (plain or a block's own reference line) — same delay, same rect-
           // anchored callback shape as the wikilink case above, just resolving a ParsedRef
-          // instead of a note title.
+          // instead of a note title. A comma-grouped ref ("Deuteronomy 32:3,6,9-13") parses
+          // into `parsed.verseGroups` (>1 entry) — that rides along on the ParsedRef handed
+          // to onVerseRefHoverStart, so the hover card can iterate each group's verse text;
+          // a single ref has no verseGroups and the card renders exactly as before.
           const verseEl = target.closest('.pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref') as HTMLElement | null
           if (verseEl) {
             clearHoverTimer()
@@ -267,11 +293,21 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
             return false
           }
 
+          const tagEl = target.closest('.pm-tag-ref') as HTMLElement | null
+          if (tagEl) {
+            clearHoverTimer()
+            hoverTimer = setTimeout(() => {
+              const name = (tagEl.getAttribute('data-tag') || tagEl.textContent || '').trim().replace(/^#/, '')
+              callbacks.onTagRefHoverStart?.(name, tagEl.getBoundingClientRect())
+            }, 350)
+            return false
+          }
+
           return false
         },
         mouseout(_view, event) {
           const el = (event.target as HTMLElement).closest(
-            '.pm-wikilink, .pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref, .pm-lexicon-ref, .pm-lexicon-block-ref',
+            '.pm-wikilink, .pm-verse-ref, .pm-lxx-ref, .pm-verse-block-ref, .pm-lexicon-ref, .pm-lexicon-block-ref, .pm-tag-ref',
           )
           if (!el) return false
           clearHoverTimer()
@@ -314,6 +350,12 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
             const strongsId = (lexEl.getAttribute('data-strongs-id') || lexEl.textContent || '').trim().toUpperCase()
             callbacks.onLexiconRefClick?.(strongsId)
             return true
+          }
+
+          const tagEl = target.closest('.pm-tag-ref') as HTMLElement | null
+          if (tagEl) {
+            const name = (tagEl.getAttribute('data-tag') || tagEl.textContent || '').trim().replace(/^#/, '')
+            if (name) { callbacks.onTagRefClick?.(name); return true }
           }
 
           // A verse/lexicon BLOCK's own reference line (blockDecorations.ts)

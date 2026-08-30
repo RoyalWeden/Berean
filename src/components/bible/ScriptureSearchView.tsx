@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search, BookOpen, ChevronRight, ChevronDown, Check, GitFork, ExternalLink, Copy, Hash, ArrowUpDown, ListTree, Rows, AlignJustify, ArrowUp, ArrowDown, Tag, Settings2 } from 'lucide-react'
 import { usePositionedMenu } from '@/lib/usePositionedMenu'
 import type { Book, Verse } from '@/types'
 import { parseRef, bookName } from '@/lib/parseRef'
 import { copyVerse, copyVerseRef } from '@/lib/verseClipboard'
 import { useAppStore } from '@/store'
-import { applyWordReplacer, getWordReplacerSearchVariants } from '@/lib/wordReplacer'
-import { parseMultiStrongsQuery, searchMultiStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
+import { applyWordReplacer, getWordReplacerSearchVariants, getWordReplacerStrongsSearch } from '@/lib/wordReplacer'
+import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs, splitStrongsHighlight } from '@/lib/strongsSearch'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { toggleBook, bookPassesFilter, toggleGroup, isGroupActive } from '@/lib/scriptureSearchFilters'
 import { normalizeBookQuery, getWordWindow, getAnnotationRanges, type AnnotationRange } from '@/lib/verseUtils'
 import { EDITIONS } from '@/lib/bibleTexts'
 import { buildHighlightPattern } from '@/lib/scriptureHighlight'
-import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
+import { RED_LETTER_CLASS, highlightDotColor } from '@/styles/highlightPalette'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
 import FloatingHoverPanel, { type FloatingHoverPanelHandle } from '@/components/shell/FloatingHoverPanel'
 import { useRovingGridNav } from '@/hooks/useRovingGridNav'
@@ -265,6 +265,9 @@ interface PersistedState {
   bookFilter?: string
   sortMode?: SortMode
   scrollTop?: number
+  /** Comma-joined verse-tag ids; `tagFilterAll` => AND (every) rather than OR (any). */
+  tagFilter?: string
+  tagFilterAll?: boolean
 }
 
 /** What matched, passed along on navigation so the landed verse can highlight it —
@@ -348,6 +351,93 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   const sortMenuNav = useRovingGridNav({ itemCount: 2, columns: 1 })
   useEffect(() => { if (sortMenuOpen) sortMenuNav.setFocusedIndex(0) }, [sortMenuOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const [wordMode, setWordMode] = useState<WordMode>(persistedState?.wordMode ?? 'all')
+  // ── Verse-tag filter ──────────────────────────────────────────────────────────
+  const verseTags = useAppStore((s) => s.verseTags)
+  const openTagManager = useAppStore((s) => s.openTagManager)
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
+    const s = persistedState?.tagFilter
+    return s ? s.split(',').filter(Boolean) : []
+  })
+  const [tagMatchAll, setTagMatchAll] = useState<boolean>(persistedState?.tagFilterAll ?? false)
+  const [tagMembers, setTagMembers] = useState<import('@/types').VerseTagMember[]>([])
+  // Per-member verse text for the no-query "browse tagged verses" view, keyed by memberId.
+  const [tagMemberVerses, setTagMemberVerses] = useState<Record<string, Array<{ verse: number; text: string }>>>({})
+  const [tagFilterMenuOpen, setTagFilterMenuOpen] = useState(false)
+  const tagFilterBtnRef = useRef<HTMLButtonElement>(null)
+  // Drop tag ids that no longer exist (deleted from Tag Manager).
+  useEffect(() => {
+    if (selectedTagIds.length === 0) return
+    const live = new Set(verseTags.map((t) => t.id))
+    const next = selectedTagIds.filter((id) => live.has(id))
+    if (next.length !== selectedTagIds.length) setSelectedTagIds(next)
+  }, [verseTags]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch members whenever the tag selection changes (or a tag mutation bumps the token).
+  const verseTagChangeToken = useAppStore((s) => s.verseTagChangeToken)
+  useEffect(() => {
+    if (selectedTagIds.length === 0) { setTagMembers([]); return }
+    let cancelled = false
+    window.verseTags.getMembers(selectedTagIds).then((m) => { if (!cancelled) setTagMembers(m) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [selectedTagIds, verseTagChangeToken])
+  // Fetch the actual verse text for each tagged member so the browse view can show it
+  // (word-replaced, KJVA). One queryChapter per unique chapter, shared across members.
+  useEffect(() => {
+    if (tagMembers.length === 0) { setTagMemberVerses({}); return }
+    let cancelled = false
+    ;(async () => {
+      const chapters = new Map<string, Promise<Array<{ verse_num: number; text: string }>>>()
+      const chapterOf = (bookId: string, chapter: number) => {
+        const k = `${bookId}:${chapter}`
+        if (!chapters.has(k)) chapters.set(k, window.bible.queryChapter(bookId, chapter, 'kjva').then((r) => r as any).catch(() => []))
+        return chapters.get(k)!
+      }
+      const out: Record<string, Array<{ verse: number; text: string }>> = {}
+      for (const m of tagMembers) {
+        const rows: Array<{ verse: number; text: string }> = []
+        if (m.kind === 'chapter') {
+          for (const c of m.wholeChapters) {
+            const all = await chapterOf(c.bookId, c.chapter)
+            for (const v of all.slice(0, 6)) rows.push({ verse: v.verse_num, text: v.text })
+          }
+        } else {
+          const byCh = new Map<string, number[]>()
+          for (const v of m.verses) {
+            const k = `${v.bookId}:${v.chapter}`
+            byCh.set(k, [...(byCh.get(k) ?? []), v.verse])
+          }
+          for (const [k, verseNums] of byCh) {
+            const [bookId, chStr] = k.split(':')
+            const all = await chapterOf(bookId, Number(chStr))
+            const set = new Set(verseNums)
+            for (const v of all) if (set.has(v.verse_num)) rows.push({ verse: v.verse_num, text: v.text })
+          }
+        }
+        out[m.memberId] = rows
+      }
+      if (!cancelled) setTagMemberVerses(out)
+    })()
+    return () => { cancelled = true }
+  }, [tagMembers])
+  // Per-tag verse/chapter sets, for AND vs OR filtering. Keyed translation-agnostically.
+  const tagFilterSets = useMemo(() => {
+    const perTag = new Map<string, { verses: Set<string>; chapters: Set<string> }>()
+    for (const id of selectedTagIds) perTag.set(id, { verses: new Set(), chapters: new Set() })
+    for (const m of tagMembers) {
+      const e = perTag.get(m.tagId)
+      if (!e) continue
+      for (const v of m.verses) e.verses.add(`${v.bookId}:${v.chapter}:${v.verse}`)
+      for (const c of m.wholeChapters) e.chapters.add(`${c.bookId}:${c.chapter}`)
+    }
+    return perTag
+  }, [selectedTagIds, tagMembers])
+  const passesTagFilter = useCallback((bookId: string, chapter: number, verse: number): boolean => {
+    if (selectedTagIds.length === 0) return true
+    const vKey = `${bookId}:${chapter}:${verse}`
+    const cKey = `${bookId}:${chapter}`
+    const hit = (e: { verses: Set<string>; chapters: Set<string> }) => e.verses.has(vKey) || e.chapters.has(cKey)
+    const entries = [...tagFilterSets.values()]
+    return tagMatchAll ? entries.every(hit) : entries.some(hit)
+  }, [selectedTagIds, tagFilterSets, tagMatchAll])
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [focusedIdx, setFocusedIdx] = useState(-1)
   // 'default' (compact, line-clamped snippet) / 'full' (whole verse, no clamp) / 'plusMinus1'
@@ -463,9 +553,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     onStateChangeRef.current?.({
       query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
       scrollTop: resultsRef.current?.scrollTop ?? persistedState?.scrollTop,
+      tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, textId, wordMode, testamentFilter, selectedBooks, sortMode])
+  }, [query, textId, wordMode, testamentFilter, selectedBooks, sortMode, selectedTagIds, tagMatchAll])
 
   // Flush the latest scroll position on unmount (switching tabs away from this one,
   // e.g. navigating to a search result — see BiblePanel.tsx's onNavigate). onScroll below
@@ -475,15 +566,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // ref kept fresh every render so the unmount handler (registered once, deps []) always sees
   // the current filter/query state rather than whatever was current when the effect was first
   // attached.
-  const latestScopeRef = useRef({ query, textId, wordMode, testamentFilter, selectedBooks, sortMode })
-  latestScopeRef.current = { query, textId, wordMode, testamentFilter, selectedBooks, sortMode }
+  const latestScopeRef = useRef({ query, textId, wordMode, testamentFilter, selectedBooks, sortMode, selectedTagIds, tagMatchAll })
+  latestScopeRef.current = { query, textId, wordMode, testamentFilter, selectedBooks, sortMode, selectedTagIds, tagMatchAll }
   useEffect(() => {
     return () => {
       if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
-      const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode } = latestScopeRef.current
+      const { query, textId, wordMode, testamentFilter, selectedBooks, sortMode, selectedTagIds, tagMatchAll } = latestScopeRef.current
       onStateChangeRef.current?.({
         query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
         scrollTop: lastScrollTopRef.current,
+        tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
       })
     }
   }, [])
@@ -618,8 +710,30 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     // rank outside the unscoped cap's top N by BM25 relevance. 'Pseudepigrapha' is a
     // text-level distinction (not a book_id), so it's left unscoped here.
     const scopedBookIds: string[] | undefined = selectedBooks.length > 0 ? selectedBooks : testamentScopedBookIds
+    // Word-replacer → Strong's bridge: "yehovah" restores from H3068/H3069, which plain FTS
+    // (index still says "LORD") can't find. Search those by occurrence and merge. KJVA-only —
+    // the H-number rules and occurrence data are Hebrew-OT tagging. See getWordReplacerStrongsSearch.
+    const wrStrongs = (wordReplacerEnabled && tid === 'kjva' && effectiveWordMode !== 'phrase')
+      ? getWordReplacerStrongsSearch(trimmed, wordReplacerRules)
+      : null
     try {
       const raw = await runRawSearch(trimmed, tid, effectiveWordMode, variants, scopedBookIds)
+      const wrStrongsMatches: Record<string, number[]> = {}
+      if (wrStrongs) {
+        try {
+          const strongsHits = await searchAnyStrongs(wrStrongs.strongsNums, wrStrongs.residualWords, window.lexicon.getOccurrences)
+          const seen = new Set(raw.map((r) => `${r.book_id}:${r.chapter}:${r.verse_num}`))
+          const scopeSet = scopedBookIds ? new Set(scopedBookIds) : null
+          for (const o of strongsHits) {
+            const key = `${o.book_id}:${o.chapter}:${o.verse_num}`
+            wrStrongsMatches[key] = o.matchWordIndices
+            if (seen.has(key)) continue
+            if (scopeSet && !scopeSet.has(o.book_id)) continue
+            raw.push({ book_id: o.book_id, chapter: o.chapter, verse_num: o.verse_num, text: o.text, _textId: 'kjva' })
+          }
+        } catch { /* best-effort — FTS results still stand */ }
+      }
+      setStrongsMatches(wrStrongsMatches)
       setResults(raw)
       // The Scripture-filter checklist needs to know which books this query would match with
       // NO book filter applied. When nothing's checked, `raw` above already IS that (it was
@@ -778,6 +892,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       const rid = r._textId ?? textId
       // Book filter
       if (!bookPassesFilter(selectedBooks, r.book_id)) continue
+      // Verse-tag filter (no-op when no tags selected)
+      if (!passesTagFilter(r.book_id, r.chapter, r.verse_num)) continue
       // Testament filter
       const booksForText = allBooks[rid] ?? []
       const bookData = booksForText.find((b) => b.id === r.book_id)
@@ -833,7 +949,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       groups.forEach((g) => g.results.reverse())
     }
     return groups
-  })(), [results, selectedBooks, allBooks, testamentFilter, sortMode, sortDirection])
+  })(), [results, selectedBooks, allBooks, testamentFilter, sortMode, sortDirection, passesTagFilter])
 
   const totalCount = filteredGroups.reduce((n, g) => n + g.results.length, 0)
 
@@ -1000,7 +1116,22 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             </button>
           )
         })()}
+
       </TabHeaderPortal>
+
+      {tagFilterMenuOpen && tagFilterBtnRef.current && (
+        <TagFilterMenu
+          anchorRect={tagFilterBtnRef.current.getBoundingClientRect()}
+          tags={verseTags}
+          selectedIds={selectedTagIds}
+          matchAll={tagMatchAll}
+          onToggle={(id) => setSelectedTagIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+          onClear={() => setSelectedTagIds([])}
+          onSetMatchAll={setTagMatchAll}
+          onManage={() => { openTagManager(); setTagFilterMenuOpen(false) }}
+          onClose={() => setTagFilterMenuOpen(false)}
+        />
+      )}
 
       {/* ── Header row: search input + relevance/view toggles. No back button — Esc
            (handleKeyDown) still returns to the reader. ── */}
@@ -1133,6 +1264,26 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 document.body
               )}
             </div>
+
+            {/* Verse-tag filter — lives in this wrapping header row (not the non-wrapping
+                TopBar portal, where it got clipped off the right edge). */}
+            {(() => {
+              const on = selectedTagIds.length > 0
+              const names = selectedTagIds.map((id) => verseTags.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+              const summary = !on ? 'Any tag' : names.length === 1 ? names[0] : `${names.length} tags${tagMatchAll ? ' · all' : ''}`
+              return (
+                <button
+                  ref={tagFilterBtnRef}
+                  onClick={() => setTagFilterMenuOpen((v) => !v)}
+                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors cursor-pointer flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  title="Filter results by verse tag"
+                >
+                  <Tag size={12} className="flex-shrink-0" />
+                  <span className="truncate max-w-[140px]">{summary}</span>
+                  <ChevronDown size={10} className="flex-shrink-0" />
+                </button>
+              )
+            })()}
           </>
         )}
       </div>
@@ -1485,6 +1636,56 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             <GitFork size={28} className="text-[rgb(var(--color-text-muted))] mb-3 opacity-30" />
             <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1">Find cross-references for any verse</p>
             <p className="text-[10px] text-[rgb(var(--color-text-muted))] opacity-60">Type a verse reference like "Gen 1:1" or "John 3:16"</p>
+          </div>
+        )}
+
+        {/* Verse-tag browse: when tags are selected but there's no active text query, list
+            the tagged verse-groups / chapters directly. Typing a query switches to the
+            normal search below, intersected with the tag filter. */}
+        {effectiveMode(query) !== 'crossref' && selectedTagIds.length > 0 && query.trim().length < 2 && (
+          <div className="py-1.5">
+            <p className="px-4 pt-0.5 pb-1 text-[10px] text-[rgb(var(--color-text-muted))]">
+              {tagMembers.length} tagged {tagMembers.length === 1 ? 'item' : 'items'}
+              {tagMatchAll && selectedTagIds.length > 1 ? ' · matching all selected tags' : ''}
+            </p>
+            {tagMembers.length === 0 && (
+              <div className="px-4 py-10 text-center text-xs text-[rgb(var(--color-text-muted))]">Nothing tagged yet.</div>
+            )}
+            {tagMembers.map((m) => {
+              const first = m.verses[0] ?? (m.wholeChapters[0] ? { ...m.wholeChapters[0], verse: 1 } : null)
+              const rows = tagMemberVerses[m.memberId] ?? []
+              const wr = (t: string) => (wordReplacerEnabled && wordReplacerRules.length > 0 ? applyWordReplacer(t, wordReplacerRules) : t)
+              return (
+                <div key={m.memberId} className="border-b border-[rgb(var(--color-surface-4))/40] group">
+                  <button
+                    onClick={() => first && onNavigate(first.bookId, first.chapter, first.verse, 'kjva')}
+                    className="w-full flex items-center gap-2 px-4 pt-2 pb-1 text-left hover:bg-[rgb(var(--color-surface-4))/40] transition-colors cursor-pointer"
+                  >
+                    <span className="text-xs font-mono text-[rgb(var(--color-accent))] flex-shrink-0 group-hover:underline">{m.label}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] flex items-center gap-1">
+                      <Tag size={9} />{m.tagName}
+                    </span>
+                    {m.kind === 'chapter' && <span className="text-[10px] text-[rgb(var(--color-text-muted))]">whole chapter</span>}
+                    <ChevronRight size={11} className="ml-auto flex-shrink-0 text-[rgb(var(--color-text-muted))] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  <div className="px-4 pb-2 space-y-0.5">
+                    {rows.map((v) => (
+                      <button
+                        key={v.verse}
+                        onClick={() => onNavigate(first?.bookId ?? m.verses[0]?.bookId ?? m.wholeChapters[0]?.bookId ?? 'GEN', first?.chapter ?? m.verses[0]?.chapter ?? m.wholeChapters[0]?.chapter ?? 1, v.verse, 'kjva')}
+                        className="w-full flex gap-2 text-left text-xs leading-relaxed hover:bg-[rgb(var(--color-surface-4))/40] rounded px-1 -mx-1 cursor-pointer"
+                      >
+                        <span className="font-mono text-[10px] text-[rgb(var(--color-text-muted))] flex-shrink-0 pt-0.5 w-5 text-right">{v.verse}</span>
+                        <span className="text-[rgb(var(--color-text-primary))]">{wr(v.text)}</span>
+                      </button>
+                    ))}
+                    {m.kind === 'chapter' && rows.length >= 6 && (
+                      <p className="text-[10px] text-[rgb(var(--color-text-muted))] pl-7">…open the chapter to read the rest</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -1850,5 +2051,91 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         document.body
       )}
     </div>
+  )
+}
+
+/** Small popover under the "Tags" scope pill — pick which verse tags filter the results. */
+function TagFilterMenu({
+  anchorRect, tags, selectedIds, matchAll, onToggle, onClear, onSetMatchAll, onManage, onClose,
+}: {
+  anchorRect: DOMRect
+  tags: import('@/types').VerseTag[]
+  selectedIds: string[]
+  matchAll: boolean
+  onToggle: (id: string) => void
+  onClear: () => void
+  onSetMatchAll: (v: boolean) => void
+  onManage: () => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x: anchorRect.left, y: anchorRect.bottom + 6 })
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const pad = 8
+    let x = anchorRect.left
+    let y = anchorRect.bottom + 6
+    if (x + width + pad > window.innerWidth) x = Math.max(pad, window.innerWidth - width - pad)
+    if (y + height + pad > window.innerHeight) y = Math.max(pad, anchorRect.top - height - 6)
+    setPos({ x, y })
+  }, [anchorRect])
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
+    const t = setTimeout(() => {
+      window.addEventListener('mousedown', onDown)
+      window.addEventListener('keydown', onKey, true)
+    }, 0)
+    return () => { clearTimeout(t); window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey, true) }
+  }, [onClose])
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed z-[140] w-[230px] rounded-shell context-menu overflow-hidden flex flex-col"
+      style={{ left: pos.x, top: pos.y, backgroundColor: 'rgb(var(--color-surface-2) / 0.97)' }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between px-3 pt-2 pb-1 text-[11px] font-semibold text-[rgb(var(--color-text-secondary))]">
+        <span>Filter by tag</span>
+        {selectedIds.length > 0 && (
+          <button onClick={onClear} className="text-[10px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer">Clear</button>
+        )}
+      </div>
+      <div className="max-h-[240px] overflow-y-auto px-1.5 pb-1">
+        {tags.length === 0 && <div className="px-2 py-3 text-[11px] text-[rgb(var(--color-text-muted))] text-center">No tags yet.</div>}
+        {tags.map((t) => {
+          const on = selectedIds.includes(t.id)
+          return (
+            <button
+              key={t.id}
+              onClick={() => onToggle(t.id)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left rounded hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-text-primary))]"
+            >
+              <span className={`w-[13px] h-[13px] rounded border flex items-center justify-center flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))] border-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))]'}`}>
+                {on && <Check size={10} className="text-white" />}
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color ? highlightDotColor(t.color as import('@/types').HighlightColor) : 'rgb(var(--color-text-muted))' }} />
+              <span className="truncate">{t.name}</span>
+              <span className="ml-auto text-[10px] text-[rgb(var(--color-text-muted))]">{t.verseCount + t.chapterCount}</span>
+            </button>
+          )
+        })}
+      </div>
+      {selectedIds.length > 1 && (
+        <label className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-[rgb(var(--color-text-secondary))] border-t border-[rgb(var(--color-surface-4))] cursor-pointer">
+          <input type="checkbox" checked={matchAll} onChange={(e) => onSetMatchAll(e.target.checked)} />
+          Match all selected tags
+        </label>
+      )}
+      <button
+        onClick={onManage}
+        className="flex items-center gap-1 px-3 py-2 text-[11px] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] border-t border-[rgb(var(--color-surface-4))] cursor-pointer"
+      >
+        <Settings2 size={11} /> Manage tags…
+      </button>
+    </div>,
+    document.body,
   )
 }

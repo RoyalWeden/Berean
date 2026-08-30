@@ -227,7 +227,67 @@ describe('parseRef — chapter sweeps', () => {
 })
 
 // ── makeSnippet — windows truncated text around the query match ─────────────────
-import { makeSnippet } from '../highlight'
+import { makeSnippet, applyFindHighlight } from '../highlight'
+
+/** Recursively collect the text inside every <mark> element applyFindHighlight produced. */
+function markedText(node: unknown): string[] {
+  if (node == null || typeof node === 'string' || typeof node === 'number') return []
+  const el = node as { type?: unknown; props?: { children?: unknown; className?: unknown } }
+  const kids = el.props?.children
+  const childArray = Array.isArray(kids) ? kids : kids === undefined ? [] : [kids]
+  const here =
+    typeof el.props?.className === 'string' && el.props.className.includes('berean-find-mark')
+      ? childArray.filter((c): c is string => typeof c === 'string')
+      : []
+  return [...here, ...childArray.flatMap(markedText)]
+}
+
+// Mirrors FloatingSearch's word-replacer → Strong's bridge row display-text build:
+// substitute the replacement at the matched word indices, preserving affixes.
+function replaceWordPreservingAffixes(word: string, replacement: string): string {
+  const m = word.match(/^(\W*)([A-Za-z]+)('[Ss])?(\W*)$/)
+  if (!m) return replacement
+  const [, lead, , poss, trail] = m
+  return lead + replacement + (poss ? "'s" : '') + (trail ?? '')
+}
+function bridgeDisplayText(text: string, wrIndices: number[], wrReplacement: string): string {
+  const idxSet = new Set(wrIndices)
+  return text.split(' ').map((w, i) => (idxSet.has(i) ? replaceWordPreservingAffixes(w, wrReplacement) : w)).join(' ')
+}
+
+describe('word-replacer bridge row display text', () => {
+  it('substitutes the replacement at the matched word index', () => {
+    const out = bridgeDisplayText('the LORD God of hosts', [1], 'Yehovah')
+    expect(out).toBe('the Yehovah God of hosts')
+  })
+  it('makeSnippet on the produced text finds the replaced term', () => {
+    const out = bridgeDisplayText('the LORD God of hosts', [1], 'Yehovah')
+    expect(makeSnippet(out, 'Yehovah', 100).toLowerCase()).toContain('yehovah')
+  })
+  it('preserves trailing punctuation / possessive on the replaced word', () => {
+    expect(bridgeDisplayText("the LORD'S, house", [1], 'Yehovah')).toBe("the Yehovah's, house")
+  })
+})
+
+describe('applyFindHighlight — multi-term', () => {
+  it('marks a match on any term in an array', () => {
+    const node = applyFindHighlight('the Yehovah God of hosts', ['LORD', 'Yehovah'], 'all')
+    expect(markedText(node)).toContain('Yehovah')
+  })
+  it('marks whichever of the terms is present (typed term not in the text)', () => {
+    const node = applyFindHighlight('the Yehovah God', ['lord', 'yehovah'], 'all')
+    expect(markedText(node).map((s) => s.toLowerCase())).toContain('yehovah')
+  })
+  it('still accepts a single string (unchanged callers)', () => {
+    const node = applyFindHighlight('in the beginning', 'beginning', 'phrase')
+    expect(markedText(node)).toContain('beginning')
+  })
+  it('returns the text unchanged when no term matches', () => {
+    const node = applyFindHighlight('nothing here', ['zzz', 'qqq'], 'all')
+    expect(node).toBe('nothing here')
+  })
+})
+
 
 describe('makeSnippet', () => {
   const long = 'In the beginning God created the heaven and the earth and the deep waters covered everything below the firmament of the sky'

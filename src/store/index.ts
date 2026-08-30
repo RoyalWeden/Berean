@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry } from '@/types'
+import type { SpaceId, Tab, TabState, TabType, MosaicKey, BibleTabState, HistoryEntry, TabNavEntry, VerseTag } from '@/types'
 import type { MosaicNode } from 'react-mosaic-component'
 import { clampZoom, adjustZoom, ZOOM_DEFAULT } from '@/lib/zoom'
 import { bookName } from '@/lib/parseRef'
@@ -23,6 +23,20 @@ export interface WordReplacerRule {
    *  It is ignored by the plain-text applyWordReplacer. */
   strongsNum?: string
 }
+
+/** A verse the user has picked out by clicking its verse number in the reader. Purely
+ *  transient UI state (never persisted) — drives the floating multi-verse action bar and,
+ *  when the user then navigates elsewhere, seeds the Study Trail connection's "from" context
+ *  so the trail records why they jumped. */
+export interface SelectedVerseRef {
+  bookId: string
+  chapter: number
+  verse: number
+  textId: string
+}
+
+export const selectedVerseKey = (r: SelectedVerseRef) =>
+  `${r.textId}|${r.bookId}|${r.chapter}|${r.verse}`
 
 // History is loaded/paged in chunks of this size (unlimited total, lazy-loaded).
 const HISTORY_PAGE_SIZE = 300
@@ -252,6 +266,16 @@ export interface AppState {
   highlightChangeToken: number
   bumpHighlightToken: () => void
 
+  // Verse tags (SQLite-backed; this is a cached copy of window.verseTags.list()).
+  verseTags: VerseTag[]
+  verseTagChangeToken: number
+  setVerseTags: (tags: VerseTag[]) => void
+  refreshVerseTags: () => Promise<void>
+  bumpVerseTagToken: () => void
+  tagManagerOpen: boolean
+  openTagManager: () => void
+  closeTagManager: () => void
+
   // Search tab
   pendingSearchQuery: string | null
   openSearchTab: (query: string) => void
@@ -333,7 +357,7 @@ export interface AppState {
   closeMarkdownReference: () => void
 
   // Dedicated scripture search tab
-  openScriptureSearchTab: (query?: string) => void
+  openScriptureSearchTab: (query?: string, opts?: { tagIds?: string[]; matchAll?: boolean; tagNames?: string[] }) => void
 
   // Note auto-ref settings
   noteVerseRefsEnabled: boolean
@@ -651,6 +675,11 @@ export interface AppState {
   verseNoteToken: number        // bumped when a verse note is created via verse popover
   strongsHoverToken: number     // bumped when a Strong's tooltip opens (hover detected)
   versePopoverToken: number     // bumped when the verse number popover opens
+  /** Verses picked out via verse-number click, in click order — keyed by the scripture
+   *  tab they were selected on, so each tab keeps its own selection and the floating
+   *  action bar only shows for the tab you're actually on. Consumed + cleared by
+   *  scripture navigation (verseNavigation.ts) to seed the Study Trail "from" context. */
+  selectedVersesByTab: Record<string, SelectedVerseRef[]>
   noteEditToken: number         // bumped when note content is meaningfully edited
   tableInsertToken: number      // bumped when a table is inserted via toolbar
   settingsNavToken: number      // bumped when user navigates to a settings section
@@ -666,6 +695,9 @@ export interface AppState {
   bumpVerseNoteToken: () => void
   bumpStrongsHoverToken: () => void
   bumpVersePopoverToken: () => void
+  /** `tabId` omitted/null → the active scripture tab. */
+  toggleVerseSelection: (tabId: string | null | undefined, ref: SelectedVerseRef) => void
+  clearVerseSelection: (tabId?: string | null) => void
   bumpNoteEditToken: () => void
   bumpTableInsertToken: () => void
   bumpSettingsNavToken: () => void
@@ -936,6 +968,9 @@ export const useAppStore = create<AppState>()(
       pendingRightPanelVerseFilter: null,
       pendingRightPanelCrossRefVerse: null,
       highlightChangeToken: 0,
+      verseTags: [] as VerseTag[],
+      verseTagChangeToken: 0,
+      tagManagerOpen: false,
       pendingSearchQuery: null,
       findBarOpen: false,
       findBarQuery: '',
@@ -1067,6 +1102,7 @@ export const useAppStore = create<AppState>()(
             last.strongsNum === newEntry.strongsNum &&
             last.videoId === newEntry.videoId &&
             last.query === newEntry.query &&
+            (last.searchTagFilter ?? []).join(',') === (newEntry.searchTagFilter ?? []).join(',') &&
             last.parentId === newEntry.parentId
           ) return {}
           // Capped in memory (full history always lives in SQLite regardless — this only
@@ -1125,6 +1161,7 @@ export const useAppStore = create<AppState>()(
       verseNoteToken: 0,
       strongsHoverToken: 0,
       versePopoverToken: 0,
+      selectedVersesByTab: {} as Record<string, SelectedVerseRef[]>,
       noteEditToken: 0,
       tableInsertToken: 0,
       settingsNavToken: 0,
@@ -1145,6 +1182,23 @@ export const useAppStore = create<AppState>()(
       bumpVerseNoteToken: () => set((s) => ({ verseNoteToken: s.verseNoteToken + 1 })),
       bumpStrongsHoverToken: () => set((s) => ({ strongsHoverToken: s.strongsHoverToken + 1 })),
       bumpVersePopoverToken: () => set((s) => ({ versePopoverToken: s.versePopoverToken + 1 })),
+      toggleVerseSelection: (tabId, ref) => set((s) => {
+        const tid = tabId ?? s.activeTabId['scripture']
+        if (!tid) return {}
+        const key = selectedVerseKey(ref)
+        const cur = s.selectedVersesByTab[tid] ?? []
+        const next = cur.some((v) => selectedVerseKey(v) === key)
+          ? cur.filter((v) => selectedVerseKey(v) !== key)
+          : [...cur, ref]
+        return { selectedVersesByTab: { ...s.selectedVersesByTab, [tid]: next } }
+      }),
+      clearVerseSelection: (tabId) => set((s) => {
+        const tid = tabId ?? s.activeTabId['scripture']
+        if (!tid || !s.selectedVersesByTab[tid]?.length) return {}
+        const nextMap = { ...s.selectedVersesByTab }
+        delete nextMap[tid]
+        return { selectedVersesByTab: nextMap }
+      }),
       bumpNoteEditToken: () => set((s) => ({ noteEditToken: s.noteEditToken + 1 })),
       bumpTableInsertToken: () => set((s) => ({ tableInsertToken: s.tableInsertToken + 1 })),
       bumpSettingsNavToken: () => set((s) => ({ settingsNavToken: s.settingsNavToken + 1 })),
@@ -1877,7 +1931,8 @@ export const useAppStore = create<AppState>()(
         if (!wasActive) {
           set((s) => {
             const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
-            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks }
+            const { [tabId]: __, ...restSel } = s.selectedVersesByTab
+            return { tabs: newTabsAll, tabMRUList: prunedMRU, tabNavStacks: restNavStacks, selectedVersesByTab: restSel }
           })
           return
         }
@@ -1896,6 +1951,7 @@ export const useAppStore = create<AppState>()(
 
         set((s) => {
           const { [tabId]: _, ...restNavStacks } = s.tabNavStacks
+          const { [tabId]: __, ...restSel } = s.selectedVersesByTab
           if (mruFallback && mruFallback.spaceId !== spaceId) {
             return {
               tabs: newTabsAll,
@@ -1903,6 +1959,7 @@ export const useAppStore = create<AppState>()(
               activeSpace: mruFallback.spaceId,
               tabMRUList: prunedMRU,
               tabNavStacks: restNavStacks,
+              selectedVersesByTab: restSel,
             }
           }
           return {
@@ -1910,6 +1967,7 @@ export const useAppStore = create<AppState>()(
             activeTabId: { ...state.activeTabId, [spaceId]: mruFallback?.tabId ?? withinSpaceFallbackId },
             tabMRUList: prunedMRU,
             tabNavStacks: restNavStacks,
+            selectedVersesByTab: restSel,
           }
         })
       },
@@ -2230,6 +2288,16 @@ export const useAppStore = create<AppState>()(
       clearRightPanelVerseFilter: () => set({ pendingRightPanelVerseFilter: null }),
       clearRightPanelCrossRef: () => set({ pendingRightPanelCrossRefVerse: null }),
       bumpHighlightToken: () => set((s) => ({ highlightChangeToken: s.highlightChangeToken + 1 })),
+      setVerseTags: (tags) => set((s) => ({ verseTags: tags, verseTagChangeToken: s.verseTagChangeToken + 1 })),
+      bumpVerseTagToken: () => set((s) => ({ verseTagChangeToken: s.verseTagChangeToken + 1 })),
+      refreshVerseTags: async () => {
+        try {
+          const tags = await window.verseTags.list()
+          set((s) => ({ verseTags: tags, verseTagChangeToken: s.verseTagChangeToken + 1 }))
+        } catch { /* verseTags bridge not ready (e.g. tests) */ }
+      },
+      openTagManager: () => set({ tagManagerOpen: true }),
+      closeTagManager: () => set({ tagManagerOpen: false }),
       openSearchTab: (query) => {
         get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
         if (get().tabs['search'].length === 0) get().createTab('search')
@@ -2319,8 +2387,34 @@ export const useAppStore = create<AppState>()(
       openMarkdownReference: () => set({ markdownReferenceOpen: true }),
       closeMarkdownReference: () => set({ markdownReferenceOpen: false }),
 
-      openScriptureSearchTab: (query?: string) => {
-        if (query) get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
+      openScriptureSearchTab: (query?: string, opts?: { tagIds?: string[]; matchAll?: boolean; tagNames?: string[] }) => {
+        // Accept tag ids directly, or resolve names (from a history entry) against the live registry.
+        const tagIds = opts?.tagIds ?? (opts?.tagNames ?? [])
+          .map((n) => get().verseTags.find((t) => t.name.toLowerCase() === n.toLowerCase())?.id)
+          .filter((x): x is string => !!x)
+        // If a tab already exists scoped to exactly this single tag (and no query), focus it.
+        if (tagIds.length === 1 && !query) {
+          const existing = get().tabs['scripture'].find((t) => {
+            const st = t.state as BibleTabState
+            return st?.searchMode && st.searchTagFilter === tagIds[0] && !(st.scriptureSearchQuery ?? '').trim()
+          })
+          if (existing) {
+            set((s) => ({ activeTabId: { ...s.activeTabId, scripture: existing.id }, activeSpace: 'scripture' }))
+            return
+          }
+        }
+        const tagNames = opts?.tagNames?.length
+          ? opts.tagNames
+          : tagIds.map((id) => get().verseTags.find((t) => t.id === id)?.name).filter((x): x is string => !!x)
+        if (query || tagIds.length) {
+          get().addHistoryEntry({
+            type: 'search',
+            title: query ? `"${query}"` : (tagNames.length ? `#${tagNames.join(' #')}` : 'Tagged verses'),
+            query: query ?? '',
+            searchTagFilter: tagNames.length ? tagNames : undefined,
+            searchTagFilterAll: opts?.matchAll || undefined,
+          })
+        }
         const state = get()
         // Always create a fresh tab — never reuse an existing search tab
         const id = `scripture-search-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -2328,7 +2422,7 @@ export const useAppStore = create<AppState>()(
           id,
           spaceId: 'scripture',
           type: 'bible',
-          title: 'Search',
+          title: query ? 'Search' : (tagNames[0] ? `#${tagNames[0]}` : 'Tagged'),
           state: {
             bookId: 'GEN',
             chapter: 1,
@@ -2337,6 +2431,7 @@ export const useAppStore = create<AppState>()(
             scrollPosition: 0,
             searchMode: true,
             scriptureSearchQuery: query ?? '',
+            ...(tagIds.length ? { searchTagFilter: tagIds.join(','), searchTagFilterAll: opts?.matchAll || undefined } : {}),
           },
         }
         // Same placement rule as createTab/addTab (see computeInsertOrder) — without this the

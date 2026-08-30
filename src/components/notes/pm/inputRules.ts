@@ -191,15 +191,14 @@ const taskCheckboxRule = new InputRule(/^\[([ xX])\]\s$/, (state, match, start, 
 // `\s` matches NBSP already (confirmed: /\s/.test(' ') === true in
 // V8/JS), so excluding by `\s` instead of a literal space correctly treats
 // NBSP as "already a space" and leaves it to headingRule to convert directly.
-const headingSpaceRule = new InputRule(/^(#{1,6})([^\s#])$/, (state, match, start, end) => {
-  const [, hashes, typed] = match
-  const tr = state.tr.replaceWith(start, end, state.schema.text(`${hashes} ${typed}`))
-  return tr
-}, { inCodeMark: false })
+// NOTE: the old "auto-insert a space after a bare '#' run" rule (rewrote "#s" -> "# s")
+// was removed — it made a start-of-line "#tag" impossible to type (it always became a
+// heading). A heading now forms only when the user types the space (headingRule below);
+// "#word" with no space stays literal so the #tag autocomplete can claim it.
 
 export const bereanInputRules = buildInputRulesPlugin({
   rules: [
-    emDashRule, headingSpaceRule,
+    emDashRule,
     headingRule, codeFenceRule, blockquoteRule, bulletListRule, orderedListRule, taskCheckboxRule, horizontalRuleRule,
     boldRule, boldUnderscoreRule, italicRule, italicUnderscoreRule, strikeRule, codeRule, highlightRule,
     wikilinkRule,

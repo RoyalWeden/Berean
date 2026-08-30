@@ -2205,6 +2205,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             bookFilter: tabState.searchBookFilter,
             sortMode: tabState.searchSortMode,
             scrollTop: tabState.searchScrollTop,
+            tagFilter: tabState.searchTagFilter,
+            tagFilterAll: tabState.searchTagFilterAll,
           }}
           onStateChange={(s) => {
             if (activeTab) {
@@ -2216,6 +2218,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 searchBookFilter: s.bookFilter,
                 searchSortMode: s.sortMode,
                 searchScrollTop: s.scrollTop,
+                searchTagFilter: s.tagFilter,
+                searchTagFilterAll: s.tagFilterAll,
               })
               // Reflect the live query in the tab's own title — this tab's title was
               // otherwise stuck at the static "Search" it was created with, giving no

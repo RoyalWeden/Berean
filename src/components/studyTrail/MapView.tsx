@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, StickyNote, Pencil } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -490,7 +490,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           {labelIcon === 'branch' && <GitBranch size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
           {label}
           {hasNote(conn) && (
-            <StickyNote size={11} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+            <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
           )}
         </span>
         {isPromotedChain && (
@@ -969,7 +969,7 @@ function NodeBlock({
             }}>{step}</span>
             {bookChapterVerseLabel(node.bookId, node.chapter)}
             {hasNote(originConn) && (
-              <StickyNote size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+              <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
             )}
             {isRevisit && !bounceBadge && (
               <span style={{

@@ -579,6 +579,17 @@ export function registerNotesHandlers(ipcMain: IpcMain): void {
     return { success: true, deleted: (result as { changes: number }).changes }
   })
 
+  // How many live notes contain an inline "#<name>" verse-tag reference in their body.
+  // Used to warn before deleting a verse tag (Tag Manager). Simple substring match — a
+  // slight over-count (e.g. "#name" inside a code span) is acceptable for a confirm prompt.
+  ipcMain.handle('notes:countTagRefs', (_event, name: string) => {
+    const db = getBereanDb()
+    const row = db.prepare(
+      `SELECT COUNT(*) AS n FROM notes WHERE deleted_at IS NULL AND content LIKE '%#' || ? || '%'`,
+    ).get(name) as { n: number }
+    return { count: row.n }
+  })
+
   // Returns all notes for a chapter. KJV and LXX are cross-linked (each sees the other's notes).
   //
   // Psalms is the one book where KJV and LXX chapter numbers diverge (merges/splits around

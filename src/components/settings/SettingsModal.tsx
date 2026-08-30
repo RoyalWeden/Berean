@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Sun, Moon, Monitor, Keyboard, FolderOpen, Trash2, ExternalLink, ChevronDown, ChevronRight, BookOpen, RefreshCw, Search as SearchIcon,
-  Palette, FileText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch,
+  Palette, NotepadText, RefreshCcw, Youtube, Database, Info, Cast, FlaskConical, Volume2, GitBranch, Tag,
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { LAYOUT_DEFS } from '@/components/bible/LayoutPicker'
@@ -11,6 +11,7 @@ import { BULLET_STYLE_DEFS } from '@/lib/noteTextBlocks'
 import { migrateAllNotes, type MigrationResult } from '@/lib/noteMigration'
 import Switch from '@/components/shell/Switch'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
+import SectionAnchorChips from './SectionAnchorChips'
 import YtLayoutSetting from './sections/YtLayoutSetting'
 import WordReplacerSection from './sections/WordReplacerSection'
 import AudioSection from './sections/AudioSection'
@@ -421,7 +422,7 @@ export default function SettingsModal() {
   const NAV: { id: Section; label: string; icon: typeof Palette; keywords?: string[] }[] = [
     { id: 'appearance', label: 'Appearance', icon: Palette,   keywords: ['theme', 'font', 'color', 'dark', 'light', 'preset', 'typography', 'ui'] },
     { id: 'reading',    label: 'Reading',    icon: BookOpen,  keywords: ['strongs', 'inline', 'verse', 'zoom', 'layout', 'line height', 'scripture', 'bible', 'translation', 'red letter', 'hermas'] },
-    { id: 'notes',      label: 'Notes',      icon: FileText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily'] },
+    { id: 'notes',      label: 'Notes',      icon: NotepadText,  keywords: ['markdown', 'editor', 'em dash', 'divider', 'bullet', 'spell', 'autocomplete', 'print', 'export', 'pdf', 'margin', 'daily', 'tags', 'verse tags'] },
     { id: 'vault',      label: 'Sync',       icon: RefreshCcw, keywords: ['sync', 'vault', 'obsidian', 'octarine', 'icloud', 'folder', 'path', 'markdown'] },
     { id: 'youtube',    label: 'YouTube',    icon: Youtube,   keywords: ['video', 'pip', 'picture in picture', 'channel', 'allowlist', 'transcript', 'captions', 'layout'] },
     { id: 'audio',      label: 'Audio',      icon: Volume2,   keywords: ['audio', 'read aloud', 'tts', 'text to speech', 'voice', 'speak', 'speech', 'listen', 'narration'] },
@@ -558,10 +559,11 @@ export default function SettingsModal() {
               onScroll={(e) => setSettingsSectionScrollTop(section, e.currentTarget.scrollTop)}
               className="settings-content flex-1 overflow-y-auto px-6 py-6 space-y-6"
             >
+              <SectionAnchorChips scrollRef={settingsContentRef} sectionKey={section} />
               {section === 'appearance' && (
                 <>
                   {/* Color mode: Dark / Light / System — controls all themes including presets */}
-                  <div>
+                  <div data-anchor="Color mode">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Color mode</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Controls dark or light for all themes and preset palettes</p>
                     <div className="flex gap-2">
@@ -591,7 +593,7 @@ export default function SettingsModal() {
                       cramming every swatch into the Settings modal itself. `activePreset` is
                       reused below by the ambient-animation section too, to detect when the
                       active theme carries its own curated animation. */}
-                  <div>
+                  <div data-anchor="Theme">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Theme</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
                       {theme === 'system' ? 'Previews show dark/light split — system picks automatically' : `Showing ${previewVariant} variants`}
@@ -641,7 +643,7 @@ export default function SettingsModal() {
                       anyway). It unlocks again the moment a different theme is selected, back to
                       whatever this was set to before — nothing here gets overwritten by the
                       lock, only visually overridden while it's in effect. */}
-                  <div>
+                  <div data-anchor="Background">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Ambient background animation</p>
                       <Switch
@@ -705,7 +707,7 @@ export default function SettingsModal() {
                   </div>
 
                   {/* Font family per section */}
-                  <div>
+                  <div data-anchor="Fonts">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Section fonts</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Choose typefaces independently for each area</p>
                     <div className="space-y-3">
@@ -742,7 +744,7 @@ export default function SettingsModal() {
 
               {section === 'reading' && (
                 <>
-                  <div>
+                  <div data-anchor="Translation">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default translation</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Used when opening a new Bible tab</p>
                     <select
@@ -769,7 +771,7 @@ export default function SettingsModal() {
                     </select>
                   </div>
 
-                  <div>
+                  <div data-anchor="Layout">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default scripture layout</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout for new scripture tabs — can be overridden per-tab using the layout button in the tab toolbar</p>
                     <select
@@ -809,7 +811,7 @@ export default function SettingsModal() {
                     </div>
                   </div>
 
-                  <div>
+                  <div data-anchor="Text & size">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Line height</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Spacing between verse lines</p>
                     <div className="flex gap-2">
@@ -902,7 +904,7 @@ export default function SettingsModal() {
                   </div>
 
                   {/* ── Show verse numbers ── */}
-                  <div className="flex items-center justify-between gap-4">
+                  <div data-anchor="Verse display" className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Show verse numbers</p>
                       <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">Display verse numbers in the reading panel</p>
@@ -945,7 +947,7 @@ export default function SettingsModal() {
 
                   {/* ── Word replacer (divine-name restoration etc.) — affects how
                        scripture text displays, so it lives here rather than Notes ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div data-anchor="Word replacer" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Word replacer</p>
                     <WordReplacerSection
                       enabled={wordReplacerEnabled}
@@ -963,8 +965,24 @@ export default function SettingsModal() {
                     Control how Berean auto-detects references while you write notes.
                   </p>
 
+                  {/* Verse tags */}
+                  <div data-anchor="Verse tags" className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Verse tags</p>
+                      <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
+                        Group verses or whole chapters under named tags. Reference a tag in a note with <code>#name</code>; filter the Advanced Scripture Search by tag.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { useAppStore.getState().openTagManager(); useAppStore.getState().closeSettings() }}
+                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer flex-shrink-0"
+                    >
+                      <Tag size={13} /> Manage tags
+                    </button>
+                  </div>
+
                   {/* Verse refs toggle */}
-                  <div className="flex items-start justify-between gap-4">
+                  <div data-anchor="Reference detection" className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto-detect verse references</p>
                       <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
@@ -1127,7 +1145,7 @@ export default function SettingsModal() {
                   </details>
 
                   {/* Markdown reference guide */}
-                  <div>
+                  <div data-anchor="Editor">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Markdown reference</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-2">
                       A full guide to note formatting, verse references, wikilinks, and all supported book names.
@@ -1327,7 +1345,7 @@ export default function SettingsModal() {
                   </div>
 
                   {/* ── Daily notes ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div data-anchor="Daily notes" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Daily notes</p>
                     <div className="flex items-center justify-between gap-4">
                       <div>
@@ -1346,13 +1364,13 @@ export default function SettingsModal() {
                   {/* ── Print & export defaults — co-located since it's the same
                        "notes output" concern; per-note overrides still live in the
                        print-preview modal itself. ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div data-anchor="Print & export" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Print &amp; export defaults</p>
                     <PrintExportSection />
                   </div>
 
                   {/* ── Idiom notes ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div data-anchor="Idiom notes" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Idiom notes</p>
 
                     <div className="flex items-center justify-between gap-4 mb-3">
@@ -1383,7 +1401,7 @@ export default function SettingsModal() {
                   </div>
 
                   {/* ── Panel gestures ── */}
-                  <div className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
+                  <div data-anchor="Panel gestures" className="pt-2 border-t border-[rgb(var(--color-surface-4))]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[rgb(var(--color-text-muted))] mb-3">Panel gestures</p>
 
                     <div className="flex items-center justify-between gap-4">
@@ -1469,7 +1487,7 @@ export default function SettingsModal() {
                       <div className="mt-3 space-y-3 pl-4 border-l border-[rgb(var(--color-surface-4))]">
                         <div className="flex gap-2 flex-wrap items-start">
                           <div>
-                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
+                            <p data-anchor="Export" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Export now</p>
                             <div className="flex items-center gap-3 flex-wrap">
                               <button
                                 onClick={async () => {
@@ -1498,7 +1516,7 @@ export default function SettingsModal() {
                             </div>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
+                            <p data-anchor="Import" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Import from vault</p>
                             <div className="flex items-center gap-3 flex-wrap">
                               <button
                                 onClick={async () => {
@@ -1548,14 +1566,14 @@ export default function SettingsModal() {
               {section === 'youtube' && (
                 <>
                   {/* Default YouTube layout */}
-                  <div>
+                  <div data-anchor="Layout">
                     <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">Default layout</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">Starting layout when a YouTube tab opens a video</p>
                     <YtLayoutSetting />
                   </div>
 
                   {/* Auto PiP */}
-                  <div className="flex items-start justify-between gap-4">
+                  <div data-anchor="Picture-in-Picture" className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Auto Picture-in-Picture</p>
                       <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mt-0.5">
@@ -1573,7 +1591,7 @@ export default function SettingsModal() {
                   </div>
 
                   {/* Watch History */}
-                  <div>
+                  <div data-anchor="Watch history">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium text-[rgb(var(--color-text-primary))]">Watch history</p>
                       {watchHistory.length > 0 && (
@@ -1704,7 +1722,7 @@ export default function SettingsModal() {
 
                   {/* YouTube Account / Sign In */}
                   <div>
-                    <p className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">YouTube account</p>
+                    <p data-anchor="Account" className="text-sm font-medium text-[rgb(var(--color-text-primary))] mb-1">YouTube account</p>
                     <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] mb-3">
                       Sign in to YouTube to sync your subscriptions, history, and watch-later list across sessions.
                       Your login is stored in the app's persistent YouTube session and shared with the YouTube tab.

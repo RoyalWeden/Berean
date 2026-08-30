@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  BookOpen, Search, BookMarked, Highlighter, FileText,
-  StickyNote, LayoutTemplate, Settings2, History, ChevronDown,
+  BookOpen, Search, BookMarked, Highlighter, NotepadText,
+  LayoutTemplate, Settings2, History, ChevronDown,
   X, CheckCircle2, Sparkles, ArrowRight, ChevronRight,
   Languages, AlignLeft, Circle, Youtube, ExternalLink,
   Layers, PanelRight, Table2,
@@ -62,7 +62,7 @@ const SECTIONS: SectionDef[] = [
     tasks: [
       {
         id: 'open-welcome-note',
-        icon: FileText,
+        icon: NotepadText,
         title: 'Read the Getting Started guide',
         subtitle: 'Open the Welcome note Berean created for you on first launch.',
         shortcut: '⌘2',
@@ -317,7 +317,7 @@ const SECTIONS: SectionDef[] = [
       },
       {
         id: 'verse-note',
-        icon: StickyNote,
+        icon: NotepadText,
         title: 'Attach a note to a verse',
         subtitle: 'Write a study note anchored to a specific verse — it shows as a colored dot.',
         steps: [
@@ -619,7 +619,7 @@ const SECTIONS: SectionDef[] = [
       },
       {
         id: 'adv-vault-sync',
-        icon: FileText,
+        icon: NotepadText,
         title: 'Connect your Octarine / Obsidian vault',
         subtitle: 'Automatically sync all Berean notes to your Markdown vault folder.',
         steps: [
