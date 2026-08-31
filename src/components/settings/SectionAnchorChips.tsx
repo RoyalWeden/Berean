@@ -57,14 +57,19 @@ export default function SectionAnchorChips({
     return () => io.disconnect()
   }, [scrollRef, anchors])
 
-  if (anchors.length < 2) return null
+  // No chip bar for this section — still emit the top spacing the scroll container no
+  // longer provides (see SettingsModal's `settings-content` comment). `[&+*]:!mt-0`
+  // cancels the parent `space-y-6` gap that would otherwise stack on top of it.
+  if (anchors.length < 2) return <div aria-hidden className="pt-6 [&+*]:!mt-0" />
 
   return (
     <div
       ref={rowRef}
-      // Pull up into the scroll container's top padding so it sits flush at the very top
-      // (no empty gap above), and stay pinned there while scrolling.
-      className="sticky top-0 z-10 -mx-6 -mt-6 px-6 pt-2.5 pb-2 mb-3 flex flex-wrap gap-1.5 bg-[rgb(var(--color-surface-1))/97] backdrop-blur-sm border-b border-[rgb(var(--color-surface-4))/60]"
+      // Sits flush at the very top of the scroll area (the container has no `padding-top`
+      // now — that was what pushed a `sticky top-0` element down and left a gap above it).
+      // Translucent + blur so it reads as a frosted strip over the scrolling content;
+      // `[&+*]:!mt-2` trims the parent `space-y-6`'s 1.5rem gap under the row to a tight one.
+      className="sticky top-0 z-20 -mx-6 px-6 pt-2 pb-2 flex flex-wrap gap-1.5 bg-[rgb(var(--color-surface-1))/92] backdrop-blur-sm border-b border-[rgb(var(--color-surface-4))/60] [&+*]:!mt-2"
     >
       {anchors.map((a) => (
         <button

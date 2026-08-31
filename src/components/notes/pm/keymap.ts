@@ -4,6 +4,7 @@ import { undo, redo } from 'prosemirror-history'
 import { sinkListItem, liftListItem, splitListItem } from 'prosemirror-schema-list'
 import { NodeSelection, type Command } from 'prosemirror-state'
 import { bereanSchema as schema } from './schema'
+import { changeIndent } from './indent'
 import { blockEnterAnimMeta } from './blockHandles'
 
 const insertHardBreak: Command = (state, dispatch) => {
@@ -11,15 +12,18 @@ const insertHardBreak: Command = (state, dispatch) => {
   return true
 }
 
-// Fallback for Tab/Shift-Tab when nothing else claims it (not in a list,
-// not in a table — those are handled by sinkListItem/liftListItem and
-// tablePlugins.ts's goToNextCell respectively, both bound with higher
-// priority). Without this, an unclaimed Tab keypress falls through to the
-// BROWSER's default behavior: moving focus to the next focusable element
-// on the page — silently kicking the user's cursor entirely out of the
-// note editor. Insert 4 spaces instead, matching CM6's INDENT_UNIT.
-const insertTabSpaces: Command = (state, dispatch) => {
-  if (dispatch) dispatch(state.tr.insertText('    '))
+// Tab / Shift-Tab in a plain paragraph — adjust its left-indent level (see schema.ts's
+// `paragraph.indent` attr + changeIndent()). NOT a blockquote wrap (reads as a quote, not
+// an indent) and NOT `insertText('    ')` (ProseMirror collapses leading whitespace at
+// render, so it showed as a single space and never round-tripped).
+
+// Last-resort Tab fallback: inside a code block a literal tab is what you want; ANYWHERE
+// else just swallow the key (return true) so it never escapes to the browser's default of
+// moving focus out of the editor — and never replaces a selection with a tab character.
+const codeBlockTabOrNoop: Command = (state, dispatch) => {
+  if (state.selection.$from.parent.type === schema.nodes.code_block) {
+    if (dispatch) dispatch(state.tr.insertText('\t'))
+  }
   return true
 }
 
@@ -44,12 +48,11 @@ export const bereanKeymap = keymap({
   'Mod-z': undo,
   'Mod-y': redo,
   'Mod-Shift-z': redo,
-  // sinkListItem/liftListItem only apply inside a list; insertTabSpaces (Tab)
-  // and noopTrue (Shift-Tab) are the guaranteed-to-handle-it fallbacks that
-  // stop the key from escaping to the browser's default focus-change
-  // behavior — see insertTabSpaces's comment above for why that matters.
-  Tab: chainCommands(sinkListItem(schema.nodes.list_item), insertTabSpaces),
-  'Shift-Tab': chainCommands(liftListItem(schema.nodes.list_item), noopTrue),
+  // Priority order: list indent (only inside a list) → paragraph left-indent → code-block
+  // tab / swallow, so the key is always claimed and never escapes to the browser's
+  // focus-change behavior.
+  Tab: chainCommands(sinkListItem(schema.nodes.list_item), changeIndent(1), codeBlockTabOrNoop),
+  'Shift-Tab': chainCommands(liftListItem(schema.nodes.list_item), changeIndent(-1), noopTrue),
   Enter: chainCommands(splitListItem(schema.nodes.list_item), baseKeymap.Enter),
   'Shift-Enter': insertHardBreak,
   // Reserved by the app shell (scripture search, tab-nav history) — NOT

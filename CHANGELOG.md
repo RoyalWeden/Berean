@@ -122,7 +122,37 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [0.5.13] - 2026-08-30
+## [0.5.14] - 2026-08-30
+
+Notes
+
+- Pressing Tab in the notes editor now indents the current paragraph — with
+  several levels available — instead of inserting a space that looked like
+  nothing. Shift-Tab and the toolbar's outdent button step it back. The
+  indent is saved with the note so it stays put when you reopen it or view it
+  in Obsidian.
+- Tab inside a list still nests the bullet (or checkbox) as before, and no
+  longer strips the bullet away. Tab on the outermost bullet does nothing
+  rather than something odd, and selecting text before pressing Tab indents
+  the line instead of deleting the selection.
+
+Scripture reading
+
+- Every Bible panel now has a tag button next to the chapter arrows for
+  tagging the whole chapter in one click, and the chapter heading in
+  continuous-scroll mode has one too. You can later open the Tag Manager and
+  narrow a whole-chapter tag down to specific verses (e.g. `3-4,6`).
+
+Search
+
+- Typing a verse reference into floating search no longer stutters while you
+  finish typing it — the cross-reference lookup waits until the reference
+  settles instead of re-running on every keystroke.
+
+Settings
+
+- The "jump to" chip bar at the top of long settings sections now sits flush
+  against the top edge instead of floating below a gap.
 
 Verse tags
 

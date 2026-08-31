@@ -557,7 +557,12 @@ export default function SettingsModal() {
               // Written straight through, no debounce/throttle — see the comment on
               // settingsContentRef above for why anything deferred risks never landing at all.
               onScroll={(e) => setSettingsSectionScrollTop(section, e.currentTarget.scrollTop)}
-              className="settings-content flex-1 overflow-y-auto px-6 py-6 space-y-6"
+              // No `pt` here on purpose: a `padding-top` on a scroll container offsets any
+              // `position: sticky; top: 0` child DOWN by that amount (leaving a band of
+              // empty container above it as you scroll) — that was the "gap above the
+              // sub-section bar". Top spacing is now owned by SectionAnchorChips itself
+              // (the bar's own `pt`, or the spacer it renders when there's no bar).
+              className="settings-content flex-1 overflow-y-auto px-6 pb-6 space-y-6"
             >
               <SectionAnchorChips scrollRef={settingsContentRef} sectionKey={section} />
               {section === 'appearance' && (

@@ -73,7 +73,7 @@ interface VerseTagsAPI {
   delete: (id: string, force?: boolean) => Promise<VerseTagDeleteResult>
   addMembers: (args: { tagIds?: string[]; newTagNames?: string[]; ranges: VerseTagRange[]; label: string; kind?: 'verses' | 'chapter' }) => Promise<VerseTag[]>
   removeMember: (memberId: string) => Promise<VerseTag[]>
-  updateMemberRanges: (memberId: string, ranges: VerseTagRange[], label: string) => Promise<VerseTag[]>
+  updateMemberRanges: (memberId: string, ranges: VerseTagRange[], label: string, kind?: 'verses' | 'chapter') => Promise<VerseTag[]>
   getForChapter: (bookId: string, chapter: number) => Promise<{ verseTags: Record<number, VerseTagLite[]>; chapterTags: VerseTagLite[] }>
   getMembers: (tagIds: string[]) => Promise<VerseTagMember[]>
 }

@@ -11,14 +11,34 @@ import { tableNodes } from 'prosemirror-tables'
 
 const pDOM = ['p', 0] as const
 
+// Paragraph left-indent (Tab / the toolbar Indent button). Rendered as a real margin,
+// round-tripped through markdown as a run of NBSP at the start of the line — NBSP is not
+// markdown "indentation" whitespace (a real space/tab run would become an indented code
+// block on re-parse), so it survives a plain-markdown save/reopen and shows as leading
+// spacing in Obsidian/Octarine too. parser.ts strips it back into this attr on load.
+export const MAX_INDENT = 8
+export const INDENT_NBSP_PER_LEVEL = 4
+export const INDENT_NBSP = '\u00A0'
+
+function readParagraphIndent(dom: HTMLElement): number {
+  const attr = parseInt(dom.getAttribute('data-indent') || '', 10)
+  if (Number.isFinite(attr)) return Math.max(0, Math.min(MAX_INDENT, attr))
+  const ml = parseFloat(dom.style?.marginLeft || '')
+  return Number.isFinite(ml) && ml > 0 ? Math.max(0, Math.min(MAX_INDENT, Math.round(ml / 1.6))) : 0
+}
+
 const nodes: Record<string, NodeSpec> = {
   doc: { content: 'block+' },
 
   paragraph: {
     content: 'inline*',
     group: 'block',
-    parseDOM: [{ tag: 'p' }],
-    toDOM: () => pDOM,
+    attrs: { indent: { default: 0 } },
+    parseDOM: [{ tag: 'p', getAttrs: (dom) => ({ indent: readParagraphIndent(dom as HTMLElement) }) }],
+    toDOM: (node) => {
+      const i = (node.attrs.indent as number) || 0
+      return i > 0 ? ['p', { 'data-indent': String(i), style: `margin-left:${i * 1.6}em` }, 0] : pDOM
+    },
   },
 
   blockquote: {

@@ -2,7 +2,7 @@ import { MarkdownParser } from 'prosemirror-markdown'
 import { Fragment, type Node as PMNode } from 'prosemirror-model'
 import type Token from 'markdown-it/lib/token.mjs'
 import { md } from './markdownIt'
-import { bereanSchema as schema } from './schema'
+import { bereanSchema as schema, MAX_INDENT, INDENT_NBSP, INDENT_NBSP_PER_LEVEL } from './schema'
 import { CALLOUT_META } from '@/lib/noteTextBlocks'
 
 // ─── Token → node/mark spec table ──────────────────────────────────────────
@@ -574,6 +574,24 @@ function mapBlockChildren(node: PMNode, columnLists: Map<number, string[]>, thre
 }
 
 function maybeConvertNode(node: PMNode, columnLists: Map<number, string[]>, threads: Map<number, ThreadBlockRaw>, embeds: Map<number, StudyTrailEmbedRaw>): PMNode {
+  // Leading-NBSP run on a paragraph → the `indent` attr (serializer.ts writes it as
+  // `INDENT_NBSP * level * INDENT_NBSP_PER_LEVEL`). Only a run that's a whole number of
+  // indent units counts; a stray NBSP or two is left as literal text.
+  if (node.type.name === 'paragraph' && !node.attrs.indent && node.firstChild?.isText) {
+    const first = node.firstChild
+    const lead = new RegExp(`^${INDENT_NBSP}+`).exec(first.text || '')
+    const level = lead ? Math.min(MAX_INDENT, Math.floor(lead[0].length / INDENT_NBSP_PER_LEVEL)) : 0
+    if (level > 0) {
+      const stripped = (first.text || '').slice(level * INDENT_NBSP_PER_LEVEL)
+      const kids: PMNode[] = []
+      if (stripped) kids.push(schema.text(stripped, first.marks))
+      node.forEach((c, _o, i) => { if (i > 0) kids.push(c) })
+      return mapBlockChildren(
+        schema.nodes.paragraph.create({ ...node.attrs, indent: level }, Fragment.fromArray(kids)),
+        columnLists, threads, embeds,
+      )
+    }
+  }
   // Extra-blank-line marker paragraph (see expandExtraBlankLines above) —
   // a paragraph whose sole content is the zero-width-space marker becomes
   // a genuinely empty paragraph, which serializer.ts's custom paragraph

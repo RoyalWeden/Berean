@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, Trash2, ChevronRight, ChevronDown, GripHorizontal, Merge } from 'lucide-react'
+import { X, Plus, Trash2, ChevronRight, ChevronDown, GripHorizontal, Merge, Scissors } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { HIGHLIGHT_COLOR_IDS, highlightDotColor } from '@/styles/highlightPalette'
-import type { HighlightColor, VerseTag, VerseTagMember } from '@/types'
+import { parseVerseSpans, rangesLabel } from '@/lib/verseTagRanges'
+import type { HighlightColor, VerseTag, VerseTagMember, VerseTagRange } from '@/types'
 
 const WIDTH = 340
 
@@ -95,6 +96,15 @@ export default function TagManagerPanel() {
   async function removeMember(memberId: string) {
     setVerseTags(await window.verseTags.removeMember(memberId))
   }
+  // "Narrow" a whole-chapter member down to specific verses within that same chapter.
+  async function narrowMember(m: VerseTagMember, spansInput: string) {
+    const base = m.ranges[0]
+    if (!base) return
+    const spans = parseVerseSpans(spansInput)
+    if (!spans) return
+    const ranges: VerseTagRange[] = [{ bookId: base.bookId, chapter: base.chapter, spans }]
+    setVerseTags(await window.verseTags.updateMemberRanges(m.memberId, ranges, rangesLabel(ranges), 'verses'))
+  }
 
   return createPortal(
     <div
@@ -137,6 +147,7 @@ export default function TagManagerPanel() {
             onDelete={() => doDelete(t.id)}
             onOpenInSearch={() => { openScriptureSearchTab(undefined, { tagIds: [t.id] }); close() }}
             onRemoveMember={removeMember}
+            onNarrowMember={narrowMember}
           />
         ))}
       </div>
@@ -172,7 +183,7 @@ export default function TagManagerPanel() {
 
 function TagRow({
   tag, expanded, members, colorOpen, mergeOpen, otherTags,
-  onToggleExpand, onRename, onOpenColor, onRecolor, onOpenMerge, onMerge, onDelete, onOpenInSearch, onRemoveMember,
+  onToggleExpand, onRename, onOpenColor, onRecolor, onOpenMerge, onMerge, onDelete, onOpenInSearch, onRemoveMember, onNarrowMember,
 }: {
   tag: VerseTag
   expanded: boolean
@@ -189,9 +200,12 @@ function TagRow({
   onDelete: () => void
   onOpenInSearch: () => void
   onRemoveMember: (memberId: string) => void
+  onNarrowMember: (m: VerseTagMember, spansInput: string) => void
 }) {
   const [name, setName] = useState(tag.name)
   useEffect(() => setName(tag.name), [tag.name])
+  // memberId currently showing its "narrow to verses" input, plus that input's value.
+  const [narrowing, setNarrowing] = useState<{ id: string; value: string } | null>(null)
   return (
     <div className="border-b border-[rgb(var(--color-surface-4))/40] last:border-0">
       <div className="flex items-center gap-1.5 px-2 py-1.5">
@@ -236,10 +250,45 @@ function TagRow({
           <button onClick={onOpenInSearch} className="text-[10px] text-[rgb(var(--color-accent))] hover:underline cursor-pointer mb-1">Open in Advanced Search →</button>
           {members.length === 0 && <div className="text-[10px] text-[rgb(var(--color-text-muted))]">No tagged verses.</div>}
           {members.map((m) => (
-            <div key={m.memberId} className="flex items-center gap-2 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))]">
-              <span className="truncate">{m.label}</span>
-              {m.kind === 'chapter' && <span className="text-[9px] text-[rgb(var(--color-text-muted))]">chapter</span>}
-              <button onClick={() => onRemoveMember(m.memberId)} className="ml-auto text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><X size={10} /></button>
+            <div key={m.memberId} className="py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))]">
+              <div className="flex items-center gap-2">
+                <span className="truncate">{m.label}</span>
+                {m.kind === 'chapter' && <span className="text-[9px] text-[rgb(var(--color-text-muted))]">chapter</span>}
+                <div className="ml-auto flex items-center gap-1.5">
+                  {m.kind === 'chapter' && (
+                    <button
+                      onClick={() => setNarrowing((n) => (n?.id === m.memberId ? null : { id: m.memberId, value: '' }))}
+                      title="Narrow to specific verses…"
+                      className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+                    >
+                      <Scissors size={10} />
+                    </button>
+                  )}
+                  <button onClick={() => onRemoveMember(m.memberId)} className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><X size={10} /></button>
+                </div>
+              </div>
+              {narrowing?.id === m.memberId && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={narrowing.value}
+                    onChange={(e) => setNarrowing({ id: m.memberId, value: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && parseVerseSpans(narrowing.value)) { onNarrowMember(m, narrowing.value); setNarrowing(null) }
+                      else if (e.key === 'Escape') setNarrowing(null)
+                    }}
+                    placeholder="e.g. 3-4,6"
+                    className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] rounded bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))] outline-none focus:border-[rgb(var(--color-accent))]"
+                  />
+                  <button
+                    onClick={() => { if (parseVerseSpans(narrowing.value)) { onNarrowMember(m, narrowing.value); setNarrowing(null) } }}
+                    disabled={!parseVerseSpans(narrowing.value)}
+                    className="px-2 py-0.5 text-[11px] rounded bg-[rgb(var(--color-accent))] text-white disabled:opacity-40 cursor-pointer hover:brightness-110"
+                  >
+                    Set
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

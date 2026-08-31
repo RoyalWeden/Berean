@@ -34,6 +34,33 @@ export function chapterRanges(bookId: string, chapter: number): VerseTagRange[] 
   return [{ bookId, chapter, whole: true }]
 }
 
+/** Parse a human verse-span string ("3", "3-4,6", "1, 5-7 , 12") into sorted, merged
+ *  `{s,e}` spans. Returns null if nothing valid was found or any segment is malformed —
+ *  used by the Tag Manager's "narrow a whole-chapter tag down to specific verses" editor. */
+export function parseVerseSpans(input: string): Array<{ s: number; e: number }> | null {
+  const raw: Array<{ s: number; e: number }> = []
+  for (const seg of input.split(',')) {
+    const t = seg.trim()
+    if (!t) continue
+    const m = t.match(/^(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/)
+    if (!m) return null
+    const a = parseInt(m[1], 10)
+    const b = m[2] ? parseInt(m[2], 10) : a
+    if (!Number.isFinite(a) || a < 1 || a > 200) return null
+    if (!Number.isFinite(b) || b < 1 || b > 200) return null
+    raw.push({ s: Math.min(a, b), e: Math.max(a, b) })
+  }
+  if (!raw.length) return null
+  raw.sort((x, y) => x.s - y.s || x.e - y.e)
+  const merged: Array<{ s: number; e: number }> = [raw[0]]
+  for (let i = 1; i < raw.length; i++) {
+    const last = merged[merged.length - 1]
+    if (raw[i].s <= last.e + 1) last.e = Math.max(last.e, raw[i].e)
+    else merged.push(raw[i])
+  }
+  return merged
+}
+
 function spansLabel(spans: Array<{ s: number; e: number }>): string {
   return spans.map((sp) => (sp.s === sp.e ? `${sp.s}` : `${sp.s}-${sp.e}`)).join(',')
 }
