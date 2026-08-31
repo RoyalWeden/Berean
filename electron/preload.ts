@@ -97,8 +97,8 @@ contextBridge.exposeInMainWorld('verseTags', {
   delete: (id: string, force?: boolean) => ipcRenderer.invoke('verseTags:delete', id, force),
   addMembers: (args: unknown) => ipcRenderer.invoke('verseTags:addMembers', args),
   removeMember: (memberId: string) => ipcRenderer.invoke('verseTags:removeMember', memberId),
-  updateMemberRanges: (memberId: string, ranges: unknown, label: string) =>
-    ipcRenderer.invoke('verseTags:updateMemberRanges', memberId, ranges, label),
+  updateMemberRanges: (memberId: string, ranges: unknown, label: string, kind?: 'verses' | 'chapter') =>
+    ipcRenderer.invoke('verseTags:updateMemberRanges', memberId, ranges, label, kind),
   getForChapter: (bookId: string, chapter: number) => ipcRenderer.invoke('verseTags:getForChapter', bookId, chapter),
   getMembers: (tagIds: string[]) => ipcRenderer.invoke('verseTags:getMembers', tagIds),
 })

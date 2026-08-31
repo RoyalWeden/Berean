@@ -162,6 +162,34 @@ function detectTranslationPrefix(q: string): { textId: string; cleanQuery: strin
   return null
 }
 
+// ── Diagnostics ────────────────────────────────────────────────────────────────
+// Flip to false once the "typing a verse ref (e.g. `1corinthians12`) freezes the
+// floating search" investigation is closed. Every line is prefixed [FloatingSearch]
+// so it can be filtered in the console / mcp read_console_messages.
+const DIAG = true
+
+// Timeline of the CURRENT keystroke: when handleInput last saw a change, and for which
+// value. `sinceKeystroke(q)` returns "ms since the user typed this exact value" (or '' when
+// the value has moved on), so every log line can show elapsed-since-input, not just its own
+// internal duration — this is what surfaces "keystroke → results on screen" latency.
+const keystroke = { q: '', t0: 0 }
+function markKeystroke(q: string) { keystroke.q = q; keystroke.t0 = performance.now() }
+function sinceKeystroke(q: string): string {
+  return keystroke.q === q ? ` [+${(performance.now() - keystroke.t0).toFixed(0)}ms since keystroke]` : ''
+}
+/** Wall-clock ms (one decimal), monotonic, for ordering lines and eyeballing gaps. */
+const ts = () => `t=${performance.now().toFixed(1)}`
+const dlog = (...a: unknown[]) => { if (DIAG) console.log('[FloatingSearch]', ts(), ...a) }
+/** Run `fn`, and if DIAG is on and it took longer than `warnMs`, log the label + duration. */
+function timed<T>(label: string, fn: () => T, warnMs = 1): T {
+  if (!DIAG) return fn()
+  const t0 = performance.now()
+  const r = fn()
+  const dt = performance.now() - t0
+  if (dt >= warnMs) console.log('[FloatingSearch]', ts(), label, dt.toFixed(1) + 'ms')
+  return r
+}
+
 export default function FloatingSearch() {
   const searchOpen = useAppStore((s) => s.searchOpen)
   const searchMode = useAppStore((s) => s.searchMode)
@@ -249,6 +277,18 @@ export default function FloatingSearch() {
   // batch from an earlier keystroke can never clobber a faster-resolving later one.
   const searchGenRef = useRef(0)
 
+  // Diagnostics: count renders and log each commit with the query that produced it, so a
+  // "frozen while typing" report shows up as either a render storm (many commits per
+  // keystroke) or a single very-late commit.
+  const renderCountRef = useRef(0)
+  renderCountRef.current++
+  // Last query value we've already logged a "results on screen" line for — so the
+  // keystroke→visible latency line fires exactly once per distinct typed value.
+  const resultsShownForRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (DIAG && searchOpen) dlog('commit #' + renderCountRef.current, 'query=' + JSON.stringify(query) + sinceKeystroke(query))
+  })
+
   useEffect(() => {
     if (searchOpen) {
       const tid = defaultBibleTranslation.toLowerCase()
@@ -285,14 +325,17 @@ export default function FloatingSearch() {
   // the cost per keystroke — it didn't stop that cost from being paid synchronously, inside
   // the SAME render the character needed to appear in, which is what actually reads as lag.)
   const deferredQuery = useDeferredValue(query)
-  const detected = useMemo(() => (deferredQuery.trim() ? detectTranslationPrefix(deferredQuery) : null), [deferredQuery])
+  const detected = useMemo(
+    () => timed(`detectTranslationPrefix(${JSON.stringify(deferredQuery)})`, () => (deferredQuery.trim() ? detectTranslationPrefix(deferredQuery) : null)),
+    [deferredQuery],
+  )
   const cleanQuery = detected ? detected.cleanQuery : deferredQuery
   // Recognitions of Clement / Shepherd of Hermas get their own richer grammar first
   // (book-numbered/section-numbered addressing parseRef's own regex can't express —
   // see multiBookSearch.ts) — falls through to the general-purpose parseRef for
   // everything else, including a remainder multiBookSearch didn't recognize.
   const parsedRef = useMemo(
-    () => (cleanQuery.trim() ? (parseMultiBookQuery(cleanQuery) ?? parseRef(cleanQuery)) : null),
+    () => timed(`parseRef(${JSON.stringify(cleanQuery)})`, () => (cleanQuery.trim() ? (parseMultiBookQuery(cleanQuery) ?? parseRef(cleanQuery)) : null)),
     [cleanQuery]
   )
   const isStrongs = isStrongsRef(query)
@@ -340,6 +383,8 @@ export default function FloatingSearch() {
     debounceRef.current = setTimeout(async () => {
       const trimmed = q.trim()
       const gen = ++searchGenRef.current
+      dlog(`runSearch fired gen=${gen} q=${JSON.stringify(q)}` + sinceKeystroke(q))
+      const phaseT0 = performance.now()
 
       if (!trimmed) {
         setVerseResults([])
@@ -426,6 +471,7 @@ export default function FloatingSearch() {
           ...variantSearches,
         ])
         if (gen !== searchGenRef.current) return
+        dlog(`fast phase resolved gen=${gen}`, (performance.now() - phaseT0).toFixed(1) + 'ms (notes+verses IPC)' + sinceKeystroke(q))
 
         // Merge + dedupe every variant's results (bidirectional word-replacer search
         // can return the same verse from more than one variant query).
@@ -475,6 +521,7 @@ export default function FloatingSearch() {
           ...extraSearches,
         ])
         if (gen !== searchGenRef.current) return
+        dlog(`slow phase resolved gen=${gen}`, (performance.now() - phaseT0).toFixed(1) + 'ms (extra texts + youtube)' + sinceKeystroke(q))
 
         const extraVerses: VerseResult[] = extraAll.flatMap((r) => r.status === 'fulfilled' ? r.value : [])
         if (extraVerses.length) setVerseResults((prev) => [...prev, ...extraVerses])
@@ -521,26 +568,42 @@ export default function FloatingSearch() {
     }, 120)
   }, [])
 
-  // Load cross-references when the query is a verse ref with a verse number
+  // Load cross-references when the query is a verse ref with a verse number.
+  // `lastCrossRefKeyRef` dedupes: while the user types onward through a reference
+  // ("1co12", "1co12:", "1co12:1", "1co12:11") the resolved (book,chapter,verse)
+  // only actually changes on the last step, so this no longer re-dispatches the
+  // (synchronous, main-process, better-sqlite3) crossref query for every keystroke
+  // in between — the leading suspect for the "typing a verse ref freezes" report.
+  const lastCrossRefKeyRef = useRef<string>('')
   useEffect(() => {
     if (!searchOpen) return
     const ref = parsedRef
-    if (!ref?.verse) { setCrossRefResults([]); return }
+    if (!ref?.verse || ref.endChapter) {
+      lastCrossRefKeyRef.current = ''
+      setCrossRefResults([])
+      return
+    }
+    const key = `${ref.bookId}|${ref.chapter}|${ref.verse}`
+    if (key === lastCrossRefKeyRef.current) return
+    lastCrossRefKeyRef.current = key
     if (crossRefDebounceRef.current) clearTimeout(crossRefDebounceRef.current)
     setCrossRefLoading(true)
     crossRefDebounceRef.current = setTimeout(async () => {
+      const t0 = performance.now()
       try {
         const result = await window.crossrefs.getForVerse(ref.bookId, ref.chapter, ref.verse!)
+        dlog(`crossrefs.getForVerse ${key}`, (performance.now() - t0).toFixed(1) + 'ms', (result?.refs?.length ?? 0) + ' refs' + sinceKeystroke(query))
         setCrossRefResults(result?.refs ?? [])
       } catch {
         setCrossRefResults([])
       } finally {
         setCrossRefLoading(false)
       }
-    }, 250)
+    }, 400)
   }, [parsedRef, searchOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleInput(val: string) {
+    if (DIAG) { markKeystroke(val); dlog('keystroke', JSON.stringify(val)) }
     setQuery(val)
     setSelectedIdx(-1)
     // Command mode (">") — no reference/keyword lookup to run at all, the
@@ -736,6 +799,11 @@ export default function FloatingSearch() {
   }
 
   // Build result list for keyboard nav
+  // Diagnostics: time the whole synchronous results-list build (makeSnippet +
+  // word-replacer + buildVerseDisplayText over every row). If "freezing" is this,
+  // it shows up as a multi-hundred-ms entry here on the render after a keystroke.
+  const _resultsBuildT0 = DIAG ? performance.now() : 0
+
   const results: Array<{
     type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command'
     label: string
@@ -936,6 +1004,17 @@ export default function FloatingSearch() {
         closeSearch()
       },
     })
+  }
+
+  if (DIAG) {
+    const dt = performance.now() - _resultsBuildT0
+    if (dt >= 4) dlog('results build', dt.toFixed(1) + 'ms', `(${results.length} rows, ${verseResults.length} verse / ${noteResults.length} note / ${youtubeResults.length} yt in state)`)
+    // Latency line: this render is the one that will paint `results` for the current typed
+    // value (deferred value has caught up to the input). Fires once per distinct value.
+    if (deferredQuery === query && results.length > 0 && resultsShownForRef.current !== query) {
+      resultsShownForRef.current = query
+      dlog(`results on screen: ${results.length} rows for ${JSON.stringify(query)}` + sinceKeystroke(query))
+    }
   }
 
   // `parsedRef` (used to build `results` above) is derived from `deferredQuery`, which

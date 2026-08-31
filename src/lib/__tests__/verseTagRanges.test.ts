@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectionToRanges, chapterRanges, rangesLabel } from '../verseTagRanges'
+import { selectionToRanges, chapterRanges, rangesLabel, parseVerseSpans } from '../verseTagRanges'
 
 describe('selectionToRanges', () => {
   it('collapses contiguous verses into spans, per chapter', () => {
@@ -53,5 +53,26 @@ describe('rangesLabel', () => {
       { bookId: 'GEN', chapter: 1, spans: [{ s: 1, e: 3 }] },
       { bookId: 'GEN', chapter: 2, spans: [{ s: 4, e: 4 }] },
     ])).toBe('Genesis 1:1-3; Genesis 2:4')
+  })
+})
+
+describe('parseVerseSpans', () => {
+  it('parses a single verse', () => {
+    expect(parseVerseSpans('6')).toEqual([{ s: 6, e: 6 }])
+  })
+  it('parses mixed singles and ranges, sorting and merging', () => {
+    expect(parseVerseSpans('6, 3-4 , 5')).toEqual([{ s: 3, e: 6 }])
+    expect(parseVerseSpans('12,3-4,6')).toEqual([{ s: 3, e: 4 }, { s: 6, e: 6 }, { s: 12, e: 12 }])
+  })
+  it('accepts an en-dash range and flips reversed bounds', () => {
+    expect(parseVerseSpans('9–7')).toEqual([{ s: 7, e: 9 }])
+  })
+  it('rejects malformed / empty / out-of-range input', () => {
+    expect(parseVerseSpans('')).toBeNull()
+    expect(parseVerseSpans('  ')).toBeNull()
+    expect(parseVerseSpans('abc')).toBeNull()
+    expect(parseVerseSpans('3-')).toBeNull()
+    expect(parseVerseSpans('0')).toBeNull()
+    expect(parseVerseSpans('999')).toBeNull()
   })
 })

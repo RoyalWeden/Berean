@@ -168,12 +168,16 @@ export function registerVerseTagHandlers(ipcMain: IpcMain): void {
     return listTags(db)
   })
 
-  ipcMain.handle('verseTags:updateMemberRanges', (_e, memberId: string, ranges: TagRange[], label: string) => {
+  ipcMain.handle('verseTags:updateMemberRanges', (_e, memberId: string, ranges: TagRange[], label: string, kind?: 'verses' | 'chapter') => {
     const db = getBereanDb()
     const row = prep(db, 'SELECT tag_id FROM verse_tag_members WHERE id = ?').get(memberId) as { tag_id: string } | undefined
     if (!row) return listTags(db)
     ;(db as any).transaction(() => {
-      prep(db, 'UPDATE verse_tag_members SET ranges = ?, label = ? WHERE id = ?').run(JSON.stringify(ranges), label, memberId)
+      if (kind === 'verses' || kind === 'chapter') {
+        prep(db, 'UPDATE verse_tag_members SET ranges = ?, label = ?, kind = ? WHERE id = ?').run(JSON.stringify(ranges), label, kind, memberId)
+      } else {
+        prep(db, 'UPDATE verse_tag_members SET ranges = ?, label = ? WHERE id = ?').run(JSON.stringify(ranges), label, memberId)
+      }
       rebuildMemberVerses(db, row.tag_id, memberId, ranges)
     })()
     return listTags(db)

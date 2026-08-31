@@ -25,22 +25,67 @@ function press(view: EditorView, key: string, opts: Partial<KeyboardEventInit> =
 }
 
 describe('bereanKeymap', () => {
-  it('Tab in a plain paragraph inserts spaces instead of escaping the editor (regression: used to fall through to the browser default of moving focus elsewhere)', () => {
+  const NBSP = '\u00A0'
+
+  it('Tab in a plain paragraph increases its left-indent level (and still reports handled, so focus never escapes the editor)', () => {
     const view = makeView('hello')
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 6, 6))) // end of "hello"
     const handled = press(view, 'Tab')
     expect(handled).toBe(true)
-    expect(serializeToMarkdown(view.state.doc)).toBe('hello    ')
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(1)
+    expect(serializeToMarkdown(view.state.doc)).toBe(`${NBSP.repeat(4)}hello`)
+    press(view, 'Tab')
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(2)
+    expect(serializeToMarkdown(view.state.doc)).toBe(`${NBSP.repeat(8)}hello`)
     view.destroy()
   })
 
-  it('Shift-Tab outside a list is a safe no-op (still reports handled, so focus never escapes)', () => {
-    const view = makeView('hello')
+  it('Shift-Tab decreases the indent one level, bottoms out at 0, and never deletes text', () => {
+    const view = makeView(`${NBSP.repeat(8)}hello`)
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(2) // parsed back from the NBSP run
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3, 3)))
+    expect(press(view, 'Tab', { shiftKey: true })).toBe(true)
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(1)
+    expect(press(view, 'Tab', { shiftKey: true })).toBe(true)
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(0)
+    expect(serializeToMarkdown(view.state.doc)).toBe('hello')
+    // Still handled (never escapes focus, never mutates) with nothing left to outdent.
+    expect(press(view, 'Tab', { shiftKey: true })).toBe(true)
+    expect(serializeToMarkdown(view.state.doc)).toBe('hello')
+    view.destroy()
+  })
+
+  it('Tab inside a list nests the item (sinkListItem) — bullets are preserved, never indented as a bare paragraph', () => {
+    const view = makeView('- one\n- two')
+    // cursor inside the second item's text ("two")
+    let twoPos = -1
+    view.state.doc.descendants((n, pos) => { if (n.isText && n.text === 'two') twoPos = pos + 1 })
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, twoPos)))
+    expect(press(view, 'Tab')).toBe(true)
+    const md = serializeToMarkdown(view.state.doc)
+    expect(md).toContain('- one')
+    expect(md).toMatch(/\n {2,}- two/) // second item now nested
+    let sawIndentedPara = false
+    view.state.doc.descendants((n) => { if (n.type.name === 'paragraph' && n.attrs.indent) sawIndentedPara = true })
+    expect(sawIndentedPara).toBe(false) // no paragraph got a bare indent attr
+    view.destroy()
+  })
+
+  it('Tab on the first/only bullet is a safe no-op — the bullet is not removed or turned into an indented paragraph', () => {
+    const view = makeView('- solo')
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 4, 4)))
     const before = serializeToMarkdown(view.state.doc)
-    const handled = press(view, 'Tab', { shiftKey: true })
-    expect(handled).toBe(true)
-    expect(serializeToMarkdown(view.state.doc)).toBe(before)
+    expect(press(view, 'Tab')).toBe(true)
+    expect(serializeToMarkdown(view.state.doc)).toBe(before) // still "- solo"
+    view.destroy()
+  })
+
+  it('Tab with a text selection indents the paragraph instead of replacing the selection with a tab', () => {
+    const view = makeView('hello world')
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6))) // select "hello"
+    expect(press(view, 'Tab')).toBe(true)
+    expect(view.state.doc.firstChild?.attrs.indent).toBe(1)
+    expect(view.state.doc.textContent).toBe('hello world')
     view.destroy()
   })
 

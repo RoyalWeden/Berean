@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { Tag as TagIcon } from 'lucide-react'
 import ChapterView from './ChapterView'
 import { bookName } from '@/lib/parseRef'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_CENTER, VERSE_JUMP_ANIMATED_START } from '@/lib/scrollToVerse'
+import { TagPickPopover } from '@/components/tags/TagPickPopover'
+import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import { useAppStore } from '@/store'
 
 interface ContinuousChapterScrollProps {
@@ -61,6 +64,8 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
     // Chapter that is "most visible" (the one the header bar reflects)
     const [visibleCh, setVisibleCh] = useState(chapter)
     const scrollRef = useRef<HTMLDivElement>(null)
+    // Open "tag this whole chapter" popover, anchored to the heading's tag button.
+    const [chapterTagPick, setChapterTagPick] = useState<{ rect: DOMRect; ch: number } | null>(null)
     // Reserve extra bottom scroll room while the floating Read Aloud player is showing, same
     // fix as BiblePanel.tsx's own chapterViewRef container — without it the player's card sits
     // on top of the last verse with no way to scroll past it.
@@ -301,11 +306,18 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
                 else headingRefs.current.delete(ch)
               }}
               data-chapter={ch}
-              className="sticky top-0 z-10 px-8 py-2 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2"
+              className="group sticky top-0 z-10 px-8 py-2 bg-[rgb(var(--color-surface-2))] border-b border-[rgb(var(--color-surface-4))] flex items-center gap-2"
             >
               <span className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider select-none">
                 {bookName(bookId)} {ch}
               </span>
+              <button
+                onClick={(e) => setChapterTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), ch })}
+                title={`Tag ${bookName(bookId)} ${ch} (whole chapter)`}
+                className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] cursor-pointer"
+              >
+                <TagIcon size={12} />
+              </button>
             </div>
 
             <ChapterView
@@ -332,6 +344,19 @@ export default forwardRef<ContinuousChapterScrollHandle, ContinuousChapterScroll
 
         {/* Bottom sentinel — ensures there's enough room to scroll */}
         <div className="h-16" />
+
+        {chapterTagPick && (() => {
+          const ranges = chapterRanges(bookId, chapterTagPick.ch)
+          return (
+            <TagPickPopover
+              anchorRect={chapterTagPick.rect}
+              ranges={ranges}
+              label={rangesLabel(ranges)}
+              kind="chapter"
+              onClose={() => setChapterTagPick(null)}
+            />
+          )
+        })()}
       </div>
     )
   }

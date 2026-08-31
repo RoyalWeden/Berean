@@ -2,6 +2,7 @@ import { toggleMark, setBlockType, wrapIn, lift } from 'prosemirror-commands'
 import { wrapInList, liftListItem, sinkListItem } from 'prosemirror-schema-list'
 import type { EditorView } from 'prosemirror-view'
 import { bereanSchema as schema } from './schema'
+import { changeIndent } from './indent'
 
 // Shared ProseMirror command logic, extracted from SelectionToolbar.tsx so both the
 // selection-triggered bubble menu and the new persistent toolbar (Toolbar.tsx) call the
@@ -100,15 +101,15 @@ export function createEditorCommands(view: EditorView) {
     run((state, dispatch) => lift(state, dispatch) || wrapIn(schema.nodes.blockquote)(state, dispatch))
   }
 
+  // Inside a list, (un)nest the list item; otherwise adjust the paragraph's left-indent
+  // level — same behavior as the Tab / Shift-Tab keymap (keymap.ts), so the toolbar
+  // buttons and the keys stay in lockstep.
   function outdent() {
-    run(liftListItem(schema.nodes.list_item))
+    run((state, dispatch) => liftListItem(schema.nodes.list_item)(state, dispatch) || changeIndent(-1)(state, dispatch))
   }
 
-  // Outside a list, sinkListItem alone silently does nothing (same as the keymap's Tab
-  // handling, see keymap.ts) — falls back to inserting spaces so the button always
-  // visibly does SOMETHING.
   function indent() {
-    run((state, dispatch) => sinkListItem(schema.nodes.list_item)(state, dispatch) || (() => { if (dispatch) dispatch(state.tr.insertText('    ')); return true })())
+    run((state, dispatch) => sinkListItem(schema.nodes.list_item)(state, dispatch) || changeIndent(1)(state, dispatch))
   }
 
   function setBulletList(marker: '*' | '-') {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2, Tag as TagIcon } from 'lucide-react'
 import { createPortal, flushSync } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
@@ -10,6 +10,8 @@ import ChapterView from './ChapterView'
 import ContinuousChapterScroll, { type ContinuousChapterScrollHandle } from './ContinuousChapterScroll'
 import CompareView from './CompareView'
 import BookChapterPicker from './BookChapterPicker'
+import { TagPickPopover } from '@/components/tags/TagPickPopover'
+import { chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import BibleRightPanel from './BibleRightPanel'
 import ErrorBoundary from '@/components/shell/ErrorBoundary'
 import TabHeaderPortal from '@/components/shell/TabHeaderPortal'
@@ -217,6 +219,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // reflow — see ChapterView's flashAnchor prop. A fresh nonce re-triggers the flash even
   // when it's the same verse number as the previous toggle.
   const [flashAnchor, setFlashAnchor] = useState<{ verse: number; nonce: number } | null>(null)
+  // "Tag this whole chapter" — anchor rect for the toolbar tag button's popover.
+  const [chapterTagRect, setChapterTagRect] = useState<DOMRect | null>(null)
   // Compare-mode column tracking
   const [compareFocusedCol, setCompareFocusedCol] = useState(0)
   // Whether 2+ visible compare columns currently share the same bookId+chapter —
@@ -2443,6 +2447,27 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 <ChevronRight size={17} />
               </button>
             </ActionPillGroup>
+            {/* Tag this whole chapter — the discoverable, always-visible entry point
+                (the per-verse popover's "Tag chapter…" item still works too). */}
+            <button
+              onClick={(e) => setChapterTagRect((e.currentTarget as HTMLElement).getBoundingClientRect())}
+              title={`Tag ${bookName(tabState.bookId)} ${tabState.chapter} (whole chapter)`}
+              className="flex items-center justify-center w-8 h-8 rounded-md border border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-accent))] hover:text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/10] cursor-pointer transition-colors flex-shrink-0"
+            >
+              <TagIcon size={15} />
+            </button>
+            {chapterTagRect && (() => {
+              const ranges = chapterRanges(tabState.bookId, tabState.chapter)
+              return (
+                <TagPickPopover
+                  anchorRect={chapterTagRect}
+                  ranges={ranges}
+                  label={rangesLabel(ranges)}
+                  kind="chapter"
+                  onClose={() => setChapterTagRect(null)}
+                />
+              )
+            })()}
             {/* Add comparison panel — dashed "ghost panel" icon reads as "an empty
                 column will open here", distinct from the solid picker pill. */}
             <BookChapterPicker

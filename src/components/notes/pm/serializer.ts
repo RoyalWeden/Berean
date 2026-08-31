@@ -1,6 +1,6 @@
 import { MarkdownSerializer, defaultMarkdownSerializer, type MarkdownSerializerState } from 'prosemirror-markdown'
 import type { Node as PMNode } from 'prosemirror-model'
-import { bereanSchema as schema } from './schema'
+import { bereanSchema as schema, INDENT_NBSP, INDENT_NBSP_PER_LEVEL } from './schema'
 import { EXTRA_BLANK_MARKER } from './parser'
 
 // ─── list_item / task checkboxes ───────────────────────────────────────────
@@ -174,6 +174,11 @@ function paragraph(state: MarkdownSerializerState, node: PMNode) {
     state.closeBlock(node)
     return
   }
+  // Left-indent (schema.ts's `paragraph.indent`) → a leading NBSP run. NBSP is not
+  // markdown indentation whitespace, so it round-trips as literal leading text (parser.ts
+  // reads it back into the attr) instead of turning the line into an indented code block.
+  const indent = (node.attrs.indent as number) || 0
+  if (indent > 0) state.text(INDENT_NBSP.repeat(indent * INDENT_NBSP_PER_LEVEL), false)
   state.renderInline(node)
   state.closeBlock(node)
 }
