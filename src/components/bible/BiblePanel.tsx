@@ -391,6 +391,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     lastMainScrollTopRef.current = 0
   }
 
+  // Publish the right-hand side panel's on-screen width to the store so the portaled Study
+  // Trail arrival toast (pinned bottom-right) can slide left clear of it. Zero when closed
+  // or when the Bible panel isn't mounted (cleanup).
+  const setBibleRightPanelWidth = useAppStore((s) => s.setBibleRightPanelWidth)
+  useEffect(() => {
+    setBibleRightPanelWidth(rightPanelOpen ? rightPanelWidth : 0)
+    return () => setBibleRightPanelWidth(0)
+  }, [rightPanelOpen, rightPanelWidth, setBibleRightPanelWidth])
+
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
     // This prevents the redirect-to-first-book firing erroneously when both translation

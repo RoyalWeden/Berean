@@ -185,6 +185,13 @@ export default function NoteEditorPM({
   const [tagIdx, setTagIdx] = useState(0)
   const verseTags = useAppStore((s) => s.verseTags)
   const setVerseTags = useAppStore((s) => s.setVerseTags)
+  // Tell the store a note editor is on screen so the bottom-right Study Trail arrival toast
+  // lifts clear of this editor's word-count / reading-time footer (same corner).
+  const bumpNoteEditorOpen = useAppStore((s) => s.bumpNoteEditorOpen)
+  useEffect(() => {
+    bumpNoteEditorOpen(1)
+    return () => bumpNoteEditorOpen(-1)
+  }, [bumpNoteEditorOpen])
   // Hover-preview popup (RefHoverPreview, AutocompletePopups.tsx) — verse refs show real verse
   // text, Strong's refs show the short definition, wikilinks show the target note's own preview
   // (WikilinkPopup's single-pane content, reused rather than building a second preview format).

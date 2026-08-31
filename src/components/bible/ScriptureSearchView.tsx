@@ -248,11 +248,16 @@ function highlightWithAnnotations(text: string, ranges: AnnotationRange[], query
     const slice = text.slice(s, e)
     const ann = ranges.find((r) => r.start <= s && r.end >= e)
     const isMatch = matchRanges.some(([ms, me]) => ms <= s && me >= e)
-    let node: React.ReactNode = slice
-    if (isMatch) node = <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{node}</mark>
-    if (ann?.isRedLetter) node = <span className={RED_LETTER_CLASS}>{node}</span>
-    else if (ann?.isItalic) node = <span className="italic opacity-70">{node}</span>
-    nodes.push(<span key={i}>{node}</span>)
+    // Red-letter / italic colour must ride on the SAME element as the yellow highlight bg —
+    // a nested <mark> carrying its own `text-` colour overrides the inherited red, which is
+    // why red letters vanished wherever a search match overlapped them.
+    const cls: string[] = []
+    if (isMatch) cls.push('bg-yellow-400/30', 'rounded-sm')
+    if (ann?.isRedLetter) cls.push(RED_LETTER_CLASS)
+    else if (ann?.isItalic) cls.push('italic', 'opacity-70')
+    else if (isMatch) cls.push('text-[rgb(var(--color-text-primary))]')
+    if (isMatch) nodes.push(<mark key={i} className={cls.join(' ')}>{slice}</mark>)
+    else nodes.push(<span key={i} className={cls.join(' ')}>{slice}</span>)
   }
   return <>{nodes}</>
 }
@@ -500,6 +505,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // unmounting subtree during the commit phase, before that subtree's passive-effect cleanups
   // run, so reading resultsRef.current directly in an unmount cleanup was silently a no-op.
   const lastScrollTopRef = useRef(0)
+  // False until the post-load restore effect has run once. The "persist on filter/query change"
+  // effect fires on mount too, before results (and therefore the restored scroll position) exist;
+  // reading resultsRef.current.scrollTop then yields a literal 0, and `0 ?? persisted` keeps the 0
+  // — so that effect would overwrite the saved scrollTop with 0 on every remount (tab switch),
+  // which is exactly why scroll position "wasn't saving". Until restore has happened, that effect
+  // must pass the persisted value straight through untouched.
+  const scrollRestoredRef = useRef(false)
   // Debounces the scroll-position store write below, matching BiblePanel.tsx's own scroll
   // handler (150ms) — onScroll fires on every native scroll tick, and each write there replaces
   // the store's whole `tabs` object (one Record spanning all 5 spaces), which every component
@@ -534,14 +546,23 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
   // Restore scroll position after results load
   useEffect(() => {
-    if (persistedState?.scrollTop && resultsRef.current) {
-      resultsRef.current.scrollTop = persistedState.scrollTop
+    if (scrollRestoredRef.current) return
+    if (!resultsRef.current || results.length === 0) return
+    const target = persistedState?.scrollTop ?? 0
+    if (target > 0) {
+      // Two rAFs: the virtualizer needs a frame to commit its total-size spacer before the
+      // container can actually scroll that far — setting scrollTop immediately clamps to a
+      // not-yet-tall-enough scrollHeight and lands short.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (resultsRef.current) resultsRef.current.scrollTop = target
+      }))
       // Keep lastScrollTopRef in sync — if the user navigates away again without ever
       // triggering a real onScroll event (e.g. restored straight to a scrolled position, then
       // immediately clicks a result), the unmount-flush above needs this to already reflect
       // the restored position rather than falling back to its 0 initial value.
-      lastScrollTopRef.current = persistedState.scrollTop
+      lastScrollTopRef.current = target
     }
+    scrollRestoredRef.current = true
   }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist state whenever filters or query change. Must carry the current scrollTop
@@ -552,7 +573,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   useEffect(() => {
     onStateChangeRef.current?.({
       query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
-      scrollTop: resultsRef.current?.scrollTop ?? persistedState?.scrollTop,
+      // Before the restore effect has run, resultsRef.current.scrollTop is a meaningless 0 —
+      // pass the persisted value straight through so this doesn't clobber it (see scrollRestoredRef).
+      scrollTop: scrollRestoredRef.current ? (resultsRef.current?.scrollTop ?? persistedState?.scrollTop) : persistedState?.scrollTop,
       tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1804,7 +1827,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 // Ranges are computed against v.text (pre-replacer) — see
                                 // highlightWithAnnotations' doc comment for why this is an
                                 // approximation, not exact, when the word replacer is on.
-                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId)
+                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
                                 return (
                                   <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
                                     <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
@@ -1876,7 +1899,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               // the snippet was truncated, which is the common case (the default view has
                               // context mode off), silently dropping red-letter/italic markup from nearly
                               // every result.
-                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId)
+                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId, rawText)
                               const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
                                 ? annRanges
                                 : remapRangesToSnippet(annRanges, snippet)

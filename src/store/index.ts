@@ -87,16 +87,17 @@ export function updateMRU(
  *  active tab, addTab always appended at the end, regardless of the calling gesture's actual
  *  intent — e.g. the SAME double-click-empty-space/Cmd+T entry point produced different
  *  placement for a verse result vs. a lexicon result, purely because of which function each
- *  branch called). 'top': Cmd+T, any "+" button, "open in new tab" from within content — the
- *  default, so a fresh tab is always easy to find at the top of the (single, cross-space) list.
- *  'after-active' is kept for call sites that explicitly want the old adjacent-to-active
- *  placement. 'end': double-click empty tab-bar space only. Computes the new
+ *  branch called). 'after-active': Cmd+T, any "+" button, "open in new tab" from within content,
+ *  floating-search results — the default, so a new tab always appears directly below the tab it
+ *  was opened from (per direct user feedback). 'top' is kept for any call site that explicitly
+ *  wants the tab pinned to the top of the (single, cross-space) list. 'end': double-click empty
+ *  tab-bar space only. Computes the new
  *  sessionDisplayOrders array — callers still separately append the tab itself to
  *  tabs[spaceId] and set it active. */
 export function computeInsertOrder(
   state: { tabs: Record<SpaceId, Tab[]>; sessionDisplayOrders: Record<string, string[]>; currentSessionId: string; activeTabId: Record<SpaceId, string | null>; activeSpace: SpaceId },
   newId: string,
-  position: 'top' | 'after-active' | 'end' = 'top',
+  position: 'top' | 'after-active' | 'end' = 'after-active',
 ): string[] {
   const allSpaces: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
   const allTabsBefore = allSpaces.flatMap((sp) => state.tabs[sp] ?? [])
@@ -379,6 +380,15 @@ export interface AppState {
   // reference every render would not re-trigger consumers on state change).
   noteFocusModeTabId: string | null
   toggleNoteFocusMode: (tabId: string) => void
+  // ── Transient bottom-right layout signals (NOT persisted) ──────────────────
+  // Only so the portaled Study Trail arrival toast (StudyTrailArrivalPrompt) can step out
+  // of the way of whatever else is currently pinned to the bottom-right corner: the Bible
+  // reader's right-hand panel (shift the toast left by its width) and any open note editor,
+  // whose word-count/reading-time footer lives in that same corner (nudge the toast up).
+  bibleRightPanelWidth: number
+  setBibleRightPanelWidth: (v: number) => void
+  noteEditorOpenCount: number
+  bumpNoteEditorOpen: (delta: number) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -1601,6 +1611,8 @@ export const useAppStore = create<AppState>()(
       noteScriptureBlock: false,
       sidePanelScriptureBlock: true,
       noteFocusModeTabId: null,
+      bibleRightPanelWidth: 0,
+      noteEditorOpenCount: 0,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -1768,7 +1780,7 @@ export const useAppStore = create<AppState>()(
 
       setActiveSpace: (space) => set({ activeSpace: space }),
 
-      createTab: (type, position = 'top') => {
+      createTab: (type, position = 'after-active') => {
         const spaceId = TYPE_TO_SPACE[type]
         const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
         let tab: Tab
@@ -1889,7 +1901,7 @@ export const useAppStore = create<AppState>()(
         })
       },
 
-      addTab: (tab, position = 'top') => {
+      addTab: (tab, position = 'after-active') => {
         const state = get()
         const existing = state.tabs[tab.spaceId].find((t) => t.id === tab.id)
         if (existing) {
@@ -2438,7 +2450,7 @@ export const useAppStore = create<AppState>()(
         // new tab is appended only to tabs.scripture, never added to sessionDisplayOrders, so
         // the sidebar's orderedTabs falls back to bucketing it at the very end of the tab bar
         // regardless of which tab was active.
-        const newOrder = computeInsertOrder(state, id, 'top')
+        const newOrder = computeInsertOrder(state, id, 'after-active')
         set({
           tabs: { ...state.tabs, scripture: [...state.tabs['scripture'], tab] },
           activeTabId: { ...state.activeTabId, scripture: id },
@@ -2465,6 +2477,8 @@ export const useAppStore = create<AppState>()(
       setNoteScriptureBlock: (v) => set({ noteScriptureBlock: v }),
       setSidePanelScriptureBlock: (v) => set({ sidePanelScriptureBlock: v }),
       toggleNoteFocusMode: (tabId) => set((s) => ({ noteFocusModeTabId: s.noteFocusModeTabId === tabId ? null : tabId })),
+      setBibleRightPanelWidth: (v) => set({ bibleRightPanelWidth: Math.max(0, v) }),
+      bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),

@@ -122,6 +122,24 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+UI polish
+
+- New tabs now open directly below the active tab (Cmd+T, the "+" buttons, "open in
+  new tab", and floating/advanced-search results) instead of jumping to the top of the
+  tab list.
+- Right-clicking a verse no longer offers "Tag chapter…" — chapter tagging stays on the
+  Bible panel toolbar's tag button.
+- The bottom-right Study Trail "why'd you go here?" toast is now translucent, slides left
+  clear of the Bible reader's side panel when it's open, and lifts above a note editor's
+  word-count footer so the two no longer overlap.
+- Advanced Scripture Search: red-letter (words of Yeshua) styling now survives a search-
+  match highlight overlapping it, and word boundaries are re-anchored to the real text so
+  a word's last letter is no longer occasionally left un-reddened.
+- Advanced Scripture Search now reliably restores its scroll position when you switch back
+  to the tab (a mount-time write was clobbering the saved value with 0).
+
 ## [0.5.14] - 2026-08-30
 
 Notes

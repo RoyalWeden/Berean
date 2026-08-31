@@ -1417,13 +1417,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
               Tag verse…
             </button>
-            <button
-              onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'chapter' }); setPopoverOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Tag chapter…
-            </button>
             <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
             <div className="px-3 py-2 space-y-1.5">
               {[0, 1, 2].map((row) => (
