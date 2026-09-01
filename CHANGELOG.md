@@ -122,7 +122,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.5.15] - 2026-08-31
 
 UI polish
 
