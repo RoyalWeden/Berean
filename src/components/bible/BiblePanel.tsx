@@ -415,6 +415,19 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => { setBibleRightPanelWidth(0); setBibleSearchTabActive(false) }
   }, [rightPanelOpen, rightPanelWidth, tabState.searchMode, setBibleRightPanelWidth, setBibleSearchTabActive])
 
+  // While the side panel is open AND showing a lexicon entry (either slot), persistently
+  // highlight every occurrence of that Strong's number in the chapter (ChapterView reads
+  // chapterEchoStrongsNum). Cleared when the panel closes or leaves lexicon.
+  const setChapterEchoStrongsNum = useAppStore((s) => s.setChapterEchoStrongsNum)
+  useEffect(() => {
+    const lex =
+      (rightPanelOpen && rightPanelTab === 'lexicon' && rightPanelLexiconEntry) ||
+      (rightPanelOpen && rightPanelSlotB === 'lexicon' && rightPanelLexiconEntryB) ||
+      null
+    setChapterEchoStrongsNum(lex || null)
+    return () => setChapterEchoStrongsNum(null)
+  }, [rightPanelOpen, rightPanelTab, rightPanelLexiconEntry, rightPanelSlotB, rightPanelLexiconEntryB, setChapterEchoStrongsNum])
+
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
     // This prevents the redirect-to-first-book firing erroneously when both translation

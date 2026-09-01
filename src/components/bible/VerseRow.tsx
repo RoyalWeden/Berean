@@ -4,7 +4,6 @@ import { Copy, NotepadText, X, GitFork, Hash, ExternalLink, BookOpen, Search, Vo
 import { TagPickPopover } from '@/components/tags/TagPickPopover'
 import { selectionToRanges, chapterRanges, rangesLabel } from '@/lib/verseTagRanges'
 import StrongsInline from './StrongsInline'
-import { strongsSpacingKey, getStrongsSpacing, setStrongsSpacing } from '@/lib/strongsSpacing'
 import type { WordSegment } from './StrongsInline'
 import { bookChapterVerseLabel, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
 import { useAppStore } from '@/store'
@@ -384,14 +383,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   // line-height up to a floor of 1.65 — see the style below).
   const renderStrongs = showStrongs
 
-  // Per-word extra right-margin (px) so centered number pills of short adjacent words don't
-  // overlap. Seeded from the per-verse cache (instant, no reflow on revisit / tab switch); on a
-  // cold verse it's measured once by the layout effect further down and cached. (The measure
-  // effect lives below verseTextRef's declaration.)
-  const strongsSpacingCacheKey = strongsSpacingKey(textId, verse.book_id, verse.chapter, verse.verse_num)
-  const [strongsWordGaps, setStrongsWordGaps] = useState<Record<number, number> | null>(
-    () => (showStrongs ? getStrongsSpacing(strongsSpacingCacheKey) : null),
-  )
 
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
@@ -515,32 +506,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const popoverPanelRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
   const selToolbarRef = useRef<HTMLDivElement>(null)
-
-  // Measure-once-and-cache the per-word margins declared above (see strongsWordGaps). A cold
-  // verse renders with no margins, this measures the actual pill overlaps after layout, caches
-  // them, and applies — a single one-time reflow. Every later mount of this verse (tab switch,
-  // paging back) reads the cache synchronously in the useState initializer → zero reflow.
-  useLayoutEffect(() => {
-    if (!renderStrongs) { setStrongsWordGaps(null); return }
-    const cached = getStrongsSpacing(strongsSpacingCacheKey)
-    if (cached) { setStrongsWordGaps((prev) => (prev === cached ? prev : cached)); return }
-    const container = verseTextRef.current
-    if (!container) return
-    const wordEls = Array.from(container.querySelectorAll<HTMLElement>('[data-sw-idx]'))
-    const margins: Record<number, number> = {}
-    for (let k = 0; k < wordEls.length - 1; k++) {
-      const chip = wordEls[k].querySelector<HTMLElement>('.strongs-chip-abs')
-      if (!chip) continue
-      const nextChip = wordEls[k + 1].querySelector<HTMLElement>('.strongs-chip-abs') ?? wordEls[k + 1]
-      const overlap = chip.getBoundingClientRect().right - nextChip.getBoundingClientRect().left + 6
-      if (overlap > 0.5) {
-        const idx = Number(wordEls[k].dataset.swIdx)
-        if (!Number.isNaN(idx)) margins[idx] = Math.round(overlap)
-      }
-    }
-    setStrongsSpacing(strongsSpacingCacheKey, margins)
-    setStrongsWordGaps(margins)
-  }, [renderStrongs, strongsSpacingCacheKey, verse.text]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const words = verseForDisplay.text.split(' ')
 
@@ -1096,6 +1061,33 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
       if (renderStrongs) {
         const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
+        // Extra right-margin (px) per token so a short word's centred number pill doesn't overlap
+        // the next word's. Computed DETERMINISTICALLY from character counts at render time — no
+        // DOM measurement, no post-paint reflow, so nothing ever jumps. Rough but only needs to
+        // be right about *whether* two pills collide, not to the pixel.
+        const strongsWordGaps: Record<number, number> = (() => {
+          const gaps: Record<number, number> = {}
+          const CH = 7.4                                   // ~px per verse-text character
+          const chipW = (n: string) => n.length * 5.15 + 13 // monospace 8.5px + padding + border
+          const numsOf = (t: typeof displayTokens[number]) =>
+            Array.isArray(t.strongsNum) ? t.strongsNum : (t.strongsNum ? [t.strongsNum] : [])
+          const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
+          const rendered = displayTokens
+            .map((t, i) => ({ t, i }))
+            .filter(({ t, i }) => !suppressedIndices.has(i) && !t.isStrongsBracket)
+          for (let r = 0; r < rendered.length - 1; r++) {
+            const a = rendered[r], b = rendered[r + 1]
+            const aNums = numsOf(a.t)
+            if (aNums.length === 0) continue
+            const aHalf = Math.max(...aNums.map(chipW)) / 2
+            const bNums = numsOf(b.t)
+            const bHalf = bNums.length ? Math.max(...bNums.map(chipW)) / 2 : 0
+            const centreGap = wordPx(a.t.word) / 2 + 4 /* space */ + wordPx(b.t.word) / 2
+            const need = aHalf + bHalf - centreGap + 6
+            if (need > 1) gaps[a.i] = Math.round(need)
+          }
+          return gaps
+        })()
         return (
           <span>
             {displayTokens.map((token, i) => {

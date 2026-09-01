@@ -538,6 +538,17 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => { root.removeEventListener('mouseover', onOver); root.removeEventListener('mouseout', onOut); clear() }
   }, [verses])
 
+  // Persistent chapter-wide highlight for the Strong's number of whatever lexicon entry is
+  // open in the scripture side panel (see BiblePanel's chapterEchoStrongsNum effect).
+  const chapterEchoStrongsNum = useAppStore((s) => s.chapterEchoStrongsNum)
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    root.querySelectorAll('.strongs-echo-pinned').forEach((el) => el.classList.remove('strongs-echo-pinned'))
+    if (!chapterEchoStrongsNum) return
+    root.querySelectorAll(`[data-strongs-num="${CSS.escape(chapterEchoStrongsNum)}"]`).forEach((el) => el.classList.add('strongs-echo-pinned'))
+  }, [chapterEchoStrongsNum, verses])
+
   // Keep a stable ref so the effect below can call the latest callback without
   // adding it to the dependency array (which would re-run on every render).
   const onVersesLoadedRef = useRef(onVersesLoaded)
@@ -995,7 +1006,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // multi-chapter range view — see viewTransitionName's own uniqueness comment above), and the
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
-    <Tooltip.Provider delayDuration={300} skipDelayDuration={400} disableHoverableContent>
+    <Tooltip.Provider delayDuration={200} skipDelayDuration={500}>
     <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's

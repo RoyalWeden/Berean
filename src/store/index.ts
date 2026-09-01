@@ -397,6 +397,11 @@ export interface AppState {
   // picker) is showing — the bottom-right toast lifts further to clear it.
   verseSelectionMenuOpen: boolean
   setVerseSelectionMenuOpen: (v: boolean) => void
+  // Strong's number of the lexicon entry currently open in the scripture side panel (when
+  // it's open + showing lexicon) — ChapterView persistently highlights every occurrence of it
+  // in the chapter so you can see where the word you're studying appears. null = nothing.
+  chapterEchoStrongsNum: string | null
+  setChapterEchoStrongsNum: (v: string | null) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -1623,6 +1628,7 @@ export const useAppStore = create<AppState>()(
       noteEditorOpenCount: 0,
       bibleSearchTabActive: false,
       verseSelectionMenuOpen: false,
+      chapterEchoStrongsNum: null,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -2491,6 +2497,7 @@ export const useAppStore = create<AppState>()(
       bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
       setBibleSearchTabActive: (v) => set({ bibleSearchTabActive: v }),
       setVerseSelectionMenuOpen: (v) => set({ verseSelectionMenuOpen: v }),
+      setChapterEchoStrongsNum: (v) => set((s) => (s.chapterEchoStrongsNum === v ? s : { chapterEchoStrongsNum: v })),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),

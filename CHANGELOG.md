@@ -151,13 +151,15 @@ UI polish
   flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
   in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
   Each number is a translucent rounded pill, centered under its word, dim at rest. Hovering a
-  word OR its number highlights the pair (a real tint behind the word), and — new — brightens
-  every other instance of that same Strong's number in the chapter so you can see where it
-  recurs. No more verse-wide brightening just from the cursor being in the verse. Grammatical
-  particles are dimmer still. Overlapping number pills of short adjacent words are nudged
-  apart by a measured amount that's cached per verse, so it never re-jumps on return.
-- The Strong's hover card now closes the previous one when you skim to a different number,
-  and puts the H/G back on bare "Compare 3050"-style references in the definition.
+  word OR its number highlights the pair (a real tint behind the word), and brightens every
+  other instance of that same Strong's number in the chapter so you can see where it recurs.
+  When a lexicon entry is open in the scripture side panel, every occurrence of that number
+  in the chapter stays highlighted (with a ring). No verse-wide brightening from the cursor.
+  Grammatical particles are dimmer still. Pill spacing is computed at render time so nothing
+  ever reflows/jumps when toggling Strong's.
+- The Strong's hover card closes the previous one when you skim to a different number
+  (without flickering on overlapping pills), and puts the H/G back on bare "Compare 3050"
+  references in the definition.
 - The chapter cross-reference banner now shows instantly (its sources are cached per chapter
   and committed as soon as they're ready, rather than waiting on the note-count / highlight
   fetches).

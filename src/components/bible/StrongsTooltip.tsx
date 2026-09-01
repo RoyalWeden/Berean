@@ -23,9 +23,13 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
   const [loaded, setLoaded] = useState(false)
   const [open, setOpen] = useState(false)
   const selfId = useRef<object>({})
+  // True while the pointer is genuinely over THIS trigger — guards against a stray broadcast
+  // from an adjacent (overlapping) chip closing the tooltip the user is actually pointing at,
+  // which otherwise showed up as the card flickering / never settling open.
+  const pointerOverRef = useRef(false)
   useEffect(() => {
     const onOther = (e: Event) => {
-      if ((e as CustomEvent).detail !== selfId.current) setOpen(false)
+      if ((e as CustomEvent).detail !== selfId.current && !pointerOverRef.current) setOpen(false)
     }
     window.addEventListener(STRONGS_TOOLTIP_OPEN_EVENT, onOther)
     return () => window.removeEventListener(STRONGS_TOOLTIP_OPEN_EVENT, onOther)
@@ -81,6 +85,8 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
           <span
             className="cursor-pointer leading-none text-[10px]"
             onClick={() => onClickEntry?.(strongsNum)}
+            onPointerEnter={() => { pointerOverRef.current = true }}
+            onPointerLeave={() => { pointerOverRef.current = false }}
           >
             {children}
           </span>
