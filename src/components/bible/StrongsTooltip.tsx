@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import type { LexiconEntry } from '@/types'
 import { useAppStore } from '@/store'
@@ -13,12 +13,34 @@ interface StrongsTooltipProps {
   contextNote?: string
 }
 
+// Broadcast so that opening one Strong's tooltip force-closes any other that's still showing —
+// Radix's own close delay otherwise leaves the previous one up when you skim quickly from one
+// number to the next.
+const STRONGS_TOOLTIP_OPEN_EVENT = 'berean:strongsTooltipOpen'
+
 export default function StrongsTooltip({ children, strongsNum, onClickEntry, contextNote }: StrongsTooltipProps) {
   const [entry, setEntry] = useState<LexiconEntry | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [open, setOpen] = useState(false)
+  const selfId = useRef<object>({})
+  useEffect(() => {
+    const onOther = (e: Event) => {
+      if ((e as CustomEvent).detail !== selfId.current) setOpen(false)
+    }
+    window.addEventListener(STRONGS_TOOLTIP_OPEN_EVENT, onOther)
+    return () => window.removeEventListener(STRONGS_TOOLTIP_OPEN_EVENT, onOther)
+  }, [])
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
   const wr = (t: string) => wordReplacerEnabled && wordReplacerRules.length ? applyWordReplacer(t, wordReplacerRules) : t
+
+  // Strong's definitions reference other entries as bare numbers ("Compare 3050, 3069.") — the
+  // language letter is implied. Put the H/G back (same language as this entry) so they read as
+  // real Strong's numbers instead of "Compare 3050".
+  const langLetter = strongsNum.trim().charAt(0).toUpperCase() === 'G' ? 'G' : 'H'
+  const restoreStrongsPrefixes = (t: string) =>
+    t.replace(/((?:compare|see|from|akin to)\b[^.;]*)/gi, (clause) =>
+      clause.replace(/(^|[\s(,])(\d{2,5})(?![.\d])/g, `$1${langLetter}$2`))
 
   // Reset when strongsNum changes so a recycled component instance always re-fetches
   useEffect(() => {
@@ -26,8 +48,10 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
     setLoaded(false)
   }, [strongsNum])
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    if (open) {
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next)
+    if (next) {
+      window.dispatchEvent(new CustomEvent(STRONGS_TOOLTIP_OPEN_EVENT, { detail: selfId.current }))
       useAppStore.getState().bumpStrongsHoverToken()
       if (!loaded) {
         window.lexicon.getEntry(strongsNum)
@@ -42,7 +66,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
     // Strong's chips can share its `skipDelayDuration` fast-rehover window instead of every
     // single word re-incurring the full open delay. See that file's comment for why one provider
     // per chapter (not a global singleton) is the deliberate granularity.
-    <Tooltip.Root onOpenChange={handleOpenChange}>
+    <Tooltip.Root open={open} onOpenChange={handleOpenChange}>
         <Tooltip.Trigger asChild>
           {/* text-[10px] + leading-none are both load-bearing, together: `leading-none` alone
               (line-height: 1) still resolves against whatever font-size this span INHERITS from
@@ -93,7 +117,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
                     )}
                   </div>
                   {entry.gloss && (
-                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-snug">{wr(entry.gloss)}</p>
+                    <p className="text-xs text-[rgb(var(--color-text-secondary))] leading-snug">{restoreStrongsPrefixes(wr(entry.gloss))}</p>
                   )}
                 </div>
               ) : (

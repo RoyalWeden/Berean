@@ -5,6 +5,7 @@ import { clearChapterCache } from '@/lib/chapterCache'
 import { clearNoteCache } from '@/lib/noteCache'
 import { clearWarmStartNotes } from '@/lib/notesCache'
 import { __resetPanelDataCache } from '@/lib/panelDataCache'
+import { clearStrongsSpacingCache } from '@/lib/strongsSpacing'
 
 // ── Dev-only: simulate first launch ──────────────────────────────────────────
 
@@ -150,6 +151,7 @@ export default function AboutSection() {
     clearNoteCache()
     clearWarmStartNotes()
     __resetPanelDataCache()
+    clearStrongsSpacingCache()
     setCacheCleared(true)
     setTimeout(() => setCacheCleared(false), 2000)
   }

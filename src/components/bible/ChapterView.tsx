@@ -507,6 +507,37 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => { cancelled = true }
   }, [bookId, chapter, textId, verses])
 
+  // Hovering a Strong's number → highlight every OTHER instance of that same number in this
+  // chapter, so you can see where else it occurs. Pure delegated DOM (no React re-render):
+  // toggle a `.strongs-echo` class on all `[data-strongs-num="…"]` chips in the container.
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    let current: string | null = null
+    const clear = () => {
+      if (!current) return
+      root.querySelectorAll('.strongs-echo').forEach((el) => el.classList.remove('strongs-echo'))
+      current = null
+    }
+    const onOver = (e: Event) => {
+      const chip = (e.target as HTMLElement)?.closest?.('[data-strongs-num]') as HTMLElement | null
+      const num = chip?.dataset.strongsNum ?? null
+      if (num === current) return
+      clear()
+      if (!num) return
+      current = num
+      root.querySelectorAll(`[data-strongs-num="${CSS.escape(num)}"]`).forEach((el) => el.classList.add('strongs-echo'))
+    }
+    const onOut = (e: Event) => {
+      const to = (e as MouseEvent).relatedTarget as HTMLElement | null
+      if (to && to.closest?.('[data-strongs-num]')) return
+      clear()
+    }
+    root.addEventListener('mouseover', onOver)
+    root.addEventListener('mouseout', onOut)
+    return () => { root.removeEventListener('mouseover', onOver); root.removeEventListener('mouseout', onOut); clear() }
+  }, [verses])
+
   // Keep a stable ref so the effect below can call the latest callback without
   // adding it to the dependency array (which would re-run on every render).
   const onVersesLoadedRef = useRef(onVersesLoaded)
@@ -964,7 +995,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // multi-chapter range view — see viewTransitionName's own uniqueness comment above), and the
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
-    <Tooltip.Provider delayDuration={300}>
+    <Tooltip.Provider delayDuration={300} skipDelayDuration={400} disableHoverableContent>
     <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's

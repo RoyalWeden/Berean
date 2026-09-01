@@ -1743,6 +1743,15 @@ body {
    (StrongsInline.tsx's .strongs-chip-abs) so they add ZERO layout — toggling them on/off just
    shows/hides them in space that's already there, no animation and no reflow. */
 
+/* Every OTHER instance of the Strong's number currently under the pointer, chapter-wide
+   (class added/removed by ChapterView's delegated hover handler). Lifts them out of the
+   dim rest state so you can scan where the same word recurs. */
+.strongs-chip.strongs-echo {
+  opacity: 0.9;
+  background-color: rgb(var(--color-accent) / 0.28);
+  border-color: rgb(var(--color-accent) / 0.5);
+}
+
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────
    There's no shared Button component in this codebase (698+ hand-rolled
    <button> elements), so a single "fix it everywhere" change isn't possible
