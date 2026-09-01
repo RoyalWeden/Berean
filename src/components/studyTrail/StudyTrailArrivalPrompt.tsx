@@ -125,10 +125,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
     return s.activeSpace === 'scripture' && !!t && (s.selectedVersesByTab[t]?.length ?? 0) > 0
   })
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
-  // The verse-selection action bar is bottom-CENTER; it only reaches over to this corner (and
-  // needs dodging) when the Bible reader's side panel is open and has narrowed the reading
-  // column. Otherwise leave the toast where it is.
-  const bottomPx = (verseSelectionOpen && rightPanelW > 0) ? 76 : (!searchTabActive && noteOpen ? 46 : 16)
+  // When verses are selected AND the Bible reader's side panel is open, lift the toast clear
+  // of the whole verse-selection action bar + any tag/colour popover it opens above itself.
+  const bottomPx = (verseSelectionOpen && rightPanelW > 0) ? 210 : (!searchTabActive && noteOpen ? 46 : 16)
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(conn, origin)

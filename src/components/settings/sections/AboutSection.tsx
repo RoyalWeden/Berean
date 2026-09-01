@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
+import { RotateCcw, BookOpen, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { clearChapterCache } from '@/lib/chapterCache'
+import { clearNoteCache } from '@/lib/noteCache'
+import { clearWarmStartNotes } from '@/lib/notesCache'
+import { __resetPanelDataCache } from '@/lib/panelDataCache'
 
 // ── Dev-only: simulate first launch ──────────────────────────────────────────
 
@@ -139,6 +143,16 @@ export default function AboutSection() {
   const [isDev, setIsDev] = useState(false)
   const [showDevGuide, setShowDevGuide] = useState(false)
   const [recreating, setRecreating] = useState(false)
+  const [cacheCleared, setCacheCleared] = useState(false)
+
+  function handleClearCache() {
+    clearChapterCache()
+    clearNoteCache()
+    clearWarmStartNotes()
+    __resetPanelDataCache()
+    setCacheCleared(true)
+    setTimeout(() => setCacheCleared(false), 2000)
+  }
 
   useEffect(() => {
     window.app.getVersion().then(setVersion).catch(() => {})
@@ -191,6 +205,16 @@ export default function AboutSection() {
       >
         <BookOpen size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
         {recreating ? 'Creating…' : 'Recreate Getting Started notes'}
+      </button>
+
+      {/* Clear in-memory content caches (chapters, notes, side-panel fetches). Harmless — the
+          app just refetches on next open. Useful if a stale cached chapter/note is showing. */}
+      <button
+        onClick={handleClearCache}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[rgb(var(--color-surface-4))] text-sm text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer w-full text-left"
+      >
+        <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-accent))]" />
+        {cacheCleared ? 'Cached content cleared' : 'Clear cached content'}
       </button>
       <div className="p-3 rounded-lg bg-[rgb(var(--color-surface-3))] border border-[rgb(var(--color-surface-4))]">
         <p className="s-desc text-xs text-[rgb(var(--color-text-muted))] leading-relaxed">

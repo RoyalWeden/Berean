@@ -195,9 +195,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchVerseNums, setFindMatchVerseNums] = useState<number[]>([])
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
-  // Last `${bookId}:${chapter}` the scroll-restore effect saw — lets it tell a same-chapter
-  // tab flip (ChapterView won't reload) from a real navigation.
-  const prevChapterKeyForScrollRef = useRef<string | null>(null)
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -473,8 +470,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // precisely the "should just flip, not scroll from verse one" behavior this guard
     // avoids. Skip the reset entirely and let the pending anchor own this load instead.
     if (strongsAnchorRef.current) return
-    // Reset to top immediately to avoid flash of old position
-    el.scrollTop = 0
+
+    const savedPosEarly = tabStateRef.current?.scrollPosition ?? 0
+    const restoringSaved = !hasTargetVerse && savedPosEarly > 1
+    // Reset to top immediately to avoid a flash of the old position — but NOT when we're about
+    // to restore a saved scroll position: the chapter area is hidden (chapterRevealed=false)
+    // until the rAF loop below lands that position, so there's nothing to flash, and forcing 0
+    // here first only creates a race with that loop (and with ChapterView's own onVersesLoaded,
+    // whose ordering vs. this effect flips depending on whether the chapter was already cached).
+    if (!restoringSaved) el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
     // chapter's position to a freshly-loaded chapter before the new scroll fires — EXCEPT
     // when a specific targetVerse is pending (e.g. a search-navigation): forcing
@@ -489,41 +493,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setMainBibleScrollPercent(0, freshChapterKey)
       clearLastBibleVerse(freshChapterKey)
     }
-    virtualScrollPctRef.current = 0
-    lastMainScrollTopRef.current = 0
-    pendingScrollRef.current = null
-    // A pending targetVerse owns scrolling for this load (see the scroll-to-verse effect in
-    // ChapterView.tsx) — restoring the old saved scrollPosition here would fight it. Some
-    // navigation paths that set targetVerse don't also clear scrollPosition, so this guard
-    // is the actual fix; onVersesLoaded has a second backstop check for the same reason.
-    if (hasTargetVerse) return
-    // Whether ChapterView will actually reload (different book/chapter → keyed remount → it
-    // re-fires onVersesLoaded) or NOT (same book/chapter, e.g. flipping between two scripture
-    // tabs both on Genesis 1 — it stays mounted and onVersesLoaded never fires again).
-    const prevKey = prevChapterKeyForScrollRef.current
-    const curKey = `${tabState.bookId}:${tabState.chapter}`
-    prevChapterKeyForScrollRef.current = curKey
-    const sameChapterFlip = prevKey === curKey
-
-    const savedPos = tabState.scrollPosition ?? 0
-    if (savedPos === 0) { setChapterRevealed(true); return }
-    // Normally applied by onVersesLoaded once ChapterView data arrives.
-    pendingScrollRef.current = savedPos
-    // On a same-chapter flip the verse DOM is already present and onVersesLoaded won't fire —
-    // restore straight away (still hidden behind chapterRevealed, so no flash), then reveal.
-    if (sameChapterFlip) {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const el2 = getScrollEl()
-        if (el2 && pendingScrollRef.current != null && el2.querySelector('[data-verse]')) {
-          el2.scrollTop = pendingScrollRef.current
-          pendingScrollRef.current = null
-          const max = el2.scrollHeight - el2.clientHeight
-          virtualScrollPctRef.current = max > 0 ? el2.scrollTop / max : 0
-          lastMainScrollTopRef.current = el2.scrollTop
-        }
-        setChapterRevealed(true)
-      }))
+    if (!restoringSaved) {
+      virtualScrollPctRef.current = 0
+      lastMainScrollTopRef.current = 0
     }
+    pendingScrollRef.current = null
+    // A pending targetVerse owns scrolling for this load (ChapterView's scroll-to-verse effect).
+    if (hasTargetVerse) return
+
+    const savedPos = savedPosEarly
+    if (savedPos <= 1) { setChapterRevealed(true); return }
+
+    // Restore the saved scroll position. This is the SINGLE authority for it on a tab switch —
+    // a rAF loop that waits until the verse list actually exists AND is tall enough for the
+    // position to stick (async fetch, cache-warm instant mount, and every layout-settling
+    // commit in between all converge here), re-applies it until it's stable, then reveals the
+    // (until-now hidden) chapter. No dependence on effect ordering with onVersesLoaded.
+    let raf = 0
+    let frames = 0
+    let stable = 0
+    const tick = () => {
+      const el2 = getScrollEl()
+      const ready = !!el2 && !!el2.querySelector('[data-verse]') && (el2.scrollHeight - el2.clientHeight) >= savedPos - 2
+      if (ready && el2) {
+        if (Math.abs(el2.scrollTop - savedPos) > 1) { el2.scrollTop = savedPos; stable = 0 }
+        else stable++
+        const max = el2.scrollHeight - el2.clientHeight
+        virtualScrollPctRef.current = max > 0 ? savedPos / max : 0
+        lastMainScrollTopRef.current = savedPos
+      }
+      frames++
+      if (stable >= 3 || frames > 120) { setChapterRevealed(true); return }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => { cancelAnimationFrame(raf); setChapterRevealed(true) }
   }, [activeSpace, activeTabId, tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Continuous Chapter Scroll's own equivalent of the effect above, deliberately NOT keyed
@@ -1765,7 +1769,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // DOM has settled. Guarded so it never fights a pending verse jump, a saved-position
       // restore (pos != 0, handled below), or continuous-scroll mode (where 0 = book top).
       // continuousChapterScroll is read live off the store — this callback has empty deps.
-      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse) {
+      // ALSO skipped when the tab carries a saved scrollPosition (>1): the tab-switch effect's
+      // own rAF loop is the authority for restoring that, and asserting 0 here would fight it
+      // (this fires first on a cache-warm mount, before that loop starts).
+      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse && (tabStateRef.current?.scrollPosition ?? 0) <= 1) {
         const el = getScrollEl()
         if (el && el.scrollTop !== 0) {
           el.scrollTop = 0

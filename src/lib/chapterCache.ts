@@ -19,3 +19,8 @@ export function getCachedVerses(key: string): Verse[] | null {
 export function setCachedVerses(key: string, verses: Verse[]): void {
   cache.set(key, verses)
 }
+
+/** Drop every cached chapter (Settings → About → Clear cached content). */
+export function clearChapterCache(): void {
+  cache.clear()
+}

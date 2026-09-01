@@ -169,9 +169,15 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
   const btnRef = useRef<HTMLButtonElement>(null)
   const verseStr = `${bookName(source.homeBookId)} ${source.homeChapter}:${source.homeVerse}`
   // Suppress the "· <title>" suffix whenever the note's title is really just its own verse
-  // reference in any punctuation form ("Romans 10:13", "Romans 10.13", "Romans_10_13", …) —
-  // repeating the reference we're already showing is pure noise.
-  const normalizeRef = (s: string) => s.trim().toLowerCase().replace(/[.:_\s]+/g, ' ')
+  // reference — in any punctuation form ("Romans 10:13", "Romans 10.13", "Romans_10_13"), and
+  // ignoring any trailing import tag the note name carries ("Jeremiah 5.24 (bg-234)",
+  // "Gen 1:1 - imported"). Repeating the reference we're already showing is pure noise.
+  const normalizeRef = (s: string) => s
+    .trim().toLowerCase()
+    .replace(/\s*[([{].*$/, '')          // drop a trailing "(bg-234)" / "[x]" import tag
+    .replace(/[.:_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   const titleIsRef = !source.title
     || source.title === 'Untitled'
     || normalizeRef(source.title) === normalizeRef(verseStr)

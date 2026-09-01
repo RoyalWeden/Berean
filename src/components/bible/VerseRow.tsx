@@ -376,34 +376,30 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     [idiomCache, idiomHighlightEnabled],
   )
 
-  // Three-phase Strong's toggle so nothing ever snaps or flashes — the words never move under
-  // the reader (BiblePanel also re-pins the anchor verse every frame for the whole sequence):
-  //   ON  — chips mount collapsed (grid-rows 0fr), then GROW their height out from under each
-  //         word (`chipsOpen`), and only once they're fully out does the line spacing tighten
-  //         (`lineTight`).
-  //   OFF — the reverse: line spacing loosens first, then the chips retract their height back
-  //         into the words, then they unmount.
-  const STRONGS_PHASE_MS = 260
-  const [renderStrongs, setRenderStrongs] = useState(showStrongs)   // in the DOM
-  const [chipsOpen, setChipsOpen] = useState(showStrongs)            // grid-rows 0fr <-> 1fr
-  const [lineTight, setLineTight] = useState(showStrongs)            // verse line spacing
+  // Strong's toggle in two phases so the reader never loses their place. The number chips are
+  // absolutely positioned (StrongsInline.tsx) so they add NO layout — phase 1 is pure "numbers
+  // slide out from under the words" with zero reflow. Phase 2 is the only thing that moves the
+  // text: the line spacing eases tighter/looser (BiblePanel pins the top verse throughout).
+  //   ON  — renderStrongs=true (chips slide in), then ~220ms later lineTight=true.
+  //   OFF — lineTight=false (spacing loosens), then ~200ms later renderStrongs=false; during
+  //         that window `renderStrongs && !showStrongs` adds .strongs-chips-closing so the chips
+  //         slide back up before they unmount.
+  const [renderStrongs, setRenderStrongs] = useState(showStrongs)
+  const [lineTight, setLineTight] = useState(showStrongs)
   const prevShowStrongsRef = useRef(showStrongs)
   useEffect(() => {
     if (prevShowStrongsRef.current === showStrongs) return
     prevShowStrongsRef.current = showStrongs
-    const timers: ReturnType<typeof setTimeout>[] = []
     if (showStrongs) {
       setRenderStrongs(true)
-      // next frame so the 0fr -> 1fr transition actually animates from the collapsed state
-      const raf = requestAnimationFrame(() => setChipsOpen(true))
-      timers.push(setTimeout(() => setLineTight(true), STRONGS_PHASE_MS + 40))
-      return () => { cancelAnimationFrame(raf); timers.forEach(clearTimeout) }
+      const t = setTimeout(() => setLineTight(true), 220)
+      return () => clearTimeout(t)
     }
     setLineTight(false)
-    timers.push(setTimeout(() => setChipsOpen(false), STRONGS_PHASE_MS))
-    timers.push(setTimeout(() => setRenderStrongs(false), STRONGS_PHASE_MS * 2 + 40))
-    return () => timers.forEach(clearTimeout)
+    const t = setTimeout(() => setRenderStrongs(false), 210)
+    return () => clearTimeout(t)
   }, [showStrongs])
+  const strongsClosing = renderStrongs && !showStrongs
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -980,7 +976,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   // so the words never shift under the reader.
   const rowStyle: React.CSSProperties = {
     ...baseRowStyle,
-    lineHeight: lineTight ? 1.35 : 1.75,
+    lineHeight: lineTight ? 1.5 : 1.85,
     transition: `${baseRowStyle?.transition ? baseRowStyle.transition + ', ' : ''}background-color 300ms ease, border-color 300ms ease, margin-bottom 260ms ease, line-height 260ms ease`,
   }
 
@@ -1364,7 +1360,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${chipsOpen ? 'strongs-chips-open' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${strongsClosing ? 'strongs-chips-closing' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1504,7 +1500,10 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         // chose," not an independent value that ignores their preference.
         // `lineTight` (not `showStrongs`) so the density change lands a beat AFTER the chips
         // have grown in on toggle-on — words don't shift under the reader mid-appearance.
-        style={{ lineHeight: lineTight ? 'calc(var(--line-height-comfortable) * 0.82)' : 'var(--line-height-comfortable)' }}
+        // ON keeps ~0.9x of the user's comfortable line-height (still visibly tighter) rather
+        // than 0.82x — the absolute-positioned Strong's chips live in this leading gap, so it
+        // can't close up as far without the numbers crowding the line below.
+        style={{ lineHeight: lineTight ? 'calc(var(--line-height-comfortable) * 0.9)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

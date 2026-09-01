@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type CSSProperties } from 'react'
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
@@ -36,15 +36,23 @@ function StrongsInline({
   const nums = Array.isArray(strongsNum) ? strongsNum : (strongsNum ? [strongsNum] : [])
   const wordNode = findQuery.trim() ? applyFindHighlight(word, findQuery, findWordMode) : word
 
+  // Strong's number "chips" are rendered ABSOLUTELY POSITIONED in the leading gap under each
+  // word (position:relative on the inline word wrapper; the chip stack is `top:100%`, nudged up
+  // with a negative marginTop). They contribute ZERO layout, so toggling Strong's on/off never
+  // reflows the verse text — the words stay exactly where they are while the numbers slide out
+  // from under them (see .strongs-chip-abs in global.css). Line spacing is the only thing that
+  // then changes, animated separately by VerseRow.
+  const CHIP_STACK = 'strongs-chip-abs absolute left-0 flex flex-col items-start'
+  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', marginTop: '-0.32em', lineHeight: 1, gap: '2px' }
+
   if (tagged) {
-    // Parenthetical token: grammatical particle, no corresponding English word.
-    // Rendered as a chip-only row with a muted parenthesised number.
+    // Parenthetical token: grammatical particle, no corresponding English word — an invisible
+    // word-width anchor carries the absolute chip.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span className="inline-flex flex-col items-start mr-0.5">
-          {/* Empty word-height placeholder so the chip row aligns with adjacent chips */}
-          <span className="text-[10px] leading-none opacity-0 select-none" aria-hidden>·</span>
-          <span data-strongs-chip-wrap><span>
+        <span className="relative">
+          <span className="opacity-0 select-none" aria-hidden>·</span>
+          <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
             <StrongsTooltip
               strongsNum={nums[0]}
               onClickEntry={onStrongsClick}
@@ -54,54 +62,48 @@ function StrongsInline({
                 ({nums[0]})
               </span>
             </StrongsTooltip>
-          </span></span>
+          </span>
         </span>
       )
     }
 
-    // Normal tagged word (possibly with multiple Strongs chips)
-    // wordContent: either segment-split spans (char highlight) or plain wordNode (find highlight)
     const wordContent = wordSegments
       ? wordSegments.map((seg, si) => (
           <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
         ))
       : wordNode
-    // gap: '2px' (was 0, with the word span pulled up via a negative marginBottom) — the word
-    // and its Strong's number sat with no breathing room at all once the trigger box-height
-    // fix (StrongsTooltip.tsx) closed up the number's own oversized hoverable area; a small
-    // positive gap here reads much less cramped.
+    const wordCls = `${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`.trim()
+
+    // No number on this word — just the plain inline word, no wrapper needed.
+    if (nums.length === 0) {
+      return wordCls ? <span className={wordCls}>{wordContent}</span> : <>{wordContent}</>
+    }
+
     return (
-      <span className="inline-flex flex-col items-start mr-0.5" style={{ gap: '2px' }}>
-        <span
-          className={`leading-none ${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`}
-        >{wordContent}</span>
-        {nums.length > 0 ? (
-          <span data-strongs-chip-wrap><span className="flex flex-col items-start" style={{ gap: '2px' }}>
-            {nums.map((num, i) => (
-              <StrongsTooltip
-                key={i}
-                strongsNum={num}
-                onClickEntry={onStrongsClick}
-                contextNote={i > 0 ? "Secondary Strong's number" : undefined}
+      <span className="relative">
+        <span className={wordCls}>{wordContent}</span>
+        <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
+          {nums.map((num, i) => (
+            <StrongsTooltip
+              key={i}
+              strongsNum={num}
+              onClickEntry={onStrongsClick}
+              contextNote={i > 0 ? "Secondary Strong's number" : undefined}
+            >
+              <span
+                data-strongs-chip
+                className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
               >
-                <span
-                  data-strongs-chip
-                  className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
-                >
-                  {num}
-                </span>
-              </StrongsTooltip>
-            ))}
-          </span></span>
-        ) : (
-          // Height placeholder — keeps word rows aligned regardless of whether they have a number
-          <span className="text-[9px] leading-none opacity-0 select-none" aria-hidden>·</span>
-        )}
+                {num}
+              </span>
+            </StrongsTooltip>
+          ))}
+        </span>
       </span>
     )
   }
 
-  // Fallback (no text_tagged data): word with Strong's → stacked chip
+  // Fallback (no text_tagged data): word with Strong's → absolute chip under it
   const primaryNum = nums[0] ?? null
   if (primaryNum) {
     const wContent = wordSegments
@@ -110,15 +112,15 @@ function StrongsInline({
         ))
       : wordNode
     return (
-      <span className="inline-flex flex-col items-start mr-1 gap-0">
-        <span className="leading-none">{wContent}</span>
-        <span data-strongs-chip-wrap><span>
+      <span className="relative">
+        <span>{wContent}</span>
+        <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
             <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
               {primaryNum}
             </span>
           </StrongsTooltip>
-        </span></span>
+        </span>
       </span>
     )
   }

@@ -1030,12 +1030,16 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const items = rowVirtualizer.getVirtualItems()
     if (items.length === 0) return null
     const firstVisible = items.find((it) => it.start + it.size > st + 1) ?? items[0]
-    // Walk forward from that virtual item to the first *result* row (skip a group header).
+    // Walk forward from that virtual item to the first *result* row (a group header at the very
+    // top isn't in the row-index map). `offset` is `scrollTop - row.start`, and is deliberately
+    // allowed to go NEGATIVE — when a header sits above the fold, the anchor result row starts
+    // below the viewport top, and a negative offset is what tells the restore to scroll back up
+    // far enough to show that header again (clamping it to 0 made restores land too far down).
     for (const it of items) {
       if (it.index < firstVisible.index) continue
       const row = flatRows[it.index]
       if (row?.type === 'result') {
-        return { rowKey: resultRowKey(row.result), offset: Math.max(0, Math.round(st - it.start)) }
+        return { rowKey: resultRowKey(row.result), offset: Math.round(st - it.start) }
       }
     }
     return null
@@ -1077,7 +1081,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         const it = rowVirtualizer.getVirtualItems().find((v) => v.index === flatIdx)
         // it.start is the virtualizer's current (measured-so-far) offset for that row — using it
         // instead of a stored px keeps correcting as rows below/above remeasure.
-        if (it) el.scrollTop = it.start + (anchor?.offset ?? 0)
+        if (it) el.scrollTop = Math.max(0, it.start + (anchor?.offset ?? 0))
       } else if (targetPx > 0) {
         rowVirtualizer.scrollToOffset(targetPx, { align: 'start' })
         el.scrollTop = targetPx

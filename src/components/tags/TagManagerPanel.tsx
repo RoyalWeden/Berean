@@ -110,7 +110,7 @@ export default function TagManagerPanel() {
     <div
       ref={cardRef}
       className="fixed rounded-shell context-menu shadow-[0_16px_48px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden"
-      style={{ left: pos.x, top: pos.y, width: WIDTH, maxHeight: '70vh', zIndex: modalOpen ? 40 : 120, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
+      style={{ left: pos.x, top: pos.y, width: WIDTH, maxHeight: '70vh', zIndex: modalOpen ? 40 : 210, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div
@@ -214,7 +214,7 @@ function PortalMenu({ anchor, align = 'left', onClose, children }: { anchor: HTM
     return () => { clearTimeout(id); window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onKey, true) }
   }, [anchor, onClose])
   return (
-    <div ref={ref} className="fixed z-[130]" style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, visibility: pos ? 'visible' : 'hidden' }}>
+    <div ref={ref} className="fixed z-[220]" style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, visibility: pos ? 'visible' : 'hidden' }}>
       {children}
     </div>
   )

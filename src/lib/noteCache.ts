@@ -26,3 +26,8 @@ export function getCachedNote(id: string): Note | null {
 export function setCachedNote(note: Note): void {
   cache.set(note.id, note)
 }
+
+/** Drop every cached note object (Settings → About → Clear cached content). */
+export function clearNoteCache(): void {
+  cache.clear()
+}

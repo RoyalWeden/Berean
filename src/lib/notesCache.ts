@@ -43,6 +43,12 @@ function rememberNotes(notes: Note[]): void {
   }
 }
 
+/** Drop the warm-start notes snapshot, in memory and on disk (Settings → About → Clear cached content). */
+export function clearWarmStartNotes(): void {
+  lastKnownNotes = null
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+}
+
 export function getAllNotes(token: number): Promise<Note[]> {
   if (!cache || cache.token !== token) {
     const promise = window.notes.getNotes(100000, 0).catch(() => [] as Note[])

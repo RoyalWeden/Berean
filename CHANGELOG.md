@@ -140,18 +140,21 @@ UI polish
   a word's last letter is no longer occasionally left un-reddened.
 - Advanced Scripture Search restores its scroll position exactly when you switch back to
   the tab — it anchors on the identity of the first visible result row (not an index or a
-  pixel offset, both of which drifted with dynamic row heights / collapsed groups) and
+  pixel offset, both of which drifted with dynamic row heights / collapsed groups), allows
+  the anchor offset to sit above the fold so a group header at the top is kept in view, and
   keeps correcting until the layout settles.
 - Advanced Scripture Search controls (mode, word-mode, Scope, sort, result-length, tag
   filter) now share one compact pill style with a consistent accent-tint active state.
 - Clicking the tag-filter pill in Advanced Search while its menu is already open now
   closes it.
-- Toggling inline Strong's is now a smooth three-phase animation with no flash: the number
-  chips grow their height out from under each word, then the line spacing tightens around
-  them. Reversed on the way back. The anchor verse is held in place the whole time.
-- Switching from a note to a scripture tab — or flipping between two scripture tabs sitting
-  on the same chapter — no longer flashes the top of the chapter or loses your scroll
-  position.
+- Inline Strong's numbers are now positioned in the gap under each word instead of stacked
+  in the text flow, so toggling them on/off never pushes the verses around — the numbers
+  slide in, then the line spacing eases tighter as a separate step (top verse held fixed).
+- Scripture tabs reliably restore their exact scroll position on return — including
+  revisiting an already-loaded chapter, which used to snap back to verse 1. The chapter
+  stays hidden until the position lands.
+- Settings → About → "Clear cached content" drops the in-memory chapter / note / side-panel
+  caches (harmless; the app just refetches).
 - Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
   toolbar, which idiom notes hide). The word/character-count readouts now sit on a
   translucent pill.
