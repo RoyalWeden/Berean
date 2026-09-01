@@ -111,16 +111,21 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
   const expanded = touched || hovering
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
-  // Step out of the way of whatever else owns the bottom-right corner right now:
+  // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
   //  • the Bible reader's right-hand side panel — slide left by its width (+ a gap)
   //  • an open note editor — its word-count footer sits in this exact corner, so nudge up
-  // On an Advanced Search tab neither applies (that view has its own right-edge jump rail and
+  //  • the verse-selection action bar (bottom-center, ~44px tall at bottom:20) — lift above it
+  // On an Advanced Search tab the side-panel/note cases don't apply (own right-edge jump rail,
   // no note footer), so the toast stays pinned to the far-right corner there.
   const searchTabActive = useAppStore((s) => s.bibleSearchTabActive)
   const rightPanelW = useAppStore((s) => s.bibleRightPanelWidth)
   const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0)
+  const verseSelectionOpen = useAppStore((s) => {
+    const t = s.activeTabId['scripture']
+    return s.activeSpace === 'scripture' && !!t && (s.selectedVersesByTab[t]?.length ?? 0) > 0
+  })
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
-  const bottomPx = !searchTabActive && noteOpen ? 46 : 16
+  const bottomPx = verseSelectionOpen ? 76 : (!searchTabActive && noteOpen ? 46 : 16)
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(conn, origin)

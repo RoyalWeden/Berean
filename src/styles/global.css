@@ -1751,8 +1751,19 @@ body {
   animation: strongsChipIn 200ms ease-out;
   transform-origin: top center;
 }
+/* Toggle OFF: line spacing has already loosened; now the chips retract into their words
+   before the row re-renders as plain text. `forwards` holds them collapsed until unmount. */
+@keyframes strongsChipOut {
+  from { opacity: 1; transform: translateY(0) scaleY(1); }
+  to   { opacity: 0; transform: translateY(-3px) scaleY(0.4); }
+}
+.strongs-collapsing [data-strongs-chip] {
+  animation: strongsChipOut 200ms ease-in forwards;
+  transform-origin: top center;
+}
 @media (prefers-reduced-motion: reduce) {
-  .strongs-chip-in { animation: none; }
+  .strongs-chip-in,
+  .strongs-collapsing [data-strongs-chip] { animation: none; }
 }
 
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────

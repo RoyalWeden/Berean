@@ -212,6 +212,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Stores the top-visible verse anchor before a Strong's toggle or KJV/LXX switch so the
   // same verse stays visible at roughly the same screen position after the layout reflows.
   const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
+  // Same anchor, kept alive through the ~500ms two-phase Strong's toggle animation (chips grow
+  // in, then line-height tightens — see VerseRow's STRONGS_PHASE_MS): a rAF loop re-pins this
+  // verse's on-screen position every frame so the gradual reflow never drifts under the reader.
+  const strongsAnimAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
   // Briefly highlights the anchor verse right after it's restored, so the eye has an
   // obvious landing point confirming "you're still here" through the Strong's/KJV-LXX
   // reflow — see ChapterView's flashAnchor prop. A fresh nonce re-triggers the flash even
@@ -1171,6 +1175,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const anchor = strongsAnchorRef.current
     if (!anchor) return
     strongsAnchorRef.current = null
+    // Hand the anchor to the animation-window rAF loop below so it keeps re-pinning through
+    // the gradual chip-in / line-tighten reflow, not just this one synchronous correction.
+    strongsAnimAnchorRef.current = anchor
     const container = getScrollEl()
     if (!container) return
     const el = container.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
@@ -1213,6 +1220,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // A layout effect's DOM reads are already post-layout, so no rAF wait is needed here either.
   useLayoutEffect(() => {
     restoreStrongsAnchor()
+  }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the anchor verse pinned for the full duration of the two-phase toggle animation —
+  // restoreStrongsAnchor above only corrects the first frame; the chip-in + delayed line-height
+  // reflow keeps changing heights for ~500ms after that.
+  useEffect(() => {
+    const anchor = strongsAnimAnchorRef.current
+    if (!anchor) return
+    strongsAnimAnchorRef.current = null
+    let raf = 0
+    const start = performance.now()
+    const tick = () => {
+      const container = getScrollEl()
+      const el = container?.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
+      if (container && el) {
+        const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offsetPx
+        if (Math.abs(delta) > 0.5) container.scrollTop += delta
+      }
+      if (performance.now() - start < 620) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Type-anywhere digit → go to verse ────────────────────────────────────
@@ -2219,6 +2248,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             bookFilter: tabState.searchBookFilter,
             sortMode: tabState.searchSortMode,
             scrollTop: tabState.searchScrollTop,
+            scrollAnchor: tabState.searchScrollAnchor,
             tagFilter: tabState.searchTagFilter,
             tagFilterAll: tabState.searchTagFilterAll,
           }}
@@ -2232,6 +2262,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 searchBookFilter: s.bookFilter,
                 searchSortMode: s.sortMode,
                 searchScrollTop: s.scrollTop,
+                searchScrollAnchor: s.scrollAnchor,
                 searchTagFilter: s.tagFilter,
                 searchTagFilterAll: s.tagFilterAll,
               })

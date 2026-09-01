@@ -70,13 +70,13 @@ export default function WordCountFooter({ view, lastSavedAt }: { view: EditorVie
     <div className="absolute bottom-2 right-3 z-10 flex items-center gap-2 pointer-events-none select-none">
       {lastSavedAt != null && (
         <span
-          className="flex items-center gap-1 text-[11px] text-[rgb(var(--color-text-muted))] transition-opacity ease-out"
+          className="flex items-center gap-1 rounded-full bg-[rgb(var(--color-surface-2))]/60 backdrop-blur-sm px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-muted))] transition-opacity ease-out"
           style={{ opacity: saveFlashVisible ? 1 : 0, transitionDuration: `${SAVE_FLASH_FADE_MS}ms` }}
         >
           <Check size={11} strokeWidth={2.5} /> Saved
         </span>
       )}
-      <div className="text-[11px] text-[rgb(var(--color-text-muted))]">
+      <div className="rounded-full bg-[rgb(var(--color-surface-2))]/60 backdrop-blur-sm px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-muted))]">
         {wordStats.words === 0
           ? (statsAreSelection ? '0 words selected' : '0 words')
           : statsAreSelection

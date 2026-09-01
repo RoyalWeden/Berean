@@ -132,27 +132,29 @@ UI polish
 - Right-clicking a verse no longer offers "Tag chapter…" — chapter tagging stays on the
   Bible panel toolbar's tag button.
 - The bottom-right Study Trail "why'd you go here?" toast is now translucent, slides left
-  clear of the Bible reader's side panel when it's open, and lifts above a note editor's
-  word-count footer so the two no longer overlap.
+  clear of the Bible reader's side panel when it's open, lifts above a note editor's
+  word-count footer, lifts above the verse-selection action bar when that's open, and
+  stays pinned far-right on Advanced Search tabs.
 - Advanced Scripture Search: red-letter (words of Yeshua) styling now survives a search-
   match highlight overlapping it, and word boundaries are re-anchored to the real text so
   a word's last letter is no longer occasionally left un-reddened.
-- Advanced Scripture Search now reliably restores its scroll position when you switch back
-  to the tab — and lands exactly (a settle loop re-asserts the target as the virtualized
-  rows finish measuring, instead of landing "slightly off").
-- On an Advanced Search tab the Study Trail toast now stays pinned to the far-right corner
-  (that view has its own right-edge jump rail — no dodging).
-- Toggling inline Strong's now animates: each verse's line spacing eases open/closed while
-  the number chips grow in under their words, instead of a snap or a full-page crossfade.
+- Advanced Scripture Search restores its scroll position exactly when you switch back to
+  the tab — it now anchors on the first visible result row rather than a raw pixel offset,
+  which drifted as the dynamic-height rows remeasured.
+- Toggling inline Strong's is now a two-phase animation: the numbers first grow out from
+  under each word (nothing shifts, so you keep your place), then the line spacing tightens
+  around them. Reversed on the way back. The anchor verse is held in place throughout.
 - Switching from a note to a scripture tab no longer flashes the top of the chapter and
   then jumps — the chapter stays hidden until its scroll position is restored.
 - Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
-  toolbar, which idiom notes hide).
+  toolbar, which idiom notes hide). The word/character-count readouts now sit on a
+  translucent pill.
 - The verse-selection action bar is more translucent.
 - The tab bar now scrolls a newly opened (or newly activated) tab into view if it lands
   below the fold.
 - Refreshed look for the chapter cross-reference banner (pill styling, real chevron, verse
-  chips) plus a refresh button to re-scan your notes for chapter citations.
+  chips); it auto-updates as your notes change. Verse chips no longer repeat the reference
+  as a redundant "· <note title>" suffix when the title is just that reference.
 
 ## [0.5.14] - 2026-08-30
 

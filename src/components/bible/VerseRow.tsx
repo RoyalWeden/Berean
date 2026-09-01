@@ -375,6 +375,31 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     () => (idiomHighlightEnabled ? expandIdiomPatterns(idiomCache) : []),
     [idiomCache, idiomHighlightEnabled],
   )
+
+  // Two-phase Strong's toggle so the reader never loses their place:
+  //   ON  — chips render + grow out of each word first (.strongs-chip-in); ~260ms later the
+  //         line spacing tightens (`lineTight`). Nothing "jumps": the words stay put while the
+  //         numbers appear, then the paragraph closes up around them.
+  //   OFF — line spacing loosens back immediately; the chips stay ~260ms longer, collapsing
+  //         into their words (.strongs-collapsing), then unmount.
+  const STRONGS_PHASE_MS = 260
+  const [renderStrongs, setRenderStrongs] = useState(showStrongs)
+  const [lineTight, setLineTight] = useState(showStrongs)
+  const prevShowStrongsRef = useRef(showStrongs)
+  useEffect(() => {
+    if (prevShowStrongsRef.current === showStrongs) return
+    prevShowStrongsRef.current = showStrongs
+    if (showStrongs) {
+      setRenderStrongs(true)
+      const t = setTimeout(() => setLineTight(true), STRONGS_PHASE_MS)
+      return () => clearTimeout(t)
+    }
+    setLineTight(false)
+    const t = setTimeout(() => setRenderStrongs(false), STRONGS_PHASE_MS)
+    return () => clearTimeout(t)
+  }, [showStrongs])
+  // True only during the OFF phase where chips are still mounted but on their way out.
+  const strongsCollapsing = renderStrongs && !showStrongs
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -945,12 +970,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   }, [findQuery, findWordMode, verse.text])
 
   const baseRowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
-  // Line-height is animated inline (Tailwind's `leading-*` classes can't transition) so toggling
-  // Strong's tightens/loosens the verse spacing smoothly rather than snapping — the chips grow
-  // in under each word (see .strongs-chip-in in global.css) while the lines close up around them.
+  // Line-height is animated inline (Tailwind's `leading-*` classes can't transition) and is
+  // driven by `lineTight`, which lags the Strong's toggle by one phase (see the STRONGS_PHASE_MS
+  // effect above): on toggle-ON the chips grow in first and the lines only close up afterward,
+  // so the words never shift under the reader.
   const rowStyle: React.CSSProperties = {
     ...baseRowStyle,
-    lineHeight: showStrongs ? 1.35 : 1.75,
+    lineHeight: lineTight ? 1.35 : 1.75,
     transition: `${baseRowStyle?.transition ? baseRowStyle.transition + ', ' : ''}background-color 300ms ease, border-color 300ms ease, margin-bottom 260ms ease, line-height 260ms ease`,
   }
 
@@ -1057,7 +1083,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         }
       }
 
-      if (showStrongs) {
+      if (renderStrongs) {
         const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
         return (
           <span>
@@ -1196,7 +1222,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       )
     }
 
-    if (!showStrongs && charHighlights.length > 0) {
+    if (!renderStrongs && charHighlights.length > 0) {
       // Character-segmented rendering (char highlight takes priority over find overlay)
       const boundaries = [0, ...charHighlights.flatMap(h => [h.startChar!, h.endChar!]), verse.text.length]
       const sorted = [...new Set(boundaries)].sort((a, b) => a - b)
@@ -1217,7 +1243,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       )
     }
 
-    if (showStrongs) {
+    if (renderStrongs) {
       // No text_tagged: word-level fallback with clickable lexicon search + char-level highlights
       const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
       // Compute per-word char positions from verse.text so they align with charHighlights offsets
@@ -1334,7 +1360,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative ${showStrongs ? 'mb-1' : 'mb-3'} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${strongsCollapsing ? 'strongs-collapsing' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1472,7 +1498,9 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         // (--line-height-comfortable, synced from Settings in App.tsx) rather than a fixed
         // number, so Strong's mode stays "somewhat denser than whatever this user already
         // chose," not an independent value that ignores their preference.
-        style={{ lineHeight: showStrongs ? 'calc(var(--line-height-comfortable) * 0.82)' : 'var(--line-height-comfortable)' }}
+        // `lineTight` (not `showStrongs`) so the density change lands a beat AFTER the chips
+        // have grown in on toggle-on — words don't shift under the reader mid-appearance.
+        style={{ lineHeight: lineTight ? 'calc(var(--line-height-comfortable) * 0.82)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

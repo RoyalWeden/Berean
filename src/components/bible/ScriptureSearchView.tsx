@@ -270,6 +270,9 @@ interface PersistedState {
   bookFilter?: string
   sortMode?: SortMode
   scrollTop?: number
+  /** Row-anchored scroll position (first visible result row index + px scrolled past its top).
+   *  Preferred over `scrollTop` on restore because the rows have dynamic heights. */
+  scrollAnchor?: { index: number; offset: number }
   /** Comma-joined verse-tag ids; `tagFilterAll` => AND (every) rather than OR (any). */
   tagFilter?: string
   tagFilterAll?: boolean
@@ -505,6 +508,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // unmounting subtree during the commit phase, before that subtree's passive-effect cleanups
   // run, so reading resultsRef.current directly in an unmount cleanup was silently a no-op.
   const lastScrollTopRef = useRef(0)
+  // Row-anchored counterpart of lastScrollTopRef — the first visible result row + how far it's
+  // scrolled past the top. Restored via rowVirtualizer.scrollToIndex, which self-corrects as the
+  // dynamic row heights finish measuring, so it lands exactly where a raw px scrollTop drifts.
+  const lastScrollAnchorRef = useRef<{ index: number; offset: number } | null>(persistedState?.scrollAnchor ?? null)
   // False until the post-load restore effect has run once. The "persist on filter/query change"
   // effect fires on mount too, before results (and therefore the restored scroll position) exist;
   // reading resultsRef.current.scrollTop then yields a literal 0, and `0 ?? persisted` keeps the 0
@@ -544,42 +551,50 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return () => window.removeEventListener('berean:focusScriptureSearch', onFocus)
   }, [])
 
-  // Restore scroll position after results load
+  // Restore scroll position after results load. Prefer the row-anchor (first visible row index
+  // + px past its top): the results list is virtualized with DYNAMIC row heights, so a raw
+  // `scrollTop = savedPx` lands "slightly off" — at that instant only rows near the top have
+  // real measured heights, everything below is still the estimate. rowVirtualizer.scrollToIndex
+  // keeps correcting as those rows remeasure, so anchoring on a row lands exactly.
   useEffect(() => {
     if (scrollRestoredRef.current) return
     if (!resultsRef.current || results.length === 0) return
-    const target = persistedState?.scrollTop ?? 0
     scrollRestoredRef.current = true
-    if (target <= 0) return
-    // Keep lastScrollTopRef in sync — if the user navigates away again without ever triggering
-    // a real onScroll event (restored straight to a scrolled position, then immediately clicks
-    // a result), the unmount-flush needs this to already reflect the restored position.
-    lastScrollTopRef.current = target
 
-    // The results list is virtualized with DYNAMIC row heights (rowVirtualizer.measureElement).
-    // A one-shot `scrollTop = target` lands "slightly off": at that instant only the rows near
-    // the TOP have real measured heights — everything between there and `target` is still the
-    // estimate, so the offset that *currently* corresponds to `target` px isn't the offset that
-    // will once those rows render and remeasure. So: nudge the virtualizer to render around the
-    // target (scrollToOffset), then re-assert `target` every frame until scrollTop stops moving
-    // (layout settled) — or we hit the frame cap, or the user scrolls.
+    const anchor = persistedState?.scrollAnchor
+    const targetPx = persistedState?.scrollTop ?? 0
+    if (!anchor && targetPx <= 0) return
+
+    // Keep the trackers in sync so an immediate navigate-away (before any real onScroll) still
+    // flushes the restored position rather than 0.
+    if (anchor) lastScrollAnchorRef.current = anchor
+    if (targetPx > 0) lastScrollTopRef.current = targetPx
+
     let raf = 0
-    let stableFrames = 0
     let frames = 0
-    let lastApplied = -1
+    let stable = 0
+    let lastTop = -1
     const tick = () => {
       const el = resultsRef.current
       if (!el) return
-      // If scrollTop has drifted from the value we last wrote by more than a rounding wobble,
-      // the user grabbed the scrollbar / wheeled mid-restore — their intent wins, stop.
-      if (lastApplied >= 0 && Math.abs(el.scrollTop - lastApplied) > 4) return
-      rowVirtualizer.scrollToOffset(target, { align: 'start' })
-      el.scrollTop = target
-      lastApplied = el.scrollTop
-      lastScrollTopRef.current = target
+      // User grabbed the scrollbar mid-restore — their intent wins.
+      if (lastTop >= 0 && Math.abs(el.scrollTop - lastTop) > 6) return
+
+      if (anchor && anchor.index < flatRows.length) {
+        rowVirtualizer.scrollToIndex(anchor.index, { align: 'start' })
+        // scrollToIndex lands the row's top at the container top; add back the sub-row offset.
+        const items = rowVirtualizer.getVirtualItems()
+        const it = items.find((v) => v.index === anchor.index)
+        if (it) el.scrollTop = it.start + anchor.offset
+      } else {
+        rowVirtualizer.scrollToOffset(targetPx, { align: 'start' })
+        el.scrollTop = targetPx
+      }
+      stable = lastTop >= 0 && Math.abs(el.scrollTop - lastTop) < 1 ? stable + 1 : 0
+      lastTop = el.scrollTop
+      lastScrollTopRef.current = el.scrollTop
       frames++
-      stableFrames = Math.abs(el.scrollTop - target) < 1 ? stableFrames + 1 : 0
-      if (stableFrames < 3 && frames < 40) raf = requestAnimationFrame(tick)
+      if (stable < 3 && frames < 48) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -594,8 +609,9 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     onStateChangeRef.current?.({
       query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
       // Before the restore effect has run, resultsRef.current.scrollTop is a meaningless 0 —
-      // pass the persisted value straight through so this doesn't clobber it (see scrollRestoredRef).
+      // pass the persisted values straight through so this doesn't clobber them (see scrollRestoredRef).
       scrollTop: scrollRestoredRef.current ? (resultsRef.current?.scrollTop ?? persistedState?.scrollTop) : persistedState?.scrollTop,
+      scrollAnchor: scrollRestoredRef.current ? (lastScrollAnchorRef.current ?? undefined) : persistedState?.scrollAnchor,
       tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -618,6 +634,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       onStateChangeRef.current?.({
         query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
         scrollTop: lastScrollTopRef.current,
+        scrollAnchor: lastScrollAnchorRef.current ?? undefined,
         tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
       })
     }
@@ -1043,6 +1060,18 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     },
     overscan: 12,
   })
+
+  // First visible row + px scrolled past its top — the row-anchored scroll position that
+  // survives the dynamic-height remeasure a raw scrollTop doesn't (see lastScrollAnchorRef).
+  function computeScrollAnchor(): { index: number; offset: number } | null {
+    const el = resultsRef.current
+    if (!el) return null
+    const st = el.scrollTop
+    const items = rowVirtualizer.getVirtualItems()
+    if (items.length === 0) return null
+    const first = items.find((it) => it.start + it.size > st + 1) ?? items[0]
+    return { index: first.index, offset: Math.max(0, Math.round(st - first.start)) }
+  }
 
   // Scroll focused result into view when focusedIdx changes
   useEffect(() => {
@@ -1622,9 +1651,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         onScroll={(e) => {
           const scrollTop = (e.currentTarget as HTMLDivElement).scrollTop
           lastScrollTopRef.current = scrollTop
+          const anchor = computeScrollAnchor()
+          if (anchor) lastScrollAnchorRef.current = anchor
           if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
           scrollSaveTimerRef.current = setTimeout(() => {
-            onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop })
+            onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop, scrollAnchor: lastScrollAnchorRef.current ?? undefined })
           }, 150)
         }}
       >
