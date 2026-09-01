@@ -1061,95 +1061,130 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
 
       if (renderStrongs) {
         const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
-        // Extra right-margin (px) per token so a short word's centred number pill doesn't overlap
-        // the next word's. Computed DETERMINISTICALLY from character counts at render time — no
-        // DOM measurement, no post-paint reflow, so nothing ever jumps. Rough but only needs to
-        // be right about *whether* two pills collide, not to the pixel.
-        const strongsWordGaps: Record<number, number> = (() => {
-          const gaps: Record<number, number> = {}
-          const CH = 7.4                                   // ~px per verse-text character
-          const chipW = (n: string) => n.length * 5.15 + 13 // monospace 8.5px + padding + border
-          const numsOf = (t: typeof displayTokens[number]) =>
-            Array.isArray(t.strongsNum) ? t.strongsNum : (t.strongsNum ? [t.strongsNum] : [])
-          const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
-          const rendered = displayTokens
-            .map((t, i) => ({ t, i }))
-            .filter(({ t, i }) => !suppressedIndices.has(i) && !t.isStrongsBracket)
-          for (let r = 0; r < rendered.length - 1; r++) {
-            const a = rendered[r], b = rendered[r + 1]
-            const aNums = numsOf(a.t)
-            if (aNums.length === 0) continue
-            const aHalf = Math.max(...aNums.map(chipW)) / 2
-            const bNums = numsOf(b.t)
-            const bHalf = bNums.length ? Math.max(...bNums.map(chipW)) / 2 : 0
-            const centreGap = wordPx(a.t.word) / 2 + 4 /* space */ + wordPx(b.t.word) / 2
-            const need = aHalf + bHalf - centreGap + 6
-            if (need > 1) gaps[a.i] = Math.round(need)
+        const numKey = (t: typeof displayTokens[number]) => {
+          const n = Array.isArray(t.strongsNum) ? t.strongsNum.join('|') : (t.strongsNum ?? '')
+          return n || null
+        }
+        const numsOf = (t: typeof displayTokens[number]) =>
+          Array.isArray(t.strongsNum) ? t.strongsNum : (t.strongsNum ? [t.strongsNum] : [])
+
+        // Group consecutive rendered tokens that carry the SAME Strong's number into ONE phrase
+        // unit — the reliable, exact signal (confirmed: this data tags every word of a phrase,
+        // e.g. `fig{G4808} tree{G4808}`, `well{G2106} pleased{G2106}`). A phrase renders as a
+        // single wrapper with ONE pill centred under the whole run. Parenthetical / alignment-
+        // bracket tokens are always their own singletons.
+        type Grp = { members: number[]; k: string | null }
+        const groups: Grp[] = []
+        let lastK: string | null = null
+        for (let i = 0; i < displayTokens.length; i++) {
+          if (suppressedIndices.has(i)) continue
+          const t = displayTokens[i]
+          const k = (t.isParenthetical || t.isStrongsBracket) ? null : numKey(t)
+          if (k != null && k === lastK && groups.length > 0) {
+            groups[groups.length - 1].members.push(i)
+          } else {
+            groups.push({ members: [i], k })
           }
-          return gaps
-        })()
-        // Phrase keys: a contiguous run of tokens carrying the SAME Strong's number is one
-        // phrase (one original-language word rendered as several English words). Hovering any
-        // number in the run highlights the whole run (ChapterView's delegated handler keys on
-        // data-phrase-key). Non-contiguous repeats of the same number get different keys.
-        const phraseKeys: (string | undefined)[] = (() => {
-          const keys: (string | undefined)[] = new Array(displayTokens.length)
-          const numKey = (t: typeof displayTokens[number]) => {
-            const n = Array.isArray(t.strongsNum) ? t.strongsNum.join('|') : (t.strongsNum ?? '')
-            return n || null
+          lastK = k
+        }
+
+        // Deterministic (character-count) extra right-margin per GROUP so a short group's centred
+        // pill doesn't overlap the next group's. No DOM measurement → no reflow / jump.
+        const CH = 7.4
+        const chipW = (n: string) => n.length * 5.15 + 13
+        const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
+        const groupPx = (g: Grp) => g.members.reduce((s, mi) => s + wordPx(displayTokens[mi].word), 0) + 4 * (g.members.length - 1)
+        const groupGaps: Record<number, number> = {}
+        for (let gi = 0; gi < groups.length - 1; gi++) {
+          const a = groups[gi], b = groups[gi + 1]
+          if (a.k == null) continue
+          const aHalf = Math.max(...numsOf(displayTokens[a.members[0]]).map(chipW)) / 2
+          const bHalf = b.k != null ? Math.max(...numsOf(displayTokens[b.members[0]]).map(chipW)) / 2 : 0
+          const centreGap = groupPx(a) / 2 + 4 + groupPx(b) / 2
+          const need = aHalf + bHalf - centreGap + 6
+          if (need > 1) groupGaps[gi] = Math.round(need)
+        }
+
+        // Styled node for one word token (char highlights / read-aloud tint / find / red-letter /
+        // italic) — shared by the single-token and phrase paths.
+        const wordNodeFor = (token: typeof displayTokens[number]) => {
+          let wordSegs = token.isParenthetical
+            ? null
+            : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+          if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
+            wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
           }
-          let prev: string | null = null
-          let runStart = 0
-          for (let i = 0; i < displayTokens.length; i++) {
-            const k = numKey(displayTokens[i])
-            if (k == null) { prev = null; continue }
-            if (k !== prev) { prev = k; runStart = i }
-            keys[i] = `v${verse.verse_num}-p${runStart}`
-          }
-          return keys
-        })()
+          const wc = wordSegs
+            ? wordSegs.map((seg, si) => (
+                <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
+              ))
+            : (isFindMatch ? applyFindHighlight(token.word, findQuery, highlightMode) : token.word)
+          return token.isRedLetter
+            ? <span className={RED_LETTER_CLASS}>{wc}</span>
+            : token.isItalic
+            ? <span className="italic opacity-70">{wc}</span>
+            : <>{wc}</>
+        }
+
         return (
           <span>
-            {displayTokens.map((token, i) => {
-              // Suppress "the"/"The" that preceded a Strong's-replaced divine name
-              if (suppressedIndices.has(i)) return null
-              // Build per-character highlight segments for this word (null = no overlap = plain)
-              let wordSegs = token.isParenthetical
-                ? null
-                : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
-              // Read Aloud active-word tint — takes visual priority over a real highlight
-              // underneath since it's the exact word being spoken right now (transient, per plan).
-              if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
-                wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+            {groups.map((g, gi) => {
+              const first = g.members[0]
+              const key = g.k != null ? `v${verse.verse_num}-p${first}` : undefined
+              const spacer = gi < groups.length - 1 ? ' ' : null
+
+              if (g.k == null || g.members.length === 1) {
+                const token = displayTokens[first]
+                const wordSegs = token.isParenthetical
+                  ? null
+                  : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+                const playbackSegs = (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex)
+                  ? [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+                  : wordSegs
+                return (
+                  <Fragment key={gi}>
+                    <StrongsInline
+                      word={token.isStrongsBracket ? '' : token.word}
+                      strongsNum={token.strongsNum}
+                      isItalic={token.isItalic}
+                      isRedLetter={token.isRedLetter}
+                      isParenthetical={token.isParenthetical}
+                      tagged={true}
+                      wordSegments={playbackSegs ?? undefined}
+                      findQuery={playbackSegs ? '' : (isFindMatch ? findQuery : '')}
+                      findWordMode={highlightMode}
+                      onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
+                      onWordClick={onWordClick}
+                      swIdx={first}
+                      extraGap={groupGaps[gi]}
+                      phraseKey={key}
+                    />
+                    {spacer}
+                  </Fragment>
+                )
               }
-              // Space after this token — check if it falls within a charHighlight (original-text coords)
-              const spaceCharPos = token.charStart + token.origLen
-              const spaceHl = !token.isParenthetical && i < displayTokens.length - 1
-                ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
-                : undefined
+
+              // Real multi-word phrase.
+              const groupWords: React.ReactNode[] = []
+              g.members.forEach((mi, mj) => {
+                groupWords.push(<Fragment key={mi}>{wordNodeFor(displayTokens[mi])}</Fragment>)
+                if (mj < g.members.length - 1) groupWords.push(' ')
+              })
               return (
-                <Fragment key={i}>
+                <Fragment key={gi}>
                   <StrongsInline
-                    word={token.isStrongsBracket ? '' : token.word}
-                    strongsNum={token.strongsNum}
-                    isItalic={token.isItalic}
-                    isRedLetter={token.isRedLetter}
-                    isParenthetical={token.isParenthetical}
+                    word={g.members.map((mi) => displayTokens[mi].word).join(' ')}
+                    strongsNum={displayTokens[first].strongsNum}
+                    isItalic={g.members.every((mi) => displayTokens[mi].isItalic)}
+                    isRedLetter={g.members.every((mi) => displayTokens[mi].isRedLetter)}
                     tagged={true}
-                    wordSegments={wordSegs ?? undefined}
-                    findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
-                    findWordMode={highlightMode}
+                    groupWords={groupWords}
                     onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
-                    onWordClick={onWordClick}
-                    swIdx={i}
-                    extraGap={strongsWordGaps?.[i]}
-                    phraseKey={phraseKeys[i]}
+                    swIdx={first}
+                    extraGap={groupGaps[gi]}
+                    phraseKey={key}
                   />
-                  {i < displayTokens.length - 1 && (
-                    spaceHl
-                      ? <span style={{ backgroundColor: WORD_HIGHLIGHT_BG[spaceHl.color] }}> </span>
-                      : ' '
-                  )}
+                  {spacer}
                 </Fragment>
               )
             })}

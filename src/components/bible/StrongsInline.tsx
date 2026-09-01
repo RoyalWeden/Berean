@@ -1,4 +1,4 @@
-import { memo, type CSSProperties } from 'react'
+import { memo, type CSSProperties, type ReactNode } from 'react'
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
@@ -25,6 +25,11 @@ interface StrongsInlineProps {
   /** Identifies the contiguous run of words that share this exact Strong's number occurrence
    *  (a "phrase") — hovering any of them highlights the whole run. */
   phraseKey?: string
+  /** When a Strong's number spans MULTIPLE English words, VerseRow passes the already-styled
+   *  word nodes (space-joined) here and renders ONE StrongsInline for the whole phrase — a
+   *  single number pill, centred under the run. `word` is then the plain joined text (used
+   *  only for the lexicon-search click on untagged words, which doesn't apply here). */
+  groupWords?: ReactNode
 }
 
 function StrongsInline({
@@ -42,6 +47,7 @@ function StrongsInline({
   swIdx,
   extraGap,
   phraseKey,
+  groupWords,
 }: StrongsInlineProps) {
   const nums = Array.isArray(strongsNum) ? strongsNum : (strongsNum ? [strongsNum] : [])
   const wordNode = findQuery.trim() ? applyFindHighlight(word, findQuery, findWordMode) : word
@@ -107,27 +113,42 @@ function StrongsInline({
     const wordCls = `${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`.trim()
 
     // No number on this word — just the plain inline word, no wrapper needed.
-    if (nums.length === 0) {
+    if (nums.length === 0 && !groupWords) {
       return wordCls ? <span className={wordCls}>{wordContent}</span> : <>{wordContent}</>
+    }
+
+    const pillStack = (
+      <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
+        {nums.map((num, i) => (
+          <StrongsTooltip
+            key={i}
+            strongsNum={num}
+            onClickEntry={onStrongsClick}
+            contextNote={i > 0 ? "Secondary Strong's number" : undefined}
+          >
+            <span data-strongs-chip data-strongs-num={num} className={i > 0 ? chipSecondary : chipPrimary}>
+              {num}
+            </span>
+          </StrongsTooltip>
+        ))}
+      </span>
+    )
+
+    // Multi-word phrase: ONE wrapper spanning the whole run, ONE pill centred under it.
+    // The individual word nodes (groupWords) already carry their own italic/red-letter styling.
+    if (groupWords) {
+      return (
+        <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]} style={gapStyle}>
+          <span className={WORD_LINK}>{groupWords}</span>
+          {pillStack}
+        </span>
+      )
     }
 
     return (
       <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]} style={gapStyle}>
         <span className={`${wordCls} ${WORD_LINK}`.trim()}>{wordContent}</span>
-        <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
-          {nums.map((num, i) => (
-            <StrongsTooltip
-              key={i}
-              strongsNum={num}
-              onClickEntry={onStrongsClick}
-              contextNote={i > 0 ? "Secondary Strong's number" : undefined}
-            >
-              <span data-strongs-chip data-strongs-num={num} className={i > 0 ? chipSecondary : chipPrimary}>
-                {num}
-              </span>
-            </StrongsTooltip>
-          ))}
-        </span>
+        {pillStack}
       </span>
     )
   }
