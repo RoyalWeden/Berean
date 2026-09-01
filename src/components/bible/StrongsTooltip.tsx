@@ -52,11 +52,30 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
     setLoaded(false)
   }, [strongsNum])
 
+  const triggerRef = useRef<HTMLSpanElement>(null)
+  // The number pill sits BELOW its word (absolute, top:100%). We want the hover card to appear
+  // above the WORD (so the word is visible with the definition), not just above the pill — so
+  // on open, measure the gap from the word's top to the pill's top and use that as the extra
+  // side-offset. Radix's own avoidCollisions still flips the card downward when it would clip
+  // the top of the window.
+  const [sideOffset, setSideOffset] = useState(4)
+
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next)
     if (next) {
       window.dispatchEvent(new CustomEvent(STRONGS_TOOLTIP_OPEN_EVENT, { detail: selfId.current }))
       useAppStore.getState().bumpStrongsHoverToken()
+      const wrap = triggerRef.current?.closest<HTMLElement>('[data-sw-idx]')
+      const wordEl = wrap?.firstElementChild as HTMLElement | undefined
+      if (wordEl && triggerRef.current) {
+        const wordTop = wordEl.getBoundingClientRect().top
+        const gap = triggerRef.current.getBoundingClientRect().top - wordTop
+        // Lift the card to just above the word — but only when there's room above. Near the top
+        // of the window Radix will flip it downward; use a small offset there so the flipped
+        // card sits tidily just under the pill instead of a line-height below it.
+        const roomAbove = wordTop > 160
+        setSideOffset(roomAbove ? Math.round(Math.max(4, gap + 6)) : 4)
+      }
       if (!loaded) {
         window.lexicon.getEntry(strongsNum)
           .then((e) => { setEntry(e ?? null); setLoaded(true) })
@@ -83,6 +102,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
               margin, which was tuned against the OLD ~25px height) making the box tall enough to
               visually swallow/overlap a stacked secondary number entirely. */}
           <span
+            ref={triggerRef}
             className="cursor-pointer leading-none text-[10px]"
             onClick={() => onClickEntry?.(strongsNum)}
             onPointerEnter={() => { pointerOverRef.current = true }}
@@ -92,7 +112,7 @@ export default function StrongsTooltip({ children, strongsNum, onClickEntry, con
           </span>
         </Tooltip.Trigger>
         <Tooltip.Portal>
-          <Tooltip.Content side="top" sideOffset={4} className="z-50 max-w-xs">
+          <Tooltip.Content side="top" sideOffset={sideOffset} collisionPadding={8} className="z-50 max-w-xs">
             {/* Radix Content owns the positioning transform (Popper) — the entrance
                 animation lives on this inner wrapper instead, so the two never fight
                 over the `transform` property (see global.css radix-popup-in comment).

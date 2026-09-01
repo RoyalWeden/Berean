@@ -83,7 +83,7 @@ function StrongsInline({
     // word-width anchor carries the absolute chip.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span className="relative group/sw">
+        <span className="relative group/sw" data-sw-idx={swIdx}>
           <span className="opacity-0 select-none" aria-hidden>·</span>
           <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
             <StrongsTooltip

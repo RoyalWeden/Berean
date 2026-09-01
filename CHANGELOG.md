@@ -158,7 +158,9 @@ UI polish
   Grammatical particles are dimmer still. Pill spacing is computed at render time so nothing
   ever reflows/jumps when toggling Strong's.
 - The Strong's hover card closes the previous one when you skim to a different number
-  (without flickering on overlapping pills), and puts the H/G back on bare "Compare 3050"
+  (without flickering on overlapping pills), now floats above the WORD (so you see the word
+  together with the definition) rather than above the number pill below it, flipping below
+  when there's no room at the top of the window, and puts the H/G back on bare "Compare 3050"
   references in the definition.
 - The chapter cross-reference banner now shows instantly (its sources are cached per chapter
   and committed as soon as they're ready, rather than waiting on the note-count / highlight
