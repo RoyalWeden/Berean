@@ -63,7 +63,17 @@ All development work happens inside `/Users/roywe/Berean`.
 
 ```bash
 git worktree add ../Berean-feature-name -b feature/feature-name
+cd ../Berean-feature-name
+npm run setup:worktree      # REQUIRED — see below
 ```
+
+A fresh worktree is missing every gitignored local-only file the app needs:
+`node_modules`, `electron/youtube-key.ts` (without it `npm run dev` fails with
+`Could not resolve "../youtube-key"`), and every `data/*.db`. `npm run setup:worktree`
+(script: `scripts/setup-worktree.sh`) symlinks all of them back to the main working
+tree. Run it once, right after `git worktree add`, before `npm run dev` / `npm test`.
+Never `npm install` inside a worktree — it materialises a real 1.1G `node_modules`
+copy and versions drift from main.
 
 ---
 
@@ -926,6 +936,7 @@ git worktree add ../Berean-feature-name -b feature/feature-name
 # Example
 git worktree add ../Berean-sidebar -b feature/sidebar
 cd ../Berean-sidebar
+npm run setup:worktree   # symlink node_modules, electron/youtube-key.ts, data/*.db
 # ... work ...
 git add . && git commit -m "feat: implement Arc-style sidebar"
 git push origin feature/sidebar

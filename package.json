@@ -6,6 +6,7 @@
   "author": "Michael Kougang",
   "private": true,
   "scripts": {
+    "setup:worktree": "bash scripts/setup-worktree.sh",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
