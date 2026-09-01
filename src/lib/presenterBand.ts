@@ -82,6 +82,83 @@ export function presenterScrollSensitivity(clientHeight: number | undefined, vis
   return 1 / scrollableRangePx
 }
 
+export interface CenteredBandInputs {
+  /** Presenter scroll percent 0–1 — the gesture-driven target the main panel slaves to. */
+  p: number
+  /** Fraction of the chapter the presenter currently shows (its visibleFraction, 0–1). */
+  f: number
+  /** Presenter verse tops sorted ascending by fraction (sortVerseFracs of region.verseFracs). */
+  entries: PresenterVerseEntry[]
+  /** Main panel verse content-tops (px), keyed by verse number. */
+  tops: Record<number, number>
+  /** Main panel content height — measureContentHeight() result (last-verse-bottom clamped), px. */
+  mainH: number
+  /** Main panel viewport height (its scroll container's clientHeight, px). */
+  V: number
+}
+
+export interface CenteredBandGeometry {
+  /** Band top in main-panel CONTENT-space px (before subtracting scrollTop). */
+  bandTopContent: number
+  /** Band height in px. */
+  bandH: number
+  /** Main panel's scrollable range, max(0, mainH - V). */
+  maxScroll: number
+  /** scrollTop that centres the band in the viewport, clamped to [0, maxScroll]. */
+  desiredScrollTop: number
+}
+
+/**
+ * The single shared transform for the centred-outline scroll model: given the gesture-driven
+ * presenter percent `p`, return where the outline band sits in main-panel content px AND the
+ * `scrollTop` that centres it in the viewport.
+ *
+ * The band's content-space top/bottom use the EXACT same verse-anchored fractions
+ * (`presenterFracToMainY` over `[p·(1−f), p·(1−f)+f]`) that `computePresenterBand` draws with,
+ * so the band and the slaved scroll position can never drift apart. `desiredScrollTop` places
+ * the band's vertical midpoint on the viewport's vertical midpoint; near the chapter ends the
+ * `clamp(…, 0, maxScroll)` engages and the band rides to the edge (top for p→0, bottom for
+ * p→1). Symmetric up and down by construction — no ramp, no regime split.
+ */
+export function presenterCenteredBandGeometry(inp: CenteredBandInputs): CenteredBandGeometry {
+  const { entries, tops, mainH, V } = inp
+  const p = Math.max(0, Math.min(1, inp.p))
+  const f = Math.max(0, Math.min(1, inp.f))
+  const topFrac = p * (1 - f)
+  const botFrac = Math.min(1, topFrac + f)
+  const bandTopContent = presenterFracToMainY(topFrac, entries, tops, mainH)
+  const bandBotContent = presenterFracToMainY(botFrac, entries, tops, mainH)
+  const bandH = Math.max(0, bandBotContent - bandTopContent)
+  const maxScroll = Math.max(0, mainH - V)
+  const desiredScrollTop = Math.max(0, Math.min(maxScroll, bandTopContent + bandH / 2 - V / 2))
+  return { bandTopContent, bandH, maxScroll, desiredScrollTop }
+}
+
+/**
+ * Inverse of `presenterCenteredBandGeometry(...).desiredScrollTop`: given a main-panel
+ * `scrollTop`, recover the presenter percent `p` that would have produced it. Used to seed the
+ * centred-outline model (presenterScrollTarget/CurRef) after a pixel-based scroll restore so the
+ * outline band and the presenter land at the right region immediately, without waiting for the
+ * next wheel/key gesture.
+ *
+ * `desiredScrollTop` is monotonic non-decreasing in `p` (see presenterCenteredBand.test.ts), so a
+ * plain bisection converges. Endpoints (scrollTop at or past the clamp) map straight to 0 / 1.
+ */
+export function presenterPercentForScrollTop(scrollTop: number, inp: Omit<CenteredBandInputs, 'p'>): number {
+  const maxScroll = Math.max(0, inp.mainH - inp.V)
+  if (scrollTop <= 0) return 0
+  if (scrollTop >= maxScroll) return 1
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2
+    const d = presenterCenteredBandGeometry({ ...inp, p: mid }).desiredScrollTop
+    if (d < scrollTop) lo = mid
+    else hi = mid
+  }
+  return (lo + hi) / 2
+}
+
 /** Sort a verseFracs map into ascending-by-fraction entries. */
 export function sortVerseFracs(verseFracs: Record<number, number>): PresenterVerseEntry[] {
   return Object.keys(verseFracs)
@@ -186,11 +263,14 @@ export function computePresenterBand(inp: BandInputs): { top: number; height: nu
   if (!(f > 0) || mainH <= 0) return null
   const denom = mainH - mainClientHeight
   const p = scrollPercentOverride !== undefined ? scrollPercentOverride : (denom > 0 ? mainScrollTop / denom : 0)
-  const topFrac = p * (1 - f)
-  const botFrac = Math.min(1, topFrac + f)
   const entries = sortVerseFracs(verseFracs)
-  const yTop = presenterFracToMainY(topFrac, entries, mainTops, mainH)
-  const yBot = presenterFracToMainY(botFrac, entries, mainTops, mainH)
+  // Same verse-anchored transform the centred-scroll model slaves scrollTop to, so the band
+  // and the scroll position can never drift apart (see presenterCenteredBandGeometry).
+  const geo = presenterCenteredBandGeometry({ p, f, entries, tops: mainTops, mainH, V: mainClientHeight })
+  const clampedP = Math.max(0, Math.min(1, p))
+  const clampedF = Math.max(0, Math.min(1, f))
+  const topFrac = clampedP * (1 - clampedF)
+  const botFrac = Math.min(1, topFrac + clampedF)
   const { first, last } = visibleVerseRange(entries, topFrac, botFrac)
-  return { top: Math.max(0, yTop), height: Math.max(0, yBot - yTop), firstVerse: first, lastVerse: last }
+  return { top: Math.max(0, geo.bandTopContent), height: geo.bandH, firstVerse: first, lastVerse: last }
 }

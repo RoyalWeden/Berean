@@ -23,7 +23,7 @@ import LayoutPicker from './LayoutPicker'
 import { HintTooltip } from '@/components/shell/HintTooltip'
 import { computeViewerPayload, setMainBibleScrollPercent, clearMainBibleScrollPercent, clearLastBibleVerse } from '@/hooks/useViewerSync'
 import { useSwipePanelGesture } from '@/hooks/useSwipePanelGesture'
-import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord } from '@/lib/presenterBand'
+import { computePresenterBand as computeBandGeometry, measureContentHeight, presenterScrollSensitivity, shallowEqualNumberRecord, presenterCenteredBandGeometry, presenterPercentForScrollTop, sortVerseFracs } from '@/lib/presenterBand'
 import { scrollVerseIntoView, VERSE_JUMP_ANIMATED_START, VERSE_JUMP_ANIMATED_CENTER } from '@/lib/scrollToVerse'
 import { computeSelectionRanges, pointToLaser } from '@/lib/presenterOverlay'
 import type { Book, BibleTabState, ScriptureLayout } from '@/types'
@@ -163,6 +163,26 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // jumps that percent (chapter change, scroll-position restore, presenter push) so a
   // discontinuous jump never gets treated as a continuous scroll delta.
   const lastMainScrollTopRef = useRef(0)
+  // ── Centred-outline presenter-scroll model ───────────────────────────────────
+  // Inverted model: the wheel/key GESTURE drives a presenter percent (0–1); the main panel's
+  // scrollTop then slaves to whatever value centres the outline band in the viewport. One path
+  // for every chapter length — no 'scroll' vs 'virtual' regime. Active whenever
+  // centeredModelEngaged() is true (presenter live-mirroring this exact chapter, etc.).
+  // Where the gesture wants the presenter to be.
+  const presenterScrollTargetRef = useRef(0)
+  // The eased, currently-applied value (glides toward the target each frame).
+  const presenterScrollCurRef = useRef(0)
+  // rAF handle for the ease loop.
+  const presenterEaseRafRef = useRef<number | null>(null)
+  // True while applyPresenterScroll() is assigning container.scrollTop, so handleBibleScroll
+  // ignores the scroll event that assignment fires back.
+  const programmaticScrollRef = useRef(false)
+  // "bookId:chapter" the target/cur refs were last seeded for — so the model doesn't jump when
+  // it first engages for a new chapter (seeds from virtualScrollPctRef instead).
+  const centeredModelInitRef = useRef<string | null>(null)
+  // Latest syncCenteredModelToScroll(), so effects/handlers defined above its declaration can
+  // call it without a use-before-declaration reference to the function itself.
+  const syncCenteredModelToScrollRef = useRef<(reason: string) => void>(() => {})
 
   // ── Find bar (Cmd+F / type-anywhere) ────────────────────────────────────────
   const findBarOpen = useAppStore((s) => s.findBarOpen)
@@ -198,6 +218,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Set to `Date.now() + N` right when a navigation (Cmd+L reference jump, scroll-to-top event)
+  // repositions this panel. Any debounced/unmount/pre-tab-change scroll-position save that would
+  // otherwise fire inside that window is skipped, so a save queued from the PRE-jump scrollTop
+  // (150ms debounce) can't land afterward and overwrite the fresh scrollPosition:0 the
+  // navigation just wrote — which the restore effect would then reuse, reopening the new
+  // passage at the old passage's offset.
+  const suppressScrollSaveUntilRef = useRef(0)
   const searchTabRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Set right before leaving search mode via onNavigate below. ScriptureSearchView's own
   // unmount-cleanup effect flushes one last onStateChange call (to save scroll position) as
@@ -400,6 +427,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     findScrollSuppressRef.current = 0
     virtualScrollPctRef.current = 0
     lastMainScrollTopRef.current = 0
+    // Force the centred-scroll model to re-seed target/cur for the incoming tab's chapter.
+    centeredModelInitRef.current = null
+    // Zero the eased percent too so a stale value from the outgoing tab can't flash on the
+    // presenter before the incoming chapter's seed (syncCenteredModelToScroll) runs.
+    presenterScrollTargetRef.current = 0
+    presenterScrollCurRef.current = 0
   }
 
   // Publish the right-hand side panel's on-screen width to the store so the portaled Study
@@ -536,7 +569,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         lastMainScrollTopRef.current = savedPos
       }
       frames++
-      if (stable >= 3 || frames > 120) { setChapterRevealed(true); return }
+      if (stable >= 3 || frames > 120) {
+        setChapterRevealed(true)
+        // The pixel position is now applied and stable — seed the centred-outline model from it
+        // (one frame later, so getScrollEl().scrollTop is settled) so the band/presenter reflect
+        // the restored position without waiting for the next scroll gesture.
+        requestAnimationFrame(() => syncCenteredModelToScrollRef.current('scroll-restore'))
+        return
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -616,6 +656,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       }
       lastViewerRegionRef.current = r
       setViewerVisibleRegion(r)
+      // The presenter's region just arrived (or changed) for THIS panel's current chapter and
+      // the centred model hasn't been seeded for it yet — seed it now from the panel's actual
+      // scrollTop so the band + presenter jump straight to the right region (covers "presenter
+      // opened while the chapter was already scrolled" and "region landed after a tab restore").
+      if (r.bookId === tabStateRef.current.bookId && r.chapter === tabStateRef.current.chapter
+        && centeredModelInitRef.current !== `${r.bookId}:${r.chapter}`) {
+        syncCenteredModelToScrollRef.current('region-arrived')
+      }
     })
   }, [floating])
 
@@ -667,19 +715,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const f = region.visibleFraction
 
     // Measure this panel's verse content-tops live (cheap for one chapter) so the band can
-    // never drift from a stale layout cache.
-    const cTop = c.getBoundingClientRect().top
-    const tops: Record<number, number> = {}
-    let contentBottom = 0
-    for (const node of Array.from(c.querySelectorAll('[data-verse]'))) {
-      const elx = node as HTMLElement
-      const n = Number(elx.dataset.verse)
-      if (!Number.isFinite(n)) continue
-      const r = elx.getBoundingClientRect()
-      tops[n] = r.top - cTop + c.scrollTop
-      const bottom = r.bottom - cTop + c.scrollTop
-      if (bottom > contentBottom) contentBottom = bottom
-    }
+    // never drift from a stale layout cache — the SAME pass applyPresenterScroll uses, so the
+    // band and the slaved scroll position stay locked together.
+    const { tops, contentBottom } = measureMainGeometry(c)
     // Transient post-tab-switch window: region is valid for THIS chapter but the chapter's
     // verse nodes haven't mounted yet. Don't null the band on this — hold what's there and
     // retry, so the outline doesn't blink out until the next manual scroll.
@@ -701,28 +739,36 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // drift from ViewerBiblePage.tsx's own copy of the same measurement.
     const mainH = measureContentHeight(c.scrollHeight, contentBottom)
 
-    // The band is drawn INSIDE this same window, directly on top of this panel's own real
-    // content — so it must track this panel's own true, un-smoothed scroll ratio
-    // (c.scrollTop / denom), not the sensitivity-normalized virtualScrollPctRef used to drive
-    // the PRESENTER's felt scroll speed. Those two percents only agree at the exact top/bottom
-    // of a real scroll range; in between, virtualScrollPctRef intentionally moves slower or
-    // faster than this panel's own scrollTop whenever the presenter's own scrollable range
-    // differs from this panel's (see presenterScrollSensitivity's doc comment) — using it here
-    // made the band visibly lag behind (or run ahead of) wherever the user had actually
-    // scrolled to in THIS panel, up to drifting off the rendered content entirely on longer
-    // chapters. Only fall back to the virtual accumulator when this panel has no native scroll
-    // range of its own to derive a ratio from (a short chapter driven purely by the wheel-
-    // virtual-scroll path below) — that's the one case with no real mainScrollTop/denom ratio
-    // to track in the first place.
+    // The band is drawn INSIDE this same window but it must outline exactly the region the
+    // PRESENTER is currently showing — so it uses the SAME shared scroll percent that drives
+    // the presenter, not a second, independently-derived one. Centred model engaged: the eased
+    // percent applyPresenterScroll() just used. Otherwise fall back to the legacy behaviour
+    // untouched — the wheel accumulator when this panel has no native scroll range, else
+    // `undefined` which lets computeBandGeometry derive the plain proportional ratio itself.
     const bandDenom = mainH - c.clientHeight
-    let scrollPercentOverride: number | undefined = bandDenom <= 0 ? virtualScrollPctRef.current : undefined
+    let scrollPercentOverride: number | undefined
+    if (centeredModelEngaged()) {
+      // Centred model: the band is drawn from the SAME eased percent applyPresenterScroll()
+      // just slaved scrollTop to, so band-top − scrollTop ≈ (V − bandH)/2 (centred).
+      scrollPercentOverride = presenterScrollCurRef.current
+    } else {
+      scrollPercentOverride = bandDenom <= 0 ? virtualScrollPctRef.current : undefined
+    }
     // When a find-bar jump has centered a verse in the presenter, the presenter is NOT
     // mirroring the main panel proportionally — so derive the scroll percent from where that
     // verse sits, centered, in the presenter's content (otherwise the band lands mid-verse).
     const fv = findCenterVerseRef.current
     if (fv != null && f < 1) {
       const vf = region.verseFracs[fv]
-      if (vf != null) scrollPercentOverride = Math.max(0, Math.min(1, (vf - f / 2) / (1 - f)))
+      if (vf != null) {
+        scrollPercentOverride = Math.max(0, Math.min(1, (vf - f / 2) / (1 - f)))
+        // Hand the verse-centred percent straight to the centred-model refs so that when the
+        // find/verse-jump suppression window expires and the model re-engages, presenterScrollCurRef
+        // already holds this exact value — the band/presenter don't hop off the verse.
+        presenterScrollTargetRef.current = scrollPercentOverride
+        presenterScrollCurRef.current = scrollPercentOverride
+        centeredModelInitRef.current = `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
+      }
     }
     const band = computeBandGeometry({
       visibleFraction: f,
@@ -822,7 +868,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     let raf2 = 0
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        if (!useAppStore.getState().viewerPaused) computePresenterBand()
+        if (!useAppStore.getState().viewerPaused) {
+          computePresenterBand()
+          // Re-engaging after a pause (or a reflow) — reseed the centred model from the panel's
+          // real scrollTop so the outline/presenter reflect where the chapter actually sits.
+          // No-ops unless the centred model is engaged; idempotent when already seeded.
+          syncCenteredModelToScrollRef.current('resume')
+        }
       })
     })
     return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
@@ -864,6 +916,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     function clampToKeepBandVisible() {
       const band = presenterBand
       if (!band || !el) return
+      // Under the centred model the band is centred by construction (applyPresenterScroll
+      // slaves scrollTop to keep it so), making this clamp redundant — and a feedback loop if
+      // it fired. Keep it fully active for every legacy path (viewer paused, find-jump,
+      // continuous mode).
+      if (centeredModelEngaged()) return
       const bandTop = band.top, bandBottom = band.top + band.height
       const viewTop = el.scrollTop, viewBottom = viewTop + el.clientHeight
       if (bandTop > viewBottom) {
@@ -878,6 +935,60 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     return () => el.removeEventListener('scroll', clampToKeepBandVisible)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floating, viewerWindowOpen, viewerPaused, presenterBand, continuousChapterScroll])
+
+  // Centred model input: the wheel/key GESTURE drives presenterScrollTargetRef (0–1); the ease
+  // loop glides presenterScrollCurRef toward it and applyPresenterScroll() slaves the main
+  // panel's scrollTop to centre the band. One path for every chapter length. A non-passive
+  // wheel listener (React's synthetic onWheel is passive, so preventDefault there is a no-op)
+  // owns every engaged case — the text never natively scrolls under this model. Keys are bound
+  // on the window (a plain scroll <div> only gets keydown when focused) and gated hard so they
+  // never fire outside a live centred scripture view or while typing.
+  useEffect(() => {
+    if (floating) return
+    const el = getScrollEl()
+    if (!el) return
+
+    function onWheelNative(e: WheelEvent) {
+      if (!centeredModelEngaged()) return
+      e.preventDefault()
+      ensureCenteredModelInit()
+      const r = lastViewerRegionRef.current
+      const sensitivity = presenterScrollSensitivity(r?.clientHeight, r?.visibleFraction)
+      presenterScrollTargetRef.current = Math.max(0, Math.min(1, presenterScrollTargetRef.current + e.deltaY * sensitivity * PRESENTER_WHEEL_GAIN))
+      kickPresenterEase()
+    }
+
+    function onKeyDownWin(e: KeyboardEvent) {
+      if (useAppStore.getState().activeSpace !== 'scripture') return
+      if (!centeredModelEngaged()) return
+      const ae = document.activeElement as HTMLElement | null
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'BUTTON' || ae.isContentEditable)) return
+      const f = lastViewerRegionRef.current?.visibleFraction ?? 0.2
+      ensureCenteredModelInit()
+      let next = presenterScrollTargetRef.current
+      switch (e.key) {
+        case 'PageDown': next += 0.9 * f; break
+        case 'PageUp': next -= 0.9 * f; break
+        case 'ArrowDown': case ' ': case 'Spacebar': next += 0.15 * f; break
+        case 'ArrowUp': next -= 0.15 * f; break
+        case 'Home': next = 0; break
+        case 'End': next = 1; break
+        default: return
+      }
+      e.preventDefault()
+      presenterScrollTargetRef.current = Math.max(0, Math.min(1, next))
+      kickPresenterEase()
+    }
+
+    el.addEventListener('wheel', onWheelNative, { passive: false })
+    window.addEventListener('keydown', onKeyDownWin)
+    return () => {
+      el.removeEventListener('wheel', onWheelNative)
+      window.removeEventListener('keydown', onKeyDownWin)
+      if (presenterEaseRafRef.current != null) { cancelAnimationFrame(presenterEaseRafRef.current); presenterEaseRafRef.current = null }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floating, continuousChapterScroll, tabState.bookId, tabState.chapter, tabState.searchMode, tabState.compareMode, viewerWindowOpen])
 
   // ── Overlay capture (selection mirror + laser pointer) ───────────────────────
   // The presenter shows the active scripture tab's chapter; read it live to avoid stale closures.
@@ -936,7 +1047,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const el = getScrollEl()
       const pos = el?.scrollTop ?? 0
       const updates: Partial<import('@/types').BibleTabState> = {}
-      if (el && pos > 0) updates.scrollPosition = pos
+      // Skip the scroll-position write inside a navigation's suppression window (pre-jump offset).
+      if (el && pos > 0 && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = pos
       // Only remember the note cursor (and re-focus on return) if the user was actually
       // typing in the side-panel note editor when they left this tab.
       const noteFocused = isSidePanelNoteFocused()
@@ -957,7 +1069,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const el = getScrollEl()
       if (!tab) return
       const updates: Partial<import('@/types').BibleTabState> = {}
-      if (el) updates.scrollPosition = el.scrollTop
+      // Don't persist a scroll position captured inside a navigation's suppression window — it
+      // would be the pre-jump offset, not where the freshly-opened passage should sit.
+      if (el && Date.now() >= suppressScrollSaveUntilRef.current) updates.scrollPosition = el.scrollTop
       const noteFocused = isSidePanelNoteFocused()
       updates.rightPanelNoteFocused = noteFocused
       if (noteFocused && lastNoteCursorRef.current != null) updates.rightPanelNoteCursor = lastNoteCursorRef.current
@@ -975,11 +1089,25 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // — a verse jump owns its own scroll).
   useEffect(() => {
     function onScrollTop() {
+      // Kill any debounced scroll-save still holding the PRE-jump scrollTop and open a short
+      // suppression window so a save that has already passed its clearTimeout point (or one
+      // queued by the scrollTop=0 assignment below) can't write the old offset back over the
+      // scrollPosition:0 that FloatingSearch just set for this jump.
+      if (scrollSaveTimerRef.current) { clearTimeout(scrollSaveTimerRef.current); scrollSaveTimerRef.current = null }
+      suppressScrollSaveUntilRef.current = Date.now() + 400
       const el = getScrollEl()
       if (el) el.scrollTop = 0
       pendingScrollRef.current = null
       virtualScrollPctRef.current = 0
       lastMainScrollTopRef.current = 0
+      // The centred-outline model keeps its own gesture-accumulated percent — reset it here too
+      // so a chapter opened from Floating Search / Cmd+L snaps the band + presenter to the very
+      // top now, instead of staying where the previous chapter's scroll left them until the next
+      // wheel gesture.
+      presenterScrollTargetRef.current = 0
+      presenterScrollCurRef.current = 0
+      centeredModelInitRef.current = null
+      if (centeredModelEngaged()) applyPresenterScroll(0)
     }
     window.addEventListener('berean:scriptureScrollToTop', onScrollTop)
     return () => window.removeEventListener('berean:scriptureScrollToTop', onScrollTop)
@@ -997,6 +1125,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // snapping to the top of the chapter. Restored by the effect keyed on
     // tabState.translation further down, once the new edition's data has loaded.
     captureStrongsAnchor()
+    // The new edition's verses will land at a fresh (anchor-restored or reflowed) position —
+    // force the centred-outline model to re-seed for it once onVersesLoaded runs
+    // (syncCenteredModelToScroll on the verse-anchor / restore branches).
+    centeredModelInitRef.current = null
     const tgtEdition = editionForTextId(tid)
     const curEdition = editionForTextId(textId)
     if (tgtEdition && curEdition && tgtEdition.id === curEdition.id) {
@@ -1050,6 +1182,151 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Returns the active scroll container regardless of mode (normal vs continuous scroll)
   function getScrollEl(): HTMLDivElement | null {
     return continuousChapterScroll ? (continuousScrollRef.current?.getScrollEl() ?? null) : chapterViewRef.current
+  }
+
+  // ── Centred-outline model helpers ────────────────────────────────────────────
+  // Engage the centred-band model ONLY when the presenter is live-mirroring this panel's
+  // current chapter and no verse-jump / find-bar suppression is running. Every other scroll
+  // path (viewer closed or paused, continuous-chapter mode, verse jump in flight) falls
+  // through to the plain proportional behaviour untouched.
+  function centeredModelEngaged(): boolean {
+    const s = useAppStore.getState()
+    if (floating || !s.viewerWindowOpen || s.viewerPaused) return false
+    if (s.continuousChapterScroll) return false
+    if (Date.now() < findScrollSuppressRef.current) return false
+    const r = lastViewerRegionRef.current
+    if (!r || r.bookId !== tabStateRef.current.bookId || r.chapter !== tabStateRef.current.chapter) return false
+    if (!(r.visibleFraction > 0)) return false
+    return true
+  }
+
+  // Measure this panel's live verse content-tops, content height H (last-verse-bottom clamped —
+  // the same measure computePresenterBand and the viewer use) and viewport height V. ONE
+  // measurement shared by applyPresenterScroll and computePresenterBand so the band and the
+  // slaved scroll position can never drift from a different verse-top pass.
+  function measureMainGeometry(c: HTMLElement): { tops: Record<number, number>; mainH: number; V: number; contentBottom: number } {
+    const cTop = c.getBoundingClientRect().top
+    const tops: Record<number, number> = {}
+    let contentBottom = 0
+    for (const node of Array.from(c.querySelectorAll('[data-verse]'))) {
+      const elx = node as HTMLElement
+      const n = Number(elx.dataset.verse)
+      if (!Number.isFinite(n)) continue
+      const r = elx.getBoundingClientRect()
+      tops[n] = r.top - cTop + c.scrollTop
+      const bottom = r.bottom - cTop + c.scrollTop
+      if (bottom > contentBottom) contentBottom = bottom
+    }
+    return { tops, mainH: measureContentHeight(c.scrollHeight, contentBottom), V: c.clientHeight, contentBottom }
+  }
+
+  // Seed the target/current percent when the centred model first engages for a chapter, so it
+  // starts from wherever the panel already sits (virtualScrollPctRef) rather than jumping.
+  function ensureCenteredModelInit(): void {
+    const key = `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
+    if (centeredModelInitRef.current === key) return
+    centeredModelInitRef.current = key
+    const seed = Math.max(0, Math.min(1, virtualScrollPctRef.current || 0))
+    presenterScrollTargetRef.current = seed
+    presenterScrollCurRef.current = seed
+  }
+
+  // Core of the inverted model: given the eased presenter percent `p`, slave the main panel's
+  // scrollTop to the value that CENTRES the outline band in the viewport, then mirror `p` to
+  // the sync layer, push it to the presenter, and redraw the band from the SAME `p`. Uses the
+  // exact verse-anchored transform the band is drawn with (presenterCenteredBandGeometry), so
+  // band-top − scrollTop ≈ (V − bandH)/2 by construction. Near the chapter ends the clamp to
+  // [0, maxScroll] engages and the band rides to the edge — symmetric up and down.
+  function applyPresenterScroll(p: number): void {
+    const c = getScrollEl()
+    if (!c) return
+    const region = lastViewerRegionRef.current
+    if (!region) return
+    const clampedP = Math.max(0, Math.min(1, p))
+    const { tops, mainH, V } = measureMainGeometry(c)
+    if (!(mainH > 0)) return
+    const entries = sortVerseFracs(region.verseFracs)
+    const geo = presenterCenteredBandGeometry({ p: clampedP, f: region.visibleFraction, entries, tops, mainH, V })
+    programmaticScrollRef.current = true
+    c.scrollTop = geo.desiredScrollTop
+    // Clear on the next frame — long enough to cover the `scroll` event this assignment fires.
+    requestAnimationFrame(() => { programmaticScrollRef.current = false })
+    virtualScrollPctRef.current = clampedP
+    lastMainScrollTopRef.current = c.scrollTop
+    setMainBibleScrollPercent(clampedP, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    const base = computeViewerPayload()
+    if (base.kind === 'bible') window.app.pushViewerContent?.({ ...base, scrollPercent: clampedP })
+    computePresenterBandRef.current()
+
+    // BUG 1: this scrollTop assignment is programmatic (programmaticScrollRef is set), so
+    // handleBibleScroll early-returns and its debounced scrollPosition save never runs — the
+    // chapter's position was silently never persisted while scrolling under the centred model.
+    // Schedule the SAME debounced save handleBibleScroll's timer does, with the identical
+    // guards, so this is the sole saver for centred-model scrolls (no double-write: the real
+    // handleBibleScroll path never fires for these).
+    const saveTabId = activeTabRef.current?.id
+    const saveForBook = tabStateRef.current.bookId
+    const saveForChapter = tabStateRef.current.chapter
+    const saveScrollTop = geo.desiredScrollTop
+    if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
+    scrollSaveTimerRef.current = setTimeout(() => {
+      scrollSaveTimerRef.current = null
+      if (Date.now() < suppressScrollSaveUntilRef.current) return
+      if (activeTabRef.current?.id !== saveTabId) return
+      if (tabStateRef.current.bookId !== saveForBook || tabStateRef.current.chapter !== saveForChapter) return
+      if (saveTabId) updateTabState('scripture', saveTabId, { scrollPosition: saveScrollTop })
+    }, 150)
+  }
+
+  // BUG 2: after a pixel-based scroll restore (tab switch / app restart / translation switch)
+  // nothing seeds presenterScrollTarget/CurRef, so centeredModelEngaged()+computePresenterBand
+  // read the PREVIOUS chapter's eased percent until the next wheel/key gesture. Seed the centred
+  // model straight from the panel's actual restored scrollTop — the inverse of
+  // presenterCenteredBandGeometry.desiredScrollTop — and re-centre via applyPresenterScroll so
+  // the presenter jumps to the right region now.
+  function syncCenteredModelToScroll(reason: string): void {
+    if (!centeredModelEngaged()) return
+    const c = getScrollEl()
+    if (!c) return
+    const region = lastViewerRegionRef.current
+    if (!region) return
+    const { tops, mainH, V } = measureMainGeometry(c)
+    if (!(mainH > 0)) return
+    const entries = sortVerseFracs(region.verseFracs)
+    if (entries.length === 0) return // verses not mounted yet — a later region/onVersesLoaded pass reseeds
+    const p = presenterPercentForScrollTop(c.scrollTop, { f: region.visibleFraction, entries, tops, mainH, V })
+    presenterScrollTargetRef.current = p
+    presenterScrollCurRef.current = p
+    // Mark seeded for this chapter so ensureCenteredModelInit() won't overwrite it from virtualScrollPctRef.
+    centeredModelInitRef.current = `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`
+    applyPresenterScroll(p)
+    if (window.__bereanPresenterDebug) console.log('[PD centered-seed]', { reason, p, scrollTop: c.scrollTop })
+  }
+  syncCenteredModelToScrollRef.current = syncCenteredModelToScroll
+
+  // Wheel gain: deltaY→percent multiplier applied on top of presenterScrollSensitivity. Raise
+  // for a faster scroll per gesture, lower for slower.
+  const PRESENTER_WHEEL_GAIN = 1.5
+  // EASE: fraction of the remaining gap the eased value closes each frame. ~0.5 tracks a
+  // trackpad's many tiny deltas with ~1 frame of lag (feels immediate) and glides a single
+  // coarse mouse notch over ~3 frames (a snappy short glide, never a hard step). Raise toward
+  // 0.7 for snappier, lower toward 0.3 for floatier.
+  const PRESENTER_EASE = 0.5
+  function stepPresenterEase(): void {
+    presenterEaseRafRef.current = null
+    // Model disengaged mid-glide (presenter paused/closed, chapter changing, find-jump) —
+    // abandon the ease so it can't fight the legacy path. The next gesture restarts it.
+    if (!centeredModelEngaged()) return
+    const cur = presenterScrollCurRef.current
+    const tgt = presenterScrollTargetRef.current
+    const diff = tgt - cur
+    const next = Math.abs(diff) < 0.0007 ? tgt : cur + diff * PRESENTER_EASE
+    presenterScrollCurRef.current = next
+    applyPresenterScroll(next)
+    if (next !== tgt) presenterEaseRafRef.current = requestAnimationFrame(stepPresenterEase)
+  }
+  function kickPresenterEase(): void {
+    if (presenterEaseRafRef.current == null) presenterEaseRafRef.current = requestAnimationFrame(stepPresenterEase)
   }
 
   useEffect(() => {
@@ -1768,6 +2045,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         virtualScrollPctRef.current = newMax > 0 ? container.scrollTop / newMax : 0
         lastMainScrollTopRef.current = container.scrollTop
       }
+      // BUG 2 (translation switch keeps scrollPosition): the anchor restore just moved
+      // scrollTop — reseed the centred model from the new position so the presenter follows.
+      syncCenteredModelToScrollRef.current('verses-loaded-anchor')
       return
     }
     const pos = pendingScrollRef.current
@@ -1791,6 +2071,13 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           virtualScrollPctRef.current = 0
           lastMainScrollTopRef.current = 0
         }
+        // BUG 3: chapter opened at the top (Floating Search / Advanced Search / Cmd+L / plain
+        // fresh load) — the centred model's own accumulated percent isn't touched by any of the
+        // scroll resets above, so reset it to 0 and seed (p = 0, pushed to the presenter).
+        presenterScrollTargetRef.current = 0
+        presenterScrollCurRef.current = 0
+        centeredModelInitRef.current = null
+        syncCenteredModelToScrollRef.current('chapter-open')
       }
       return
     }
@@ -1810,6 +2097,8 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       const newMax = el.scrollHeight - el.clientHeight
       virtualScrollPctRef.current = newMax > 0 ? pos / newMax : 0
       lastMainScrollTopRef.current = pos
+      // BUG 2: seed the centred model from the just-restored pixel position.
+      syncCenteredModelToScrollRef.current('verses-loaded-restore')
     }
   }, []) // refs never change identity — getScrollEl reads refs directly
 
@@ -2068,9 +2357,23 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const handleBibleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget
     const scrollTop = container.scrollTop
+    // Our own applyPresenterScroll() scrollTop assignment (centred model) echoing back as a
+    // scroll event — ignore it completely: the ease loop already pushed the percent, mirrored
+    // it, and redrew the band. Also skips the scroll-position-save debounce below (programmatic).
+    if (programmaticScrollRef.current) return
     const tabId = activeTabRef.current?.id
+    // Capture the passage identity this save belongs to. If the tab/book/chapter has changed by
+    // the time the debounced callback runs (a navigation happened in between), the captured
+    // scrollTop is stale for whatever is showing now — skip the write rather than clobber the
+    // new passage's scrollPosition.
+    const savedForBook = tabStateRef.current.bookId
+    const savedForChapter = tabStateRef.current.chapter
     if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
     scrollSaveTimerRef.current = setTimeout(() => {
+      scrollSaveTimerRef.current = null
+      if (Date.now() < suppressScrollSaveUntilRef.current) return
+      if (activeTabRef.current?.id !== tabId) return
+      if (tabStateRef.current.bookId !== savedForBook || tabStateRef.current.chapter !== savedForChapter) return
       if (tabId) updateTabState('scripture', tabId, { scrollPosition: scrollTop })
     }, 150)
     // In Continuous Chapter Scroll mode, `container` is the WHOLE multi-chapter scroll region
@@ -2130,6 +2433,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       })
     }
     const st = useAppStore.getState()
+    // Plain proportional ratio — the behaviour for every path the centred-outline model does
+    // NOT engage (viewer closed/paused, continuous-chapter mode, verse-jump in flight).
+    const rawScrollPercent = max <= 0 ? 0 : Math.max(0, Math.min(1, effScrollTop / max))
+    // Is the centred-outline model driving this scroll? (presenter live-mirroring this exact
+    // chapter, not continuous mode, no find/verse-jump suppression running).
+    const engaged = centeredModelEngaged()
     let scrollPercent: number
     if (Date.now() < findScrollSuppressRef.current) {
       // A verse-jump (find bar or targetVerse navigation) just scrolled this container
@@ -2141,29 +2450,30 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // Don't record it as the "last known" percent either: caching it here would leave the
       // presenter's stale-vs-fresh check (in computeViewerPayload) with a poisoned value for
       // this chapter that a later, unrelated push could pick up and wrongly reuse.
-      scrollPercent = max > 0 ? effScrollTop / max : 0
+      scrollPercent = rawScrollPercent
       virtualScrollPctRef.current = scrollPercent
       lastMainScrollTopRef.current = scrollTop
       findScrollSuppressRef.current = Math.max(findScrollSuppressRef.current, Date.now() + 350)
-    } else {
-      // THE actual percent pushed to the presenter — this used to run the physical scrollTop
-      // delta through a "sensitivity" normalization against the PRESENTER's own (often
-      // different) scrollable range, accumulating onto virtualScrollPctRef tick by tick instead
-      // of just reading the true position. That accumulation DRIFTS: confirmed via logging
-      // (see the [PD SUSPICIOUS JUMP at settle] investigation) that after continuous scrolling
-      // through a single chapter, the accumulated value can end up roughly HALF the true
-      // scrollTop/max ratio at the exact same physical position — nothing except hitting an
-      // exact 0/1 endpoint, or the scroll-settle timer, ever re-anchored it to reality in
-      // between. Since computePresenterBand (the outline drawn in THIS window) already uses the
-      // panel's own true ratio directly, that drift is exactly why the outline tracked
-      // correctly while the actual presenter window (fed this now-wrong value) didn't — "the
-      // presenter isn't aligned with the outline" was two different numbers being computed for
-      // the same physical scroll position. Fixed: always use the true ratio directly, the same
-      // math the endpoint-snapping already used at 0/1, extended to every point in between —
-      // matching computePresenterBand and the scroll-settle timer's math exactly, so there's
-      // only ever ONE definition of "where this panel is scrolled to."
+    } else if (engaged) {
+      // Centred-outline model, and NOT our own programmatic scrollTop assignment (that
+      // early-returned at the top) — so this native scroll is a SCROLLBAR DRAG (wheel is
+      // preventDefault-ed, keys too). Map the thumb position straight to the presenter percent
+      // and let the band land wherever it falls; do NOT re-centre scrollTop mid-drag (that
+      // would fight the thumb). The next wheel/key gesture re-centres.
+      ensureCenteredModelInit()
+      const p = max > 0 ? Math.max(0, Math.min(1, effScrollTop / max)) : presenterScrollCurRef.current
+      presenterScrollTargetRef.current = p
+      presenterScrollCurRef.current = p
       lastMainScrollTopRef.current = scrollTop
-      scrollPercent = max <= 0 ? 0 : Math.max(0, Math.min(1, effScrollTop / max))
+      scrollPercent = p
+      virtualScrollPctRef.current = p
+      setMainBibleScrollPercent(p, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
+    } else {
+      // Legacy proportional path — the single true ratio, matching computePresenterBand and the
+      // scroll-settle timer so there is only ever ONE definition of "where this panel is
+      // scrolled to."
+      lastMainScrollTopRef.current = scrollTop
+      scrollPercent = rawScrollPercent
       virtualScrollPctRef.current = scrollPercent
       setMainBibleScrollPercent(scrollPercent, `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`)
     }
@@ -2236,7 +2546,21 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         settledEff = Math.max(0, settledScrollTop - chapterTop)
         settledMax = settledWrapperEl.offsetHeight - el.clientHeight
       }
-      const settledPercent = settledMax <= 0 ? 0 : settledEff <= 0 ? 0 : settledEff >= settledMax ? 1 : settledEff / settledMax
+      // Re-anchor with the SAME source the live-scroll path used, so stopping mid-scroll never
+      // re-snaps the presenter to a different number.
+      let settledPercent: number
+      if (centeredModelEngaged()) {
+        // Centred model: the eased value IS the truth (gesture-driven; the real scrollTop is
+        // just slaved to it and, near the ends, clamped away from a 1:1 relationship).
+        // BUG 3 backstop: if the model re-engaged after a verse jump but was never seeded for
+        // this chapter (presenterScrollCurRef still stale), invert the settled scrollTop now.
+        if (centeredModelInitRef.current !== `${tabStateRef.current.bookId}:${tabStateRef.current.chapter}`) {
+          syncCenteredModelToScrollRef.current('verse-jump-settle')
+        }
+        settledPercent = presenterScrollCurRef.current
+      } else {
+        settledPercent = settledMax <= 0 ? 0 : settledEff <= 0 ? 0 : settledEff >= settledMax ? 1 : settledEff / settledMax
+      }
       virtualScrollPctRef.current = settledPercent
       lastMainScrollTopRef.current = settledScrollTop
       // Force-expire any lingering suppression — this settle sync IS the authoritative final
@@ -2980,6 +3304,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           // be zoomed in and unable to show everything at once.
           const c = chapterViewRef.current
           if (!c || c.scrollHeight - c.clientHeight > 0) return
+          // The centred model owns the wheel via its dedicated non-passive listener whenever
+          // it's engaged — don't double-apply here.
+          if (centeredModelEngaged()) return
           const st = useAppStore.getState()
           if (!st.viewerWindowOpen || st.viewerPaused || st.viewerBlank) return
           // Sensitivity derived from the presenter's OWN real overflow (its clientHeight and
@@ -3067,6 +3394,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
               border: `2px solid ${viewerPaused ? 'rgba(251,191,36,0.85)' : 'rgb(var(--color-accent))'}`,
               background: viewerPaused ? 'rgba(251,191,36,0.07)' : 'rgb(var(--color-accent) / 0.06)',
               borderRadius: 6,
+              // NO transition on `top`: the band is absolutely positioned INSIDE the scroll
+              // container, so its on-screen position is effectively `top − scrollTop`. The ease
+              // loop already moves the percent — and thus both `top` and the slaved `scrollTop`
+              // — smoothly frame-by-frame; a CSS transition on `top` would let it lag the
+              // instant `scrollTop`, making the band visibly drift off-centre while scrolling
+              // and snap back on stop. `height` changes only on zoom/resize, so easing it is
+              // harmless polish.
+              transition: 'height 60ms ease-out',
             }}
           >
             <span

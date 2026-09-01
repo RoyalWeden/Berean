@@ -42,6 +42,11 @@ interface VerseRowProps {
   verse: Verse
   showStrongs: boolean
   showVerseNumber?: boolean
+  /** Render this row as a Psalm superscription rather than a numbered verse: no verse
+   *  number, a faint left rule + indent, ~90% text size, muted colour. Word rendering,
+   *  Strong's chips/hover/click, selection, highlight and + Note all work exactly as on a
+   *  verse (the row is fed a synthetic verse_num 0 by ChapterView). See psalmSuperscription.ts. */
+  superscription?: boolean
   noteCount?: number
   notePrimaryColor?: string
   hasNoteCrossRef?: boolean
@@ -353,7 +358,9 @@ function VerseTagBadges({ tags }: { tags: import('@/types').VerseTagLite[] }) {
     </div>
   )
 }
-function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+function VerseRow({ verse, showStrongs, showVerseNumber = true, superscription = false, noteCount = 0, notePrimaryColor, hasNoteCrossRef = false, isHighlighted = false, verseTags = EMPTY_TAGS, highlights = [], hiddenAnnotations = [], textId = 'kjva', findQuery = '', findWordMode = 'phrase', highlightStrongsWords, highlightStrongsExtraWords, onStrongsClick, onWordClick, playbackVerse = false, playbackWordIndex = null, tabId }: VerseRowProps) {
+  // A superscription row never shows a number, whatever the reader's verse-number setting.
+  const effShowVerseNumber = showVerseNumber && !superscription
   const hasHidden = hiddenAnnotations.length > 0
   const wordReplacerEnabled = useAppStore((s) => s.wordReplacerEnabled)
   const wordReplacerRules = useAppStore((s) => s.wordReplacerRules)
@@ -1421,12 +1428,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative mb-3 ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative mb-3 ${superscription ? 'text-[0.9em] text-[rgb(var(--color-text-muted))] border-l-2 border-[rgb(var(--color-surface-4))] pl-3' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
-      {/* Verse number + popover anchor — hidden when showVerseNumber is off;
-           right-clicking the verse text still opens the popover in that case */}
-      <div className={`group/vnum relative flex-shrink-0 ${showVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
+      {/* Verse number + popover anchor — hidden when showVerseNumber is off (and always for a
+           superscription row); right-clicking the text still opens the popover in that case */}
+      <div className={`group/vnum relative flex-shrink-0 ${effShowVerseNumber ? '' : 'w-0 overflow-hidden'}`} ref={popoverRef}>
         <button
           onClick={(e) => {
             e.stopPropagation()

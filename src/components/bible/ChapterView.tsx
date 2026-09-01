@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
+import { useState, useEffect, useRef, useCallback, useId, useMemo, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2 } from 'lucide-react'
@@ -15,6 +15,7 @@ import { getCrossRefSources, flagReciprocalVerses, chapterCrossRefSources } from
 import { scrollVerseIntoView, VERSE_JUMP_INSTANT, VERSE_FOLLOW_DOWN, VERSE_FOLLOW_UP } from '@/lib/scrollToVerse'
 import type { CrossRefSource } from '@/lib/crossRefIndex'
 import { buildVerseDisplayText } from '@/lib/verseUtils'
+import { planPsalmSuperscription, resolveTitleLine, trimVerseOneText, trimVerseOneTagged, extractVerseOneTaggedTitle } from '@/lib/psalmSuperscription'
 import { zoomedFontSize } from '@/lib/zoom'
 import { chapterCacheKey, getCachedVerses, setCachedVerses } from '@/lib/chapterCache'
 import type { Verse, HighlightColor } from '@/types'
@@ -187,9 +188,13 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
     .replace(/[.:_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-  const titleIsRef = !source.title
-    || source.title === 'Untitled'
-    || normalizeRef(source.title) === normalizeRef(verseStr)
+  // Some imported note titles carry a literal "*" followed by trailing prose
+  // ("Something * blah blah blah"). Show only the part before the first asterisk.
+  const cleanRefTitle = (t?: string) => (t ?? '').split(/\s*\*.*/s)[0].trim()
+  const cleanedTitle = cleanRefTitle(source.title)
+  const titleIsRef = !cleanedTitle
+    || cleanedTitle === 'Untitled'
+    || normalizeRef(cleanedTitle) === normalizeRef(verseStr)
 
   // Tooltip height estimate: reference line + ~4 lines of verse text ≈ 100px
   const TIP_H = 110
@@ -230,15 +235,18 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
 
   return (
     <span className="relative inline-block">
+      {/* Hover fill must stay OPAQUE — a plain `hover:bg-[…]/20` REPLACES (doesn't layer over)
+          the base bg, so the chip went nearly see-through on hover. Solid surface-4 fill + accent
+          border/text so the hover reads clearly but stays subtle. */}
       <button
         ref={btnRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))]/70 bg-[rgb(var(--color-surface-3))]/90 px-1.5 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/40 hover:bg-[rgb(var(--color-accent))]/10 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))]/70 bg-[rgb(var(--color-surface-3))] px-1.5 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/50 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
       >
         <span className="font-medium">{verseStr}</span>
-        {!titleIsRef && <span className="opacity-60">· {source.title}</span>}
+        {!titleIsRef && <span className="opacity-60">· {cleanedTitle}</span>}
       </button>
       {tip && verseText && (
         <div
@@ -385,6 +393,18 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const containerRef = useRef<HTMLDivElement>(null)
   const versesRef = useRef(verses)
   useEffect(() => { versesRef.current = verses }, [verses])
+
+  // Psalm superscription → faint title line above the first body verse (see psalmSuperscription.ts).
+  // `plan` is pure (curated constants only); `psalmTitleLine` needs the actual rows for the
+  // Brenton whole-verse case where the title IS the leading verse(s).
+  const psalmPlan = useMemo(
+    () => planPsalmSuperscription(textId, bookId, chapter),
+    [textId, bookId, chapter],
+  )
+  const psalmTitleLine = useMemo(
+    () => (psalmPlan ? resolveTitleLine(psalmPlan, verses) : ''),
+    [psalmPlan, verses],
+  )
   const highlightsRef = useRef(highlights)
   useEffect(() => { highlightsRef.current = highlights }, [highlights])
   const onSlowLoadChangeRef = useRef(onSlowLoadChange)
@@ -1041,6 +1061,35 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       )}
 
       {verses.map((verse, verseIdx) => {
+        // Psalm superscription: a leading verse that IS the superscription (Brenton whole-verse
+        // titles) doesn't render as its own numbered row — it's folded into the faint title
+        // line above the first body verse. See psalmSuperscription.ts.
+        if (psalmPlan?.hiddenVerseNums.has(verse.verse_num)) return null
+        const showPsalmTitle = !!psalmPlan && psalmTitleLine !== '' && verse.verse_num === psalmPlan.firstBodyVerseNum
+        // Trim the superscription off verse 1 itself so it isn't shown twice: a Brenton inline
+        // prefix in the plain text, or the KJVA leading title tokens in the Strong's-tagged text.
+        const renderVerse: typeof verse = (showPsalmTitle && psalmPlan && verse.verse_num === 1)
+          ? (() => {
+              const trimmedText = trimVerseOneText(verse.text, psalmPlan)
+              const trimmedTagged = verse.text_tagged ? trimVerseOneTagged(verse.text_tagged, psalmPlan) : verse.text_tagged
+              return (trimmedText === verse.text && trimmedTagged === verse.text_tagged)
+                ? verse
+                : { ...verse, text: trimmedText, text_tagged: trimmedTagged }
+            })()
+          : verse
+        // Synthetic verse_num 0 carrying the superscription — rendered through VerseRow (as a
+        // `superscription` row) so it gets Strong's chips/hover/click, selection, highlight and
+        // + Note exactly like a verse, just with no number. text_tagged is the leading title
+        // tokens lifted off KJVA verse 1 (null → plain text for kjv / Brenton).
+        const psalmSupVerse: Verse | null = (showPsalmTitle && psalmPlan)
+          ? {
+              verse_num: 0,
+              book_id: bookId,
+              chapter,
+              text: psalmTitleLine,
+              text_tagged: extractVerseOneTaggedTitle(verse.text_tagged, psalmPlan) ?? undefined,
+            }
+          : null
         // Any KJV verse numbers that fall in the gap between the previous rendered verse
         // and this one — see the missingLxxVerses effect above for how/why these are
         // detected. Rendered as a small muted marker ahead of this verse, matching the
@@ -1098,8 +1147,26 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
                 {verse.title}
               </div>
             )}
+            {psalmSupVerse && (
+              <VerseRow
+                verse={psalmSupVerse}
+                superscription
+                showStrongs={showStrongs}
+                showVerseNumber={false}
+                noteCount={noteCounts[0] ?? 0}
+                notePrimaryColor={noteColorsMap[0]}
+                hasNoteCrossRef={verseHasNoteCrossRefs[0] ?? false}
+                verseTags={verseTagMap[0] ?? EMPTY_VERSE_TAGS}
+                tabId={tabId}
+                highlights={highlights[0] ?? EMPTY_HIGHLIGHTS}
+                hiddenAnnotations={hiddenAnnotations}
+                textId={textId}
+                onStrongsClick={onStrongsClick}
+                onWordClick={onWordClick}
+              />
+            )}
             <VerseRow
-              verse={verse}
+              verse={renderVerse}
               showStrongs={showStrongs}
               showVerseNumber={showVerseNumbers}
               noteCount={noteCounts[verse.verse_num] ?? 0}

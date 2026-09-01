@@ -13,6 +13,16 @@ import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
+// Dedicated, NON-debounced localStorage key for the presenter window's text zoom.
+// See setViewerFontScale + the storage-event listener at the bottom of this file: the
+// main 'berean-app-state' blob is debounced ~500ms and can also be clobbered by the
+// other window's stale full-state snapshot, so the presenter's zoom was silently lost
+// when its window closed within the debounce window. Nothing else ever touches this key.
+// Defined up here (not next to ASK_WHY_SYNC_KEY) because onRehydrateStorage reads it
+// synchronously during create() below — referencing a const declared after create()
+// would hit the temporal-dead-zone.
+const VIEWER_FONT_SCALE_SYNC_KEY = 'berean-viewer-font-scale'
+
 export interface WordReplacerRule {
   id: string
   queries: string[]
@@ -2586,7 +2596,14 @@ export const useAppStore = create<AppState>()(
       setViewerLaserEnabled: (v) => set({ viewerLaserEnabled: v }),
       setViewerSelectionMirror: (v) => set({ viewerSelectionMirror: v }),
       setViewerSidePanelEnabled: (v) => set({ viewerSidePanelEnabled: v }),
-      setViewerFontScale: (v) => set({ viewerFontScale: v }),
+      setViewerFontScale: (v) => {
+        set({ viewerFontScale: v })
+        // Also write immediately to its OWN dedicated (non-debounced) localStorage key so a
+        // presenter-window close (or app quit) within the ~500ms debounce window — or a later
+        // full-state flush from the other window carrying a stale copy of this field — can't
+        // lose the zoom. Mirrors setStudyTrailAskChapterJumpReason / ASK_WHY_SYNC_KEY.
+        try { localStorage.setItem(VIEWER_FONT_SCALE_SYNC_KEY, JSON.stringify(v)) } catch { /* storage disabled/quota — persist path still covers it eventually */ }
+      },
       setViewerTheme: (v) => set({ viewerTheme: v }),
       setShowVerseNumbers: (v) => set({ showVerseNumbers: v }),
       setContinuousChapterScroll: (v) => set({ continuousChapterScroll: v }),
@@ -2652,6 +2669,21 @@ export const useAppStore = create<AppState>()(
         window.ttsModel?.getStatus().then((status) => {
           useAppStore.getState().setKokoroModelReady(status.ready)
         }).catch(() => { /* leave kokoroModelReady false — Read Aloud stays inert */ })
+
+        // Prefer the dedicated non-debounced viewer-font-scale key when present: the value in
+        // the main 'berean-app-state' blob can be stale (debounce loss on a fast window close,
+        // or a cross-window full-state clobber), whereas setViewerFontScale writes this key
+        // synchronously every time. Runs for BOTH the main and presenter windows (same store).
+        if (state) {
+          try {
+            const raw = localStorage.getItem(VIEWER_FONT_SCALE_SYNC_KEY)
+            if (raw != null) {
+              const n = JSON.parse(raw) as unknown
+              if (typeof n === 'number' && Number.isFinite(n)) state.viewerFontScale = n
+            }
+          } catch { /* malformed/absent — keep whatever persist rehydrated */ }
+        }
+
         if (!state?.tabs) return
 
         // Merge any new default word replacer rules (by ID) that are missing from persisted state
@@ -2840,6 +2872,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
     if (e.key === ASK_WHY_SYNC_KEY) {
       if (e.newValue != null) useAppStore.setState({ studyTrailAskChapterJumpReason: e.newValue === '1' })
+      return
+    }
+    if (e.key === VIEWER_FONT_SCALE_SYNC_KEY) {
+      // Presenter window changed its zoom — push it into this window's store so its own
+      // later full-state flush can't write a stale value back over the dedicated key.
+      if (e.newValue != null) {
+        try {
+          const n = JSON.parse(e.newValue) as unknown
+          if (typeof n === 'number' && Number.isFinite(n)) useAppStore.setState({ viewerFontScale: n })
+        } catch { /* ignore malformed */ }
+      }
       return
     }
     if (e.key !== 'berean-app-state' || !e.newValue) return
