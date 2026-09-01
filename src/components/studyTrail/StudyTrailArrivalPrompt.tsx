@@ -120,14 +120,18 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
   const searchTabActive = useAppStore((s) => s.bibleSearchTabActive)
   const rightPanelW = useAppStore((s) => s.bibleRightPanelWidth)
   const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0)
+  const verseSelectionMenuOpen = useAppStore((s) => s.verseSelectionMenuOpen)
   const verseSelectionOpen = useAppStore((s) => {
     const t = s.activeTabId['scripture']
     return s.activeSpace === 'scripture' && !!t && (s.selectedVersesByTab[t]?.length ?? 0) > 0
   })
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
-  // When verses are selected AND the Bible reader's side panel is open, lift the toast clear
-  // of the whole verse-selection action bar + any tag/colour popover it opens above itself.
-  const bottomPx = (verseSelectionOpen && rightPanelW > 0) ? 210 : (!searchTabActive && noteOpen ? 46 : 16)
+  // Only dodge the verse-selection UI when the Bible reader's side panel is also open. Then:
+  // just clear the action bar itself normally, and only rise higher once a tag/colour popover
+  // (which opens ABOVE the bar) is actually showing — dropping back down when it closes.
+  const bottomPx = (verseSelectionOpen && rightPanelW > 0)
+    ? (verseSelectionMenuOpen ? 210 : 64)
+    : (!searchTabActive && noteOpen ? 46 : 16)
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(conn, origin)

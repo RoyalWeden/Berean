@@ -150,6 +150,14 @@ UI polish
 - Inline Strong's numbers now sit in the gap under each word instead of stacked in the text
   flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
   in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
+  Each number gets a translucent pill background, sits a little lower for a cleaner gap from
+  the verse text, and toggling no longer flashes/highlights the top verse.
+- The chapter cross-reference banner now shows instantly (its sources are cached per chapter
+  and committed as soon as they're ready, rather than waiting on the note-count / highlight
+  fetches).
+- The Study Trail toast now only rises to clear the verse-selection action bar, and rises
+  further only while a tag/colour picker is actually open above it — dropping back down when
+  it closes.
 - Scripture, Lexicon and PDF tabs reliably restore their exact scroll position on return —
   including revisiting an already-loaded chapter/entry, which used to snap back to the top.
   The content stays hidden until the position lands, and the restore keeps correcting as the

@@ -96,6 +96,14 @@ export default function VerseSelectionBar() {
 
   useEffect(() => { if (selectedRaw.length === 0) { setColorOpen(false); setTagAnchor(null) } }, [selectedRaw.length])
 
+  // Tell the store when the tag/colour popover is open so the bottom-right Study Trail toast
+  // can lift clear of it (it opens ABOVE this bar).
+  const setVerseSelectionMenuOpen = useAppStore((s) => s.setVerseSelectionMenuOpen)
+  useEffect(() => {
+    setVerseSelectionMenuOpen(colorOpen || tagAnchor != null)
+    return () => setVerseSelectionMenuOpen(false)
+  }, [colorOpen, tagAnchor, setVerseSelectionMenuOpen])
+
   const copyVerses = useCallback(async (refsOnly: boolean) => {
     const header = refLabel(sel)
     if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); return }

@@ -43,7 +43,14 @@ function StrongsInline({
   // from under them (see .strongs-chip-abs in global.css). Line spacing is the only thing that
   // then changes, animated separately by VerseRow.
   const CHIP_STACK = 'strongs-chip-abs absolute left-0 flex flex-col items-start'
-  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', marginTop: '-0.32em', lineHeight: 1, gap: '2px' }
+  // marginTop nudged from -0.32em toward the baseline so the numbers sit a touch lower —
+  // clear of the verse word directly above them.
+  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', marginTop: '-0.12em', lineHeight: 1, gap: '2px' }
+  // Translucent pill so a Strong's number reads as its own distinct element, not stray text.
+  const CHIP_BASE = 'font-mono leading-none rounded-[3px] px-1 py-px transition-colors cursor-pointer'
+  const chipPrimary = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/12 hover:bg-[rgb(var(--color-accent))]/22`
+  const chipSecondary = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/12 hover:bg-[rgb(var(--color-accent))]/22 opacity-55`
+  const chipParen = `${CHIP_BASE} text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 hover:bg-[rgb(var(--color-surface-4))]/90`
 
   if (tagged) {
     // Parenthetical token: grammatical particle, no corresponding English word — an invisible
@@ -58,7 +65,7 @@ function StrongsInline({
               onClickEntry={onStrongsClick}
               contextNote="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker)."
             >
-              <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
+              <span data-strongs-chip className={chipParen}>
                 ({nums[0]})
               </span>
             </StrongsTooltip>
@@ -90,10 +97,7 @@ function StrongsInline({
               onClickEntry={onStrongsClick}
               contextNote={i > 0 ? "Secondary Strong's number" : undefined}
             >
-              <span
-                data-strongs-chip
-                className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
-              >
+              <span data-strongs-chip className={i > 0 ? chipSecondary : chipPrimary}>
                 {num}
               </span>
             </StrongsTooltip>
@@ -116,7 +120,7 @@ function StrongsInline({
         <span>{wContent}</span>
         <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
-            <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
+            <span data-strongs-chip className={chipPrimary}>
               {primaryNum}
             </span>
           </StrongsTooltip>

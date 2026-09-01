@@ -22,6 +22,15 @@ import { HIGHLIGHT_COLORS } from './VerseRow'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
+
+// Last computed chapter-level cross-ref banner sources, keyed by note-token + chapter. Seeded
+// synchronously on ChapterView mount so revisiting/paging to a chapter shows its banner
+// instantly instead of after the notes/highlights round-trip resolves. Invalidated implicitly:
+// the key contains noteChangeToken, so any note edit yields a fresh key (a cold miss → refetch).
+const chapterCrossRefBannerCache = new Map<string, CrossRefSource[]>()
+function bannerCacheKey(token: number, bookId: string, chapter: number, textId: string) {
+  return `${token}:${bookId}:${chapter}:${textId}`
+}
 // Stable empty-array reference so verses with no highlights pass React.memo's shallow
 // equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
 type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
@@ -332,7 +341,9 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
-  const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
+  const [chapterSources, setChapterSources] = useState<CrossRefSource[]>(
+    () => chapterCrossRefBannerCache.get(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva')) ?? [],
+  )
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
   const [verseTagMap, setVerseTagMap] = useState<Record<number, import('@/types').VerseTagLite[]>>({})
   const [loading, setLoading] = useState(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) === null)
@@ -569,13 +580,22 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       return { flags, colorMap, chapterSourcesResult }
     })()
 
+    // Commit the banner sources the moment the cross-ref part is ready — don't make the banner
+    // wait on the note-count / highlight fetches in the Promise.all below. Also cache it so the
+    // next visit to this chapter (same note token) shows the banner with zero delay.
+    crossRefP.then((crossRef) => {
+      if (cancelled) return
+      if (chapterCrossRefBannerCache.size > 200) chapterCrossRefBannerCache.clear() // old-token entries pile up; cheap to rebuild
+      chapterCrossRefBannerCache.set(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva'), crossRef.chapterSourcesResult)
+      setChapterSources(crossRef.chapterSourcesResult)
+    }).catch(() => {})
+
     Promise.all([noteCountsP, highlightsP, crossRefP]).then(([noteCountsData, highlightsData, crossRef]) => {
       if (cancelled) return
       setNoteCounts((prev) => mergeStableRecord(prev, noteCountsData))
       setHighlights((prev) => mergeStableRecord(prev, highlightsData))
       setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, crossRef.flags))
       setNoteColorsMap((prev) => mergeStableRecord(prev, crossRef.colorMap))
-      setChapterSources(crossRef.chapterSourcesResult)
     })
     return () => { cancelled = true }
   }, [bookId, chapter, textId, noteChangeToken, highlightChangeToken, verses.length])

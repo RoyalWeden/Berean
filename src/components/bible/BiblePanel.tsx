@@ -1205,8 +1205,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const anchor = strongsAnchorRef.current
     if (!anchor) return
     strongsAnchorRef.current = null
-    // Hand the anchor to the animation-window rAF loop below so it keeps re-pinning through
-    // the gradual chip-in / line-tighten reflow, not just this one synchronous correction.
+    // Still handed to the short rAF loop below purely to catch sub-pixel shifts (and the one
+    // real case that still reflows: "compact" line-height, which gets bumped up to fit the
+    // numbers). NO flashAnchor — the numbers now live in the gap and nothing moves, so
+    // highlighting the top verse on every toggle was just noise.
     strongsAnimAnchorRef.current = anchor
     const container = getScrollEl()
     if (!container) return
@@ -1215,15 +1217,12 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const containerTop = container.getBoundingClientRect().top
     const elTop = el.getBoundingClientRect().top
     container.scrollTop += elTop - containerTop - anchor.offsetPx
-    setFlashAnchor({ verse: anchor.verseNum, nonce: Date.now() })
   }
 
-  // Toggling Strong's now animates in place: each verse row's line-height eases between its
-  // tight (Strong's on) and relaxed (off) value while the number chips grow in under each word
-  // (.strongs-chip-in in global.css). That's a real CSS transition on the live DOM, so the
-  // previous View-Transitions snapshot-crossfade — which fought this and also painted over the
-  // top bar when scrolled down — is gone. captureStrongsAnchor()/restoreStrongsAnchor() still
-  // pin the reader's place through the reflow.
+  // Toggling Strong's is now a pure show/hide of absolute-positioned number overlays in the
+  // leading gap (StrongsInline.tsx) — zero reflow for comfortable/spacious line-height. The
+  // anchor capture/restore is kept only as a safety net for "compact" (which does get a small
+  // line-height bump to fit the numbers) and any sub-pixel drift.
   function toggleStrongsForTab(tabId: string, next: boolean) {
     captureStrongsAnchor()
     updateTabState('scripture', tabId, { showStrongs: next })

@@ -393,6 +393,10 @@ export interface AppState {
   // to the far-right corner there (that view has its own right-edge jump rail; no dodging).
   bibleSearchTabActive: boolean
   setBibleSearchTabActive: (v: boolean) => void
+  // True while a popover opened FROM the verse-selection action bar (tag picker / colour
+  // picker) is showing — the bottom-right toast lifts further to clear it.
+  verseSelectionMenuOpen: boolean
+  setVerseSelectionMenuOpen: (v: boolean) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -1618,6 +1622,7 @@ export const useAppStore = create<AppState>()(
       bibleRightPanelWidth: 0,
       noteEditorOpenCount: 0,
       bibleSearchTabActive: false,
+      verseSelectionMenuOpen: false,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -2485,6 +2490,7 @@ export const useAppStore = create<AppState>()(
       setBibleRightPanelWidth: (v) => set({ bibleRightPanelWidth: Math.max(0, v) }),
       bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
       setBibleSearchTabActive: (v) => set({ bibleSearchTabActive: v }),
+      setVerseSelectionMenuOpen: (v) => set({ verseSelectionMenuOpen: v }),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),
