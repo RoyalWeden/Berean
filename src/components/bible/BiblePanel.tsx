@@ -1268,7 +1268,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offsetPx
         if (Math.abs(delta) > 0.5) container.scrollTop += delta
       }
-      if (performance.now() - start < 900) raf = requestAnimationFrame(tick)
+      if (performance.now() - start < 350) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)

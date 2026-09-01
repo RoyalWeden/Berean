@@ -376,30 +376,12 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     [idiomCache, idiomHighlightEnabled],
   )
 
-  // Strong's toggle in two phases so the reader never loses their place. The number chips are
-  // absolutely positioned (StrongsInline.tsx) so they add NO layout — phase 1 is pure "numbers
-  // slide out from under the words" with zero reflow. Phase 2 is the only thing that moves the
-  // text: the line spacing eases tighter/looser (BiblePanel pins the top verse throughout).
-  //   ON  — renderStrongs=true (chips slide in), then ~220ms later lineTight=true.
-  //   OFF — lineTight=false (spacing loosens), then ~200ms later renderStrongs=false; during
-  //         that window `renderStrongs && !showStrongs` adds .strongs-chips-closing so the chips
-  //         slide back up before they unmount.
-  const [renderStrongs, setRenderStrongs] = useState(showStrongs)
-  const [lineTight, setLineTight] = useState(showStrongs)
-  const prevShowStrongsRef = useRef(showStrongs)
-  useEffect(() => {
-    if (prevShowStrongsRef.current === showStrongs) return
-    prevShowStrongsRef.current = showStrongs
-    if (showStrongs) {
-      setRenderStrongs(true)
-      const t = setTimeout(() => setLineTight(true), 220)
-      return () => clearTimeout(t)
-    }
-    setLineTight(false)
-    const t = setTimeout(() => setRenderStrongs(false), 210)
-    return () => clearTimeout(t)
-  }, [showStrongs])
-  const strongsClosing = renderStrongs && !showStrongs
+  // The Strong's numbers are absolutely positioned in the gap under each word (StrongsInline.tsx),
+  // so they contribute NO layout — toggling them just shows/hides them in the space that's
+  // already there. No animation, no phased state machine, no reflow (the one exception:
+  // "compact" line-height is too tight for the numbers, so `renderStrongs` bumps the verse
+  // line-height up to a floor of 1.65 — see the style below).
+  const renderStrongs = showStrongs
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -969,16 +951,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     return words.some(w => t.includes(w))
   }, [findQuery, findWordMode, verse.text])
 
-  const baseRowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
-  // Line-height is animated inline (Tailwind's `leading-*` classes can't transition) and is
-  // driven by `lineTight`, which lags the Strong's toggle by one phase (see the STRONGS_PHASE_MS
-  // effect above): on toggle-ON the chips grow in first and the lines only close up afterward,
-  // so the words never shift under the reader.
-  const rowStyle: React.CSSProperties = {
-    ...baseRowStyle,
-    lineHeight: lineTight ? 1.5 : 1.85,
-    transition: `${baseRowStyle?.transition ? baseRowStyle.transition + ', ' : ''}background-color 300ms ease, border-color 300ms ease, margin-bottom 260ms ease, line-height 260ms ease`,
-  }
+  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
 
   // Determine rendering mode
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
@@ -1360,7 +1333,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${strongsClosing ? 'strongs-chips-closing' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative mb-3 ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1487,23 +1460,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         data-verse-text="true"
         onMouseUp={handleVerseMouseUp}
         onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-300"
-        // The row wrapper's own `leading-snug`/`leading-relaxed` classes above are meant to
-        // respond to showStrongs, but a Tailwind `leading-*` class on the PARENT has nothing of
-        // its own to apply line-height to once this child sets its own inline line-height —
-        // inline style on a descendant always wins, so toggling Strong's used to only change
-        // margin, not the actual verse-text line spacing (silently smaller density change than
-        // the code appeared to intend, snapping instantly since there was no transition either).
-        // Scale relative to the user's own compact/comfortable/spacious line-height setting
-        // (--line-height-comfortable, synced from Settings in App.tsx) rather than a fixed
-        // number, so Strong's mode stays "somewhat denser than whatever this user already
-        // chose," not an independent value that ignores their preference.
-        // `lineTight` (not `showStrongs`) so the density change lands a beat AFTER the chips
-        // have grown in on toggle-on — words don't shift under the reader mid-appearance.
-        // ON keeps ~0.9x of the user's comfortable line-height (still visibly tighter) rather
-        // than 0.82x — the absolute-positioned Strong's chips live in this leading gap, so it
-        // can't close up as far without the numbers crowding the line below.
-        style={{ lineHeight: lineTight ? 'calc(var(--line-height-comfortable) * 0.9)' : 'var(--line-height-comfortable)' }}
+        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-200"
+        // Verse-text line spacing follows the user's own compact/comfortable/spacious setting
+        // (--line-height-comfortable). The Strong's numbers are absolute overlays in the leading
+        // gap and normally need no extra room — the ONE exception is "compact" (1.3), where the
+        // gap is too small, so when Strong's is on we floor the line-height at 1.65. For the
+        // other two settings max() is a no-op, so toggling Strong's changes nothing at all.
+        style={{ lineHeight: renderStrongs ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

@@ -147,12 +147,15 @@ UI polish
   filter) now share one compact pill style with a consistent accent-tint active state.
 - Clicking the tag-filter pill in Advanced Search while its menu is already open now
   closes it.
-- Inline Strong's numbers are now positioned in the gap under each word instead of stacked
-  in the text flow, so toggling them on/off never pushes the verses around — the numbers
-  slide in, then the line spacing eases tighter as a separate step (top verse held fixed).
-- Scripture tabs reliably restore their exact scroll position on return — including
-  revisiting an already-loaded chapter, which used to snap back to verse 1. The chapter
-  stays hidden until the position lands.
+- Inline Strong's numbers now sit in the gap under each word instead of stacked in the text
+  flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
+  in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
+- Scripture, Lexicon and PDF tabs reliably restore their exact scroll position on return —
+  including revisiting an already-loaded chapter/entry, which used to snap back to the top.
+  The content stays hidden until the position lands, and the restore keeps correcting as the
+  page finishes laying out.
+- The in-memory chapter cache is now capped (LRU, ~150 chapters) so a marathon session
+  can't grow it without bound.
 - Settings → About → "Clear cached content" drops the in-memory chapter / note / side-panel
   caches (harmless; the app just refetches).
 - Idiom notes now show the word-count / reading-time footer (it was tied to the formatting

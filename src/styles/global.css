@@ -1739,29 +1739,9 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
 
-/* Inline Strong's toggle. The number chips are absolutely positioned in the leading gap under
-   each word (StrongsInline.tsx) so they add ZERO layout — toggling never reflows the verse
-   text. On appear they slide down out from under the word (transform only, no opacity, so
-   there's no "flash"); on hide they slide back up before unmounting. Line spacing is the only
-   thing that actually changes, animated separately per verse row by VerseRow. */
-@keyframes strongsChipSlideIn {
-  from { transform: translateY(-0.4em); }
-  to   { transform: translateY(0); }
-}
-@keyframes strongsChipSlideOut {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-0.4em); }
-}
-.strongs-chip-abs {
-  animation: strongsChipSlideIn 170ms ease-out;
-}
-.strongs-chips-closing .strongs-chip-abs {
-  animation: strongsChipSlideOut 150ms ease-in forwards;
-}
-@media (prefers-reduced-motion: reduce) {
-  .strongs-chip-abs,
-  .strongs-chips-closing .strongs-chip-abs { animation: none; }
-}
+/* Inline Strong's numbers are absolutely positioned in the leading gap under each word
+   (StrongsInline.tsx's .strongs-chip-abs) so they add ZERO layout — toggling them on/off just
+   shows/hides them in space that's already there, no animation and no reflow. */
 
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────
    There's no shared Button component in this codebase (698+ hand-rolled
