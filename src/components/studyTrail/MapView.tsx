@@ -11,6 +11,7 @@ import { useWordReplace } from './useWordReplace'
 import { effectiveGapMs, gapSegmentHeight, formatGap, GAP_CHIP_THRESHOLD_MS } from './trailTime'
 import TrailConnectorOverlay, { useTrailConnectorPoints, GUTTER_BASE, LANE_SPACING, type TrailEdge } from './TrailConnectorOverlay'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
+import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 
 // Whether the "why'd you jump here" edit popup is currently open — read by every TrailHoverCard
 // in the spine (via useContext, not prop-drilled through every ConnRow/NodeBlock/GlanceGroupRow/
@@ -1027,8 +1028,14 @@ export function pickControlSide(room: { left: number; right: number } | undefine
 export default function MapView({
   detail, onChanged, boundaryLabelForNodeId, zoom: zoomProp, onZoomChange, revisitWindowMs,
   filterValue, onFilterChange, topInset = 0, onLayoutRoomChange, onCurrentHourChange,
+  scrollKey = EVERYTHING_SCROLL_KEY,
 }: {
   detail: TrailSessionDetail; onChanged: () => void; boundaryLabelForNodeId?: Map<string, string>
+  /** Identifies the current view for scroll-position persistence — `selectedId ?? '__everything__'`
+   *  (see trailWindowPrefs). On mount / when this changes, a saved scroll position for the key is
+   *  restored INSTEAD of the default open-at-newest jump; the live scroll position is saved back
+   *  (debounced) under this key. */
+  scrollKey?: string
   /** Reports the live clear space (px) on each side of the trail's SOLID content (spine +
    *  branch bullets — faint arcs don't count) so the parent can decide which side to float its
    *  own header / zoom controls on. Per direct feedback: those controls default to the left and
@@ -1099,6 +1106,23 @@ export default function MapView({
     isAtBottomRef.current = atBottom
     setShowScrollToLatest(!atBottom)
   }
+
+  // Persist this view's scroll position (per scrollKey) so reopening the Study Trail window
+  // lands back where the user left off — debounced so a scroll drag doesn't thrash localStorage.
+  // The timeout closes over the scrollKey of the render it was scheduled in, so a save that
+  // lands just after a view switch still writes under the view it came from.
+  const saveScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function saveScrollDebounced() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const key = scrollKey
+    if (saveScrollTimerRef.current) clearTimeout(saveScrollTimerRef.current)
+    saveScrollTimerRef.current = setTimeout(() => {
+      const cur = scrollContainerRef.current
+      if (cur) setTrailScroll(key, { top: cur.scrollTop, left: cur.scrollLeft })
+    }, 150)
+  }
+  useEffect(() => () => { if (saveScrollTimerRef.current) clearTimeout(saveScrollTimerRef.current) }, [])
   // Suppresses the app-wide scrollbar auto-reveal (src/lib/scrollbarAutoHide.ts) for OUR OWN
   // programmatic scrolls (Latest/Recenter) — that global listener treats ANY native 'scroll'
   // event as "the user is actively scrolling" and reveals the (normally invisible-at-rest)
@@ -1211,6 +1235,9 @@ export default function MapView({
     }))
   }
   useEffect(() => {
+    // Sticky-follow the newest end while a live session appends — but never fight a restored
+    // scroll position: the restore layout-effect below runs first on this same commit and clears
+    // isAtBottomRef when the saved spot isn't at the bottom.
     if (isAtBottomRef.current) scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
   }, [detail.nodes.length])
   // Auto-recenter HORIZONTALLY the first time a session actually has real node data to center
@@ -1237,9 +1264,39 @@ export default function MapView({
     if (detail.nodes.length === 0) return
     if (centeredSessionRef.current === detail.session.id) return
     centeredSessionRef.current = detail.session.id
+    // A saved scroll position for the current view wins — the restore layout-effect below sets
+    // scrollLeft from it; centering here would just be immediately overwritten (or, on an
+    // Everything-view session-id churn, clobber the restored position).
+    if (getTrailScroll(scrollKey)) return
     recenterHorizontal('auto')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail.session.id, detail.nodes.length])
+
+  // Restore this view's saved scroll position (per scrollKey) instead of the default open-at-
+  // newest jump — or, when nothing is saved, apply that default (newest at the bottom; the
+  // horizontal centering is handled by the once-per-session effect above). Runs once per
+  // scrollKey, after node data has rendered. useLayoutEffect (pre-paint) so the user never sees
+  // a flash of the wrong position, mirroring the horizontal-recenter effect's timing.
+  const restoredScrollKeyRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el || detail.nodes.length === 0) return
+    if (restoredScrollKeyRef.current === scrollKey) return
+    restoredScrollKeyRef.current = scrollKey
+    const saved = getTrailScroll(scrollKey)
+    if (saved) {
+      el.scrollLeft = saved.left
+      el.scrollTop = saved.top
+      const atBottom = el.scrollHeight - saved.top - el.clientHeight < NEAR_BOTTOM_PX
+      isAtBottomRef.current = atBottom
+      setShowScrollToLatest(!atBottom)
+    } else {
+      el.scrollTop = el.scrollHeight
+      isAtBottomRef.current = true
+      setShowScrollToLatest(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollKey, detail.nodes.length])
 
   const [ownZoom, setOwnZoom] = useState(1)
   const zoom = zoomProp ?? ownZoom
@@ -2281,7 +2338,7 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
             whole content block — gutter + spine + indents + labels — in the viewport. It
             collapses to 0 once the content is wider than the viewport, so the native scroll

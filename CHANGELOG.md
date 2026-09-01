@@ -122,6 +122,46 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.16] - 2026-09-01
+
+Psalm titles, presenter scrolling, Study Trail memory
+
+### Scripture reading
+
+- Psalm superscriptions ("To the chief Musician, A Psalm of David, when Nathan the
+  prophet came unto him, after he had gone in to Bathsheba." and the like) now render
+  as a faint titled line above verse 1 instead of running into the first verse. Applies
+  to the KJV and the Brenton Septuagint. Verse numbers are left exactly as they are —
+  where the Septuagint keeps the title as its own verse(s), those fold into the line and
+  the body keeps its own numbering. The title line is selectable and can carry a note,
+  and where the tagged text has Strong's numbers on the title words they still work
+  (hover for the gloss, click through to the lexicon).
+- The chapter cross-reference chips at the top of a chapter now show only the referring
+  note's title up to the first "*", and their hover state is a solid, clearly visible
+  fill instead of a barely-there tint.
+- Cmd+L, and jumping between passages from the search bar, no longer occasionally reopen
+  the new passage at a stale scroll position left over from where you were before.
+
+### Presenter
+
+- With the presenter window open, scrolling the main window now walks the presenter
+  through the chapter with the outline held at the centre of the view — the chapter text
+  flows underneath it, and it only rides to the top or bottom at the chapter's ends. The
+  mouse wheel, trackpad, scrollbar and the paging keys all drive it, and the presenter
+  now tracks it smoothly with no stepping or choppiness. The scroll speed and feel are
+  the same whether the chapter is long or barely longer than the screen.
+- The presenter window's zoom level (its +/- control) is remembered between sessions.
+- The chapter's position and the presenter's position are both remembered when you
+  switch away from a scripture tab and back, and both land correctly when you open a
+  chapter or a verse from the floating search or Advanced Scripture Search.
+
+### Study Trail
+
+- The Study Trail window now remembers, across close and reopen, which trail session
+  (or the "Everything" view) you had open, the Map/Review toggle, the zoom level, and
+  the scroll position of the trail map for each view. A session that was deleted while
+  the window was closed falls back to the "Everything" view.
+
 ## [0.5.15] - 2026-08-31
 
 UI polish

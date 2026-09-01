@@ -7,8 +7,18 @@ import MapView, { ZOOM_MIN, ZOOM_MAX, pickControlSide, CTRL_W } from './MapView'
 import ReviewView from './ReviewView'
 import EverythingView from './EverythingView'
 import { DEFAULT_REVISIT_WINDOW_MS } from './trailTime'
+import {
+  readTrailWindowPrefs, setTrailWindowPrefs, EVERYTHING_SCROLL_KEY,
+  TRAIL_ZOOM_MIN, TRAIL_ZOOM_MAX,
+} from './trailWindowPrefs'
 
 type MainTab = 'map' | 'review'
+
+// Remembered across window close/reopen (see trailWindowPrefs.ts). null = "first run", so the
+// existing live-session auto-select still runs; a stored object means the user had an explicit
+// view open last time and we restore it instead.
+const storedWindowPrefs = readTrailWindowPrefs()
+const clampZoom = (z: number) => Math.min(TRAIL_ZOOM_MAX, Math.max(TRAIL_ZOOM_MIN, z))
 
 function fmtLastUsed(ms: number): string {
   const diff = Date.now() - ms
@@ -28,10 +38,13 @@ function fmtLastUsed(ms: number): string {
 // stays an honest v1 rather than a fake "live" claim.
 export default function StudyTrailApp() {
   const [sessions, setSessions] = useState<TrailSession[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Restored from the previous window session (trailWindowPrefs). selectedId is reconciled
+  // against the real sessions list once it loads (see the reconcile effect below) — a stored
+  // id whose session is gone falls back to null ("Everything").
+  const [selectedId, setSelectedId] = useState<string | null>(storedWindowPrefs?.selectedId ?? null)
   const [detail, setDetail] = useState<TrailSessionDetail | null>(null)
   const [newName, setNewName] = useState('')
-  const [mainTab, setMainTab] = useState<MainTab>('map')
+  const [mainTab, setMainTab] = useState<MainTab>(storedWindowPrefs?.mainTab === 'review' ? 'review' : 'map')
   const currentTrailSessionId = useStudyTrailStore((s) => s.currentTrailSessionId)
   const trailSessionStatus = useStudyTrailStore((s) => s.trailSessionStatus)
   const startTrailSession = useStudyTrailStore((s) => s.startTrailSession)
@@ -51,7 +64,7 @@ export default function StudyTrailApp() {
   const renameInputRef = useRef<HTMLInputElement>(null)
   // Owned here (not inside MapView) so it applies consistently in a floating pill whether
   // you're looking at one session's Map or the merged Everything timeline.
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => clampZoom(storedWindowPrefs?.zoom ?? 1))
   // Live per-side clear space around the active MapView's trail content — drives which side the
   // floating header pill and zoom pill sit on (default left; swap right if they'd cover the
   // spine/branches). Reported up from MapView / EverythingView.
@@ -72,7 +85,14 @@ export default function StudyTrailApp() {
   // navigation was recorded correctly in the DB the whole time. Only fires once (the ref
   // guard) so deliberately switching to Everything later while a session stays live isn't
   // fought by this on every store update.
-  const autoSelectedRef = useRef(false)
+  // A view restored from trailWindowPrefs counts as "already decided" — the live-session
+  // auto-select below must not yank away from it. A real deep-link (window.app.onFocusTrailSession)
+  // still wins: it calls setSelectedId itself on top of this.
+  const autoSelectedRef = useRef(storedWindowPrefs != null)
+  // One-shot reconcile of a restored selectedId against the real sessions list.
+  const reconciledRestoreRef = useRef(false)
+  const restoredSelectedIdRef = useRef<string | null>(storedWindowPrefs?.selectedId ?? null)
+  const sessionsLoadedRef = useRef(false)
 
   // Delete/clear UI — three modes, per how Michael asked for this: (1) a per-row × that needs
   // a second confirming click within a few seconds (no modal — a plain inline "Delete? Yes /
@@ -123,9 +143,29 @@ export default function StudyTrailApp() {
 
   async function refresh() {
     const rows = await window.studyTrail.listSessions()
+    sessionsLoadedRef.current = true
     setSessions(rows)
   }
   useEffect(() => { refresh() }, [])
+
+  // Once the real sessions list has loaded, drop a restored selectedId whose session no longer
+  // exists (deleted while the window was closed) — fall back to the Everything view. Only ever
+  // touches the exact id we restored, never a value set since (e.g. by a deep-link).
+  useEffect(() => {
+    if (reconciledRestoreRef.current || !sessionsLoadedRef.current) return
+    reconciledRestoreRef.current = true
+    const restored = restoredSelectedIdRef.current
+    if (restored != null && selectedId === restored && !sessions.some((s) => s.id === restored)) {
+      setSelectedId(null)
+    }
+  }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist the current view (which session / Everything, Map vs Review, zoom) so reopening the
+  // window lands back where the user left off. Scroll position is saved separately from inside
+  // MapView (see trailWindowPrefs.setTrailScroll).
+  useEffect(() => {
+    setTrailWindowPrefs({ selectedId, mainTab, zoom })
+  }, [selectedId, mainTab, zoom])
   useEffect(() => { installStudyTrailStateSync() }, [])
   // Keeps the session rail itself (status dot, "3m ago", possiblyAccidental) live while you
   // keep studying, not just the currently-open Map/Everything content — a slow poll as a
@@ -662,6 +702,7 @@ export default function StudyTrailApp() {
                 <MapView
                   detail={detail}
                   onChanged={() => window.studyTrail.getSession(detail.session.id).then((d) => d && setDetail(d))}
+                  scrollKey={selectedId ?? EVERYTHING_SCROLL_KEY}
                   zoom={zoom}
                   onZoomChange={setZoom}
                   revisitWindowMs={DEFAULT_REVISIT_WINDOW_MS}

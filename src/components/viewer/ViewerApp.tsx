@@ -120,6 +120,14 @@ export default function ViewerApp() {
   const hideOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sidePanelScrollRef = useRef<HTMLDivElement>(null)
   const sidePanelScrollRAFRef = useRef<number | null>(null)
+  // Live scroll percent pushed straight from IPC (see handleContent) so ViewerBiblePage's rAF
+  // loop can apply it WITHOUT a React re-render — the render pipeline was the choppiness source.
+  const viewerScrollPctRef = useRef<number | null>(null)
+  // The `bookId:chapter` the pct above belongs to, so a stale pct isn't applied to a chapter
+  // that has just changed under it.
+  const viewerScrollTargetKeyRef = useRef<string>('')
+  // Latest payload, readable inside the stable handleContent callback without adding it to deps.
+  const payloadRef = useRef<ViewerPayload>({ kind: 'idle' })
 
   const storeScale = useAppStore((s) => s.viewerFontScale)
   const setViewerFontScale = useAppStore((s) => s.setViewerFontScale)
@@ -144,6 +152,19 @@ export default function ViewerApp() {
 
   // Sync local scale when store changes from outside
   useEffect(() => { setLocalScale(storeScale) }, [storeScale])
+
+  // Belt-and-suspenders persistence of the presenter zoom on window close. setViewerFontScale
+  // already writes the dedicated non-debounced 'berean-viewer-font-scale' key synchronously on
+  // every change (and debouncedStorage.ts flushes the main blob on beforeunload), so this is a
+  // final guard that the very latest localScale lands even if a render/commit race left the
+  // store a step behind. No debounced writer is involved, so nothing extra needs flushing.
+  useEffect(() => {
+    const persistNow = () => {
+      try { localStorage.setItem('berean-viewer-font-scale', JSON.stringify(localScale)) } catch { /* storage disabled/quota */ }
+    }
+    window.addEventListener('beforeunload', persistNow)
+    return () => window.removeEventListener('beforeunload', persistNow)
+  }, [localScale])
 
   // Apply theme classes to <html>. "Follow app" (viewerTheme === 'system', labeled that way in
   // Settings → Presenter) uses the same shared applyThemeToDocument App.tsx/FloatingShell.tsx
@@ -173,9 +194,33 @@ export default function ViewerApp() {
     html.classList.toggle('light', !effectiveDark)
   }, [viewerTheme, theme, themePreset, systemIsDark, systemAccentColor, backgroundAnimationEnabled, backgroundAnimationStyle, backgroundAnimationIntensity])
 
+  // Keep the ref in sync every render so handleContent (stable, deps []) sees the latest payload.
+  payloadRef.current = payload
+
   const handleContent = useCallback((raw: unknown) => {
     if (window.__bereanPresenterDebug) console.log('[PD viewer-receive] onContent payload', raw)
-    setPayload(raw as ViewerPayload)
+    const next = raw as ViewerPayload
+    // Fast path: apply an incoming chapter scroll percent straight to a ref the ViewerBiblePage
+    // rAF loop reads, bypassing React's render pipeline (setPayload → re-map every verse →
+    // commit → effect → lerp), which is what made the presenter scroll choppy.
+    if (next.kind === 'bible' && typeof next.scrollPercent === 'number') {
+      viewerScrollPctRef.current = next.scrollPercent
+      viewerScrollTargetKeyRef.current = `${next.bookId}:${next.chapter}`
+    }
+    // Skip the re-render when ONLY the chapter scroll position moved — the ref update above is
+    // enough, the loop picks it up. Everything else (chapter nav, verse, annotations, side
+    // panel, side-panel scroll, kind changes) still goes through setPayload. sidePanelScrollPercent
+    // is deliberately NOT stripped here so side-panel scroll sync keeps working (more
+    // conservative than the spec's "strip both").
+    const cur = payloadRef.current
+    const stripChapterScroll = (p: ViewerPayload) => {
+      if (p.kind !== 'bible') return JSON.stringify(p)
+      const { scrollPercent: _s, ...rest } = p
+      return JSON.stringify(rest)
+    }
+    if (cur.kind !== 'bible' || next.kind !== 'bible' || stripChapterScroll(cur) !== stripChapterScroll(next)) {
+      setPayload(next)
+    }
   }, [])
 
   useEffect(() => {
@@ -325,6 +370,8 @@ export default function ViewerApp() {
                 textId={payload.textId}
                 fontScale={localScale}
                 scrollPercent={payload.scrollPercent}
+                scrollPctRef={viewerScrollPctRef}
+                scrollPctKeyRef={viewerScrollTargetKeyRef}
                 hiddenAnnotations={payload.hiddenAnnotations}
                 viewerHighlights={viewerHls[hlKey] ?? {}}
                 onAddViewerHighlight={(verseNum, hl) => setViewerHls(prev => {

@@ -5,6 +5,7 @@ import { buildVerseDisplayTokens, mapOriginalOffsetToDisplay } from '@/lib/verse
 import { stripAnnotations } from '@/lib/annotationFilters'
 import { laserToPoint } from '@/lib/presenterOverlay'
 import { measureContentHeight } from '@/lib/presenterBand'
+import { planPsalmSuperscription, resolveTitleLine, trimVerseOneText, trimVerseOneTagged, extractVerseOneTaggedTitle } from '@/lib/psalmSuperscription'
 import type { OverlayLaser } from '@/lib/presenterOverlay'
 import type { DisplayToken } from '@/lib/verseUtils'
 import type { ViewerOverlay } from '@/types/electron'
@@ -137,6 +138,11 @@ interface Props {
   textId: string
   fontScale: number
   scrollPercent?: number
+  /** Live scroll percent pushed straight from IPC in ViewerApp (no React render). The rAF loop
+   *  below prefers this over `scrollPercent` so pushes that skipped the re-render still apply. */
+  scrollPctRef?: React.MutableRefObject<number | null>
+  /** `bookId:chapter` that `scrollPctRef` belongs to — a stale pct is ignored after a nav. */
+  scrollPctKeyRef?: React.MutableRefObject<string>
   /** Annotation categories hidden in the main window (kjva_italics, lxx_supply,
    *  enoch_supply/uncertain/restored, jubilees_date/bracket/etc.) — mirrored here so the
    *  presenter matches. */
@@ -147,7 +153,7 @@ interface Props {
   onRemoveViewerHighlight: (verseNum: number, startChar: number, endChar: number) => void
 }
 
-export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
+export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontScale, scrollPercent, scrollPctRef, scrollPctKeyRef, hiddenAnnotations = [], viewerHighlights, onAddViewerHighlight, onRemoveViewerHighlight }: Props) {
   const [verses, setVerses] = useState<Verse[]>([])
   const [loading, setLoading] = useState(true)
   const [dbHighlights, setDbHighlights] = useState<Record<number, DBHighlight[]>>({})
@@ -158,7 +164,6 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const [laserPos, setLaserPos] = useState<{ top: number; left: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLDivElement>(null)
-  const scrollPercentRAFRef = useRef<number | null>(null)
   const reportRAFRef = useRef<number | null>(null)
   // Debug-only: last scrollTop this window actually applied, so a visible "jump" (a large
   // sudden change in the PRESENTER'S OWN on-screen position, not just in the percent it was
@@ -291,45 +296,55 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
     }
   }, [verse, verses, scrollPercent])
 
-  // Apply proportional scroll percentage from main window (re-applies once verses render).
+  // Apply the proportional scroll percent from the main window DIRECTLY, off the React render
+  // path. The main window's ease loop (BiblePanel.stepPresenterEase) is the single smoother now
+  // — this just mirrors its output 1:1, one frame later. A PERSISTENT rAF loop (not a per-push
+  // effect) is what makes an IPC push that skipped the React re-render in ViewerApp.handleContent
+  // — the common case mid-glide — still land here, via `scrollPctRef`.
+  const lastLoggedTargetRef = useRef(0)
   useEffect(() => {
-    if (scrollPercent === undefined || scrollPercent === null) return
-    if (scrollPercentRAFRef.current) cancelAnimationFrame(scrollPercentRAFRef.current)
-    scrollPercentRAFRef.current = requestAnimationFrame(() => {
-      scrollPercentRAFRef.current = null
-      if (Date.now() < scrollLockUntilRef.current) {
-        if (window.__bereanPresenterDebug) console.log('[PD viewer-percent-effect] SKIPPED — find-bar scroll lock active')
-        return
-      }
+    let raf = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
       const el = containerRef.current
       if (!el) return
+      if (Date.now() < scrollLockUntilRef.current) return // find-bar verse-jump lock — keep it
+      // Prefer the live ref (updated straight from IPC, no React render); fall back to the prop
+      // for the initial post-load apply before any scroll push for this chapter.
+      const wantKey = `${bookId}:${chapter}`
+      const pct = (scrollPctRef?.current != null && (!scrollPctKeyRef || scrollPctKeyRef.current === wantKey))
+        ? scrollPctRef.current
+        : scrollPercent
+      if (pct == null) return
       const max = el.scrollHeight - el.clientHeight
-      const appliedScrollTop = max > 0 ? scrollPercent * max : el.scrollTop
-      const chapterKey = `${bookId}:${chapter}`
-      if (window.__bereanPresenterDebug) {
+      if (max <= 0) return
+      const target = pct * max
+      if (window.__bereanPresenterDebug && Math.abs(target - lastLoggedTargetRef.current) > 1) {
+        const chapterKey = wantKey
         const prev = lastAppliedScrollTopDebugRef.current
-        // Threshold scaled to viewport height — a jump of more than ~40% of one screenful in a
-        // single application, within the SAME chapter, is not a smooth proportional glide.
-        const isJump = prev && prev.chapterKey === chapterKey && Math.abs(appliedScrollTop - prev.scrollTop) > el.clientHeight * 0.4
+        // A jump of more than ~40% of one screenful within the SAME chapter is not a smooth glide.
+        const isJump = prev && prev.chapterKey === chapterKey && Math.abs(target - prev.scrollTop) > el.clientHeight * 0.4
         console.log('[PD viewer-percent-effect] APPLYING', {
-          bookId, chapter, scrollPercent, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
-          max, appliedScrollTop, prevAppliedScrollTop: prev?.scrollTop, prevChapterKey: prev?.chapterKey,
+          bookId, chapter, pct, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, max, target,
+          prevAppliedScrollTop: prev?.scrollTop, prevChapterKey: prev?.chapterKey,
         })
         if (isJump) {
           console.warn('[PD VISIBLE JUMP on presenter]', {
-            from: prev!.scrollTop, to: appliedScrollTop, chapterKey, clientHeight: el.clientHeight,
+            from: prev!.scrollTop, to: target, chapterKey, clientHeight: el.clientHeight,
           })
         }
+        lastLoggedTargetRef.current = target
+        lastAppliedScrollTopDebugRef.current = { scrollTop: target, chapterKey }
       }
-      lastAppliedScrollTopDebugRef.current = { scrollTop: appliedScrollTop, chapterKey }
-      if (max > 0) el.scrollTop = scrollPercent * max
-      if (window.__bereanPresenterDebug) {
-        console.log('[PD viewer-percent-effect] APPLIED', {
-          bookId, chapter, scrollPercent, actualScrollTopAfter: el.scrollTop,
-        })
-      }
-    })
-  }, [scrollPercent, verses])
+      // Direct apply — the incoming stream is already eased by the main window. Snap tiny
+      // residuals so we don't spin forever on sub-pixel diffs.
+      if (Math.abs(el.scrollTop - target) < 0.5) { if (el.scrollTop !== target) el.scrollTop = target; return }
+      el.scrollTop = target
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // scrollPercent/verses kept so the initial post-load apply still re-arms the loop.
+  }, [bookId, chapter, scrollPercent, verses])
 
   // Report visible region after verses render and on window resize. Word-
   // replacer settings are included here too — they change verse text length
@@ -484,6 +499,22 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
   const textColor = 'rgb(var(--color-text-primary, 220 220 230))'
   const accentBg  = 'rgba(var(--color-accent, 100 130 200) / 0.12)'
 
+  // Psalm superscription → faint left-ruled, ~90%-size line above the first body verse, mirroring
+  // the main reader (ChapterView). The viewer never renders Strong's chips, so this is plain
+  // display text; verse numbering is preserved exactly (Brenton whole-verse titles fold into
+  // this line and the body keeps its real number). See psalmSuperscription.ts.
+  const psalmPlan = planPsalmSuperscription(textId, bookId, chapter)
+  const psalmTitleLine = psalmPlan ? resolveTitleLine(psalmPlan, verses) : ''
+  const psalmSupVerse: Verse | null = psalmPlan && psalmTitleLine
+    ? {
+        verse_num: 0,
+        book_id: bookId,
+        chapter,
+        text: psalmTitleLine,
+        text_tagged: extractVerseOneTaggedTitle(verses.find((v) => v.verse_num === 1)?.text_tagged, psalmPlan) ?? undefined,
+      }
+    : null
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full" style={{ fontSize: baseFontSize, color: muteColor }}>
@@ -525,37 +556,71 @@ export default function ViewerBiblePage({ bookId, chapter, verse, textId, fontSc
         style={{ fontSize: baseFontSize, lineHeight: 'var(--line-height-comfortable)', color: textColor, marginLeft: `${gutterWidth + 8}px` }}
       >
         {verses.map((v) => {
+          // Brenton whole-verse titles: that leading verse folds into the superscription line
+          // above and doesn't render as its own numbered row.
+          if (psalmPlan?.hiddenVerseNums.has(v.verse_num)) return null
+          const showSup = !!psalmSupVerse && v.verse_num === psalmPlan!.firstBodyVerseNum
+          // Trim the superscription off verse 1 itself so it isn't shown twice.
+          const rv: Verse = (psalmPlan && v.verse_num === 1)
+            ? {
+                ...v,
+                text: trimVerseOneText(v.text, psalmPlan),
+                text_tagged: v.text_tagged ? trimVerseOneTagged(v.text_tagged, psalmPlan) : v.text_tagged,
+              }
+            : v
           const isActive = verse === v.verse_num
           return (
-            <div
-              key={v.verse_num}
-              data-verse={v.verse_num}
-              ref={isActive ? (activeRef as React.RefObject<HTMLDivElement>) : undefined}
-              className="relative mb-3"
-              style={isActive ? { background: accentBg, borderRadius: '6px', paddingLeft: '8px', paddingRight: '4px', marginLeft: '-8px' } : undefined}
-            >
-              <span
-                className="select-none absolute tabular-nums text-right"
-                style={{
-                  fontSize: Math.round(baseFontSize * 0.55),
-                  color: muteColor,
-                  width: `${gutterWidth}px`,
-                  right: 'calc(100% + 8px)',
-                  top: '0.3em',
-                }}
+            <Fragment key={v.verse_num}>
+              {showSup && psalmSupVerse && (
+                <div
+                  className="relative mb-3"
+                  style={{
+                    fontSize: '0.9em',
+                    color: muteColor,
+                    borderLeft: '2px solid rgb(var(--color-surface-4, 55 55 68))',
+                    paddingLeft: '10px',
+                  }}
+                >
+                  <span data-verse-text style={{ userSelect: 'text' }}>
+                    {renderVerseText(
+                      psalmSupVerse.text,
+                      displayTokens(psalmSupVerse),
+                      dbHighlights[0] ?? [],
+                      viewerHighlights[0] ?? [],
+                      mirrorSel?.filter((r) => r.verseNum === 0) ?? [],
+                    )}
+                  </span>
+                </div>
+              )}
+              <div
+                data-verse={v.verse_num}
+                ref={isActive ? (activeRef as React.RefObject<HTMLDivElement>) : undefined}
+                className="relative mb-3"
+                style={isActive ? { background: accentBg, borderRadius: '6px', paddingLeft: '8px', paddingRight: '4px', marginLeft: '-8px' } : undefined}
               >
-                {v.verse_num}
-              </span>
-              <span data-verse-text style={{ userSelect: 'text' }}>
-                {renderVerseText(
-                  v.text,
-                  displayTokens(v),
-                  dbHighlights[v.verse_num] ?? [],
-                  viewerHighlights[v.verse_num] ?? [],
-                  mirrorSel?.filter((r) => r.verseNum === v.verse_num) ?? [],
-                )}
-              </span>
-            </div>
+                <span
+                  className="select-none absolute tabular-nums text-right"
+                  style={{
+                    fontSize: Math.round(baseFontSize * 0.55),
+                    color: muteColor,
+                    width: `${gutterWidth}px`,
+                    right: 'calc(100% + 8px)',
+                    top: '0.3em',
+                  }}
+                >
+                  {v.verse_num}
+                </span>
+                <span data-verse-text style={{ userSelect: 'text' }}>
+                  {renderVerseText(
+                    rv.text,
+                    displayTokens(rv),
+                    dbHighlights[v.verse_num] ?? [],
+                    viewerHighlights[v.verse_num] ?? [],
+                    mirrorSel?.filter((r) => r.verseNum === v.verse_num) ?? [],
+                  )}
+                </span>
+              </div>
+            </Fragment>
           )
         })}
       </div>

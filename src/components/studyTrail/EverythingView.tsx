@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import MapView, { pickControlSide, CTRL_W } from './MapView'
+import { EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 
 // The default landing view — everything recorded across EVERY session, with no session
 // selected. Answers "I'm not in any particular session right now, just show me what's been
@@ -144,7 +145,7 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
+          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
         </div>
       )}
     </div>
