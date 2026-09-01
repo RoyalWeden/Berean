@@ -151,8 +151,9 @@ UI polish
   flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
   in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
   Each number is a translucent rounded pill, centered under its word, dim at rest. Hovering a
-  word OR its number highlights the pair (a real tint behind the word), and brightens every
-  other instance of that same Strong's number in the chapter so you can see where it recurs.
+  word OR its number highlights the whole PHRASE it belongs to (all the words that share that
+  one Strong's number occurrence, not just one word), and brightens every other instance of
+  that same Strong's number in the chapter so you can see where it recurs.
   When a lexicon entry is open in the scripture side panel, every occurrence of that number
   in the chapter stays highlighted (with a ring). No verse-wide brightening from the cursor.
   Grammatical particles are dimmer still. Pill spacing is computed at render time so nothing

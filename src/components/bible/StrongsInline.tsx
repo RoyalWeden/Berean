@@ -22,6 +22,9 @@ interface StrongsInlineProps {
   swIdx?: number
   /** Measured extra right-margin (px) so this word's centered number pill clears the next. */
   extraGap?: number
+  /** Identifies the contiguous run of words that share this exact Strong's number occurrence
+   *  (a "phrase") — hovering any of them highlights the whole run. */
+  phraseKey?: string
 }
 
 function StrongsInline({
@@ -38,6 +41,7 @@ function StrongsInline({
   onWordClick,
   swIdx,
   extraGap,
+  phraseKey,
 }: StrongsInlineProps) {
   const nums = Array.isArray(strongsNum) ? strongsNum : (strongsNum ? [strongsNum] : [])
   const wordNode = findQuery.trim() ? applyFindHighlight(word, findQuery, findWordMode) : word
@@ -53,23 +57,18 @@ function StrongsInline({
   const CHIP_STACK = 'strongs-chip-abs absolute flex flex-col items-center'
   const CHIP_STACK_STYLE: CSSProperties = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
   // Clearly-a-pill: translucent accent fill + faint accent border, fully rounded, real padding.
-  // Dim at rest; full-strength + tinted ONLY for the one word/number the pointer is on
-  // (`group/sw` on the word wrapper — hovering the word OR its number counts). No verse-wide
-  // brightening. `.strongs-echo` (added by ChapterView when this exact number is hovered
-  // anywhere in the chapter) lifts every matching chip so you can scan where else it occurs.
-  // NB: opacity is written INSIDE the arbitrary colour (rgb(... / 0.30)) rather than as a
-  // trailing `/30` — a trailing slash-number after a NAMED group variant (`group-hover/sw:`)
-  // confuses Tailwind's parser and the class silently isn't generated, which is why the
-  // word<->number hover link wasn't appearing.
-  const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color] duration-150 cursor-pointer'
+  // Dim at rest. All brightening/highlighting is driven by ChapterView's delegated hover
+  // handler adding classes (.strongs-echo on every matching chip chapter-wide, .strongs-phrase-hl
+  // on every word of the hovered number's contiguous phrase) — no CSS group hover, so it works
+  // for multi-word phrases and cross-verse matches, not just one word.
+  const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
   const CHIP_ACCENT = 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent)/0.15)] border-[rgb(var(--color-accent)/0.25)]'
-  const CHIP_HOVER = 'group-hover/sw:opacity-100 group-hover/sw:bg-[rgb(var(--color-accent)/0.32)] group-hover/sw:border-[rgb(var(--color-accent)/0.55)]'
-  const chipPrimary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-40 ${CHIP_HOVER}`
-  const chipSecondary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-25 ${CHIP_HOVER}`
+  const chipPrimary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-40`
+  const chipSecondary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-25`
   // Grammatical particles: dimmer still, muted colour.
-  const chipParen = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4)/0.6)] border-[rgb(var(--color-surface-4))] opacity-30 group-hover/sw:opacity-90 group-hover/sw:bg-[rgb(var(--color-surface-4))]`
-  // Real highlight behind the word/phrase when the pointer is on it or its number.
-  const WORD_LINK = 'group-hover/sw:bg-[rgb(var(--color-accent)/0.22)] rounded-[3px] transition-colors duration-150 px-[2px] -mx-[2px]'
+  const chipParen = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4)/0.6)] border-[rgb(var(--color-surface-4))] opacity-30`
+  // The word text — `.strongs-word` is the target the phrase-highlight class paints behind.
+  const WORD_LINK = 'strongs-word rounded-[3px] transition-colors duration-150 px-[2px] -mx-[2px]'
   // Very short adjacent words ("of the", "and") would otherwise sit with their (centered) chips
   // overlapping — give just those a hair of extra trailing space. Only present while Strong's is
   // on (this component only renders then), and only on genuinely tiny words, so it's barely
@@ -83,7 +82,7 @@ function StrongsInline({
     // word-width anchor carries the absolute chip.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span className="relative group/sw" data-sw-idx={swIdx}>
+        <span className="relative strongs-wordwrap transition-colors duration-150" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]}>
           <span className="opacity-0 select-none" aria-hidden>·</span>
           <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
             <StrongsTooltip
@@ -113,7 +112,7 @@ function StrongsInline({
     }
 
     return (
-      <span className="relative group/sw" data-sw-idx={swIdx} style={gapStyle}>
+      <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]} style={gapStyle}>
         <span className={`${wordCls} ${WORD_LINK}`.trim()}>{wordContent}</span>
         <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           {nums.map((num, i) => (
@@ -142,7 +141,7 @@ function StrongsInline({
         ))
       : wordNode
     return (
-      <span className="relative group/sw" data-sw-idx={swIdx} style={gapStyle}>
+      <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={primaryNum} style={gapStyle}>
         <span className={WORD_LINK}>{wContent}</span>
         <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>

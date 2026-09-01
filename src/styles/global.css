@@ -1757,6 +1757,12 @@ body {
   box-shadow: 0 0 0 1.5px rgb(var(--color-accent) / 0.4);
 }
 
+/* Highlight behind every word of the hovered number's phrase (the contiguous run of words that
+   share one Strong's number occurrence). Class is on the word wrapper; paint the word span. */
+.strongs-phrase-hl > .strongs-word {
+  background-color: rgb(var(--color-accent) / 0.22);
+}
+
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────
    There's no shared Button component in this codebase (698+ hand-rolled
    <button> elements), so a single "fix it everywhere" change isn't possible

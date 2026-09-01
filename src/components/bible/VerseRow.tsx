@@ -1088,6 +1088,26 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
           }
           return gaps
         })()
+        // Phrase keys: a contiguous run of tokens carrying the SAME Strong's number is one
+        // phrase (one original-language word rendered as several English words). Hovering any
+        // number in the run highlights the whole run (ChapterView's delegated handler keys on
+        // data-phrase-key). Non-contiguous repeats of the same number get different keys.
+        const phraseKeys: (string | undefined)[] = (() => {
+          const keys: (string | undefined)[] = new Array(displayTokens.length)
+          const numKey = (t: typeof displayTokens[number]) => {
+            const n = Array.isArray(t.strongsNum) ? t.strongsNum.join('|') : (t.strongsNum ?? '')
+            return n || null
+          }
+          let prev: string | null = null
+          let runStart = 0
+          for (let i = 0; i < displayTokens.length; i++) {
+            const k = numKey(displayTokens[i])
+            if (k == null) { prev = null; continue }
+            if (k !== prev) { prev = k; runStart = i }
+            keys[i] = `v${verse.verse_num}-p${runStart}`
+          }
+          return keys
+        })()
         return (
           <span>
             {displayTokens.map((token, i) => {
@@ -1123,6 +1143,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
                     onWordClick={onWordClick}
                     swIdx={i}
                     extraGap={strongsWordGaps?.[i]}
+                    phraseKey={phraseKeys[i]}
                   />
                   {i < displayTokens.length - 1 && (
                     spaceHl

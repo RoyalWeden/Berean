@@ -507,30 +507,38 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => { cancelled = true }
   }, [bookId, chapter, textId, verses])
 
-  // Hovering a Strong's number → highlight every OTHER instance of that same number in this
-  // chapter, so you can see where else it occurs. Pure delegated DOM (no React re-render):
-  // toggle a `.strongs-echo` class on all `[data-strongs-num="…"]` chips in the container.
+  // Hovering a Strong's word OR its number:
+  //  • highlights the whole PHRASE it belongs to (every word of the contiguous run that shares
+  //    that number occurrence) — `.strongs-phrase-hl` on the matching `[data-phrase-key]` wrappers;
+  //  • brightens every occurrence of that number ANYWHERE in the chapter — `.strongs-echo` on
+  //    the matching `[data-strongs-num]` chips.
+  // Pure delegated DOM, no React re-render.
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
-    let current: string | null = null
+    let curNum: string | null = null
+    let curPhrase: string | null = null
     const clear = () => {
-      if (!current) return
-      root.querySelectorAll('.strongs-echo').forEach((el) => el.classList.remove('strongs-echo'))
-      current = null
+      if (curNum) root.querySelectorAll('.strongs-echo').forEach((el) => el.classList.remove('strongs-echo'))
+      if (curPhrase) root.querySelectorAll('.strongs-phrase-hl').forEach((el) => el.classList.remove('strongs-phrase-hl'))
+      curNum = null
+      curPhrase = null
     }
     const onOver = (e: Event) => {
-      const chip = (e.target as HTMLElement)?.closest?.('[data-strongs-num]') as HTMLElement | null
-      const num = chip?.dataset.strongsNum ?? null
-      if (num === current) return
+      const wrap = (e.target as HTMLElement)?.closest?.('[data-phrase-key]') as HTMLElement | null
+      const num = wrap?.dataset.strongsNum ?? null
+      const pk = wrap?.dataset.phraseKey ?? null
+      if (num === curNum && pk === curPhrase) return
       clear()
       if (!num) return
-      current = num
+      curNum = num
+      curPhrase = pk
       root.querySelectorAll(`[data-strongs-num="${CSS.escape(num)}"]`).forEach((el) => el.classList.add('strongs-echo'))
+      if (pk) root.querySelectorAll(`[data-phrase-key="${CSS.escape(pk)}"]`).forEach((el) => el.classList.add('strongs-phrase-hl'))
     }
     const onOut = (e: Event) => {
       const to = (e as MouseEvent).relatedTarget as HTMLElement | null
-      if (to && to.closest?.('[data-strongs-num]')) return
+      if (to && to.closest?.('[data-phrase-key]')) return
       clear()
     }
     root.addEventListener('mouseover', onOver)
