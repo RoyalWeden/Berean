@@ -181,7 +181,8 @@ UI polish
 - Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
   toolbar, which idiom notes hide). The word/character-count readouts now sit on a
   translucent pill.
-- The verse-selection action bar is more translucent.
+- The verse-selection action bar is more translucent, and stays visible in the dimmed
+  background (behind the overlay) when the floating search / settings / history is open.
 - The tab bar now scrolls a newly opened (or newly activated) tab into view if it lands
   below the fold.
 - Refreshed look for the chapter cross-reference banner (pill styling, real chevron, verse
