@@ -150,8 +150,11 @@ UI polish
 - Inline Strong's numbers now sit in the gap under each word instead of stacked in the text
   flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
   in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
-  Each number gets a translucent pill background, sits a little lower for a cleaner gap from
-  the verse text, and toggling no longer flashes/highlights the top verse.
+  Each number is a translucent rounded pill, centered under its word, and sits dim by default
+  — it brightens when you hover anywhere in the verse, and goes full-strength (with a faint
+  tint on the word) for the exact word/number the pointer is on, so the pairing is obvious.
+  Grammatical particles are dimmer still. Very short adjacent words get a hair of extra
+  spacing so their centered numbers don't collide. Toggling no longer flashes the top verse.
 - The chapter cross-reference banner now shows instantly (its sources are cached per chapter
   and committed as soon as they're ready, rather than waiting on the note-count / highlight
   fetches).

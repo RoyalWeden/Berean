@@ -42,22 +42,36 @@ function StrongsInline({
   // reflows the verse text — the words stay exactly where they are while the numbers slide out
   // from under them (see .strongs-chip-abs in global.css). Line spacing is the only thing that
   // then changes, animated separately by VerseRow.
-  const CHIP_STACK = 'strongs-chip-abs absolute left-0 flex flex-col items-start'
-  // marginTop nudged from -0.32em toward the baseline so the numbers sit a touch lower —
-  // clear of the verse word directly above them.
-  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', marginTop: '-0.12em', lineHeight: 1, gap: '2px' }
-  // Translucent pill so a Strong's number reads as its own distinct element, not stray text.
-  const CHIP_BASE = 'font-mono leading-none rounded-[3px] px-1 py-px transition-colors cursor-pointer'
-  const chipPrimary = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/12 hover:bg-[rgb(var(--color-accent))]/22`
-  const chipSecondary = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/12 hover:bg-[rgb(var(--color-accent))]/22 opacity-55`
-  const chipParen = `${CHIP_BASE} text-[10px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 hover:bg-[rgb(var(--color-surface-4))]/90`
+  // Chip stack: absolutely positioned, CENTERED under its word (translateX(-50%)) so the
+  // pairing reads at a glance. Zero layout contribution.
+  const CHIP_STACK = 'strongs-chip-abs absolute flex flex-col items-center'
+  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
+  // Clearly-a-pill: translucent accent fill + faint accent border, fully rounded, real padding.
+  // Dim by default so a chapter of numbers isn't noisy; brighten when the pointer is anywhere
+  // in this verse (`group` on the row), and go full-strength + tinted for the one word/number
+  // the pointer is actually on (`group/sw` on the word wrapper) — that's the word<->number link.
+  const CHIP_BASE = 'inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color] duration-150 cursor-pointer'
+  const CHIP_ACCENT = 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent))]/15 border-[rgb(var(--color-accent))]/25'
+  const CHIP_HOVER = 'group-hover:opacity-80 group-hover/sw:opacity-100 group-hover/sw:bg-[rgb(var(--color-accent))]/30'
+  const chipPrimary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-40 ${CHIP_HOVER}`
+  const chipSecondary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-25 ${CHIP_HOVER}`
+  // Grammatical particles: dimmer still, muted colour.
+  const chipParen = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4))]/60 border-[rgb(var(--color-surface-4))] opacity-30 group-hover:opacity-55 group-hover/sw:opacity-90 group-hover/sw:bg-[rgb(var(--color-surface-4))]`
+  // Faint word tint when the pointer is on this word or its number — the other half of the link.
+  const WORD_LINK = 'group-hover/sw:bg-[rgb(var(--color-accent))]/12 rounded-[2px] transition-colors duration-150'
+  // Very short adjacent words ("of the", "and") would otherwise sit with their (centered) chips
+  // overlapping — give just those a hair of extra trailing space. Only present while Strong's is
+  // on (this component only renders then), and only on genuinely tiny words, so it's barely
+  // perceptible and doesn't touch normal reading.
+  const letterCount = word.replace(/[^\p{L}]/gu, '').length
+  const shortWordGap: CSSProperties | undefined = letterCount > 0 && letterCount <= 3 ? { marginRight: '0.3em' } : undefined
 
   if (tagged) {
     // Parenthetical token: grammatical particle, no corresponding English word — an invisible
     // word-width anchor carries the absolute chip.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span className="relative">
+        <span className="relative group/sw">
           <span className="opacity-0 select-none" aria-hidden>·</span>
           <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
             <StrongsTooltip
@@ -87,8 +101,8 @@ function StrongsInline({
     }
 
     return (
-      <span className="relative">
-        <span className={wordCls}>{wordContent}</span>
+      <span className="relative group/sw" style={shortWordGap}>
+        <span className={`${wordCls} ${WORD_LINK}`.trim()}>{wordContent}</span>
         <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           {nums.map((num, i) => (
             <StrongsTooltip
@@ -116,8 +130,8 @@ function StrongsInline({
         ))
       : wordNode
     return (
-      <span className="relative">
-        <span>{wContent}</span>
+      <span className="relative group/sw" style={shortWordGap}>
+        <span className={WORD_LINK}>{wContent}</span>
         <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
           <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
             <span data-strongs-chip className={chipPrimary}>
