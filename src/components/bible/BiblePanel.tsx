@@ -195,6 +195,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchVerseNums, setFindMatchVerseNums] = useState<number[]>([])
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
+  // Last `${bookId}:${chapter}` the scroll-restore effect saw — lets it tell a same-chapter
+  // tab flip (ChapterView won't reload) from a real navigation.
+  const prevChapterKeyForScrollRef = useRef<string | null>(null)
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -494,10 +497,33 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // navigation paths that set targetVerse don't also clear scrollPosition, so this guard
     // is the actual fix; onVersesLoaded has a second backstop check for the same reason.
     if (hasTargetVerse) return
+    // Whether ChapterView will actually reload (different book/chapter → keyed remount → it
+    // re-fires onVersesLoaded) or NOT (same book/chapter, e.g. flipping between two scripture
+    // tabs both on Genesis 1 — it stays mounted and onVersesLoaded never fires again).
+    const prevKey = prevChapterKeyForScrollRef.current
+    const curKey = `${tabState.bookId}:${tabState.chapter}`
+    prevChapterKeyForScrollRef.current = curKey
+    const sameChapterFlip = prevKey === curKey
+
     const savedPos = tabState.scrollPosition ?? 0
-    if (savedPos === 0) return
-    // Store it — will be applied by onVersesLoaded once ChapterView data arrives
+    if (savedPos === 0) { setChapterRevealed(true); return }
+    // Normally applied by onVersesLoaded once ChapterView data arrives.
     pendingScrollRef.current = savedPos
+    // On a same-chapter flip the verse DOM is already present and onVersesLoaded won't fire —
+    // restore straight away (still hidden behind chapterRevealed, so no flash), then reveal.
+    if (sameChapterFlip) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const el2 = getScrollEl()
+        if (el2 && pendingScrollRef.current != null && el2.querySelector('[data-verse]')) {
+          el2.scrollTop = pendingScrollRef.current
+          pendingScrollRef.current = null
+          const max = el2.scrollHeight - el2.clientHeight
+          virtualScrollPctRef.current = max > 0 ? el2.scrollTop / max : 0
+          lastMainScrollTopRef.current = el2.scrollTop
+        }
+        setChapterRevealed(true)
+      }))
+    }
   }, [activeSpace, activeTabId, tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Continuous Chapter Scroll's own equivalent of the effect above, deliberately NOT keyed
@@ -1238,7 +1264,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offsetPx
         if (Math.abs(delta) > 0.5) container.scrollTop += delta
       }
-      if (performance.now() - start < 620) raf = requestAnimationFrame(tick)
+      if (performance.now() - start < 900) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)

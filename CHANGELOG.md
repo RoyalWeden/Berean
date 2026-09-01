@@ -133,19 +133,25 @@ UI polish
   Bible panel toolbar's tag button.
 - The bottom-right Study Trail "why'd you go here?" toast is now translucent, slides left
   clear of the Bible reader's side panel when it's open, lifts above a note editor's
-  word-count footer, lifts above the verse-selection action bar when that's open, and
-  stays pinned far-right on Advanced Search tabs.
+  word-count footer, lifts above the verse-selection action bar when that bar AND the side
+  panel are both open, and stays pinned far-right on Advanced Search tabs.
 - Advanced Scripture Search: red-letter (words of Yeshua) styling now survives a search-
   match highlight overlapping it, and word boundaries are re-anchored to the real text so
   a word's last letter is no longer occasionally left un-reddened.
 - Advanced Scripture Search restores its scroll position exactly when you switch back to
-  the tab — it now anchors on the first visible result row rather than a raw pixel offset,
-  which drifted as the dynamic-height rows remeasured.
-- Toggling inline Strong's is now a two-phase animation: the numbers first grow out from
-  under each word (nothing shifts, so you keep your place), then the line spacing tightens
-  around them. Reversed on the way back. The anchor verse is held in place throughout.
-- Switching from a note to a scripture tab no longer flashes the top of the chapter and
-  then jumps — the chapter stays hidden until its scroll position is restored.
+  the tab — it anchors on the identity of the first visible result row (not an index or a
+  pixel offset, both of which drifted with dynamic row heights / collapsed groups) and
+  keeps correcting until the layout settles.
+- Advanced Scripture Search controls (mode, word-mode, Scope, sort, result-length, tag
+  filter) now share one compact pill style with a consistent accent-tint active state.
+- Clicking the tag-filter pill in Advanced Search while its menu is already open now
+  closes it.
+- Toggling inline Strong's is now a smooth three-phase animation with no flash: the number
+  chips grow their height out from under each word, then the line spacing tightens around
+  them. Reversed on the way back. The anchor verse is held in place the whole time.
+- Switching from a note to a scripture tab — or flipping between two scripture tabs sitting
+  on the same chapter — no longer flashes the top of the chapter or loses your scroll
+  position.
 - Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
   toolbar, which idiom notes hide). The word/character-count readouts now sit on a
   translucent pill.
@@ -155,6 +161,8 @@ UI polish
 - Refreshed look for the chapter cross-reference banner (pill styling, real chevron, verse
   chips); it auto-updates as your notes change. Verse chips no longer repeat the reference
   as a redundant "· <note title>" suffix when the title is just that reference.
+- Verse Tag Manager: the colour picker and merge menus now portal out of the panel instead
+  of being clipped by it.
 
 ## [0.5.14] - 2026-08-30
 

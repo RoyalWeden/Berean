@@ -1739,31 +1739,26 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
 
-/* Strong's-number chips growing in under each word when inline Strong's is toggled ON.
-   Just transform + opacity (compositor-only) so a whole chapter's worth can animate at once;
-   no `forwards` fill so each chip settles back to its own resting Tailwind opacity/hover state
-   the instant it finishes. Skipped entirely under reduced-motion. */
-@keyframes strongsChipIn {
-  from { opacity: 0; transform: translateY(-3px) scaleY(0.6); }
-  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+/* Inline Strong's toggle — the number chips grow their HEIGHT out from under each word (and
+   retract it back) rather than fading, so there's no flash and the paragraph reflows smoothly.
+   The `grid-template-rows: 0fr -> 1fr` trick animates from zero to content height with no fixed
+   pixel value. `.strongs-chips-open` is toggled on each verse row by VerseRow's phase machine
+   AFTER the chips have mounted, so the transition always runs from the collapsed state. */
+[data-strongs-chip-wrap] {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 260ms ease;
 }
-.strongs-chip-in {
-  animation: strongsChipIn 200ms ease-out;
-  transform-origin: top center;
+[data-strongs-chip-wrap] > * {
+  min-height: 0;
+  overflow: hidden;
 }
-/* Toggle OFF: line spacing has already loosened; now the chips retract into their words
-   before the row re-renders as plain text. `forwards` holds them collapsed until unmount. */
-@keyframes strongsChipOut {
-  from { opacity: 1; transform: translateY(0) scaleY(1); }
-  to   { opacity: 0; transform: translateY(-3px) scaleY(0.4); }
-}
-.strongs-collapsing [data-strongs-chip] {
-  animation: strongsChipOut 200ms ease-in forwards;
-  transform-origin: top center;
+.strongs-chips-open [data-strongs-chip-wrap] {
+  grid-template-rows: 1fr;
 }
 @media (prefers-reduced-motion: reduce) {
-  .strongs-chip-in,
-  .strongs-collapsing [data-strongs-chip] { animation: none; }
+  [data-strongs-chip-wrap] { transition: none; }
 }
 
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────

@@ -376,30 +376,34 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     [idiomCache, idiomHighlightEnabled],
   )
 
-  // Two-phase Strong's toggle so the reader never loses their place:
-  //   ON  — chips render + grow out of each word first (.strongs-chip-in); ~260ms later the
-  //         line spacing tightens (`lineTight`). Nothing "jumps": the words stay put while the
-  //         numbers appear, then the paragraph closes up around them.
-  //   OFF — line spacing loosens back immediately; the chips stay ~260ms longer, collapsing
-  //         into their words (.strongs-collapsing), then unmount.
+  // Three-phase Strong's toggle so nothing ever snaps or flashes — the words never move under
+  // the reader (BiblePanel also re-pins the anchor verse every frame for the whole sequence):
+  //   ON  — chips mount collapsed (grid-rows 0fr), then GROW their height out from under each
+  //         word (`chipsOpen`), and only once they're fully out does the line spacing tighten
+  //         (`lineTight`).
+  //   OFF — the reverse: line spacing loosens first, then the chips retract their height back
+  //         into the words, then they unmount.
   const STRONGS_PHASE_MS = 260
-  const [renderStrongs, setRenderStrongs] = useState(showStrongs)
-  const [lineTight, setLineTight] = useState(showStrongs)
+  const [renderStrongs, setRenderStrongs] = useState(showStrongs)   // in the DOM
+  const [chipsOpen, setChipsOpen] = useState(showStrongs)            // grid-rows 0fr <-> 1fr
+  const [lineTight, setLineTight] = useState(showStrongs)            // verse line spacing
   const prevShowStrongsRef = useRef(showStrongs)
   useEffect(() => {
     if (prevShowStrongsRef.current === showStrongs) return
     prevShowStrongsRef.current = showStrongs
+    const timers: ReturnType<typeof setTimeout>[] = []
     if (showStrongs) {
       setRenderStrongs(true)
-      const t = setTimeout(() => setLineTight(true), STRONGS_PHASE_MS)
-      return () => clearTimeout(t)
+      // next frame so the 0fr -> 1fr transition actually animates from the collapsed state
+      const raf = requestAnimationFrame(() => setChipsOpen(true))
+      timers.push(setTimeout(() => setLineTight(true), STRONGS_PHASE_MS + 40))
+      return () => { cancelAnimationFrame(raf); timers.forEach(clearTimeout) }
     }
     setLineTight(false)
-    const t = setTimeout(() => setRenderStrongs(false), STRONGS_PHASE_MS)
-    return () => clearTimeout(t)
+    timers.push(setTimeout(() => setChipsOpen(false), STRONGS_PHASE_MS))
+    timers.push(setTimeout(() => setRenderStrongs(false), STRONGS_PHASE_MS * 2 + 40))
+    return () => timers.forEach(clearTimeout)
   }, [showStrongs])
-  // True only during the OFF phase where chips are still mounted but on their way out.
-  const strongsCollapsing = renderStrongs && !showStrongs
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -1360,7 +1364,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${strongsCollapsing ? 'strongs-collapsing' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative ${lineTight ? 'mb-1' : 'mb-3'} ${chipsOpen ? 'strongs-chips-open' : ''} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
