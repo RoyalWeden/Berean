@@ -944,7 +944,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     return words.some(w => t.includes(w))
   }, [findQuery, findWordMode, verse.text])
 
-  const rowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
+  const baseRowStyle: React.CSSProperties | undefined = getVerseRowStyle({ isHighlighted, activeHighlight, isFindMatch, isPlaybackVerse: playbackVerse })
+  // Line-height is animated inline (Tailwind's `leading-*` classes can't transition) so toggling
+  // Strong's tightens/loosens the verse spacing smoothly rather than snapping — the chips grow
+  // in under each word (see .strongs-chip-in in global.css) while the lines close up around them.
+  const rowStyle: React.CSSProperties = {
+    ...baseRowStyle,
+    lineHeight: showStrongs ? 1.35 : 1.75,
+    transition: `${baseRowStyle?.transition ? baseRowStyle.transition + ', ' : ''}background-color 300ms ease, border-color 300ms ease, margin-bottom 260ms ease, line-height 260ms ease`,
+  }
 
   // Determine rendering mode
   const charHighlights = highlights.filter(h => h.startChar !== null && h.endChar !== null)
@@ -1326,7 +1334,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative transition-[background-color,border-color,margin-bottom] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative ${showStrongs ? 'mb-1' : 'mb-3'} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;

@@ -138,8 +138,8 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 rounded-shell context-menu px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-md"
-        style={{ backgroundColor: 'rgb(var(--color-surface-2) / 0.82)', zIndex: modalOpen ? 40 : 95 }}
+        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 rounded-shell context-menu px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-lg"
+        style={{ backgroundColor: 'rgb(var(--color-surface-2) / 0.62)', zIndex: modalOpen ? 40 : 95 }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <span className="px-2 text-xs font-semibold text-[rgb(var(--color-text-secondary))] whitespace-nowrap">{sel.length} selected</span>

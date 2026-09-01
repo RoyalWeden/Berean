@@ -389,6 +389,10 @@ export interface AppState {
   setBibleRightPanelWidth: (v: number) => void
   noteEditorOpenCount: number
   bumpNoteEditorOpen: (delta: number) => void
+  // True while the active scripture tab is in Advanced Search mode — the toast stays pinned
+  // to the far-right corner there (that view has its own right-edge jump rail; no dodging).
+  bibleSearchTabActive: boolean
+  setBibleSearchTabActive: (v: boolean) => void
   // Minimum fraction (0..1) of verse text that must match to auto-format a block
   noteScriptureBlockThreshold: number
   setNoteScriptureBlockThreshold: (v: number) => void
@@ -1613,6 +1617,7 @@ export const useAppStore = create<AppState>()(
       noteFocusModeTabId: null,
       bibleRightPanelWidth: 0,
       noteEditorOpenCount: 0,
+      bibleSearchTabActive: false,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
       noteVerseBlockSuggest: true,
@@ -2479,6 +2484,7 @@ export const useAppStore = create<AppState>()(
       toggleNoteFocusMode: (tabId) => set((s) => ({ noteFocusModeTabId: s.noteFocusModeTabId === tabId ? null : tabId })),
       setBibleRightPanelWidth: (v) => set({ bibleRightPanelWidth: Math.max(0, v) }),
       bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
+      setBibleSearchTabActive: (v) => set({ bibleSearchTabActive: v }),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),
       setNoteVerseBlockSuggest: (v) => set({ noteVerseBlockSuggest: v }),

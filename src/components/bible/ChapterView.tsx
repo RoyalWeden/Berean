@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Copy, NotepadText, X, BookOpen } from 'lucide-react'
+import { Copy, NotepadText, X, BookOpen, ChevronDown, RefreshCw, Link2 } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
@@ -214,10 +214,10 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="text-[11px] text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))]/60 bg-[rgb(var(--color-surface-3))]/40 px-1.5 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/40 hover:bg-[rgb(var(--color-accent))]/10 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
       >
-        {verseStr}
-        {!titleIsRef && <span className="opacity-50"> — {source.title}</span>}
+        <span className="font-medium">{verseStr}</span>
+        {!titleIsRef && <span className="opacity-60">· {source.title}</span>}
       </button>
       {tip && verseText && (
         <div
@@ -233,22 +233,42 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
   )
 }
 
-function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRefSource[]; bookId: string; chapter: number }) {
+function ChapterCrossRefBanner({ sources, bookId, chapter, onRefresh }: { sources: CrossRefSource[]; bookId: string; chapter: number; onRefresh?: () => void }) {
   const [open, setOpen] = useState(false)
+  const [spinning, setSpinning] = useState(false)
   const n = sources.length
-  const label = `${n} note${n === 1 ? '' : 's'} cite${n === 1 ? 's' : ''} ${bookName(bookId)} ${chapter} (chapter)`
+  const label = `${n} note${n === 1 ? '' : 's'} cite${n === 1 ? 's' : ''} this chapter`
+
+  function handleRefresh(e: React.MouseEvent) {
+    e.stopPropagation()
+    onRefresh?.()
+    setSpinning(true)
+    setTimeout(() => setSpinning(false), 600)
+  }
+
   return (
     <div className="mb-4">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 transition-opacity text-[11px] cursor-pointer select-none"
-      >
-        <BookOpen size={11} strokeWidth={1.8} />
-        <span>{label}</span>
-        <span className="text-[9px] opacity-60 ml-0.5">{open ? '▲' : '▼'}</span>
-      </button>
+      <div className="inline-flex items-center gap-1 rounded-full border border-[rgb(var(--color-surface-4))]/60 bg-[rgb(var(--color-surface-2))]/50 pl-2 pr-1 py-0.5 backdrop-blur-sm">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer select-none"
+        >
+          <Link2 size={11} strokeWidth={2} className="text-[rgb(var(--color-text-muted))]" />
+          <span>{label}</span>
+          <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {onRefresh && (
+          <button
+            onClick={handleRefresh}
+            title="Rescan notes for chapter citations"
+            className="ml-0.5 p-1 rounded-full text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))]/60 transition-colors cursor-pointer"
+          >
+            <RefreshCw size={10} strokeWidth={2} className={spinning ? 'animate-spin' : ''} />
+          </button>
+        )}
+      </div>
       {open && (
-        <div className="mt-1.5 ml-4 flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="mt-2 ml-1 flex flex-wrap gap-1.5">
           {sources.map((s, i) => <ChapterRefChip key={i} source={s} />)}
         </div>
       )}
@@ -945,9 +965,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
 
       <VersificationBanner bookId={bookId} chapter={chapter} textId={textId} />
 
-      {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
+      {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter.
+          Keyed by book/chapter so its expand state resets on navigation. */}
       {chapterSources.length > 0 && (
-        <ChapterCrossRefBanner sources={chapterSources} bookId={bookId} chapter={chapter} />
+        <ChapterCrossRefBanner
+          key={`${bookId}:${chapter}`}
+          sources={chapterSources}
+          bookId={bookId}
+          chapter={chapter}
+          onRefresh={bumpNoteToken}
+        />
       )}
 
       {verses.map((verse, verseIdx) => {

@@ -549,20 +549,40 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     if (scrollRestoredRef.current) return
     if (!resultsRef.current || results.length === 0) return
     const target = persistedState?.scrollTop ?? 0
-    if (target > 0) {
-      // Two rAFs: the virtualizer needs a frame to commit its total-size spacer before the
-      // container can actually scroll that far — setting scrollTop immediately clamps to a
-      // not-yet-tall-enough scrollHeight and lands short.
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (resultsRef.current) resultsRef.current.scrollTop = target
-      }))
-      // Keep lastScrollTopRef in sync — if the user navigates away again without ever
-      // triggering a real onScroll event (e.g. restored straight to a scrolled position, then
-      // immediately clicks a result), the unmount-flush above needs this to already reflect
-      // the restored position rather than falling back to its 0 initial value.
-      lastScrollTopRef.current = target
-    }
     scrollRestoredRef.current = true
+    if (target <= 0) return
+    // Keep lastScrollTopRef in sync — if the user navigates away again without ever triggering
+    // a real onScroll event (restored straight to a scrolled position, then immediately clicks
+    // a result), the unmount-flush needs this to already reflect the restored position.
+    lastScrollTopRef.current = target
+
+    // The results list is virtualized with DYNAMIC row heights (rowVirtualizer.measureElement).
+    // A one-shot `scrollTop = target` lands "slightly off": at that instant only the rows near
+    // the TOP have real measured heights — everything between there and `target` is still the
+    // estimate, so the offset that *currently* corresponds to `target` px isn't the offset that
+    // will once those rows render and remeasure. So: nudge the virtualizer to render around the
+    // target (scrollToOffset), then re-assert `target` every frame until scrollTop stops moving
+    // (layout settled) — or we hit the frame cap, or the user scrolls.
+    let raf = 0
+    let stableFrames = 0
+    let frames = 0
+    let lastApplied = -1
+    const tick = () => {
+      const el = resultsRef.current
+      if (!el) return
+      // If scrollTop has drifted from the value we last wrote by more than a rounding wobble,
+      // the user grabbed the scrollbar / wheeled mid-restore — their intent wins, stop.
+      if (lastApplied >= 0 && Math.abs(el.scrollTop - lastApplied) > 4) return
+      rowVirtualizer.scrollToOffset(target, { align: 'start' })
+      el.scrollTop = target
+      lastApplied = el.scrollTop
+      lastScrollTopRef.current = target
+      frames++
+      stableFrames = Math.abs(el.scrollTop - target) < 1 ? stableFrames + 1 : 0
+      if (stableFrames < 3 && frames < 40) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist state whenever filters or query change. Must carry the current scrollTop

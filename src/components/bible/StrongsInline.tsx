@@ -49,7 +49,7 @@ function StrongsInline({
             onClickEntry={onStrongsClick}
             contextNote="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker)."
           >
-            <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
+            <span data-strongs-chip className="strongs-chip-in text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
               ({nums[0]})
             </span>
           </StrongsTooltip>
@@ -90,7 +90,7 @@ function StrongsInline({
                     the two numbers instead. */}
                 <span
                   data-strongs-chip
-                  className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
+                  className={`strongs-chip-in text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
                 >
                   {num}
                 </span>
@@ -117,7 +117,7 @@ function StrongsInline({
       <span className="inline-flex flex-col items-start mr-1 gap-0">
         <span className="leading-none">{wContent}</span>
         <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
-          <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
+          <span data-strongs-chip className="strongs-chip-in text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
             {primaryNum}
           </span>
         </StrongsTooltip>

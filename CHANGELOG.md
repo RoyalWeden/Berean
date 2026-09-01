@@ -138,7 +138,21 @@ UI polish
   match highlight overlapping it, and word boundaries are re-anchored to the real text so
   a word's last letter is no longer occasionally left un-reddened.
 - Advanced Scripture Search now reliably restores its scroll position when you switch back
-  to the tab (a mount-time write was clobbering the saved value with 0).
+  to the tab — and lands exactly (a settle loop re-asserts the target as the virtualized
+  rows finish measuring, instead of landing "slightly off").
+- On an Advanced Search tab the Study Trail toast now stays pinned to the far-right corner
+  (that view has its own right-edge jump rail — no dodging).
+- Toggling inline Strong's now animates: each verse's line spacing eases open/closed while
+  the number chips grow in under their words, instead of a snap or a full-page crossfade.
+- Switching from a note to a scripture tab no longer flashes the top of the chapter and
+  then jumps — the chapter stays hidden until its scroll position is restored.
+- Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
+  toolbar, which idiom notes hide).
+- The verse-selection action bar is more translucent.
+- The tab bar now scrolls a newly opened (or newly activated) tab into view if it lands
+  below the fold.
+- Refreshed look for the chapter cross-reference banner (pill styling, real chevron, verse
+  chips) plus a refresh button to re-scan your notes for chapter citations.
 
 ## [0.5.14] - 2026-08-30
 

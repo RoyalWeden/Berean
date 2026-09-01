@@ -1739,6 +1739,22 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
 
+/* Strong's-number chips growing in under each word when inline Strong's is toggled ON.
+   Just transform + opacity (compositor-only) so a whole chapter's worth can animate at once;
+   no `forwards` fill so each chip settles back to its own resting Tailwind opacity/hover state
+   the instant it finishes. Skipped entirely under reduced-motion. */
+@keyframes strongsChipIn {
+  from { opacity: 0; transform: translateY(-3px) scaleY(0.6); }
+  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+.strongs-chip-in {
+  animation: strongsChipIn 200ms ease-out;
+  transform-origin: top center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .strongs-chip-in { animation: none; }
+}
+
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────
    There's no shared Button component in this codebase (698+ hand-rolled
    <button> elements), so a single "fix it everywhere" change isn't possible

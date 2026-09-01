@@ -34,6 +34,7 @@ import { createTableStatusPlugin } from './tableStatusPlugin'
 import { createThreadSelectionPlugin } from './threadSelectionPlugin'
 import SelectionToolbar from './SelectionToolbar'
 import Toolbar from './Toolbar'
+import WordCountFooter from './WordCountFooter'
 import { StrongsSuggestPopup, VerseSuggestPopup, WikilinkPopup, SlashCommandPopup, RefHoverPreview } from './AutocompletePopups'
 import { filterSlashCommands, type SlashCommand } from './slashCommands'
 import { parseRef, getTranslationForBook, bookChapterVerseLabel, type ParsedRef } from '@/lib/parseRef'
@@ -1037,7 +1038,13 @@ export default function NoteEditorPM({
           `absolute` positioning docks against it) rather than sitting in normal flow, so it
           never changes the editor's available height. */}
       {!isSidePanel && !hideFormattingToolbar && mode === 'edit' && viewReady && (
-        <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} lastSavedAt={lastSavedAt} />
+        <Toolbar view={viewRef.current} tabId={tabId} inTable={inTable} />
+      )}
+      {/* Word-count / reading-time footer — rendered independently of the formatting toolbar so
+          it still shows on idiom notes (which hide that toolbar). Bottom-right of this same
+          `relative` wrapper. */}
+      {!isSidePanel && mode === 'edit' && viewReady && (
+        <WordCountFooter view={viewRef.current} lastSavedAt={lastSavedAt} />
       )}
       <div
         ref={hostRef}
