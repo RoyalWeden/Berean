@@ -122,6 +122,75 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.15] - 2026-08-31
+
+UI polish
+
+- New tabs now open directly below the active tab (Cmd+T, the "+" buttons, "open in
+  new tab", and floating/advanced-search results) instead of jumping to the top of the
+  tab list.
+- Right-clicking a verse no longer offers "Tag chapter…" — chapter tagging stays on the
+  Bible panel toolbar's tag button.
+- The bottom-right Study Trail "why'd you go here?" toast is now translucent, slides left
+  clear of the Bible reader's side panel when it's open, lifts above a note editor's
+  word-count footer, lifts above the verse-selection action bar when that bar AND the side
+  panel are both open, and stays pinned far-right on Advanced Search tabs.
+- Advanced Scripture Search: red-letter (words of Yeshua) styling now survives a search-
+  match highlight overlapping it, and word boundaries are re-anchored to the real text so
+  a word's last letter is no longer occasionally left un-reddened.
+- Advanced Scripture Search restores its scroll position exactly when you switch back to
+  the tab — it anchors on the identity of the first visible result row (not an index or a
+  pixel offset, both of which drifted with dynamic row heights / collapsed groups), allows
+  the anchor offset to sit above the fold so a group header at the top is kept in view, and
+  keeps correcting until the layout settles.
+- Advanced Scripture Search controls (mode, word-mode, Scope, sort, result-length, tag
+  filter) now share one compact pill style with a consistent accent-tint active state.
+- Clicking the tag-filter pill in Advanced Search while its menu is already open now
+  closes it.
+- Inline Strong's numbers now sit in the gap under each word instead of stacked in the text
+  flow, so toggling them on/off changes nothing about the layout — they just appear/disappear
+  in space that's already there. (Only "compact" line-height gets a small bump to fit them.)
+  Each number is a translucent rounded pill, dim at rest. When one Strong's number covers
+  several English words (e.g. "fig tree", "well pleased") they're now one unit with a SINGLE
+  pill centered under the whole phrase, not a repeated pill per word. Hovering a word or its
+  number highlights the whole phrase and brightens every other instance of that same Strong's
+  number in the chapter so you can see where it recurs.
+  When a lexicon entry is open in the scripture side panel, every occurrence of that number
+  in the chapter stays highlighted (with a ring). No verse-wide brightening from the cursor.
+  Grammatical particles are dimmer still. Pill spacing is computed at render time so nothing
+  ever reflows/jumps when toggling Strong's.
+- The Strong's hover card closes the previous one when you skim to a different number
+  (without flickering on overlapping pills), now floats above the WORD (so you see the word
+  together with the definition) rather than above the number pill below it, flipping below
+  when there's no room at the top of the window, and puts the H/G back on bare "Compare 3050"
+  references in the definition.
+- The chapter cross-reference banner now shows instantly (its sources are cached per chapter
+  and committed as soon as they're ready, rather than waiting on the note-count / highlight
+  fetches).
+- The Study Trail toast now only rises to clear the verse-selection action bar, and rises
+  further only while a tag/colour picker is actually open above it — dropping back down when
+  it closes.
+- Scripture, Lexicon and PDF tabs reliably restore their exact scroll position on return —
+  including revisiting an already-loaded chapter/entry, which used to snap back to the top.
+  The content stays hidden until the position lands, and the restore keeps correcting as the
+  page finishes laying out.
+- The in-memory chapter cache is now capped (LRU, ~150 chapters) so a marathon session
+  can't grow it without bound.
+- Settings → About → "Clear cached content" drops the in-memory chapter / note / side-panel
+  caches (harmless; the app just refetches).
+- Idiom notes now show the word-count / reading-time footer (it was tied to the formatting
+  toolbar, which idiom notes hide). The word/character-count readouts now sit on a
+  translucent pill.
+- The verse-selection action bar is more translucent, and stays visible in the dimmed
+  background (behind the overlay) when the floating search / settings / history is open.
+- The tab bar now scrolls a newly opened (or newly activated) tab into view if it lands
+  below the fold.
+- Refreshed look for the chapter cross-reference banner (pill styling, real chevron, verse
+  chips); it auto-updates as your notes change. Verse chips no longer repeat the reference
+  as a redundant "· <note title>" suffix when the title is just that reference.
+- Verse Tag Manager: the colour picker and merge menus now portal out of the panel instead
+  of being clipped by it.
+
 ## [0.5.14] - 2026-08-30
 
 Notes

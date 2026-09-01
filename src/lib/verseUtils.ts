@@ -184,17 +184,27 @@ export interface AnnotationRange { start: number; end: number; isRedLetter: bool
  * marks but previously had no italics/red-letter markup at all (VerseRow's reader view
  * gets these via its own text_tagged rendering path, unrelated to this helper).
  */
-export function getAnnotationRanges(textTagged: string | null | undefined, textId: string): AnnotationRange[] {
+export function getAnnotationRanges(textTagged: string | null | undefined, textId: string, plainText?: string): AnnotationRange[] {
   if (!textTagged || (textId !== 'kjva' && textId !== 'lxx')) return []
   const tokens = parseTaggedTokens(textTagged)
   const ranges: AnnotationRange[] = []
   let charPos = 0
   for (const t of tokens) {
-    if (tokenHasNoPlainText(t)) continue
-    const start = charPos
-    const end = charPos + t.word.length
+    if (tokenHasNoPlainText(t) || !t.word) continue
+    let start = charPos
+    if (plainText) {
+      // Positional accounting (word + single trailing space) drifts whenever the plain text
+      // has punctuation-without-space, doubled spaces, a leading ¶, etc. — and once it drifts
+      // sub-character it clips a word's last letter out of its own red-letter/italic span
+      // ("sometimes the last letter of words won't have the red"). Re-anchor each token to its
+      // real position in the plain text instead; fall back to positional on a miss.
+      const idx = plainText.indexOf(t.word, charPos)
+      if (idx === -1) { charPos = charPos + t.word.length + 1; continue }
+      start = idx
+    }
+    const end = start + t.word.length
     if (t.isRedLetter || t.isItalic) ranges.push({ start, end, isRedLetter: t.isRedLetter, isItalic: t.isItalic })
-    charPos = end + 1 // word + trailing space, mirrors VerseRow's charPos accounting
+    charPos = end + 1 // word + trailing space
   }
   return ranges
 }

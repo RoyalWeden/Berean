@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react'
 import NoteEditorPM from '../NoteEditorPM'
-import { SAVE_FLASH_HOLD_MS } from '../Toolbar'
+import { SAVE_FLASH_HOLD_MS } from '../WordCountFooter'
 
 // Fluid-feel polish #2.3 — the "Saved" indicator only exists to confirm a REAL completed
 // autosave (NotesPanel.tsx chains it onto the actual save IPC promise resolving), never a

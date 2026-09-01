@@ -1411,11 +1411,25 @@ export default function LexiconPanel({ floating = false }: { floating?: boolean 
     // after that paint's layout is actually settled, so the scrollTop assignment lands
     // before the user ever sees the unscrolled frame.
     function restoreScroll() {
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (entryScrollRef.current && entryOpenSeqRef.current === seq && !userScrolledSinceRestoreRef.current) {
-          entryScrollRef.current.scrollTop = savedScroll
+      if (savedScroll <= 0) return
+      // A settle loop (not a one-shot double-rAF): keep re-asserting savedScroll every frame
+      // until the entry content is actually tall enough for it to stick and it stops moving —
+      // a long entry's images / occurrence list can still be laying out for several frames.
+      let raf = 0
+      let frames = 0
+      let stable = 0
+      const tick = () => {
+        const el = entryScrollRef.current
+        if (!el || entryOpenSeqRef.current !== seq || userScrolledSinceRestoreRef.current) return
+        if (el.scrollHeight - el.clientHeight >= savedScroll - 2) {
+          if (Math.abs(el.scrollTop - savedScroll) > 1) { el.scrollTop = savedScroll; stable = 0 }
+          else stable++
         }
-      }))
+        frames++
+        if (stable < 3 && frames < 60) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+      void raf
     }
 
     // Cache hit (this Strong's number was already viewed this session) — render instantly

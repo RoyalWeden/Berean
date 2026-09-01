@@ -100,6 +100,12 @@ export interface BibleTabState {
   searchBookFilter?: string
   searchSortMode?: 'relevance' | 'bookOrder'
   searchScrollTop?: number
+  /** Row-anchored scroll position for the virtualized results list — a stable identifier for
+   *  the first visible result row (`textId:bookId:chapter:verse`) plus how many px of it are
+   *  scrolled past the top. Anchoring on the row's identity (not its index, which shifts with
+   *  group-collapse state, nor a raw px offset, which drifts as dynamic rows remeasure) is what
+   *  makes it restore exactly. */
+  searchScrollAnchor?: { rowKey: string; offset: number }
   /** Verse-tag filter: comma-joined tag ids; `searchTagFilterAll` = AND (match every) vs OR. */
   searchTagFilter?: string
   searchTagFilterAll?: boolean

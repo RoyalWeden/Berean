@@ -111,6 +111,27 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
   const expanded = touched || hovering
   // Sit behind the floating search / settings modal (z-50) while one is open.
   const modalOpen = useAppStore((s) => s.searchOpen || s.settingsOpen)
+  // Step out of the way of whatever else owns the bottom-right / bottom-center corner now:
+  //  • the Bible reader's right-hand side panel — slide left by its width (+ a gap)
+  //  • an open note editor — its word-count footer sits in this exact corner, so nudge up
+  //  • the verse-selection action bar (bottom-center, ~44px tall at bottom:20) — lift above it
+  // On an Advanced Search tab the side-panel/note cases don't apply (own right-edge jump rail,
+  // no note footer), so the toast stays pinned to the far-right corner there.
+  const searchTabActive = useAppStore((s) => s.bibleSearchTabActive)
+  const rightPanelW = useAppStore((s) => s.bibleRightPanelWidth)
+  const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0)
+  const verseSelectionMenuOpen = useAppStore((s) => s.verseSelectionMenuOpen)
+  const verseSelectionOpen = useAppStore((s) => {
+    const t = s.activeTabId['scripture']
+    return s.activeSpace === 'scripture' && !!t && (s.selectedVersesByTab[t]?.length ?? 0) > 0
+  })
+  const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
+  // Only dodge the verse-selection UI when the Bible reader's side panel is also open. Then:
+  // just clear the action bar itself normally, and only rise higher once a tag/colour popover
+  // (which opens ABOVE the bar) is actually showing — dropping back down when it closes.
+  const bottomPx = (verseSelectionOpen && rightPanelW > 0)
+    ? (verseSelectionMenuOpen ? 210 : 64)
+    : (!searchTabActive && noteOpen ? 46 : 16)
   // "Why'd you go to <book chapter:verse> from <book chapter:verse>?" — full references on both
   // ends, never bare chapter numbers (per direct feedback).
   const question = arrivalQuestion(conn, origin)
@@ -121,9 +142,14 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       style={{
-        position: 'fixed', right: 16, bottom: 16, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
-        background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+        position: 'fixed', right: rightPx, bottom: bottomPx, zIndex: modalOpen ? 40 : 200, width: PILL_WIDTH,
+        // Translucent so it reads as a transient overlay, not a solid panel — matches the app's
+        // other floating rails (FloatingHoverPanel/FloatingRail). Solid on hover/while typing.
+        background: expanded ? 'rgb(var(--color-surface-2) / 0.96)' : 'rgb(var(--color-surface-2) / 0.82)',
+        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        border: '1px solid rgb(var(--color-surface-4) / 0.7)',
         borderRadius: 12, boxShadow: '0 6px 20px rgba(0,0,0,0.3)', overflow: 'hidden',
+        transition: 'right 160ms ease, bottom 160ms ease, background 160ms ease',
       }}
     >
       {/* Collapsed CTA — hidden once expanded (hover or touched); the form's own Save/Not now

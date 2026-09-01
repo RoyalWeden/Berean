@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId, memo, Fragment } from 'react'
 import { flushSync } from 'react-dom'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { Copy, NotepadText, X, BookOpen } from 'lucide-react'
+import { Copy, NotepadText, X, BookOpen, ChevronDown, Link2 } from 'lucide-react'
 import { MenuPositioner } from '@/lib/usePositionedMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
@@ -22,6 +22,15 @@ import { HIGHLIGHT_COLORS } from './VerseRow'
 
 type HLColor = HighlightColor
 const HL_COLORS: { id: HLColor; dot: string; label: string }[] = HIGHLIGHT_COLORS.map(c => ({ id: c.id, dot: c.dot, label: c.label }))
+
+// Last computed chapter-level cross-ref banner sources, keyed by note-token + chapter. Seeded
+// synchronously on ChapterView mount so revisiting/paging to a chapter shows its banner
+// instantly instead of after the notes/highlights round-trip resolves. Invalidated implicitly:
+// the key contains noteChangeToken, so any note edit yields a fresh key (a cold miss → refetch).
+const chapterCrossRefBannerCache = new Map<string, CrossRefSource[]>()
+function bannerCacheKey(token: number, bookId: string, chapter: number, textId: string) {
+  return `${token}:${bookId}:${chapter}:${textId}`
+}
 // Stable empty-array reference so verses with no highlights pass React.memo's shallow
 // equality on <VerseRow>; a fresh `?? []` literal would fail it on every render.
 type VerseHighlight = { id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }
@@ -168,7 +177,19 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const verseStr = `${bookName(source.homeBookId)} ${source.homeChapter}:${source.homeVerse}`
-  const titleIsRef = !source.title || source.title === 'Untitled' || source.title.trim() === verseStr
+  // Suppress the "· <title>" suffix whenever the note's title is really just its own verse
+  // reference — in any punctuation form ("Romans 10:13", "Romans 10.13", "Romans_10_13"), and
+  // ignoring any trailing import tag the note name carries ("Jeremiah 5.24 (bg-234)",
+  // "Gen 1:1 - imported"). Repeating the reference we're already showing is pure noise.
+  const normalizeRef = (s: string) => s
+    .trim().toLowerCase()
+    .replace(/\s*[([{].*$/, '')          // drop a trailing "(bg-234)" / "[x]" import tag
+    .replace(/[.:_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const titleIsRef = !source.title
+    || source.title === 'Untitled'
+    || normalizeRef(source.title) === normalizeRef(verseStr)
 
   // Tooltip height estimate: reference line + ~4 lines of verse text ≈ 100px
   const TIP_H = 110
@@ -214,10 +235,10 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className="text-[11px] text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 rounded-md border border-[rgb(var(--color-surface-4))]/70 bg-[rgb(var(--color-surface-3))]/90 px-1.5 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-accent))]/40 hover:bg-[rgb(var(--color-accent))]/10 hover:text-[rgb(var(--color-accent))] transition-colors cursor-pointer whitespace-nowrap"
       >
-        {verseStr}
-        {!titleIsRef && <span className="opacity-50"> — {source.title}</span>}
+        <span className="font-medium">{verseStr}</span>
+        {!titleIsRef && <span className="opacity-60">· {source.title}</span>}
       </button>
       {tip && verseText && (
         <div
@@ -236,19 +257,20 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
 function ChapterCrossRefBanner({ sources, bookId, chapter }: { sources: CrossRefSource[]; bookId: string; chapter: number }) {
   const [open, setOpen] = useState(false)
   const n = sources.length
-  const label = `${n} note${n === 1 ? '' : 's'} cite${n === 1 ? 's' : ''} ${bookName(bookId)} ${chapter} (chapter)`
+  const label = `${n} note${n === 1 ? '' : 's'} cite${n === 1 ? 's' : ''} this chapter`
+
   return (
     <div className="mb-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] opacity-75 hover:opacity-100 transition-opacity text-[11px] cursor-pointer select-none"
+        className="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--color-surface-4))]/60 bg-[rgb(var(--color-surface-2))]/50 px-2 py-0.5 text-[11px] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer select-none backdrop-blur-sm"
       >
-        <BookOpen size={11} strokeWidth={1.8} />
+        <Link2 size={11} strokeWidth={2} className="text-[rgb(var(--color-text-muted))]" />
         <span>{label}</span>
-        <span className="text-[9px] opacity-60 ml-0.5">{open ? '▲' : '▼'}</span>
+        <ChevronDown size={12} className={`text-[rgb(var(--color-text-muted))] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="mt-1.5 ml-4 flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="mt-2 ml-1 flex flex-wrap gap-1.5">
           {sources.map((s, i) => <ChapterRefChip key={i} source={s} />)}
         </div>
       )}
@@ -319,7 +341,9 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
   const [noteCounts, setNoteCounts] = useState<Record<number, number>>({})
   const [noteColorsMap, setNoteColorsMap] = useState<Record<number, string>>({})
   const [verseHasNoteCrossRefs, setVerseHasNoteCrossRefs] = useState<Record<number, boolean>>({})
-  const [chapterSources, setChapterSources] = useState<CrossRefSource[]>([])
+  const [chapterSources, setChapterSources] = useState<CrossRefSource[]>(
+    () => chapterCrossRefBannerCache.get(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva')) ?? [],
+  )
   const [highlights, setHighlights] = useState<Record<number, Array<{ id: string; color: HLColor; startWord: number | null; endWord: number | null; startChar: number | null; endChar: number | null }>>>({})
   const [verseTagMap, setVerseTagMap] = useState<Record<number, import('@/types').VerseTagLite[]>>({})
   const [loading, setLoading] = useState(() => getCachedVerses(chapterCacheKey(bookId, chapter, textId ?? 'kjva')) === null)
@@ -483,6 +507,56 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     return () => { cancelled = true }
   }, [bookId, chapter, textId, verses])
 
+  // Hovering a Strong's word OR its number:
+  //  • highlights the whole PHRASE it belongs to (every word of the contiguous run that shares
+  //    that number occurrence) — `.strongs-phrase-hl` on the matching `[data-phrase-key]` wrappers;
+  //  • brightens every occurrence of that number ANYWHERE in the chapter — `.strongs-echo` on
+  //    the matching `[data-strongs-num]` chips.
+  // Pure delegated DOM, no React re-render.
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    let curNum: string | null = null
+    let curPhrase: string | null = null
+    const clear = () => {
+      if (curNum) root.querySelectorAll('.strongs-echo').forEach((el) => el.classList.remove('strongs-echo'))
+      if (curPhrase) root.querySelectorAll('.strongs-phrase-hl').forEach((el) => el.classList.remove('strongs-phrase-hl'))
+      curNum = null
+      curPhrase = null
+    }
+    const onOver = (e: Event) => {
+      const wrap = (e.target as HTMLElement)?.closest?.('[data-phrase-key]') as HTMLElement | null
+      const num = wrap?.dataset.strongsNum ?? null
+      const pk = wrap?.dataset.phraseKey ?? null
+      if (num === curNum && pk === curPhrase) return
+      clear()
+      if (!num) return
+      curNum = num
+      curPhrase = pk
+      root.querySelectorAll(`[data-strongs-num="${CSS.escape(num)}"]`).forEach((el) => el.classList.add('strongs-echo'))
+      if (pk) root.querySelectorAll(`[data-phrase-key="${CSS.escape(pk)}"]`).forEach((el) => el.classList.add('strongs-phrase-hl'))
+    }
+    const onOut = (e: Event) => {
+      const to = (e as MouseEvent).relatedTarget as HTMLElement | null
+      if (to && to.closest?.('[data-phrase-key]')) return
+      clear()
+    }
+    root.addEventListener('mouseover', onOver)
+    root.addEventListener('mouseout', onOut)
+    return () => { root.removeEventListener('mouseover', onOver); root.removeEventListener('mouseout', onOut); clear() }
+  }, [verses])
+
+  // Persistent chapter-wide highlight for the Strong's number of whatever lexicon entry is
+  // open in the scripture side panel (see BiblePanel's chapterEchoStrongsNum effect).
+  const chapterEchoStrongsNum = useAppStore((s) => s.chapterEchoStrongsNum)
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root) return
+    root.querySelectorAll('.strongs-echo-pinned').forEach((el) => el.classList.remove('strongs-echo-pinned'))
+    if (!chapterEchoStrongsNum) return
+    root.querySelectorAll(`[data-strongs-num="${CSS.escape(chapterEchoStrongsNum)}"]`).forEach((el) => el.classList.add('strongs-echo-pinned'))
+  }, [chapterEchoStrongsNum, verses])
+
   // Keep a stable ref so the effect below can call the latest callback without
   // adding it to the dependency array (which would re-run on every render).
   const onVersesLoadedRef = useRef(onVersesLoaded)
@@ -556,13 +630,22 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
       return { flags, colorMap, chapterSourcesResult }
     })()
 
+    // Commit the banner sources the moment the cross-ref part is ready — don't make the banner
+    // wait on the note-count / highlight fetches in the Promise.all below. Also cache it so the
+    // next visit to this chapter (same note token) shows the banner with zero delay.
+    crossRefP.then((crossRef) => {
+      if (cancelled) return
+      if (chapterCrossRefBannerCache.size > 200) chapterCrossRefBannerCache.clear() // old-token entries pile up; cheap to rebuild
+      chapterCrossRefBannerCache.set(bannerCacheKey(noteChangeToken, bookId, chapter, textId ?? 'kjva'), crossRef.chapterSourcesResult)
+      setChapterSources(crossRef.chapterSourcesResult)
+    }).catch(() => {})
+
     Promise.all([noteCountsP, highlightsP, crossRefP]).then(([noteCountsData, highlightsData, crossRef]) => {
       if (cancelled) return
       setNoteCounts((prev) => mergeStableRecord(prev, noteCountsData))
       setHighlights((prev) => mergeStableRecord(prev, highlightsData))
       setVerseHasNoteCrossRefs((prev) => mergeStableRecord(prev, crossRef.flags))
       setNoteColorsMap((prev) => mergeStableRecord(prev, crossRef.colorMap))
-      setChapterSources(crossRef.chapterSourcesResult)
     })
     return () => { cancelled = true }
   }, [bookId, chapter, textId, noteChangeToken, highlightChangeToken, verses.length])
@@ -931,7 +1014,7 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
     // multi-chapter range view — see viewTransitionName's own uniqueness comment above), and the
     // fast-rehover grouping should only apply WITHIN one chapter's own words, not bleed across
     // unrelated compare columns.
-    <Tooltip.Provider delayDuration={300}>
+    <Tooltip.Provider delayDuration={200} skipDelayDuration={500}>
     <div ref={containerRef} className={`berean-scripture-text relative ${compact ? 'px-3 py-3' : 'px-8 py-6 max-w-3xl'}`} style={{ fontSize: bibleFontSize, viewTransitionName } as React.CSSProperties} onMouseUp={handleContainerMouseUp}>
 
       {/* Self-contained fallback for callers that don't wire onSlowLoadChange (e.g. CompareView's
@@ -945,9 +1028,16 @@ function ChapterView({ bookId, chapter, showStrongs, textId, targetVerse, target
 
       <VersificationBanner bookId={bookId} chapter={chapter} textId={textId} />
 
-      {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter */}
+      {/* Chapter-level cross-ref banner — shown when notes elsewhere reference this whole chapter.
+          Auto-updates: the crossRef effect re-runs on noteChangeToken. Keyed by book/chapter so
+          its expand state resets on navigation. */}
       {chapterSources.length > 0 && (
-        <ChapterCrossRefBanner sources={chapterSources} bookId={bookId} chapter={chapter} />
+        <ChapterCrossRefBanner
+          key={`${bookId}:${chapter}`}
+          sources={chapterSources}
+          bookId={bookId}
+          chapter={chapter}
+        />
       )}
 
       {verses.map((verse, verseIdx) => {

@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type CSSProperties, type ReactNode } from 'react'
 import StrongsTooltip from './StrongsTooltip'
 import { applyFindHighlight } from '@/lib/highlight'
 import { RED_LETTER_CLASS } from '@/styles/highlightPalette'
@@ -18,6 +18,18 @@ interface StrongsInlineProps {
   findWordMode?: 'phrase' | 'all' | 'any'
   onStrongsClick?: (num: string) => void
   onWordClick?: (word: string) => void
+  /** Word index within the verse — lets VerseRow's spacing-measure pass address this word. */
+  swIdx?: number
+  /** Measured extra right-margin (px) so this word's centered number pill clears the next. */
+  extraGap?: number
+  /** Identifies the contiguous run of words that share this exact Strong's number occurrence
+   *  (a "phrase") — hovering any of them highlights the whole run. */
+  phraseKey?: string
+  /** When a Strong's number spans MULTIPLE English words, VerseRow passes the already-styled
+   *  word nodes (space-joined) here and renders ONE StrongsInline for the whole phrase — a
+   *  single number pill, centred under the run. `word` is then the plain joined text (used
+   *  only for the lexicon-search click on untagged words, which doesn't apply here). */
+  groupWords?: ReactNode
 }
 
 function StrongsInline({
@@ -32,80 +44,116 @@ function StrongsInline({
   findWordMode = 'phrase',
   onStrongsClick,
   onWordClick,
+  swIdx,
+  extraGap,
+  phraseKey,
+  groupWords,
 }: StrongsInlineProps) {
   const nums = Array.isArray(strongsNum) ? strongsNum : (strongsNum ? [strongsNum] : [])
   const wordNode = findQuery.trim() ? applyFindHighlight(word, findQuery, findWordMode) : word
 
+  // Strong's number "chips" are rendered ABSOLUTELY POSITIONED in the leading gap under each
+  // word (position:relative on the inline word wrapper; the chip stack is `top:100%`, nudged up
+  // with a negative marginTop). They contribute ZERO layout, so toggling Strong's on/off never
+  // reflows the verse text — the words stay exactly where they are while the numbers slide out
+  // from under them (see .strongs-chip-abs in global.css). Line spacing is the only thing that
+  // then changes, animated separately by VerseRow.
+  // Chip stack: absolutely positioned, CENTERED under its word (translateX(-50%)) so the
+  // pairing reads at a glance. Zero layout contribution.
+  const CHIP_STACK = 'strongs-chip-abs absolute flex flex-col items-center'
+  const CHIP_STACK_STYLE: CSSProperties = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '-0.06em', lineHeight: 1, gap: '4px' }
+  // Clearly-a-pill: translucent accent fill + faint accent border, fully rounded, real padding.
+  // Dim at rest. All brightening/highlighting is driven by ChapterView's delegated hover
+  // handler adding classes (.strongs-echo on every matching chip chapter-wide, .strongs-phrase-hl
+  // on every word of the hovered number's contiguous phrase) — no CSS group hover, so it works
+  // for multi-word phrases and cross-verse matches, not just one word.
+  const CHIP_BASE = 'strongs-chip inline-flex items-center font-mono leading-none rounded-full border px-[5px] py-[1.5px] whitespace-nowrap transition-[opacity,background-color,box-shadow] duration-150 cursor-pointer'
+  const CHIP_ACCENT = 'text-[rgb(var(--color-accent))] bg-[rgb(var(--color-accent)/0.15)] border-[rgb(var(--color-accent)/0.25)]'
+  const chipPrimary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-40`
+  const chipSecondary = `${CHIP_BASE} text-[8.5px] ${CHIP_ACCENT} opacity-25`
+  // Grammatical particles: dimmer still, muted colour.
+  const chipParen = `${CHIP_BASE} text-[9px] text-[rgb(var(--color-text-muted))] bg-[rgb(var(--color-surface-4)/0.6)] border-[rgb(var(--color-surface-4))] opacity-30`
+  // The word text — `.strongs-word` is the target the phrase-highlight class paints behind.
+  const WORD_LINK = 'strongs-word rounded-[3px] transition-colors duration-150 px-[2px] -mx-[2px]'
+  // Very short adjacent words ("of the", "and") would otherwise sit with their (centered) chips
+  // overlapping — give just those a hair of extra trailing space. Only present while Strong's is
+  // on (this component only renders then), and only on genuinely tiny words, so it's barely
+  // perceptible and doesn't touch normal reading.
+  // Extra trailing space comes from VerseRow's measured pass (extraGap, px) — applied only to
+  // the specific words where a real overlap was detected, and cached per verse (strongsSpacing).
+  const gapStyle: CSSProperties | undefined = extraGap ? { marginRight: `${extraGap}px` } : undefined
+
   if (tagged) {
-    // Parenthetical token: grammatical particle, no corresponding English word.
-    // Rendered as a chip-only row with a muted parenthesised number.
+    // Parenthetical token: grammatical particle, no corresponding English word — an invisible
+    // word-width anchor carries the absolute chip.
     if (isParenthetical && nums.length > 0) {
       return (
-        <span className="inline-flex flex-col items-start mr-0.5">
-          {/* Empty word-height placeholder so the chip row aligns with adjacent chips */}
-          <span className="text-[10px] leading-none opacity-0 select-none" aria-hidden>·</span>
-          <StrongsTooltip
-            strongsNum={nums[0]}
-            onClickEntry={onStrongsClick}
-            contextNote="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker)."
-          >
-            <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-text-muted))] font-mono opacity-50 leading-none hover:opacity-80 transition-opacity cursor-pointer">
-              ({nums[0]})
-            </span>
-          </StrongsTooltip>
+        <span className="relative strongs-wordwrap transition-colors duration-150" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]}>
+          <span className="opacity-0 select-none" aria-hidden>·</span>
+          <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
+            <StrongsTooltip
+              strongsNum={nums[0]}
+              onClickEntry={onStrongsClick}
+              contextNote="Parenthetical — grammatical particle with no corresponding English word (e.g. H853 = את, the Hebrew direct object marker)."
+            >
+              <span data-strongs-chip data-strongs-num={nums[0]} className={chipParen}>
+                ({nums[0]})
+              </span>
+            </StrongsTooltip>
+          </span>
         </span>
       )
     }
 
-    // Normal tagged word (possibly with multiple Strongs chips)
-    // wordContent: either segment-split spans (char highlight) or plain wordNode (find highlight)
     const wordContent = wordSegments
       ? wordSegments.map((seg, si) => (
           <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
         ))
       : wordNode
-    // gap: '2px' (was 0, with the word span pulled up via a negative marginBottom) — the word
-    // and its Strong's number sat with no breathing room at all once the trigger box-height
-    // fix (StrongsTooltip.tsx) closed up the number's own oversized hoverable area; a small
-    // positive gap here reads much less cramped.
+    const wordCls = `${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`.trim()
+
+    // No number on this word — just the plain inline word, no wrapper needed.
+    if (nums.length === 0 && !groupWords) {
+      return wordCls ? <span className={wordCls}>{wordContent}</span> : <>{wordContent}</>
+    }
+
+    const pillStack = (
+      <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
+        {nums.map((num, i) => (
+          <StrongsTooltip
+            key={i}
+            strongsNum={num}
+            onClickEntry={onStrongsClick}
+            contextNote={i > 0 ? "Secondary Strong's number" : undefined}
+          >
+            <span data-strongs-chip data-strongs-num={num} className={i > 0 ? chipSecondary : chipPrimary}>
+              {num}
+            </span>
+          </StrongsTooltip>
+        ))}
+      </span>
+    )
+
+    // Multi-word phrase: ONE wrapper spanning the whole run, ONE pill centred under it.
+    // The individual word nodes (groupWords) already carry their own italic/red-letter styling.
+    if (groupWords) {
+      return (
+        <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]} style={gapStyle}>
+          <span className={WORD_LINK}>{groupWords}</span>
+          {pillStack}
+        </span>
+      )
+    }
+
     return (
-      <span className="inline-flex flex-col items-start mr-0.5" style={{ gap: '2px' }}>
-        <span
-          className={`leading-none ${isItalic ? 'italic opacity-70' : ''}${isRedLetter ? ` ${RED_LETTER_CLASS}` : ''}`}
-        >{wordContent}</span>
-        {nums.length > 0 ? (
-          <>
-            {nums.map((num, i) => (
-              <StrongsTooltip
-                key={i}
-                strongsNum={num}
-                onClickEntry={onStrongsClick}
-                contextNote={i > 0 ? "Secondary Strong's number" : undefined}
-              >
-                {/* The marginTop:-3 this used to carry on secondary numbers was compensating
-                    for StrongsTooltip's Radix trigger span inheriting the surrounding verse
-                    text's normal line-height instead of collapsing to this chip's actual size —
-                    now that the trigger itself has leading-none (StrongsTooltip.tsx), the gap
-                    it was correcting for is gone, and the negative margin would just overlap
-                    the two numbers instead. */}
-                <span
-                  data-strongs-chip
-                  className={`text-[9px] text-[rgb(var(--color-accent))] font-mono leading-none hover:opacity-100 transition-opacity cursor-pointer ${i > 0 ? 'opacity-35' : 'opacity-60'}`}
-                >
-                  {num}
-                </span>
-              </StrongsTooltip>
-            ))}
-          </>
-        ) : (
-          // Height placeholder — keeps word rows aligned regardless of whether they have a number
-          <span className="text-[9px] leading-none opacity-0 select-none" aria-hidden>·</span>
-        )}
+      <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={nums[0]} style={gapStyle}>
+        <span className={`${wordCls} ${WORD_LINK}`.trim()}>{wordContent}</span>
+        {pillStack}
       </span>
     )
   }
 
-  // Fallback (no text_tagged data): word with Strong's → stacked chip
+  // Fallback (no text_tagged data): word with Strong's → absolute chip under it
   const primaryNum = nums[0] ?? null
   if (primaryNum) {
     const wContent = wordSegments
@@ -114,13 +162,15 @@ function StrongsInline({
         ))
       : wordNode
     return (
-      <span className="inline-flex flex-col items-start mr-1 gap-0">
-        <span className="leading-none">{wContent}</span>
-        <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
-          <span data-strongs-chip className="text-[10px] text-[rgb(var(--color-accent))] font-mono opacity-70 leading-none hover:opacity-100 transition-opacity cursor-pointer">
-            {primaryNum}
-          </span>
-        </StrongsTooltip>
+      <span className="relative strongs-wordwrap" data-sw-idx={swIdx} data-phrase-key={phraseKey} data-strongs-num={primaryNum} style={gapStyle}>
+        <span className={WORD_LINK}>{wContent}</span>
+        <span data-strongs-chip-abs className={CHIP_STACK} style={CHIP_STACK_STYLE}>
+          <StrongsTooltip strongsNum={primaryNum} onClickEntry={onStrongsClick}>
+            <span data-strongs-chip data-strongs-num={primaryNum} className={chipPrimary}>
+              {primaryNum}
+            </span>
+          </StrongsTooltip>
+        </span>
       </span>
     )
   }

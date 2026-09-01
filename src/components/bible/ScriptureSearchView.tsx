@@ -248,11 +248,16 @@ function highlightWithAnnotations(text: string, ranges: AnnotationRange[], query
     const slice = text.slice(s, e)
     const ann = ranges.find((r) => r.start <= s && r.end >= e)
     const isMatch = matchRanges.some(([ms, me]) => ms <= s && me >= e)
-    let node: React.ReactNode = slice
-    if (isMatch) node = <mark className="bg-yellow-400/30 text-[rgb(var(--color-text-primary))] rounded-sm">{node}</mark>
-    if (ann?.isRedLetter) node = <span className={RED_LETTER_CLASS}>{node}</span>
-    else if (ann?.isItalic) node = <span className="italic opacity-70">{node}</span>
-    nodes.push(<span key={i}>{node}</span>)
+    // Red-letter / italic colour must ride on the SAME element as the yellow highlight bg —
+    // a nested <mark> carrying its own `text-` colour overrides the inherited red, which is
+    // why red letters vanished wherever a search match overlapped them.
+    const cls: string[] = []
+    if (isMatch) cls.push('bg-yellow-400/30', 'rounded-sm')
+    if (ann?.isRedLetter) cls.push(RED_LETTER_CLASS)
+    else if (ann?.isItalic) cls.push('italic', 'opacity-70')
+    else if (isMatch) cls.push('text-[rgb(var(--color-text-primary))]')
+    if (isMatch) nodes.push(<mark key={i} className={cls.join(' ')}>{slice}</mark>)
+    else nodes.push(<span key={i} className={cls.join(' ')}>{slice}</span>)
   }
   return <>{nodes}</>
 }
@@ -265,6 +270,10 @@ interface PersistedState {
   bookFilter?: string
   sortMode?: SortMode
   scrollTop?: number
+  /** Row-anchored scroll position — stable id of the first visible result row
+   *  (`textId:bookId:chapter:verse`) + px scrolled past its top. Preferred over `scrollTop`
+   *  on restore (dynamic row heights + group-collapse make index/px anchors drift). */
+  scrollAnchor?: { rowKey: string; offset: number }
   /** Comma-joined verse-tag ids; `tagFilterAll` => AND (every) rather than OR (any). */
   tagFilter?: string
   tagFilterAll?: boolean
@@ -500,6 +509,18 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // unmounting subtree during the commit phase, before that subtree's passive-effect cleanups
   // run, so reading resultsRef.current directly in an unmount cleanup was silently a no-op.
   const lastScrollTopRef = useRef(0)
+  // Row-anchored counterpart of lastScrollTopRef — a stable id for the first visible result row
+  // + how far it's scrolled past the top. Restored by locating that row in the current flat list
+  // and scrollToIndex-ing it (self-corrects as dynamic heights measure), which lands exactly
+  // where a raw px scrollTop or a bare row index drifts.
+  const lastScrollAnchorRef = useRef<{ rowKey: string; offset: number } | null>(persistedState?.scrollAnchor ?? null)
+  // False until the post-load restore effect has run once. The "persist on filter/query change"
+  // effect fires on mount too, before results (and therefore the restored scroll position) exist;
+  // reading resultsRef.current.scrollTop then yields a literal 0, and `0 ?? persisted` keeps the 0
+  // — so that effect would overwrite the saved scrollTop with 0 on every remount (tab switch),
+  // which is exactly why scroll position "wasn't saving". Until restore has happened, that effect
+  // must pass the persisted value straight through untouched.
+  const scrollRestoredRef = useRef(false)
   // Debounces the scroll-position store write below, matching BiblePanel.tsx's own scroll
   // handler (150ms) — onScroll fires on every native scroll tick, and each write there replaces
   // the store's whole `tabs` object (one Record spanning all 5 spaces), which every component
@@ -532,17 +553,6 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     return () => window.removeEventListener('berean:focusScriptureSearch', onFocus)
   }, [])
 
-  // Restore scroll position after results load
-  useEffect(() => {
-    if (persistedState?.scrollTop && resultsRef.current) {
-      resultsRef.current.scrollTop = persistedState.scrollTop
-      // Keep lastScrollTopRef in sync — if the user navigates away again without ever
-      // triggering a real onScroll event (e.g. restored straight to a scrolled position, then
-      // immediately clicks a result), the unmount-flush above needs this to already reflect
-      // the restored position rather than falling back to its 0 initial value.
-      lastScrollTopRef.current = persistedState.scrollTop
-    }
-  }, [results]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist state whenever filters or query change. Must carry the current scrollTop
   // through too (falling back to whatever was already persisted) — omitting it here
@@ -552,7 +562,10 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   useEffect(() => {
     onStateChangeRef.current?.({
       query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
-      scrollTop: resultsRef.current?.scrollTop ?? persistedState?.scrollTop,
+      // Before the restore effect has run, resultsRef.current.scrollTop is a meaningless 0 —
+      // pass the persisted values straight through so this doesn't clobber them (see scrollRestoredRef).
+      scrollTop: scrollRestoredRef.current ? (resultsRef.current?.scrollTop ?? persistedState?.scrollTop) : persistedState?.scrollTop,
+      scrollAnchor: scrollRestoredRef.current ? (lastScrollAnchorRef.current ?? undefined) : persistedState?.scrollAnchor,
       tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -575,6 +588,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       onStateChangeRef.current?.({
         query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode,
         scrollTop: lastScrollTopRef.current,
+        scrollAnchor: lastScrollAnchorRef.current ?? undefined,
         tagFilter: selectedTagIds.join(',') || undefined, tagFilterAll: tagMatchAll || undefined,
       })
     }
@@ -968,9 +982,13 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
   // Memoized alongside filteredGroups above, for the same reason — this rebuilds the entire
   // flattened row array (plus an object-spread per result row) and was otherwise re-running on
   // every render, including every keystroke.
-  const { flatRows, headerFlatIndex, visibleResults } = useMemo(() => {
+  // Stable identity for a result row — used to re-find it across a remount for scroll restore.
+  const resultRowKey = (r: RawResult) => `${r._textId ?? textId}:${r.book_id}:${r.chapter}:${r.verse_num}`
+
+  const { flatRows, headerFlatIndex, visibleResults, rowKeyToFlatIndex } = useMemo(() => {
     const rows: FlatRow[] = []
     const headerIdx = new Map<string, number>()
+    const keyToFlat = new Map<string, number>()
     let visibleIdx = 0
     for (const g of filteredGroups) {
       const key = `${g.textId}::${g.bookId}`
@@ -978,6 +996,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       rows.push({ type: 'header', key, group: g })
       if (!collapsedGroups.has(key)) {
         g.results.forEach((r, i) => {
+          keyToFlat.set(`${r._textId ?? textId}:${r.book_id}:${r.chapter}:${r.verse_num}`, rows.length)
           rows.push({ type: 'result', key, group: g, result: r, indexInGroup: i, visibleIdx })
           visibleIdx++
         })
@@ -986,8 +1005,8 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     const visible: Array<RawResult & { _groupKey: string }> =
       rows.filter((row): row is Extract<FlatRow, { type: 'result' }> => row.type === 'result')
         .map((row) => ({ ...row.result, _groupKey: row.key }))
-    return { flatRows: rows, headerFlatIndex: headerIdx, visibleResults: visible }
-  }, [filteredGroups, collapsedGroups])
+    return { flatRows: rows, headerFlatIndex: headerIdx, visibleResults: visible, rowKeyToFlatIndex: keyToFlat }
+  }, [filteredGroups, collapsedGroups, textId])
 
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
@@ -1000,6 +1019,85 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     },
     overscan: 12,
   })
+
+  // Identity + sub-row offset of the first result row whose bottom edge is still on screen —
+  // the row-anchored scroll position that survives a remount (dynamic heights + group-collapse
+  // both make an index or a raw px offset drift).
+  function computeScrollAnchor(): { rowKey: string; offset: number } | null {
+    const el = resultsRef.current
+    if (!el) return null
+    const st = el.scrollTop
+    const items = rowVirtualizer.getVirtualItems()
+    if (items.length === 0) return null
+    const firstVisible = items.find((it) => it.start + it.size > st + 1) ?? items[0]
+    // Walk forward from that virtual item to the first *result* row (a group header at the very
+    // top isn't in the row-index map). `offset` is `scrollTop - row.start`, and is deliberately
+    // allowed to go NEGATIVE — when a header sits above the fold, the anchor result row starts
+    // below the viewport top, and a negative offset is what tells the restore to scroll back up
+    // far enough to show that header again (clamping it to 0 made restores land too far down).
+    for (const it of items) {
+      if (it.index < firstVisible.index) continue
+      const row = flatRows[it.index]
+      if (row?.type === 'result') {
+        return { rowKey: resultRowKey(row.result), offset: Math.round(st - it.start) }
+      }
+    }
+    return null
+  }
+
+  // Restore scroll position after results load. Anchors on the identity of the first visible
+  // result row: the list is virtualized with DYNAMIC row heights, so a raw `scrollTop = savedPx`
+  // lands "slightly off" (only rows near the top are measured at that instant; the rest are
+  // still estimates), and a bare row *index* shifts if any group was collapsed. Re-finding the
+  // row by key and scrollToIndex-ing it — repeatedly, until the position stops moving as the
+  // dynamic heights settle — is what lands it exactly.
+  useEffect(() => {
+    if (scrollRestoredRef.current) return
+    if (!resultsRef.current || results.length === 0) return
+    if (flatRows.length === 0) return // wait one render for the flat list to build
+    scrollRestoredRef.current = true
+
+    const anchor = persistedState?.scrollAnchor
+    const targetPx = persistedState?.scrollTop ?? 0
+    if (!anchor && targetPx <= 0) return
+
+    if (anchor) lastScrollAnchorRef.current = anchor
+    if (targetPx > 0) lastScrollTopRef.current = targetPx
+
+    let raf = 0
+    let frames = 0
+    let stable = 0
+    let lastTop = -1
+    const start = performance.now()
+    const tick = () => {
+      const el = resultsRef.current
+      if (!el) return
+      // User grabbed the scrollbar mid-restore — their intent wins.
+      if (lastTop >= 0 && Math.abs(el.scrollTop - lastTop) > 8) return
+
+      const flatIdx = anchor ? rowKeyToFlatIndex.get(anchor.rowKey) : undefined
+      if (flatIdx != null && flatIdx < flatRows.length) {
+        rowVirtualizer.scrollToIndex(flatIdx, { align: 'start' })
+        const it = rowVirtualizer.getVirtualItems().find((v) => v.index === flatIdx)
+        // it.start is the virtualizer's current (measured-so-far) offset for that row — using it
+        // instead of a stored px keeps correcting as rows below/above remeasure.
+        if (it) el.scrollTop = Math.max(0, it.start + (anchor?.offset ?? 0))
+      } else if (targetPx > 0) {
+        rowVirtualizer.scrollToOffset(targetPx, { align: 'start' })
+        el.scrollTop = targetPx
+      }
+
+      stable = lastTop >= 0 && Math.abs(el.scrollTop - lastTop) < 1 ? stable + 1 : 0
+      lastTop = el.scrollTop
+      lastScrollTopRef.current = el.scrollTop
+      const anchorNow = computeScrollAnchor()
+      if (anchorNow) lastScrollAnchorRef.current = anchorNow
+      frames++
+      if (stable < 5 && frames < 90 && performance.now() - start < 1000) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [results, flatRows.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll focused result into view when focusedIdx changes
   useEffect(() => {
@@ -1057,18 +1155,24 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     }
   }
 
+  // One shared shape for EVERY control in the Advanced Search header (mode, word-mode, scope,
+  // sort, result-length, tag filter) — compact 10px, fixed 22px height, bordered pill, accent
+  // tint when active. Previously each was its own size/padding/radius/active-colour.
+  const CTL = 'flex items-center gap-1 text-[10px] leading-none h-[22px] px-2 rounded-md border transition-colors cursor-pointer flex-shrink-0'
+  const CTL_ON = 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))] font-semibold'
+  const CTL_OFF = 'bg-[rgb(var(--color-surface-3))] border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:border-[rgb(var(--color-text-muted))]/50'
+
   return (
     <div className="flex flex-col h-full bg-[rgb(var(--color-surface-3))]">
-      {/* ── Shared TopBar slot: mode segmented + word-mode pills. The TopBar's right-hand
-           area sits empty while this view is active (it never portals anything there by
-           default), so these move up rather than crowding the local search-input row below. ── */}
+      {/* ── Shared TopBar slot: mode + word-mode pills, then the scope pill. All controls share
+           the CTL shape defined above. ── */}
       <TabHeaderPortal floating={floating}>
-        <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {([['auto', 'All'], ['text', 'Text'], ['strongs', "Strong's"], ['crossref', 'Cross-ref']] as [SearchMode, string][]).map(([m, label]) => (
             <button
               key={m}
               onClick={() => { setSearchMode(m); if (query.trim().length >= 2) runForMode(query) }}
-              className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors ${searchMode === m ? 'bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-primary))] font-semibold shadow-sm' : 'text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              className={`${CTL} ${searchMode === m ? CTL_ON : CTL_OFF}`}
             >
               {label}
             </button>
@@ -1077,12 +1181,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
         {/* Word mode — permanent inline pills, text mode only (never in a modal/dropdown) */}
         {effectiveMode(query) === 'text' && (
-          <div className="flex items-center gap-0.5 bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-surface-4))] rounded-md p-0.5 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {([['all', 'All words'], ['any', 'Any word'], ['phrase', 'Phrase']] as [WordMode, string][]).map(([m, label]) => (
               <button
                 key={m}
                 onClick={() => handleWordModeChange(m)}
-                className={`text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors ${wordMode === m ? 'bg-[rgb(var(--color-accent))]/16 text-[rgb(var(--color-accent))] font-semibold' : 'text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                className={`${CTL} ${wordMode === m ? CTL_ON : CTL_OFF}`}
               >
                 {label}
               </button>
@@ -1107,7 +1211,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
           return (
             <button
               onClick={() => openScopePalette()}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer flex-shrink-0 min-w-0 ${isFiltered ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+              className={`${CTL} min-w-0 ${isFiltered ? CTL_ON : CTL_OFF}`}
               title="Scope: edition, testament, and books"
             >
               <BookOpen size={11} className="flex-shrink-0" />
@@ -1122,6 +1226,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
       {tagFilterMenuOpen && tagFilterBtnRef.current && (
         <TagFilterMenu
           anchorRect={tagFilterBtnRef.current.getBoundingClientRect()}
+          triggerRef={tagFilterBtnRef}
           tags={verseTags}
           selectedIds={selectedTagIds}
           matchAll={tagMatchAll}
@@ -1151,14 +1256,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
             {/* Sort pill: conjoined "mode dropdown" + "direction flip" — replaces the old
                 single-button relevance/book-order cycle. Direction is its own control
                 (applies to whichever mode is active) rather than folded into the cycle. */}
-            <div ref={sortMenuRef} className="flex items-stretch rounded-full border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden flex-shrink-0">
+            <div ref={sortMenuRef} className="flex items-stretch h-[22px] rounded-md border border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] overflow-hidden flex-shrink-0">
               <button
                 onClick={() => {
                   if (!sortMenuOpen) { const r = sortMenuRef.current?.getBoundingClientRect(); if (r) setSortMenuPos({ left: r.left, top: r.bottom + 4 }) }
                   setSortMenuOpen((v) => !v)
                 }}
                 title="Sort order"
-                className="flex items-center gap-1.5 text-[10px] font-medium pl-2 pr-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-[10px] leading-none pl-2 pr-1.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
               >
                 {sortMode === 'relevance' ? <ArrowUpDown size={11} /> : <ListTree size={11} />}
                 {sortMode === 'relevance' ? 'Relevance' : 'Book order'}
@@ -1168,7 +1273,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
               <button
                 onClick={() => setSortDirection((d) => d === 'asc' ? 'desc' : 'asc')}
                 title={sortDirection === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
-                className="flex items-center px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
+                className="flex items-center px-1.5 text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-4))] transition-colors cursor-pointer"
               >
                 {sortDirection === 'desc' ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
               </button>
@@ -1212,7 +1317,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                   setContextMenuOpen((v) => !v)
                 }}
                 title="Result length"
-                className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${showContext ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] bg-[rgb(var(--color-surface-3))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                className={`${CTL} ${showContext ? CTL_ON : CTL_OFF}`}
               >
                 {contextMode === 'default' && <AlignJustify size={11} />}
                 {contextMode === 'full' && <Rows size={11} />}
@@ -1275,12 +1380,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                 <button
                   ref={tagFilterBtnRef}
                   onClick={() => setTagFilterMenuOpen((v) => !v)}
-                  className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition-colors cursor-pointer flex-shrink-0 ${on ? 'bg-[rgb(var(--color-accent))]/12 border-[rgb(var(--color-accent))]/40 text-[rgb(var(--color-accent))]' : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:text-[rgb(var(--color-text-primary))]'}`}
+                  className={`${CTL} ${on ? CTL_ON : CTL_OFF}`}
                   title="Filter results by verse tag"
                 >
-                  <Tag size={12} className="flex-shrink-0" />
+                  <Tag size={11} className="flex-shrink-0" />
                   <span className="truncate max-w-[140px]">{summary}</span>
-                  <ChevronDown size={10} className="flex-shrink-0" />
+                  <ChevronDown size={9} className="flex-shrink-0" />
                 </button>
               )
             })()}
@@ -1579,9 +1684,11 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
         onScroll={(e) => {
           const scrollTop = (e.currentTarget as HTMLDivElement).scrollTop
           lastScrollTopRef.current = scrollTop
+          const anchor = computeScrollAnchor()
+          if (anchor) lastScrollAnchorRef.current = anchor
           if (scrollSaveTimerRef.current) clearTimeout(scrollSaveTimerRef.current)
           scrollSaveTimerRef.current = setTimeout(() => {
-            onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop })
+            onStateChangeRef.current?.({ query, textId, wordMode, testamentFilter, bookFilter: selectedBooks.join(',') || 'all', sortMode, scrollTop, scrollAnchor: lastScrollAnchorRef.current ?? undefined })
           }, 150)
         }}
       >
@@ -1804,7 +1911,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                                 // Ranges are computed against v.text (pre-replacer) — see
                                 // highlightWithAnnotations' doc comment for why this is an
                                 // approximation, not exact, when the word replacer is on.
-                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId)
+                                const vAnnRanges = getAnnotationRanges(v.text_tagged, r._textId ?? textId, vText)
                                 return (
                                   <span key={v.verse_num} className={`text-[13px] leading-relaxed ${isMatch ? 'text-[rgb(var(--color-text-primary))] font-medium' : 'text-[rgb(var(--color-text-muted))]'}`}>
                                     <span className="font-mono text-[10px] mr-1 opacity-70">{v.verse_num}</span>
@@ -1876,7 +1983,7 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
                               // the snippet was truncated, which is the common case (the default view has
                               // context mode off), silently dropping red-letter/italic markup from nearly
                               // every result.
-                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId)
+                              const annRanges = getAnnotationRanges(r.text_tagged, r._textId ?? textId, rawText)
                               const snippetRanges = snippet.sliceStart === 0 && snippet.sliceEnd === rawText.length
                                 ? annRanges
                                 : remapRangesToSnippet(annRanges, snippet)
@@ -2056,9 +2163,12 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
 
 /** Small popover under the "Tags" scope pill — pick which verse tags filter the results. */
 function TagFilterMenu({
-  anchorRect, tags, selectedIds, matchAll, onToggle, onClear, onSetMatchAll, onManage, onClose,
+  anchorRect, triggerRef, tags, selectedIds, matchAll, onToggle, onClear, onSetMatchAll, onManage, onClose,
 }: {
   anchorRect: DOMRect
+  /** The pill that opens this menu — a mousedown on it must NOT trigger the outside-click
+   *  close, or the button's own toggle handler would immediately reopen (net: never closes). */
+  triggerRef?: React.RefObject<HTMLElement | null>
   tags: import('@/types').VerseTag[]
   selectedIds: string[]
   matchAll: boolean
@@ -2082,14 +2192,19 @@ function TagFilterMenu({
     setPos({ x, y })
   }, [anchorRect])
   useEffect(() => {
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (ref.current && ref.current.contains(t)) return
+      if (triggerRef?.current && triggerRef.current.contains(t)) return // let the pill's own onClick toggle it
+      onClose()
+    }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
     const t = setTimeout(() => {
       window.addEventListener('mousedown', onDown)
       window.addEventListener('keydown', onKey, true)
     }, 0)
     return () => { clearTimeout(t); window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey, true) }
-  }, [onClose])
+  }, [onClose, triggerRef])
   return createPortal(
     <div
       ref={ref}

@@ -1739,6 +1739,30 @@ body {
   box-shadow: 0 1px 0 0 rgb(var(--color-surface-4) / 0.4) inset, 0 8px 30px -8px rgb(0 0 0 / 0.45);
 }
 
+/* Inline Strong's numbers are absolutely positioned in the leading gap under each word
+   (StrongsInline.tsx's .strongs-chip-abs) so they add ZERO layout — toggling them on/off just
+   shows/hides them in space that's already there, no animation and no reflow. */
+
+/* Every OTHER instance of the Strong's number currently under the pointer, chapter-wide
+   (class added/removed by ChapterView's delegated hover handler). Lifts them out of the
+   dim rest state so you can scan where the same word recurs. */
+.strongs-chip.strongs-echo,
+.strongs-chip.strongs-echo-pinned {
+  opacity: 0.95;
+  background-color: rgb(var(--color-accent) / 0.3);
+  border-color: rgb(var(--color-accent) / 0.55);
+}
+/* The pinned (lexicon-open) one also gets a ring so it stands apart from a transient hover echo. */
+.strongs-chip.strongs-echo-pinned {
+  box-shadow: 0 0 0 1.5px rgb(var(--color-accent) / 0.4);
+}
+
+/* Highlight behind every word of the hovered number's phrase (the contiguous run of words that
+   share one Strong's number occurrence). Class is on the word wrapper; paint the word span. */
+.strongs-phrase-hl > .strongs-word {
+  background-color: rgb(var(--color-accent) / 0.22);
+}
+
 /* ── Native-feel interactive state (press + focus-visible) ───────────────────
    There's no shared Button component in this codebase (698+ hand-rolled
    <button> elements), so a single "fix it everywhere" change isn't possible

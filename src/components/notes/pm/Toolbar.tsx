@@ -8,7 +8,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Highlighter, Link2,
   List, ListOrdered, CheckSquare, Quote, IndentIncrease, IndentDecrease, ChevronDown, Ban,
   Table2, Minus, BookOpen, Image as ImageIcon, Heading1, Heading2, Heading3, Rows3, Columns3, Trash2,
-  Square, X, Maximize2, Focus as FocusIcon, Check,
+  Square, X, Maximize2, Focus as FocusIcon,
 } from 'lucide-react'
 import { toggleMark } from 'prosemirror-commands'
 import { bereanSchema as schema } from './schema'
@@ -22,7 +22,6 @@ import { addRowAfter, deleteRow, deleteColumn } from './tablePlugins'
 import { HIGHLIGHT_COLOR_IDS, HIGHLIGHT_LABELS, highlightDotColor } from '@/styles/highlightPalette'
 import { useAppStore } from '@/store'
 import { useProximityReveal } from '@/hooks/useProximityReveal'
-import { computeWordStats, type WordStats } from '@/lib/wordCount'
 import { BLOCK_TYPE_META, TEXT_TYPE_LEVELS, headingMeta, type BlockTypeMeta } from '@/lib/blockTypeIcons'
 // Same styled-keycap hover hint the rest of the app uses (ShellHeader, Ribbon, Settings…)
 // — this toolbar was one of the last places still on plain native `title="Bold (⌘B)"`
@@ -60,23 +59,10 @@ function currentBlockTypeMeta(view: EditorView): BlockTypeMeta {
   return BLOCK_TYPE_META.text
 }
 
-// Debounce window for the word-count/reading-time footer below — deliberately the same 500ms
-// autosave uses (NotesPanel.tsx's handleContentChange/handleTitleChange saveTimer) so the
-// footer settles at the same moment the note itself is persisted, rather than adding a second,
-// independently-tuned timer for what's conceptually the same "user paused typing" signal.
-const WORD_COUNT_DEBOUNCE_MS = 500
-
-// Fluid-feel polish #2.3: how long the "Saved" confirmation stays fully visible before its
-// CSS opacity transition (SAVE_FLASH_FADE_MS below) starts fading it out. Long enough to
-// register as a real confirmation, short enough to stay quiet/out of the way — same
-// "briefly appears and fades" register as the word-count footer's own understated styling.
-// Exported (not just a local const) so the fade-timing test can assert against the real
-// value instead of a hardcoded magic number that could silently drift out of sync.
-export const SAVE_FLASH_HOLD_MS = 1600
-// Drives the indicator's inline `transitionDuration` style directly (see the render below),
-// not a Tailwind `duration-*` class — keeps this one value the single source of truth
-// instead of two numbers that have to be kept in sync by hand.
-export const SAVE_FLASH_FADE_MS = 500
+// The word-count / reading-time footer + its "Saved" autosave confirmation now live in their
+// own component (WordCountFooter.tsx) so they render independently of this formatting toolbar
+// — idiom notes hide the toolbar but still want the count. SAVE_FLASH_HOLD_MS et al. moved
+// there too.
 
 type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link' | 'verse'
 
@@ -94,8 +80,8 @@ type DropdownKind = 'type' | 'list' | 'highlight' | 'table' | 'link' | 'verse'
 // absolutely-positioned dropdown child that extended below the row (the dropdowns rendered
 // into the DOM but were invisible — looked exactly like "clicking the button does nothing").
 export default function Toolbar({
-  view, tabId, inTable, lastSavedAt,
-}: { view: EditorView | null; tabId?: string; inTable?: boolean; lastSavedAt?: number | null }) {
+  view, tabId, inTable,
+}: { view: EditorView | null; tabId?: string; inTable?: boolean }) {
   const [openDropdown, setOpenDropdown] = useState<DropdownKind | 'none'>('none')
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number } | null>(null)
   const [hovering, setHovering] = useState(false)
@@ -161,61 +147,6 @@ export default function Toolbar({
   useEffect(() => {
     if (openDropdown === 'link') linkInputRef.current?.focus()
   }, [openDropdown])
-
-  // Word count / reading time footer. `view` is the live EditorView (already in memory — no
-  // markdown round-trip needed), so the doc's own textBetween() is the source of truth rather
-  // than re-parsing NotesPanel's serialized markdown string. Debounced on `view.state.doc`
-  // identity: ProseMirror gives every transaction a fresh immutable doc, so this effect
-  // re-arms its timer on every keystroke and only commits once typing pauses, same cadence as
-  // autosave (see WORD_COUNT_DEBOUNCE_MS above).
-  //
-  // The debounce is right for "user is actively typing," but it was also firing on the FIRST
-  // doc this effect ever sees for a given `view` — i.e. every time the toolbar attaches to a
-  // newly-opened note/tab, since that's a `view.state.doc` identity change same as any
-  // keystroke is. That made the count visibly pop in ~500ms after switching notes, with
-  // nothing to actually debounce against (no typing burst in progress). `prevViewRef` tells
-  // the two cases apart: a NEW `view` (switched note/tab) computes immediately; the SAME
-  // `view` getting a new `doc` (typing within it) still debounces as before.
-  const [wordStats, setWordStats] = useState<WordStats>({ words: 0, minutes: 0, characters: 0 })
-  // True whenever the footer above is reporting the SELECTION's stats rather than the whole
-  // note's — drives the "42 words selected" vs. "42 words" label below.
-  const [statsAreSelection, setStatsAreSelection] = useState(false)
-  const prevViewRef = useRef<EditorView | null>(null)
-  useEffect(() => {
-    if (!view) return
-    const compute = () => {
-      const { doc, selection } = view.state
-      const hasSelection = !selection.empty
-      const text = hasSelection
-        ? doc.textBetween(selection.from, selection.to, '\n', '\n')
-        : doc.textBetween(0, doc.content.size, '\n', '\n')
-      setStatsAreSelection(hasSelection)
-      setWordStats(computeWordStats(text))
-    }
-    if (prevViewRef.current !== view) {
-      prevViewRef.current = view
-      compute()
-      return
-    }
-    const timer = setTimeout(compute, WORD_COUNT_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-    // view.state.selection is included so a pure selection change (no doc edit) retriggers this
-    // too — previously only view.state.doc was watched, so selecting text never updated the count.
-  }, [view, view?.state.doc, view?.state.selection])
-
-  // Fluid-feel polish #2.3: "Saved" confirmation, shown briefly whenever `lastSavedAt`
-  // actually changes — which only happens when NotesPanel's autosave IPC call resolves
-  // (see NoteEditorPM.tsx's prop comment), never on a raw keystroke. Held fully visible for
-  // SAVE_FLASH_HOLD_MS, then flips `visible` false so the CSS opacity transition below fades
-  // it out — the element itself stays mounted throughout (no unmount/remount flash) so the
-  // fade is a real animated transition, not a pop.
-  const [saveFlashVisible, setSaveFlashVisible] = useState(false)
-  useEffect(() => {
-    if (lastSavedAt == null) return
-    setSaveFlashVisible(true)
-    const timer = setTimeout(() => setSaveFlashVisible(false), SAVE_FLASH_HOLD_MS)
-    return () => clearTimeout(timer)
-  }, [lastSavedAt])
 
   if (!view) return null
   const editorView = view // narrowed local — TS doesn't carry the null-check narrowing of a
@@ -283,7 +214,6 @@ export default function Toolbar({
     : (inUse ? 'opacity-100' : 'opacity-65')
 
   return (
-    <>
     <div
       ref={rootRef}
       onMouseEnter={() => setHovering(true)}
@@ -627,31 +557,5 @@ export default function Toolbar({
         document.body
       )}
     </div>
-    {/* Word count / reading time footer — docked to the bottom-right corner of the editor's
-        own `relative` wrapper (NoteEditorPM.tsx), not part of the floating capsule above, so
-        it stays put (and stays readable) regardless of Focus mode's fade/reveal behavior. */}
-    <div className="absolute bottom-2 right-3 z-10 flex items-center gap-2 pointer-events-none select-none">
-      {/* Fluid-feel polish #2.3 — quiet autosave confirmation. Always mounted once a save has
-          ever completed (so the opacity transition can actually animate out, rather than the
-          element popping in/out of existence); `lastSavedAt != null` just gates it from ever
-          rendering before the very first save of this session. Same muted register/size as
-          the word-count text beside it — a confirmation, not an alert. */}
-      {lastSavedAt != null && (
-        <span
-          className="flex items-center gap-1 text-[11px] text-[rgb(var(--color-text-muted))] transition-opacity ease-out"
-          style={{ opacity: saveFlashVisible ? 1 : 0, transitionDuration: `${SAVE_FLASH_FADE_MS}ms` }}
-        >
-          <Check size={11} strokeWidth={2.5} /> Saved
-        </span>
-      )}
-      <div className="text-[11px] text-[rgb(var(--color-text-muted))]">
-        {wordStats.words === 0
-          ? (statsAreSelection ? '0 words selected' : '0 words')
-          : statsAreSelection
-            ? `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} selected`
-            : `${wordStats.words} word${wordStats.words === 1 ? '' : 's'} · ${wordStats.characters} char${wordStats.characters === 1 ? '' : 's'} · ${wordStats.minutes} min read`}
-      </div>
-    </div>
-    </>
   )
 }

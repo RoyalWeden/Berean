@@ -110,7 +110,7 @@ export default function TagManagerPanel() {
     <div
       ref={cardRef}
       className="fixed rounded-shell context-menu shadow-[0_16px_48px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden"
-      style={{ left: pos.x, top: pos.y, width: WIDTH, maxHeight: '70vh', zIndex: modalOpen ? 40 : 120, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
+      style={{ left: pos.x, top: pos.y, width: WIDTH, maxHeight: '70vh', zIndex: modalOpen ? 40 : 210, backgroundColor: 'rgb(var(--color-surface-2) / 0.98)' }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div
@@ -181,6 +181,45 @@ export default function TagManagerPanel() {
   )
 }
 
+/** Fixed-position wrapper for a menu that must escape the Tag Manager panel's clipping
+ *  (`overflow-hidden` / `overflow-y-auto`). Positions itself just under `anchor`; closes on
+ *  Escape or an outside mousedown — but a mousedown on `anchor` itself is ignored so the
+ *  trigger button's own toggle handler can close it without an immediate reopen. */
+function PortalMenu({ anchor, align = 'left', onClose, children }: { anchor: HTMLElement; align?: 'left' | 'right'; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    const r = anchor.getBoundingClientRect()
+    const w = el?.offsetWidth ?? 0
+    const h = el?.offsetHeight ?? 0
+    const pad = 8
+    let left = align === 'right' ? r.right - w : r.left
+    let top = r.bottom + 4
+    left = Math.max(pad, Math.min(left, window.innerWidth - w - pad))
+    if (top + h + pad > window.innerHeight) top = Math.max(pad, r.top - h - 4)
+    setPos({ left, top })
+  }, [anchor, align])
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (ref.current?.contains(t) || anchor.contains(t)) return
+      onClose()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
+    const id = setTimeout(() => {
+      window.addEventListener('mousedown', onDown, true)
+      window.addEventListener('keydown', onKey, true)
+    }, 0)
+    return () => { clearTimeout(id); window.removeEventListener('mousedown', onDown, true); window.removeEventListener('keydown', onKey, true) }
+  }, [anchor, onClose])
+  return (
+    <div ref={ref} className="fixed z-[220]" style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, visibility: pos ? 'visible' : 'hidden' }}>
+      {children}
+    </div>
+  )
+}
+
 function TagRow({
   tag, expanded, members, colorOpen, mergeOpen, otherTags,
   onToggleExpand, onRename, onOpenColor, onRecolor, onOpenMerge, onMerge, onDelete, onOpenInSearch, onRemoveMember, onNarrowMember,
@@ -206,6 +245,11 @@ function TagRow({
   useEffect(() => setName(tag.name), [tag.name])
   // memberId currently showing its "narrow to verses" input, plus that input's value.
   const [narrowing, setNarrowing] = useState<{ id: string; value: string } | null>(null)
+  // The color grid and merge menu are portaled to <body> (positioned from these buttons' rects)
+  // — the panel's own `overflow-hidden` / `overflow-y-auto` wrappers were clipping them when
+  // they rendered inline as `position: absolute` children.
+  const colorBtnRef = useRef<HTMLButtonElement>(null)
+  const mergeBtnRef = useRef<HTMLButtonElement>(null)
   return (
     <div className="border-b border-[rgb(var(--color-surface-4))/40] last:border-0">
       <div className="flex items-center gap-1.5 px-2 py-1.5">
@@ -213,15 +257,18 @@ function TagRow({
           {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </button>
         <div className="relative">
-          <button onClick={onOpenColor} title="Colour" className="w-3 h-3 rounded-full cursor-pointer border border-black/10"
+          <button ref={colorBtnRef} onClick={onOpenColor} title="Colour" className="w-3 h-3 rounded-full cursor-pointer border border-black/10"
             style={{ backgroundColor: tag.color ? highlightDotColor(tag.color as HighlightColor) : 'rgb(var(--color-text-muted))' }} />
-          {colorOpen && (
-            <div className="absolute z-10 top-5 left-0 p-2 rounded-shell context-menu grid grid-cols-5 gap-1.5" style={{ backgroundColor: 'rgb(var(--color-surface-2))' }}>
-              {HIGHLIGHT_COLOR_IDS.map((c) => (
-                <button key={c} onClick={() => onRecolor(c)} title={c} className="w-4 h-4 rounded-full cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: highlightDotColor(c) }} />
-              ))}
-              <button onClick={() => onRecolor(null)} title="No colour" className="w-4 h-4 rounded-full cursor-pointer border border-[rgb(var(--color-surface-4))] flex items-center justify-center"><X size={9} /></button>
-            </div>
+          {colorOpen && colorBtnRef.current && createPortal(
+            <PortalMenu anchor={colorBtnRef.current} onClose={onOpenColor}>
+              <div className="p-2 rounded-shell context-menu grid grid-cols-5 gap-1.5" style={{ backgroundColor: 'rgb(var(--color-surface-2))' }}>
+                {HIGHLIGHT_COLOR_IDS.map((c) => (
+                  <button key={c} onClick={() => onRecolor(c)} title={c} className="w-4 h-4 rounded-full cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: highlightDotColor(c) }} />
+                ))}
+                <button onClick={() => onRecolor(null)} title="No colour" className="w-4 h-4 rounded-full cursor-pointer border border-[rgb(var(--color-surface-4))] flex items-center justify-center"><X size={9} /></button>
+              </div>
+            </PortalMenu>,
+            document.body,
           )}
         </div>
         <input
@@ -233,14 +280,17 @@ function TagRow({
         />
         <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{tag.verseCount}{tag.chapterCount ? `+${tag.chapterCount}ch` : ''}</span>
         <div className="relative">
-          <button onClick={onOpenMerge} title="Merge into…" className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><Merge size={12} /></button>
-          {mergeOpen && (
-            <div className="absolute z-10 right-0 top-5 min-w-[130px] max-h-40 overflow-y-auto rounded-shell context-menu py-1" style={{ backgroundColor: 'rgb(var(--color-surface-2))' }}>
-              {otherTags.length === 0 && <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))]">No other tags</div>}
-              {otherTags.map((o) => (
-                <button key={o.id} onClick={() => onMerge(o.id)} className="block w-full text-left px-2 py-1 text-[11px] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-text-primary))]">{o.name}</button>
-              ))}
-            </div>
+          <button ref={mergeBtnRef} onClick={onOpenMerge} title="Merge into…" className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer"><Merge size={12} /></button>
+          {mergeOpen && mergeBtnRef.current && createPortal(
+            <PortalMenu anchor={mergeBtnRef.current} align="right" onClose={onOpenMerge}>
+              <div className="min-w-[130px] max-h-40 overflow-y-auto rounded-shell context-menu py-1" style={{ backgroundColor: 'rgb(var(--color-surface-2))' }}>
+                {otherTags.length === 0 && <div className="px-2 py-1 text-[10px] text-[rgb(var(--color-text-muted))]">No other tags</div>}
+                {otherTags.map((o) => (
+                  <button key={o.id} onClick={() => onMerge(o.id)} className="block w-full text-left px-2 py-1 text-[11px] hover:bg-[rgb(var(--color-surface-4))] cursor-pointer text-[rgb(var(--color-text-primary))]">{o.name}</button>
+                ))}
+              </div>
+            </PortalMenu>,
+            document.body,
           )}
         </div>
         <button onClick={onDelete} title="Delete tag" className="text-[rgb(var(--color-text-muted))] hover:text-red-400 cursor-pointer"><Trash2 size={12} /></button>

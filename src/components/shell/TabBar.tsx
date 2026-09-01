@@ -63,6 +63,19 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
   const { menu: contextMenu, menuRef, openMenu: openContextMenu, closeMenu: closeContextMenu } =
     usePositionedMenu<{ tab: Tab }>()
 
+  // Keep the active tab's row visible in the (vertically-scrolling) tab list — a tab opened
+  // "after active" near the bottom of a long list, or one activated by keyboard, can otherwise
+  // land below the fold. `block: 'nearest'` no-ops when it's already fully visible, so this
+  // never jumps the list when it doesn't need to.
+  const activeRowRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!activeTabId) return
+    const raf = requestAnimationFrame(() => {
+      activeRowRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [activeTabId])
+
   // Only ref needed: which tab is being dragged (used in handleTabDragOver
   // to skip cross-space visual indicator, and in handleContainerDrop)
   const draggingIdxRef = useRef<number | null>(null)
@@ -584,6 +597,7 @@ export default function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onRe
 
               {/* data-tab-idx is read by handleContainerDrop to identify the target tab */}
               <div
+                ref={isActive ? activeRowRef : undefined}
                 data-tab-idx={idx}
                 draggable
                 title={hoverTitle}

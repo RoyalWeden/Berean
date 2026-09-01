@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Layers, PanelRight, PanelRightDashed, Check, Columns2, Info, Eye, EyeOff, ArrowLeftRight, ArrowLeft, Search as SearchIcon, LayoutDashboard, Monitor, Link2, Tag as TagIcon } from 'lucide-react'
-import { createPortal, flushSync } from 'react-dom'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PdfPicker from '@/components/pdf/PdfPicker'
 import { useAppStore } from '@/store'
@@ -196,8 +196,6 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const [findMatchIdx, setFindMatchIdx] = useState(0)
   const chapterViewRef = useRef<HTMLDivElement>(null)
   const continuousScrollRef = useRef<ContinuousChapterScrollHandle | null>(null)
-  // Holds the in-flight Strong's-toggle view transition (if any) — see toggleStrongsForTab.
-  const pendingStrongsTransitionRef = useRef<{ finished: Promise<unknown>; skipTransition: () => void } | null>(null)
   const continuousChapterScroll = useAppStore((s) => s.continuousChapterScroll)
   const scrollSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchTabRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -214,6 +212,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Stores the top-visible verse anchor before a Strong's toggle or KJV/LXX switch so the
   // same verse stays visible at roughly the same screen position after the layout reflows.
   const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
+  // Same anchor, kept alive through the ~500ms two-phase Strong's toggle animation (chips grow
+  // in, then line-height tightens — see VerseRow's STRONGS_PHASE_MS): a rAF loop re-pins this
+  // verse's on-screen position every frame so the gradual reflow never drifts under the reader.
+  const strongsAnimAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
   // Briefly highlights the anchor verse right after it's restored, so the eye has an
   // obvious landing point confirming "you're still here" through the Strong's/KJV-LXX
   // reflow — see ChapterView's flashAnchor prop. A fresh nonce re-triggers the flash even
@@ -268,6 +270,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const activeTabRef = useRef(activeTab)
   tabStateRef.current = tabState
   activeTabRef.current = activeTab
+
+  // Hold the chapter scroll area invisible (but laid out) until its first post-load scroll
+  // restore has landed — otherwise switching to a scripture tab that was scrolled down shows
+  // the top of the chapter for a beat, then visibly jumps to the saved position once verses
+  // finish loading. Only gated when there's actually something to restore; a fresh chapter
+  // (scroll 0, no target verse) reveals immediately.
+  const needsRestoreNow = () => (tabState.scrollPosition ?? 0) > 1 || tabState.targetVerse != null
+  const [chapterRevealed, setChapterRevealed] = useState(() => !needsRestoreNow())
 
   // Right panel state — initialized from persisted tab state
   const [rightPanelOpen, setRightPanelOpen] = useState(() => tabState.rightPanelOpen ?? false)
@@ -339,6 +349,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const prevBibleTabIdForResetRef = useRef(activeTabId)
   if (prevBibleTabIdForResetRef.current !== activeTabId) {
     prevBibleTabIdForResetRef.current = activeTabId
+    setChapterRevealed(!needsRestoreNow())
     setRightPanelOpen(tabState.rightPanelOpen ?? false)
     setRightPanelWidth(tabState.rightPanelWidth ?? 280)
     setBottomPanelHeight(tabState.bottomPanelHeight ?? 240)
@@ -390,6 +401,32 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     virtualScrollPctRef.current = 0
     lastMainScrollTopRef.current = 0
   }
+
+  // Publish the right-hand side panel's on-screen width to the store so the portaled Study
+  // Trail arrival toast (pinned bottom-right) can slide left clear of it. Zero when closed,
+  // in Advanced Search mode (that view owns its own right-edge rail), or when the Bible panel
+  // isn't mounted (cleanup).
+  const setBibleRightPanelWidth = useAppStore((s) => s.setBibleRightPanelWidth)
+  const setBibleSearchTabActive = useAppStore((s) => s.setBibleSearchTabActive)
+  useEffect(() => {
+    const searching = !!tabState.searchMode
+    setBibleRightPanelWidth(!searching && rightPanelOpen ? rightPanelWidth : 0)
+    setBibleSearchTabActive(searching)
+    return () => { setBibleRightPanelWidth(0); setBibleSearchTabActive(false) }
+  }, [rightPanelOpen, rightPanelWidth, tabState.searchMode, setBibleRightPanelWidth, setBibleSearchTabActive])
+
+  // While the side panel is open AND showing a lexicon entry (either slot), persistently
+  // highlight every occurrence of that Strong's number in the chapter (ChapterView reads
+  // chapterEchoStrongsNum). Cleared when the panel closes or leaves lexicon.
+  const setChapterEchoStrongsNum = useAppStore((s) => s.setChapterEchoStrongsNum)
+  useEffect(() => {
+    const lex =
+      (rightPanelOpen && rightPanelTab === 'lexicon' && rightPanelLexiconEntry) ||
+      (rightPanelOpen && rightPanelSlotB === 'lexicon' && rightPanelLexiconEntryB) ||
+      null
+    setChapterEchoStrongsNum(lex || null)
+    return () => setChapterEchoStrongsNum(null)
+  }, [rightPanelOpen, rightPanelTab, rightPanelLexiconEntry, rightPanelSlotB, rightPanelLexiconEntryB, setChapterEchoStrongsNum])
 
   useEffect(() => {
     // Use refs so the async callback always reads the latest tab state, not a stale closure.
@@ -446,8 +483,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     // precisely the "should just flip, not scroll from verse one" behavior this guard
     // avoids. Skip the reset entirely and let the pending anchor own this load instead.
     if (strongsAnchorRef.current) return
-    // Reset to top immediately to avoid flash of old position
-    el.scrollTop = 0
+
+    const savedPosEarly = tabStateRef.current?.scrollPosition ?? 0
+    const restoringSaved = !hasTargetVerse && savedPosEarly > 1
+    // Reset to top immediately to avoid a flash of the old position — but NOT when we're about
+    // to restore a saved scroll position: the chapter area is hidden (chapterRevealed=false)
+    // until the rAF loop below lands that position, so there's nothing to flash, and forcing 0
+    // here first only creates a race with that loop (and with ChapterView's own onVersesLoaded,
+    // whose ordering vs. this effect flips depending on whether the chapter was already cached).
+    if (!restoringSaved) el.scrollTop = 0
     // Reset the mirrored scroll percent so the presenter doesn't briefly apply the previous
     // chapter's position to a freshly-loaded chapter before the new scroll fires — EXCEPT
     // when a specific targetVerse is pending (e.g. a search-navigation): forcing
@@ -462,18 +506,41 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       setMainBibleScrollPercent(0, freshChapterKey)
       clearLastBibleVerse(freshChapterKey)
     }
-    virtualScrollPctRef.current = 0
-    lastMainScrollTopRef.current = 0
+    if (!restoringSaved) {
+      virtualScrollPctRef.current = 0
+      lastMainScrollTopRef.current = 0
+    }
     pendingScrollRef.current = null
-    // A pending targetVerse owns scrolling for this load (see the scroll-to-verse effect in
-    // ChapterView.tsx) — restoring the old saved scrollPosition here would fight it. Some
-    // navigation paths that set targetVerse don't also clear scrollPosition, so this guard
-    // is the actual fix; onVersesLoaded has a second backstop check for the same reason.
+    // A pending targetVerse owns scrolling for this load (ChapterView's scroll-to-verse effect).
     if (hasTargetVerse) return
-    const savedPos = tabState.scrollPosition ?? 0
-    if (savedPos === 0) return
-    // Store it — will be applied by onVersesLoaded once ChapterView data arrives
-    pendingScrollRef.current = savedPos
+
+    const savedPos = savedPosEarly
+    if (savedPos <= 1) { setChapterRevealed(true); return }
+
+    // Restore the saved scroll position. This is the SINGLE authority for it on a tab switch —
+    // a rAF loop that waits until the verse list actually exists AND is tall enough for the
+    // position to stick (async fetch, cache-warm instant mount, and every layout-settling
+    // commit in between all converge here), re-applies it until it's stable, then reveals the
+    // (until-now hidden) chapter. No dependence on effect ordering with onVersesLoaded.
+    let raf = 0
+    let frames = 0
+    let stable = 0
+    const tick = () => {
+      const el2 = getScrollEl()
+      const ready = !!el2 && !!el2.querySelector('[data-verse]') && (el2.scrollHeight - el2.clientHeight) >= savedPos - 2
+      if (ready && el2) {
+        if (Math.abs(el2.scrollTop - savedPos) > 1) { el2.scrollTop = savedPos; stable = 0 }
+        else stable++
+        const max = el2.scrollHeight - el2.clientHeight
+        virtualScrollPctRef.current = max > 0 ? savedPos / max : 0
+        lastMainScrollTopRef.current = savedPos
+      }
+      frames++
+      if (stable >= 3 || frames > 120) { setChapterRevealed(true); return }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => { cancelAnimationFrame(raf); setChapterRevealed(true) }
   }, [activeSpace, activeTabId, tabState.bookId, tabState.chapter, continuousChapterScroll]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Continuous Chapter Scroll's own equivalent of the effect above, deliberately NOT keyed
@@ -1151,6 +1218,11 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const anchor = strongsAnchorRef.current
     if (!anchor) return
     strongsAnchorRef.current = null
+    // Still handed to the short rAF loop below purely to catch sub-pixel shifts (and the one
+    // real case that still reflows: "compact" line-height, which gets bumped up to fit the
+    // numbers). NO flashAnchor — the numbers now live in the gap and nothing moves, so
+    // highlighting the top verse on every toggle was just noise.
+    strongsAnimAnchorRef.current = anchor
     const container = getScrollEl()
     if (!container) return
     const el = container.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
@@ -1158,40 +1230,15 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const containerTop = container.getBoundingClientRect().top
     const elTop = el.getBoundingClientRect().top
     container.scrollTop += elTop - containerTop - anchor.offsetPx
-    setFlashAnchor({ verse: anchor.verseNum, nonce: Date.now() })
   }
 
-  // Toggling Strong's swaps the verse rows to/from an entirely different DOM structure
-  // (stacked word+chip vs. plain inline text — see VerseRow.tsx), so there's no shared
-  // layout to CSS-transition between. The View Transitions API sidesteps that: it
-  // screenshots the before/after DOM and crossfades between them regardless of how
-  // different the structure is, turning the previous instant jump into a smooth
-  // ~250ms crossfade. flushSync forces the state update (and its re-render) to commit
-  // synchronously inside the callback, so the "after" snapshot the browser captures is
-  // the real new layout rather than a stale one taken before React re-rendered.
+  // Toggling Strong's is now a pure show/hide of absolute-positioned number overlays in the
+  // leading gap (StrongsInline.tsx) — zero reflow for comfortable/spacious line-height. The
+  // anchor capture/restore is kept only as a safety net for "compact" (which does get a small
+  // line-height bump to fit the numbers) and any sub-pixel drift.
   function toggleStrongsForTab(tabId: string, next: boolean) {
     captureStrongsAnchor()
-    const apply = () => updateTabState('scripture', tabId, { showStrongs: next })
-    // View Transitions capture/animate the named element as a plain snapshot image,
-    // rendered in a top-layer overlay that ignores the scroll container's own overflow
-    // clipping — while scrolled to the very top of the chapter that's harmless (the tall
-    // content div's top edge IS the visible viewport's top edge), but scrolled DOWN even a
-    // little, that same un-clipped snapshot's natural on-screen position extends up past
-    // the visible reading area and can paint over ShellHeader's top bar for the ~100ms the
-    // transition runs. Skipping the transition outright whenever scrolled — falling back to
-    // an instant, non-animated update — is what actually avoids that, not any amount of CSS
-    // clipping (tried and reverted; it clipped view transitions elsewhere in the app too).
-    const scrolledToTop = (getScrollEl()?.scrollTop ?? 0) < 2
-    if (scrolledToTop && typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
-      // A still-running transition from a rapid previous toggle would otherwise race this
-      // one for the same named chapter element(s) — skip it first so only the latest wins.
-      pendingStrongsTransitionRef.current?.skipTransition()
-      const vt = document.startViewTransition(() => flushSync(apply))
-      pendingStrongsTransitionRef.current = vt
-      vt.finished.finally(() => { if (pendingStrongsTransitionRef.current === vt) pendingStrongsTransitionRef.current = null })
-    } else {
-      apply()
-    }
+    updateTabState('scripture', tabId, { showStrongs: next })
   }
 
   // ── Cmd+G → toggle Strong's numbers ─────────────────────────────────────
@@ -1215,6 +1262,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // A layout effect's DOM reads are already post-layout, so no rAF wait is needed here either.
   useLayoutEffect(() => {
     restoreStrongsAnchor()
+  }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the anchor verse pinned for the full duration of the two-phase toggle animation —
+  // restoreStrongsAnchor above only corrects the first frame; the chip-in + delayed line-height
+  // reflow keeps changing heights for ~500ms after that.
+  useEffect(() => {
+    const anchor = strongsAnimAnchorRef.current
+    if (!anchor) return
+    strongsAnimAnchorRef.current = null
+    let raf = 0
+    const start = performance.now()
+    const tick = () => {
+      const container = getScrollEl()
+      const el = container?.querySelector<HTMLElement>(`[data-verse="${anchor.verseNum}"]`)
+      if (container && el) {
+        const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.offsetPx
+        if (Math.abs(delta) > 0.5) container.scrollTop += delta
+      }
+      if (performance.now() - start < 350) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [tabState.showStrongs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Type-anywhere digit → go to verse ────────────────────────────────────
@@ -1672,6 +1741,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   // Called by ChapterView after it finishes loading verses via IPC.
   // At that point the content is in the DOM and we can reliably restore scroll.
   const onVersesLoaded = useCallback(() => {
+    // Verses are in the DOM and the scroll adjustments below run synchronously in this same
+    // call, so it's now safe to reveal the (until-now invisible) chapter area — a double rAF so
+    // any targetVerse scroll owned by ChapterView's own effect also gets a frame to land first.
+    requestAnimationFrame(() => requestAnimationFrame(() => setChapterRevealed(true)))
     // Verse-anchored restore (KJV/LXX switch) takes priority over the raw-pixel
     // pendingScrollRef path below — anchoring by verse number tracks the same passage
     // across two texts with different word counts/wrapping far better than reusing a
@@ -1708,7 +1781,10 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       // DOM has settled. Guarded so it never fights a pending verse jump, a saved-position
       // restore (pos != 0, handled below), or continuous-scroll mode (where 0 = book top).
       // continuousChapterScroll is read live off the store — this callback has empty deps.
-      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse) {
+      // ALSO skipped when the tab carries a saved scrollPosition (>1): the tab-switch effect's
+      // own rAF loop is the authority for restoring that, and asserting 0 here would fight it
+      // (this fires first on a cache-warm mount, before that loop starts).
+      if (!useAppStore.getState().continuousChapterScroll && !tabStateRef.current?.targetVerse && (tabStateRef.current?.scrollPosition ?? 0) <= 1) {
         const el = getScrollEl()
         if (el && el.scrollTop !== 0) {
           el.scrollTop = 0
@@ -1736,6 +1812,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       lastMainScrollTopRef.current = pos
     }
   }, []) // refs never change identity — getScrollEl reads refs directly
+
+  // Safety net: never leave the chapter area hidden if onVersesLoaded doesn't fire for some
+  // path (empty chapter, an unusual layout). Re-armed per tab.
+  useEffect(() => {
+    if (chapterRevealed) return
+    const t = setTimeout(() => setChapterRevealed(true), 500)
+    return () => clearTimeout(t)
+  }, [chapterRevealed, activeTabId])
 
   // Clears targetVerse AND its companion search-highlight fields together — leaving the
   // latter behind after the former is consumed would highlight a stale term the next time
@@ -2209,6 +2293,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
             bookFilter: tabState.searchBookFilter,
             sortMode: tabState.searchSortMode,
             scrollTop: tabState.searchScrollTop,
+            scrollAnchor: tabState.searchScrollAnchor,
             tagFilter: tabState.searchTagFilter,
             tagFilterAll: tabState.searchTagFilterAll,
           }}
@@ -2222,6 +2307,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
                 searchBookFilter: s.bookFilter,
                 searchSortMode: s.sortMode,
                 searchScrollTop: s.scrollTop,
+                searchScrollAnchor: s.scrollAnchor,
                 searchTagFilter: s.tagFilter,
                 searchTagFilterAll: s.tagFilterAll,
               })
@@ -2885,6 +2971,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
       <div
         ref={chapterViewRef}
         className={`flex-1 overflow-y-auto relative ${audioPlaybackActive ? 'pb-24' : ''}`}
+        // Hidden (but laid out, so scroll restore can still run) until the first post-load
+        // scroll-restore lands — kills the "top of chapter, then jump" flash on tab switch.
+        style={{ visibility: chapterRevealed ? 'visible' : 'hidden' }}
         onWheel={(e) => {
           // When the chapter fits entirely (nothing to scroll), the wheel can't move the main
           // panel — so translate it into a virtual scroll that drives the presenter, which may

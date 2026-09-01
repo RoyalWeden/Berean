@@ -375,6 +375,15 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
     () => (idiomHighlightEnabled ? expandIdiomPatterns(idiomCache) : []),
     [idiomCache, idiomHighlightEnabled],
   )
+
+  // The Strong's numbers are absolutely positioned in the gap under each word (StrongsInline.tsx),
+  // so they contribute NO layout — toggling them just shows/hides them in the space that's
+  // already there. No animation, no phased state machine, no reflow (the one exception:
+  // "compact" line-height is too tight for the numbers, so `renderStrongs` bumps the verse
+  // line-height up to a floor of 1.65 — see the style below).
+  const renderStrongs = showStrongs
+
+
   const strippedText = hasHidden ? stripAnnotations(verse.text, textId, hiddenAnnotations) : verse.text
   const shouldReplace = wordReplacerEnabled && wordReplacerRules.length > 0
   const displayText = shouldReplace ? applyWordReplacer(strippedText, wordReplacerRules) : strippedText
@@ -497,6 +506,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   const popoverPanelRef = useRef<HTMLDivElement>(null)
   const verseTextRef = useRef<HTMLDivElement>(null)
   const selToolbarRef = useRef<HTMLDivElement>(null)
+
   const words = verseForDisplay.text.split(' ')
 
   // Verse-level highlight: legacy (all nulls) or char-level full-verse (0 to text.length)
@@ -1049,47 +1059,132 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         }
       }
 
-      if (showStrongs) {
+      if (renderStrongs) {
         const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
+        const numKey = (t: typeof displayTokens[number]) => {
+          const n = Array.isArray(t.strongsNum) ? t.strongsNum.join('|') : (t.strongsNum ?? '')
+          return n || null
+        }
+        const numsOf = (t: typeof displayTokens[number]) =>
+          Array.isArray(t.strongsNum) ? t.strongsNum : (t.strongsNum ? [t.strongsNum] : [])
+
+        // Group consecutive rendered tokens that carry the SAME Strong's number into ONE phrase
+        // unit — the reliable, exact signal (confirmed: this data tags every word of a phrase,
+        // e.g. `fig{G4808} tree{G4808}`, `well{G2106} pleased{G2106}`). A phrase renders as a
+        // single wrapper with ONE pill centred under the whole run. Parenthetical / alignment-
+        // bracket tokens are always their own singletons.
+        type Grp = { members: number[]; k: string | null }
+        const groups: Grp[] = []
+        let lastK: string | null = null
+        for (let i = 0; i < displayTokens.length; i++) {
+          if (suppressedIndices.has(i)) continue
+          const t = displayTokens[i]
+          const k = (t.isParenthetical || t.isStrongsBracket) ? null : numKey(t)
+          if (k != null && k === lastK && groups.length > 0) {
+            groups[groups.length - 1].members.push(i)
+          } else {
+            groups.push({ members: [i], k })
+          }
+          lastK = k
+        }
+
+        // Deterministic (character-count) extra right-margin per GROUP so a short group's centred
+        // pill doesn't overlap the next group's. No DOM measurement → no reflow / jump.
+        const CH = 7.4
+        const chipW = (n: string) => n.length * 5.15 + 13
+        const wordPx = (w: string) => Math.max(5, (w.match(/\p{L}/gu)?.length ?? 0) * CH)
+        const groupPx = (g: Grp) => g.members.reduce((s, mi) => s + wordPx(displayTokens[mi].word), 0) + 4 * (g.members.length - 1)
+        const groupGaps: Record<number, number> = {}
+        for (let gi = 0; gi < groups.length - 1; gi++) {
+          const a = groups[gi], b = groups[gi + 1]
+          if (a.k == null) continue
+          const aHalf = Math.max(...numsOf(displayTokens[a.members[0]]).map(chipW)) / 2
+          const bHalf = b.k != null ? Math.max(...numsOf(displayTokens[b.members[0]]).map(chipW)) / 2 : 0
+          const centreGap = groupPx(a) / 2 + 4 + groupPx(b) / 2
+          const need = aHalf + bHalf - centreGap + 6
+          if (need > 1) groupGaps[gi] = Math.round(need)
+        }
+
+        // Styled node for one word token (char highlights / read-aloud tint / find / red-letter /
+        // italic) — shared by the single-token and phrase paths.
+        const wordNodeFor = (token: typeof displayTokens[number]) => {
+          let wordSegs = token.isParenthetical
+            ? null
+            : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+          if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
+            wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+          }
+          const wc = wordSegs
+            ? wordSegs.map((seg, si) => (
+                <span key={si} className="transition-colors duration-150 ease-out" style={{ backgroundColor: seg.bg ?? 'transparent', borderRadius: '2px' }}>{seg.text}</span>
+              ))
+            : (isFindMatch ? applyFindHighlight(token.word, findQuery, highlightMode) : token.word)
+          return token.isRedLetter
+            ? <span className={RED_LETTER_CLASS}>{wc}</span>
+            : token.isItalic
+            ? <span className="italic opacity-70">{wc}</span>
+            : <>{wc}</>
+        }
+
         return (
           <span>
-            {displayTokens.map((token, i) => {
-              // Suppress "the"/"The" that preceded a Strong's-replaced divine name
-              if (suppressedIndices.has(i)) return null
-              // Build per-character highlight segments for this word (null = no overlap = plain)
-              let wordSegs = token.isParenthetical
-                ? null
-                : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
-              // Read Aloud active-word tint — takes visual priority over a real highlight
-              // underneath since it's the exact word being spoken right now (transient, per plan).
-              if (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex) {
-                wordSegs = [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+            {groups.map((g, gi) => {
+              const first = g.members[0]
+              const key = g.k != null ? `v${verse.verse_num}-p${first}` : undefined
+              const spacer = gi < groups.length - 1 ? ' ' : null
+
+              if (g.k == null || g.members.length === 1) {
+                const token = displayTokens[first]
+                const wordSegs = token.isParenthetical
+                  ? null
+                  : splitWordByHighlights(token.word, token.charStart, charHighlights, WORD_HIGHLIGHT_BG, token.origLen)
+                const playbackSegs = (playbackVerse && playbackWordIndex != null && token.spokenIndex === playbackWordIndex)
+                  ? [{ text: token.word, bg: PLAYBACK_WORD_BG }]
+                  : wordSegs
+                return (
+                  <Fragment key={gi}>
+                    <StrongsInline
+                      word={token.isStrongsBracket ? '' : token.word}
+                      strongsNum={token.strongsNum}
+                      isItalic={token.isItalic}
+                      isRedLetter={token.isRedLetter}
+                      isParenthetical={token.isParenthetical}
+                      tagged={true}
+                      wordSegments={playbackSegs ?? undefined}
+                      findQuery={playbackSegs ? '' : (isFindMatch ? findQuery : '')}
+                      findWordMode={highlightMode}
+                      onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
+                      onWordClick={onWordClick}
+                      swIdx={first}
+                      extraGap={groupGaps[gi]}
+                      phraseKey={key}
+                    />
+                    {spacer}
+                  </Fragment>
+                )
               }
-              // Space after this token — check if it falls within a charHighlight (original-text coords)
-              const spaceCharPos = token.charStart + token.origLen
-              const spaceHl = !token.isParenthetical && i < displayTokens.length - 1
-                ? charHighlights.find(h => h.startChar! <= spaceCharPos && h.endChar! > spaceCharPos)
-                : undefined
+
+              // Real multi-word phrase.
+              const groupWords: React.ReactNode[] = []
+              g.members.forEach((mi, mj) => {
+                groupWords.push(<Fragment key={mi}>{wordNodeFor(displayTokens[mi])}</Fragment>)
+                if (mj < g.members.length - 1) groupWords.push(' ')
+              })
               return (
-                <Fragment key={i}>
+                <Fragment key={gi}>
                   <StrongsInline
-                    word={token.isStrongsBracket ? '' : token.word}
-                    strongsNum={token.strongsNum}
-                    isItalic={token.isItalic}
-                    isRedLetter={token.isRedLetter}
-                    isParenthetical={token.isParenthetical}
+                    word={g.members.map((mi) => displayTokens[mi].word).join(' ')}
+                    strongsNum={displayTokens[first].strongsNum}
+                    isItalic={g.members.every((mi) => displayTokens[mi].isItalic)}
+                    isRedLetter={g.members.every((mi) => displayTokens[mi].isRedLetter)}
                     tagged={true}
-                    wordSegments={wordSegs ?? undefined}
-                    findQuery={wordSegs ? '' : (isFindMatch ? findQuery : '')}
-                    findWordMode={highlightMode}
+                    groupWords={groupWords}
                     onStrongsClick={(num) => onStrongsClick?.(num, verse.verse_num)}
-                    onWordClick={onWordClick}
+                    swIdx={first}
+                    extraGap={groupGaps[gi]}
+                    phraseKey={key}
                   />
-                  {i < displayTokens.length - 1 && (
-                    spaceHl
-                      ? <span style={{ backgroundColor: WORD_HIGHLIGHT_BG[spaceHl.color] }}> </span>
-                      : ' '
-                  )}
+                  {spacer}
                 </Fragment>
               )
             })}
@@ -1188,7 +1283,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       )
     }
 
-    if (!showStrongs && charHighlights.length > 0) {
+    if (!renderStrongs && charHighlights.length > 0) {
       // Character-segmented rendering (char highlight takes priority over find overlay)
       const boundaries = [0, ...charHighlights.flatMap(h => [h.startChar!, h.endChar!]), verse.text.length]
       const sorted = [...new Set(boundaries)].sort((a, b) => a - b)
@@ -1209,7 +1304,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
       )
     }
 
-    if (showStrongs) {
+    if (renderStrongs) {
       // No text_tagged: word-level fallback with clickable lexicon search + char-level highlights
       const highlightMode = findWordMode === 'phrase' ? 'all' : findWordMode
       // Compute per-word char positions from verse.text so they align with charHighlights offsets
@@ -1326,7 +1421,7 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
   return (
     <div
       data-verse={verse.verse_num}
-      className={`flex gap-3 group relative transition-[background-color,border-color,margin-bottom] duration-300 ${showStrongs ? 'mb-1 leading-snug' : 'mb-3 leading-relaxed'} ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
+      className={`flex gap-3 group relative mb-3 ${isSelected ? 'rounded bg-[rgb(var(--color-accent))/8] ring-1 ring-inset ring-[rgb(var(--color-accent))/30]' : ''}`}
       style={rowStyle}
     >
       {/* Verse number + popover anchor — hidden when showVerseNumber is off;
@@ -1417,13 +1512,6 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
               <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
               Tag verse…
             </button>
-            <button
-              onClick={(e) => { setTagPick({ rect: (e.currentTarget as HTMLElement).getBoundingClientRect(), scope: 'chapter' }); setPopoverOpen(false) }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-[rgb(var(--color-text-primary))] hover:bg-[rgb(var(--color-surface-3))] cursor-pointer"
-            >
-              <TagIcon size={12} className="text-[rgb(var(--color-text-muted))]" />
-              Tag chapter…
-            </button>
             <div className="h-px bg-[rgb(var(--color-surface-4))] my-1" />
             <div className="px-3 py-2 space-y-1.5">
               {[0, 1, 2].map((row) => (
@@ -1460,18 +1548,13 @@ function VerseRow({ verse, showStrongs, showVerseNumber = true, noteCount = 0, n
         data-verse-text="true"
         onMouseUp={handleVerseMouseUp}
         onContextMenu={(e) => { e.preventDefault(); openPopover(e) }}
-        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-300"
-        // The row wrapper's own `leading-snug`/`leading-relaxed` classes above are meant to
-        // respond to showStrongs, but a Tailwind `leading-*` class on the PARENT has nothing of
-        // its own to apply line-height to once this child sets its own inline line-height —
-        // inline style on a descendant always wins, so toggling Strong's used to only change
-        // margin, not the actual verse-text line spacing (silently smaller density change than
-        // the code appeared to intend, snapping instantly since there was no transition either).
-        // Scale relative to the user's own compact/comfortable/spacious line-height setting
-        // (--line-height-comfortable, synced from Settings in App.tsx) rather than a fixed
-        // number, so Strong's mode stays "somewhat denser than whatever this user already
-        // chose," not an independent value that ignores their preference.
-        style={{ lineHeight: showStrongs ? 'calc(var(--line-height-comfortable) * 0.82)' : 'var(--line-height-comfortable)' }}
+        className="flex-1 min-w-0 text-[rgb(var(--color-text-primary))] transition-[line-height] duration-200"
+        // Verse-text line spacing follows the user's own compact/comfortable/spacious setting
+        // (--line-height-comfortable). The Strong's numbers are absolute overlays in the leading
+        // gap and normally need no extra room — the ONE exception is "compact" (1.3), where the
+        // gap is too small, so when Strong's is on we floor the line-height at 1.65. For the
+        // other two settings max() is a no-op, so toggling Strong's changes nothing at all.
+        style={{ lineHeight: renderStrongs ? 'max(var(--line-height-comfortable), 1.65)' : 'var(--line-height-comfortable)' }}
       >
         {renderVerseText()}
       </div>

@@ -96,6 +96,14 @@ export default function VerseSelectionBar() {
 
   useEffect(() => { if (selectedRaw.length === 0) { setColorOpen(false); setTagAnchor(null) } }, [selectedRaw.length])
 
+  // Tell the store when the tag/colour popover is open so the bottom-right Study Trail toast
+  // can lift clear of it (it opens ABOVE this bar).
+  const setVerseSelectionMenuOpen = useAppStore((s) => s.setVerseSelectionMenuOpen)
+  useEffect(() => {
+    setVerseSelectionMenuOpen(colorOpen || tagAnchor != null)
+    return () => setVerseSelectionMenuOpen(false)
+  }, [colorOpen, tagAnchor, setVerseSelectionMenuOpen])
+
   const copyVerses = useCallback(async (refsOnly: boolean) => {
     const header = refLabel(sel)
     if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); return }
@@ -138,8 +146,11 @@ export default function VerseSelectionBar() {
   return createPortal(
     <>
       <div
-        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 rounded-shell context-menu px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-md"
-        style={{ backgroundColor: 'rgb(var(--color-surface-2) / 0.82)', zIndex: modalOpen ? 40 : 95 }}
+        className="fixed left-1/2 bottom-5 -translate-x-1/2 flex items-center gap-0.5 rounded-shell context-menu px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)] backdrop-blur-lg"
+        // While a full-screen overlay (floating search / settings / history — all a z-50
+        // bg-black/50 backdrop) is up, sit at z-49: still above every bit of app chrome so it
+        // stays visible in the dimmed/blurred background, but behind the overlay itself.
+        style={{ backgroundColor: 'rgb(var(--color-surface-2) / 0.62)', zIndex: modalOpen ? 49 : 95 }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <span className="px-2 text-xs font-semibold text-[rgb(var(--color-text-secondary))] whitespace-nowrap">{sel.length} selected</span>
