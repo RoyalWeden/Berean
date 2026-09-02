@@ -167,7 +167,7 @@ export default function NotesList({
               // by at a glance when not hovering; this restores just enough structure without
               // going back to a full box around every entry. Skipped on the very last note.
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
-                isPreviewed ? 'bg-[rgb(var(--color-accent))/8]' : ''
+                isPreviewed ? 'bg-[rgb(var(--color-accent))/20]' : ''
               } ${
                 virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
               }`}
@@ -198,7 +198,7 @@ export default function NotesList({
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
               className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
                 ${isPreviewed
-                  ? 'bg-[rgb(var(--color-accent))/18]'
+                  ? '' /* the full-width wash lives on the wrapper above; keep the card clear */
                   : isSelected
                   ? 'bg-[rgb(var(--color-accent))/8]'
                   : 'hover:bg-[rgb(var(--color-surface-3))]'

@@ -554,9 +554,9 @@ export default function NotesFolderView({
     return (
       <div
         key={note.id}
-        // Full-width dim fill across the whole row when it's the previewed note (the inner
-        // pill below has the accent bar/tint — this is the "entire row" wash).
-        className={activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/8]' : undefined}
+        // Full-width dim accent wash across the whole row when it's the previewed note — a
+        // soft highlight (much dimmer than the bright bar the inner row draws on its left).
+        className={activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/20]' : undefined}
         // Note rows are first-class drop targets (mirrors folder row pattern).
         // Dropping on a note puts the dragged item in the same folder as that note.
         onDragOver={(e) => {
@@ -591,7 +591,7 @@ export default function NotesFolderView({
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
           activeNoteId === note.id
-            ? 'bg-[rgb(var(--color-accent))/16] font-medium'
+            ? 'font-medium'  /* wash is on the full-width wrapper above */
             : 'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
       >
