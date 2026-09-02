@@ -2089,8 +2089,6 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onPreview={previewNoteInHome}
               onOpen={navigateToNote}
               onOpenNewTab={openNoteInNewTab}
-              onCreateNote={createNote}
-              onCreateDaily={() => window.dispatchEvent(new CustomEvent('berean:openDailyNote'))}
             />
           )}
           </div>

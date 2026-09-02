@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { FilePlus, CalendarPlus, ExternalLink, ArrowUpRight, Clock, Pin, FileText } from 'lucide-react'
+import { ExternalLink, ArrowUpRight, Clock, Pin, FileText } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
 import { noteStatusMeta } from '@/lib/noteStatus'
-import { renderPreviewContent } from '@/lib/notePreviewRender'
+import NoteEditor from './pm/NoteEditorPM'
 import { folderPathFor } from './NotesFolderView'
 
 // ── Small local helpers ───────────────────────────────────────────────────────
@@ -36,7 +36,9 @@ function findBacklinks(noteTitle: string, allNotes: Note[], noteId: string): Not
 
 function byRecent(a: Note, b: Note) { return b.updatedAt - a.updatedAt }
 
-// ── Row used in every list on this panel ──────────────────────────────────────
+const NOOP = () => {}
+
+// ── Row used in the dashboard / folder lists ──────────────────────────────────
 
 function NoteRow({ note, onPreview, onOpen }: { note: Note; onPreview: (n: Note) => void; onOpen: (n: Note) => void }) {
   const meta = noteStatusMeta(note.status)
@@ -81,15 +83,13 @@ interface Props {
   onPreview: (note: Note) => void
   onOpen: (note: Note) => void
   onOpenNewTab: (note: Note) => void
-  onCreateNote: () => void
-  onCreateDaily: () => void
 }
 
 export default function NotesHomePanel({
-  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab, onCreateNote, onCreateDaily,
+  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab,
 }: Props) {
   const userNotes = useMemo(() => allNotes.filter((n) => !isSystemNote(n)), [allNotes])
-  const recent = useMemo(() => [...userNotes].sort(byRecent).slice(0, 8), [userNotes])
+  const recent = useMemo(() => [...userNotes].sort(byRecent).slice(0, 10), [userNotes])
   const pinned = useMemo(() => userNotes.filter((n) => n.pinned).sort(byRecent), [userNotes])
   const inProgress = useMemo(() => userNotes.filter((n) => n.status === 'in-progress').sort(byRecent), [userNotes])
 
@@ -98,18 +98,11 @@ export default function NotesHomePanel({
     [note, allNotes],
   )
   const folderPath = useMemo(() => (note ? folderPathFor(note, folders) : []), [note, folders])
-  // renderPreviewContent runs marked + several regex passes — memo so scrolling the list
-  // (which re-renders this panel) doesn't re-parse the whole note body each time.
-  const previewHtml = useMemo(
-    () => (note?.content?.trim() ? renderPreviewContent(note.content) : ''),
-    [note?.id, note?.content],
-  )
 
-  // No left border here — the list column to our left already draws a right border.
-  // min-w keeps the panel usable when the pane is tight (the list column flexes down first).
   const wrap = 'flex min-w-[16rem] flex-1 flex-col overflow-hidden bg-[rgb(var(--color-surface-3))]'
 
-  // ── Note preview ───────────────────────────────────────────────────────────
+  // ── Note preview — the real editor in read-only ('view') mode, so it renders exactly
+  //    like the note does when open, just non-editable. ───────────────────────────────
   if (note) {
     const tags = note.tags ?? []
     return (
@@ -128,14 +121,14 @@ export default function NotesHomePanel({
             </div>
             <button
               onClick={() => onOpen(note)}
-              className="flex flex-shrink-0 items-center gap-1 rounded-md bg-[rgb(var(--color-accent))/15] px-2 py-1 text-[11px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors"
+              className="flex flex-shrink-0 items-center gap-1 rounded-md bg-[rgb(var(--color-accent))] px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-85 active:opacity-75 cursor-pointer transition-opacity"
             >
               Open in editor <ArrowUpRight size={12} />
             </button>
             <button
               onClick={() => onOpenNewTab(note)}
               title="Open in new tab"
-              className="flex-shrink-0 rounded-md p-1 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+              className="flex-shrink-0 rounded-md p-1.5 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
             >
               <ExternalLink size={13} />
             </button>
@@ -150,19 +143,19 @@ export default function NotesHomePanel({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {previewHtml
-            ? <div className="berean-preview-prose" dangerouslySetInnerHTML={{ __html: previewHtml }} />
-            : <div className="text-[13px] italic text-[rgb(var(--color-text-muted))]">This note is empty.</div>}
-
-          {backlinks.length > 0 && (
-            <div className="mt-6 border-t border-[rgb(var(--color-surface-4))] pt-3">
-              <SectionLabel>Linked from</SectionLabel>
-              {backlinks.slice(0, 8).map((n) => (
-                <NoteRow key={n.id} note={n} onPreview={onPreview} onOpen={onOpen} />
-              ))}
-            </div>
-          )}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <NoteEditor
+            key={note.id}
+            content={note.content}
+            noteId={note.id}
+            onChange={NOOP}
+            mode="view"
+            notes={allNotes}
+            onWikilinkClick={(title) => {
+              const target = allNotes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
+              if (target) onPreview(target)
+            }}
+          />
         </div>
       </div>
     )
@@ -172,7 +165,7 @@ export default function NotesHomePanel({
   if (folder) {
     const inFolder = userNotes.filter((n) => n.folderId === folder.id)
     const fInProgress = inFolder.filter((n) => n.status === 'in-progress').length
-    const fRecent = [...inFolder].sort(byRecent).slice(0, 10)
+    const fRecent = [...inFolder].sort(byRecent).slice(0, 12)
     const fTags = Array.from(new Set(inFolder.flatMap((n) => n.tags ?? []))).slice(0, 12)
     return (
       <div className={wrap}>
@@ -207,23 +200,9 @@ export default function NotesHomePanel({
     )
   }
 
-  // ── Dashboard (nothing selected) ──────────────────────────────────────────
+  // ── Dashboard (nothing selected) — no header/action row, just the lists ──────
   return (
     <div className={wrap}>
-      <div className="flex flex-shrink-0 items-center gap-2 border-b border-[rgb(var(--color-surface-4))] px-5 py-3">
-        <button
-          onClick={onCreateNote}
-          className="flex items-center gap-1.5 rounded-md bg-[rgb(var(--color-accent))/15] px-2.5 py-1.5 text-[12px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/25] cursor-pointer transition-colors"
-        >
-          <FilePlus size={13} /> New note
-        </button>
-        <button
-          onClick={onCreateDaily}
-          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
-        >
-          <CalendarPlus size={13} /> Today's note
-        </button>
-      </div>
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {inProgress.length > 0 && (
           <>

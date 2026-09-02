@@ -150,7 +150,10 @@ export default function NotesList({
           const snippet = expandAll
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
-          const isSelected = selected.includes(note.id) || note.id === previewNoteId
+          const isSelected = selected.includes(note.id)
+          // Previewed in the home side panel (single-click) — a distinct, clearly visible
+          // "this is the one you're looking at" state, separate from multi-select.
+          const isPreviewed = !selectMode && !!previewNoteId && note.id === previewNoteId
           const isRenaming = renamingNoteId === note.id
           const snippets = searchQuery ? contentSnippets(note.content, searchQuery) : []
 
@@ -192,7 +195,9 @@ export default function NotesList({
               // previous bordered-card-per-row treatment (bg + border on every single row) read
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
               className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
-                ${isSelected
+                ${isPreviewed
+                  ? 'bg-[rgb(var(--color-accent))/15] ring-1 ring-inset ring-[rgb(var(--color-accent))/40]'
+                  : isSelected
                   ? 'bg-[rgb(var(--color-accent))/8]'
                   : 'hover:bg-[rgb(var(--color-surface-3))]'
                 }`}
@@ -203,10 +208,11 @@ export default function NotesList({
                 setContextMenu({ note, x: e.clientX, y: e.clientY })
               }}
             >
-              {/* Linear-style left accent bar — solid when selected, fades in on hover otherwise */}
+              {/* Linear-style left accent bar — solid when selected/previewed, fades in on hover */}
               <div
-                className={`absolute left-0 top-0 bottom-0 w-0.5 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
-                  ${isSelected ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
+                className={`absolute left-0 top-0 bottom-0 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
+                  ${isPreviewed ? 'w-1' : 'w-0.5'}
+                  ${isSelected || isPreviewed ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
               />
 
               {/* Checkbox in select mode */}
