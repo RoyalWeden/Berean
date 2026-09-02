@@ -30,6 +30,7 @@ import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWi
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { readingRegionBox } from '@/lib/zoom'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
@@ -1764,7 +1765,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             />
           </div>
         ) : (
-          <>
+          // Notes-home region is bumped to ~reading size (and still tracks app zoom) —
+          // see READING_REGION_ZOOM. The box is counter-scaled so the magnified content
+          // still fits this pane exactly instead of clipping the bottom of the list.
+          <div className="flex flex-col min-h-0 overflow-hidden" style={readingRegionBox}>
             {/* Search bar — with sort selector inline on the right */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
               <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -2010,7 +2014,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               )}
             </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

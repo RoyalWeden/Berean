@@ -19,6 +19,27 @@ export const ZOOM_MAX = 3
 export const ZOOM_STEP = 0.1
 export const ZOOM_DEFAULT = 1
 
+/**
+ * Fixed base enlargement for dense list/reference regions whose default type ran
+ * noticeably smaller than the Scripture/Notes reading text — the notes-home panel
+ * (search bar, folder tree, note list, action bar) and the lexicon entry body.
+ * Applied as CSS `zoom` on the region's container so it COMPOUNDS with the global
+ * app zoom (`zoom` multiplies through nested elements): the region sits at roughly
+ * reading size at 100%, and still grows/shrinks with Cmd +/-. A container using it
+ * must counter-scale its own width/height by 1 / READING_REGION_ZOOM (see
+ * `readingRegionBox`) so the magnified box still fits its parent exactly rather
+ * than overflowing and clipping the bottom of a scroll area.
+ */
+export const READING_REGION_ZOOM = 1.2
+
+/** Inline style: apply READING_REGION_ZOOM and counter-scale the box so it still
+ *  fills — not overflows — its parent. Spread onto the region's container. */
+export const readingRegionBox = {
+  zoom: READING_REGION_ZOOM,
+  width: `${100 / READING_REGION_ZOOM}%`,
+  height: `${100 / READING_REGION_ZOOM}%`,
+} as const
+
 /** Clamp to [ZOOM_MIN, ZOOM_MAX] and round to 2 decimals (avoids float drift like 1.0000001). */
 export function clampZoom(z: number): number {
   if (!Number.isFinite(z)) return ZOOM_DEFAULT
