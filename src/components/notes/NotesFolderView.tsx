@@ -554,9 +554,6 @@ export default function NotesFolderView({
     return (
       <div
         key={note.id}
-        // Full-width dim accent wash across the whole row when it's the previewed note — a
-        // soft highlight (much dimmer than the bright bar the inner row draws on its left).
-        className={activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/20]' : undefined}
         // Note rows are first-class drop targets (mirrors folder row pattern).
         // Dropping on a note puts the dragged item in the same folder as that note.
         onDragOver={(e) => {
@@ -580,7 +577,12 @@ export default function NotesFolderView({
         onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : (onPreview ?? onSelect)(note) }}
         onDoubleClick={() => { if (!isRenaming && !isMoveMenuOpen && !selectMode) onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
-        style={{ paddingLeft: 12 + depth * 16 }}
+        style={{
+          paddingLeft: 12 + depth * 16,
+          // Dim accent wash across the whole row for the previewed note (much softer than the
+          // bright bar). Inline so it's not at the mercy of Tailwind's arbitrary-opacity parsing.
+          ...(activeNoteId === note.id ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
+        }}
         // Flat, no border — matches NotesList's row treatment (a bordered box around every
         // single row read as heavy/boxy and out of step with the rest of the app). Just a
         // soft hover tint and a slightly stronger accent tint for the active note.
@@ -591,12 +593,12 @@ export default function NotesFolderView({
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
           activeNoteId === note.id
-            ? 'font-medium'  /* wash is on the full-width wrapper above */
+            ? 'font-medium'
             : 'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
       >
         {activeNoteId === note.id && (
-          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[rgb(var(--color-accent))]" />
+          <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-full bg-[rgb(var(--color-accent))]" />
         )}
         {selectMode && (
           <button
