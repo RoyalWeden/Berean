@@ -196,7 +196,7 @@ export default function NotesList({
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
               className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
                 ${isPreviewed
-                  ? 'bg-[rgb(var(--color-accent))/15] ring-1 ring-inset ring-[rgb(var(--color-accent))/40]'
+                  ? 'bg-[rgb(var(--color-accent))/18]'
                   : isSelected
                   ? 'bg-[rgb(var(--color-accent))/8]'
                   : 'hover:bg-[rgb(var(--color-surface-3))]'

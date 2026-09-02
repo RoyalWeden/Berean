@@ -587,10 +587,14 @@ export default function NotesFolderView({
         // one already correctly use surface-4 for exactly this reason; matched here too.
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
-          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/15] ring-1 ring-inset ring-[rgb(var(--color-accent))/40]' :
-          'hover:bg-[rgb(var(--color-surface-4))]'
+          activeNoteId === note.id
+            ? 'bg-[rgb(var(--color-accent))/20] text-[rgb(var(--color-accent))] font-medium'
+            : 'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
       >
+        {activeNoteId === note.id && (
+          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[rgb(var(--color-accent))]" />
+        )}
         {selectMode && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSelectNote?.(note.id) }}

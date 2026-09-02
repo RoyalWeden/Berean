@@ -31,7 +31,7 @@ import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWi
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { readingRegionScale, READING_REGION_ZOOM } from '@/lib/zoom'
+import { readingRegionScale } from '@/lib/zoom'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
@@ -1812,24 +1812,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             />
           </div>
         ) : (
-          // Notes-home region is bumped to ~reading size (and still tracks app zoom) — see
-          // READING_REGION_ZOOM. The inner layer is scaled up and counter-sized (absolute +
-          // inset-0 in this relative box) so the magnified content fills this pane exactly,
-          // never overflowing or clipping the bottom of the list. Inside: a capped ~760px list
-          // column pinned left + the home preview panel filling the rest (when wide enough).
+          // A capped ~760px list column pinned left + the home preview panel filling the rest
+          // (when wide enough). ONLY the list column gets the READING_REGION_ZOOM reading-size
+          // bump (via readingRegionScale on its own absolute inner layer) — the preview panel
+          // renders the real editor, already at reading size, and a transform on it would throw
+          // off the position of its hover popups (verse/Strong's).
           <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
-          <div className="absolute inset-0 flex min-h-0 overflow-hidden" style={readingRegionScale}>
+          <div className="absolute inset-0 flex min-h-0 overflow-hidden">
           <div
-            className={`flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
-            // Widths are in the readingRegionScale coordinate space (÷1.1), so the on-screen
-            // sizes are ~760 max / ~380 min. Board view opts out — it wants the full pane.
-            // When the panel shows, this column flexes down toward its min; otherwise it just
-            // caps at 760 and sits left, with empty margin.
+            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
+            // Board view opts out of the cap — it wants the full pane. When the panel shows this
+            // column flexes down toward its min; otherwise it caps at 760 and sits left.
             style={boardView ? undefined : {
-              maxWidth: Math.round(760 / READING_REGION_ZOOM),
-              ...(homePanelVisible ? { minWidth: Math.round(380 / READING_REGION_ZOOM) } : {}),
+              maxWidth: 760,
+              ...(homePanelVisible ? { minWidth: 380 } : {}),
             }}
           >
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
             {/* Search bar — with sort selector inline on the right */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
               <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -2079,6 +2078,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               )}
             </div>
             )}
+          </div>
           </div>
           {homePanelVisible && (
             <NotesHomePanel
