@@ -122,6 +122,16 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.18] - 2026-09-01
+
+Backspace fix in the notes editor
+
+### Notes
+
+- Pressing Backspace in a note now always removes exactly one character. When the
+  cursor sat just after a character with a space to its left, macOS could delete
+  both the character and the space in one keystroke — that no longer happens.
+
 ## [0.5.17] - 2026-09-01
 
 Notes home redesign, KJV/LXX verse-locked flip, Song of Solomon

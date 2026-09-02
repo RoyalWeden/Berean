@@ -542,10 +542,22 @@ export default function NoteEditorPM({
           const [range] = ranges
           if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) return false
           const from = view.posAtDOM(range.startContainer, range.startOffset)
-          const to = view.posAtDOM(range.endContainer, range.endOffset)
+          let to = view.posAtDOM(range.endContainer, range.endOffset)
           if (from < 0 || to < 0 || from > to) return false
           if (isDelete && from === to) return false // nothing to delete — let default handling run
-          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
+          // A single Backspace/Delete keystroke with no active selection must only ever remove
+          // ONE character. macOS/Chromium "smart delete" widens deleteContentBackward's target
+          // range to also swallow an adjacent space (so you don't end up with a double space) —
+          // getTargetRanges() then reports that 2-char range and the delete below would faithfully
+          // erase both. The earlier same-node/text-node guard means anything reaching here is an
+          // intra-text-node delete, so clamping to a single char at the caret end is safe and
+          // keeps a real multi-char selection delete (selection not empty) untouched.
+          let delFrom = from
+          if (isDelete && view.state.selection.empty && to - from > 1) {
+            if (ie.inputType === 'deleteContentBackward') delFrom = to - 1
+            else to = from + 1
+          }
+          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(delFrom, to))
           event.preventDefault()
           return true
         },
