@@ -23,19 +23,26 @@ export const ZOOM_DEFAULT = 1
  * Fixed base enlargement for dense list/reference regions whose default type ran
  * noticeably smaller than the Scripture/Notes reading text — the notes-home panel
  * (search bar, folder tree, note list, action bar) and the lexicon entry body.
- * Applied as CSS `zoom` on the region's container so it COMPOUNDS with the global
- * app zoom (`zoom` multiplies through nested elements): the region sits at roughly
- * reading size at 100%, and still grows/shrinks with Cmd +/-. A container using it
- * must counter-scale its own width/height by 1 / READING_REGION_ZOOM (see
- * `readingRegionBox`) so the magnified box still fits its parent exactly rather
- * than overflowing and clipping the bottom of a scroll area.
+ *
+ * Applied as `transform: scale()` (NOT CSS `zoom`) on the region's container:
+ * `transform` is layout-neutral and 100% predictable, where `zoom`'s box-model
+ * behaviour in a flex/percentage context is inconsistent (it left a gap at the
+ * right edge). The container is `position: absolute; inset: 0` inside a
+ * `position: relative` parent and counter-sized to `100% / READING_REGION_ZOOM`
+ * in both axes, so `scale()` from the top-left origin brings it back to exactly
+ * the parent's box — filling it edge to edge, never overflowing. Because the
+ * scale multiplies the scroll viewport AND its content together, scrolling still
+ * reaches every row. It also still compounds with the global app zoom (an
+ * ancestor `zoom: appZoom` wrapper), so Cmd +/- keeps working.
  */
-export const READING_REGION_ZOOM = 1.2
+export const READING_REGION_ZOOM = 1.1
 
-/** Inline style: apply READING_REGION_ZOOM and counter-scale the box so it still
- *  fills — not overflows — its parent. Spread onto the region's container. */
-export const readingRegionBox = {
-  zoom: READING_REGION_ZOOM,
+/** Inline style for the reading-region container: scale up by READING_REGION_ZOOM
+ *  and counter-size so the scaled box still fills — not overflows — its parent.
+ *  The element must be `position: absolute; inset: 0` inside a `relative` parent. */
+export const readingRegionScale = {
+  transform: `scale(${READING_REGION_ZOOM})`,
+  transformOrigin: 'top left',
   width: `${100 / READING_REGION_ZOOM}%`,
   height: `${100 / READING_REGION_ZOOM}%`,
 } as const

@@ -14,7 +14,7 @@ import { navigateToVerse } from '@/lib/verseNavigation'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import { rememberLexiconTitle } from '@/lib/lexiconTitle'
-import { READING_REGION_ZOOM } from '@/lib/zoom'
+import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -372,11 +372,6 @@ function EntryView({
     return out
   }
   const lexiconZoom = useAppStore((s) => s.appZoom)
-  // Entry body sits at ~reading size (READING_REGION_ZOOM), still compounding with app zoom.
-  // Height/width are counter-scaled by that base factor so the magnified box still fits the
-  // pane exactly — matching the old `flex-1 + zoom: appZoom` on-screen size, just with larger
-  // content — instead of overflowing and hiding the bottom of the occurrences list.
-  const entryZoom = lexiconZoom * READING_REGION_ZOOM
   const [infoOpen, setInfoOpen] = useState(false)
   const [related, setRelated] = useState<{ strongsNum: string; lemma: string; transliteration: string; gloss: string }[]>([])
   const [adjacent, setAdjacent] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null })
@@ -559,11 +554,16 @@ function EntryView({
         </div>
       </TabHeaderPortal>
 
+      {/* Entry body bumped to ~reading size (READING_REGION_ZOOM) while still tracking app
+          zoom via `zoom: lexiconZoom`. The inner scroll layer is scaled + counter-sized
+          (absolute + inset-0 in this relative box) so it fills the pane exactly and the
+          scaled scroll viewport still reaches the bottom of the occurrences list. */}
+      <div className="relative flex-1 min-h-0 overflow-hidden">
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="overflow-y-auto px-4 py-4 space-y-4"
-        style={{ zoom: entryZoom, width: `${100 / READING_REGION_ZOOM}%`, height: `${100 / READING_REGION_ZOOM}%` }}
+        className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4"
+        style={{ zoom: lexiconZoom, ...readingRegionScale }}
       >
         {/* Word + transliteration */}
         <div className="space-y-1">
@@ -894,6 +894,7 @@ function EntryView({
           </button>
         )}
         </>)}
+      </div>
       </div>
 
       {/* Prev / Next navigation */}
