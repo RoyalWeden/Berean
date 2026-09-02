@@ -122,6 +122,60 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.17] - 2026-09-01
+
+Notes home redesign, KJV/LXX verse-locked flip, Song of Solomon
+
+### Notes
+
+- The notes home screen now has a fixed-width list on the left and a panel on the
+  right. With nothing selected the panel shows a small dashboard — in-progress
+  notes, pinned notes, and recently edited. Click a note and it opens a read-only
+  preview there, rendered exactly like the note itself, with its folder path,
+  dates, tags and backlink count, and buttons to open it in the editor, open it in
+  a new tab, or print / export it to PDF. Selecting a folder shows that folder's
+  note count, in-progress count, recently edited notes and tags. Double-click,
+  Enter, or the button opens a note for editing. On a narrow window the panel
+  hides and a single click opens the editor as before.
+- The selected note is now clearly marked in the list — a dim wash across the
+  whole row plus a bright bar down its left edge.
+- In folder view a note's status, count and lock now sit right after its title
+  instead of far off at the right edge.
+- With a query typed in the notes search box, the previewed note highlights it
+  too, with a match count and next / previous buttons that step through the
+  matches; the highlighting follows the all / any / phrase setting.
+- The notes home list, its folder tree, and lexicon entries all render a little
+  larger now — closer to the reading-text size — and scale with the app zoom.
+- Switching into the Notes space no longer briefly flashes the wrong view before
+  settling.
+- When a note is open, the Home button always returns to the notes list unless
+  you are already there.
+
+### Scripture reading
+
+- "Song of Solomon" is now used everywhere for that book instead of "Song of
+  Songs" — the reader, the book and chapter pickers, cross-references, search, and
+  note links.
+- Switching between the KJV and the Septuagint while a verse is selected now keeps
+  that verse fixed in place — the same spot on screen, with no jump and no stray
+  highlight flashing on a different verse. For books the Septuagint renumbers
+  (Psalms, Jeremiah, Joel, Malachi) it lands on the matching passage, and the
+  selection moves to the equivalent verse in the other text.
+- The chapter cross-reference chips at the top of a chapter no longer show a
+  trailing "· <title>" when the note's title is just that same reference written
+  another way (e.g. "Psalm 94:21" vs "Psalms 94:21").
+
+### Search
+
+- Phrase search now ignores commas and semicolons, so searching "faith hope
+  charity" still finds "faith, hope, charity" and vice versa.
+- An Advanced Scripture Search tab keeps its search when you switch away and back,
+  instead of resetting to Genesis 1.
+
+### Windows
+
+- The app reopens at the size, position and maximized state it was last closed at.
+
 ## [0.5.16] - 2026-09-01
 
 Psalm titles, presenter scrolling, Study Trail memory
