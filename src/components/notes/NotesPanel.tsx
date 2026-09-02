@@ -34,6 +34,29 @@ import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
+type NotesViewMode = 'list' | 'folder' | 'board'
+
+// Session-level warm cache for the notes-home view state. NotesPanel remounts every time
+// you switch INTO the Notes space from another space (ActivePanel keys it 'panel:note'),
+// and its view-mode / folder list were previously seeded from async IPC (window.settings /
+// window.notes.getFolders) — so for one painted frame the home view showed the default
+// 'list' with no folders, then snapped to the real state once IPC resolved. Caching both
+// here (populated the first time they load, updated on every change) lets the useState
+// initializers below read them synchronously on every subsequent mount → no flash.
+// Pre-warmed once at module load so even the first switch into Notes is usually instant.
+let cachedNotesViewMode: NotesViewMode | null = null
+let cachedFolders: NoteFolder[] | null = null
+try {
+  window.settings?.get('notesViewMode').then((v) => {
+    if (v === 'folder' || v === 'board' || v === 'list') cachedNotesViewMode = v
+    else if (v == null) {
+      window.settings?.get('notesFolderView').then((legacy) => {
+        if (legacy === true) cachedNotesViewMode = 'folder'
+      }).catch(() => {})
+    }
+  }).catch(() => {})
+  window.notes?.getFolders().then((f) => { cachedFolders = f }).catch(() => {})
+} catch { /* window.* not ready at module eval in some contexts — the mount effect still loads */ }
 
 // Days begin at dawn, not midnight (see dailyNoteUtils.ts's getDailyNoteAnchorDate) —
 // dailyNoteToday() returns the sunrise-shifted "today" wherever that matters.
@@ -406,10 +429,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Exactly one of list/folder/board is active at any time — a single tri-state selector
   // (rather than two independent booleans) so switching to one view always leaves the others
   // off, and the toggle control is available no matter which view you're currently on.
-  const [viewMode, setViewMode] = useState<'list' | 'folder' | 'board'>('list')
+  const [viewMode, setViewMode] = useState<NotesViewMode>(() => cachedNotesViewMode ?? 'list')
   const folderView = viewMode === 'folder'
   const boardView = viewMode === 'board'
-  const [folders, setFolders] = useState<NoteFolder[]>([])
+  const [folders, setFolders] = useState<NoteFolder[]>(() => cachedFolders ?? [])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const iconPicker = usePositionedMenu<{ _tag?: 'icon' }>()
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -426,7 +449,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [])
 
   const loadFolders = useCallback(() => {
-    return window.notes.getFolders().then(setFolders).catch(() => {})
+    return window.notes.getFolders().then((f) => { cachedFolders = f; setFolders(f) }).catch(() => {})
   }, [])
 
   // Load folders + persisted view-mode preference on mount. Falls back to the legacy
@@ -436,17 +459,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     loadFolders()
     window.settings?.get('notesViewMode').then((v) => {
       if (v === 'folder' || v === 'board' || v === 'list') {
+        cachedNotesViewMode = v
         setViewMode(v)
         if (v === 'folder') setNoteFilter('all')
         return
       }
       window.settings?.get('notesFolderView').then((legacy) => {
-        if (legacy === true) { setViewMode('folder'); setNoteFilter('all') }
+        if (legacy === true) { cachedNotesViewMode = 'folder'; setViewMode('folder'); setNoteFilter('all') }
       }).catch(() => {})
     }).catch(() => {})
   }, [loadFolders])
 
-  const changeViewMode = useCallback((next: 'list' | 'folder' | 'board') => {
+  const changeViewMode = useCallback((next: NotesViewMode) => {
+    cachedNotesViewMode = next
     setViewMode(next)
     window.settings?.set('notesViewMode', next).catch(() => {})
     // Entering folder view: a stale non-'all' filter left over from list view (its chip UI
