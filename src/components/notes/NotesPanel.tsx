@@ -25,15 +25,40 @@ import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
+import NotesHomePanel from './NotesHomePanel'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
+import { readingRegionScale } from '@/lib/zoom'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
 type NoteSort = 'modified' | 'created' | 'name'
+type NotesViewMode = 'list' | 'folder' | 'board'
+
+// Session-level warm cache for the notes-home view state. NotesPanel remounts every time
+// you switch INTO the Notes space from another space (ActivePanel keys it 'panel:note'),
+// and its view-mode / folder list were previously seeded from async IPC (window.settings /
+// window.notes.getFolders) — so for one painted frame the home view showed the default
+// 'list' with no folders, then snapped to the real state once IPC resolved. Caching both
+// here (populated the first time they load, updated on every change) lets the useState
+// initializers below read them synchronously on every subsequent mount → no flash.
+// Pre-warmed once at module load so even the first switch into Notes is usually instant.
+let cachedNotesViewMode: NotesViewMode | null = null
+let cachedFolders: NoteFolder[] | null = null
+try {
+  window.settings?.get('notesViewMode').then((v) => {
+    if (v === 'folder' || v === 'board' || v === 'list') cachedNotesViewMode = v
+    else if (v == null) {
+      window.settings?.get('notesFolderView').then((legacy) => {
+        if (legacy === true) cachedNotesViewMode = 'folder'
+      }).catch(() => {})
+    }
+  }).catch(() => {})
+  window.notes?.getFolders().then((f) => { cachedFolders = f }).catch(() => {})
+} catch { /* window.* not ready at module eval in some contexts — the mount effect still loads */ }
 
 // Days begin at dawn, not midnight (see dailyNoteUtils.ts's getDailyNoteAnchorDate) —
 // dailyNoteToday() returns the sunrise-shifted "today" wherever that matters.
@@ -154,6 +179,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (activeNote) setCachedNote(activeNote)
   }, [activeNote])
+
+  // Render-phase reset when switching TO a tab whose home view is the notes list (a fresh
+  // tab, or one with no open note). The tab-switch restore effect below also does this, but
+  // effects run after paint — so for one frame the panel would still show the PREVIOUS tab's
+  // note before the effect clears it, reading as "it flashes something else then shows the
+  // list." Clearing here, during render, removes that frame. (Same idea as BiblePanel's
+  // prevBibleTabIdForResetRef.) Only the home case: a tab that DOES have a note gets the
+  // async restore path, which the warm-cache lazy initializer above already covers.
+  const prevNotesTabIdForResetRef = useRef(notesTabId)
+  if (notesTabId !== prevNotesTabIdForResetRef.current) {
+    prevNotesTabIdForResetRef.current = notesTabId
+    const nextTab = tabs.find((t) => t.id === notesTabId)
+    const nextState = nextTab?.state as NoteTabState | undefined
+    if ((nextState?.isNew || !nextState?.noteId) && activeNote !== null) {
+      setActiveNote(null)
+    }
+  }
   // True while we're still trying to restore the previously-open note for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Notes" fallback before the real title has loaded — that
@@ -389,10 +431,56 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // Exactly one of list/folder/board is active at any time — a single tri-state selector
   // (rather than two independent booleans) so switching to one view always leaves the others
   // off, and the toggle control is available no matter which view you're currently on.
-  const [viewMode, setViewMode] = useState<'list' | 'folder' | 'board'>('list')
+  const [viewMode, setViewMode] = useState<NotesViewMode>(() => cachedNotesViewMode ?? 'list')
   const folderView = viewMode === 'folder'
   const boardView = viewMode === 'board'
-  const [folders, setFolders] = useState<NoteFolder[]>([])
+  const [folders, setFolders] = useState<NoteFolder[]>(() => cachedFolders ?? [])
+
+  // ── Home preview panel (right of the 760px list column) ───────────────────
+  // Single-clicking a note on the home screen previews it here without opening the editor;
+  // double-click / Enter / the panel's "Open in editor" button opens it for real. The panel
+  // only shows when the pane is wide enough for the list column PLUS a usable panel — below
+  // that a single click opens the editor as before (see homePanelVisible).
+  const [previewNoteId, setPreviewNoteId] = useState<string | null>(null)
+  const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
+  // Seed from the window width (pane is never wider than the window) so the panel shows on the
+  // very first frame for a normal-sized window, before the ResizeObserver's first callback.
+  const [homeWrapWidth, setHomeWrapWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
+  const homeRoRef = useRef<ResizeObserver | null>(null)
+  const homeWrapElRef = useRef<HTMLDivElement | null>(null)
+  const measureHomeWrap = useCallback(() => {
+    const el = homeWrapElRef.current
+    if (el) setHomeWrapWidth(el.getBoundingClientRect().width)
+  }, [])
+  // Callback ref — the measured element is inside the list branch, which unmounts whenever the
+  // editor is open, so a plain useEffect([]) would never re-attach. This re-runs on every
+  // mount/unmount of that div.
+  const homeWrapRef = useCallback((el: HTMLDivElement | null) => {
+    homeRoRef.current?.disconnect()
+    homeWrapElRef.current = el
+    if (!el) return
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { const b = el.getBoundingClientRect().width; if (b > 0) setHomeWrapWidth(b) })
+      ro.observe(el)
+      homeRoRef.current = ro
+    }
+    setHomeWrapWidth(el.getBoundingClientRect().width)
+    // Belt-and-suspenders: first layout frame can report 0 for a flex child; re-measure next frame.
+    requestAnimationFrame(() => { const b = el.getBoundingClientRect().width; if (b > 0) setHomeWrapWidth(b) })
+  }, [])
+  // Fallback for environments/paths where the ResizeObserver's own initial callback lags.
+  useEffect(() => {
+    window.addEventListener('resize', measureHomeWrap)
+    return () => window.removeEventListener('resize', measureHomeWrap)
+  }, [measureHomeWrap])
+  // The list column flexes between ~380 and 760px and the panel takes the rest (min ~300),
+  // so the panel appears wherever the two mins fit (~700px+). It's hidden — single click opens
+  // the editor — only on a genuinely small pane, or in board / continuous-daily views.
+  const homePanelVisible = homeWrapWidth >= 720 && !boardView && !(continuousDailyScroll && !folderView)
+  const previewNote = useMemo(() => notes.find((n) => n.id === previewNoteId) ?? null, [notes, previewNoteId])
+  const previewFolder = useMemo(() => folders.find((f) => f.id === previewFolderId) ?? null, [folders, previewFolderId])
+  const previewNoteInHome = useCallback((note: Note) => { setPreviewNoteId(note.id); setPreviewFolderId(null) }, [])
+  const selectFolderInHome = useCallback((folderId: string) => { setPreviewFolderId(folderId); setPreviewNoteId(null) }, [])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const iconPicker = usePositionedMenu<{ _tag?: 'icon' }>()
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -409,7 +497,7 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   }, [])
 
   const loadFolders = useCallback(() => {
-    return window.notes.getFolders().then(setFolders).catch(() => {})
+    return window.notes.getFolders().then((f) => { cachedFolders = f; setFolders(f) }).catch(() => {})
   }, [])
 
   // Load folders + persisted view-mode preference on mount. Falls back to the legacy
@@ -419,17 +507,19 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     loadFolders()
     window.settings?.get('notesViewMode').then((v) => {
       if (v === 'folder' || v === 'board' || v === 'list') {
+        cachedNotesViewMode = v
         setViewMode(v)
         if (v === 'folder') setNoteFilter('all')
         return
       }
       window.settings?.get('notesFolderView').then((legacy) => {
-        if (legacy === true) { setViewMode('folder'); setNoteFilter('all') }
+        if (legacy === true) { cachedNotesViewMode = 'folder'; setViewMode('folder'); setNoteFilter('all') }
       }).catch(() => {})
     }).catch(() => {})
   }, [loadFolders])
 
-  const changeViewMode = useCallback((next: 'list' | 'folder' | 'board') => {
+  const changeViewMode = useCallback((next: NotesViewMode) => {
+    cachedNotesViewMode = next
     setViewMode(next)
     window.settings?.set('notesViewMode', next).catch(() => {})
     // Entering folder view: a stale non-'all' filter left over from list view (its chip UI
@@ -1722,7 +1812,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
             />
           </div>
         ) : (
-          <>
+          // A capped ~760px list column pinned left + the home preview panel filling the rest
+          // (when wide enough). ONLY the list column gets the READING_REGION_ZOOM reading-size
+          // bump (via readingRegionScale on its own absolute inner layer) — the preview panel
+          // renders the real editor, already at reading size, and a transform on it would throw
+          // off the position of its hover popups (verse/Strong's).
+          <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
+          <div className="absolute inset-0 flex min-h-0 overflow-hidden">
+          <div
+            className={`relative flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
+            // Board view opts out of the cap — it wants the full pane. When the panel shows this
+            // column flexes down toward its min; otherwise it caps at 760 and sits left.
+            style={boardView ? undefined : {
+              maxWidth: 760,
+              ...(homePanelVisible ? { minWidth: 380 } : {}),
+            }}
+          >
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
             {/* Search bar — with sort selector inline on the right */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
               <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -1901,8 +2007,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <NotesFolderView
                   notes={visibleNotes}
                   folders={folders}
-                  activeNoteId={(activeNote as Note | null)?.id ?? null}
+                  activeNoteId={homePanelVisible ? previewNoteId : ((activeNote as Note | null)?.id ?? null)}
                   onSelect={navigateToNote}
+                  onPreview={homePanelVisible ? previewNoteInHome : undefined}
+                  onFolderSelect={homePanelVisible ? selectFolderInHome : undefined}
                   onDelete={(note) => deleteNote(note)}
                   onSetNoteFolder={handleSetNoteFolder}
                   onCreateNote={createNote}
@@ -1948,6 +2056,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   scrollParentRef={notesListScrollRef}
                   notes={visibleNotes}
                   onSelect={navigateToNote}
+                  onPreview={homePanelVisible ? previewNoteInHome : undefined}
+                  previewNoteId={homePanelVisible ? previewNoteId : null}
                   onDelete={(note) => deleteNote(note)}
                   onConvertToIdiom={(note) => setConvertIdiomModal({ note, term: note.title || '', meaning: '', keepContent: true })}
                   findQuery={activeListFindQuery}
@@ -1968,7 +2078,24 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               )}
             </div>
             )}
-          </>
+          </div>
+          </div>
+          {homePanelVisible && (
+            <NotesHomePanel
+              note={previewNote}
+              folder={previewFolder}
+              allNotes={notes}
+              folders={folders}
+              onPreview={previewNoteInHome}
+              onOpen={navigateToNote}
+              onOpenNewTab={openNoteInNewTab}
+              onPrint={(n) => setPrintNote(n)}
+              searchQuery={noteSearch}
+              searchWordMode={noteSearchWordMode}
+            />
+          )}
+          </div>
+          </div>
         )}
       </div>
 

@@ -60,6 +60,11 @@ interface Props {
   folders: NoteFolder[]
   activeNoteId?: string | null
   onSelect: (note: Note) => void
+  /** Single-click behaviour when the home preview panel is showing — preview instead of
+   *  opening the editor. Double-click still calls onSelect (open). */
+  onPreview?: (note: Note) => void
+  /** Selecting a folder row surfaces its context in the home panel (alongside expand/collapse). */
+  onFolderSelect?: (folderId: string) => void
   onDelete: (note: Note) => void
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
   onCreateNote?: () => void
@@ -99,7 +104,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 
 export default function NotesFolderView({
   notes, folders, activeNoteId,
-  onSelect, onDelete, onSetNoteFolder,
+  onSelect, onPreview, onFolderSelect, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
@@ -569,9 +574,15 @@ export default function NotesFolderView({
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
-        onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : onSelect(note) }}
+        onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : (onPreview ?? onSelect)(note) }}
+        onDoubleClick={() => { if (!isRenaming && !isMoveMenuOpen && !selectMode) onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
-        style={{ paddingLeft: 12 + depth * 16 }}
+        style={{
+          paddingLeft: 12 + depth * 16,
+          // Dim accent wash across the whole row for the previewed note (much softer than the
+          // bright bar). Inline so it's not at the mercy of Tailwind's arbitrary-opacity parsing.
+          ...(activeNoteId === note.id ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
+        }}
         // Flat, no border — matches NotesList's row treatment (a bordered box around every
         // single row read as heavy/boxy and out of step with the rest of the app). Just a
         // soft hover tint and a slightly stronger accent tint for the active note.
@@ -581,10 +592,14 @@ export default function NotesFolderView({
         // one already correctly use surface-4 for exactly this reason; matched here too.
         className={`group relative flex items-center gap-2 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
           isDraggingThis ? 'opacity-40' :
-          activeNoteId === note.id ? 'bg-[rgb(var(--color-accent))/8]' :
-          'hover:bg-[rgb(var(--color-surface-4))]'
+          activeNoteId === note.id
+            ? 'font-medium'
+            : 'hover:bg-[rgb(var(--color-surface-4))]'
         }`}
       >
+        {activeNoteId === note.id && (
+          <span className="absolute -left-1.5 top-1 bottom-1 w-[3px] rounded-full bg-[rgb(var(--color-accent))]" />
+        )}
         {selectMode && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSelectNote?.(note.id) }}
@@ -608,7 +623,7 @@ export default function NotesFolderView({
             className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
           />
         ) : (
-          <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
+          <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
         )}
         {/* Status indicator — same colored icon used in the list/board views, for a consistent
             at-a-glance status signal across every way of browsing notes. */}
@@ -719,7 +734,7 @@ export default function NotesFolderView({
             }
           }}
           onDrop={(e) => { e.stopPropagation(); onDropTo(e, folder.id) }}
-          onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id) } }}
+          onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id); onFolderSelect?.(folder.id) } }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
           style={{ paddingLeft: 8 + depth * 16 }}
           className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
@@ -756,7 +771,7 @@ export default function NotesFolderView({
               className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
             />
           ) : (
-            <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-primary))]">{folder.name}</span>
+            <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-primary))]">{folder.name}</span>
           )}
           {/* "→ drop here" badge — shows for both note and folder drags */}
           {(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id ? (
@@ -824,7 +839,7 @@ export default function NotesFolderView({
                 {bookIsOpen
                   ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{bookName(bid)}</span>
+                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{bookName(bid)}</span>
                 <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
               </div>
               {bookIsOpen && sortedChapters.map(([ch, chNotes]) => {
@@ -842,7 +857,7 @@ export default function NotesFolderView({
                       {chIsOpen
                         ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                         : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">Chapter {ch}</span>
+                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">Chapter {ch}</span>
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{chNotes.length || ''}</span>
                     </div>
                     {/* Notes inside chapter — depth=3 → paddingLeft=12+3*16=60 */}
@@ -880,7 +895,7 @@ export default function NotesFolderView({
                 {yearIsOpen
                   ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
+                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
                 <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
               </div>
               {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
@@ -900,7 +915,7 @@ export default function NotesFolderView({
                       {monthIsOpen
                         ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                         : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
+                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{mNotes.length || ''}</span>
                     </div>
                     {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
@@ -950,7 +965,7 @@ export default function NotesFolderView({
             >
               <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${isOpen ? 'rotate-90' : ''}`} />
               <Icon size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">{label}</span>
+              <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">{label}</span>
               <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
               <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{sysNotes.length || ''}</span>
             </div>
@@ -974,7 +989,7 @@ export default function NotesFolderView({
         >
           <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
           <FileType2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">PDFs</span>
+          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">PDFs</span>
           <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
           <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{pdfs.length || ''}</span>
         </div>
@@ -987,7 +1002,7 @@ export default function NotesFolderView({
                   style={{ paddingLeft: 28 }}
                   className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
                   <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                  <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
+                  <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
                 </div>
               ))
         )}
@@ -1011,7 +1026,7 @@ export default function NotesFolderView({
         >
           <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
           <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
+          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
           <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
           <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{trashedNotes.length || ''}</span>
         </div>

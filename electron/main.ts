@@ -393,6 +393,45 @@ function saveViewerBounds(bounds: WindowBounds): void {
   } catch { /* best-effort — never block window close/resize on a settings-write failure */ }
 }
 
+// ── Main window bounds — same settings-table persistence as the viewer window above,
+//    so the app reopens at the size and position it was last closed at. ──────────────
+const MAIN_BOUNDS_KEY = 'mainWindowBounds'
+const MAIN_DEFAULT_BOUNDS = { width: 1280, height: 800 }
+
+function loadMainBounds(): WindowBounds & { maximized?: boolean } {
+  try {
+    const row = getBereanDb().prepare('SELECT value FROM settings WHERE key = ?').get(MAIN_BOUNDS_KEY) as { value: string } | undefined
+    if (!row) return { ...MAIN_DEFAULT_BOUNDS }
+    const saved = JSON.parse(row.value) as Partial<WindowBounds> & { maximized?: boolean }
+    const width = Math.max(800, Math.round(saved.width ?? MAIN_DEFAULT_BOUNDS.width))
+    const height = Math.max(600, Math.round(saved.height ?? MAIN_DEFAULT_BOUNDS.height))
+    if (typeof saved.x !== 'number' || typeof saved.y !== 'number') {
+      return { width, height, maximized: saved.maximized }
+    }
+    const candidate = { x: Math.round(saved.x), y: Math.round(saved.y), width, height }
+    const fits = screen.getAllDisplays().some((d) => {
+      const a = d.workArea
+      return candidate.x < a.x + a.width && candidate.x + width > a.x &&
+             candidate.y < a.y + a.height && candidate.y + height > a.y
+    })
+    return fits ? { ...candidate, maximized: saved.maximized } : { width, height, maximized: saved.maximized }
+  } catch {
+    return { ...MAIN_DEFAULT_BOUNDS }
+  }
+}
+
+function saveMainBounds(win: BrowserWindow): void {
+  try {
+    // While maximized/fullscreen, getBounds() returns the screen-filling size — persist the
+    // pre-maximize "normal" bounds instead (getNormalBounds()) plus a maximized flag, so a
+    // restart both re-fills the screen AND remembers a sane size for when the user un-maximizes.
+    const maximized = win.isMaximized() || win.isFullScreen()
+    const b = maximized ? win.getNormalBounds() : win.getBounds()
+    getBereanDb().prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run(MAIN_BOUNDS_KEY, JSON.stringify({ x: b.x, y: b.y, width: b.width, height: b.height, maximized }))
+  } catch { /* best-effort — never block window close/resize on a settings-write failure */ }
+}
+
 function createViewerWindow(): void {
   if (viewerWindow && !viewerWindow.isDestroyed()) {
     viewerWindow.focus()
@@ -586,9 +625,13 @@ function createWindow(): void {
 
   const isMacWin = process.platform === 'darwin'
   const isWinWin = process.platform === 'win32'
+  const savedBounds = loadMainBounds()
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: savedBounds.width,
+    height: savedBounds.height,
+    ...(typeof savedBounds.x === 'number' && typeof savedBounds.y === 'number'
+      ? { x: savedBounds.x, y: savedBounds.y }
+      : {}),
     minWidth: 800,
     minHeight: 600,
     // On Windows: frameless so we draw our own title bar in React
@@ -629,9 +672,31 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
 
+  if (savedBounds.maximized) mainWindow.maximize()
+
+  // Persist size/position so the app reopens where it was last closed. Debounced during
+  // live resize/move (a drag fires hundreds of events); also flushed synchronously on
+  // 'close' so a Cmd+Q that never emits a settled event still captures the final bounds.
+  // `boundsWin` is captured now (not `mainWindow`) for the same reason the Cmd+W handler
+  // below captures `thisWin` — createWindow() can run again and reassign `mainWindow`.
+  const boundsWin = mainWindow
+  let boundsSaveTimer: ReturnType<typeof setTimeout> | null = null
+  const scheduleBoundsSave = () => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
+    boundsSaveTimer = setTimeout(() => {
+      if (!boundsWin.isDestroyed()) saveMainBounds(boundsWin)
+    }, 400)
+  }
+  boundsWin.on('resize', scheduleBoundsSave)
+  boundsWin.on('move', scheduleBoundsSave)
+  boundsWin.on('close', () => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
+    if (!boundsWin.isDestroyed()) saveMainBounds(boundsWin)
+  })
+
   // Notify renderer when window is maximized/unmaximized (for Windows title bar button state)
-  mainWindow.on('maximize',   () => mainWindow?.webContents.send('window:maximizeChanged', true))
-  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximizeChanged', false))
+  mainWindow.on('maximize',   () => { mainWindow?.webContents.send('window:maximizeChanged', true); scheduleBoundsSave() })
+  mainWindow.on('unmaximize', () => { mainWindow?.webContents.send('window:maximizeChanged', false); scheduleBoundsSave() })
 
   // Intercept Cmd+W so the renderer can close a tab instead of quitting.
   // IMPORTANT: capture the window reference now — do NOT use `mainWindow` inside the

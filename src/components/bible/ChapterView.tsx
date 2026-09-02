@@ -6,7 +6,7 @@ import { MenuPositioner } from '@/lib/usePositionedMenu'
 import ShortcutKeys from '@/components/shell/ShortcutKeys'
 import VerseRow from './VerseRow'
 import { useAppStore } from '@/store'
-import { bookName, getTranslationForBook, isDedicatedTranslation } from '@/lib/parseRef'
+import { bookName, getTranslationForBook, isDedicatedTranslation, parseRef } from '@/lib/parseRef'
 import { navigateToVerse } from '@/lib/verseNavigation'
 import { versificationNote } from '@/lib/translationChapterMap'
 import { isHermasBook } from '@/lib/hermasMap'
@@ -192,9 +192,20 @@ function ChapterRefChip({ source }: { source: CrossRefSource }) {
   // ("Something * blah blah blah"). Show only the part before the first asterisk.
   const cleanRefTitle = (t?: string) => (t ?? '').split(/\s*\*.*/s)[0].trim()
   const cleanedTitle = cleanRefTitle(source.title)
+  // Also parse the title as a reference and compare it structurally to the verse we're
+  // already showing — this catches book-name spelling variants that a plain string
+  // normalize misses ("Song of Solomon 5:14" vs bookName()'s "Song of Solomon 5:14"
+  // after an old "Song of Songs" title; "Psalm 94:21" vs "Psalms 94:21"). When the note
+  // title IS just this same reference in another wording, the "· <title>" suffix is noise.
+  const parsedTitle = cleanedTitle ? parseRef(cleanedTitle) : null
   const titleIsRef = !cleanedTitle
     || cleanedTitle === 'Untitled'
     || normalizeRef(cleanedTitle) === normalizeRef(verseStr)
+    || (!!parsedTitle
+        && parsedTitle.bookId === source.homeBookId
+        && parsedTitle.chapter === source.homeChapter
+        && (parsedTitle.verse ?? source.homeVerse) === source.homeVerse
+        && parsedTitle.endVerse == null)
 
   // Tooltip height estimate: reference line + ~4 lines of verse text ≈ 100px
   const TIP_H = 110

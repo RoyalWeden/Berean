@@ -14,6 +14,7 @@ import { navigateToVerse } from '@/lib/verseNavigation'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { tokenizeBdbNotes } from '@/lib/bdbAbbreviations'
 import { rememberLexiconTitle } from '@/lib/lexiconTitle'
+import { readingRegionScale } from '@/lib/zoom'
 import type { LexiconEntry, LexiconTabState } from '@/types'
 import type { WordReplacerRule } from '@/store'
 
@@ -553,7 +554,17 @@ function EntryView({
         </div>
       </TabHeaderPortal>
 
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4" style={{ zoom: lexiconZoom }}>
+      {/* Entry body bumped to ~reading size (READING_REGION_ZOOM) while still tracking app
+          zoom via `zoom: lexiconZoom`. The inner scroll layer is scaled + counter-sized
+          (absolute + inset-0 in this relative box) so it fills the pane exactly and the
+          scaled scroll viewport still reaches the bottom of the occurrences list. */}
+      <div className="relative flex-1 min-h-0 overflow-hidden">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-4"
+        style={{ zoom: lexiconZoom, ...readingRegionScale }}
+      >
         {/* Word + transliteration */}
         <div className="space-y-1">
           {entry.lemma && (
@@ -883,6 +894,7 @@ function EntryView({
           </button>
         )}
         </>)}
+      </div>
       </div>
 
       {/* Prev / Next navigation */}

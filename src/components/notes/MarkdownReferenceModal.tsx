@@ -47,7 +47,7 @@ const BOOK_GROUPS: Array<{ group: string; books: BookEntry[] }> = [
       { id: 'PSA', name: 'Psalms',        abbr: 'Ps',    exampleChapter: 119, exampleVerse: 105 },
       { id: 'PRO', name: 'Proverbs',      abbr: 'Prov',  exampleChapter: 3,  exampleVerse: 5 },
       { id: 'ECC', name: 'Ecclesiastes',  abbr: 'Eccl',  exampleChapter: 12, exampleVerse: 13 },
-      { id: 'SNG', name: 'Song of Songs', abbr: 'Song',  exampleChapter: 1,  exampleVerse: 1 },
+      { id: 'SNG', name: 'Song of Solomon', abbr: 'Song', exampleChapter: 1,  exampleVerse: 1 },
     ],
   },
   {
@@ -435,7 +435,7 @@ const REFERENCE_ITEMS: RefItem[] = [
       { input: 'Genesis 1:1', output: 'Highlighted link → Genesis 1:1' },
       { input: 'Gen 1:1', output: 'Abbreviated form — same result' },
       { input: '1 Samuel 17:4', output: 'Numbered book' },
-      { input: 'Song of Songs 1:1', output: 'Multi-word book name' },
+      { input: 'Song of Solomon 1:1', output: 'Multi-word book name' },
       { input: 'Rev 22:1-5', output: 'Verse range — highlights the range on arrival' },
       { input: 'Psalm 119', output: 'Chapter only — opens chapter 119' },
     ],

@@ -11,11 +11,21 @@ describe('buildHighlightPattern', () => {
     expect(match![0].length).toBe(4)
   })
 
-  it('phrase mode returns the literal escaped phrase, unaffected by the word-mode fix', () => {
+  it('phrase mode joins words with a comma/semicolon-tolerant separator', () => {
     const pattern = buildHighlightPattern('the lord', 'phrase')
-    expect(pattern).toBe('the lord')
+    expect(pattern).toBe('the[\\s,;]+lord')
     const re = new RegExp(pattern, 'gi')
     expect(re.test('the lord is my shepherd')).toBe(true)
+  })
+
+  it('phrase mode ignores commas/semicolons on both sides', () => {
+    const pattern = buildHighlightPattern('faith hope charity', 'phrase')
+    const re = new RegExp(pattern, 'i')
+    // verse punctuates between the words — still matches
+    expect(re.test('now abideth faith, hope, charity')).toBe(true)
+    // query typed WITH punctuation — same pattern, still matches an unpunctuated verse
+    const re2 = new RegExp(buildHighlightPattern('faith, hope; charity', 'phrase'), 'i')
+    expect(re2.test('faith hope charity')).toBe(true)
   })
 
   it('escapes regex-special characters in a phrase', () => {

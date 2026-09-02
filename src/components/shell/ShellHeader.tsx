@@ -311,8 +311,16 @@ export default function ShellHeader({ slotRef }: { slotRef: (el: HTMLDivElement 
                 // the same reason — this button now matches it, always greyed out for Scripture.
                 const homeSupported = navStackType === 'note' || navStackType === 'lexicon'
                   || navStackType === 'youtube'
-                const canGoHome = !!currentTabNav && homeSupported && currentTabNav.idx >= 0
-                const homeLabel = navStackType === 'note' ? 'Notes list'
+                // A note open in the current tab always has a "home" to go to (the notes list),
+                // even when this tab's nav stack was never seeded (e.g. a note opened straight
+                // into its own dedicated tab) — so the button must not depend solely on the
+                // nav-stack idx there. It stays disabled only once the tab is already back on
+                // the notes home view (no open note → noteId cleared).
+                const noteOpenHere = currentTab?.type === 'note'
+                  && !!(currentTab.state as { noteId?: string | null }).noteId
+                const canGoHome = noteOpenHere
+                  || (!!currentTabNav && homeSupported && currentTabNav.idx >= 0)
+                const homeLabel = (navStackType === 'note' || noteOpenHere) ? 'Notes list'
                   : navStackType === 'lexicon' ? 'Lexicon search'
                   : navStackType === 'youtube' ? 'YouTube browse'
                   : 'Home'

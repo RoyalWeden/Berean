@@ -91,6 +91,8 @@ export interface NoteEditorPMProps {
   // isSidePanel prop (NoteEditor.tsx:2826-2827).
   isSidePanel?: boolean
   findQuery?: string
+  /** How `findQuery` is matched — 'phrase' (default, literal) or 'all'/'any' (per word). */
+  findMode?: import('./findHighlight').FindMode
   importSource?: 'biblegateway' | 'esword'
   importedAt?: number
   // Curated visual "look" while typing (see pmEditor.css's .pm-look-* rules) —
@@ -139,6 +141,7 @@ export default function NoteEditorPM({
   isSidePanel,
   hideFormattingToolbar,
   findQuery = '',
+  findMode = 'phrase',
   importSource,
   importedAt,
   typingLook = 'default',
@@ -703,8 +706,8 @@ export default function NoteEditorPM({
   }, [mode])
 
   useEffect(() => {
-    if (viewRef.current) setFindQuery(viewRef.current, findQuery)
-  }, [findQuery])
+    if (viewRef.current) setFindQuery(viewRef.current, findQuery, findMode)
+  }, [findQuery, findMode])
 
   // Scroll to a heading when NoteSidePanel's Contents list fires
   // berean:scrollToHeading — the ProseMirror-migration equivalent of the

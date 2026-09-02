@@ -38,6 +38,11 @@ interface NotesListProps {
    *  so only visible rows are mounted regardless of total note count. */
   scrollParentRef: React.RefObject<HTMLDivElement>
   onSelect: (note: Note) => void
+  /** Single-click behaviour when the home preview panel is showing — select + preview
+   *  instead of opening the editor. Double-click still calls onSelect (open). */
+  onPreview?: (note: Note) => void
+  /** Id of the note currently previewed in the home panel — gets a persistent selected look. */
+  previewNoteId?: string | null
   onDelete?: (note: Note) => void
   findQuery?: string
   searchQuery?: string
@@ -76,7 +81,7 @@ function timeAgo(ts: number): string {
 }
 
 export default function NotesList({
-  notes, scrollParentRef, onSelect, onDelete, findQuery, searchQuery,
+  notes, scrollParentRef, onSelect, onPreview, previewNoteId, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
   onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf, onSetStatus,
@@ -146,6 +151,9 @@ export default function NotesList({
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
           const isSelected = selected.includes(note.id)
+          // Previewed in the home side panel (single-click) — a distinct, clearly visible
+          // "this is the one you're looking at" state, separate from multi-select.
+          const isPreviewed = !selectMode && !!previewNoteId && note.id === previewNoteId
           const isRenaming = renamingNoteId === note.id
           const snippets = searchQuery ? contentSnippets(note.content, searchQuery) : []
 
@@ -161,7 +169,12 @@ export default function NotesList({
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
                 virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
               }`}
-              style={{ transform: `translateY(${virtualRow.start}px)` }}
+              style={{
+                transform: `translateY(${virtualRow.start}px)`,
+                // Dim accent wash across the whole previewed row (softer than the side bar).
+                // Inline so it doesn't depend on Tailwind's arbitrary-opacity parsing.
+                ...(isPreviewed ? { backgroundColor: 'rgb(var(--color-accent) / 0.16)' } : {}),
+              }}
             >
             <div
               draggable={!selectMode && !renamingNoteId}
@@ -187,7 +200,9 @@ export default function NotesList({
               // previous bordered-card-per-row treatment (bg + border on every single row) read
               // as visually heavy/boxy and out of step with the rest of the app's flatter UI.
               className={`relative group flex items-stretch rounded-shell transition-colors overflow-hidden
-                ${isSelected
+                ${isPreviewed
+                  ? '' /* the full-width wash lives on the wrapper above; keep the card clear */
+                  : isSelected
                   ? 'bg-[rgb(var(--color-accent))/8]'
                   : 'hover:bg-[rgb(var(--color-surface-3))]'
                 }`}
@@ -198,10 +213,11 @@ export default function NotesList({
                 setContextMenu({ note, x: e.clientX, y: e.clientY })
               }}
             >
-              {/* Linear-style left accent bar — solid when selected, fades in on hover otherwise */}
+              {/* Linear-style left accent bar — solid when selected/previewed, fades in on hover */}
               <div
-                className={`absolute left-0 top-0 bottom-0 w-0.5 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
-                  ${isSelected ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
+                className={`absolute left-0 top-0 bottom-0 bg-[rgb(var(--color-accent))] origin-center transition-transform duration-100
+                  ${isPreviewed ? 'w-1' : 'w-0.5'}
+                  ${isSelected || isPreviewed ? 'scale-y-100' : 'scale-y-0 group-hover:scale-y-100'}`}
               />
 
               {/* Checkbox in select mode */}
@@ -224,9 +240,10 @@ export default function NotesList({
                   if (selectMode) {
                     onToggleSelect?.(note.id)
                   } else {
-                    onSelect(note)
+                    (onPreview ?? onSelect)(note)
                   }
                 }}
+                onDoubleClick={() => { if (!isRenaming && !selectMode) onSelect(note) }}
                 className={`flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
                   ${selectMode ? 'px-2 pr-9' : 'px-4 pr-9'}
                 `}

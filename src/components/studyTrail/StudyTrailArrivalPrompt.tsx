@@ -121,10 +121,9 @@ function ArrivalPill({ conn, origin, onClose }: { conn: TrailConnection; origin:
   const rightPanelW = useAppStore((s) => s.bibleRightPanelWidth)
   const noteOpen = useAppStore((s) => s.noteEditorOpenCount > 0)
   const verseSelectionMenuOpen = useAppStore((s) => s.verseSelectionMenuOpen)
-  const verseSelectionOpen = useAppStore((s) => {
-    const t = s.activeTabId['scripture']
-    return s.activeSpace === 'scripture' && !!t && (s.selectedVersesByTab[t]?.length ?? 0) > 0
-  })
+  // Use the flag VerseSelectionBar publishes from its own render gate — deriving this here
+  // from selectedVersesByTab instead let the toast stay lifted after the bar was already gone.
+  const verseSelectionOpen = useAppStore((s) => s.verseSelectionBarOpen)
   const rightPx = searchTabActive ? 16 : 16 + (rightPanelW > 0 ? rightPanelW + 12 : 0)
   // Only dodge the verse-selection UI when the Bible reader's side panel is also open. Then:
   // just clear the action bar itself normally, and only rise higher once a tag/colour popover

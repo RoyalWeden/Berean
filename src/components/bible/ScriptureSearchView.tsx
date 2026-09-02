@@ -683,8 +683,14 @@ export default function ScriptureSearchView({ onNavigate, onOpenInNewTab, onOpen
     // checking only the original phrase here would silently discard exactly the
     // bidirectional matches the variant search above exists to surface.
     if (effectiveWordMode === 'phrase') {
-      const phrases = variants.map((v) => v.toLowerCase())
-      raw = raw.filter((r) => { const t = r.text.toLowerCase(); return phrases.some((p) => t.includes(p)) })
+      // Ignore commas and semicolons on BOTH sides of the comparison: a phrase search for
+      // "faith hope charity" should still keep a verse that writes it "faith, hope, charity",
+      // and typing the phrase WITH punctuation should still match a verse without it. Strip
+      // ,/; and collapse whitespace before the substring test (this used to be a bare
+      // t.includes(p), which silently dropped every verse that punctuated between the words).
+      const stripPunct = (s: string) => s.toLowerCase().replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim()
+      const phrases = variants.map(stripPunct)
+      raw = raw.filter((r) => { const t = stripPunct(r.text); return phrases.some((p) => t.includes(p)) })
     }
     return raw
   }, [])

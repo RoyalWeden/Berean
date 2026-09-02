@@ -109,7 +109,7 @@ describe('Verse Reference Format Consistency', () => {
       { input: '1JN', expected: '1 John' },
       { input: 'PSA', expected: 'Psalms' },
       { input: 'ENO', expected: '1 Enoch' },
-      { input: 'SNG', expected: 'Song of Songs' },
+      { input: 'SNG', expected: 'Song of Solomon' },
     ]
 
     testCases.forEach(tc => {
