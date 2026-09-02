@@ -445,19 +445,35 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
   const [homeWrapWidth, setHomeWrapWidth] = useState(0)
   const homeRoRef = useRef<ResizeObserver | null>(null)
+  const homeWrapElRef = useRef<HTMLDivElement | null>(null)
+  const measureHomeWrap = useCallback(() => {
+    const el = homeWrapElRef.current
+    if (el) setHomeWrapWidth(el.getBoundingClientRect().width)
+  }, [])
   // Callback ref — the measured element is inside the list branch, which unmounts whenever the
   // editor is open, so a plain useEffect([]) would never re-attach. This re-runs on every
   // mount/unmount of that div.
   const homeWrapRef = useCallback((el: HTMLDivElement | null) => {
     homeRoRef.current?.disconnect()
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => setHomeWrapWidth(el.getBoundingClientRect().width))
-    ro.observe(el)
-    homeRoRef.current = ro
+    homeWrapElRef.current = el
+    if (!el) return
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => { const b = el.getBoundingClientRect().width; if (b > 0) setHomeWrapWidth(b) })
+      ro.observe(el)
+      homeRoRef.current = ro
+    }
     setHomeWrapWidth(el.getBoundingClientRect().width)
+    // Belt-and-suspenders: first layout frame can report 0 for a flex child; re-measure next frame.
+    requestAnimationFrame(() => { const b = el.getBoundingClientRect().width; if (b > 0) setHomeWrapWidth(b) })
   }, [])
-  // ~760 list column + ~380 min panel + a little breathing room.
-  const homePanelVisible = homeWrapWidth >= 1150 && !boardView && !(continuousDailyScroll && !folderView)
+  // Fallback for environments/paths where the ResizeObserver's own initial callback lags.
+  useEffect(() => {
+    window.addEventListener('resize', measureHomeWrap)
+    return () => window.removeEventListener('resize', measureHomeWrap)
+  }, [measureHomeWrap])
+  // 760 list column + ~300 min for a usable panel. Below this the panel is hidden and a single
+  // click opens the editor (see the click wiring on NotesList / NotesFolderView).
+  const homePanelVisible = homeWrapWidth >= 1060 && !boardView && !(continuousDailyScroll && !folderView)
   const previewNote = useMemo(() => notes.find((n) => n.id === previewNoteId) ?? null, [notes, previewNoteId])
   const previewFolder = useMemo(() => folders.find((f) => f.id === previewFolderId) ?? null, [folders, previewFolderId])
   const previewNoteInHome = useCallback((note: Note) => { setPreviewNoteId(note.id); setPreviewFolderId(null) }, [])

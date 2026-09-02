@@ -238,7 +238,7 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
   const pendingScrollRef = useRef<number | null>(null)
   // Stores the top-visible verse anchor before a Strong's toggle or KJV/LXX switch so the
   // same verse stays visible at roughly the same screen position after the layout reflows.
-  const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number } | null>(null)
+  const strongsAnchorRef = useRef<{ verseNum: number; offsetPx: number; fromSelection?: boolean } | null>(null)
   // Same anchor, kept alive through the ~500ms two-phase Strong's toggle animation (chips grow
   // in, then line-height tightens — see VerseRow's STRONGS_PHASE_MS): a rAF loop re-pins this
   // verse's on-screen position every frame so the gradual reflow never drifts under the reader.
@@ -1451,6 +1451,28 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     const container = getScrollEl()
     if (!container) return
     const containerTop = container.getBoundingClientRect().top
+    // Highest priority: an explicitly SELECTED verse (verse-selection bar) or the verse the
+    // user last navigated to. On a KJV/LXX flip the user expects *that* verse to hold its exact
+    // on-screen position — not whichever verse happens to sit at the top of the viewport, and
+    // with no extra flash on some other verse (fromSelection suppresses it in onVersesLoaded).
+    const tId = activeTabRef.current?.id
+    const st = activeTabRef.current?.state as import('@/types').BibleTabState | undefined
+    const selForTab = tId ? (useAppStore.getState().selectedVersesByTab[tId] ?? []) : []
+    const inChapterSel = selForTab.filter((v) => v.bookId === st?.bookId && v.chapter === st?.chapter)
+    const anchorVerseNum = inChapterSel.length > 0
+      ? Math.min(...inChapterSel.map((v) => v.verse))
+      : (st?.targetVerse ?? null)
+    if (anchorVerseNum != null) {
+      const el = container.querySelector<HTMLElement>(`[data-verse="${anchorVerseNum}"]`)
+      if (el) {
+        strongsAnchorRef.current = {
+          verseNum: anchorVerseNum,
+          offsetPx: el.getBoundingClientRect().top - containerTop,
+          fromSelection: true,
+        }
+        return
+      }
+    }
     // If the user has an active text selection inside this chapter, anchor on the
     // selection's own on-screen position instead of just "whichever verse happens to sit
     // at the very top" — a selection is very often mid-verse or mid-chapter, well below the
@@ -2036,7 +2058,9 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
         const containerTop = container.getBoundingClientRect().top
         const elTop = el.getBoundingClientRect().top
         container.scrollTop += elTop - containerTop - verseAnchor.offsetPx
-        setFlashAnchor({ verse: verseAnchor.verseNum, nonce: Date.now() })
+        // No flash when the anchor is the user's own selected/target verse — it's already
+        // visually marked, and the point of that path is "nothing jumps or lights up".
+        if (!verseAnchor.fromSelection) setFlashAnchor({ verse: verseAnchor.verseNum, nonce: Date.now() })
         // This is a discontinuous jump, not a physical scroll gesture — resync
         // handleBibleScroll's sensitivity-based accumulator straight to the accurate ratio at
         // this new position so the next real scroll doesn't smooth its delta in from a stale
