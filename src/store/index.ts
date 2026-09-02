@@ -737,6 +737,7 @@ export interface AppState {
   /** `tabId` omitted/null → the active scripture tab. */
   toggleVerseSelection: (tabId: string | null | undefined, ref: SelectedVerseRef) => void
   clearVerseSelection: (tabId?: string | null) => void
+  remapVerseSelection: (tabId: string | null | undefined, remap: (ref: SelectedVerseRef) => SelectedVerseRef | null) => void
   bumpNoteEditToken: () => void
   bumpTableInsertToken: () => void
   bumpSettingsNavToken: () => void
@@ -1237,6 +1238,16 @@ export const useAppStore = create<AppState>()(
         const nextMap = { ...s.selectedVersesByTab }
         delete nextMap[tid]
         return { selectedVersesByTab: nextMap }
+      }),
+      // Re-point a tab's selected verses onto another translation (KJV↔LXX flip), applying a
+      // per-verse chapter/verse remap. Passing null for a verse from `remap` drops it (book
+      // absent in the new edition, etc.).
+      remapVerseSelection: (tabId, remap) => set((s) => {
+        const tid = tabId ?? s.activeTabId['scripture']
+        const cur = tid ? s.selectedVersesByTab[tid] : undefined
+        if (!tid || !cur?.length) return {}
+        const next = cur.map(remap).filter(Boolean) as SelectedVerseRef[]
+        return { selectedVersesByTab: { ...s.selectedVersesByTab, [tid]: next } }
       }),
       bumpNoteEditToken: () => set((s) => ({ noteEditToken: s.noteEditToken + 1 })),
       bumpTableInsertToken: () => set((s) => ({ tableInsertToken: s.tableInsertToken + 1 })),

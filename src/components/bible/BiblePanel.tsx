@@ -1131,9 +1131,20 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
     centeredModelInitRef.current = null
     const tgtEdition = editionForTextId(tid)
     const curEdition = editionForTextId(textId)
+    // Re-point any selected verses onto the new edition so the SAME passage stays selected
+    // (and highlighted) across the flip — matching the scroll anchor. Chapter is remapped for
+    // LXX-renumbered books (Psalms/Jeremiah/…); the verse number carries over as-is, same
+    // precision as the rest of the app's KJV↔LXX handling.
+    const remapSel = (toId: string) => useAppStore.getState().remapVerseSelection(activeTab.id, (v) => ({
+      ...v,
+      textId: toId,
+      chapter: mapChapterOnTranslationSwitch(v.bookId, v.chapter, v.textId, toId),
+    }))
+
     if (tgtEdition && curEdition && tgtEdition.id === curEdition.id) {
       if (tid === 'hermas' || tid === 'hermas_taylor') useAppStore.getState().setHermasTranslation(tid)
       else updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() })
+      remapSel(tid)
       return
     }
     const mappedChapter = mapChapterOnTranslationSwitch(tabState.bookId, tabState.chapter, textId, tid)
@@ -1152,11 +1163,14 @@ export default function BiblePanel({ floating = false }: { floating?: boolean })
           targetVerse: undefined,
           endVerse: undefined,
         })
+        remapSel(tid)
       } else {
         const first = (bks as Book[])[0]
         updateTabState('scripture', activeTab.id, first
           ? { translation: tid.toUpperCase(), bookId: first.id, chapter: 1, targetVerse: undefined, endVerse: undefined }
           : { translation: tid.toUpperCase() })
+        // Selected verses point at a book this edition doesn't have — drop them.
+        useAppStore.getState().clearVerseSelection(activeTab.id)
       }
     }).catch(() => updateTabState('scripture', activeTab.id, { translation: tid.toUpperCase() }))
   }

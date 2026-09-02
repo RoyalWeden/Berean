@@ -106,7 +106,8 @@ export default function NotesHomePanel({
   )
 
   // No left border here — the list column to our left already draws a right border.
-  const wrap = 'flex min-w-0 flex-1 flex-col overflow-hidden bg-[rgb(var(--color-surface-3))]'
+  // min-w keeps the panel usable when the pane is tight (the list column flexes down first).
+  const wrap = 'flex min-w-[16rem] flex-1 flex-col overflow-hidden bg-[rgb(var(--color-surface-3))]'
 
   // ── Note preview ───────────────────────────────────────────────────────────
   if (note) {

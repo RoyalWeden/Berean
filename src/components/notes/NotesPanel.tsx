@@ -443,7 +443,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   // that a single click opens the editor as before (see homePanelVisible).
   const [previewNoteId, setPreviewNoteId] = useState<string | null>(null)
   const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
-  const [homeWrapWidth, setHomeWrapWidth] = useState(0)
+  // Seed from the window width (pane is never wider than the window) so the panel shows on the
+  // very first frame for a normal-sized window, before the ResizeObserver's first callback.
+  const [homeWrapWidth, setHomeWrapWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   const homeRoRef = useRef<ResizeObserver | null>(null)
   const homeWrapElRef = useRef<HTMLDivElement | null>(null)
   const measureHomeWrap = useCallback(() => {
@@ -471,9 +473,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
     window.addEventListener('resize', measureHomeWrap)
     return () => window.removeEventListener('resize', measureHomeWrap)
   }, [measureHomeWrap])
-  // 760 list column + ~300 min for a usable panel. Below this the panel is hidden and a single
-  // click opens the editor (see the click wiring on NotesList / NotesFolderView).
-  const homePanelVisible = homeWrapWidth >= 1060 && !boardView && !(continuousDailyScroll && !folderView)
+  // The list column flexes between ~380 and 760px and the panel takes the rest (min ~300),
+  // so the panel appears wherever the two mins fit (~700px+). It's hidden — single click opens
+  // the editor — only on a genuinely small pane, or in board / continuous-daily views.
+  const homePanelVisible = homeWrapWidth >= 720 && !boardView && !(continuousDailyScroll && !folderView)
   const previewNote = useMemo(() => notes.find((n) => n.id === previewNoteId) ?? null, [notes, previewNoteId])
   const previewFolder = useMemo(() => folders.find((f) => f.id === previewFolderId) ?? null, [folders, previewFolderId])
   const previewNoteInHome = useCallback((note: Note) => { setPreviewNoteId(note.id); setPreviewFolderId(null) }, [])
@@ -1817,10 +1820,15 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
           <div className="absolute inset-0 flex min-h-0 overflow-hidden" style={readingRegionScale}>
           <div
-            className={`flex flex-col min-h-0 w-full flex-shrink-0 overflow-hidden ${homePanelVisible ? 'border-r border-[rgb(var(--color-surface-4))]' : ''}`}
-            // ~760 visual px; divided by the region scale so the on-screen width matches after
-            // readingRegionScale's transform. Board view opts out — it wants the full pane.
-            style={{ maxWidth: boardView ? undefined : Math.round(760 / READING_REGION_ZOOM) }}
+            className={`flex flex-col min-h-0 min-w-0 overflow-hidden ${homePanelVisible ? 'flex-1 border-r border-[rgb(var(--color-surface-4))]' : 'w-full'}`}
+            // Widths are in the readingRegionScale coordinate space (÷1.1), so the on-screen
+            // sizes are ~760 max / ~380 min. Board view opts out — it wants the full pane.
+            // When the panel shows, this column flexes down toward its min; otherwise it just
+            // caps at 760 and sits left, with empty margin.
+            style={boardView ? undefined : {
+              maxWidth: Math.round(760 / READING_REGION_ZOOM),
+              ...(homePanelVisible ? { minWidth: Math.round(380 / READING_REGION_ZOOM) } : {}),
+            }}
           >
             {/* Search bar — with sort selector inline on the right */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
