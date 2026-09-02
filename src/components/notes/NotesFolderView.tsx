@@ -614,7 +614,7 @@ export default function NotesFolderView({
             className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
           />
         ) : (
-          <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
+          <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{note.title || 'Untitled'}</span>
         )}
         {/* Status indicator — same colored icon used in the list/board views, for a consistent
             at-a-glance status signal across every way of browsing notes. */}
@@ -762,7 +762,7 @@ export default function NotesFolderView({
               className="flex-1 min-w-0 text-xs bg-[rgb(var(--color-surface-1))] border border-[rgb(var(--color-accent))/50] rounded px-1 outline-none text-[rgb(var(--color-text-primary))]"
             />
           ) : (
-            <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-primary))]">{folder.name}</span>
+            <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-primary))]">{folder.name}</span>
           )}
           {/* "→ drop here" badge — shows for both note and folder drags */}
           {(draggingNoteId || draggingFolderId) && dragOverId === folder.id && !isRenaming && draggingFolderId !== folder.id ? (
@@ -830,7 +830,7 @@ export default function NotesFolderView({
                 {bookIsOpen
                   ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{bookName(bid)}</span>
+                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{bookName(bid)}</span>
                 <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
               </div>
               {bookIsOpen && sortedChapters.map(([ch, chNotes]) => {
@@ -848,7 +848,7 @@ export default function NotesFolderView({
                       {chIsOpen
                         ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                         : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">Chapter {ch}</span>
+                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">Chapter {ch}</span>
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{chNotes.length || ''}</span>
                     </div>
                     {/* Notes inside chapter — depth=3 → paddingLeft=12+3*16=60 */}
@@ -886,7 +886,7 @@ export default function NotesFolderView({
                 {yearIsOpen
                   ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                   : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
+                <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{year}</span>
                 <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{totalNotes || ''}</span>
               </div>
               {yearIsOpen && sortedMonths.map(([monthKey, mNotes]) => {
@@ -906,7 +906,7 @@ export default function NotesFolderView({
                       {monthIsOpen
                         ? <FolderOpen size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
                         : <Folder    size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />}
-                      <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
+                      <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-secondary))]">{monthLabel}</span>
                       <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{mNotes.length || ''}</span>
                     </div>
                     {/* Notes inside month — depth=3, newest first (pre-sorted in dailySubGroups) */}
@@ -956,7 +956,7 @@ export default function NotesFolderView({
             >
               <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${isOpen ? 'rotate-90' : ''}`} />
               <Icon size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-              <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">{label}</span>
+              <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">{label}</span>
               <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
               <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{sysNotes.length || ''}</span>
             </div>
@@ -980,7 +980,7 @@ export default function NotesFolderView({
         >
           <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('pdfs') ? 'rotate-90' : ''}`} />
           <FileType2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">PDFs</span>
+          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">PDFs</span>
           <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
           <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{pdfs.length || ''}</span>
         </div>
@@ -993,7 +993,7 @@ export default function NotesFolderView({
                   style={{ paddingLeft: 28 }}
                   className="group flex items-center gap-2 pr-2 py-1.5 cursor-pointer mx-1.5 rounded-shell hover:bg-[rgb(var(--color-surface-4))] transition-colors">
                   <FileText size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-                  <span className="flex-1 min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
+                  <span className="min-w-0 truncate text-xs text-[rgb(var(--color-text-primary))]">{p.title}</span>
                 </div>
               ))
         )}
@@ -1017,7 +1017,7 @@ export default function NotesFolderView({
         >
           <ChevronRight size={12} className={`flex-shrink-0 text-[rgb(var(--color-text-muted))] transition-transform ${expanded.has('trash') ? 'rotate-90' : ''}`} />
           <Trash2 size={13} className="flex-shrink-0 text-[rgb(var(--color-text-muted))]" />
-          <span className="flex-1 min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
+          <span className="min-w-0 truncate text-xs font-medium text-[rgb(var(--color-text-secondary))]">Trash</span>
           <Lock size={9} className="text-[rgb(var(--color-text-muted))] opacity-50" />
           <span className="text-[10px] text-[rgb(var(--color-text-muted))]">{trashedNotes.length || ''}</span>
         </div>
