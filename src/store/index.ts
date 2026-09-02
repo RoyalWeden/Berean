@@ -407,6 +407,12 @@ export interface AppState {
   // picker) is showing — the bottom-right toast lifts further to clear it.
   verseSelectionMenuOpen: boolean
   setVerseSelectionMenuOpen: (v: boolean) => void
+  // True only while the verse-selection action bar is ACTUALLY on screen (published by
+  // VerseSelectionBar itself from its own render gate). The Study Trail arrival toast keys
+  // its "dodge upward" on this rather than re-deriving it from selectedVersesByTab — the two
+  // conditions could drift, leaving the toast lifted while no bar is visible.
+  verseSelectionBarOpen: boolean
+  setVerseSelectionBarOpen: (v: boolean) => void
   // Strong's number of the lexicon entry currently open in the scripture side panel (when
   // it's open + showing lexicon) — ChapterView persistently highlights every occurrence of it
   // in the chapter so you can see where the word you're studying appears. null = nothing.
@@ -1421,7 +1427,16 @@ export const useAppStore = create<AppState>()(
         const activeTabId = s.activeTabId[s.activeSpace]
         if (!activeTabId) return
         const tabStack = s.tabNavStacks[activeTabId]
-        if (!tabStack || tabStack.idx < 0) return
+        if (!tabStack || tabStack.idx < 0) {
+          // No usable nav stack (e.g. a note opened directly into its own dedicated tab, which
+          // never seeds one) — but if a note IS open in this tab, "home" still means the notes
+          // list. Bump the home token so NotesPanel drops back to the list.
+          const activeTab = s.tabs[s.activeSpace]?.find((t) => t.id === activeTabId)
+          if (activeTab?.type === 'note' && (activeTab.state as { noteId?: string | null }).noteId) {
+            get().bumpNotesHomeToken()
+          }
+          return
+        }
         const stackType = tabStack.stack[0]?.type
         // Bible tabs have no equivalent "nothing open" list/search view to jump to (per
         // navTabBack's own comment — Bible/Search/PDF stop at idx 0, they don't get a
@@ -1638,6 +1653,7 @@ export const useAppStore = create<AppState>()(
       noteEditorOpenCount: 0,
       bibleSearchTabActive: false,
       verseSelectionMenuOpen: false,
+      verseSelectionBarOpen: false,
       chapterEchoStrongsNum: null,
       noteScriptureBlockThreshold: 0.9,
       autoEmDash: true,
@@ -2079,19 +2095,13 @@ export const useAppStore = create<AppState>()(
           window.dispatchEvent(new CustomEvent('berean:saveScrollBeforeTabChange'))
         }
 
-        // When leaving a dynamic scripture search tab (searchMode: true), exit its
-        // search mode so re-visiting it shows Bible text and the next search opens fresh.
-        // The dedicated tab ('scripture-search-dedicated') is exempt — it always stays as a search.
-        let tabs = state.tabs[spaceId]
-        if (prevTabId && prevTabId !== tabId && prevTabId !== 'scripture-search-dedicated') {
-          const prevTab = tabs.find((t) => t.id === prevTabId)
-          // BibleTabState carries searchMode; guard with 'searchMode' in check for the union type
-          if (prevTab && 'searchMode' in prevTab.state && prevTab.state.searchMode) {
-            tabs = tabs.map((t) =>
-              t.id === prevTabId ? { ...t, state: { ...t.state, searchMode: false } } : t
-            )
-          }
-        }
+        // A scripture tab with Advanced Search open (searchMode: true) now KEEPS that
+        // state when you switch away and back — its query/filters/sort/scroll are all
+        // persisted per-tab (see BiblePanel's onStateChange), so restoring it shows the
+        // same search you left, not a reset to Genesis 1. (Previously searchMode was
+        // force-cleared on every switch off such a tab, so re-visiting it fell through to
+        // the reader at whatever bookId/chapter the tab last held — usually the default.)
+        const tabs = state.tabs[spaceId]
 
         set({
           tabs: { ...state.tabs, [spaceId]: tabs },
@@ -2507,6 +2517,7 @@ export const useAppStore = create<AppState>()(
       bumpNoteEditorOpen: (delta) => set((s) => ({ noteEditorOpenCount: Math.max(0, s.noteEditorOpenCount + delta) })),
       setBibleSearchTabActive: (v) => set({ bibleSearchTabActive: v }),
       setVerseSelectionMenuOpen: (v) => set({ verseSelectionMenuOpen: v }),
+      setVerseSelectionBarOpen: (v) => set((s) => (s.verseSelectionBarOpen === v ? s : { verseSelectionBarOpen: v })),
       setChapterEchoStrongsNum: (v) => set((s) => (s.chapterEchoStrongsNum === v ? s : { chapterEchoStrongsNum: v })),
       setNoteScriptureBlockThreshold: (v) => set({ noteScriptureBlockThreshold: Math.max(0, Math.min(1, v)) }),
       setAutoEmDash: (v) => set({ autoEmDash: v }),

@@ -104,6 +104,15 @@ export default function VerseSelectionBar() {
     return () => setVerseSelectionMenuOpen(false)
   }, [colorOpen, tagAnchor, setVerseSelectionMenuOpen])
 
+  // Publish whether the bar is actually rendered (same gate as the early-return below) so the
+  // Study Trail arrival toast only dodges upward while a bar is genuinely on screen.
+  const setVerseSelectionBarOpen = useAppStore((s) => s.setVerseSelectionBarOpen)
+  const barVisible = sel.length > 0 && activeSpace === 'scripture'
+  useEffect(() => {
+    setVerseSelectionBarOpen(barVisible)
+    return () => setVerseSelectionBarOpen(false)
+  }, [barVisible, setVerseSelectionBarOpen])
+
   const copyVerses = useCallback(async (refsOnly: boolean) => {
     const header = refLabel(sel)
     if (refsOnly) { navigator.clipboard.writeText(header).catch(() => {}); return }

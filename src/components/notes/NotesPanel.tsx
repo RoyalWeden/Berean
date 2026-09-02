@@ -154,6 +154,23 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   useEffect(() => {
     if (activeNote) setCachedNote(activeNote)
   }, [activeNote])
+
+  // Render-phase reset when switching TO a tab whose home view is the notes list (a fresh
+  // tab, or one with no open note). The tab-switch restore effect below also does this, but
+  // effects run after paint — so for one frame the panel would still show the PREVIOUS tab's
+  // note before the effect clears it, reading as "it flashes something else then shows the
+  // list." Clearing here, during render, removes that frame. (Same idea as BiblePanel's
+  // prevBibleTabIdForResetRef.) Only the home case: a tab that DOES have a note gets the
+  // async restore path, which the warm-cache lazy initializer above already covers.
+  const prevNotesTabIdForResetRef = useRef(notesTabId)
+  if (notesTabId !== prevNotesTabIdForResetRef.current) {
+    prevNotesTabIdForResetRef.current = notesTabId
+    const nextTab = tabs.find((t) => t.id === notesTabId)
+    const nextState = nextTab?.state as NoteTabState | undefined
+    if ((nextState?.isNew || !nextState?.noteId) && activeNote !== null) {
+      setActiveNote(null)
+    }
+  }
   // True while we're still trying to restore the previously-open note for this tab
   // (async IPC lookup). Prevents the tab-title effect below from briefly renaming
   // the tab to the generic "Notes" fallback before the real title has loaded — that

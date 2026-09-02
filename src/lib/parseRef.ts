@@ -20,7 +20,7 @@ const BOOK_MAP: Array<{ id: string; name: string; patterns: string[] }> = [
   { id: 'PSA', name: 'Psalms',         patterns: ['psa', 'ps', 'pss', 'psalms', 'psalm'] },
   { id: 'PRO', name: 'Proverbs',       patterns: ['pro', 'pr', 'prv', 'prov', 'proverbs'] },
   { id: 'ECC', name: 'Ecclesiastes',   patterns: ['ecc', 'ec', 'qoh', 'eccl', 'ecclesiastes'] },
-  { id: 'SNG', name: 'Song of Songs',  patterns: ['sng', 'ss', 'song', 'sol', 'songs', 'song of songs', 'song of solomon'] },
+  { id: 'SNG', name: 'Song of Solomon', patterns: ['sng', 'ss', 'song', 'sol', 'songs', 'song of songs', 'song of solomon'] },
   { id: 'ISA', name: 'Isaiah',         patterns: ['isa', 'is', 'isaiah'] },
   { id: 'JER', name: 'Jeremiah',       patterns: ['jer', 'je', 'jr', 'jeremiah'] },
   { id: 'LAM', name: 'Lamentations',   patterns: ['lam', 'la', 'lamentations'] },
@@ -269,7 +269,12 @@ export function resolveBookToken(raw: string): string | null {
   }
   // Fuzzy fallback (misspellings) — see the function comment for why this is scoped so
   // narrowly (full names only, length-diff ≤ 1, distance capped at 2).
-  if (noSpace.length >= 4) {
+  // A token ENDING in a digit is never a book name — it's the "book chapter verse" bare-space
+  // form's primary regex having swallowed the chapter number into the book token (e.g.
+  // "song of solomon 1" from "song of solomon 1 1"). Fuzzy-matching that to "songofsolomon"
+  // (edit distance 1) would resolve the wrong shape here and pre-empt the correct bare-space
+  // fallback in parseRef. Numbered books only ever START with a digit, never end with one.
+  if (noSpace.length >= 4 && !/\d$/.test(noSpace)) {
     let best: { id: string; dist: number } | null = null
     for (const { id, name } of BOOK_MAP) {
       const candidate = name.toLowerCase().replace(/\s+/g, '')
