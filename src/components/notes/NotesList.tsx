@@ -167,6 +167,8 @@ export default function NotesList({
               // by at a glance when not hovering; this restores just enough structure without
               // going back to a full box around every entry. Skipped on the very last note.
               className={`absolute top-0 left-0 w-full px-2 py-0.5 ${
+                isPreviewed ? 'bg-[rgb(var(--color-accent))/8]' : ''
+              } ${
                 virtualRow.index < sortedNotes.length - 1 ? 'border-b border-[rgb(var(--color-surface-4))/40]' : ''
               }`}
               style={{ transform: `translateY(${virtualRow.start}px)` }}

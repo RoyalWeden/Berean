@@ -2089,6 +2089,9 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               onPreview={previewNoteInHome}
               onOpen={navigateToNote}
               onOpenNewTab={openNoteInNewTab}
+              onPrint={(n) => setPrintNote(n)}
+              searchQuery={noteSearch}
+              searchWordMode={noteSearchWordMode}
             />
           )}
           </div>

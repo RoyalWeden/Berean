@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
-import { ExternalLink, ArrowUpRight, Clock, Pin, FileText } from 'lucide-react'
+import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { ExternalLink, ArrowUpRight, Clock, Pin, FileText, Printer, ChevronUp, ChevronDown } from 'lucide-react'
 import type { Note, NoteFolder } from '@/types'
 import { isSystemNote } from '@/lib/noteUtils'
 import { noteStatusMeta } from '@/lib/noteStatus'
 import NoteEditor from './pm/NoteEditorPM'
+import type { FindMode } from './pm/findHighlight'
 import { folderPathFor } from './NotesFolderView'
 
 // ── Small local helpers ───────────────────────────────────────────────────────
@@ -83,10 +84,14 @@ interface Props {
   onPreview: (note: Note) => void
   onOpen: (note: Note) => void
   onOpenNewTab: (note: Note) => void
+  onPrint: (note: Note) => void
+  /** Live query from the "Search notes…" box — also highlighted inside the previewed note. */
+  searchQuery: string
+  searchWordMode: FindMode
 }
 
 export default function NotesHomePanel({
-  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab,
+  note, folder, allNotes, folders, onPreview, onOpen, onOpenNewTab, onPrint, searchQuery, searchWordMode,
 }: Props) {
   const userNotes = useMemo(() => allNotes.filter((n) => !isSystemNote(n)), [allNotes])
   const recent = useMemo(() => [...userNotes].sort(byRecent).slice(0, 10), [userNotes])
@@ -98,6 +103,40 @@ export default function NotesHomePanel({
     [note, allNotes],
   )
   const folderPath = useMemo(() => (note ? folderPathFor(note, folders) : []), [note, folders])
+
+  // ── In-preview search — highlight the "Search notes…" query inside the previewed note,
+  //    with a match count + up/down nav in the header (jumps to the first match on change). ──
+  const previewBodyRef = useRef<HTMLDivElement>(null)
+  const [matchCount, setMatchCount] = useState(0)
+  const [matchIdx, setMatchIdx] = useState(0)
+  const q = searchQuery.trim()
+
+  useEffect(() => {
+    if (!note || !q) { setMatchCount(0); setMatchIdx(0); return }
+    // The editor remounts per note (key) then applies the query via a prop effect — give it a
+    // couple of frames to paint the decorations, then a late re-count for the async content set.
+    let raf1 = 0, raf2 = 0
+    const recount = () => {
+      const marks = previewBodyRef.current?.querySelectorAll('.berean-find-mark')
+      setMatchCount(marks ? marks.length : 0)
+      setMatchIdx(0)
+    }
+    raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(recount) })
+    const t = setTimeout(recount, 140)
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); clearTimeout(t) }
+  }, [note?.id, q, searchWordMode])
+
+  useLayoutEffect(() => {
+    const marks = previewBodyRef.current?.querySelectorAll<HTMLElement>('.berean-find-mark')
+    if (!marks || marks.length === 0) return
+    const idx = Math.min(matchIdx, marks.length - 1)
+    marks.forEach((m, i) => m.classList.toggle('berean-find-mark-active', i === idx))
+    marks[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [matchIdx, matchCount])
+
+  const stepMatch = useCallback((dir: 1 | -1) => {
+    setMatchIdx((i) => (matchCount === 0 ? 0 : (i + dir + matchCount) % matchCount))
+  }, [matchCount])
 
   const wrap = 'flex min-w-[16rem] flex-1 flex-col overflow-hidden bg-[rgb(var(--color-surface-3))]'
 
@@ -126,6 +165,13 @@ export default function NotesHomePanel({
               Open in editor <ArrowUpRight size={12} />
             </button>
             <button
+              onClick={() => onPrint(note)}
+              title="Print / export PDF"
+              className="flex-shrink-0 rounded-md p-1.5 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
+            >
+              <Printer size={13} />
+            </button>
+            <button
               onClick={() => onOpenNewTab(note)}
               title="Open in new tab"
               className="flex-shrink-0 rounded-md p-1.5 text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] cursor-pointer transition-colors"
@@ -141,15 +187,42 @@ export default function NotesHomePanel({
               <span key={t} className="rounded bg-[rgb(var(--color-surface-4))] px-1.5 py-0.5 text-[rgb(var(--color-text-secondary))]">#{t}</span>
             ))}
           </div>
+          {q && (
+            <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-[rgb(var(--color-text-muted))]">
+              <span className="tabular-nums">
+                {matchCount === 0 ? 'No matches for' : `${matchIdx + 1} / ${matchCount} ·`}
+              </span>
+              <span className="max-w-[40%] truncate text-[rgb(var(--color-text-secondary))]">“{q}”</span>
+              <span>in this note</span>
+              <button
+                onClick={() => stepMatch(-1)}
+                disabled={matchCount === 0}
+                title="Previous match"
+                className="rounded p-0.5 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              >
+                <ChevronUp size={12} />
+              </button>
+              <button
+                onClick={() => stepMatch(1)}
+                disabled={matchCount === 0}
+                title="Next match"
+                className="rounded p-0.5 hover:bg-[rgb(var(--color-surface-4))] hover:text-[rgb(var(--color-text-primary))] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+              >
+                <ChevronDown size={12} />
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div ref={previewBodyRef} className="flex-1 min-h-0 flex flex-col">
           <NoteEditor
             key={note.id}
             content={note.content}
             noteId={note.id}
             onChange={NOOP}
             mode="view"
+            findQuery={q}
+            findMode={searchWordMode}
             notes={allNotes}
             onWikilinkClick={(title) => {
               const target = allNotes.find((n) => (n.title || 'Untitled').toLowerCase() === title.toLowerCase())
