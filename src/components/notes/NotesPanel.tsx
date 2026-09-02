@@ -25,12 +25,13 @@ import type { ParsedRef } from '@/lib/parseRef'
 import type { Note, NoteTabState, Tab, NoteFolder, NoteStatus } from '@/types'
 import { NOTE_STATUSES, noteStatusMeta } from '@/lib/noteStatus'
 import NotesFolderView, { folderPathFor, noteIsMovable } from './NotesFolderView'
+import NotesHomePanel from './NotesHomePanel'
 import { orderedFolders } from './NoteContextMenu'
 import { isSystemNote, isDailyNote, dailyNoteDateKey, parseVerseRef, normalizeWikiTarget } from '@/lib/noteUtils'
 import { getAllNotes, getWarmStartNotes } from '@/lib/notesCache'
 import { getCachedNote, setCachedNote } from '@/lib/noteCache'
 import { toDateKey, dailyNoteTitle, dailyNoteDisplayTitle, dailyNoteToday } from '@/lib/dailyNoteUtils'
-import { readingRegionScale } from '@/lib/zoom'
+import { readingRegionScale, READING_REGION_ZOOM } from '@/lib/zoom'
 
 type NoteFilter = 'all' | 'scripture' | 'topic' | 'daily' | 'youtube' | 'biblegateway' | 'esword' | 'idiom'
 type StatusFilter = 'all' | 'no-status' | NoteStatus
@@ -434,6 +435,33 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
   const folderView = viewMode === 'folder'
   const boardView = viewMode === 'board'
   const [folders, setFolders] = useState<NoteFolder[]>(() => cachedFolders ?? [])
+
+  // ── Home preview panel (right of the 760px list column) ───────────────────
+  // Single-clicking a note on the home screen previews it here without opening the editor;
+  // double-click / Enter / the panel's "Open in editor" button opens it for real. The panel
+  // only shows when the pane is wide enough for the list column PLUS a usable panel — below
+  // that a single click opens the editor as before (see homePanelVisible).
+  const [previewNoteId, setPreviewNoteId] = useState<string | null>(null)
+  const [previewFolderId, setPreviewFolderId] = useState<string | null>(null)
+  const [homeWrapWidth, setHomeWrapWidth] = useState(0)
+  const homeRoRef = useRef<ResizeObserver | null>(null)
+  // Callback ref — the measured element is inside the list branch, which unmounts whenever the
+  // editor is open, so a plain useEffect([]) would never re-attach. This re-runs on every
+  // mount/unmount of that div.
+  const homeWrapRef = useCallback((el: HTMLDivElement | null) => {
+    homeRoRef.current?.disconnect()
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setHomeWrapWidth(el.getBoundingClientRect().width))
+    ro.observe(el)
+    homeRoRef.current = ro
+    setHomeWrapWidth(el.getBoundingClientRect().width)
+  }, [])
+  // ~760 list column + ~380 min panel + a little breathing room.
+  const homePanelVisible = homeWrapWidth >= 1150 && !boardView && !(continuousDailyScroll && !folderView)
+  const previewNote = useMemo(() => notes.find((n) => n.id === previewNoteId) ?? null, [notes, previewNoteId])
+  const previewFolder = useMemo(() => folders.find((f) => f.id === previewFolderId) ?? null, [folders, previewFolderId])
+  const previewNoteInHome = useCallback((note: Note) => { setPreviewNoteId(note.id); setPreviewFolderId(null) }, [])
+  const selectFolderInHome = useCallback((folderId: string) => { setPreviewFolderId(folderId); setPreviewNoteId(null) }, [])
   const [plusMenu, setPlusMenu] = useState<{ x: number; y: number } | null>(null)
   const iconPicker = usePositionedMenu<{ _tag?: 'icon' }>()
   const [idiomModal, setIdiomModal] = useState<{ term: string; meaning: string; folderId?: string | null } | null>(null)
@@ -1768,9 +1796,16 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
           // Notes-home region is bumped to ~reading size (and still tracks app zoom) — see
           // READING_REGION_ZOOM. The inner layer is scaled up and counter-sized (absolute +
           // inset-0 in this relative box) so the magnified content fills this pane exactly,
-          // never overflowing or clipping the bottom of the list.
-          <div className="relative flex-1 min-h-0 overflow-hidden">
-          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden" style={readingRegionScale}>
+          // never overflowing or clipping the bottom of the list. Inside: a capped ~760px list
+          // column pinned left + the home preview panel filling the rest (when wide enough).
+          <div ref={homeWrapRef} className="relative flex-1 min-h-0 overflow-hidden">
+          <div className="absolute inset-0 flex min-h-0 overflow-hidden" style={readingRegionScale}>
+          <div
+            className={`flex flex-col min-h-0 w-full flex-shrink-0 overflow-hidden ${homePanelVisible ? 'border-r border-[rgb(var(--color-surface-4))]' : ''}`}
+            // ~760 visual px; divided by the region scale so the on-screen width matches after
+            // readingRegionScale's transform. Board view opts out — it wants the full pane.
+            style={{ maxWidth: boardView ? undefined : Math.round(760 / READING_REGION_ZOOM) }}
+          >
             {/* Search bar — with sort selector inline on the right */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-[rgb(var(--color-surface-4))] flex-shrink-0">
               <Search size={13} className="text-[rgb(var(--color-text-muted))] flex-shrink-0" />
@@ -1949,8 +1984,10 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                 <NotesFolderView
                   notes={visibleNotes}
                   folders={folders}
-                  activeNoteId={(activeNote as Note | null)?.id ?? null}
+                  activeNoteId={homePanelVisible ? previewNoteId : ((activeNote as Note | null)?.id ?? null)}
                   onSelect={navigateToNote}
+                  onPreview={homePanelVisible ? previewNoteInHome : undefined}
+                  onFolderSelect={homePanelVisible ? selectFolderInHome : undefined}
                   onDelete={(note) => deleteNote(note)}
                   onSetNoteFolder={handleSetNoteFolder}
                   onCreateNote={createNote}
@@ -1996,6 +2033,8 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                   scrollParentRef={notesListScrollRef}
                   notes={visibleNotes}
                   onSelect={navigateToNote}
+                  onPreview={homePanelVisible ? previewNoteInHome : undefined}
+                  previewNoteId={homePanelVisible ? previewNoteId : null}
                   onDelete={(note) => deleteNote(note)}
                   onConvertToIdiom={(note) => setConvertIdiomModal({ note, term: note.title || '', meaning: '', keepContent: true })}
                   findQuery={activeListFindQuery}
@@ -2016,6 +2055,20 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
               )}
             </div>
             )}
+          </div>
+          {homePanelVisible && (
+            <NotesHomePanel
+              note={previewNote}
+              folder={previewFolder}
+              allNotes={notes}
+              folders={folders}
+              onPreview={previewNoteInHome}
+              onOpen={navigateToNote}
+              onOpenNewTab={openNoteInNewTab}
+              onCreateNote={createNote}
+              onCreateDaily={() => window.dispatchEvent(new CustomEvent('berean:openDailyNote'))}
+            />
+          )}
           </div>
           </div>
         )}

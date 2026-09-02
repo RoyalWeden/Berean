@@ -38,6 +38,11 @@ interface NotesListProps {
    *  so only visible rows are mounted regardless of total note count. */
   scrollParentRef: React.RefObject<HTMLDivElement>
   onSelect: (note: Note) => void
+  /** Single-click behaviour when the home preview panel is showing — select + preview
+   *  instead of opening the editor. Double-click still calls onSelect (open). */
+  onPreview?: (note: Note) => void
+  /** Id of the note currently previewed in the home panel — gets a persistent selected look. */
+  previewNoteId?: string | null
   onDelete?: (note: Note) => void
   findQuery?: string
   searchQuery?: string
@@ -76,7 +81,7 @@ function timeAgo(ts: number): string {
 }
 
 export default function NotesList({
-  notes, scrollParentRef, onSelect, onDelete, findQuery, searchQuery,
+  notes, scrollParentRef, onSelect, onPreview, previewNoteId, onDelete, findQuery, searchQuery,
   selectMode = false, selected = [], onToggleSelect,
   expandAll = false,
   onOpenNewTab, onRenameCommit, onOpenInFloatingTab, onOpenInSession, sessions, onOpenInTab, onConvertToIdiom, onExportPdf, onSetStatus,
@@ -145,7 +150,7 @@ export default function NotesList({
           const snippet = expandAll
             ? rawSnippet
             : rawSnippet.replace(/\n/g, ' ')
-          const isSelected = selected.includes(note.id)
+          const isSelected = selected.includes(note.id) || note.id === previewNoteId
           const isRenaming = renamingNoteId === note.id
           const snippets = searchQuery ? contentSnippets(note.content, searchQuery) : []
 
@@ -224,9 +229,10 @@ export default function NotesList({
                   if (selectMode) {
                     onToggleSelect?.(note.id)
                   } else {
-                    onSelect(note)
+                    (onPreview ?? onSelect)(note)
                   }
                 }}
+                onDoubleClick={() => { if (!isRenaming && !selectMode) onSelect(note) }}
                 className={`flex flex-col items-start gap-0.5 py-3 text-left w-full min-w-0 transition-colors cursor-pointer
                   ${selectMode ? 'px-2 pr-9' : 'px-4 pr-9'}
                 `}

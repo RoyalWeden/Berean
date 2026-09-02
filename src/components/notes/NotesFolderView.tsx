@@ -60,6 +60,11 @@ interface Props {
   folders: NoteFolder[]
   activeNoteId?: string | null
   onSelect: (note: Note) => void
+  /** Single-click behaviour when the home preview panel is showing — preview instead of
+   *  opening the editor. Double-click still calls onSelect (open). */
+  onPreview?: (note: Note) => void
+  /** Selecting a folder row surfaces its context in the home panel (alongside expand/collapse). */
+  onFolderSelect?: (folderId: string) => void
   onDelete: (note: Note) => void
   onSetNoteFolder: (noteId: string, folderId: string | null) => void
   onCreateNote?: () => void
@@ -99,7 +104,7 @@ const MENU_ITEM = `w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-lef
 
 export default function NotesFolderView({
   notes, folders, activeNoteId,
-  onSelect, onDelete, onSetNoteFolder,
+  onSelect, onPreview, onFolderSelect, onDelete, onSetNoteFolder,
   onCreateNote, onCreateNoteInFolder, onCreateIdiom, onCreateIdiomInFolder, onCreateFolder, autoRenameFolderId, onAutoRenameHandled, onRenameFolder, onDeleteFolder, onDeleteFolderDeep, onSetFolderParent,
   onRenameNote, onOpenNewTab, onOpenInFloatingTab, onOpenInSession, onExportPdf, onSetStatus, sessions,
   selectMode = false, selectedNoteIds = [], selectedFolderIds = [],
@@ -569,7 +574,8 @@ export default function NotesFolderView({
         draggable={!isRenaming && !selectMode}
         onDragStart={(e) => onNoteDragStart(e, note)}
         onDragEnd={(e) => onNoteDragEnd(e)}
-        onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : onSelect(note) }}
+        onClick={() => { if (isRenaming || isMoveMenuOpen) return; selectMode ? onToggleSelectNote?.(note.id) : (onPreview ?? onSelect)(note) }}
+        onDoubleClick={() => { if (!isRenaming && !isMoveMenuOpen && !selectMode) onSelect(note) }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setNoteMenu({ note, x: e.clientX, y: e.clientY }) }}
         style={{ paddingLeft: 12 + depth * 16 }}
         // Flat, no border — matches NotesList's row treatment (a bordered box around every
@@ -719,7 +725,7 @@ export default function NotesFolderView({
             }
           }}
           onDrop={(e) => { e.stopPropagation(); onDropTo(e, folder.id) }}
-          onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id) } }}
+          onClick={() => { if (selectMode) { onToggleSelectFolder?.(folder.id) } else { toggle(folder.id); onFolderSelect?.(folder.id) } }}
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (selectMode) return; setFolderMenu({ folder, x: e.clientX, y: e.clientY }); setFolderMoveOpen(false) }}
           style={{ paddingLeft: 8 + depth * 16 }}
           className={`group flex items-center gap-1.5 pr-2 py-1.5 mx-1.5 rounded-shell cursor-pointer transition-colors ${
