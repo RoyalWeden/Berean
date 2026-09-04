@@ -49,9 +49,6 @@ import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexi
 import { dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import './pmEditor.css'
 
-// [rc-diag] TEMPORARY — shared sequence + timing for the Raycast "->" input trace.
-const __rcDiag = { seq: 0, last: 0 }
-
 // Some text-expansion setups fire the SAME trigger through two mechanisms at
 // once — e.g. a Raycast Snippet AND a macOS System Settings ▸ Text Replacement
 // both mapping "->" to "→". The replacement then lands twice: once as an insert,
@@ -503,37 +500,6 @@ export default function NoteEditorPM({
         study_trail_embed: (node) => studyTrailEmbedNodeView(node),
       },
       dispatchTransaction(tr) {
-        // ── [del-diag] TEMPORARY: tracing the "Backspace also eats the preceding
-        // space" bug. Remove once root-caused. Logs every doc-changing transaction
-        // with what it replaced and the text around the caret, so a second
-        // (readDOMChange-driven) delete right after our beforeinput one is visible.
-        if (tr.docChanged) {
-          try {
-            const before = view.state
-            const steps = tr.steps.map((s) => {
-              const j = s.toJSON() as { stepType?: string; from?: number; to?: number; slice?: unknown }
-              let removed = ''
-              if (typeof j.from === 'number' && typeof j.to === 'number' && j.to > j.from) {
-                removed = before.doc.textBetween(j.from, Math.min(j.to, before.doc.content.size), '·', '·')
-              }
-              return { type: j.stepType, from: j.from, to: j.to, removed, hasSlice: !!j.slice }
-            })
-            const headBefore = before.selection.head
-            const applied = before.apply(tr)
-            const headAfter = applied.selection.head
-            const now = performance.now()
-            const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
-            __rcDiag.last = now
-            console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms dispatchTransaction ` + JSON.stringify({
-              source: tr.getMeta('del-diag-source') ?? '(other — readDOMChange / keymap / plugin)',
-              selBefore: { head: headBefore, from: before.selection.from, to: before.selection.to },
-              docBefore: before.doc.textBetween(Math.max(0, headBefore - 10), Math.min(before.doc.content.size, headBefore + 10), '·', '·'),
-              steps,
-              docAfter: applied.doc.textBetween(Math.max(0, headAfter - 10), Math.min(applied.doc.content.size, headAfter + 10), '·', '·'),
-              composing: view.composing,
-            }))
-          } catch (e) { console.debug('[del-diag] dispatchTransaction log threw ' + String(e)) }
-        }
         const newState = view.state.apply(tr)
         view.updateState(newState)
         if (tr.docChanged) {
@@ -582,55 +548,20 @@ export default function NoteEditorPM({
         // structural Backspace command from baseKeymap, not a blind range delete. Erasing a
         // plain-text snippet trigger is always an intra-text-node deletion, so this still covers
         // the actual failure mode without touching structural backspace behavior at all.
-        // ── [rc-diag] TEMPORARY: full input trace for the Raycast "->" duplication.
-        // Every keydown / beforeinput / input / paste, sequenced with ms since the
-        // previous event, so the synthetic burst's structure and ordering is visible.
-        keydown(view, event) {
-          const now = performance.now()
-          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
-          __rcDiag.last = now
-          const sel = view.state.selection
-          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms keydown ` + JSON.stringify({
-            key: event.key, code: event.code, keyCode: event.keyCode,
-            meta: event.metaKey, alt: event.altKey, ctrl: event.ctrlKey, shift: event.shiftKey,
-            isComposing: event.isComposing, repeat: event.repeat,
-            caret: sel.head, parentOffset: sel.$head.parentOffset,
-            ctx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
-          }))
-          return false
-        },
-        input(view, event) {
-          const now = performance.now()
-          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
-          __rcDiag.last = now
-          const ie = event as InputEvent
-          const sel = view.state.selection
-          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms input(after) ` + JSON.stringify({
-            inputType: ie.inputType, data: ie.data, isComposing: ie.isComposing,
-            caret: sel.head,
-            ctx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
-          }))
-          return false
-        },
+        // De-dupe a text-expansion that also fired as a keystroke insert moments
+        // ago (a Raycast Snippet + a macOS Text Replacement on the same trigger
+        // both expand it — once as an insert, then again as a ⌘V paste). See
+        // `__lastShortInsert`, recorded in `beforeinput` below.
         paste(view, event) {
-          const now = performance.now()
-          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
-          __rcDiag.last = now
           const cd = (event as ClipboardEvent).clipboardData
           const txt = cd?.getData('text/plain') ?? ''
           const html = cd?.getData('text/html') ?? ''
-          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms paste ` + JSON.stringify({
-            types: cd ? [...cd.types] : null, text: txt.slice(0, 40), html: html.slice(0, 80),
-          }))
-          // De-dupe a text-expansion that also fired as a keystroke insert just now
-          // (Raycast Snippet + macOS Text Replacement on the same trigger).
           const li = __lastShortInsert
           if (
             li && !html && txt && txt === li.text &&
-            now - li.at < 500 &&
+            performance.now() - li.at < 500 &&
             Math.abs(view.state.selection.head - li.pos) <= li.text.length + 1
           ) {
-            console.debug('[rc-diag] paste SWALLOWED as duplicate of a just-inserted expansion')
             __lastShortInsert = null
             event.preventDefault()
             return true
@@ -650,36 +581,6 @@ export default function NoteEditorPM({
             __lastShortInsert = { text: ie.data, pos: view.state.selection.head, at: performance.now() }
           } else if (!isDelete) {
             __lastShortInsert = null
-          }
-
-          // ── [rc-diag] TEMPORARY: log EVERY beforeinput, sequenced ──
-          {
-            const now = performance.now()
-            const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
-            __rcDiag.last = now
-            const rs = ie.getTargetRanges?.() ?? []
-            const descNode = (n: Node | undefined) => n ? `${n.nodeName}${n.nodeType === Node.TEXT_NODE ? `("${(n.textContent ?? '').slice(0, 24)}")` : ''}` : 'null'
-            const sel = view.state.selection
-            console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms beforeinput ` + JSON.stringify({
-              inputType: ie.inputType,
-              cancelable: ie.cancelable,
-              data: ie.data,
-              willHandleHere: isReplacement || isDelete,
-              selEmpty: sel.empty,
-              caret: sel.head,
-              parentOffset: sel.$head.parentOffset,
-              parentSize: sel.$head.parent.content.size,
-              domCtx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
-              composing: view.composing,
-              nRanges: rs.length,
-              ranges: rs.map((r) => ({
-                start: descNode(r.startContainer), startOffset: r.startOffset,
-                end: descNode(r.endContainer), endOffset: r.endOffset,
-                sameNode: r.startContainer === r.endContainer,
-                fromPos: (() => { try { return view.posAtDOM(r.startContainer, r.startOffset) } catch { return 'ERR' } })(),
-                toPos: (() => { try { return view.posAtDOM(r.endContainer, r.endOffset) } catch { return 'ERR' } })(),
-              })),
-            }))
           }
 
           if (!isReplacement && !isDelete) return false
@@ -702,42 +603,31 @@ export default function NoteEditorPM({
             const docSize = view.state.doc.content.size
             const isSurrogatePair = (s: string) => s.length === 2 && /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)
             if (isBackward) {
-              if ($c.parentOffset === 0) { console.debug('[del-diag] beforeinput -> FALLTHROUGH collapsed-backward at block start'); return false }
+              if ($c.parentOffset === 0) return false // block start — structural merge, let baseKeymap handle it
               let delFrom = $c.pos - 1
               // Keep an astral char (emoji surrogate pair) intact — remove both code units.
               if (isSurrogatePair(view.state.doc.textBetween(Math.max(0, $c.pos - 2), $c.pos))) delFrom = $c.pos - 2
-              console.debug('[del-diag] beforeinput -> collapsed-backward delete ' + JSON.stringify({ delFrom, to: $c.pos, removing: view.state.doc.textBetween(delFrom, $c.pos, '·', '·') }))
-              view.dispatch(view.state.tr.delete(delFrom, $c.pos).setMeta('del-diag-source', 'beforeinput-collapsed-backward'))
+              view.dispatch(view.state.tr.delete(delFrom, $c.pos))
             } else {
-              if ($c.parentOffset === $c.parent.content.size) { console.debug('[del-diag] beforeinput -> FALLTHROUGH collapsed-forward at block end'); return false }
+              if ($c.parentOffset === $c.parent.content.size) return false // block end — structural
               let delTo = $c.pos + 1
               if (isSurrogatePair(view.state.doc.textBetween($c.pos, Math.min(docSize, $c.pos + 2)))) delTo = $c.pos + 2
-              console.debug('[del-diag] beforeinput -> collapsed-forward delete ' + JSON.stringify({ from: $c.pos, delTo, removing: view.state.doc.textBetween($c.pos, delTo, '·', '·') }))
-              view.dispatch(view.state.tr.delete($c.pos, delTo).setMeta('del-diag-source', 'beforeinput-collapsed-forward'))
+              view.dispatch(view.state.tr.delete($c.pos, delTo))
             }
             event.preventDefault()
-            // [del-diag] catch any native / readDOMChange follow-up that mutates further
-            const headNow = view.state.selection.head
-            const snap = view.state.doc.textBetween(Math.max(0, headNow - 10), Math.min(view.state.doc.content.size, headNow + 10), '·', '·')
-            setTimeout(() => {
-              const h2 = view.state.selection.head
-              const after = view.state.doc.textBetween(Math.max(0, h2 - 10), Math.min(view.state.doc.content.size, h2 + 10), '·', '·')
-              console.debug('[del-diag] post-delete (async) ' + JSON.stringify({ immediatelyAfter: snap, afterTimeout: after, changed: snap !== after }))
-            }, 30)
             return true
           }
 
           // ── Non-collapsed delete / insertReplacementText: trust getTargetRanges() ──
           const ranges = ie.getTargetRanges?.()
-          if (!ranges || ranges.length !== 1) { console.debug('[del-diag] beforeinput -> FALLTHROUGH nRanges=' + (ranges?.length ?? 'none')); return false }
+          if (!ranges || ranges.length !== 1) return false
           const [range] = ranges
-          if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) { console.debug('[del-diag] beforeinput -> FALLTHROUGH cross-node/non-text range'); return false }
+          if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) return false
           const from = view.posAtDOM(range.startContainer, range.startOffset)
           const to = view.posAtDOM(range.endContainer, range.endOffset)
-          if (from < 0 || to < 0 || from > to) { console.debug('[del-diag] beforeinput -> FALLTHROUGH bad from/to ' + JSON.stringify({ from, to })); return false }
-          if (isDelete && from === to) { console.debug('[del-diag] beforeinput -> FALLTHROUGH from===to'); return false }
-          console.debug('[del-diag] beforeinput -> getTargetRanges delete/replace ' + JSON.stringify({ from, to, isReplacement }))
-          view.dispatch((isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to)).setMeta('del-diag-source', 'beforeinput-targetRanges'))
+          if (from < 0 || to < 0 || from > to) return false
+          if (isDelete && from === to) return false
+          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
           event.preventDefault()
           return true
         },
@@ -867,13 +757,9 @@ export default function NoteEditorPM({
     // this never collapses a real one.)
     const stripLineTrailingWs = (s: string) => s.replace(/[ \t]+$/gm, '')
     if (current === content || (!isDifferentNote && stripLineTrailingWs(current) === stripLineTrailingWs(content))) {
-      // [del-diag] TEMPORARY
-      if (current !== content) console.debug('[del-diag] content-sync: trailing-ws-only diff — reparse SKIPPED ' + JSON.stringify({ current: current.slice(-24), content: content.slice(-24) }))
       lastContentPropRef.current = content
       return
     }
-    // [del-diag] TEMPORARY
-    console.debug('[del-diag] content-sync: REPARSING (real diff) ' + JSON.stringify({ isDifferentNote, currentTail: current.slice(-24), contentTail: content.slice(-24) }))
     lastContentPropRef.current = content
     // Defensive: preserve the cursor's rough position across this reset instead of leaving it
     // at EditorState.create's document-start default — but only for a same-note external
