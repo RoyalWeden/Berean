@@ -186,9 +186,13 @@ SCENARIO 5 — Abandon a beta series and restart
 ### Search
 
 - **Verse tags in the floating search.** Type `#` to search your verse tags
-  (`#` alone lists them all), or just include a tag name in a normal query —
-  matching tags show up alongside verses and notes. Selecting one opens that
-  tag's tagged-verses view. Ranking: exact name, then prefix, then most verses.
+  (`#` alone lists them all); a plain keyword query also surfaces matching tags.
+  Matches show as **selectable chips** — click one (or ↑/↓ + Enter in `#` mode)
+  to add it as a filter instead of navigating away, and keep searching / picking
+  more. Selected tags sit in a removable chip row; **⇧↵ / "Search N tags in
+  Scripture"** opens the advanced Scripture search with those tags applied (plus
+  any keyword typed outside `#` mode). Ranking: exact name, then prefix, then
+  most verses.
 
 ### Settings
 
