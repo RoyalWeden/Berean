@@ -28,6 +28,7 @@ import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
+import { initPerWindowViewState } from '@/lib/perWindowViewState'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
@@ -64,9 +65,15 @@ export default function App() {
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
   useEffect(() => { void useAppStore.getState().refreshVerseTags() }, [])
-  // Keep the shared slice (tab set, sessions, preferences) convergent across
-  // every synced peer main window; leave per-window view state alone.
-  useEffect(() => initCrossWindowSync(), [])
+  // Restore this window's own view (session / space / tab / layout) from its
+  // per-window slot, then keep the shared slice (tab set, sessions, preferences)
+  // convergent across every synced peer window. Order matters: restore first so
+  // the sync/mirror layer operates on this window's real view.
+  useEffect(() => {
+    const teardownView = initPerWindowViewState()
+    const teardownSync = initCrossWindowSync()
+    return () => { teardownSync(); teardownView() }
+  }, [])
   // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
   // new session's first node from the currently-active tab) — see electron/main.ts's
   // app:getActiveScriptureRef comment for why this has to round-trip through the main process.
@@ -870,6 +877,12 @@ export default function App() {
         ensureTab('note')
         setActiveSpace('notes')
         createTab('note')
+      } else if (cmd && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        // Cmd+N → open another synced window. Also wired as a menu accelerator
+        // (Window ▸ New Window); this renderer-side handler is the fallback for
+        // when menu focus is elsewhere.
+        e.preventDefault()
+        void window.crossWindow?.newWindow()
       } else if (cmd && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         openSearchTab('')

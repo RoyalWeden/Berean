@@ -130,9 +130,12 @@ SCENARIO 5 — Abandon a beta series and restart
   main window. All open windows share one live slice of state — the tab set and
   order of every session, the session list, and every preference — so opening,
   closing or reordering a tab in one window does the same in the others, and a
-  setting changed anywhere applies everywhere. Each window keeps its own view:
-  which session, space and tab it's showing, its panel layout, and its scroll
-  position. A newly opened window mirrors the one it was spawned from. Closing
+  setting changed anywhere applies everywhere. Each window keeps its own view —
+  which session, space and tab it's showing, its panel layout, its scroll
+  position — and that view is now persisted per window, so two windows no longer
+  overwrite each other's on the next launch (the primary window's view is
+  remembered; a window spawned from another is seeded by the mirror and not
+  persisted). A newly opened window mirrors the one it was spawned from. Closing
   the last window quits the app.
   - Not yet: real-time co-editing of the *same* note in two windows at once
     (edits sync on save/reload for now — Phase 3), and re-parenting the

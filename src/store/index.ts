@@ -2762,10 +2762,14 @@ export const useAppStore = create<AppState>()(
         state.tabMRUList = [...validatedMRU, ...missing]
       },
       partialize: (state) => ({
-        activeSpace: state.activeSpace,
+        // NOTE: `activeSpace`, `activeTabId`, `panelLayout` and `currentSessionId`
+        // are PER-WINDOW view state and are deliberately NOT persisted in this
+        // shared blob — synced peer windows would clobber each other's view on
+        // the next launch. They are saved/restored per window by
+        // src/lib/perWindowViewState.ts. `tabs` stays here (the current
+        // session's tab SET is shared) and is also snapshotted into `sessions`
+        // below so a per-window restore can pull fresh tabs for its own session.
         tabs: state.tabs,
-        activeTabId: state.activeTabId,
-        panelLayout: state.panelLayout,
         sidebarCollapsed: state.sidebarCollapsed,
         lastSettingsSection: state.lastSettingsSection,
         settingsSectionScrollTop: state.settingsSectionScrollTop,
@@ -2806,8 +2810,17 @@ export const useAppStore = create<AppState>()(
         defaultYoutubeLayout: state.defaultYoutubeLayout,
         tabMRUList: state.tabMRUList,
         archivedGroups: state.archivedGroups,
-        sessions: state.sessions,
-        currentSessionId: state.currentSessionId,
+        // Snapshot the live tabs of whichever session this window is currently
+        // on back into the sessions array, so `sessions` stays the authoritative
+        // per-session tab store on disk (addTab/closeTab only mutate top-level
+        // `tabs`). A per-window restore then reads fresh tabs for its own
+        // session straight from here.
+        sessions: state.sessions.map((s) =>
+          s.id === state.currentSessionId
+            ? { ...s, tabs: state.tabs, activeTabId: state.activeTabId }
+            : s,
+        ),
+        // currentSessionId: per-window (see note in partialize head)
         sessionDisplayOrders: state.sessionDisplayOrders,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,
