@@ -391,7 +391,9 @@ contextBridge.exposeInMainWorld('vault', {
   watchVault: () => ipcRenderer.invoke('vault:watch'),
   unwatchVault: () => ipcRenderer.invoke('vault:unwatch'),
   reconcile: () => ipcRenderer.invoke('vault:reconcile'),
-  exportAll: () => ipcRenderer.invoke('vault:exportAll', localStorage.getItem('berean-app-state') ?? undefined),
+  // `localStorage` is available to the preload's isolated world at runtime, but
+  // the electron tsconfig's lib has no DOM — reach it through globalThis.
+  exportAll: () => ipcRenderer.invoke('vault:exportAll', (globalThis as { localStorage?: { getItem(k: string): string | null } }).localStorage?.getItem('berean-app-state') ?? undefined),
   setAutoExport: (intervalMinutes: number) => ipcRenderer.invoke('vault:setAutoExport', intervalMinutes),
   importAll: () => ipcRenderer.invoke('vault:importAll'),
   hasData: () => ipcRenderer.invoke('vault:hasData'),
