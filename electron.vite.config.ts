@@ -35,6 +35,17 @@ export default defineConfig(({ command }) => ({
   },
   renderer: {
     root: resolve(__dirname, 'src'),
+    // Vite's dependency-optimizer cache lives in `<cacheDir>/deps`, and its default is
+    // `node_modules/.vite`. In this project `node_modules` is a SYMLINK into the main working
+    // tree (see CLAUDE.md's worktree setup / scripts/setup-worktree.sh), so every worktree and
+    // main were sharing ONE deps cache. Whichever process optimized last rewrote the chunk
+    // filenames out from under any already-running dev server, whose page then requested chunks
+    // that no longer existed:
+    //     GET .../node_modules/.vite/deps/chunk-N3NPDJLS.js?v=9e965314  404 (Not Found)
+    // — with a CURRENT browserHash, so nothing invalidated and the page stayed broken until the
+    // cache was cleared by hand. Pointing the cache at a per-checkout directory (which is NOT
+    // behind the symlink) gives each worktree its own, so they can't collide at all.
+    cacheDir: resolve(__dirname, '.vite'),
     build: {
       rollupOptions: {
         input: {

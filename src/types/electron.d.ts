@@ -224,7 +224,36 @@ interface StudyTrailAPI {
   clearConnectionNote: (connectionId: string) => Promise<{ success: boolean }>
   updateRecap: (trailSessionId: string, recapText: string) => Promise<{ success: boolean }>
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
-  search: (query: string) => Promise<import('./studyTrail').TrailConnectionWithSession[]>
+  search: (query: string, opts?: {
+    kinds?: Array<import('./studyTrail').TrailSearchHit['kind']>
+    bookId?: string; since?: number; until?: number; limit?: number
+  }) => Promise<import('./studyTrail').TrailSearchHit[]>
+  listThreads: () => Promise<import('./studyTrail').TrailThread[]>
+  listSessionsPage: (cursor?: number, limit?: number) => Promise<{
+    sessions: import('./studyTrail').TrailSession[]; nextCursor?: number
+  }>
+  /** Collapse keys currently folded, as `${scope}:${key}` strings (v38). */
+  getCollapse: (scope?: string) => Promise<string[]>
+  setCollapse: (scope: string, key: string, collapsed: boolean) => Promise<{ success: boolean }>
+  listNotes: (trailSessionId?: string) => Promise<import('./studyTrail').TrailStickyNote[]>
+  createNote: (input: {
+    trailSessionId: string; kind?: 'section' | 'annotation'; anchorNodeId?: string
+    title?: string; body?: string; color?: string; noteId?: string; orderIndex?: number
+  }) => Promise<import('./studyTrail').TrailStickyNote>
+  updateNote: (id: string, patch: Partial<{
+    kind: 'section' | 'annotation'; anchorNodeId: string | null; orderIndex: number
+    title: string | null; body: string; width: number | null; height: number | null
+    noteId: string | null; color: string | null; offsetX: number | null; offsetY: number | null
+  }>) => Promise<{ success: boolean }>
+  deleteNote: (id: string) => Promise<{ success: boolean }>
+  listTags: () => Promise<import('./studyTrail').TrailTag[]>
+  createTag: (name: string, color?: string) => Promise<{ id: string }>
+  updateTag: (id: string, patch: { name?: string; color?: string | null; sortOrder?: number | null }) => Promise<{ success: boolean }>
+  deleteTag: (id: string) => Promise<{ success: boolean }>
+  setSessionTags: (trailSessionId: string, tagIds: string[]) => Promise<{ success: boolean }>
+  mergeSessions: (intoId: string, fromId: string) => Promise<{ success: boolean; error?: string }>
+  splitSession: (trailSessionId: string, atNodeId: string, name?: string) => Promise<{ success: boolean; id?: string; error?: string }>
+  reorderSessions: (orderedIds: string[]) => Promise<{ success: boolean }>
   onDataChanged: (cb: (trailSessionId: string | undefined) => void) => () => void
 }
 

@@ -9,7 +9,7 @@ import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
 import { debouncedLocalStorage, readThroughLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
-import { recordLexiconConnection } from '@/store/studyTrailSlice'
+import { recordLexiconConnection, recordSideStop } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
 import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 
@@ -2269,6 +2269,10 @@ export const useAppStore = create<AppState>()(
           const tabId = get().activeTabId['notes']
           if (tabId) get().pushTabNav(tabId, { type: 'note', noteId, title: 'Note' })
         }
+        // Study Trail: notes were recorded in `history` but never in the trail, so a session
+        // where the real work was "read the chapter, then wrote about it" showed only the
+        // chapter. See recordSideStop's own comment.
+        recordSideStop({ kind: 'note', label: 'opened a note', noteId })
         set({ pendingNoteId: noteId })
       },
       clearPendingNote: () => set({ pendingNoteId: null }),
@@ -2351,6 +2355,7 @@ export const useAppStore = create<AppState>()(
         get().ensureTab('note')
         get().setActiveSpace('notes')
         get().addHistoryEntry({ type: 'search', title: `Notes: "${term}"`, query: term })
+        recordSideStop({ kind: 'search', label: `searched notes for "${term}"` })
         set({ pendingNotesSearchTab: term })
       },
       clearNotesSearchTab: () => set({ pendingNotesSearchTab: null }),
@@ -2380,6 +2385,10 @@ export const useAppStore = create<AppState>()(
       closeTagManager: () => set({ tagManagerOpen: false }),
       openSearchTab: (query) => {
         get().addHistoryEntry({ type: 'search', title: `"${query}"`, query })
+        // A search is recorded as its own stop, separate from the search RESULT you then click
+        // (which arrives through navigateToVerse with origin 'search-result'). The two together
+        // are what make "I went looking for X, and that took me to Y" legible on the map.
+        recordSideStop({ kind: 'search', label: `searched for "${query}"` })
         if (get().tabs['search'].length === 0) get().createTab('search')
         const fresh = get()
         // Prefer the currently active search tab (if it still exists) over always reusing the
@@ -2398,6 +2407,7 @@ export const useAppStore = create<AppState>()(
         // otherwise a loading placeholder that YouTubeTab corrects once metadata lands.
         const ytTitle = videoId ? (youtubeTitleFor(videoId) ?? YOUTUBE_LOADING_TITLE) : 'YouTube'
         get().addHistoryEntry({ type: 'youtube', title: ytTitle, videoId: videoId ?? undefined })
+        if (videoId) recordSideStop({ kind: 'video', label: ytTitle, videoId })
         const state = get()
         if (state.tabs['youtube'].length === 0) get().createTab('youtube')
         const fresh = get()
@@ -2422,6 +2432,7 @@ export const useAppStore = create<AppState>()(
         set({ pendingYouTubeVideo: { videoId, startTime }, activeSpace: 'youtube' })
       },
       openPdf: (pdfId, title, page) => {
+        recordSideStop({ kind: 'pdf', label: title })
         const state = get()
         // Reuse an existing tab for the same PDF if one is open
         const existing = state.tabs['scripture'].find(

@@ -437,7 +437,26 @@ contextBridge.exposeInMainWorld('studyTrail', {
   clearConnectionNote: (connectionId: string) => ipcRenderer.invoke('studyTrail:clearConnectionNote', connectionId),
   updateRecap: (trailSessionId: string, recapText: string) => ipcRenderer.invoke('studyTrail:updateRecap', trailSessionId, recapText),
   getBacklinks: (bookId: string, chapter: number, excludeSessionId: string) => ipcRenderer.invoke('studyTrail:getBacklinks', bookId, chapter, excludeSessionId),
-  search: (query: string) => ipcRenderer.invoke('studyTrail:search', query),
+  search: (query: string, opts?: unknown) => ipcRenderer.invoke('studyTrail:search', query, opts),
+  listThreads: () => ipcRenderer.invoke('studyTrail:listThreads'),
+  listSessionsPage: (cursor?: number, limit?: number) => ipcRenderer.invoke('studyTrail:listSessionsPage', cursor, limit),
+  // Persisted collapse state (v38) — folds survive an app restart and a session switch.
+  getCollapse: (scope?: string) => ipcRenderer.invoke('studyTrail:getCollapse', scope),
+  setCollapse: (scope: string, key: string, collapsed: boolean) => ipcRenderer.invoke('studyTrail:setCollapse', scope, key, collapsed),
+  // Sticky notes / section headers on the map (v39).
+  listNotes: (trailSessionId?: string) => ipcRenderer.invoke('studyTrail:listNotes', trailSessionId),
+  createNote: (input: unknown) => ipcRenderer.invoke('studyTrail:createNote', input),
+  updateNote: (id: string, patch: unknown) => ipcRenderer.invoke('studyTrail:updateNote', id, patch),
+  deleteNote: (id: string) => ipcRenderer.invoke('studyTrail:deleteNote', id),
+  // Session tags + structural session edits (v40).
+  listTags: () => ipcRenderer.invoke('studyTrail:listTags'),
+  createTag: (name: string, color?: string) => ipcRenderer.invoke('studyTrail:createTag', name, color),
+  updateTag: (id: string, patch: unknown) => ipcRenderer.invoke('studyTrail:updateTag', id, patch),
+  deleteTag: (id: string) => ipcRenderer.invoke('studyTrail:deleteTag', id),
+  setSessionTags: (trailSessionId: string, tagIds: string[]) => ipcRenderer.invoke('studyTrail:setSessionTags', trailSessionId, tagIds),
+  mergeSessions: (intoId: string, fromId: string) => ipcRenderer.invoke('studyTrail:mergeSessions', intoId, fromId),
+  splitSession: (trailSessionId: string, atNodeId: string, name?: string) => ipcRenderer.invoke('studyTrail:splitSession', trailSessionId, atNodeId, name),
+  reorderSessions: (orderedIds: string[]) => ipcRenderer.invoke('studyTrail:reorderSessions', orderedIds),
   // Push-based live update — see broadcastDataChanged's comment in electron/ipc/studyTrail.ts.
   // Fires in every window immediately after any node/connection/session write, so the Study
   // Trail window can refetch right away instead of waiting on its own poll interval. Unlike

@@ -13,7 +13,7 @@ const STORAGE_KEY = 'berean-study-trail-window'
 export const EVERYTHING_SCROLL_KEY = '__everything__'
 
 export const TRAIL_ZOOM_MIN = 0.5
-export const TRAIL_ZOOM_MAX = 2
+export const TRAIL_ZOOM_MAX = 3
 
 export interface TrailScrollPos {
   top: number
@@ -23,8 +23,9 @@ export interface TrailScrollPos {
 export interface TrailWindowPrefs {
   /** null = the "Everything" view; a string = that TrailSession is open. */
   selectedId: string | null
-  /** 'map' | 'review' — kept as a plain string here so this module doesn't depend on the
-   *  component's MainTab union; the consumer narrows it. */
+  /** 'map' | 'threads' | 'search' — kept as a plain string here so this module doesn't depend on
+   *  the component's MainTab union; the consumer narrows it (and maps a stored 'review' from a
+   *  previous version back to 'map'). */
   mainTab: string
   zoom: number
   /** Per-view trail-map scroll position, keyed by `selectedId ?? EVERYTHING_SCROLL_KEY`. */

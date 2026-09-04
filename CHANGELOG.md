@@ -124,7 +124,64 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ## [Unreleased]
 
+### Study Trail
+
+- Fixed the map drawing arrows to the wrong stop after a chapter was revisited — a
+  connection could point at a visit that hadn't happened yet at the time it was made.
+  Returns now always point at the visit that actually existed when you jumped there.
+- The map is properly centred horizontally (it had drifted left in every session), and
+  return/revisit lines are now confined to a fixed-width lane on the left so a session
+  full of revisits no longer grows wider and wider — and no longer needs to scroll
+  sideways at all.
+- Revisiting the same chapter several times draws one line back to the first visit
+  (with small ticks at the visits in between) instead of a separate overlapping line
+  for every return, which used to make a well-revisited chapter unreadable.
+- The main spine is now one continuous, single-colour line end to end. A stretch
+  already explained by a branch off to the side no longer draws a second, fainter
+  copy alongside it (which read as the spine starting and stopping).
+- One consistent set of shapes and colours for every stop and connecting line on the
+  map, replacing what used to be a fairly random mix — shape says what kind of stop it
+  is, colour says what kind of move it was, and clarity is now a small dot rather than
+  a line colour.
+- Reading straight through several chapters in a row now collapses into one
+  "read through N" summary (stopping short of anything you branched off from), and a
+  session's most-revisited passage is marked as its home base.
+- Chapter stops, branches, and read-through runs can be collapsed/expanded, with a
+  clear labelled control (not a tiny caret) — and the fold is now remembered across
+  restarts and switching sessions, and actually hides everything under a folded branch.
+- Clicking a stop or connection on the map no longer navigates the main window by
+  accident — the row expands/collapses, Cmd-click navigates, and clicking the bullet
+  itself highlights everything that led there. Right-clicking empty space on the map
+  now offers "Add a note here" / "Add a section here".
+- Sticky notes can now be placed on the map (either kept trail-only or promoted to a
+  real Berean note that syncs to the vault), dragged to reposition, and section
+  headers can mark off a stretch of the map with a translucent divider — placed right
+  where you right-clicked.
+- Sessions can be merged into another session, split apart at a chosen stop, dragged
+  to reorder in the sidebar, and tagged; the sidebar can filter by tag. A long pause
+  or a jump to an unrelated book now offers to start a new session (a dismissable
+  toast in the main window, with a banner in the Study Trail window as a fallback) —
+  nothing splits automatically without asking.
+- The "Everything" view now loads sessions in pages as you scroll instead of all at
+  once, and groups them under day headings.
+- The Review tab is gone, replaced by two new tabs: Threads, which groups your study
+  into topics (by tag, or automatically from chapters/words your own cross-references
+  and lookups tie together — word studies are labelled by the actual word, not just
+  the chapters), and Search, which searches everything in the trail (not just
+  connection notes) — chapters, jump reasons, Strong's numbers, and sticky notes.
+- Notes, YouTube videos, PDFs, and searches now show up on the map at all — previously
+  only chapter and Strong's-number stops were recorded.
+- Removed the "Study Trail paused" indicator, since pausing a session doesn't pause
+  recording everywhere else in the app.
+- The map's text, icons, and bullets are noticeably larger and easier to read, gaps
+  between stops are tighter, and pinch/scroll zoom is smoother and anchors on your
+  cursor instead of jumping around.
+
 ### Internal
+
+- Each git worktree now gets its own Vite build cache instead of sharing one through
+  the symlinked `node_modules`, which could cause a running dev server to 404 on its
+  own files after a second worktree started up.
 
 - Fixed two long-standing TypeScript errors in the Electron layer (an invalid
   `sessionstorage` value passed to a storage-clear call, and a `localStorage`

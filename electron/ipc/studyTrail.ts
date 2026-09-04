@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
+import { getLexiconEntry } from './lexicon'
 
 // The implicit "Loose stops" bucket — where navigation is recorded when the user has NOT
 // created a session of their own. Per direct feedback: "i don't want an untitled study session
@@ -39,6 +40,7 @@ function prep(db: any, sql: string): any {
 interface TrailSessionRow {
   id: string; name: string; status: string; possibly_accidental: number
   recap_text: string | null; recap_user_edited: number; created_at: number; updated_at: number
+  sort_order?: number | null
 }
 interface TrailNodeRow {
   id: string; trail_session_id: string; book_id: string; chapter: number; order_index: number
@@ -68,6 +70,7 @@ function rowToSession(r: TrailSessionRow) {
     recapText: r.recap_text ?? undefined,
     recapUserEdited: !!r.recap_user_edited,
     createdAt: r.created_at, updatedAt: r.updated_at,
+    sortOrder: r.sort_order ?? undefined,
   }
 }
 function rowToNode(r: TrailNodeRow) {
@@ -213,7 +216,12 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
 
   ipcMain.handle('studyTrail:listSessions', () => {
     // Excludes the implicit "Loose stops" bucket — it must never show in the session rail.
-    const rows = getBereanDb().prepare('SELECT * FROM trail_sessions WHERE id != ? ORDER BY updated_at DESC').all(LOOSE_SESSION_ID) as TrailSessionRow[]
+    // `sort_order` (set by a drag in the session rail) wins where it exists; everything the user
+    // hasn't hand-placed falls back to plain recency, which is what the rail used to do for all
+    // of them. NULLs sort last so a single hand-placed session doesn't push the rest around.
+    const rows = getBereanDb().prepare(
+      'SELECT * FROM trail_sessions WHERE id != ? ORDER BY sort_order IS NULL, sort_order ASC, updated_at DESC'
+    ).all(LOOSE_SESSION_ID) as TrailSessionRow[]
     return rows.map(rowToSession)
   })
 
@@ -467,7 +475,16 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
         prep(db, `UPDATE trail_connections SET trail_session_id = ? WHERE id IN (${ph})`).run(target, ...allConnIds)
       }
       prep(db, `UPDATE trail_sessions SET updated_at = ? WHERE id = ?`).run(Date.now(), target)
+      // order_index above is set to the node's own anchor timestamp purely so the moved nodes
+      // slot in chronologically; renumbering afterwards turns that back into a dense 0..n-1 in
+      // BOTH the source and target sessions. Without it the target keeps raw millisecond indices
+      // interleaved with small integers, which is what the Map reads as spine order.
+      for (const sid of new Set([target, ...sourceSessionIds])) renumberNodes(db, sid)
     })
+    const sourceSessionIds = (nodeIds.length > 0
+      ? (prep(db, `SELECT DISTINCT trail_session_id AS s FROM trail_nodes WHERE id IN (${nodeIds.map(() => '?').join(',')})`)
+          .all(...nodeIds) as Array<{ s: string }>)
+      : []).map((r) => r.s)
     move(nodeIds, targetSessionId)
     broadcastDataChanged()
     return { success: true }
@@ -628,25 +645,629 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return rows.map((r) => ({ ...rowToConnection(r), sessionName: r.session_name }))
   })
 
-  // Search — literal substring match over reasons/tags and (for lexicon connections) the
-  // Strong's short/full definitions, joined live from the lexicon DBs. This is the real,
-  // working v1 search: typing "love" already matches ἀγάπη-family entries because their
-  // gloss text literally contains "love". True semantic/conceptual matching (finding a
-  // connection with NO textual overlap to the query at all) needs a local embedding model
-  // (trail_embeddings table above is the storage for it) — NOT implemented in this pass;
-  // that's a separate, larger piece of work (bundling e.g. @xenova/transformers +
-  // Xenova/all-MiniLM-L6-v2 as an offline model, an electron/lib/embeddings.ts loader, and
-  // backfill/maintenance of trail_embeddings) tracked as a deferred follow-up, not something
-  // to fake here.
-  ipcMain.handle('studyTrail:search', (_e, query: string) => {
+  // Search across EVERYTHING in the trail, not just connection reasons. Per direct feedback the
+  // Study Trail window needs "a way to search all study trail notes and such by having an
+  // additional tab ... for searching through all study trail things easily", so this covers:
+  // session names and recaps, chapter stops (book id + their cached subnotes), connection reason
+  // text/tags/user notes/verse ties, Strong's numbers, and the v39 sticky notes and section
+  // headers. Results are typed so the Search tab can group them.
+  //
+  // Still literal LIKE matching, deliberately. True semantic search (finding a connection with NO
+  // textual overlap with the query) needs a local embedding model; the `trail_embeddings` table
+  // is the storage reserved for it and remains unused. Faking it here would be worse than not
+  // having it.
+  ipcMain.handle('studyTrail:search', (_e, query: string, opts?: {
+    kinds?: Array<'session' | 'stop' | 'connection' | 'note'>
+    bookId?: string; since?: number; until?: number; limit?: number
+  }) => {
     const db = getBereanDb()
-    const q = `%${query.toLowerCase()}%`
-    const rows = db.prepare(`
-      SELECT c.*, s.name as session_name FROM trail_connections c
-      JOIN trail_sessions s ON s.id = c.trail_session_id
-      WHERE LOWER(COALESCE(c.reason_text, '')) LIKE ? OR LOWER(COALESCE(c.reason_tags, '')) LIKE ?
-      ORDER BY c.created_at DESC LIMIT 50
-    `).all(q, q) as Array<TrailConnectionRow & { session_name: string }>
-    return rows.map((r) => ({ ...rowToConnection(r), sessionName: r.session_name }))
+    const raw = (query ?? '').trim()
+    if (!raw) return []
+    const q = `%${raw.toLowerCase()}%`
+    const limit = Math.min(500, opts?.limit ?? 200)
+    const kinds = new Set(opts?.kinds ?? ['session', 'stop', 'connection', 'note'])
+    const since = opts?.since ?? 0
+    const until = opts?.until ?? Number.MAX_SAFE_INTEGER
+    const out: TrailSearchHit[] = []
+
+    if (kinds.has('session')) {
+      const rows = db.prepare(`
+        SELECT id, name, recap_text, updated_at FROM trail_sessions
+        WHERE (LOWER(name) LIKE ? OR LOWER(COALESCE(recap_text, '')) LIKE ?) AND updated_at BETWEEN ? AND ?
+        ORDER BY updated_at DESC LIMIT ?
+      `).all(q, q, since, until, limit) as Array<{ id: string; name: string; recap_text: string | null; updated_at: number }>
+      for (const r of rows) {
+        out.push({ kind: 'session', id: r.id, sessionId: r.id, sessionName: r.name, title: r.name, snippet: r.recap_text ?? undefined, at: r.updated_at })
+      }
+    }
+
+    if (kinds.has('stop')) {
+      const rows = db.prepare(`
+        SELECT n.id, n.trail_session_id, n.book_id, n.chapter, n.cached_subnote, n.anchor_started_at, s.name AS session_name
+        FROM trail_nodes n JOIN trail_sessions s ON s.id = n.trail_session_id
+        WHERE (LOWER(n.book_id) LIKE ? OR LOWER(COALESCE(n.cached_subnote, '')) LIKE ? OR LOWER(COALESCE(n.origin_label, '')) LIKE ?)
+          AND n.anchor_started_at BETWEEN ? AND ?
+          AND (? IS NULL OR n.book_id = ?)
+        ORDER BY n.anchor_started_at DESC LIMIT ?
+      `).all(q, q, q, since, until, opts?.bookId ?? null, opts?.bookId ?? null, limit) as Array<{
+        id: string; trail_session_id: string; book_id: string; chapter: number
+        cached_subnote: string | null; anchor_started_at: number; session_name: string
+      }>
+      for (const r of rows) {
+        out.push({
+          kind: 'stop', id: r.id, sessionId: r.trail_session_id, sessionName: r.session_name,
+          title: `${r.book_id} ${r.chapter}`, snippet: r.cached_subnote ?? undefined,
+          bookId: r.book_id, chapter: r.chapter, at: r.anchor_started_at,
+        })
+      }
+    }
+
+    if (kinds.has('connection')) {
+      const rows = db.prepare(`
+        SELECT c.*, s.name AS session_name FROM trail_connections c
+        JOIN trail_sessions s ON s.id = c.trail_session_id
+        WHERE (LOWER(COALESCE(c.reason_text, '')) LIKE ? OR LOWER(COALESCE(c.reason_tags, '')) LIKE ?
+               OR LOWER(COALESCE(c.user_note, '')) LIKE ? OR LOWER(COALESCE(c.ties_from, '')) LIKE ?
+               OR LOWER(COALESCE(c.ties_to, '')) LIKE ? OR LOWER(COALESCE(c.to_strongs_num, '')) LIKE ?
+               OR LOWER(COALESCE(c.to_book_id, '')) LIKE ?)
+          AND c.created_at BETWEEN ? AND ?
+          AND (? IS NULL OR c.to_book_id = ?)
+        ORDER BY c.created_at DESC LIMIT ?
+      `).all(q, q, q, q, q, q, q, since, until, opts?.bookId ?? null, opts?.bookId ?? null, limit) as Array<TrailConnectionRow & { session_name: string }>
+      for (const r of rows) {
+        const c = rowToConnection(r)
+        out.push({
+          kind: 'connection', id: c.id, sessionId: c.trailSessionId, sessionName: r.session_name,
+          title: c.toKind === 'lexicon' ? `Strong's ${c.toStrongsNum}` : `${c.toBookId ?? ''} ${c.toChapter ?? ''}`.trim(),
+          snippet: c.userNote || c.reasonText || undefined,
+          bookId: c.toBookId, chapter: c.toChapter, strongsNum: c.toStrongsNum, at: c.createdAt,
+        })
+      }
+    }
+
+    if (kinds.has('note')) {
+      const rows = db.prepare(`
+        SELECT t.*, s.name AS session_name FROM trail_notes t
+        JOIN trail_sessions s ON s.id = t.trail_session_id
+        WHERE (LOWER(COALESCE(t.title, '')) LIKE ? OR LOWER(t.body) LIKE ?) AND t.updated_at BETWEEN ? AND ?
+        ORDER BY t.updated_at DESC LIMIT ?
+      `).all(q, q, since, until, limit) as Array<TrailNoteRow & { session_name: string }>
+      for (const r of rows) {
+        out.push({
+          kind: 'note', id: r.id, sessionId: r.trail_session_id, sessionName: r.session_name,
+          title: r.title || (r.kind === 'section' ? 'Section' : 'Note'), snippet: r.body || undefined,
+          anchorNodeId: r.anchor_node_id ?? undefined, at: r.updated_at,
+        })
+      }
+    }
+
+    return out.sort((a, b) => b.at - a.at).slice(0, limit)
   })
+
+  // Threads — "what have I been chasing", across every session.
+  //
+  // REWRITTEN per direct feedback: "the threads tab should be by topics and not by books or
+  // whatever." Grouping by book was really just a second table of contents — it told you where you
+  // had been, not what you were pursuing. A topic here is one of two things, both grounded in the
+  // user's own behaviour rather than in an arbitrary taxonomy:
+  //
+  //   TAGGED   — a verse tag (v37) or session tag (v40). These are literally the topics Michael
+  //              named himself, so they come first and are never invented.
+  //   TRACED   — a connected component of chapters joined by ASSOCIATIVE moves: cross-references,
+  //              hand-entered verse ties, branches, Strong's lookups. Reading Genesis 1 then
+  //              Genesis 2 is not a topic; jumping Isaiah 11 → Luke 4 → Joel 2 because they kept
+  //              pointing at each other is. Each component is labelled by the words the user
+  //              actually wrote about it (their own notes and reason text), falling back to its
+  //              busiest chapters.
+  //
+  // Sequential reading and tab-switching are deliberately excluded from the graph — including them
+  // would connect everything to everything and collapse into one meaningless super-topic.
+  ipcMain.handle('studyTrail:listThreads', () => {
+    const db = getBereanDb()
+    const threads: TrailThreadRow[] = []
+
+    const chapterLabel = (bookId: string, chapter: number) => `${bookId} ${chapter}`
+
+    // ── Tagged topics ───────────────────────────────────────────────────────
+    // A verse tag becomes a thread when the trail has actually been to any of its verses.
+    const verseTagRows = db.prepare(`
+      SELECT t.id, t.name, t.color,
+             COUNT(DISTINCT n.id) AS stops,
+             COUNT(DISTINCT n.trail_session_id) AS sessions,
+             MIN(n.anchor_started_at) AS first_at, MAX(n.anchor_started_at) AS last_at
+      FROM verse_tags t
+      JOIN verse_tag_verse v ON v.tag_id = t.id
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      GROUP BY t.id HAVING stops > 0
+    `).all() as Array<{ id: string; name: string; color: string | null; stops: number; sessions: number; first_at: number; last_at: number }>
+
+    const sessionsForVerseTag = db.prepare(`
+      SELECT DISTINCT n.trail_session_id AS id, s.name AS name FROM verse_tag_verse v
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      JOIN trail_sessions s ON s.id = n.trail_session_id
+      WHERE v.tag_id = ? ORDER BY s.updated_at DESC LIMIT 12
+    `)
+    const chaptersForVerseTag = db.prepare(`
+      SELECT DISTINCT n.book_id AS book_id, n.chapter AS chapter FROM verse_tag_verse v
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      WHERE v.tag_id = ? LIMIT 24
+    `)
+    for (const r of verseTagRows) {
+      threads.push({
+        id: `versetag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
+        source: 'verse tag', stops: r.stops, sessions: sessionsForVerseTag.all(r.id) as Array<{ id: string; name: string }>,
+        chapters: (chaptersForVerseTag.all(r.id) as Array<{ book_id: string; chapter: number }>).map((c) => chapterLabel(c.book_id, c.chapter)),
+        strongs: [], words: [], terms: [], firstAt: r.first_at, lastAt: r.last_at,
+      })
+    }
+
+    const sessionTagRows = db.prepare(`
+      SELECT t.id, t.name, t.color, COUNT(m.trail_session_id) AS sessions
+      FROM trail_tags t LEFT JOIN trail_tag_members m ON m.tag_id = t.id
+      GROUP BY t.id HAVING sessions > 0
+    `).all() as Array<{ id: string; name: string; color: string | null; sessions: number }>
+    const infoForSessionTag = db.prepare(`
+      SELECT s.id, s.name, COUNT(n.id) AS stops,
+             MIN(n.anchor_started_at) AS first_at, MAX(n.anchor_started_at) AS last_at
+      FROM trail_tag_members m
+      JOIN trail_sessions s ON s.id = m.trail_session_id
+      LEFT JOIN trail_nodes n ON n.trail_session_id = s.id
+      WHERE m.tag_id = ? GROUP BY s.id
+    `)
+    for (const r of sessionTagRows) {
+      const rows = infoForSessionTag.all(r.id) as Array<{ id: string; name: string; stops: number; first_at: number | null; last_at: number | null }>
+      const stops = rows.reduce((n, x) => n + x.stops, 0)
+      if (stops === 0) continue
+      threads.push({
+        id: `sessiontag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
+        source: 'session tag', stops,
+        sessions: rows.map((x) => ({ id: x.id, name: x.name })),
+        chapters: [], strongs: [], words: [], terms: [],
+        firstAt: Math.min(...rows.map((x) => x.first_at ?? Date.now())),
+        lastAt: Math.max(...rows.map((x) => x.last_at ?? 0)),
+      })
+    }
+
+    // ── Traced topics ───────────────────────────────────────────────────────
+    // Only ASSOCIATIVE connections build the graph. `reason_tags` carries the origin kind, so a
+    // plain read-onward ('reading') or a tab switch never links two chapters into a topic.
+    const assoc = db.prepare(`
+      SELECT c.*, n.book_id AS from_book_id, n.chapter AS from_chapter
+      FROM trail_connections c JOIN trail_nodes n ON n.id = c.from_node_id
+      WHERE (c.is_branch = 1
+             OR c.to_kind = 'lexicon'
+             OR COALESCE(c.ties_from, '[]') != '[]' OR COALESCE(c.ties_to, '[]') != '[]'
+             OR COALESCE(c.reason_tags, '') LIKE '%cross-ref%'
+             OR COALESCE(c.reason_tags, '') LIKE '%ai-lookup%')
+    `).all() as Array<TrailConnectionRow & { from_book_id: string; from_chapter: number }>
+
+    // Union-find over chapter keys. A lexicon connection joins every chapter that looked up that
+    // same Strong's number — that's the backbone of a word study, and the single most common way a
+    // topic actually forms in this app.
+    const parent = new Map<string, string>()
+    const find = (a: string): string => {
+      let r = a
+      while (parent.get(r) && parent.get(r) !== r) r = parent.get(r)!
+      parent.set(a, r)
+      return r
+    }
+    const union = (a: string, b: string) => {
+      if (!parent.has(a)) parent.set(a, a)
+      if (!parent.has(b)) parent.set(b, b)
+      const ra = find(a), rb = find(b)
+      if (ra !== rb) parent.set(ra, rb)
+    }
+    const strongsAnchor = new Map<string, string>()
+    for (const c of assoc) {
+      const from = chapterLabel(c.from_book_id, c.from_chapter)
+      if (!parent.has(from)) parent.set(from, from)
+      if (c.to_kind === 'lexicon' && c.to_strongs_num) {
+        const prev = strongsAnchor.get(c.to_strongs_num)
+        if (prev) union(prev, from)
+        else strongsAnchor.set(c.to_strongs_num, from)
+      } else if (c.to_book_id && c.to_chapter != null) {
+        union(from, chapterLabel(c.to_book_id, c.to_chapter))
+      }
+    }
+
+    interface Bucket {
+      chapters: Set<string>; strongs: Map<string, number>; sessions: Map<string, string>
+      text: string[]; stops: number; firstAt: number; lastAt: number
+    }
+    const buckets = new Map<string, Bucket>()
+    const bucketFor = (key: string): Bucket => {
+      const root = find(key)
+      let b = buckets.get(root)
+      if (!b) {
+        b = { chapters: new Set(), strongs: new Map(), sessions: new Map(), text: [], stops: 0, firstAt: Infinity, lastAt: 0 }
+        buckets.set(root, b)
+      }
+      return b
+    }
+    const sessionNames = new Map((db.prepare('SELECT id, name FROM trail_sessions').all() as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]))
+    for (const c of assoc) {
+      const from = chapterLabel(c.from_book_id, c.from_chapter)
+      const b = bucketFor(from)
+      b.chapters.add(from)
+      if (c.to_kind === 'lexicon' && c.to_strongs_num) b.strongs.set(c.to_strongs_num, (b.strongs.get(c.to_strongs_num) ?? 0) + 1)
+      else if (c.to_book_id && c.to_chapter != null) b.chapters.add(chapterLabel(c.to_book_id, c.to_chapter))
+      b.sessions.set(c.trail_session_id, sessionNames.get(c.trail_session_id) ?? 'Session')
+      // The user's own words about this jump are what the topic gets NAMED from.
+      for (const t of [c.user_note, c.reason_text]) if (t) b.text.push(t)
+      for (const raw of [c.ties_from, c.ties_to]) {
+        if (!raw) continue
+        try { for (const t of JSON.parse(raw) as string[]) b.text.push(t) } catch { /* malformed row */ }
+      }
+      b.stops += 1
+      b.firstAt = Math.min(b.firstAt, c.created_at)
+      b.lastAt = Math.max(b.lastAt, c.created_at)
+    }
+
+    for (const [root, b] of buckets) {
+      // A lone jump isn't a topic — it's a jump. Two or more linked chapters is the floor.
+      if (b.chapters.size < 2 && b.strongs.size === 0) continue
+      const terms = topTerms(b.text)
+      const chapters = [...b.chapters]
+      // Strong's numbers ordered by how central they are to this cluster, so the dominant word
+      // gets to name it.
+      const strongs = [...b.strongs.entries()].sort((a, c) => c[1] - a[1]).map(([n]) => n)
+      const words = strongs.slice(0, 4).map((num) => {
+        const e = getLexiconEntry(num)
+        return {
+          strongsNum: num,
+          translit: e?.transliteration || '',
+          gloss: (e?.gloss || '').split(/[;,]/)[0].trim(),
+        }
+      })
+
+      // Naming, in order of how much it actually tells you:
+      //   1. the words you kept writing about it,
+      //   2. the word you kept looking up, in its own transliteration and gloss — a word study is
+      //      a topic, and "rûach — wind, breath" says what it's about in a way "ISA 11 · LUK 4"
+      //      never does,
+      //   3. only then the passages, when there's nothing better to go on.
+      let label: string
+      let source: string
+      if (terms.length > 0) {
+        label = terms.slice(0, 2).join(' · ')
+        source = 'from your notes'
+      } else if (words.length > 0 && (words[0].translit || words[0].gloss)) {
+        const w = words[0]
+        label = [w.translit || w.strongsNum, w.gloss].filter(Boolean).join(' — ')
+        source = words.length > 1 ? `word study · ${words.length} words` : 'word study'
+      } else {
+        label = chapters.slice(0, 2).join(' · ')
+        source = 'traced connections'
+      }
+
+      threads.push({
+        id: `traced:${root}`, kind: 'traced', label, source,
+        stops: b.stops, sessions: [...b.sessions].map(([id, name]) => ({ id, name })),
+        chapters, strongs, words, terms,
+        firstAt: b.firstAt === Infinity ? 0 : b.firstAt, lastAt: b.lastAt,
+      })
+    }
+
+    // Most-recently-touched first — a topic you were chasing this morning matters more than one
+    // with more total stops from three months ago.
+    return threads.sort((a, b) => b.lastAt - a.lastAt)
+  })
+
+  // One page of sessions, newest first — keyset pagination on updated_at, mirroring
+  // electron/ipc/history.ts's getPage. Everything used to load EVERY session in full on every
+  // change; this is what lets it scroll infinitely instead.
+  ipcMain.handle('studyTrail:listSessionsPage', (_e, cursor: number | undefined, limit = 10) => {
+    const db = getBereanDb()
+    const n = Math.min(50, Math.max(1, limit))
+    const rows = (cursor == null
+      ? db.prepare('SELECT * FROM trail_sessions ORDER BY updated_at DESC LIMIT ?').all(n + 1)
+      : db.prepare('SELECT * FROM trail_sessions WHERE updated_at < ? ORDER BY updated_at DESC LIMIT ?').all(cursor, n + 1)
+    ) as TrailSessionRow[]
+    const looseHasNodes = (db.prepare('SELECT COUNT(*) as n FROM trail_nodes WHERE trail_session_id = ?').get(LOOSE_SESSION_ID) as { n: number }).n > 0
+    const page = rows.slice(0, n).filter((r) => r.id !== LOOSE_SESSION_ID || looseHasNodes)
+    return {
+      sessions: page.map(rowToSession),
+      nextCursor: rows.length > n ? rows[n - 1].updated_at : undefined,
+    }
+  })
+
+  // ── Collapse state (v38) ──────────────────────────────────────────────────
+  // A missing row means "expanded", so nothing needs seeding and a cleared table just re-opens
+  // everything. Scopes: 'branch' (a connection id), 'section' (a trail_notes id), 'session' and
+  // 'day' (Everything's own groupings).
+  ipcMain.handle('studyTrail:getCollapse', (_e, scope?: string) => {
+    const db = getBereanDb()
+    const rows = scope
+      ? db.prepare('SELECT scope, key FROM trail_collapse WHERE collapsed = 1 AND scope = ?').all(scope)
+      : db.prepare('SELECT scope, key FROM trail_collapse WHERE collapsed = 1').all()
+    return (rows as Array<{ scope: string; key: string }>).map((r) => `${r.scope}:${r.key}`)
+  })
+
+  ipcMain.handle('studyTrail:setCollapse', (_e, scope: string, key: string, collapsed: boolean) => {
+    const db = getBereanDb()
+    if (collapsed) {
+      prep(db, `INSERT INTO trail_collapse (scope, key, collapsed, updated_at) VALUES (?, ?, 1, ?)
+                ON CONFLICT(scope, key) DO UPDATE SET collapsed = 1, updated_at = excluded.updated_at`)
+        .run(scope, key, Date.now())
+    } else {
+      // Deleted rather than stored as collapsed=0 — "expanded" is the default, so an absent row
+      // says it just as well and the table stays proportional to what's actually folded away.
+      prep(db, 'DELETE FROM trail_collapse WHERE scope = ? AND key = ?').run(scope, key)
+    }
+    return { success: true }
+  })
+
+  // ── Trail notes / sections (v39) ──────────────────────────────────────────
+  ipcMain.handle('studyTrail:listNotes', (_e, trailSessionId?: string) => {
+    const db = getBereanDb()
+    const rows = trailSessionId
+      ? db.prepare('SELECT * FROM trail_notes WHERE trail_session_id = ? ORDER BY order_index, created_at').all(trailSessionId)
+      : db.prepare('SELECT * FROM trail_notes ORDER BY created_at DESC').all()
+    return (rows as TrailNoteRow[]).map(rowToTrailNote)
+  })
+
+  ipcMain.handle('studyTrail:createNote', (_e, input: {
+    trailSessionId: string; kind?: 'section' | 'annotation'; anchorNodeId?: string
+    title?: string; body?: string; color?: string; noteId?: string; orderIndex?: number
+  }) => {
+    const db = getBereanDb()
+    const now = Date.now()
+    const id = randomUUID()
+    prep(db, `INSERT INTO trail_notes
+      (id, trail_session_id, kind, anchor_node_id, order_index, title, body, color, note_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      id, input.trailSessionId, input.kind ?? 'annotation', input.anchorNodeId ?? null,
+      input.orderIndex ?? 0, input.title ?? null, input.body ?? '', input.color ?? null,
+      input.noteId ?? null, now, now,
+    )
+    broadcastDataChanged(input.trailSessionId)
+    return rowToTrailNote(db.prepare('SELECT * FROM trail_notes WHERE id = ?').get(id) as TrailNoteRow)
+  })
+
+  ipcMain.handle('studyTrail:updateNote', (_e, id: string, patch: Partial<{
+    kind: string; anchorNodeId: string | null; orderIndex: number; title: string | null
+    body: string; width: number | null; height: number | null; noteId: string | null; color: string | null
+    offsetX: number | null; offsetY: number | null
+  }>) => {
+    const db = getBereanDb()
+    const COLUMN: Record<string, string> = {
+      kind: 'kind', anchorNodeId: 'anchor_node_id', orderIndex: 'order_index', title: 'title',
+      body: 'body', width: 'width', height: 'height', noteId: 'note_id', color: 'color',
+      offsetX: 'offset_x', offsetY: 'offset_y',
+    }
+    const sets: string[] = []
+    const vals: unknown[] = []
+    for (const [k, v] of Object.entries(patch)) {
+      const col = COLUMN[k]
+      if (!col) continue
+      sets.push(`${col} = ?`)
+      vals.push(v ?? null)
+    }
+    if (sets.length === 0) return { success: true }
+    sets.push('updated_at = ?')
+    vals.push(Date.now(), id)
+    db.prepare(`UPDATE trail_notes SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+    const row = db.prepare('SELECT * FROM trail_notes WHERE id = ?').get(id) as TrailNoteRow | undefined
+    if (row) broadcastDataChanged(row.trail_session_id)
+    return { success: true }
+  })
+
+  ipcMain.handle('studyTrail:deleteNote', (_e, id: string) => {
+    const db = getBereanDb()
+    const row = db.prepare('SELECT trail_session_id FROM trail_notes WHERE id = ?').get(id) as { trail_session_id: string } | undefined
+    prep(db, 'DELETE FROM trail_notes WHERE id = ?').run(id)
+    // Its collapse state goes with it, otherwise a recycled id would inherit a stale fold.
+    prep(db, `DELETE FROM trail_collapse WHERE scope = 'section' AND key = ?`).run(id)
+    if (row) broadcastDataChanged(row.trail_session_id)
+    return { success: true }
+  })
+
+  // ── Session tags (v40) ────────────────────────────────────────────────────
+  ipcMain.handle('studyTrail:listTags', () => {
+    const db = getBereanDb()
+    const tags = db.prepare('SELECT * FROM trail_tags ORDER BY sort_order IS NULL, sort_order, name COLLATE NOCASE')
+      .all() as Array<{ id: string; name: string; color: string | null; sort_order: number | null }>
+    const members = db.prepare('SELECT tag_id, trail_session_id FROM trail_tag_members')
+      .all() as Array<{ tag_id: string; trail_session_id: string }>
+    const bySession = new Map<string, string[]>()
+    for (const m of members) {
+      const list = bySession.get(m.tag_id)
+      if (list) list.push(m.trail_session_id)
+      else bySession.set(m.tag_id, [m.trail_session_id])
+    }
+    return tags.map((t) => ({
+      id: t.id, name: t.name, color: t.color ?? undefined, sortOrder: t.sort_order ?? undefined,
+      sessionIds: bySession.get(t.id) ?? [],
+    }))
+  })
+
+  ipcMain.handle('studyTrail:createTag', (_e, name: string, color?: string) => {
+    const db = getBereanDb()
+    const existing = db.prepare('SELECT * FROM trail_tags WHERE name = ? COLLATE NOCASE').get(name) as { id: string } | undefined
+    if (existing) return { id: existing.id }
+    const id = randomUUID()
+    prep(db, 'INSERT INTO trail_tags (id, name, color, created_at) VALUES (?, ?, ?, ?)').run(id, name.trim(), color ?? null, Date.now())
+    broadcastDataChanged()
+    return { id }
+  })
+
+  ipcMain.handle('studyTrail:updateTag', (_e, id: string, patch: { name?: string; color?: string | null; sortOrder?: number | null }) => {
+    const db = getBereanDb()
+    if (patch.name != null) prep(db, 'UPDATE trail_tags SET name = ? WHERE id = ?').run(patch.name.trim(), id)
+    if ('color' in patch) prep(db, 'UPDATE trail_tags SET color = ? WHERE id = ?').run(patch.color ?? null, id)
+    if ('sortOrder' in patch) prep(db, 'UPDATE trail_tags SET sort_order = ? WHERE id = ?').run(patch.sortOrder ?? null, id)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  ipcMain.handle('studyTrail:deleteTag', (_e, id: string) => {
+    // ON DELETE CASCADE handles the members, but foreign_keys is only ON for connections opened
+    // through getBereanDb() — deleting explicitly makes that independent of the pragma.
+    const db = getBereanDb()
+    prep(db, 'DELETE FROM trail_tag_members WHERE tag_id = ?').run(id)
+    prep(db, 'DELETE FROM trail_tags WHERE id = ?').run(id)
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  ipcMain.handle('studyTrail:setSessionTags', (_e, trailSessionId: string, tagIds: string[]) => {
+    const db = getBereanDb()
+    db.transaction(() => {
+      prep(db, 'DELETE FROM trail_tag_members WHERE trail_session_id = ?').run(trailSessionId)
+      const ins = prep(db, 'INSERT OR IGNORE INTO trail_tag_members (tag_id, trail_session_id, created_at) VALUES (?, ?, ?)')
+      const now = Date.now()
+      for (const t of tagIds) ins.run(t, trailSessionId, now)
+    })()
+    broadcastDataChanged(trailSessionId)
+    return { success: true }
+  })
+
+  // ── Session merge / split / reorder ───────────────────────────────────────
+  // All three are order_index rewrites plus a trail_session_id move, in one transaction so a
+  // half-applied merge can never leave nodes orphaned between two sessions.
+  ipcMain.handle('studyTrail:mergeSessions', (_e, intoId: string, fromId: string) => {
+    const db = getBereanDb()
+    if (intoId === fromId) return { success: false, error: 'same session' }
+    db.transaction(() => {
+      prep(db, 'UPDATE trail_nodes SET trail_session_id = ? WHERE trail_session_id = ?').run(intoId, fromId)
+      prep(db, 'UPDATE trail_connections SET trail_session_id = ? WHERE trail_session_id = ?').run(intoId, fromId)
+      prep(db, 'UPDATE trail_notes SET trail_session_id = ? WHERE trail_session_id = ?').run(intoId, fromId)
+      renumberNodes(db, intoId)
+      // The loose bucket is structural — it always exists and is re-provisioned on demand — so
+      // merging OUT of it empties it rather than deleting the row.
+      if (fromId !== LOOSE_SESSION_ID) prep(db, 'DELETE FROM trail_sessions WHERE id = ?').run(fromId)
+      prep(db, 'UPDATE trail_sessions SET updated_at = ? WHERE id = ?').run(Date.now(), intoId)
+    })()
+    broadcastDataChanged()
+    return { success: true }
+  })
+
+  /** Everything from `atNodeId` onward (by order_index) becomes a new session. */
+  ipcMain.handle('studyTrail:splitSession', (_e, trailSessionId: string, atNodeId: string, name?: string) => {
+    const db = getBereanDb()
+    const pivot = db.prepare('SELECT order_index, anchor_started_at FROM trail_nodes WHERE id = ?')
+      .get(atNodeId) as { order_index: number; anchor_started_at: number } | undefined
+    if (!pivot) return { success: false, error: 'node not found' }
+    const newId = randomUUID()
+    db.transaction(() => {
+      const now = Date.now()
+      prep(db, `INSERT INTO trail_sessions (id, name, status, created_at, updated_at) VALUES (?, ?, 'paused', ?, ?)`)
+        .run(newId, name?.trim() || 'Split session', now, now)
+      prep(db, 'UPDATE trail_nodes SET trail_session_id = ? WHERE trail_session_id = ? AND order_index >= ?')
+        .run(newId, trailSessionId, pivot.order_index)
+      // Connections move with the node they hang off — matched on from_node_id rather than a
+      // timestamp, so a connection recorded slightly out of order still follows its own stop.
+      prep(db, `UPDATE trail_connections SET trail_session_id = ?
+                WHERE trail_session_id = ? AND from_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)`)
+        .run(newId, trailSessionId, newId)
+      prep(db, 'UPDATE trail_notes SET trail_session_id = ? WHERE trail_session_id = ? AND anchor_node_id IN (SELECT id FROM trail_nodes WHERE trail_session_id = ?)')
+        .run(newId, trailSessionId, newId)
+      renumberNodes(db, trailSessionId)
+      renumberNodes(db, newId)
+    })()
+    broadcastDataChanged()
+    return { success: true, id: newId }
+  })
+
+  ipcMain.handle('studyTrail:reorderSessions', (_e, orderedIds: string[]) => {
+    const db = getBereanDb()
+    db.transaction(() => {
+      const st = prep(db, 'UPDATE trail_sessions SET sort_order = ? WHERE id = ?')
+      orderedIds.forEach((id, i) => st.run(i, id))
+    })()
+    broadcastDataChanged()
+    return { success: true }
+  })
+}
+
+interface TrailThreadRow {
+  id: string
+  kind: 'tag' | 'traced'
+  label: string
+  color?: string
+  source: string
+  stops: number
+  sessions: Array<{ id: string; name: string }>
+  chapters: string[]
+  strongs: string[]
+  words: Array<{ strongsNum: string; translit: string; gloss: string }>
+  terms: string[]
+  firstAt: number
+  lastAt: number
+}
+
+// Words that carry no topical signal — either English filler or Berean's own auto-generated
+// reason-text vocabulary ("Strong's word · G26", "a search for …"), which would otherwise be the
+// most common "topic" in every single thread.
+const TERM_STOPWORDS = new Set([
+  'the', 'and', 'for', 'that', 'this', 'with', 'from', 'was', 'were', 'are', 'his', 'her', 'its',
+  'not', 'but', 'you', 'they', 'them', 'their', 'have', 'has', 'had', 'who', 'what', 'when', 'which',
+  'there', 'here', 'then', 'than', 'into', 'unto', 'shall', 'will', 'would', 'about', 'also',
+  'strong', 'strongs', 'word', 'search', 'cross', 'reference', 'ref', 'lookup', 'verse', 'chapter',
+  'note', 'notes', 'compare', 'occurrence', 'occurrences', 'manual', 'popover', 'tab', 'switch',
+])
+
+/** The handful of words the user actually keeps writing about a topic, most frequent first. */
+function topTerms(texts: string[], limit = 4): string[] {
+  const freq = new Map<string, { n: number; display: string }>()
+  for (const t of texts) {
+    for (const raw of t.split(/[^\p{L}\p{N}']+/u)) {
+      const w = raw.toLowerCase()
+      // Length 4+ skips most filler without needing an exhaustive stopword list, and a purely
+      // numeric token is a verse number, never a topic.
+      if (w.length < 4 || TERM_STOPWORDS.has(w) || /^\d+$/.test(w)) continue
+      const cur = freq.get(w)
+      if (cur) cur.n += 1
+      else freq.set(w, { n: 1, display: raw })
+    }
+  }
+  return [...freq.entries()]
+    .filter(([, v]) => v.n > 1)
+    .sort((a, b) => b[1].n - a[1].n)
+    .slice(0, limit)
+    .map(([, v]) => v.display)
+}
+
+interface TrailSearchHit {
+  kind: 'session' | 'stop' | 'connection' | 'note'
+  id: string
+  sessionId: string
+  sessionName: string
+  title: string
+  snippet?: string
+  bookId?: string
+  chapter?: number
+  strongsNum?: string
+  anchorNodeId?: string
+  at: number
+}
+
+interface TrailNoteRow {
+  id: string; trail_session_id: string; kind: string; anchor_node_id: string | null
+  order_index: number; title: string | null; body: string; width: number | null; height: number | null
+  note_id: string | null; color: string | null; created_at: number; updated_at: number
+  offset_x: number | null; offset_y: number | null
+}
+
+function rowToTrailNote(r: TrailNoteRow) {
+  return {
+    id: r.id, trailSessionId: r.trail_session_id, kind: r.kind as 'section' | 'annotation',
+    anchorNodeId: r.anchor_node_id ?? undefined, orderIndex: r.order_index,
+    title: r.title ?? undefined, body: r.body,
+    width: r.width ?? undefined, height: r.height ?? undefined,
+    noteId: r.note_id ?? undefined, color: r.color ?? undefined,
+    offsetX: r.offset_x ?? undefined, offsetY: r.offset_y ?? undefined,
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  }
+}
+
+/** Rewrites one session's order_index to a dense 0..n-1 in anchor order. Every structural session
+ *  edit (merge, split, move) has to end with this: order_index is what the Map reads as spine
+ *  order, and leaving gaps or duplicates after moving nodes between sessions makes two stops
+ *  compare equal and render in an arbitrary order. */
+function renumberNodes(db: any, trailSessionId: string): void {
+  const rows = db.prepare('SELECT id FROM trail_nodes WHERE trail_session_id = ? ORDER BY anchor_started_at, order_index')
+    .all(trailSessionId) as Array<{ id: string }>
+  const st = db.prepare('UPDATE trail_nodes SET order_index = ? WHERE id = ?')
+  rows.forEach((r, i) => st.run(i, r.id))
 }

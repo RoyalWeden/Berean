@@ -18,3 +18,8 @@ scripts/cache/
 build/embedded.provisionprofile
 sample-pdfs/
 .claude/
+
+# Per-checkout Vite dependency-optimizer cache (see electron.vite.config.ts's cacheDir —
+# node_modules is symlinked across worktrees, so this must not live under it).
+.vite/
+.vite-test/

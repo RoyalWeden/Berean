@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
 import { LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import MapView, { pickControlSide, CTRL_W } from './MapView'
 import { EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
+import { getDailyNoteAnchorDate, toDateKey } from '@/lib/dailyNoteUtils'
+import { useAppStore } from '@/store'
+
+// How many sessions are loaded at a time. Everything used to call listAllSessions() and then
+// getSession() for EVERY session on every change (plus a 2s poll), which is the "it will just get
+// too long" problem from both ends: an unbounded render AND an unbounded fetch. Now it pages
+// newest-first and pulls older ones in as you scroll up.
+const PAGE_SIZE = 8
 
 // The default landing view — everything recorded across EVERY session, with no session
 // selected. Answers "I'm not in any particular session right now, just show me what's been
@@ -23,6 +31,28 @@ function fmtBoundaryDate(ms: number): string {
   return d.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Day boundaries use the app's own daily-note anchor date rather than raw midnight: with a
+// location configured, a stop recorded between midnight and sunrise still belongs to the previous
+// day, which is how Berean's daily notes already define a day. Without a location it degrades to
+// the plain calendar date, which is what getDailyNoteAnchorDate itself does.
+function dayKeyFor(ms: number): string {
+  try { return toDateKey(getDailyNoteAnchorDate(new Date(ms), useAppStore.getState().dailyNoteLocation)) }
+  catch { return toDateKey(new Date(ms)) }
+}
+
+function fmtDayHeading(ms: number): string {
+  const key = dayKeyFor(ms)
+  const today = dayKeyFor(Date.now())
+  const yesterday = dayKeyFor(Date.now() - 86_400_000)
+  if (key === today) return 'Today'
+  if (key === yesterday) return 'Yesterday'
+  const d = new Date(ms)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString([], sameYear
+    ? { weekday: 'short', month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function EverythingView({ sessions, zoom, onZoomChange, revisitWindowMs, onLayoutRoomChange, layoutRoom, onCurrentHourChange, currentHour }: {
   sessions: TrailSession[]
   zoom?: number
@@ -38,36 +68,56 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   const [allSessions, setAllSessions] = useState<TrailSession[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  // Paging state. `cursor` is the keyset cursor for the NEXT page (undefined once exhausted);
+  // `loadedCount` is how many sessions are currently in the window, so a live refresh re-fetches
+  // exactly what's on screen rather than resetting back to one page.
+  const [cursor, setCursor] = useState<number | undefined>(undefined)
+  const [exhausted, setExhausted] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadedCountRef = useRef(PAGE_SIZE)
 
-  async function loadAll(showLoading: boolean) {
+  /** Fetches the newest `count` sessions and their details, replacing the window. Used both for
+   *  the first load and for every live refresh — refreshing has to cover everything currently
+   *  visible, not just the first page, or scrolling back in time then studying would silently
+   *  drop the older pages. */
+  const loadWindow = useCallback(async (count: number, showLoading: boolean) => {
     if (showLoading) setLoading(true)
-    // listAllSessions (not the `sessions` prop) so the implicit "Loose stops" bucket — every
-    // stop recorded while the user had no session of their own — is merged into the timeline
-    // too. It's filtered out of the session rail, so it only ever appears here.
-    const all = await window.studyTrail.listAllSessions().catch(() => [] as TrailSession[])
-    setAllSessions(all)
-    const rows = await Promise.all(all.map((s) => window.studyTrail.getSession(s.id)))
+    // listSessionsPage (not the `sessions` prop, and no longer listAllSessions) so the implicit
+    // "Loose stops" bucket is merged in too — it's filtered out of the session rail, so it only
+    // ever appears here — while still bounding how much is fetched at once.
+    const page = await window.studyTrail.listSessionsPage(undefined, count).catch(() => ({ sessions: [] as TrailSession[], nextCursor: undefined }))
+    setAllSessions(page.sessions)
+    setCursor(page.nextCursor)
+    setExhausted(page.nextCursor == null)
+    const rows = await Promise.all(page.sessions.map((s) => window.studyTrail.getSession(s.id)))
     setDetails(rows.filter((r): r is TrailSessionDetail => !!r))
     if (showLoading) setLoading(false)
-  }
+  }, [])
 
-  useEffect(() => { loadAll(true) }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  /** Pulls the next page of OLDER sessions in, appending to the window. */
+  const loadOlder = useCallback(async () => {
+    if (exhausted || loadingMore || cursor == null) return
+    setLoadingMore(true)
+    try {
+      const page = await window.studyTrail.listSessionsPage(cursor, PAGE_SIZE)
+      const rows = await Promise.all(page.sessions.map((s) => window.studyTrail.getSession(s.id)))
+      setAllSessions((prev) => [...prev, ...page.sessions])
+      setDetails((prev) => [...prev, ...rows.filter((r): r is TrailSessionDetail => !!r)])
+      setCursor(page.nextCursor)
+      setExhausted(page.nextCursor == null)
+      loadedCountRef.current += page.sessions.length
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [cursor, exhausted, loadingMore])
 
-  // This view previously only reloaded when the SET of sessions changed (a session created/
-  // deleted) — new nodes/connections streaming into an already-open session while you keep
-  // studying never showed up here until you switched away and back. Per direct feedback
-  // ("make sure that the study trail auto updates as i am studying"), poll the same way the
-  // per-session Map view already does (StudyTrailApp.tsx's own 2s interval) — no push channel
-  // yet (deferred, see that file's comment), so a short poll while this view is open is the
-  // honest v1 rather than a fake "live" claim. `showLoading: false` so this never flashes
-  // "Loading…" over content that's already on screen.
-  useEffect(() => {
-    const interval = setInterval(() => loadAll(false), 2000)
-    return () => clearInterval(interval)
-  }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Push-based near-instant refresh — the poll above is a fallback; per direct feedback
-  // ("want it faster / near-instant"), this reacts the moment anything is actually written.
-  useEffect(() => window.studyTrail.onDataChanged(() => loadAll(false)), []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadedCountRef.current = PAGE_SIZE; void loadWindow(PAGE_SIZE, true) }, [sessions.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The old 2s poll is gone. It re-ran the full "every session, in full" fetch twice a second's
+  // worth of CPU forever while this view was open, and the push channel below already covers the
+  // "auto updates as i am studying" requirement it was there for — the poll was only ever a
+  // fallback from before that channel existed.
+  useEffect(() => window.studyTrail.onDataChanged(() => { void loadWindow(loadedCountRef.current, false) }), [loadWindow])
 
   const totalConnections = details.reduce((n, d) => n + d.connections.length, 0)
   const totalNodes = details.reduce((n, d) => n + d.nodes.length, 0)
@@ -82,17 +132,29 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
   const mergedPausedIntervals = details.flatMap((d) => d.pausedIntervals)
   const sessionById = new Map(allSessions.map((s) => [s.id, s]))
 
+  // Two kinds of divider, in one map because MapView renders one label per node: a DAY heading
+  // whenever the (sunset-aware) day rolls over, and a SESSION label whenever the session changes.
+  // A node that starts both gets them on one line — repeating the date directly under a "Today"
+  // heading reads as noise. Chunking by day is the "things in the everything need to be broken up
+  // because it will just get too long" half of the fix; paging above is the other half.
   const boundaryLabelForNodeId = new Map<string, string>()
   let lastSessionId: string | null = null
+  let lastDayKey: string | null = null
   for (const n of mergedNodes) {
-    if (n.trailSessionId !== lastSessionId) {
+    const dayKey = dayKeyFor(n.anchorStartedAt)
+    const dayRolled = dayKey !== lastDayKey
+    const sessionChanged = n.trailSessionId !== lastSessionId
+    if (dayRolled || sessionChanged) {
       const s = sessionById.get(n.trailSessionId)
       // The implicit bucket renders as a plain "Loose stops" divider (no session name to
       // show — the user never named it) so a run of un-sessioned stops still reads as its
       // own stretch of the timeline.
       const label = s?.id === LOOSE_SESSION_ID || !s ? 'Loose stops' : s.name
-      boundaryLabelForNodeId.set(n.id, `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
+      boundaryLabelForNodeId.set(n.id, dayRolled
+        ? `${fmtDayHeading(n.anchorStartedAt)} · ${label}`
+        : `${label} — ${fmtBoundaryDate(n.anchorStartedAt)}`)
       lastSessionId = n.trailSessionId
+      lastDayKey = dayKey
     }
   }
 
@@ -144,8 +206,23 @@ export default function EverythingView({ sessions, zoom, onZoomChange, revisitWi
       {mergedNodes.length === 0 ? (
         <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No sessions yet — start one from the rail on the left.</div>
       ) : (
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <MapView detail={merged} onChanged={() => loadAll(true)} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Older sessions load on demand rather than all at once. Deliberately a button and not
+              a scroll sentinel: the map restores its own scroll position on mount and auto-jumps
+              to the newest stop, so an "am I near the top?" observer would fire spuriously during
+              those jumps and pull in pages nobody asked for. */}
+          {!exhausted && (
+            <button
+              onClick={() => { void loadOlder() }}
+              disabled={loadingMore}
+              style={{
+                alignSelf: 'center', marginBottom: 6, fontSize: 11, padding: '4px 12px', borderRadius: 999,
+                cursor: loadingMore ? 'default' : 'pointer', background: 'rgb(var(--color-surface-2))',
+                border: '1px solid rgb(var(--color-surface-4))', color: 'rgb(var(--color-text-muted))',
+              }}
+            >{loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} older sessions`}</button>
+          )}
+          <MapView detail={merged} onChanged={() => { void loadWindow(loadedCountRef.current, false) }} boundaryLabelForNodeId={boundaryLabelForNodeId} scrollKey={EVERYTHING_SCROLL_KEY} zoom={zoom} onZoomChange={onZoomChange} revisitWindowMs={revisitWindowMs} filterValue={filter} onFilterChange={setFilter} topInset={8} onLayoutRoomChange={onLayoutRoomChange} onCurrentHourChange={onCurrentHourChange} />
         </div>
       )}
     </div>

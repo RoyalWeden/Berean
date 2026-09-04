@@ -1985,6 +1985,20 @@ html.theme-anim-bg[data-anim-style="flicker"] body::before {
   background: rgb(var(--color-surface-3)) !important;
 }
 
+/* The small chips in Study Trail's Threads and Search tabs (a passage, a Strong's word, a
+   session). Same problem the context-menu buttons had: they're clickable but gave no feedback,
+   so nothing about them said so. Per direct feedback, "the threads doesnt highlight or whatever
+   when hovered." */
+.trail-row-hover:hover {
+  background: rgb(var(--color-surface-2));
+}
+
+.trail-chip:hover,
+.trail-chip:focus-visible {
+  background: rgb(var(--color-accent) / 0.16) !important;
+  color: rgb(var(--color-accent)) !important;
+}
+
 /* Same idea, for the ACCENT-filled buttons in Study Trail's note/reason forms (Save, in
    TrailReasonFormBody — ReasonPromptPopover.tsx, shared by the full popup and the arrival-prompt
    toast) — those buttons already have a solid accent background, so overlaying the plain
