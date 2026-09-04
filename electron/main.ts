@@ -385,11 +385,11 @@ function buildAppMenu(): Electron.Menu {
           },
         },
         {
-          label: 'New Independent Window',
+          label: 'New Standalone Window',
           accelerator: 'CmdOrCtrl+Alt+N',
-          // A standalone window with its OWN tabs / sessions / view — not part of
-          // cross-window sync. Notes, highlights and the Bible DB are still
-          // shared (they live in SQLite, not window state).
+          // Its OWN tabs / sessions / view — not part of cross-window sync
+          // (unlike "New Window" above, which shares them). Notes, highlights and
+          // the Bible DB are still shared (they live in SQLite, not window state).
           click: () => { createWindow({ independent: true }) },
         },
         { type: 'separator' as const },

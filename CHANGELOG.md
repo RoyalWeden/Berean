@@ -139,9 +139,10 @@ SCENARIO 5 — Abandon a beta series and restart
   the last window quits the app.
   - Not yet: real-time co-editing of the *same* note in two windows at once
     (edits sync on save/reload for now — Phase 3).
-- **`Window ▸ New Independent Window` (⌘⌥N)** opens a standalone window with its
-  own tabs, sessions and view — no cross-window sync. It inherits your settings
-  (theme, fonts, preferences) but starts with a blank workspace, and writes
+- **`Window ▸ New Standalone Window` (⌘⌥N)** opens a window with its own tabs,
+  sessions and view — *not* part of cross-window sync (unlike `New Window`,
+  which shares them live). It inherits your settings (theme, fonts, preferences)
+  once but then goes its own way, starts with a blank workspace, and writes
   nothing back. Notes, highlights and the Bible DB are still shared.
 - **The presenter window belongs to the window that opened it.** Only that
   window drives its content, receives its "on presenter" outline band, and shows
