@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check, Tag, X } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ChevronDown, Check, Tag, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -1222,11 +1222,8 @@ export default function FloatingSearch() {
               <div aria-hidden className="absolute inset-0 flex items-center text-sm pointer-events-none whitespace-pre overflow-hidden">
                 <span className="invisible">{query}</span>
                 {predictedSpace && selectedIdx < 0 && (
-                  <span className="flex items-center gap-1 ml-1 flex-shrink-0 opacity-60">
-                    <span className="text-[rgb(var(--color-text-muted))]">
-                      → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
-                    </span>
-                    <ShortcutKeys keys="↵" />
+                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-[rgb(var(--color-text-muted))] text-[11px]">
+                    → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
                   </span>
                 )}
               </div>
@@ -1455,76 +1452,55 @@ export default function FloatingSearch() {
             )
           )}
 
-          {/* Footer */}
-          <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
-            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↑↓" /> Navigate</span>
-            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↵" /> Open</span>
-            <div className="flex-1" />
-            {isTagMode && candidateTags.length > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium whitespace-nowrap">
-                <ShortcutKeys keys="↵" /> add tag
-              </span>
-            )}
-            {isTagMode && verseTags.length === 0 && (
-              <span className="text-[10.5px] font-medium whitespace-nowrap">No verse tags yet</span>
-            )}
-            {/* Advanced Scripture search — carries any selected tags + (outside tag
-                mode) the typed keyword. Shown in tag mode too so ⇧↵ has an
-                on-screen affordance there. */}
-            {!isCommandMode && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={openAdvancedScriptureSearch}
-                  className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                >
-                  <ShortcutKeys keys="⇧↵" />
-                  <span className="text-[10.5px] font-medium whitespace-nowrap">
-                    {selectedTags.length > 0
-                      ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
-                      : 'Advanced scripture search'}
-                  </span>
-                </button>
-                {/* Remaining destination buttons — icon + arrow, hover-expand label, dimmed
-                    until a query exists (unlike Scripture above, these genuinely need a
-                    query to be useful). All three are hidden entirely in `versesOnly` mode
-                    (opened via the Scripture tab's own "Search scripture" button/shortcut)
-                    — that entry point is scoped to scripture, so offering destinations for
-                    other spaces there is out of place. */}
-                {((versesOnly || isTagMode) ? [] : [
-                  { label: 'Notes',   icon: <NotepadText size={12} />, run: () => openNotesSearchTab(query.trim()) },
-                  { label: 'Lexicon', icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
-                  { label: 'YouTube', icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
-                ]).map((d) => {
-                  const active = !!query.trim()
-                  return (
+          {/* Footer — minimal: only shown when there's something actionable
+              (a query, tag mode, or selected tag filters). Just the advanced-
+              search affordance + quick destination icons; the ↑↓ / ↵ hints and
+              the new/current-tab badge were removed as noise. */}
+          {!isCommandMode && (query.trim().length > 0 || isTagMode || selectedTags.length > 0) && (
+            <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
+              {isTagMode && candidateTags.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium whitespace-nowrap">
+                  <ShortcutKeys keys="↵" /> add tag
+                </span>
+              )}
+              {isTagMode && verseTags.length === 0 && (
+                <span className="text-[10.5px] font-medium whitespace-nowrap">No verse tags yet</span>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={openAdvancedScriptureSearch}
+                className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              >
+                <ShortcutKeys keys="⇧↵" />
+                <span className="text-[10.5px] font-medium whitespace-nowrap">
+                  {selectedTags.length > 0
+                    ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
+                    : 'Advanced scripture search'}
+                </span>
+              </button>
+              {/* Quick "send this query to…" destinations — bare icons (no
+                  hover-expand label), sized to match the app's other toolbar
+                  icons. Hidden in tag / verses-only mode. */}
+              {!versesOnly && !isTagMode && query.trim().length > 0 && (
+                <div className="flex items-center gap-0.5">
+                  {[
+                    { label: 'Search Notes',   icon: <NotepadText size={15} />, run: () => openNotesSearchTab(query.trim()) },
+                    { label: 'Search Lexicon', icon: <BookMarked size={15} />, run: () => openLexiconSearchTab(query.trim()) },
+                    { label: 'Search YouTube', icon: <Youtube size={15} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
+                  ].map((d) => (
                     <button
                       key={d.label}
-                      disabled={!active}
-                      onClick={() => { if (active) { closeSearch(); d.run() } }}
-                      className={`group flex items-center gap-1 pl-1.5 pr-1 py-1 rounded transition-colors cursor-pointer ${
-                        active
-                          ? 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
-                          : 'opacity-40 pointer-events-none text-[rgb(var(--color-text-muted))]'
-                      }`}
+                      title={d.label}
+                      onClick={() => { closeSearch(); d.run() }}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                     >
                       {d.icon}
-                      <span className="max-w-0 group-hover:max-w-[5rem] overflow-hidden whitespace-nowrap text-[10px] font-medium transition-[max-width] duration-150">
-                        {d.label}
-                      </span>
-                      <ArrowRight size={10} className="flex-shrink-0" />
                     </button>
-                  )
-                })}
-              </div>
-            )}
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-              searchMode === 'new'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))]'
-            }`}>
-              {searchMode === 'new' ? 'New tab' : 'Current tab'}
-            </span>
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
