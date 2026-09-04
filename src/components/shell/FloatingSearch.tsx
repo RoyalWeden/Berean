@@ -225,6 +225,9 @@ export default function FloatingSearch() {
   const addRecentSearchQuery = useAppStore((s) => s.addRecentSearchQuery)
 
   type SearchWordMode = 'all' | 'any' | 'phrase'
+  // OT/NT scoping moved to the advanced Scripture search — the floating search
+  // is always unscoped now. Kept as a const so `scopedVerseResults` below still
+  // type-checks without dead setter state.
   type ScopeFilter = 'all' | 'ot' | 'nt'
   const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All words', any: 'Any word', phrase: 'Exact phrase' }
 
@@ -232,7 +235,7 @@ export default function FloatingSearch() {
   const selectedItemRef = useRef<HTMLButtonElement>(null)
   const [query, setQuery] = useState('')
   const [searchWordMode, setSearchWordMode] = useState<SearchWordMode>('all')
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all')
+  const scopeFilter: ScopeFilter = 'all'
   const [searchTextId, setSearchTextId] = useState(defaultBibleTranslation.toLowerCase())
   const [books, setBooks] = useState<Book[]>([])
   const [verseResults, setVerseResults] = useState<VerseResult[]>([])
@@ -1248,23 +1251,16 @@ export default function FloatingSearch() {
                 Strong's
               </span>
             )}
-            {/* Scope chips — visible when doing a text keyword search */}
-            {!parsedRef && !isStrongs && query.trim().length >= 2 && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {(['all', 'ot', 'nt'] as ScopeFilter[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setScopeFilter(s)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                      scopeFilter === s
-                        ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
-                        : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
-                    }`}
-                  >
-                    {s === 'all' ? 'All' : s.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+            {/* Clear the query (and any selected tag filters). OT/NT scoping lives
+                in the advanced Scripture search, not here. */}
+            {(query.length > 0 || selectedTags.length > 0) && (
+              <button
+                onClick={() => { setQuery(''); setSelectedTags([]); setTagFocusIdx(0); setSelectedIdx(-1); if (debounceRef.current) clearTimeout(debounceRef.current); setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([]); inputRef.current?.focus() }}
+                title="Clear search"
+                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-md text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+              >
+                <X size={13} />
+              </button>
             )}
             {/* Word mode dropdown — moved here (right-aligned in the input row, where the
                 user is actually typing) from the footer, so it's immediately next to the
