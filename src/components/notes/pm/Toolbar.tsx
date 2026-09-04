@@ -87,6 +87,10 @@ export default function Toolbar({
   const [hovering, setHovering] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
+  // Selection as it stood when the link popover opened — focusing the URL input
+  // blurs the editor and can collapse the live selection before submit. See
+  // editorCommands.ts applyLink.
+  const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const noteFocusModeTabId = useAppStore((s) => s.noteFocusModeTabId)
   const focusMode = tabId != null && noteFocusModeTabId === tabId
@@ -161,6 +165,8 @@ export default function Toolbar({
 
   function openLinkDropdownAt(e: React.MouseEvent<HTMLButtonElement>) {
     if (openDropdown === 'link') { setOpenDropdown('none'); return }
+    const { from, to } = editorView.state.selection
+    linkRangeRef.current = { from, to }
     setLinkUrl(cmds.currentLinkHref())
     const rect = e.currentTarget.getBoundingClientRect()
     setDropdownPos({ left: rect.left, top: rect.bottom + 4 })
@@ -170,7 +176,7 @@ export default function Toolbar({
   function submitLink() {
     const url = linkUrl.trim()
     setOpenDropdown('none')
-    if (url) cmds.applyLink(url)
+    if (url) cmds.applyLink(url, linkRangeRef.current ?? undefined)
   }
   // Verse blocks are plain paragraph text auto-detected by blockDecorations.ts once it
   // matches a real verse in the DB (see slashCommands.ts's startVerseBlock for the full

@@ -7,7 +7,7 @@ import { bookName } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
-import { debouncedLocalStorage } from '@/lib/debouncedStorage'
+import { debouncedLocalStorage, readThroughLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
@@ -22,6 +22,19 @@ import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 // synchronously during create() below — referencing a const declared after create()
 // would hit the temporal-dead-zone.
 const VIEWER_FONT_SCALE_SYNC_KEY = 'berean-viewer-font-scale'
+
+// The main window is the ONLY owner/writer of the persisted 'berean-app-state'
+// blob. Secondary windows (?viewer=1 / ?studyTrail=1 / ?float=1) each build their
+// own useAppStore from this same module; letting them write the shared key means
+// their stale/default full-state snapshot clobbers real settings on the next
+// launch (see readThroughLocalStorage). They still rehydrate from it and get
+// live updates via IPC push channels.
+const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1'
+  } catch { return false }
+})()
 
 export interface WordReplacerRule {
   id: string
@@ -2679,7 +2692,7 @@ export const useAppStore = create<AppState>()(
       // accidental wipe on ordinary additive changes (new fields, as most of this store's history
       // has been).
       migrate: (persistedState) => persistedState as Partial<AppState>,
-      storage: createJSONStorage(() => debouncedLocalStorage),
+      storage: createJSONStorage(() => (IS_SECONDARY_WINDOW ? readThroughLocalStorage : debouncedLocalStorage)),
       onRehydrateStorage: () => (state) => {
         // Read Aloud (TTS) — the ACTUAL backend activation constructs a Worker, a runtime side
         // effect `persist`'s plain state rehydration can't perform itself, so it's kicked off
