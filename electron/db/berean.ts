@@ -1075,6 +1075,18 @@ const MIGRATIONS: Array<{ version: number; up: (db: DB) => void }> = [
       `)
       console.log('[berean-db] v40: trail_tags / trail_tag_members / trail_sessions.sort_order')
     }
+  },
+  {
+    // Study Trail sticky notes gain a free position offset from their anchor stop, so a note can
+    // be dragged where it's actually wanted rather than being pinned exactly beside whatever stop
+    // it was created on. The anchor still governs which stop it belongs to (and so what happens
+    // when that stop is folded away or its session is split); the offset is purely where it sits.
+    version: 41,
+    up(db) {
+      try { db.exec(`ALTER TABLE trail_notes ADD COLUMN offset_x INTEGER`) } catch { /* already present */ }
+      try { db.exec(`ALTER TABLE trail_notes ADD COLUMN offset_y INTEGER`) } catch { /* already present */ }
+      console.log('[berean-db] v41: trail_notes.offset_x / offset_y')
+    }
   }
 ]
 

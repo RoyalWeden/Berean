@@ -98,7 +98,6 @@ export default function StudyTrailApp() {
   // its own strip inside MapView. Cleared whenever the selected session changes.
   const [trailFilter, setTrailFilter] = useState('')
   useEffect(() => { setTrailFilter('') }, [selectedId])
-  const ZOOM_STEP = 0.1
   // Auto-select whatever session is actually live/paused the FIRST time we learn about it —
   // otherwise reopening the window always lands on "Everything" by default, which looked
   // exactly like "nothing got tracked while the window was closed" even though every
@@ -976,9 +975,11 @@ export default function StudyTrailApp() {
             border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: 2,
             boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           }}>
-            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z - ZOOM_STEP))} title="Zoom out" style={zoomBtnStyle}>−</button>
-            <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...zoomBtnStyle, width: 42, fontSize: 10.5 }}>{Math.round(zoom * 100)}%</button>
-            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP))} title="Zoom in" style={zoomBtnStyle}>+</button>
+            {/* Multiplicative steps, matching the wheel — a fixed ±0.1 felt like a lurch at the
+                bottom of the range and like nothing at the top. */}
+            <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, z / 1.15))} title="Zoom out (⌘−)" style={zoomBtnStyle}>−</button>
+            <button onClick={() => setZoom(1)} title="Reset zoom (⌘0)" style={{ ...zoomBtnStyle, width: 46, fontSize: 12 }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, z * 1.15))} title="Zoom in (⌘+)" style={zoomBtnStyle}>+</button>
           </div>
         </div>
       )}

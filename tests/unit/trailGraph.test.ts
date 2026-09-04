@@ -129,7 +129,7 @@ describe('return edges', () => {
 })
 
 describe('spine arrows', () => {
-  it('is continuous — every consecutive pair is joined, whatever else explains the arrival', () => {
+  it('drops the segment a branch already carries, rather than drawing a faint copy alongside it', () => {
     const nodes = [
       node('n1', 'Isa', 11, T0),
       node('n2', 'Luk', 4, T0 + 5 * MIN),
@@ -144,13 +144,10 @@ describe('spine arrows', () => {
     const g = buildTrailGraph(detailOf(nodes, conns))
     const incoming = (nodeId: string) => g.edges.filter((e) => e.to === `node:${nodeId}`)
     for (const n of nodes.slice(1)) expect(incoming(n.id).length).toBeGreaterThan(0)
-    // n2 arrives via the 3-segment branch path, so its spine segment RECEDES — but it is still
-    // drawn. Omitting it (the old behaviour) left the faint indent guide showing through the gap,
-    // which read as the spine changing colour and breaking apart mid-line.
-    const s1 = edgeByKey(g.edges, 'spine:n1')
-    expect(s1).toBeDefined()
-    expect(s1!.role).toBe('forward-quiet')
-    expect(s1!.arrow).toBeFalsy()
+    // n2 arrives via the 3-segment branch path, which IS its connection to n1 — so no separate
+    // spine segment is drawn for that stretch. A faint parallel copy read as the spine starting
+    // and then stopping.
+    expect(edgeByKey(g.edges, 'spine:n1')).toBeUndefined()
     expect(edgeByKey(g.edges, 'tangent-arrive:n2')?.to).toBe('node:n2')
     // n3's low-signal origin produced no row, so its segment carries the full forward treatment.
     const s2 = edgeByKey(g.edges, 'spine:n2')

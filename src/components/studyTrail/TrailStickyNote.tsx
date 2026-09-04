@@ -41,15 +41,28 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
   useEffect(() => {
     if (document.activeElement !== ref.current) setTitle(note.title ?? '')
   }, [note.title])
+  useEffect(() => { if (!note.title) ref.current?.focus() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 8px', paddingLeft: 21 }}>
+    // A translucent slab rather than a hairline rule, per direct feedback that a section should
+    // "show above with a translucent background sorta" — it reads as a band the stops below sit
+    // inside, which is what a section actually is, instead of as one more line on a map that
+    // already has plenty.
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 9, margin: '22px 0 10px', padding: '7px 12px',
+        borderRadius: 9, background: 'rgb(var(--color-accent) / 0.10)',
+        border: '1px solid rgb(var(--color-accent) / 0.28)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+      }}
+    >
       <button
         onClick={onToggle}
         title={collapsed ? 'Expand this section' : 'Collapse this section'}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
-          fontSize: 10, color: 'rgb(var(--color-accent))',
+          fontSize: 13, lineHeight: 1, color: 'rgb(var(--color-accent))',
           transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
         }}
       >▾</button>
@@ -58,29 +71,79 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
         value={title}
         onChange={(e) => { setTitle(e.target.value); save({ title: e.target.value }) }}
         onBlur={onChanged}
-        placeholder="Section…"
+        placeholder="Name this section…"
         style={{
-          flexShrink: 0, minWidth: 80, maxWidth: 320, background: 'transparent', border: 'none', outline: 'none',
-          fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase',
+          flex: 1, minWidth: 60, background: 'transparent', border: 'none', outline: 'none',
+          fontSize: 13, fontWeight: 700, letterSpacing: '.03em',
           color: 'rgb(var(--color-accent))',
         }}
       />
-      <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
       <button
         onClick={() => { void window.studyTrail.deleteNote(note.id).then(onChanged) }}
         title="Remove this section"
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.6, flexShrink: 0 }}
-      ><Trash2 size={11} /></button>
+      ><Trash2 size={13} /></button>
     </div>
   )
 }
 
-export function TrailAnnotation({ note, onChanged }: { note: TrailStickyNoteData; onChanged: () => void }) {
+export function TrailAnnotation({ note, onChanged, resolveAnchor, zoom = 1 }: {
+  note: TrailStickyNoteData
+  onChanged: () => void
+  /** Which stop a given viewport y belongs to — used on drop so a note dragged well away from
+   *  where it started still belongs to the stop it now sits beside, and so folding that stop takes
+   *  the note with it. */
+  resolveAnchor?: (clientY: number) => string | null
+  /** The map's zoom, so a drag moves the note exactly as far as the pointer moved on screen. */
+  zoom?: number
+}) {
   const [body, setBody] = useState(note.body)
   const [size, setSize] = useState({ w: note.width ?? 210, h: note.height ?? 90 })
+  const [offset, setOffset] = useState({ x: note.offsetX ?? 0, y: note.offsetY ?? 0 })
   const save = useDebouncedSave(note.id)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const resizing = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  const dragging = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Re-sync a position changed elsewhere (another window), but never mid-drag.
+  useEffect(() => {
+    if (dragging.current) return
+    setOffset({ x: note.offsetX ?? 0, y: note.offsetY ?? 0 })
+  }, [note.offsetX, note.offsetY])
+
+  // Drag to move. Pointer events on window rather than on the handle, because the pointer leaves
+  // the small handle the instant the drag starts.
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const d = dragging.current
+      if (!d) return
+      // Divided by zoom: the offset is stored in the map's own local units, but the pointer moves
+      // in screen pixels, so at 2x zoom a 100px drag is a 50-unit move.
+      setOffset({ x: d.ox + (e.clientX - d.x) / zoom, y: d.oy + (e.clientY - d.y) / zoom })
+    }
+    const up = (e: PointerEvent) => {
+      const d = dragging.current
+      if (!d) return
+      dragging.current = null
+      setIsDragging(false)
+      const nextAnchor = resolveAnchor?.(e.clientY) ?? null
+      setOffset((o) => {
+        const rounded = { x: Math.round(o.x), y: Math.round(o.y) }
+        void window.studyTrail.updateNote(note.id, {
+          offsetX: rounded.x, offsetY: rounded.y,
+          // Re-anchoring keeps the note attached to whatever stop it now sits beside. Its visual
+          // position doesn't jump, because the offset it's saved with is the one it was just
+          // dragged to; only which stop owns it changes.
+          ...(nextAnchor && nextAnchor !== note.anchorNodeId ? { anchorNodeId: nextAnchor } : {}),
+        }).then(() => { if (nextAnchor && nextAnchor !== note.anchorNodeId) onChanged() })
+        return rounded
+      })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+  }, [note.id, note.anchorNodeId, onChanged, resolveAnchor, zoom])
 
   useEffect(() => {
     if (document.activeElement !== textRef.current) setBody(note.body)
@@ -132,13 +195,26 @@ export function TrailAnnotation({ note, onChanged }: { note: TrailStickyNoteData
       onClick={(e) => e.stopPropagation()}
       style={{
         position: 'relative', width: size.w, marginTop: 6, marginBottom: 4,
+        transform: `translate(${offset.x}px, ${offset.y}px)`,
+        zIndex: isDragging ? 20 : undefined,
         background: note.color ? `${note.color}1f` : 'rgb(var(--color-surface-3))',
-        border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, padding: '6px 8px 10px',
+        border: `1px solid ${isDragging ? 'rgb(var(--color-accent) / 0.6)' : 'rgb(var(--color-surface-4))'}`,
+        borderRadius: 8, padding: '6px 8px 10px',
+        boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.32)' : undefined,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-        <NotepadText size={10} style={{ opacity: 0.6, flexShrink: 0 }} />
-        <span style={{ fontSize: 9, letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgb(var(--color-text-muted))' }}>
+      <div
+        // The header strip is the drag handle — the body has to stay selectable for editing.
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).closest('button')) return
+          dragging.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y }
+          setIsDragging(true)
+        }}
+        title="Drag to move"
+        style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, cursor: isDragging ? 'grabbing' : 'grab' }}
+      >
+        <NotepadText size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+        <span style={{ fontSize: 10, letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgb(var(--color-text-muted))' }}>
           {linked ? 'Berean note' : 'Trail note'}
         </span>
         <span style={{ flex: 1 }} />
@@ -147,13 +223,13 @@ export function TrailAnnotation({ note, onChanged }: { note: TrailStickyNoteData
             onClick={promoteToBereanNote}
             title="Make this a real Berean note (syncs to the vault)"
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.7 }}
-          ><FileUp size={11} /></button>
+          ><FileUp size={13} /></button>
         )}
         <button
           onClick={() => { void window.studyTrail.deleteNote(note.id).then(onChanged) }}
           title={linked ? 'Unpin from the trail (the Berean note itself is kept)' : 'Delete this note'}
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgb(var(--color-text-muted))', opacity: 0.6 }}
-        ><Trash2 size={11} /></button>
+        ><Trash2 size={13} /></button>
       </div>
       <textarea
         ref={textRef}
@@ -169,7 +245,7 @@ export function TrailAnnotation({ note, onChanged }: { note: TrailStickyNoteData
         placeholder="Note…"
         style={{
           width: '100%', height: size.h, resize: 'none', background: 'transparent', border: 'none',
-          outline: 'none', fontSize: 11.5, lineHeight: 1.45, color: 'rgb(var(--color-text-primary))',
+          outline: 'none', fontSize: 13, lineHeight: 1.5, color: 'rgb(var(--color-text-primary))',
           fontFamily: 'inherit',
         }}
       />
@@ -180,7 +256,7 @@ export function TrailAnnotation({ note, onChanged }: { note: TrailStickyNoteData
           position: 'absolute', right: 2, bottom: 2, cursor: 'nwse-resize',
           color: 'rgb(var(--color-text-muted))', opacity: 0.5, lineHeight: 0,
         }}
-      ><GripHorizontal size={11} /></div>
+      ><GripHorizontal size={13} /></div>
     </div>
   )
 }

@@ -13,7 +13,7 @@ const STORAGE_KEY = 'berean-study-trail-window'
 export const EVERYTHING_SCROLL_KEY = '__everything__'
 
 export const TRAIL_ZOOM_MIN = 0.5
-export const TRAIL_ZOOM_MAX = 2
+export const TRAIL_ZOOM_MAX = 3
 
 export interface TrailScrollPos {
   top: number

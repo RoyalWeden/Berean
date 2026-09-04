@@ -16,7 +16,7 @@ import {
   TIER_COLOR, INDENT_STEP, OFFSPINE_DOT_INSET, SPINE_DOT_INSET, SPINE_LABEL_COL_INSET,
   type AnnotatedConn,
 } from './trailGraph'
-import { bulletCss, bulletKindForConnection, TIER_DOT } from './trailStyle'
+import { bulletCss, bulletKindForConnection, TIER_DOT, FONT, ICON } from './trailStyle'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 import { useTrailCollapse } from './useTrailCollapse'
@@ -135,7 +135,7 @@ function GapDivider({ gapMs, gutterWidth = 0 }: { gapMs: number; gutterWidth?: n
       paddingLeft: gutterWidth + SPINE_DOT_INSET - 5,
     }}>
       <span style={{
-        fontSize: 9, fontWeight: 600, letterSpacing: '.02em', lineHeight: '14px',
+        fontSize: FONT.meta, fontWeight: 600, letterSpacing: '.02em', lineHeight: '17px',
         color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
         border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '0 7px',
         whiteSpace: 'nowrap',
@@ -298,7 +298,7 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
         {/* A tangent bullet is a VERSE — same shape/colour rule as everywhere else on the map
             (trailStyle.ts); it used to be its own bespoke muted grey dot. */}
         <span ref={registerPoint(pointKey)} style={bulletCss('verse')} />
-        <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
+        <span style={{ fontSize: FONT.row, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
       </div>
     </TrailHoverCard>
     </div>
@@ -433,17 +433,17 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             onToggle: () => window.studyTrail.updateConnectionReason(conn.id, { isBranch: !conn.isBranch }),
           }) : undefined}
           style={{
-            fontSize: 12, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
-            cursor: ref ? 'pointer' : undefined, display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: FONT.row, color: 'rgb(var(--color-text-primary))', opacity: conn.weight === 'glance' ? 0.6 : 1,
+            cursor: ref ? 'pointer' : undefined, display: 'inline-flex', alignItems: 'center', gap: 5,
           }}
           onMouseEnter={(e) => { if (ref) (e.currentTarget as HTMLElement).style.textDecoration = 'underline' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = 'none' }}
         >
-          {labelIcon === 'return' && <RotateCcw size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
-          {labelIcon === 'branch' && <GitBranch size={11} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {labelIcon === 'return' && <RotateCcw size={ICON.sm} style={{ opacity: 0.7, flexShrink: 0 }} />}
+          {labelIcon === 'branch' && <GitBranch size={ICON.sm} style={{ opacity: 0.7, flexShrink: 0 }} />}
           {label}
           {hasNote(conn) && (
-            <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+            <NotepadText size={ICON.sm} aria-label="Has a note" style={{ opacity: 0.5, marginLeft: 3, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
           )}
         </span>
         {/* Past the indent budget the row stops stepping right and says its depth in words
@@ -465,12 +465,12 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             title={collapsed ? 'Show what came off this' : 'Fold this branch away'}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
-              fontSize: 9.5, lineHeight: '15px', padding: '0 7px', borderRadius: 999,
+              fontSize: FONT.badge, lineHeight: '18px', padding: '0 8px', borderRadius: 999,
               background: collapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
               border: 'none', color: collapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
             }}
           >
-            <GitBranch size={9} />
+            <GitBranch size={ICON.sm} />
             {branchCount}
             <span style={{ transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
           </button>
@@ -479,8 +479,8 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           <span
             title={`A ${fullChain.length + 1}-hop word-study chain`}
             style={{
-              fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
-              borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
+              fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+              borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '.03em',
             }}
           >chain</span>
         )}
@@ -493,7 +493,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           />
         )}
         {conn.versePinFrom != null && (
-          <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
+          <span style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))' }}>
             v.{conn.versePinFrom}{conn.versePinTo && conn.versePinTo !== conn.versePinFrom ? `–${conn.versePinTo}` : ''}
           </span>
         )}
@@ -511,10 +511,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             }}
           >?</button>
         ) : conn.dismissedPromptAt ? (
-          <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>reason unclear</span>
+          <span style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))' }}>reason unclear</span>
         ) : null}
-        {conn.weight === 'glance' && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
-        {conn.clusterId && <span style={{ fontSize: 10, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
+        {conn.weight === 'glance' && <span style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))' }}>(glance)</span>}
+        {conn.clusterId && <span style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))' }}>revisited</span>}
         {/* The always-visible row-level pencil that used to live here was removed — per direct
             feedback ("the revisit item has the pencil icon outside of the hover popup but it
             should only be inside the hover popup thing"), the note-edit trigger now lives
@@ -556,10 +556,10 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', opacity: 0.55 }}>
       {/* A collapsed run of glances — a 'jump' bullet, hollow, because none of them were dwelt on. */}
       <span ref={registerPoint(groupKey)} style={{ ...bulletCss('jump', { revisit: true }), opacity: 0.7 }} />
-      <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-secondary))' }}>
+      <span style={{ fontSize: FONT.row, color: 'rgb(var(--color-text-secondary))' }}>
         {labelFor(first)} → {labelFor(last)}
       </span>
-      <button onClick={() => setExpanded(true)} style={{ fontSize: 10, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer' }}>
+      <button onClick={() => setExpanded(true)} style={{ fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))', border: 'none', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>
         ▸ {items.length} glances
       </button>
     </div>
@@ -812,7 +812,7 @@ function NodeBlock({
       {boundaryLabel && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
-          fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
+          fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-text-muted))', textTransform: 'uppercase', letterSpacing: '.05em',
         }}>
           <span style={{ flexShrink: 0 }}>{boundaryLabel}</span>
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-surface-4))' }} />
@@ -825,7 +825,7 @@ function NodeBlock({
       {node.isTopicBreak && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', paddingLeft: 21,
-          fontSize: 10.5, fontWeight: 700, color: 'rgb(var(--color-accent))', textTransform: 'uppercase', letterSpacing: '.05em',
+          fontSize: FONT.badge, fontWeight: 700, color: 'rgb(var(--color-accent))', textTransform: 'uppercase', letterSpacing: '.05em',
         }}>
           <span style={{ flexShrink: 0 }}>New topic</span>
           <span style={{ flex: 1, height: 1, background: 'rgb(var(--color-accent) / 0.35)' }} />
@@ -951,7 +951,7 @@ function NodeBlock({
               },
             )}
             style={{
-              fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? 12 : 13.5, fontWeight: 600, cursor: 'pointer',
+              fontFamily: 'ui-monospace, monospace', fontSize: isRevisit ? FONT.row : FONT.stop, fontWeight: 600, cursor: 'pointer',
               color: isRevisit ? 'rgb(var(--color-text-secondary))' : 'rgb(var(--color-text-primary))',
               // isRevisit italicizes the WHOLE row (step number + reference), not just the
               // REVISIT pill — per direct feedback, the pill alone read as an inconsistent
@@ -971,12 +971,12 @@ function NodeBlock({
             }}
           >
             <span style={{
-              fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
-              minWidth: 14, textAlign: 'right', flexShrink: 0,
+              fontSize: FONT.step, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
+              minWidth: 16, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
             {bookChapterVerseLabel(node.bookId, node.chapter)}
             {dwellLabel && (
-              <span style={{ fontSize: 9.5, fontWeight: 400, fontStyle: 'normal', color: 'rgb(var(--color-text-muted))', opacity: 0.75, flexShrink: 0 }}>
+              <span style={{ fontSize: FONT.meta, fontWeight: 400, fontStyle: 'normal', color: 'rgb(var(--color-text-muted))', opacity: 0.75, flexShrink: 0 }}>
                 {dwellLabel}
               </span>
             )}
@@ -988,18 +988,18 @@ function NodeBlock({
                 title={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
-                  fontSize: 9.5, fontWeight: 600, fontStyle: 'normal', lineHeight: '15px', padding: '0 7px', borderRadius: 999,
+                  fontSize: FONT.badge, fontWeight: 600, fontStyle: 'normal', lineHeight: '18px', padding: '0 8px', borderRadius: 999,
                   background: rowsCollapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
                   border: 'none', color: rowsCollapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
                 }}
               >
-                <GitBranch size={9} />
+                <GitBranch size={ICON.sm} />
                 {branchTotal}
                 <span style={{ transform: rowsCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
               </button>
             )}
             {hasNote(originConn) && (
-              <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+              <NotepadText size={ICON.sm} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
             )}
             {/* Home base — the passage this session kept returning to. */}
             {anchorVisits != null && (
@@ -1007,16 +1007,16 @@ function NodeBlock({
                 title={`You came back to this passage ${anchorVisits} times — the centre of this study`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
-                  fontSize: 9, fontWeight: 700, fontStyle: 'normal', letterSpacing: '.03em', textTransform: 'uppercase',
+                  fontSize: FONT.badge, fontWeight: 700, fontStyle: 'normal', letterSpacing: '.03em', textTransform: 'uppercase',
                   color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
-                  borderRadius: 999, padding: '1px 7px',
+                  borderRadius: 999, padding: '2px 8px',
                 }}
-              ><Crosshair size={9} /> home · {anchorVisits}</span>
+              ><Crosshair size={ICON.sm} /> home · {anchorVisits}</span>
             )}
             {isRevisit && !bounceBadge && (
               <span style={{
-                fontSize: 9, fontWeight: 700, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
-                borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
+                fontSize: FONT.badge, fontWeight: 700, fontStyle: 'italic', color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
+                borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '.03em',
               }}>revisit</span>
             )}
             {/* Replaces the old standalone "↺ Bounced between X and Y over 3m · 2x" text row —
@@ -1033,18 +1033,18 @@ function NodeBlock({
                   : `Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 3,
-                  fontSize: 9.5, fontWeight: 700, fontStyle: 'normal', color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
-                  border: 'none', borderRadius: 999, padding: '1px 7px', cursor: 'pointer', letterSpacing: '.01em',
+                  fontSize: FONT.badge, fontWeight: 700, fontStyle: 'normal', color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
+                  border: 'none', borderRadius: 999, padding: '2px 9px', cursor: 'pointer', letterSpacing: '.01em',
                 }}
               >
                 {bounceBadge.variant === 'run'
-                  ? <><BookOpen size={10} /> read through {bounceBadge.count}</>
-                  : <><ArrowLeftRight size={10} /> {bounceBadge.count}x</>}
+                  ? <><BookOpen size={ICON.sm} /> read through {bounceBadge.count}</>
+                  : <><ArrowLeftRight size={ICON.sm} /> {bounceBadge.count}x</>}
               </button>
             )}
           </div>
         </TrailHoverCard>
-        {node.cachedSubnote && <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1 }}>{replace(node.cachedSubnote)}</div>}
+        {node.cachedSubnote && <div style={{ fontSize: FONT.meta, color: 'rgb(var(--color-text-muted))', marginTop: 2 }}>{replace(node.cachedSubnote)}</div>}
         <div style={{ marginTop: 4 }}>
           {/* Folded away, but never silently: the summary line says how many stops are hidden, so
               a collapsed stop still reads as "there was more here" rather than as a bare chapter.
@@ -1068,7 +1068,10 @@ const blankMenuBtnStyle: React.CSSProperties = {
 }
 
 export const ZOOM_MIN = 0.5
-export const ZOOM_MAX = 2
+// Raised from 2 — with the map's own text now larger at 100%, the useful range shifted upward,
+// and a dense Everything timeline is genuinely easier to read pushed further in.
+export const ZOOM_MAX = 3
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z))
 
 // Approx rendered widths of the floating controls, for the left-vs-right placement decision.
 export const CTRL_W = { header: 236, zoom: 108, latest: 88 }
@@ -1418,7 +1421,7 @@ export default function MapView({
   // place to look for "put a note here" — the empty margin beside the spine is the obvious one.
   // The note is anchored to the nearest stop ABOVE the click, which is what "here" means on a
   // timeline that reads downward.
-  const [blankMenu, setBlankMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const [blankMenu, setBlankMenu] = useState<{ x: number; y: number; nodeId: string; sectionNodeId: string } | null>(null)
   useEffect(() => {
     if (!blankMenu) return
     const close = () => setBlankMenu(null)
@@ -1697,8 +1700,54 @@ export default function MapView({
   function onWheelZoom(e: React.WheelEvent) {
     if (!e.ctrlKey) return // a plain (non-pinch) wheel scroll should keep scrolling normally
     e.preventDefault()
-    setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom - e.deltaY * 0.01)))
+    // MULTIPLICATIVE, not additive. The old `zoom - deltaY * 0.01` moved by a fixed number of
+    // absolute zoom units per notch, so the same gesture was a huge jump down at 0.5x and barely
+    // anything at 2x — the "zoom doesn't feel nice" problem. Scaling by a ratio makes one notch
+    // feel identical at every level, which is how every other zoomable surface behaves.
+    const next = clampZoom(zoom * Math.exp(-e.deltaY * 0.0022))
+    zoomAtPoint(next, e.clientX, e.clientY)
   }
+
+  /** Applies a new zoom while keeping whatever is under (cx, cy) under it afterwards. Zooming
+   *  around the top-left corner — which is what a bare setZoom does, since the transform origin is
+   *  top-left — throws the thing you were looking at off screen, and is most of why zooming felt
+   *  bad rather than merely coarse. */
+  function zoomAtPoint(next: number, cx: number, cy: number) {
+    const el = scrollContainerRef.current
+    if (!el || next === zoom) { setZoom(next); return }
+    const r = el.getBoundingClientRect()
+    // Offset of the cursor within the scrolled content, in local (pre-transform) units.
+    const localX = (el.scrollLeft + (cx - r.left)) / zoom
+    const localY = (el.scrollTop + (cy - r.top)) / zoom
+    setZoom(next)
+    // After React commits the new scale, put the same local point back under the cursor.
+    requestAnimationFrame(() => {
+      const v = scrollContainerRef.current
+      if (!v) return
+      v.scrollLeft = localX * next - (cx - r.left)
+      v.scrollTop = localY * next - (cy - r.top)
+    })
+  }
+
+  /** Zoom from a button or a keyboard shortcut — anchored on the middle of the view, which is the
+   *  closest thing to "what I'm looking at" when there's no cursor position to use. */
+  function zoomBy(factor: number) {
+    const el = scrollContainerRef.current
+    if (!el) { setZoom(clampZoom(zoom * factor)); return }
+    const r = el.getBoundingClientRect()
+    zoomAtPoint(clampZoom(zoom * factor), r.left + r.width / 2, r.top + r.height / 2)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.key === '=' || e.key === '+') { e.preventDefault(); zoomBy(1.15) }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(1 / 1.15) }
+      else if (e.key === '0') { e.preventDefault(); setZoom(1) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }) // no dep array on purpose: the handlers close over the CURRENT zoom, which changes every step
 
   // ── The graph ─────────────────────────────────────────────────────────────
   // Every "which rows hang under which node" and "which lines connect which points" decision
@@ -1773,8 +1822,9 @@ export default function MapView({
     scrollNodeIntoView(el)
   }
 
-  /** Nearest stop at or above a viewport y — what "here" anchors to for a blank-space note. */
-  function nodeIdNearestY(clientY: number): string | null {
+  /** Nearest stop at or above a viewport y — what "here" means for a note, which renders beside
+   *  the stop it belongs to. */
+  function nodeIdAboveY(clientY: number): string | null {
     let best: string | null = null
     let bestTop = -Infinity
     for (const [id, el] of nodeBlockRefs.current) {
@@ -1785,14 +1835,30 @@ export default function MapView({
     return best ?? detail.nodes[0]?.id ?? null
   }
 
+  /** Nearest stop at or BELOW a viewport y. A section header renders ABOVE its anchor, so
+   *  anchoring to the following stop is what puts the header itself at the spot that was actually
+   *  right-clicked — anchoring above dropped it a whole stop higher than intended. */
+  function nodeIdBelowY(clientY: number): string | null {
+    let best: string | null = null
+    let bestTop = Infinity
+    for (const [id, el] of nodeBlockRefs.current) {
+      const top = el.getBoundingClientRect().top
+      if (top >= clientY - 8 && top < bestTop) { bestTop = top; best = id }
+    }
+    return best ?? nodeIdAboveY(clientY)
+  }
+
   function onBlankContextMenu(e: React.MouseEvent) {
     // Rows and bullets call e.stopPropagation() in their own handlers, so reaching here means the
     // click really was on empty space.
     if (detail.nodes.length === 0) return
-    const nodeId = nodeIdNearestY(e.clientY)
-    if (!nodeId) return
+    // Both anchors are captured at right-click time, because which one is correct depends on
+    // which item is chosen from the menu.
+    const above = nodeIdAboveY(e.clientY)
+    const below = nodeIdBelowY(e.clientY)
+    if (!above && !below) return
     e.preventDefault()
-    setBlankMenu({ x: e.clientX, y: e.clientY, nodeId })
+    setBlankMenu({ x: e.clientX, y: e.clientY, nodeId: above ?? below!, sectionNodeId: below ?? above! })
   }
 
   function addStickyAt(nodeId: string, kind: 'section' | 'annotation') {
@@ -2301,7 +2367,12 @@ export default function MapView({
                 line never spills past the edge and spawns a horizontal scrollbar. */}
             {annotationsHere.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginLeft: gutterWidth + SPINE_LABEL_COL_INSET + INDENT_STEP }}>
-                {annotationsHere.map((a) => <TrailAnnotation key={a.id} note={a} onChanged={reloadStickies} />)}
+                {annotationsHere.map((a) => (
+                  <TrailAnnotation
+                    key={a.id} note={a} onChanged={reloadStickies} zoom={zoom}
+                    resolveAnchor={(clientY) => nodeIdAboveY(clientY)}
+                  />
+                ))}
               </div>
             )}
             {showGapDivider && <GapDivider gapMs={gapToNextMs!} gutterWidth={gutterWidth} />}
@@ -2442,10 +2513,10 @@ export default function MapView({
         }}
       >
         <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.nodeId, 'annotation')} style={blankMenuBtnStyle}>
-          <StickyNote size={13} style={{ opacity: 0.85 }} /> Add a note here
+          <StickyNote size={14} style={{ opacity: 0.85 }} /> Add a note here
         </button>
-        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.nodeId, 'section')} style={blankMenuBtnStyle}>
-          <Heading size={13} style={{ opacity: 0.85 }} /> Add a section here
+        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.sectionNodeId, 'section')} style={blankMenuBtnStyle}>
+          <Heading size={14} style={{ opacity: 0.85 }} /> Add a section here
         </button>
       </div>
     )}

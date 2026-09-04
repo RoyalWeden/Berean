@@ -36,11 +36,11 @@ export const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--
 // ── Indent geometry (shared) ────────────────────────────────────────────────
 // ConnRow / TangentBullet marginLeft = INDENT_STEP * (depth + 1). The dot-center insets are
 // measured from each row's own left edge: an off-spine bullet is a 7px dot as the first child
-// of a `gap:8` flex row (center ≈ 3.5); a spine node dot is 9px centered in a 12px column
+// of a `gap:8` flex row (center = 4.5); a spine node dot is 11px centered in a 12px column
 // (center = 6). The faint indent guide lines use these so a line lands exactly under each
 // bullet column at every zoom (all of it lives inside the same `scale(zoom)` wrapper).
 export const INDENT_STEP = 22
-export const OFFSPINE_DOT_INSET = 3.5
+export const OFFSPINE_DOT_INSET = 4.5
 export const SPINE_DOT_INSET = 6
 // A node's sub-bullets (ConnRow) don't hang off the block's own left edge — they render
 // INSIDE the spine row's label column, which starts after the 12px dot column + the spine
@@ -576,13 +576,19 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     // Skip across a session boundary (merged all-sessions timeline) — chronologically adjacent
     // nodes from two DIFFERENT sessions shouldn't read as one continuous read-through.
     if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
-    const explained = nodesWithTracedArrival.has(detail.nodes[i + 1].id)
+    // When a branch already carries the arrival, the spine segment is DROPPED, not merely
+    // quietened. Drawing a faint parallel copy alongside the branch path read as the spine
+    // "starting and then stopping" — per direct feedback, "i dont like that it looks like it
+    // starts and stops, so just dont show that start." (The earlier "broken spine" complaint had a
+    // different cause: a full-height guide line showing through the gap, since removed. With that
+    // gone, an omitted segment simply reads as the branch owning that stretch, which it does.)
+    if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
     const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
-    pushEdge(styled(explained ? 'forward-quiet' : 'forward', {
+    pushEdge(styled('forward', {
       key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
       // A long break still reads as one — the gap chip between the two stops says how long, this
       // just stops the line claiming they were consecutive moments.
-      dashed: !explained && gapMs >= GAP_CHIP_THRESHOLD_MS,
+      dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
     }))
   }
 

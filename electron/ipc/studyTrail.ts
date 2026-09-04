@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { getBereanDb } from '../db/berean'
+import { getLexiconEntry } from './lexicon'
 
 // The implicit "Loose stops" bucket — where navigation is recorded when the user has NOT
 // created a session of their own. Per direct feedback: "i don't want an untitled study session
@@ -796,7 +797,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
         id: `versetag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
         source: 'verse tag', stops: r.stops, sessions: sessionsForVerseTag.all(r.id) as Array<{ id: string; name: string }>,
         chapters: (chaptersForVerseTag.all(r.id) as Array<{ book_id: string; chapter: number }>).map((c) => chapterLabel(c.book_id, c.chapter)),
-        strongs: [], terms: [], firstAt: r.first_at, lastAt: r.last_at,
+        strongs: [], words: [], terms: [], firstAt: r.first_at, lastAt: r.last_at,
       })
     }
 
@@ -821,7 +822,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
         id: `sessiontag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
         source: 'session tag', stops,
         sessions: rows.map((x) => ({ id: x.id, name: x.name })),
-        chapters: [], strongs: [], terms: [],
+        chapters: [], strongs: [], words: [], terms: [],
         firstAt: Math.min(...rows.map((x) => x.first_at ?? Date.now())),
         lastAt: Math.max(...rows.map((x) => x.last_at ?? 0)),
       })
@@ -870,7 +871,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     }
 
     interface Bucket {
-      chapters: Set<string>; strongs: Set<string>; sessions: Map<string, string>
+      chapters: Set<string>; strongs: Map<string, number>; sessions: Map<string, string>
       text: string[]; stops: number; firstAt: number; lastAt: number
     }
     const buckets = new Map<string, Bucket>()
@@ -878,7 +879,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       const root = find(key)
       let b = buckets.get(root)
       if (!b) {
-        b = { chapters: new Set(), strongs: new Set(), sessions: new Map(), text: [], stops: 0, firstAt: Infinity, lastAt: 0 }
+        b = { chapters: new Set(), strongs: new Map(), sessions: new Map(), text: [], stops: 0, firstAt: Infinity, lastAt: 0 }
         buckets.set(root, b)
       }
       return b
@@ -888,7 +889,7 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       const from = chapterLabel(c.from_book_id, c.from_chapter)
       const b = bucketFor(from)
       b.chapters.add(from)
-      if (c.to_kind === 'lexicon' && c.to_strongs_num) b.strongs.add(c.to_strongs_num)
+      if (c.to_kind === 'lexicon' && c.to_strongs_num) b.strongs.set(c.to_strongs_num, (b.strongs.get(c.to_strongs_num) ?? 0) + 1)
       else if (c.to_book_id && c.to_chapter != null) b.chapters.add(chapterLabel(c.to_book_id, c.to_chapter))
       b.sessions.set(c.trail_session_id, sessionNames.get(c.trail_session_id) ?? 'Session')
       // The user's own words about this jump are what the topic gets NAMED from.
@@ -907,13 +908,42 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
       if (b.chapters.size < 2 && b.strongs.size === 0) continue
       const terms = topTerms(b.text)
       const chapters = [...b.chapters]
+      // Strong's numbers ordered by how central they are to this cluster, so the dominant word
+      // gets to name it.
+      const strongs = [...b.strongs.entries()].sort((a, c) => c[1] - a[1]).map(([n]) => n)
+      const words = strongs.slice(0, 4).map((num) => {
+        const e = getLexiconEntry(num)
+        return {
+          strongsNum: num,
+          translit: e?.transliteration || '',
+          gloss: (e?.gloss || '').split(/[;,]/)[0].trim(),
+        }
+      })
+
+      // Naming, in order of how much it actually tells you:
+      //   1. the words you kept writing about it,
+      //   2. the word you kept looking up, in its own transliteration and gloss — a word study is
+      //      a topic, and "rûach — wind, breath" says what it's about in a way "ISA 11 · LUK 4"
+      //      never does,
+      //   3. only then the passages, when there's nothing better to go on.
+      let label: string
+      let source: string
+      if (terms.length > 0) {
+        label = terms.slice(0, 2).join(' · ')
+        source = 'from your notes'
+      } else if (words.length > 0 && (words[0].translit || words[0].gloss)) {
+        const w = words[0]
+        label = [w.translit || w.strongsNum, w.gloss].filter(Boolean).join(' — ')
+        source = words.length > 1 ? `word study · ${words.length} words` : 'word study'
+      } else {
+        label = chapters.slice(0, 2).join(' · ')
+        source = 'traced connections'
+      }
+
       threads.push({
-        id: `traced:${root}`, kind: 'traced',
-        // Prefer the user's own vocabulary; fall back to the chapters themselves.
-        label: terms.length > 0 ? terms.slice(0, 2).join(' · ') : chapters.slice(0, 2).join(' · '),
-        source: terms.length > 0 ? 'from your notes' : 'traced connections',
+        id: `traced:${root}`, kind: 'traced', label, source,
         stops: b.stops, sessions: [...b.sessions].map(([id, name]) => ({ id, name })),
-        chapters, strongs: [...b.strongs], terms,
+        chapters, strongs, words, terms,
         firstAt: b.firstAt === Infinity ? 0 : b.firstAt, lastAt: b.lastAt,
       })
     }
@@ -997,11 +1027,13 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('studyTrail:updateNote', (_e, id: string, patch: Partial<{
     kind: string; anchorNodeId: string | null; orderIndex: number; title: string | null
     body: string; width: number | null; height: number | null; noteId: string | null; color: string | null
+    offsetX: number | null; offsetY: number | null
   }>) => {
     const db = getBereanDb()
     const COLUMN: Record<string, string> = {
       kind: 'kind', anchorNodeId: 'anchor_node_id', orderIndex: 'order_index', title: 'title',
       body: 'body', width: 'width', height: 'height', noteId: 'note_id', color: 'color',
+      offsetX: 'offset_x', offsetY: 'offset_y',
     }
     const sets: string[] = []
     const vals: unknown[] = []
@@ -1158,6 +1190,7 @@ interface TrailThreadRow {
   sessions: Array<{ id: string; name: string }>
   chapters: string[]
   strongs: string[]
+  words: Array<{ strongsNum: string; translit: string; gloss: string }>
   terms: string[]
   firstAt: number
   lastAt: number
@@ -1213,6 +1246,7 @@ interface TrailNoteRow {
   id: string; trail_session_id: string; kind: string; anchor_node_id: string | null
   order_index: number; title: string | null; body: string; width: number | null; height: number | null
   note_id: string | null; color: string | null; created_at: number; updated_at: number
+  offset_x: number | null; offset_y: number | null
 }
 
 function rowToTrailNote(r: TrailNoteRow) {
@@ -1222,6 +1256,7 @@ function rowToTrailNote(r: TrailNoteRow) {
     title: r.title ?? undefined, body: r.body,
     width: r.width ?? undefined, height: r.height ?? undefined,
     noteId: r.note_id ?? undefined, color: r.color ?? undefined,
+    offsetX: r.offset_x ?? undefined, offsetY: r.offset_y ?? undefined,
     createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }

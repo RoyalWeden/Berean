@@ -51,11 +51,9 @@ export const EDGE_STYLE: Record<EdgeRole, EdgeStyle> = {
   // The main spine. Solid, the heaviest line on the map, always arrowed — this is the thing the
   // whole diagram is about.
   forward: { color: LINE_COLOR.forward, arrow: true, opacity: 0.9, strokeWidth: 1.75 },
-  // Same segment of spine, but a branch alongside it already explains how you got there. It stays
-  // DRAWN (the spine must never break — "some of the main spine lines dont fully connect or are
-  // switching colors in part of the line" was exactly this segment being omitted, leaving only the
-  // faint indent guide showing through and reading as a colour change) but recedes so the branch's
-  // own arrow is the one that carries the story.
+  // Retained for a caller that wants a de-emphasised forward segment, but the spine no longer uses
+  // it: a faint copy running parallel to a branch path read as the spine starting and stopping.
+  // A branch-explained stretch now has no spine segment at all — the branch is the connection.
   'forward-quiet': { color: LINE_COLOR.forward, arrow: false, opacity: 0.28, strokeWidth: 1 },
   deeper: { color: LINE_COLOR.deeper, arrow: true, opacity: 0.8, strokeWidth: 1.5 },
   back: { color: LINE_COLOR.back, dashed: true, arrow: true, opacity: 0.4, strokeWidth: 1 },
@@ -66,6 +64,26 @@ export const EDGE_STYLE: Record<EdgeRole, EdgeStyle> = {
 export function styled<T extends object>(role: EdgeRole, edge: T): T & EdgeStyle & { role: EdgeRole } {
   return { ...edge, ...EDGE_STYLE[role], role }
 }
+
+// ── Type and icon scale ─────────────────────────────────────────────────────
+// Per direct feedback: "i feel like all the text and icons and such are just so small in the map
+// and hard to see." Every size on the map came from a different hand-picked number between 9 and
+// 13.5px, which is both too small overall and inconsistent. One scale now, five steps, used
+// everywhere — and because zoom is a real CSS transform, this is the size at 100%, not a cap.
+export const FONT = {
+  /** A chapter stop's own title — the most important text on the map. */
+  stop: 15,
+  /** A branch row, a tangent bullet's verse — the second level. */
+  row: 13.5,
+  /** Dwell time, subnotes, gap chips. */
+  meta: 11.5,
+  /** Pills and badges. */
+  badge: 11,
+  /** The step number in the margin. */
+  step: 10.5,
+} as const
+
+export const ICON = { sm: 12, md: 14 } as const
 
 // ── Bullets ─────────────────────────────────────────────────────────────────
 export type BulletKind = 'chapter' | 'verse' | 'jump' | 'lexicon' | 'side'
@@ -87,14 +105,15 @@ const BULLET_COLOR = {
 export function bulletStyle(kind: BulletKind, opts: { revisit?: boolean } = {}): BulletStyle {
   const revisit = !!opts.revisit
   switch (kind) {
-    // Two sizes total across the whole map: 9px for a main-spine chapter stop, 7px for
-    // everything off-spine. A revisit keeps its size and goes hollow instead of shrinking, so
-    // "same chapter as before" and "less important" stop being conflated.
-    case 'chapter': return { size: 9, borderRadius: 2, color: BULLET_COLOR.chapter, hollow: revisit }
-    case 'verse': return { size: 7, borderRadius: 999, color: BULLET_COLOR.chapter, hollow: revisit }
-    case 'jump': return { size: 7, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: revisit }
-    case 'lexicon': return { size: 7, borderRadius: 1, rotate: true, color: BULLET_COLOR.offspine, hollow: revisit }
-    case 'side': return { size: 7, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: true }
+    // Two sizes total across the whole map: 11px for a main-spine chapter stop, 9px for
+    // everything off-spine (both up from 9/7 — they were hard to see and hard to hit). A revisit
+    // keeps its size and goes hollow instead of shrinking, so "same chapter as before" and "less
+    // important" stop being conflated.
+    case 'chapter': return { size: 11, borderRadius: 3, color: BULLET_COLOR.chapter, hollow: revisit }
+    case 'verse': return { size: 9, borderRadius: 999, color: BULLET_COLOR.chapter, hollow: revisit }
+    case 'jump': return { size: 9, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: revisit }
+    case 'lexicon': return { size: 9, borderRadius: 1, rotate: true, color: BULLET_COLOR.offspine, hollow: revisit }
+    case 'side': return { size: 9, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: true }
   }
 }
 

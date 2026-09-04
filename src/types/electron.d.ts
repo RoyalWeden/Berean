@@ -243,7 +243,7 @@ interface StudyTrailAPI {
   updateNote: (id: string, patch: Partial<{
     kind: 'section' | 'annotation'; anchorNodeId: string | null; orderIndex: number
     title: string | null; body: string; width: number | null; height: number | null
-    noteId: string | null; color: string | null
+    noteId: string | null; color: string | null; offsetX: number | null; offsetY: number | null
   }>) => Promise<{ success: boolean }>
   deleteNote: (id: string) => Promise<{ success: boolean }>
   listTags: () => Promise<import('./studyTrail').TrailTag[]>

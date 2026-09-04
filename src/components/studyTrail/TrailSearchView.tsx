@@ -28,10 +28,10 @@ const RANGES: Array<{ id: string; label: string; days: number | null }> = [
 ]
 
 function iconFor(kind: TrailSearchHit['kind']) {
-  if (kind === 'stop') return <BookOpen size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
-  if (kind === 'connection') return <GitBranch size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
-  if (kind === 'note') return <NotepadText size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
-  return <Layers size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
+  if (kind === 'stop') return <BookOpen size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+  if (kind === 'connection') return <GitBranch size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+  if (kind === 'note') return <NotepadText size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+  return <Layers size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
 }
 
 function refFor(hit: TrailSearchHit): TrailRef | null {
@@ -127,7 +127,7 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
               key={k.id}
               onClick={() => toggleKind(k.id)}
               style={{
-                fontSize: 11, padding: '3px 9px', borderRadius: 999, cursor: 'pointer',
+                fontSize: 12.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
                 background: kinds.has(k.id) ? 'rgb(var(--color-accent) / 0.16)' : 'transparent',
                 border: '1px solid rgb(var(--color-surface-4))',
                 color: kinds.has(k.id) ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
@@ -150,17 +150,17 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 24px' }}>
         {!query.trim() ? (
-          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>
+          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>
             Type to search. Cmd-click a result to open it in the main window; click its session to show it on the map.
           </div>
         ) : hits == null ? (
-          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>Searching…</div>
+          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>Searching…</div>
         ) : hits.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'rgb(var(--color-text-muted))' }}>No matches.</div>
+          <div style={{ fontSize: 13, color: 'rgb(var(--color-text-muted))' }}>No matches.</div>
         ) : KINDS.filter((k) => grouped.has(k.id)).map((k) => (
           <div key={k.id} style={{ marginBottom: 16 }}>
             <div style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
+              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
               color: 'rgb(var(--color-text-muted))', marginBottom: 6,
             }}>{k.label} · {grouped.get(k.id)!.length}</div>
             {grouped.get(k.id)!.map((h) => {
@@ -185,7 +185,7 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
                         onClick={ref ? (e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef(ref, e.shiftKey) } : undefined}
                         title={ref ? 'Cmd-click to open in the main window' : undefined}
                         style={{
-                          fontSize: 12.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))',
+                          fontSize: 13.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))',
                           cursor: ref ? 'pointer' : 'default', whiteSpace: 'nowrap',
                         }}
                       >{title}</span>
@@ -193,14 +193,14 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
                       <button
                         onClick={() => onOpenSession(h.sessionId)}
                         style={{
-                          fontSize: 10, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
+                          fontSize: 11, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
                           background: 'rgb(var(--color-surface-3))', border: 'none',
                           color: 'rgb(var(--color-text-muted))', whiteSpace: 'nowrap',
                         }}
                       >{h.sessionName}</button>
                     </div>
                     {h.snippet && (
-                      <div style={{ fontSize: 11, color: 'rgb(var(--color-text-muted))', marginTop: 1, lineHeight: 1.45 }}>
+                      <div style={{ fontSize: 12.5, color: 'rgb(var(--color-text-muted))', marginTop: 2, lineHeight: 1.5 }}>
                         {highlight(h.snippet, query)}
                       </div>
                     )}

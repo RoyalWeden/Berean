@@ -41,6 +41,10 @@ export interface TrailStickyNote {
   body: string
   width?: number
   height?: number
+  /** Free position offset (px, pre-zoom) from where the anchor stop would otherwise place it —
+   *  the anchor still decides which stop the note belongs to, this is just where it sits. */
+  offsetX?: number
+  offsetY?: number
   noteId?: string
   color?: string
   createdAt: number
@@ -199,6 +203,9 @@ export interface TrailThread {
   sessions: Array<{ id: string; name: string }>
   chapters: string[]
   strongs: string[]
+  /** The Strong's words in this thread, resolved to their transliteration and gloss, most central
+   *  first — a word study's own vocabulary is what names it. */
+  words: Array<{ strongsNum: string; translit: string; gloss: string }>
   terms: string[]
   firstAt: number
   lastAt: number
