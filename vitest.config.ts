@@ -4,6 +4,11 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // Same reason as electron.vite.config.ts's renderer cacheDir: node_modules is symlinked across
+  // worktrees, so anything Vite caches under it is shared between checkouts. Keeping the test
+  // cache per-checkout too means a test run here can never disturb a dev server running in
+  // another worktree (or in main).
+  cacheDir: resolve(__dirname, '.vite-test'),
   test: {
     environment: 'jsdom',
     globals: true,
