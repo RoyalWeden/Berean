@@ -122,6 +122,54 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+### Notes
+
+- Backspacing the last character on a line no longer eats the space before it.
+  Root cause: the notes editor was missing `white-space: pre-wrap` on the
+  editable element (ProseMirror's required base style — it was logging a console
+  warning about it). Without it the browser collapses whitespace in the DOM
+  while ProseMirror's model keeps it, the two disagree, and the next edit near a
+  run of spaces made ProseMirror "reconcile" by deleting the space from the
+  model. Also guards against a trailing-space-only difference between the live
+  doc and saved markdown forcing a reparse (markdown can't store a trailing
+  space, so the round trip isn't lossless).
+- Copying a blockquote (or a callout / list) from one note and pasting it into
+  another now keeps the block formatting. The clipboard slice was arriving
+  "open" on both sides and ProseMirror unwrapped it, dropping the paragraphs in
+  as plain text; a lone wrapper block is now re-closed before insertion.
+- Markdown links in the notes editor are now visible and clickable. The
+  editable view had no link styling at all, so `[text](url)` rendered as plain
+  body text, and there was no click handler — clicking a link did nothing.
+  Links now show in the accent colour with an underline and open in the system
+  browser on click (same as wikilink / verse-ref clicks), in both edit and
+  read-only view.
+- Links can now be created inside blockquotes (and anywhere the selection sits)
+  from the toolbar. Typing the URL focuses a text field, which blurs the editor
+  and could collapse the selection before you pressed Enter — so the link mark
+  was applied to an empty range and nothing happened. The toolbar now remembers
+  the selection from the moment the link popover opened and applies the link to
+  that range.
+
+### Settings
+
+- Settings now persist reliably across restarts and updates. Every window
+  (main, presenter/viewer, Study Trail, floating panel) ran its own copy of the
+  app store, and each one wrote its *entire* state back to the single shared
+  `berean-app-state` key — including default values for the ~40 preference
+  fields that are never pushed into a secondary window. Whichever window flushed
+  last won, so once the presenter or Study Trail window had been opened, a
+  setting changed in the main window would quietly revert to its default on the
+  next launch. Secondary windows are now read-only consumers of that state (they
+  still rehydrate from it and get live updates over their existing sync
+  channels); only the main window writes it. Also flush the pending write on
+  `pagehide` / visibility-hidden, not just `beforeunload`, so a change made
+  seconds before quit isn't lost on teardown paths where `beforeunload` doesn't
+  fire.
+
+---
+
 ## [0.5.18] - 2026-09-01
 
 Backspace fix in the notes editor
