@@ -10,7 +10,7 @@ import { parseMarkdown } from './parser'
 import { serializeToMarkdown } from './serializer'
 import { bereanKeymap, createBlockMovementKeymap } from './keymap'
 import { bereanInputRules } from './inputRules'
-import { bereanPastePlugin } from './pastePlugin'
+import { bereanPastePlugin, reclosePastedWrapperBlock } from './pastePlugin'
 import { createRefDecorationsPlugin, createRefClickPlugin } from './refDecorations'
 import { createPlaceholderPlugin } from './placeholderPlugin'
 import {
@@ -425,6 +425,12 @@ export default function NoteEditorPM({
           onWikilinkClick: (title) => refCallbacksRef.current.onWikilinkClick?.(title),
           onVerseRefClick: (ref) => refCallbacksRef.current.onVerseRefClick?.(ref),
           onLexiconRefClick: (id) => refCallbacksRef.current.onLexiconRefClick?.(id),
+          // Plain markdown links open in the system browser on click — same
+          // "click an inline reference and it acts" model as wikilinks/verse
+          // refs above, in both edit and view mode. Only external schemes.
+          onLinkClick: (href) => {
+            if (/^(https?:|mailto:)/i.test(href)) window.app.openExternal(href)
+          },
           onWikilinkHoverStart: (title, rect) => hoverHandlersRef.current.onWikilinkHoverStart(title, rect),
           onVerseRefHoverStart: (ref, rect) => hoverHandlersRef.current.onVerseRefHoverStart(ref, rect),
           onLexiconRefHoverStart: (id, rect) => hoverHandlersRef.current.onLexiconRefHoverStart(id, rect),
@@ -473,6 +479,7 @@ export default function NoteEditorPM({
       state,
       editable: () => mode === 'edit',
       attributes: placeholder ? { 'data-placeholder': placeholder } : {},
+      transformPasted: reclosePastedWrapperBlock,
       nodeViews: {
         callout: (node) => calloutNodeView(node),
         list_item: (node, editorView, getPos) => listItemNodeView(getPos)(node, editorView),
@@ -484,6 +491,34 @@ export default function NoteEditorPM({
         study_trail_embed: (node) => studyTrailEmbedNodeView(node),
       },
       dispatchTransaction(tr) {
+        // ── [del-diag] TEMPORARY: tracing the "Backspace also eats the preceding
+        // space" bug. Remove once root-caused. Logs every doc-changing transaction
+        // with what it replaced and the text around the caret, so a second
+        // (readDOMChange-driven) delete right after our beforeinput one is visible.
+        if (tr.docChanged) {
+          try {
+            const before = view.state
+            const steps = tr.steps.map((s) => {
+              const j = s.toJSON() as { stepType?: string; from?: number; to?: number; slice?: unknown }
+              let removed = ''
+              if (typeof j.from === 'number' && typeof j.to === 'number' && j.to > j.from) {
+                removed = before.doc.textBetween(j.from, Math.min(j.to, before.doc.content.size), '·', '·')
+              }
+              return { type: j.stepType, from: j.from, to: j.to, removed, hasSlice: !!j.slice }
+            })
+            const headBefore = before.selection.head
+            const applied = before.apply(tr)
+            const headAfter = applied.selection.head
+            console.debug('[del-diag] dispatchTransaction ' + JSON.stringify({
+              source: tr.getMeta('del-diag-source') ?? '(other)',
+              selBefore: { head: headBefore, from: before.selection.from, to: before.selection.to },
+              docBefore: before.doc.textBetween(Math.max(0, headBefore - 8), Math.min(before.doc.content.size, headBefore + 8), '·', '·'),
+              steps,
+              docAfter: applied.doc.textBetween(Math.max(0, headAfter - 8), Math.min(applied.doc.content.size, headAfter + 8), '·', '·'),
+              composing: view.composing,
+            }))
+          } catch (e) { console.debug('[del-diag] dispatchTransaction log threw ' + String(e)) }
+        }
         const newState = view.state.apply(tr)
         view.updateState(newState)
         if (tr.docChanged) {
@@ -532,32 +567,109 @@ export default function NoteEditorPM({
         // structural Backspace command from baseKeymap, not a blind range delete. Erasing a
         // plain-text snippet trigger is always an intra-text-node deletion, so this still covers
         // the actual failure mode without touching structural backspace behavior at all.
+        // ── [del-diag] TEMPORARY: key-level trace for the Backspace/space bug.
+        keydown(view, event) {
+          if (event.key === 'Backspace' || event.key === 'Delete') {
+            const sel = view.state.selection
+            console.debug('[del-diag] keydown ' + JSON.stringify({
+              key: event.key,
+              alt: event.altKey, meta: event.metaKey, ctrl: event.ctrlKey, shift: event.shiftKey,
+              sel: { head: sel.head, from: sel.from, to: sel.to, empty: sel.empty, parentOffset: sel.$head.parentOffset },
+              ctx: view.state.doc.textBetween(Math.max(0, sel.head - 8), Math.min(view.state.doc.content.size, sel.head + 8), '·', '·'),
+              composing: view.composing,
+            }))
+          }
+          return false
+        },
         beforeinput(view, event) {
           const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
           const isReplacement = ie.inputType === 'insertReplacementText'
-          const isDelete = ie.inputType === 'deleteContentBackward' || ie.inputType === 'deleteContentForward'
-          if (!isReplacement && !isDelete) return false
-          const ranges = ie.getTargetRanges?.()
-          if (!ranges || ranges.length !== 1) return false
-          const [range] = ranges
-          if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) return false
-          const from = view.posAtDOM(range.startContainer, range.startOffset)
-          let to = view.posAtDOM(range.endContainer, range.endOffset)
-          if (from < 0 || to < 0 || from > to) return false
-          if (isDelete && from === to) return false // nothing to delete — let default handling run
-          // A single Backspace/Delete keystroke with no active selection must only ever remove
-          // ONE character. macOS/Chromium "smart delete" widens deleteContentBackward's target
-          // range to also swallow an adjacent space (so you don't end up with a double space) —
-          // getTargetRanges() then reports that 2-char range and the delete below would faithfully
-          // erase both. The earlier same-node/text-node guard means anything reaching here is an
-          // intra-text-node delete, so clamping to a single char at the caret end is safe and
-          // keeps a real multi-char selection delete (selection not empty) untouched.
-          let delFrom = from
-          if (isDelete && view.state.selection.empty && to - from > 1) {
-            if (ie.inputType === 'deleteContentBackward') delFrom = to - 1
-            else to = from + 1
+          const isBackward = ie.inputType === 'deleteContentBackward'
+          const isForward = ie.inputType === 'deleteContentForward'
+          const isDelete = isBackward || isForward
+
+          // ── [del-diag] TEMPORARY ──
+          if (/^delete/.test(ie.inputType) || isReplacement) {
+            const rs = ie.getTargetRanges?.() ?? []
+            const descNode = (n: Node | undefined) => n ? `${n.nodeName}${n.nodeType === Node.TEXT_NODE ? `("${(n.textContent ?? '').slice(0, 24)}")` : ''}` : 'null'
+            const sel = view.state.selection
+            console.debug('[del-diag] beforeinput ' + JSON.stringify({
+              inputType: ie.inputType,
+              cancelable: ie.cancelable,
+              data: ie.data,
+              selEmpty: sel.empty,
+              selHead: sel.head,
+              parentOffset: sel.$head.parentOffset,
+              parentSize: sel.$head.parent.content.size,
+              domCtx: view.state.doc.textBetween(Math.max(0, sel.head - 8), Math.min(view.state.doc.content.size, sel.head + 8), '·', '·'),
+              composing: view.composing,
+              nRanges: rs.length,
+              ranges: rs.map((r) => ({
+                start: descNode(r.startContainer), startOffset: r.startOffset,
+                end: descNode(r.endContainer), endOffset: r.endOffset,
+                sameNode: r.startContainer === r.endContainer,
+                fromPos: (() => { try { return view.posAtDOM(r.startContainer, r.startOffset) } catch { return 'ERR' } })(),
+                toPos: (() => { try { return view.posAtDOM(r.endContainer, r.endOffset) } catch { return 'ERR' } })(),
+              })),
+            }))
           }
-          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(delFrom, to))
+
+          if (!isReplacement && !isDelete) return false
+
+          // ── Collapsed-caret Backspace/Delete: authoritative single-character delete ──
+          // A single keystroke with no active selection must remove EXACTLY one character and
+          // never a bordering space. macOS/Chromium "smart delete" widens deleteContentBackward's
+          // target range to also swallow an adjacent space (so you don't end up with a double
+          // space); getTargetRanges() then reports that 2-char range. When a mark boundary
+          // (bold / link / an auto-detected verse ref) sits between the character and that space,
+          // the widened range even spans two DOM text nodes — slipping past the same-node guard
+          // in the getTargetRanges() path below and straight into the browser's own 2-char
+          // delete, which erases the space too. Rather than try to un-widen the reported range,
+          // ignore it entirely for this case and derive the delete from ProseMirror's own
+          // selection. Only the simple intra-textblock case is handled here — a caret at a block
+          // edge is a structural merge/outdent that belongs to baseKeymap's Backspace/Delete
+          // (which already ran on keydown and declined, or this event wouldn't be firing).
+          if (isDelete && view.state.selection.empty && !view.composing) {
+            const $c = view.state.selection.$head
+            const docSize = view.state.doc.content.size
+            const isSurrogatePair = (s: string) => s.length === 2 && /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)
+            if (isBackward) {
+              if ($c.parentOffset === 0) { console.debug('[del-diag] beforeinput -> FALLTHROUGH collapsed-backward at block start'); return false }
+              let delFrom = $c.pos - 1
+              // Keep an astral char (emoji surrogate pair) intact — remove both code units.
+              if (isSurrogatePair(view.state.doc.textBetween(Math.max(0, $c.pos - 2), $c.pos))) delFrom = $c.pos - 2
+              console.debug('[del-diag] beforeinput -> collapsed-backward delete ' + JSON.stringify({ delFrom, to: $c.pos, removing: view.state.doc.textBetween(delFrom, $c.pos, '·', '·') }))
+              view.dispatch(view.state.tr.delete(delFrom, $c.pos).setMeta('del-diag-source', 'beforeinput-collapsed-backward'))
+            } else {
+              if ($c.parentOffset === $c.parent.content.size) { console.debug('[del-diag] beforeinput -> FALLTHROUGH collapsed-forward at block end'); return false }
+              let delTo = $c.pos + 1
+              if (isSurrogatePair(view.state.doc.textBetween($c.pos, Math.min(docSize, $c.pos + 2)))) delTo = $c.pos + 2
+              console.debug('[del-diag] beforeinput -> collapsed-forward delete ' + JSON.stringify({ from: $c.pos, delTo, removing: view.state.doc.textBetween($c.pos, delTo, '·', '·') }))
+              view.dispatch(view.state.tr.delete($c.pos, delTo).setMeta('del-diag-source', 'beforeinput-collapsed-forward'))
+            }
+            event.preventDefault()
+            // [del-diag] catch any native / readDOMChange follow-up that mutates further
+            const headNow = view.state.selection.head
+            const snap = view.state.doc.textBetween(Math.max(0, headNow - 10), Math.min(view.state.doc.content.size, headNow + 10), '·', '·')
+            setTimeout(() => {
+              const h2 = view.state.selection.head
+              const after = view.state.doc.textBetween(Math.max(0, h2 - 10), Math.min(view.state.doc.content.size, h2 + 10), '·', '·')
+              console.debug('[del-diag] post-delete (async) ' + JSON.stringify({ immediatelyAfter: snap, afterTimeout: after, changed: snap !== after }))
+            }, 30)
+            return true
+          }
+
+          // ── Non-collapsed delete / insertReplacementText: trust getTargetRanges() ──
+          const ranges = ie.getTargetRanges?.()
+          if (!ranges || ranges.length !== 1) { console.debug('[del-diag] beforeinput -> FALLTHROUGH nRanges=' + (ranges?.length ?? 'none')); return false }
+          const [range] = ranges
+          if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) { console.debug('[del-diag] beforeinput -> FALLTHROUGH cross-node/non-text range'); return false }
+          const from = view.posAtDOM(range.startContainer, range.startOffset)
+          const to = view.posAtDOM(range.endContainer, range.endOffset)
+          if (from < 0 || to < 0 || from > to) { console.debug('[del-diag] beforeinput -> FALLTHROUGH bad from/to ' + JSON.stringify({ from, to })); return false }
+          if (isDelete && from === to) { console.debug('[del-diag] beforeinput -> FALLTHROUGH from===to'); return false }
+          console.debug('[del-diag] beforeinput -> getTargetRanges delete/replace ' + JSON.stringify({ from, to, isReplacement }))
+          view.dispatch((isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to)).setMeta('del-diag-source', 'beforeinput-targetRanges'))
           event.preventDefault()
           return true
         },
@@ -675,10 +787,25 @@ export default function NoteEditorPM({
     const isDifferentNote = noteId !== prevSwapNoteIdRef.current
     prevSwapNoteIdRef.current = noteId
     const current = serializeToMarkdown(view.state.doc)
-    if (current === content) {
+    // A space at the end of a line is not representable in markdown — the
+    // serializer emits it, but markdown-it strips it again on the way back in.
+    // So `content` (which has been through a save→parse cycle) legitimately
+    // differs from `current` (straight off the live doc) by exactly those
+    // trailing spaces after e.g. deleting the last character on a line. That is
+    // NOT an external edit: reparsing over it would yank out the space the user
+    // is editing against and reset the caret — which reads as "Backspace also
+    // ate the space." Treat a trailing-whitespace-only difference as equal for
+    // the same note. (Hard breaks serialize as `\`, not trailing spaces, so
+    // this never collapses a real one.)
+    const stripLineTrailingWs = (s: string) => s.replace(/[ \t]+$/gm, '')
+    if (current === content || (!isDifferentNote && stripLineTrailingWs(current) === stripLineTrailingWs(content))) {
+      // [del-diag] TEMPORARY
+      if (current !== content) console.debug('[del-diag] content-sync: trailing-ws-only diff — reparse SKIPPED ' + JSON.stringify({ current: current.slice(-24), content: content.slice(-24) }))
       lastContentPropRef.current = content
       return
     }
+    // [del-diag] TEMPORARY
+    console.debug('[del-diag] content-sync: REPARSING (real diff) ' + JSON.stringify({ isDifferentNote, currentTail: current.slice(-24), contentTail: content.slice(-24) }))
     lastContentPropRef.current = content
     // Defensive: preserve the cursor's rough position across this reset instead of leaving it
     // at EditorState.create's document-start default — but only for a same-note external

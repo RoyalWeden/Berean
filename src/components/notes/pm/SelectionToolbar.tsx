@@ -58,6 +58,10 @@ export default function SelectionToolbar({
   const [openDropdown, setOpenDropdown] = useState<'none' | 'type' | 'list' | 'highlight' | 'link'>('none')
   const rootRef = useRef<HTMLDivElement>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
+  // Selection as it stood when the link popover opened — focusing the URL input
+  // blurs the editor and can collapse the live selection before submit. See
+  // editorCommands.ts applyLink.
+  const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [pos, setPos] = useState<{ left: number; top: number; flipped: boolean } | null>(null)
 
@@ -133,6 +137,8 @@ export default function SelectionToolbar({
   // supported"), so the URL is collected via the small popover below instead —
   // opening it seeds the input with any existing link href on the selection.
   function openLinkPopover() {
+    const { from, to } = view.state.selection
+    linkRangeRef.current = { from, to }
     setLinkUrl(cmds.currentLinkHref())
     setOpenDropdown('link')
   }
@@ -140,7 +146,7 @@ export default function SelectionToolbar({
   function submitLink() {
     const url = linkUrl.trim()
     setOpenDropdown('none')
-    if (url) cmds.applyLink(url)
+    if (url) cmds.applyLink(url, linkRangeRef.current ?? undefined)
   }
 
   function toggleTaskList() {
