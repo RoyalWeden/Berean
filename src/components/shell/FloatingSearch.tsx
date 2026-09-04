@@ -369,10 +369,11 @@ export default function FloatingSearch() {
     setSelectedTags((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, t]))
     setTagFocusIdx(0)
     setSelectedIdx(-1)
-    // Stay in tag mode with a bare "#", ready to pick the next one. Clear any
-    // lingering verse/note results from a plain-keyword query so they don't show
-    // under the chips.
-    setQuery('#')
+    // Clear the input entirely — the tag is now a persistent filter shown in the
+    // chip row. Don't type "#" for the user; they can type it again themselves
+    // to pick more tags, or just start a keyword search. Also drop any lingering
+    // results from the query that produced these candidates.
+    setQuery('')
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([])
     inputRef.current?.focus()
@@ -1337,15 +1338,18 @@ export default function FloatingSearch() {
                       onMouseEnter={() => setTagFocusIdx(idx)}
                       onClick={() => addTag(t)}
                       title={`${t.verseCount} verse${t.verseCount === 1 ? '' : 's'} · ${t.chapterCount} chapter${t.chapterCount === 1 ? '' : 's'}`}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                      // Candidates stay neutral — no accent. The keyboard-focused one
+                      // (↑↓ in "#" mode) gets a plain surface fill, not the accent used
+                      // for the SELECTED chips above.
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer border-[rgb(var(--color-surface-4))] ${
                         isTagMode && idx === tagFocusIdx
-                          ? 'bg-[rgb(var(--color-accent))/16] border-[rgb(var(--color-accent))/45] text-[rgb(var(--color-accent))]'
-                          : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-secondary))] hover:border-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))]'
+                          ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
+                          : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]/60 hover:text-[rgb(var(--color-text-primary))]'
                       }`}
                     >
-                      <Tag size={10} className="opacity-70" />
+                      <Tag size={10} className="opacity-60" />
                       {t.name}
-                      <span className="opacity-50 tabular-nums">{t.verseCount}</span>
+                      <span className="opacity-45 tabular-nums">{t.verseCount}</span>
                     </button>
                   ))}
                 </div>
