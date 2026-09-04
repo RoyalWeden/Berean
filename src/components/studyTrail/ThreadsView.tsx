@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Tag, Waypoints, Hash, ChevronRight, BookOpen } from 'lucide-react'
+import { Tag, Waypoints, Hash, ChevronDown, BookOpen } from 'lucide-react'
 import type { TrailThread } from '@/types/studyTrail'
 import { bookChapterVerseLabel } from '@/lib/parseRef'
 import { navigateTrailRef } from './trailNav'
+import { CARET_COLLAPSED_ROTATE } from './trailStyle'
 
 // THREADS — the Study Trail window's second tab, replacing Review.
 //
@@ -65,21 +66,31 @@ function normalize(t: TrailThread): TrailThread {
 
 function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSession: (id: string) => void }) {
   const [open, setOpen] = useState(false)
+  // A card gave no feedback at all on hover, so it didn't read as clickable — "the threads doesnt
+  // highlight or whatever when hovered".
+  const [hovered, setHovered] = useState(false)
   const tagged = thread.kind === 'tag'
   const accent = thread.color ?? (tagged ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-secondary))')
   return (
-    <div style={{
-      border: '1px solid rgb(var(--color-surface-4))', borderRadius: 10, marginBottom: 8,
-      background: 'rgb(var(--color-surface-2))', overflow: 'hidden',
-    }}>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        border: `1px solid ${hovered || open ? 'rgb(var(--color-accent) / 0.45)' : 'rgb(var(--color-surface-4))'}`,
+        borderRadius: 10, marginBottom: 8, overflow: 'hidden',
+        background: hovered ? 'rgb(var(--color-surface-3))' : 'rgb(var(--color-surface-2))',
+        transition: 'background 120ms, border-color 120ms',
+      }}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
           display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-          padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit',
+          padding: '11px 13px', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit',
         }}
       >
-        <ChevronRight size={15} style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 120ms' }} />
+        {/* Same caret direction as everywhere else on the map — see CARET_COLLAPSED_ROTATE. */}
+        <ChevronDown size={16} style={{ flexShrink: 0, opacity: hovered ? 0.85 : 0.5, transform: open ? undefined : CARET_COLLAPSED_ROTATE, transition: 'transform 120ms, opacity 120ms' }} />
         {tagged ? <Tag size={15} style={{ flexShrink: 0, color: accent }} /> : <Waypoints size={15} style={{ flexShrink: 0, opacity: 0.7 }} />}
         <span style={{ minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'rgb(var(--color-text-primary))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -131,6 +142,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                       // Same rule as the map: a plain click never moves the main window.
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'chapter', bookId: c.bookId, chapter: c.chapter }, e.shiftKey) }}
                       title="Cmd-click to open in the main window"
+                      className="trail-chip"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         fontSize: 12, padding: '2px 9px', borderRadius: 999, cursor: 'pointer',
@@ -156,6 +168,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                       key={sn}
                       onClick={(e) => { if (e.metaKey || e.ctrlKey) navigateTrailRef({ kind: 'lexicon', strongsNum: sn }, e.shiftKey) }}
                       title={`${sn}${w?.gloss ? ` — ${w.gloss}` : ''} · Cmd-click to open in the main window`}
+                      className="trail-chip"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         fontSize: 12, padding: '2px 9px', borderRadius: 999, cursor: 'pointer',
@@ -179,6 +192,7 @@ function ThreadCard({ thread, onOpenSession }: { thread: TrailThread; onOpenSess
                 key={s.id}
                 onClick={() => onOpenSession(s.id)}
                 title="Show this session on the map"
+                className="trail-chip"
                 style={{
                   fontSize: 12.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
                   background: 'rgb(var(--color-surface-3))', border: '1px solid rgb(var(--color-surface-4))',

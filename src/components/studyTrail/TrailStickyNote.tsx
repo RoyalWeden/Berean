@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NotepadText, Trash2, FileUp, GripHorizontal } from 'lucide-react'
 import type { TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
+import { CARET_COLLAPSED_ROTATE } from './trailStyle'
 
 // Sticky notes and section headers on the map, per direct feedback: "with the headings thing...
 // maybe like putting notes or something as like resizable sticky notes sort of things", and
@@ -49,9 +50,10 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
     // inside, which is what a section actually is, instead of as one more line on a map that
     // already has plenty.
     <div
+      className="no-drag"
       onClick={(e) => e.stopPropagation()}
       style={{
-        display: 'flex', alignItems: 'center', gap: 9, margin: '22px 0 10px', padding: '7px 12px',
+        display: 'flex', alignItems: 'center', gap: 9, margin: '18px 0 8px', padding: '7px 12px',
         borderRadius: 9, background: 'rgb(var(--color-accent) / 0.10)',
         border: '1px solid rgb(var(--color-accent) / 0.28)',
         backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
@@ -63,7 +65,7 @@ export function TrailSectionHeader({ note, collapsed, onToggle, onChanged }: {
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
           fontSize: 13, lineHeight: 1, color: 'rgb(var(--color-accent))',
-          transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
+          transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms',
         }}
       >▾</button>
       <input
@@ -190,6 +192,9 @@ export function TrailAnnotation({ note, onChanged, resolveAnchor, zoom = 1 }: {
 
   return (
     <div
+      // `no-drag`: the timeline's marquee select treats this whole element as off-limits, so
+      // dragging the note by its header doesn't also rubber-band a selection box behind it.
+      className="no-drag"
       // Stops a click inside the sticky from reaching the row underneath, which would fold the
       // stop away mid-sentence.
       onClick={(e) => e.stopPropagation()}

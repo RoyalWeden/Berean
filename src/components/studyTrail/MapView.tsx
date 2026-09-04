@@ -16,7 +16,7 @@ import {
   TIER_COLOR, INDENT_STEP, OFFSPINE_DOT_INSET, SPINE_DOT_INSET, SPINE_LABEL_COL_INSET,
   type AnnotatedConn,
 } from './trailGraph'
-import { bulletCss, bulletKindForConnection, TIER_DOT, FONT, ICON } from './trailStyle'
+import { bulletCss, bulletKindForConnection, TIER_DOT, FONT, ICON, CARET_COLLAPSED_ROTATE } from './trailStyle'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 import { useTrailCollapse } from './useTrailCollapse'
@@ -237,19 +237,21 @@ export function TrailNoteBubbleContent({ conn, onEdit }: { conn: TrailConnection
 // The baseline source of spacing for every tangent-adjacent step (node→first bullet, bullet→
 // bullet, last bullet→arrival node) — 14px top + 14px bottom gives 28px between two stacked
 // bullets. Raised from 8 per direct feedback ("make all the tangent related gaps bigger").
-const TANGENT_BULLET_PAD = 14
+const TANGENT_BULLET_PAD = 9
 
 // A small additional reservation (on top of TANGENT_BULLET_PAD) for the two transitions that
 // don't get it "for free" from a bullet's own padding alone — node→first-bullet and last-
 // bullet→arrival-node — so those two steps grow in step with bullet→bullet instead of staying
 // pinned at zero forever. Kept the same uniform value everywhere it's used so all four tangent
 // transitions still track each other.
-const TANGENT_EXTRA_GAP = 10
+const TANGENT_EXTRA_GAP = 8
 
 // Extra breathing room between two ordinary, back-to-back main-spine nodes (no tangent
 // involved, no real elapsed-time gap large enough to earn its own scaled height) — per direct
 // feedback ("increase the gap for the main spine"), kept clearly bigger than a tangent step.
-const MAIN_SPINE_GAP = 44
+// Trimmed 44 -> 28 alongside gapSegmentHeight, same reasoning: with larger type the rows carry
+// their own separation and this was mostly dead space.
+const MAIN_SPINE_GAP = 28
 
 function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, targetRef, openMenu, onHoverKey, dimmed, conn, onOpenPrompt }: {
   label: string; indent: number; pointKey: string
@@ -407,7 +409,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       <div
         onClick={hasNested ? () => toggleCollapsed('branch', conn.id) : undefined}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', marginLeft: indent,
+          display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', marginLeft: indent,
           cursor: hasNested ? 'pointer' : 'default',
         }}
       >
@@ -472,7 +474,7 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
           >
             <GitBranch size={ICON.sm} />
             {branchCount}
-            <span style={{ transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
+            <span style={{ transform: collapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
           </button>
         )}
         {isPromotedChain && (
@@ -773,7 +775,7 @@ function NodeBlock({
   const dwellMs = Math.max(0, (node.anchorEndedAt ?? node.anchorStartedAt) - node.anchorStartedAt)
   const dwellUnit = Math.min(1, Math.sqrt(dwellMs / (20 * 60_000)))
   const dwellBarHeight = Math.round(4 + dwellUnit * 26)
-  const dwellExtraPad = Math.round(dwellUnit * 18)
+  const dwellExtraPad = Math.round(dwellUnit * 12)
   const dwellLabel = dwellMs >= 30_000 ? formatGap(dwellMs) : null
 
   const hoverDimmed = !!hoverChain && !hoverChain.has(nodeKey)
@@ -921,7 +923,7 @@ function NodeBlock({
           div) far out to the right of THIS row's own short text along with it — which is
           exactly why laned edges (revisit-links, branch-return arrows) were swinging out into
           a wide loop well past nearby text instead of hugging close to the actual content. */}
-      <div style={{ paddingBottom: ((!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 24) + (hasRows ? 0 : dwellExtraPad), flex: 1, minWidth: 0, maxWidth: 'var(--trail-row-max, 460px)' }}>
+      <div style={{ paddingBottom: ((!isLast && gapToNextMs == null) ? TANGENT_EXTRA_GAP : 14) + (hasRows ? 0 : dwellExtraPad), flex: 1, minWidth: 0, maxWidth: 'var(--trail-row-max, 460px)' }}>
         {/* OriginBadgeLine (the always-visible "via X" line) was removed per direct feedback:
             "i dont think the 'via Strong's G3619 occurrence' and such should be showing
             outside of the hover thing... only really main text and chapters and strongs and
@@ -995,7 +997,7 @@ function NodeBlock({
               >
                 <GitBranch size={ICON.sm} />
                 {branchTotal}
-                <span style={{ transform: rowsCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
+                <span style={{ transform: rowsCollapsed ? CARET_COLLAPSED_ROTATE : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
               </button>
             )}
             {hasNote(originConn) && (
@@ -1595,6 +1597,8 @@ export default function MapView({
     // document.body but stay React children of this container, so a React synthetic mousedown
     // inside one still bubbles here; without this, dragging a popover's header started a marquee
     // behind it ("selection box shows when i drag a popup around").
+    // `.no-drag` covers the popovers AND the map's own sticky notes, which are dragged by their
+    // own header — without it, moving a note also rubber-banded a selection box behind it.
     if (t.closest('button, a, input, textarea, select, [role="menu"], [role="dialog"], .no-drag, [contenteditable="true"]')) return
     e.preventDefault() // don't start a native text selection (doesn't block a later click)
     marqueeStartRef.current = { x: e.clientX, y: e.clientY, moved: false, additive: e.shiftKey || e.metaKey }

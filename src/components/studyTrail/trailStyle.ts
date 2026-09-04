@@ -70,20 +70,25 @@ export function styled<T extends object>(role: EdgeRole, edge: T): T & EdgeStyle
 // and hard to see." Every size on the map came from a different hand-picked number between 9 and
 // 13.5px, which is both too small overall and inconsistent. One scale now, five steps, used
 // everywhere — and because zoom is a real CSS transform, this is the size at 100%, not a cap.
+// Raised a second time — "still stuff in the map is small and hard to see". The first pass moved
+// the floor from 9px to 10.5; on a large display that was still squinting territory. The whole
+// scale steps up again here, and the gap between the smallest and largest step narrows, because
+// most of what was hard to read was the small end (badges, the step number, dwell times) rather
+// than the titles.
 export const FONT = {
   /** A chapter stop's own title — the most important text on the map. */
-  stop: 15,
+  stop: 17,
   /** A branch row, a tangent bullet's verse — the second level. */
-  row: 13.5,
+  row: 15,
   /** Dwell time, subnotes, gap chips. */
-  meta: 11.5,
+  meta: 13,
   /** Pills and badges. */
-  badge: 11,
+  badge: 12.5,
   /** The step number in the margin. */
-  step: 10.5,
+  step: 12,
 } as const
 
-export const ICON = { sm: 12, md: 14 } as const
+export const ICON = { sm: 14, md: 16 } as const
 
 // ── Bullets ─────────────────────────────────────────────────────────────────
 export type BulletKind = 'chapter' | 'verse' | 'jump' | 'lexicon' | 'side'
@@ -105,15 +110,15 @@ const BULLET_COLOR = {
 export function bulletStyle(kind: BulletKind, opts: { revisit?: boolean } = {}): BulletStyle {
   const revisit = !!opts.revisit
   switch (kind) {
-    // Two sizes total across the whole map: 11px for a main-spine chapter stop, 9px for
-    // everything off-spine (both up from 9/7 — they were hard to see and hard to hit). A revisit
+    // Two sizes total across the whole map: 13px for a main-spine chapter stop, 10px for
+    // everything off-spine (9/7 originally, then 11/9 — both were still hard to see and to hit). A revisit
     // keeps its size and goes hollow instead of shrinking, so "same chapter as before" and "less
     // important" stop being conflated.
-    case 'chapter': return { size: 11, borderRadius: 3, color: BULLET_COLOR.chapter, hollow: revisit }
-    case 'verse': return { size: 9, borderRadius: 999, color: BULLET_COLOR.chapter, hollow: revisit }
-    case 'jump': return { size: 9, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: revisit }
-    case 'lexicon': return { size: 9, borderRadius: 1, rotate: true, color: BULLET_COLOR.offspine, hollow: revisit }
-    case 'side': return { size: 9, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: true }
+    case 'chapter': return { size: 13, borderRadius: 3, color: BULLET_COLOR.chapter, hollow: revisit }
+    case 'verse': return { size: 10, borderRadius: 999, color: BULLET_COLOR.chapter, hollow: revisit }
+    case 'jump': return { size: 10, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: revisit }
+    case 'lexicon': return { size: 10, borderRadius: 1, rotate: true, color: BULLET_COLOR.offspine, hollow: revisit }
+    case 'side': return { size: 10, borderRadius: 999, color: BULLET_COLOR.offspine, hollow: true }
   }
 }
 
@@ -144,6 +149,12 @@ export function bulletKindForConnection(toKind: string): BulletKind {
 // but a footnote, not the diagram's primary colour axis. It is now a 4px dot on the row and
 // nothing else, and only for tiers 2 and 3: tier 1 ("we know exactly why") is the normal case and
 // deserves no mark at all.
+// Which way a collapse caret turns when folded. Per direct feedback, "make all the collapse
+// carrets rotate the other direction" — every one of them was rotating counter-clockwise, and they
+// now all turn the other way. Defined once so the map, the section headers and the Threads cards
+// can never disagree about it again.
+export const CARET_COLLAPSED_ROTATE = 'rotate(90deg)'
+
 export const TIER_DOT: Record<number, string | null> = {
   1: null,
   2: 'rgb(var(--color-text-muted))',

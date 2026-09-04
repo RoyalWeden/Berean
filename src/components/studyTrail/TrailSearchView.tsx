@@ -171,8 +171,9 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
               return (
                 <div
                   key={`${h.kind}:${h.id}`}
+                  className="trail-row-hover"
                   style={{
-                    display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 8px',
+                    display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 9px',
                     borderRadius: 7, marginBottom: 2,
                   }}
                 >
@@ -191,6 +192,7 @@ export default function TrailSearchView({ onOpenSession }: { onOpenSession: (id:
                       >{title}</span>
                       {h.strongsNum && <Hash size={10} style={{ opacity: 0.5 }} />}
                       <button
+                        className="trail-chip"
                         onClick={() => onOpenSession(h.sessionId)}
                         style={{
                           fontSize: 11, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
