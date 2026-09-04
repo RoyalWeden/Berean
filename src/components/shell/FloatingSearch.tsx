@@ -383,6 +383,28 @@ export default function FloatingSearch() {
     inputRef.current?.focus()
   }, [])
 
+  // Member verses / whole chapters of the currently-selected tags — used to
+  // scope the floating search's own verse results (a keyword hit only shows if
+  // it actually carries a selected tag). Refetched whenever the selection
+  // changes; null while loading / when nothing is selected.
+  const [tagVerseFilter, setTagVerseFilter] = useState<{ verses: Set<string>; chapters: Set<string> } | null>(null)
+  useEffect(() => {
+    if (selectedTags.length === 0) { setTagVerseFilter(null); return }
+    let cancelled = false
+    setTagVerseFilter(null)
+    window.verseTags.getMembers(selectedTags.map((t) => t.id)).then((members) => {
+      if (cancelled) return
+      const verses = new Set<string>()
+      const chapters = new Set<string>()
+      for (const m of members) {
+        for (const v of m.verses) verses.add(`${v.bookId}:${v.chapter}:${v.verse}`)
+        for (const c of m.wholeChapters) chapters.add(`${c.bookId}:${c.chapter}`)
+      }
+      setTagVerseFilter({ verses, chapters })
+    }).catch(() => { if (!cancelled) setTagVerseFilter({ verses: new Set(), chapters: new Set() }) })
+    return () => { cancelled = true }
+  }, [selectedTags])
+
   // Render-scope mirror of the same check `runSearch`'s debounced callback does — needed
   // here too so the smart destination-prediction logic (below) can exclude Strong's-number
   // combinations from prediction the same way it excludes bare Strong's numbers and refs.
@@ -941,14 +963,23 @@ export default function FloatingSearch() {
   const wr = (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t
 
   // Scripture verses first — most relevant for a Bible-study keyword search.
-  // Apply scope filter (OT/NT) to verse results.
-  const scopedVerseResults = scopeFilter === 'all'
+  const rawScopedVerses = scopeFilter === 'all'
     ? verseResults
     : verseResults.filter((v) => {
         const bk = books.find((b) => b.id === v.book_id)
         if (!bk) return true
         return scopeFilter === 'ot' ? bk.testament === 'OT' : bk.testament === 'NT'
       })
+  // When verse tags are selected they act as a LIVE filter: only keyword hits
+  // that actually carry one of the selected tags are shown. Until the tag's
+  // member verses have loaded, show nothing rather than an unfiltered list.
+  const scopedVerseResults = selectedTags.length === 0
+    ? rawScopedVerses
+    : tagVerseFilter
+      ? rawScopedVerses.filter((v) =>
+          tagVerseFilter.verses.has(`${v.book_id}:${v.chapter}:${v.verse_num}`) ||
+          tagVerseFilter.chapters.has(`${v.book_id}:${v.chapter}`))
+      : []
 
   // Smart destination prediction — guesses which single space (Scripture/Notes/YouTube)
   // a plain keyword query is most likely aimed at, from the live result counts each
@@ -1150,6 +1181,12 @@ export default function FloatingSearch() {
       e.preventDefault()
       // navigate() (called inside .action()) already closes the search overlay itself.
       refResultFor(immediateRef.ref, immediateRef.textId).action()
+    } else if (e.key === 'Enter' && selectedIdx < 0 && selectedTags.length > 0) {
+      // Tag(s) selected and nothing in the list highlighted — go straight to the
+      // tagged-verses view (carrying any keyword). Arrowing/hovering a result row
+      // opts back into activating that row below.
+      e.preventDefault()
+      openAdvancedScriptureSearch()
     } else if (e.key === 'Enter' && selectedIdx < 0 && predictedSpace) {
       // Enter with nothing selected (no arrowing, no mouse hover) — jump straight to
       // the predicted destination's own search tab with the current query, rather
@@ -1167,7 +1204,9 @@ export default function FloatingSearch() {
     }
   }
 
-  const showHint = !query.trim()
+  // No empty-state hint once tag filters are in play — the chip row + footer
+  // "Search N tags" action are the whole UI at that point.
+  const showHint = !query.trim() && selectedTags.length === 0
 
   return (
     <Dialog.Root open={searchOpen} onOpenChange={(open) => !open && closeSearch()}>
@@ -1307,12 +1346,13 @@ export default function FloatingSearch() {
             )}
           </div>
 
-          {/* Verse-tag chips — selected (removable) + candidates (click to add). */}
+          {/* Verse-tag chips — selected (removable) + candidates (click to add).
+              A floating pill group tucked just under the input, no hard divider. */}
           {(selectedTags.length > 0 || candidateTags.length > 0) && (
-            <div className="px-4 py-2.5 border-b border-[rgb(var(--color-surface-4))] flex flex-col gap-2">
+            <div className="mx-2.5 mt-2 mb-1 rounded-xl bg-[rgb(var(--color-surface-3))]/50 px-3 py-2 flex flex-col gap-2">
               {selectedTags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-semibold mr-1">Filter by tag</span>
+                  <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-medium mr-0.5">Filter by tag</span>
                   {selectedTags.map((t) => (
                     <button
                       key={t.id}
