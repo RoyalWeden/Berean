@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail } from '@/types/studyTrail'
-import { buildTrailGraph, buildChapterIndex, nodeBefore, nodeNearest, MAX_GUTTER_LANES } from '@/components/studyTrail/trailGraph'
+import { buildTrailGraph, buildChapterIndex, groupNodesForRender, nodeBefore, nodeNearest, MAX_GUTTER_LANES } from '@/components/studyTrail/trailGraph'
+import { LINE_COLOR } from '@/components/studyTrail/trailStyle'
 
 // Regression suite for the Study Trail's arrow targeting. The defect these lock down: nodes used
 // to be indexed by `session:book:chapter` with last-write-wins, so any chapter visited more than
@@ -128,7 +129,7 @@ describe('return edges', () => {
 })
 
 describe('spine arrows', () => {
-  it('every suppressed spine arrow has a replacement edge landing on the same node', () => {
+  it('is continuous — every consecutive pair is joined, whatever else explains the arrival', () => {
     const nodes = [
       node('n1', 'Isa', 11, T0),
       node('n2', 'Luk', 4, T0 + 5 * MIN),
@@ -143,11 +144,39 @@ describe('spine arrows', () => {
     const g = buildTrailGraph(detailOf(nodes, conns))
     const incoming = (nodeId: string) => g.edges.filter((e) => e.to === `node:${nodeId}`)
     for (const n of nodes.slice(1)) expect(incoming(n.id).length).toBeGreaterThan(0)
-    // n2 arrives via the 3-segment branch path, so its generic spine arrow is gone…
-    expect(edgeByKey(g.edges, 'spine:n1')).toBeUndefined()
+    // n2 arrives via the 3-segment branch path, so its spine segment RECEDES — but it is still
+    // drawn. Omitting it (the old behaviour) left the faint indent guide showing through the gap,
+    // which read as the spine changing colour and breaking apart mid-line.
+    const s1 = edgeByKey(g.edges, 'spine:n1')
+    expect(s1).toBeDefined()
+    expect(s1!.role).toBe('forward-quiet')
+    expect(s1!.arrow).toBeFalsy()
     expect(edgeByKey(g.edges, 'tangent-arrive:n2')?.to).toBe('node:n2')
-    // …while n3's low-signal origin produced no row, so its spine arrow survives.
-    expect(edgeByKey(g.edges, 'spine:n2')?.to).toBe('node:n3')
+    // n3's low-signal origin produced no row, so its segment carries the full forward treatment.
+    const s2 = edgeByKey(g.edges, 'spine:n2')
+    expect(s2?.to).toBe('node:n3')
+    expect(s2!.role).toBe('forward')
+    expect(s2!.arrow).toBe(true)
+  })
+
+  it('uses only the three sanctioned line colours', () => {
+    const nodes = [
+      node('n1', 'Isa', 11, T0),
+      node('n2', 'Luk', 4, T0 + 5 * MIN),
+      node('n3', 'Gen', 1, T0 + 12 * MIN),
+      node('n4', 'Isa', 11, T0 + 20 * MIN, { revisitOfNodeId: 'n1' }),
+    ]
+    const conns = [
+      conn('c1', 'n1', T0 + 4 * MIN, { toBookId: 'Luk', toChapter: 4, toVerse: 18, isBranch: true }),
+      conn('c2', 'n2', T0 + 8 * MIN, { toKind: 'lexicon', toStrongsNum: 'G4151' }),
+      conn('c3', 'n3', T0 + 15 * MIN, { toBookId: 'Isa', toChapter: 11, weight: 'glance' }),
+    ]
+    const g = buildTrailGraph(detailOf(nodes, conns))
+    const allowed = new Set(Object.values(LINE_COLOR))
+    expect(g.edges.length).toBeGreaterThan(0)
+    for (const e of g.edges) expect(allowed.has(e.color as never)).toBe(true)
+    // And clarity tier never reaches a line — that was the map's "random colours" problem.
+    for (const e of g.edges) expect(e.color).not.toBe('#e08468')
   })
 
   it('does not join two chronologically adjacent nodes from different sessions', () => {
@@ -159,18 +188,36 @@ describe('spine arrows', () => {
 })
 
 describe('gutter', () => {
-  it('caps lanes so the reserved width is constant no matter how many backlinks overlap', () => {
-    // Six mutually overlapping revisits — more than the gutter has lanes.
+  it('draws ONE line per revisited chapter, not one per pair of visits', () => {
+    // Seven visits to Genesis 1 used to mean six overlapping arcs all saying the same thing —
+    // "a lot of the revisit lines are overlapping, its hard to tell whats going on."
     const nodes = [node('base', 'Gen', 1, T0)]
     for (let i = 1; i <= 6; i++) nodes.push(node(`r${i}`, 'Gen', 1, T0 + i * MIN, { revisitOfNodeId: 'base' }))
     const g = buildTrailGraph(detailOf(nodes, []))
     const laned = g.edges.filter((e) => e.lane != null)
-    expect(laned.length).toBe(6)
+    expect(laned.length).toBe(1)
+    // It spans first visit to last, and records the ones in between as ticks rather than as
+    // separate lines.
+    expect(laned[0].from).toBe('node:r6')
+    expect(laned[0].to).toBe('node:base')
+    expect(laned[0].ticks).toEqual(['node:r1', 'node:r2', 'node:r3', 'node:r4', 'node:r5'])
+    expect(laned[0].label).toBe('×7')
+  })
+
+  it('caps lanes so the reserved width never grows', () => {
+    // Four separate revisited chapters, all overlapping in time — more than the gutter has lanes.
+    const nodes: TrailNode[] = []
+    const books = ['Gen', 'Exo', 'Lev', 'Num']
+    books.forEach((b, bi) => nodes.push(node(`a${bi}`, b, 1, T0 + bi * MIN)))
+    books.forEach((b, bi) => nodes.push(node(`z${bi}`, b, 1, T0 + (20 + bi) * MIN, { revisitOfNodeId: `a${bi}` })))
+    const g = buildTrailGraph(detailOf(nodes, []))
+    const laned = g.edges.filter((e) => e.lane != null)
+    expect(laned.length).toBe(4)
     for (const e of laned) expect(e.lane!).toBeLessThan(MAX_GUTTER_LANES)
-    // Overflow is faded rather than dropped.
+    // Overflow is faded rather than dropped, so no backlink is ever silently lost.
     expect(laned.some((e) => e.overflowLane)).toBe(true)
 
-    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[1]], []))
+    const narrow = buildTrailGraph(detailOf([nodes[0], nodes[4]], []))
     expect(g.gutterWidth).toBe(narrow.gutterWidth)
   })
 
@@ -193,5 +240,60 @@ describe('same-chapter branches', () => {
     const row = g.rowsForNode.get('n1')!.find((r) => r.id === 'c1')!
     expect(row.isSameChapterBranch).toBe(true)
     expect(row.isReturn).toBeFalsy()
+  })
+})
+
+describe('reading straight through', () => {
+  const run = (n: number, from = 1) => Array.from({ length: n }, (_, i) =>
+    node(`g${from + i}`, 'Gen', from + i, T0 + i * MIN))
+
+  it('collapses a long consecutive run into one group', () => {
+    const items = groupNodesForRender(run(8).map((n, i) => ({ ...n, orderIndex: i })))
+    expect(items).toHaveLength(1)
+    expect(items[0].type).toBe('run')
+  })
+
+  it('leaves ordinary reading alone', () => {
+    // Three chapters is just reading, not a pattern worth folding away.
+    const items = groupNodesForRender(run(3))
+    expect(items.every((i) => i.type === 'single')).toBe(true)
+  })
+
+  it('breaks the run at a stop that has a branch — that stop is the whole point', () => {
+    const nodes = run(8)
+    const items = groupNodesForRender(nodes, { hasBranches: (id) => id === 'g4' })
+    // Gen 1-3 is too short to fold, Gen 4 stands alone, Gen 5-8 folds.
+    expect(items.filter((i) => i.type === 'run')).toHaveLength(1)
+    expect(items.some((i) => i.type === 'single' && i.node.id === 'g4')).toBe(true)
+  })
+
+  it('does not run across a book change or a revisit', () => {
+    const nodes = [...run(3), node('x', 'Exo', 4, T0 + 9 * MIN), ...run(4, 5).map((n) => ({ ...n, revisitOfNodeId: 'g1' }))]
+    expect(groupNodesForRender(nodes).some((i) => i.type === 'run')).toBe(false)
+  })
+})
+
+describe('home base', () => {
+  it('marks the chapter a session kept returning to', () => {
+    const nodes = [
+      node('a1', 'Hos', 2, T0),
+      node('b1', 'Rev', 12, T0 + 5 * MIN),
+      node('a2', 'Hos', 2, T0 + 10 * MIN, { revisitOfNodeId: 'a1' }),
+      node('c1', 'Isa', 11, T0 + 15 * MIN),
+      node('a3', 'Hos', 2, T0 + 20 * MIN, { revisitOfNodeId: 'a1' }),
+    ]
+    const g = buildTrailGraph(detailOf(nodes, []))
+    // Marked on the FIRST visit, so the badge doesn't wander down the map as more visits land.
+    expect(g.anchorNodes.get('a1')).toBe(3)
+    expect(g.anchorNodes.has('a3')).toBe(false)
+  })
+
+  it('does not mark anything when nothing was really returned to', () => {
+    const nodes = [
+      node('a1', 'Hos', 2, T0),
+      node('b1', 'Rev', 12, T0 + 5 * MIN),
+      node('a2', 'Hos', 2, T0 + 10 * MIN, { revisitOfNodeId: 'a1' }),
+    ]
+    expect(buildTrailGraph(detailOf(nodes, [])).anchorNodes.size).toBe(0)
   })
 })

@@ -743,56 +743,182 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     return out.sort((a, b) => b.at - a.at).slice(0, limit)
   })
 
-  // Threads — "what have I been chasing", grouped across every session. Replaces the deleted
-  // Review tab, per direct feedback that Review "isnt helpful and i wouldnt use it... if there is
-  // another tab, it needs to be something completely different".
+  // Threads — "what have I been chasing", across every session.
   //
-  // A thread is a SUBJECT, not a time span: one per book actually studied, plus one per distinct
-  // Strong's number looked up. Grouping happens here rather than in the renderer so the Threads
-  // tab never has to load every session's full detail the way Everything used to.
+  // REWRITTEN per direct feedback: "the threads tab should be by topics and not by books or
+  // whatever." Grouping by book was really just a second table of contents — it told you where you
+  // had been, not what you were pursuing. A topic here is one of two things, both grounded in the
+  // user's own behaviour rather than in an arbitrary taxonomy:
+  //
+  //   TAGGED   — a verse tag (v37) or session tag (v40). These are literally the topics Michael
+  //              named himself, so they come first and are never invented.
+  //   TRACED   — a connected component of chapters joined by ASSOCIATIVE moves: cross-references,
+  //              hand-entered verse ties, branches, Strong's lookups. Reading Genesis 1 then
+  //              Genesis 2 is not a topic; jumping Isaiah 11 → Luke 4 → Joel 2 because they kept
+  //              pointing at each other is. Each component is labelled by the words the user
+  //              actually wrote about it (their own notes and reason text), falling back to its
+  //              busiest chapters.
+  //
+  // Sequential reading and tab-switching are deliberately excluded from the graph — including them
+  // would connect everything to everything and collapse into one meaningless super-topic.
   ipcMain.handle('studyTrail:listThreads', () => {
     const db = getBereanDb()
-    const byBook = db.prepare(`
-      SELECT n.book_id AS key, COUNT(*) AS stops,
-             MIN(n.anchor_started_at) AS first_at, MAX(n.anchor_started_at) AS last_at,
+    const threads: TrailThreadRow[] = []
+
+    const chapterLabel = (bookId: string, chapter: number) => `${bookId} ${chapter}`
+
+    // ── Tagged topics ───────────────────────────────────────────────────────
+    // A verse tag becomes a thread when the trail has actually been to any of its verses.
+    const verseTagRows = db.prepare(`
+      SELECT t.id, t.name, t.color,
+             COUNT(DISTINCT n.id) AS stops,
              COUNT(DISTINCT n.trail_session_id) AS sessions,
-             COUNT(DISTINCT n.chapter) AS chapters
-      FROM trail_nodes n GROUP BY n.book_id ORDER BY stops DESC
-    `).all() as Array<{ key: string; stops: number; first_at: number; last_at: number; sessions: number; chapters: number }>
+             MIN(n.anchor_started_at) AS first_at, MAX(n.anchor_started_at) AS last_at
+      FROM verse_tags t
+      JOIN verse_tag_verse v ON v.tag_id = t.id
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      GROUP BY t.id HAVING stops > 0
+    `).all() as Array<{ id: string; name: string; color: string | null; stops: number; sessions: number; first_at: number; last_at: number }>
 
-    const byStrongs = db.prepare(`
-      SELECT c.to_strongs_num AS key, COUNT(*) AS stops,
-             MIN(c.created_at) AS first_at, MAX(c.created_at) AS last_at,
-             COUNT(DISTINCT c.trail_session_id) AS sessions
-      FROM trail_connections c
-      WHERE c.to_kind = 'lexicon' AND c.to_strongs_num IS NOT NULL
-      GROUP BY c.to_strongs_num ORDER BY stops DESC
-    `).all() as Array<{ key: string; stops: number; first_at: number; last_at: number; sessions: number }>
-
-    const sessionsForBook = db.prepare(`
-      SELECT DISTINCT n.trail_session_id AS id, s.name AS name FROM trail_nodes n
-      JOIN trail_sessions s ON s.id = n.trail_session_id WHERE n.book_id = ?
-      ORDER BY s.updated_at DESC LIMIT 12
+    const sessionsForVerseTag = db.prepare(`
+      SELECT DISTINCT n.trail_session_id AS id, s.name AS name FROM verse_tag_verse v
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      JOIN trail_sessions s ON s.id = n.trail_session_id
+      WHERE v.tag_id = ? ORDER BY s.updated_at DESC LIMIT 12
     `)
-    const sessionsForStrongs = db.prepare(`
-      SELECT DISTINCT c.trail_session_id AS id, s.name AS name FROM trail_connections c
-      JOIN trail_sessions s ON s.id = c.trail_session_id WHERE c.to_strongs_num = ?
-      ORDER BY s.updated_at DESC LIMIT 12
+    const chaptersForVerseTag = db.prepare(`
+      SELECT DISTINCT n.book_id AS book_id, n.chapter AS chapter FROM verse_tag_verse v
+      JOIN trail_nodes n ON n.book_id = v.book_id AND n.chapter = v.chapter
+      WHERE v.tag_id = ? LIMIT 24
     `)
+    for (const r of verseTagRows) {
+      threads.push({
+        id: `versetag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
+        source: 'verse tag', stops: r.stops, sessions: sessionsForVerseTag.all(r.id) as Array<{ id: string; name: string }>,
+        chapters: (chaptersForVerseTag.all(r.id) as Array<{ book_id: string; chapter: number }>).map((c) => chapterLabel(c.book_id, c.chapter)),
+        strongs: [], terms: [], firstAt: r.first_at, lastAt: r.last_at,
+      })
+    }
 
-    const threads = [
-      ...byBook.map((r) => ({
-        id: `book:${r.key}`, kind: 'book' as const, label: r.key, bookId: r.key,
-        stops: r.stops, chapters: r.chapters, firstAt: r.first_at, lastAt: r.last_at,
-        sessions: sessionsForBook.all(r.key) as Array<{ id: string; name: string }>,
-      })),
-      ...byStrongs.map((r) => ({
-        id: `strongs:${r.key}`, kind: 'strongs' as const, label: r.key, strongsNum: r.key,
-        stops: r.stops, chapters: 0, firstAt: r.first_at, lastAt: r.last_at,
-        sessions: sessionsForStrongs.all(r.key) as Array<{ id: string; name: string }>,
-      })),
-    ]
-    // Most-recently-touched first — a thread you were chasing this morning matters more than one
+    const sessionTagRows = db.prepare(`
+      SELECT t.id, t.name, t.color, COUNT(m.trail_session_id) AS sessions
+      FROM trail_tags t LEFT JOIN trail_tag_members m ON m.tag_id = t.id
+      GROUP BY t.id HAVING sessions > 0
+    `).all() as Array<{ id: string; name: string; color: string | null; sessions: number }>
+    const infoForSessionTag = db.prepare(`
+      SELECT s.id, s.name, COUNT(n.id) AS stops,
+             MIN(n.anchor_started_at) AS first_at, MAX(n.anchor_started_at) AS last_at
+      FROM trail_tag_members m
+      JOIN trail_sessions s ON s.id = m.trail_session_id
+      LEFT JOIN trail_nodes n ON n.trail_session_id = s.id
+      WHERE m.tag_id = ? GROUP BY s.id
+    `)
+    for (const r of sessionTagRows) {
+      const rows = infoForSessionTag.all(r.id) as Array<{ id: string; name: string; stops: number; first_at: number | null; last_at: number | null }>
+      const stops = rows.reduce((n, x) => n + x.stops, 0)
+      if (stops === 0) continue
+      threads.push({
+        id: `sessiontag:${r.id}`, kind: 'tag', label: r.name, color: r.color ?? undefined,
+        source: 'session tag', stops,
+        sessions: rows.map((x) => ({ id: x.id, name: x.name })),
+        chapters: [], strongs: [], terms: [],
+        firstAt: Math.min(...rows.map((x) => x.first_at ?? Date.now())),
+        lastAt: Math.max(...rows.map((x) => x.last_at ?? 0)),
+      })
+    }
+
+    // ── Traced topics ───────────────────────────────────────────────────────
+    // Only ASSOCIATIVE connections build the graph. `reason_tags` carries the origin kind, so a
+    // plain read-onward ('reading') or a tab switch never links two chapters into a topic.
+    const assoc = db.prepare(`
+      SELECT c.*, n.book_id AS from_book_id, n.chapter AS from_chapter
+      FROM trail_connections c JOIN trail_nodes n ON n.id = c.from_node_id
+      WHERE (c.is_branch = 1
+             OR c.to_kind = 'lexicon'
+             OR COALESCE(c.ties_from, '[]') != '[]' OR COALESCE(c.ties_to, '[]') != '[]'
+             OR COALESCE(c.reason_tags, '') LIKE '%cross-ref%'
+             OR COALESCE(c.reason_tags, '') LIKE '%ai-lookup%')
+    `).all() as Array<TrailConnectionRow & { from_book_id: string; from_chapter: number }>
+
+    // Union-find over chapter keys. A lexicon connection joins every chapter that looked up that
+    // same Strong's number — that's the backbone of a word study, and the single most common way a
+    // topic actually forms in this app.
+    const parent = new Map<string, string>()
+    const find = (a: string): string => {
+      let r = a
+      while (parent.get(r) && parent.get(r) !== r) r = parent.get(r)!
+      parent.set(a, r)
+      return r
+    }
+    const union = (a: string, b: string) => {
+      if (!parent.has(a)) parent.set(a, a)
+      if (!parent.has(b)) parent.set(b, b)
+      const ra = find(a), rb = find(b)
+      if (ra !== rb) parent.set(ra, rb)
+    }
+    const strongsAnchor = new Map<string, string>()
+    for (const c of assoc) {
+      const from = chapterLabel(c.from_book_id, c.from_chapter)
+      if (!parent.has(from)) parent.set(from, from)
+      if (c.to_kind === 'lexicon' && c.to_strongs_num) {
+        const prev = strongsAnchor.get(c.to_strongs_num)
+        if (prev) union(prev, from)
+        else strongsAnchor.set(c.to_strongs_num, from)
+      } else if (c.to_book_id && c.to_chapter != null) {
+        union(from, chapterLabel(c.to_book_id, c.to_chapter))
+      }
+    }
+
+    interface Bucket {
+      chapters: Set<string>; strongs: Set<string>; sessions: Map<string, string>
+      text: string[]; stops: number; firstAt: number; lastAt: number
+    }
+    const buckets = new Map<string, Bucket>()
+    const bucketFor = (key: string): Bucket => {
+      const root = find(key)
+      let b = buckets.get(root)
+      if (!b) {
+        b = { chapters: new Set(), strongs: new Set(), sessions: new Map(), text: [], stops: 0, firstAt: Infinity, lastAt: 0 }
+        buckets.set(root, b)
+      }
+      return b
+    }
+    const sessionNames = new Map((db.prepare('SELECT id, name FROM trail_sessions').all() as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]))
+    for (const c of assoc) {
+      const from = chapterLabel(c.from_book_id, c.from_chapter)
+      const b = bucketFor(from)
+      b.chapters.add(from)
+      if (c.to_kind === 'lexicon' && c.to_strongs_num) b.strongs.add(c.to_strongs_num)
+      else if (c.to_book_id && c.to_chapter != null) b.chapters.add(chapterLabel(c.to_book_id, c.to_chapter))
+      b.sessions.set(c.trail_session_id, sessionNames.get(c.trail_session_id) ?? 'Session')
+      // The user's own words about this jump are what the topic gets NAMED from.
+      for (const t of [c.user_note, c.reason_text]) if (t) b.text.push(t)
+      for (const raw of [c.ties_from, c.ties_to]) {
+        if (!raw) continue
+        try { for (const t of JSON.parse(raw) as string[]) b.text.push(t) } catch { /* malformed row */ }
+      }
+      b.stops += 1
+      b.firstAt = Math.min(b.firstAt, c.created_at)
+      b.lastAt = Math.max(b.lastAt, c.created_at)
+    }
+
+    for (const [root, b] of buckets) {
+      // A lone jump isn't a topic — it's a jump. Two or more linked chapters is the floor.
+      if (b.chapters.size < 2 && b.strongs.size === 0) continue
+      const terms = topTerms(b.text)
+      const chapters = [...b.chapters]
+      threads.push({
+        id: `traced:${root}`, kind: 'traced',
+        // Prefer the user's own vocabulary; fall back to the chapters themselves.
+        label: terms.length > 0 ? terms.slice(0, 2).join(' · ') : chapters.slice(0, 2).join(' · '),
+        source: terms.length > 0 ? 'from your notes' : 'traced connections',
+        stops: b.stops, sessions: [...b.sessions].map(([id, name]) => ({ id, name })),
+        chapters, strongs: [...b.strongs], terms,
+        firstAt: b.firstAt === Infinity ? 0 : b.firstAt, lastAt: b.lastAt,
+      })
+    }
+
+    // Most-recently-touched first — a topic you were chasing this morning matters more than one
     // with more total stops from three months ago.
     return threads.sort((a, b) => b.lastAt - a.lastAt)
   })
@@ -1020,6 +1146,53 @@ export function registerStudyTrailHandlers(ipcMain: IpcMain): void {
     broadcastDataChanged()
     return { success: true }
   })
+}
+
+interface TrailThreadRow {
+  id: string
+  kind: 'tag' | 'traced'
+  label: string
+  color?: string
+  source: string
+  stops: number
+  sessions: Array<{ id: string; name: string }>
+  chapters: string[]
+  strongs: string[]
+  terms: string[]
+  firstAt: number
+  lastAt: number
+}
+
+// Words that carry no topical signal — either English filler or Berean's own auto-generated
+// reason-text vocabulary ("Strong's word · G26", "a search for …"), which would otherwise be the
+// most common "topic" in every single thread.
+const TERM_STOPWORDS = new Set([
+  'the', 'and', 'for', 'that', 'this', 'with', 'from', 'was', 'were', 'are', 'his', 'her', 'its',
+  'not', 'but', 'you', 'they', 'them', 'their', 'have', 'has', 'had', 'who', 'what', 'when', 'which',
+  'there', 'here', 'then', 'than', 'into', 'unto', 'shall', 'will', 'would', 'about', 'also',
+  'strong', 'strongs', 'word', 'search', 'cross', 'reference', 'ref', 'lookup', 'verse', 'chapter',
+  'note', 'notes', 'compare', 'occurrence', 'occurrences', 'manual', 'popover', 'tab', 'switch',
+])
+
+/** The handful of words the user actually keeps writing about a topic, most frequent first. */
+function topTerms(texts: string[], limit = 4): string[] {
+  const freq = new Map<string, { n: number; display: string }>()
+  for (const t of texts) {
+    for (const raw of t.split(/[^\p{L}\p{N}']+/u)) {
+      const w = raw.toLowerCase()
+      // Length 4+ skips most filler without needing an exhaustive stopword list, and a purely
+      // numeric token is a verse number, never a topic.
+      if (w.length < 4 || TERM_STOPWORDS.has(w) || /^\d+$/.test(w)) continue
+      const cur = freq.get(w)
+      if (cur) cur.n += 1
+      else freq.set(w, { n: 1, display: raw })
+    }
+  }
+  return [...freq.entries()]
+    .filter(([, v]) => v.n > 1)
+    .sort((a, b) => b[1].n - a[1].n)
+    .slice(0, limit)
+    .map(([, v]) => v.display)
 }
 
 interface TrailSearchHit {

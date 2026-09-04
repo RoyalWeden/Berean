@@ -39,6 +39,14 @@ export interface TrailEdge {
    *  renders faintly, coming back to full strength only when hovered. Never dropped: a busy
    *  session still shows every backlink, it just doesn't widen the view to do it. */
   overflowLane?: boolean
+  /** Point keys of intermediate stops this laned edge passes through — drawn as small ticks on
+   *  the lane line. Lets one line say "these five stops are all the same chapter" instead of four
+   *  overlapping pairwise arcs. */
+  ticks?: string[]
+  /** Dotted rather than dashed — the quietest line weight, for a glance. */
+  dotted?: boolean
+  /** Which rule from trailStyle.ts produced this edge. Diagnostic only. */
+  role?: string
   /** Short text drawn along a laned edge (the verse pair tying its two ends together, e.g.
    *  "Rev 12:6 ⇄ Hos 2:14") so a backlink says WHY it exists without being traced by eye.
    *  Truncated to the gutter's own width — it may never widen the layout. */
@@ -372,7 +380,7 @@ export default function TrailConnectorOverlay({
           )}
           <path
             d={d} stroke={e.color} strokeWidth={e.strokeWidth ?? (e.thick ? 3 : 1.75)} fill="none"
-            strokeDasharray={e.dashed ? '4 4' : undefined}
+            strokeDasharray={e.dotted ? '1 3' : e.dashed ? '4 4' : undefined}
             // A round cap adds a small rounded bump extending PAST the path's mathematical
             // endpoint (half the stroke width) — harmless on its own, but on an arrowed edge
             // that bump sits right where the marker's flat back edge is supposed to meet the
@@ -385,6 +393,18 @@ export default function TrailConnectorOverlay({
           {/* An invisible fat stroke over the same path — the visible hairline is far too thin to
               hover, and an overflow edge needs a way to be brought forward. pointerEvents is
               enabled only for this one, the SVG itself stays click-through. */}
+          {/* Intermediate stops on a per-chapter revisit line — a short stub from the lane out
+              toward each one, so the line visibly touches every visit it stands for. */}
+          {laneGeom && e.ticks?.map((k) => {
+            const p = coords.get(k)
+            if (!p) return null
+            return (
+              <line
+                key={k} x1={laneGeom.laneX} y1={p.y} x2={laneGeom.laneX + 5} y2={p.y}
+                stroke={e.color} strokeWidth={1} opacity={(e.opacity ?? 1) * (dimmed ? 0.45 : 1)}
+              />
+            )
+          })}
           {e.overflowLane && (
             <path
               d={d} stroke="transparent" strokeWidth={10} fill="none" style={{ pointerEvents: 'stroke' }}

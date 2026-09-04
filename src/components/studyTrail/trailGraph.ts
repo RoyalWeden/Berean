@@ -27,7 +27,10 @@ import type { TrailConnection, TrailNode, TrailSessionDetail } from '@/types/stu
 import type { TrailEdge } from './TrailConnectorOverlay'
 import { GUTTER_BASE, LANE_SPACING } from './TrailConnectorOverlay'
 import { effectiveGapMs, GAP_CHIP_THRESHOLD_MS } from './trailTime'
+import { styled } from './trailStyle'
 
+// Kept only for the hover card's own tier chip. Lines and bullets no longer read from it — see
+// trailStyle.ts's note on why clarity tier stopped being the map's primary colour axis.
 export const TIER_COLOR: Record<number, string> = { 1: '#4fc3ae', 2: 'rgb(var(--color-accent))', 3: '#e08468' }
 
 // ── Indent geometry (shared) ────────────────────────────────────────────────
@@ -133,10 +136,22 @@ export function groupForRender(conns: AnnotatedConn[]): RenderItem[] {
 // separate full spine entries for what was really one quick flurry of checking. Collapses a
 // CONSECUTIVE run (in spine order) of nodes sharing the same non-null clusterId into one
 // compact summary, mirroring GlanceGroupRow's collapse/expand pattern one level up.
-export type NodeRenderItem = { type: 'single'; node: TrailNode; index: number } | { type: 'cluster'; nodes: TrailNode[]; startIndex: number }
+export type NodeRenderItem =
+  | { type: 'single'; node: TrailNode; index: number }
+  | { type: 'cluster'; nodes: TrailNode[]; startIndex: number }
+  | { type: 'run'; nodes: TrailNode[]; startIndex: number }
 
-export function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
+/** The shortest run of straight-through reading worth collapsing. Two chapters in a row is just
+ *  reading; four is a pattern, and showing it as four identical stops buries whatever else
+ *  happened that session. */
+const READ_THROUGH_MIN = 4
+
+export function groupNodesForRender(
+  nodes: TrailNode[],
+  opts: { hasBranches?: (nodeId: string) => boolean } = {},
+): NodeRenderItem[] {
   const out: NodeRenderItem[] = []
+  const busy = opts.hasBranches ?? (() => false)
   let i = 0
   while (i < nodes.length) {
     const n = nodes[i]
@@ -145,6 +160,32 @@ export function groupNodesForRender(nodes: TrailNode[]): NodeRenderItem[] {
       while (j < nodes.length && nodes[j].clusterId === n.clusterId) j++
       if (j - i >= 2) {
         out.push({ type: 'cluster', nodes: nodes.slice(i, j), startIndex: i })
+        i = j
+        continue
+      }
+    }
+    // ── Reading straight through ────────────────────────────────────────────
+    // The most common thing anyone does with a Bible, and previously the noisiest thing on the
+    // map: reading Genesis 1–12 in one sitting produced twelve identical full-size stops, which
+    // buried the two cross-references that were the actual study. A run of consecutive chapters in
+    // one book, none of them revisited and none of them carrying a branch of their own, collapses
+    // into its first and last stop with a "read through N chapters" badge — expandable, nothing
+    // lost. A chapter you stopped to look something up in breaks the run, because that stop is
+    // exactly what the map exists to show.
+    if (!n.revisitOfNodeId && !busy(n.id)) {
+      let j = i + 1
+      while (
+        j < nodes.length &&
+        nodes[j].trailSessionId === n.trailSessionId &&
+        nodes[j].bookId === n.bookId &&
+        nodes[j].chapter === nodes[j - 1].chapter + 1 &&
+        !nodes[j].revisitOfNodeId &&
+        !nodes[j].isTopicBreak &&
+        !nodes[j].clusterId &&
+        !busy(nodes[j].id)
+      ) j++
+      if (j - i >= READ_THROUGH_MIN) {
+        out.push({ type: 'run', nodes: nodes.slice(i, j), startIndex: i })
         i = j
         continue
       }
@@ -231,6 +272,9 @@ export interface TrailGraph {
   maxRenderDepth: number
   hourLabelForNodeId: Map<string, string>
   hourMarkers: Array<{ id: string; label: string }>
+  /** The stop a session kept coming back to — its home base. Maps that node's id to how many
+   *  times the chapter was visited. See the computation below for what qualifies. */
+  anchorNodes: Map<string, number>
   /** Whether a recorded revisit still counts as one under the caller's current time window. */
   isRevisitWithinWindow: (n: TrailNode) => boolean
   arrivalNodeFor: (c: TrailConnection) => TrailNode | undefined
@@ -425,33 +469,30 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     // heuristic re-rooted genuinely long-range ties to the wrong stop and is gone.)
     const fromNode = nodeById.get(originConn.fromNodeId)
     if (!fromNode) continue
-    // Solid accent, arrowed — "going one level deeper."
-    pushEdge({ key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, color: 'rgb(var(--color-accent))', curved: false, arrow: true, opacity: 0.75 })
-    // Origin verse → destination verse — the actual cross-ref hop itself.
-    pushEdge({ key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, color: 'rgb(var(--color-accent))', arrow: true, curved: false, opacity: 0.75 })
-    // Dashed/muted reconverge into the arrival node. Straight, not curved — over the short
-    // vertical distance typical of this hop a bezier's fixed control offset overshoots and reads
-    // as a squiggle.
-    pushEdge({ key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, color: 'rgb(var(--color-text-muted))', curved: false, arrow: true, opacity: 0.5, dashed: true })
+    // All three segments of a branch arrival are the SAME move — you left a verse, crossed to
+    // another verse, and landed. They now share one style ('deeper') end to end. The last leg used
+    // to be dashed and muted, which made a single continuous hop change colour and line style
+    // twice on its way across.
+    pushEdge(styled('deeper', { key: `tangent-stub:${n.id}`, from: `node:${fromNode.id}`, to: `tangent-origin:${n.id}`, curved: false }))
+    pushEdge(styled('deeper', { key: `tangent-hop:${n.id}`, from: `tangent-origin:${n.id}`, to: `tangent-dest:${n.id}`, curved: false }))
+    pushEdge(styled('deeper', { key: `tangent-arrive:${n.id}`, from: `tangent-dest:${n.id}`, to: `node:${n.id}`, curved: false }))
   }
 
   // Shared per-row edge logic — `stubFrom` is the point key this row's own short connector
   // starts at (its chapter node for a top-level row, its PARENT row's point for a chained one).
   function pushRowEdges(c: AnnotatedConn, stubFrom: string) {
-    const color = c.weight === 'glance' ? (TIER_COLOR[c.clarityTier] ?? 'rgb(var(--color-text-muted))') : 'rgb(var(--color-accent))'
-    pushEdge({ key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, color, dashed: c.weight === 'glance', curved: false, arrow: true, opacity: c.weight === 'glance' ? 0.5 : 0.75 })
+    pushEdge(styled(c.weight === 'glance' ? 'glance' : 'deeper', { key: `stub:${c.id}`, from: stubFrom, to: `row:${c.id}`, curved: false }))
     if (c.isReturn && c.toBookId && c.toChapter != null) {
       const target = nodeBefore(chapterIndex, c.trailSessionId, c.toBookId, c.toChapter, c.createdAt)
       if (target) {
         const fromIdx = nodeOrderIndex.get(c.fromNodeId)!, toIdx = nodeOrderIndex.get(target.id)!
         // Its own quieter visual class, independent of clarity-tier color — a return shouldn't
         // shout as loud as a fresh forward move.
-        pushLaned({
+        pushLaned(styled('back', {
           key: `return:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`,
-          color: 'rgb(var(--color-text-muted))', arrow: true, dashed: true, opacity: 0.45, strokeWidth: 1.25,
           label: verseTieLabel(c),
           minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
-        })
+        }))
       }
     }
     if (c.isForwardBranch) {
@@ -461,7 +502,7 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
       // pointed at "whatever node happens to follow the source," which a spliced revisit node
       // makes flatly wrong.
       const target = arrivalNodeFor(c) ?? nextNodeById.get(c.fromNodeId)
-      if (target) pushEdge({ key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, color: 'rgb(var(--color-text-secondary))', curved: true, arrow: true, opacity: 0.6 })
+      if (target) pushEdge(styled('deeper', { key: `origin:${c.id}`, from: `row:${c.id}`, to: `node:${target.id}`, curved: true }))
     }
   }
 
@@ -471,22 +512,39 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
       if (it.type === 'single') {
         pushRowEdges(it.item, `node:${n.id}`)
       } else {
-        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        pushEdge({ key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, color, dashed: true, curved: false, arrow: true, opacity: 0.4 })
+        pushEdge(styled('glance', { key: `stub:${it.key}`, from: `node:${n.id}`, to: it.key, curved: false }))
       }
     }
-    // The quiet "same chapter as" backlink for a promoted revisit — muted/thin/dashed
-    // (structural chrome, not a clarity-tier signal) and never arrowed, since it signals identity
-    // ("this is the same chapter"), not a direction of travel.
-    if (n.revisitOfNodeId && nodeById.has(n.revisitOfNodeId) && isRevisitWithinWindow(n)) {
-      const fromIdx = nodeOrderIndex.get(n.id)!, toIdx = nodeOrderIndex.get(n.revisitOfNodeId)!
-      pushLaned({
-        key: `revisit-link:${n.id}`, from: `node:${n.id}`, to: `node:${n.revisitOfNodeId}`,
-        color: 'rgb(var(--color-text-muted))', dashed: true, opacity: 0.25, strokeWidth: 1,
-        label: revisitLabelFor(n),
-        minIdx: Math.min(fromIdx, toIdx), maxIdx: Math.max(fromIdx, toIdx),
-      })
-    }
+  }
+
+  // ── Revisit backlinks, one line PER CHAPTER ───────────────────────────────
+  // Previously every promoted revisit drew its own arc back to the original, so a chapter visited
+  // five times produced four overlapping arcs saying the same thing, and a session with a few such
+  // chapters became unreadable — "a lot of the revisit lines are overlapping, its hard to tell
+  // whats going on."
+  //
+  // A chapter's visits are now ONE line: first visit to last, in a single lane, with the
+  // intermediate visits recorded as ticks on it (`ticks`, drawn by TrailConnectorOverlay). That's
+  // the same information — "these stops are all the same chapter" — as one object instead of N-1
+  // crossing ones, and the lane count drops from "number of revisits" to "number of revisited
+  // chapters", which is what makes the gutter legible again.
+  for (const [, bucket] of chapterIndex) {
+    const visits = bucket.filter((n) => nodeOrderIndex.has(n.id))
+    if (visits.length < 2) continue
+    // Only chapters whose repeat visits were actually RECORDED as revisits, and still count as
+    // one under the caller's time window — two unrelated readings a week apart aren't a backlink.
+    const linked = visits.filter((n, i) => i === 0 || (n.revisitOfNodeId && isRevisitWithinWindow(n)))
+    if (linked.length < 2) continue
+    const first = linked[0], last = linked[linked.length - 1]
+    const idxs = linked.map((n) => nodeOrderIndex.get(n.id)!)
+    pushLaned(styled('back', {
+      key: `revisit-chain:${first.id}`,
+      from: `node:${last.id}`, to: `node:${first.id}`,
+      arrow: false, // an identity link ("same chapter"), not a step in the reading order
+      label: linked.length > 2 ? `×${linked.length}` : revisitLabelFor(last),
+      ticks: linked.slice(1, -1).map((n) => `node:${n.id}`),
+      minIdx: Math.min(...idxs), maxIdx: Math.max(...idxs),
+    }))
   }
 
   // Chained branch rows get the same per-row edges, but their short local stub starts from their
@@ -495,8 +553,7 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     for (const it of groupForRender(children)) {
       if (it.type === 'single') pushRowEdges(it.item, `row:${parentConnId}`)
       else {
-        const color = TIER_COLOR[it.items[0].clarityTier] ?? 'rgb(var(--color-text-muted))'
-        pushEdge({ key: `stub:${it.key}`, from: `row:${parentConnId}`, to: it.key, color, dashed: true, curved: false, opacity: 0.4 })
+        pushEdge(styled('glance', { key: `stub:${it.key}`, from: `row:${parentConnId}`, to: it.key, curved: false }))
       }
     }
   }
@@ -510,17 +567,23 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
   }
 
   // ── Main spine ────────────────────────────────────────────────────────────
+  // CONTINUOUS, always. Every consecutive pair of stops in the same session gets a segment; a
+  // branch that already explains the arrival demotes its segment to 'forward-quiet' instead of
+  // deleting it. Omitting the segment (what this did before) left the faint indent guide line
+  // showing through the gap, which is what read as "some of the main spine lines dont fully
+  // connect or are switching colors in part of the line".
   for (let i = 0; i < detail.nodes.length - 1; i++) {
     // Skip across a session boundary (merged all-sessions timeline) — chronologically adjacent
     // nodes from two DIFFERENT sessions shouldn't read as one continuous read-through.
     if (detail.nodes[i].trailSessionId !== detail.nodes[i + 1].trailSessionId) continue
-    if (nodesWithTracedArrival.has(detail.nodes[i + 1].id)) continue
-    // Dashed instead of solid across a long gap — the same "break in time" cue as GapDivider.
+    const explained = nodesWithTracedArrival.has(detail.nodes[i + 1].id)
     const gapMs = effectiveGapMs(detail.nodes[i].anchorEndedAt ?? detail.nodes[i].anchorStartedAt, detail.nodes[i + 1].anchorStartedAt, detail.pausedIntervals)
-    pushEdge({
+    pushEdge(styled(explained ? 'forward-quiet' : 'forward', {
       key: `spine:${detail.nodes[i].id}`, from: `node:${detail.nodes[i].id}`, to: `node:${detail.nodes[i + 1].id}`,
-      color: 'rgb(var(--color-text-secondary))', arrow: true, dashed: gapMs >= GAP_CHIP_THRESHOLD_MS,
-    })
+      // A long break still reads as one — the gap chip between the two stops says how long, this
+      // just stops the line claiming they were consecutive moments.
+      dashed: !explained && gapMs >= GAP_CHIP_THRESHOLD_MS,
+    }))
   }
 
   // ── Lane packing ──────────────────────────────────────────────────────────
@@ -555,8 +618,40 @@ export function buildTrailGraph(detail: TrailSessionDetail, opts: BuildTrailGrap
     if (oc && renderAsBranch(oc)) maxRenderDepth = Math.max(maxRenderDepth, oc.chainDepth ?? 0)
   }
 
+  // ── Home base ─────────────────────────────────────────────────────────────
+  // A very common shape: you settle on one passage, go out to a cross-reference or a word, come
+  // back, go out again. The chapter you keep returning to IS the study, but on a plain timeline it
+  // looks like several unrelated stops that happen to share a name. Marking the session's
+  // most-returned-to chapter says what was actually going on at a glance.
+  //
+  // Per session (Everything merges several), and only from three visits up — coming back once is
+  // just navigation. Ties are broken by whichever was reached first, so the marker doesn't move
+  // around as later visits accumulate.
+  const anchorNodes = new Map<string, number>()
+  {
+    const bySession = new Map<string, Map<string, TrailNode[]>>()
+    for (const [, bucket] of chapterIndex) {
+      const first = bucket[0]
+      if (!first) continue
+      let m = bySession.get(first.trailSessionId)
+      if (!m) { m = new Map(); bySession.set(first.trailSessionId, m) }
+      m.set(`${first.bookId}:${first.chapter}`, bucket)
+    }
+    for (const [, chapters] of bySession) {
+      let best: TrailNode[] | null = null
+      for (const bucket of chapters.values()) {
+        if (bucket.length < 3) continue
+        if (!best || bucket.length > best.length ||
+            (bucket.length === best.length && bucket[0].anchorStartedAt < best[0].anchorStartedAt)) {
+          best = bucket
+        }
+      }
+      if (best) anchorNodes.set(best[0].id, best.length)
+    }
+  }
+
   return {
-    nodeById, nextNodeById, nodeOrderIndex, chapterIndex, originConnByNodeId,
+    nodeById, nextNodeById, nodeOrderIndex, chapterIndex, originConnByNodeId, anchorNodes,
     rowsForNode, rowsForConnection, nodesWithTracedArrival,
     edges, maxLane, gutterWidth, maxRenderDepth,
     hourLabelForNodeId, hourMarkers,

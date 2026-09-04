@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil } from 'lucide-react'
+import { Copy, RotateCcw, GitBranch, ArrowLeftRight, ArrowDown, Trash2, Crosshair, NotepadText, Pencil, StickyNote, Heading, BookOpen } from 'lucide-react'
 import { bookName, bookChapterVerseLabel, parseRef } from '@/lib/parseRef'
 import type { TrailConnection, TrailNode, TrailSession, TrailSessionDetail, TrailStickyNote as TrailStickyNoteData } from '@/types/studyTrail'
 import ReasonPromptPopover from './ReasonPromptPopover'
@@ -16,6 +16,7 @@ import {
   TIER_COLOR, INDENT_STEP, OFFSPINE_DOT_INSET, SPINE_DOT_INSET, SPINE_LABEL_COL_INSET,
   type AnnotatedConn,
 } from './trailGraph'
+import { bulletCss, bulletKindForConnection, TIER_DOT } from './trailStyle'
 import { BRANCH_PROMOTE_DEPTH_THRESHOLD, BRANCH_PROMOTE_DWELL_MS, LOOSE_SESSION_ID } from '@/store/studyTrailSlice'
 import { getTrailScroll, setTrailScroll, EVERYTHING_SCROLL_KEY } from './trailWindowPrefs'
 import { useTrailCollapse } from './useTrailCollapse'
@@ -114,64 +115,31 @@ function GapConnector({ gapMs }: { gapMs: number | null }) {
   return <div style={{ flex: 1, width: 2, minHeight: height }} />
 }
 
-// A full-width row between two node blocks for a long gap — guaranteed not to overlap
-// anything (it's its own block-level row in normal flow, not an overlay), and the dashed rule
-// itself is the "break in time" visual cue per direct feedback ("the line at this region
-// either shows like zig zag or is like dots or something to show a break in time"). Reserves
-// the gap's own full height and centers its label vertically within it — per direct feedback
-// ("the gap label needs to show in the vertical middle of the gap").
-function GapDivider({ gapMs, minWidth, gutterWidth = 0 }: { gapMs: number; minWidth?: number; gutterWidth?: number }) {
-  // No left padding/inset — per direct feedback ("the minutes later divider should go across
-  // the entire thing horizontally"), this now spans edge-to-edge (through the left gutter too),
-  // not just the bullet/text column's own width; the fixed 21px inset was tuned before that
-  // gutter reservation existed.
-  // `width: '100%'` alone only reaches as wide as this row's own containing block — which is
-  // the `width: 'max-content'` zoom wrapper in MapView, i.e. exactly as wide as the WIDEST row
-  // actually rendered, not the visible scroll viewport. Per direct feedback ("the blank area on
-  // the right of the timeline still needs to have the horizontal line"): when every row happens
-  // to be narrower than the viewport, there's leftover blank space to the right the line never
-  // reached. `minWidth` (the scroll container's own live clientWidth, normalized back to local/
-  // pre-zoom units by MapView) forces this row at least that wide regardless of content width.
-  //
-  // The left dash segment used to be `flex: 1`, splitting the row exactly in half — which only
-  // lands the "Nm later" label on top of the main spine when the spine happens to sit at the
-  // row's own midpoint. It doesn't: NodeBlock's own left gutter spacer (gutterWidth, reserved
-  // for the return/revisit-link lanes) plus its ~3.5px bullet inset is what actually pushes the
-  // spine's dashed vertical line to `gutterWidth + 3.5` from this row's left edge (see the
-  // matching `left: gutterWidth + 3.5` used for the between-node arrow below). Per direct
-  // feedback ("the entire component... needs to be shifted left so it is on top of the main
-  // spine line... the label should be on top of that"), the left segment is now a FIXED width
-  // matching that same offset instead of an even flex split, so the label always lands exactly
-  // over the spine regardless of how wide the gutter reservation is this session.
-  // Round 12: the label still wasn't landing on the spine after making this segment fixed-width
-  // — found a real, separate bug on top of that fix. The row below is `display:flex, gap:8`,
-  // and CSS `gap` inserts its 8px BETWEEN every pair of flex children, including between this
-  // dash and the label that follows it — so the label's actual left edge was landing at
-  // `leftDashWidth + 8`, not `leftDashWidth`, no matter how precisely leftDashWidth itself was
-  // computed. Subtracting the row's own gap back out of the dash's width (floored at 0) cancels
-  // that out, so the LABEL's left edge — not the dash's — is what actually lands at
-  // `gutterWidth + 3.5`, matching the spine guide line's own `left: gutterWidth + 3.5` exactly.
-  const ROW_GAP = 8
-  const leftDashWidth = Math.max(0, gutterWidth + SPINE_DOT_INSET - ROW_GAP)
-  if (window.__bereanTrailDebug) {
-    // Per direct feedback ("give me the actual leftDashWidth value you see for a real session")
-    // — logs the raw gutterWidth this divider actually received alongside the final (gap-
-    // corrected) dash width, so it's directly checkable against the spine's own real position
-    // rather than assumed. Not deduped (GapDivider instances are cheap/few per render, and each
-    // one's gutterWidth is session-shared so they're all identical anyway — a single set of
-    // lines per render is already quiet).
-    console.log('[TrailDebug] GapDivider', { gutterWidth, leftDashWidth, rowGap: ROW_GAP })
-  }
+// The time-gap marker between two stops. REBUILT as a compact chip, per direct feedback: "the
+// time gap divider things take up a lot of space horizontally.. i think those should get
+// refactored to look nicer."
+//
+// It also silently broke horizontal centring, which is the other half of "i notice that not in
+// every session is the main spine centered". The old version was a full-bleed dashed rule forced
+// to at least the scroll viewport's width, and `contentWidth` is measured from the container that
+// holds it — so any session containing one long pause reported content as wide as the window,
+// which drove the centring padding to zero. Only sessions with no long gaps stayed centred, which
+// is exactly the "some sessions but not others" symptom. A chip that shrink-wraps its own text
+// can't do that, so centring now behaves the same in every session.
+function GapDivider({ gapMs, gutterWidth = 0 }: { gapMs: number; gutterWidth?: number }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: gapSegmentHeight(gapMs), width: '100%', minWidth }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: ROW_GAP }}>
-        <span style={{ flex: `0 0 ${leftDashWidth}px`, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
-        <span style={{
-          fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
-          letterSpacing: '.02em',
-        }}>{formatGap(gapMs)} later</span>
-        <span style={{ flex: 1, height: 0, borderTop: '1px dashed rgb(var(--color-surface-4))' }} />
-      </div>
+    <div style={{
+      display: 'flex', alignItems: 'center', minHeight: gapSegmentHeight(gapMs),
+      // Sits directly on the spine's own column so it reads as a break IN the line, not as a
+      // separate full-width band across the map.
+      paddingLeft: gutterWidth + SPINE_DOT_INSET - 5,
+    }}>
+      <span style={{
+        fontSize: 9, fontWeight: 600, letterSpacing: '.02em', lineHeight: '14px',
+        color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-2))',
+        border: '1px solid rgb(var(--color-surface-4))', borderRadius: 999, padding: '0 7px',
+        whiteSpace: 'nowrap',
+      }}>{formatGap(gapMs)}</span>
     </div>
   )
 }
@@ -327,7 +295,9 @@ function TangentBullet({ label, indent, pointKey, registerPoint, hoverContent, t
         onMouseEnter={(e) => { if (targetRef) (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'underline') }}
         onMouseLeave={(e) => { (e.currentTarget.querySelector('span:last-child') as HTMLElement)?.style.setProperty('text-decoration', 'none') }}
       >
-        <span ref={registerPoint(pointKey)} style={{ width: 7, height: 7, flexShrink: 0, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', opacity: 0.7 }} />
+        {/* A tangent bullet is a VERSE — same shape/colour rule as everywhere else on the map
+            (trailStyle.ts); it used to be its own bespoke muted grey dot. */}
+        <span ref={registerPoint(pointKey)} style={bulletCss('verse')} />
         <span style={{ fontSize: 12, color: 'rgb(var(--color-text-secondary))' }}>{label}</span>
       </div>
     </TrailHoverCard>
@@ -418,7 +388,10 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
   const collapsed = hasNested && isCollapsed('branch', conn.id)
   // Count of what's hidden, so a folded branch still says how much it stands for rather than
   // just vanishing.
-  const hiddenCount = collapsed ? (fullChain.length || directChildren.length) : 0
+  // What the fold pill counts: the whole sub-tree, not just the direct children — the pill is
+  // answering "how much is under here", and a chain of single children would otherwise always
+  // read "1".
+  const branchCount = (fullChain.length || directChildren.length) || 0
 
   const hoverDisabled = useContext(HoverDisabledContext)
   const rowKey = `row:${conn.id}`
@@ -440,26 +413,19 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
       >
         {/* Clicking the bullet ITSELF pins this stop instead of folding it — the two gestures sit
             millimetres apart on purpose (bullet = "show me what led here", row = "fold this
-            away"), so the bullet stops the click from reaching the row's own handler. */}
+            away"), so the bullet stops the click from reaching the row's own handler. Shape and
+            colour come from trailStyle.ts; this used to paint itself the connection's clarity-tier
+            colour, which is why the map read as randomly multicoloured. */}
         <span
           ref={registerPoint(rowKey)}
           onClick={(e) => { e.stopPropagation(); togglePinned(rowKey) }}
           title="Highlight what led here"
           style={{
-            width: 7, height: 7, flexShrink: 0, cursor: 'pointer',
-            borderRadius: isLexicon ? 1 : '50%',
-            transform: isLexicon ? 'rotate(45deg)' : undefined,
-            background: TIER_COLOR[conn.clarityTier] ?? 'rgb(var(--color-text-muted))',
-            opacity: conn.weight === 'glance' ? 0.5 : 1,
+            ...bulletCss(bulletKindForConnection(conn.toKind), { dim: conn.weight === 'glance' }),
+            cursor: 'pointer',
             boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
-        {hasNested && (
-          <span style={{
-            fontSize: 9, color: 'rgb(var(--color-text-muted))', flexShrink: 0, width: 7,
-            transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
-          }}>▾</span>
-        )}
         <span
           onClick={ref ? (e) => { trailRefClick(ref, e) } : undefined}
           onContextMenu={ref ? (e) => openTrailRefMenu(openMenu, ref, e, undefined, () => window.studyTrail.deleteConnection(conn.id), undefined, {
@@ -488,11 +454,26 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
             style={{ fontSize: 9, color: 'rgb(var(--color-text-muted))', opacity: 0.8, flexShrink: 0 }}
           >↳{conn.chainDepth + 1}</span>
         )}
-        {collapsed && hiddenCount > 0 && (
-          <span style={{
-            fontSize: 9.5, color: 'rgb(var(--color-text-muted))', background: 'rgb(var(--color-surface-3))',
-            borderRadius: 999, padding: '1px 6px', flexShrink: 0,
-          }}>{hiddenCount} more</span>
+        {/* The collapse affordance. The previous version was a bare ▾ caret to the left of the
+            row — per direct feedback, "i dont like that tiny caret thing to the left of the items
+            with branches, it looks ugly" and "it isnt clear that the branches stuff is
+            collapsable". A labelled pill saying what it holds is both prettier and
+            self-explanatory, and it reads the same whether folded or not. */}
+        {hasNested && (
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', conn.id) }}
+            title={collapsed ? 'Show what came off this' : 'Fold this branch away'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
+              fontSize: 9.5, lineHeight: '15px', padding: '0 7px', borderRadius: 999,
+              background: collapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
+              border: 'none', color: collapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
+            }}
+          >
+            <GitBranch size={9} />
+            {branchCount}
+            <span style={{ transform: collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
+          </button>
         )}
         {isPromotedChain && (
           <span
@@ -502,6 +483,14 @@ function ConnRow({ conn, refFor, onOpenPrompt, openMenu, registerPoint, rowsForC
               borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '.03em',
             }}
           >chain</span>
+        )}
+        {/* Clarity tier, demoted from "the colour of the connecting line" to a 4px dot. Tier 1
+            (Berean knows exactly why this jump happened) is the normal case and shows nothing. */}
+        {TIER_DOT[conn.clarityTier] && (
+          <span
+            title={conn.clarityTier === 3 ? "Berean isn't sure why you came here" : 'Inferred cause'}
+            style={{ width: 4, height: 4, borderRadius: 999, flexShrink: 0, background: TIER_DOT[conn.clarityTier]!, opacity: 0.7 }}
+          />
         )}
         {conn.versePinFrom != null && (
           <span style={{ fontSize: 10.5, color: 'rgb(var(--color-text-muted))' }}>
@@ -565,7 +554,8 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', opacity: 0.55 }}>
-      <span ref={registerPoint(groupKey)} style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgb(var(--color-text-muted))', flexShrink: 0 }} />
+      {/* A collapsed run of glances — a 'jump' bullet, hollow, because none of them were dwelt on. */}
+      <span ref={registerPoint(groupKey)} style={{ ...bulletCss('jump', { revisit: true }), opacity: 0.7 }} />
       <span style={{ fontSize: 11.5, color: 'rgb(var(--color-text-secondary))' }}>
         {labelFor(first)} → {labelFor(last)}
       </span>
@@ -579,8 +569,13 @@ function GlanceGroupRow({ items, refFor, openMenu, registerPoint, groupKey }: {
 function NodeClusterGroup({
   nodes, registerPoint, onHoverKey, connectionsByNodeId, nodeOrderIndex,
   onOpenPrompt, refFor, openMenu, originConnByNodeId, jumpToOrigin, rowsForConnection, hoverChain, gutterWidth,
+  variant = 'bounce',
 }: {
   nodes: TrailNode[]
+  /** 'bounce' = a rapid run of revisits of the same chapter; 'run' = reading straight through
+   *  consecutive chapters of one book. Same collapse mechanics, different badge — see
+   *  groupNodesForRender. */
+  variant?: 'bounce' | 'run'
   registerPoint: (key: string) => (el: HTMLElement | null) => void
   onHoverKey?: (key: string | null) => void
   connectionsByNodeId: Map<string, AnnotatedConn[]>
@@ -647,7 +642,7 @@ function NodeClusterGroup({
         originConn={originConnByNodeId.get(last.id)}
         onJumpToOrigin={originConnByNodeId.has(last.id) ? () => jumpToOrigin(originConnByNodeId.get(last.id)!) : undefined}
         gutterWidth={gutterWidth} rowsForConnection={rowsForConnection} hoverChain={hoverChain}
-        bounceBadge={{ count: nodes.length - 1, spanMs, onExpand: () => setExpanded(true) }}
+        bounceBadge={{ count: variant === 'run' ? nodes.length : nodes.length - 1, spanMs, onExpand: () => setExpanded(true), variant }}
       />
     </div>
   )
@@ -655,7 +650,7 @@ function NodeClusterGroup({
 
 function NodeBlock({
   node, connections, gapToNextMs, isLast, onOpenPrompt, refFor, openMenu, originConn, registerPoint, boundaryLabel, onJumpToOrigin,
-  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, onSplitHere, onAddSticky, bounceBadge,
+  keyboardFocused, dimmed, searchMatched, blockRef, gutterWidth, step, onHoverKey, rowsForConnection, onDeleteNode, onToggleTopicBreak, onSplitHere, onAddSticky, bounceBadge, anchorVisits,
   isBranchNode, branchDepth, originVerseLabel, originVerseRef, destVerseLabel, destVerseRef, hoverChain, revisitAllowed = true, selected,
 }: {
   node: TrailNode; connections: AnnotatedConn[]; gapToNextMs: number | null; isLast: boolean
@@ -680,9 +675,12 @@ function NodeBlock({
   onSplitHere?: (nodeId: string) => void
   /** Places a v39 sticky (a section header, or a free annotation) at this stop. */
   onAddSticky?: (nodeId: string, kind: 'section' | 'annotation') => void
+  /** How many times this session came back to this chapter — shown as a "home base" marker on
+   *  the first visit when it's the session's most-returned-to passage. */
+  anchorVisits?: number
   /** A collapsed cluster's summary badge, rendered inline in this node's header instead of a
    *  separate row — see NodeClusterGroup. */
-  bounceBadge?: { count: number; spanMs: number; onExpand: () => void }
+  bounceBadge?: { count: number; spanMs: number; onExpand: () => void; variant?: 'bounce' | 'run' }
   /** This node was reached via a user-marked tangent/branch connection (not a normal spine
    *  continuation) — per direct feedback describing the exact expected look: "deuteronomy 32
    *  is on the main branch then deuteronomy 32:1 goes on the side branch, isaiah 1:2 is the
@@ -759,6 +757,8 @@ function NodeBlock({
   // A node's own branch shelf folds under the same persisted scope as a ConnRow's — keyed by the
   // node id so the two can never collide with a connection id.
   const rowsCollapsed = hasRows && isCollapsed('branch', nodeKey)
+  // Everything under this stop, however deep — what the fold pill counts.
+  const branchTotal = connections.length + connections.reduce((n, c) => n + flattenChain(c.id, rowsForConnection).length, 0)
 
   // ── Pace ────────────────────────────────────────────────────────────────
   // Per direct feedback ("i want the thinking path to be clear and clearly show what was
@@ -888,14 +888,17 @@ function NodeBlock({
             still a full, real spine entry (own connections, own hover card), just visually
             marked as "seen before" at a glance. See the revisit-link edge built in MapView
             below for the quiet dashed connector back to the original mention. */}
+        {/* A revisit keeps the full 9px square and goes HOLLOW rather than shrinking — the old
+            7px-and-faded treatment conflated "I've been here before" with "this mattered less".
+            See trailStyle.ts. */}
         <div
           ref={registerPoint(nodeKey)}
           onClick={(e) => { e.stopPropagation(); togglePinned(nodeKey) }}
-          title="Highlight what led here"
+          title={isRevisit ? 'Been here before — click to highlight what led here' : 'Highlight what led here'}
           style={{
-            width: isRevisit ? 7 : 9, height: isRevisit ? 7 : 9, background: 'rgb(var(--color-accent))',
-            borderRadius: 2, marginTop: isRevisit ? 5 : 4, flexShrink: 0, opacity: isRevisit ? 0.7 : 1,
-            cursor: 'pointer', boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
+            ...bulletCss('chapter', { revisit: isRevisit }),
+            marginTop: 4, cursor: 'pointer',
+            boxShadow: pinned ? '0 0 0 3px rgb(var(--color-accent) / 0.45)' : undefined,
           }}
         />
         {/* Dwell bar — how long this stop was actually held open. Sits directly under the dot and
@@ -971,20 +974,44 @@ function NodeBlock({
               fontSize: 9, fontWeight: 700, color: 'rgb(var(--color-text-muted))', opacity: 0.7,
               minWidth: 14, textAlign: 'right', flexShrink: 0,
             }}>{step}</span>
-            {hasRows && (
-              <span style={{
-                fontSize: 9, color: 'rgb(var(--color-text-muted))', flexShrink: 0,
-                transform: rowsCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms',
-              }}>▾</span>
-            )}
             {bookChapterVerseLabel(node.bookId, node.chapter)}
             {dwellLabel && (
               <span style={{ fontSize: 9.5, fontWeight: 400, fontStyle: 'normal', color: 'rgb(var(--color-text-muted))', opacity: 0.75, flexShrink: 0 }}>
                 {dwellLabel}
               </span>
             )}
+            {/* Same labelled fold pill as a branch row's, so one affordance means one thing
+                everywhere on the map. Replaces the caret that used to sit before the title. */}
+            {hasRows && (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', nodeKey) }}
+                title={rowsCollapsed ? 'Show what came off this stop' : 'Fold this stop\u2019s branches away'}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0, cursor: 'pointer',
+                  fontSize: 9.5, fontWeight: 600, fontStyle: 'normal', lineHeight: '15px', padding: '0 7px', borderRadius: 999,
+                  background: rowsCollapsed ? 'rgb(var(--color-accent) / 0.14)' : 'rgb(var(--color-surface-3))',
+                  border: 'none', color: rowsCollapsed ? 'rgb(var(--color-accent))' : 'rgb(var(--color-text-muted))',
+                }}
+              >
+                <GitBranch size={9} />
+                {branchTotal}
+                <span style={{ transform: rowsCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform 120ms', display: 'inline-block' }}>▾</span>
+              </button>
+            )}
             {hasNote(originConn) && (
               <NotepadText size={11} aria-label="Has a note" style={{ opacity: 0.5, flexShrink: 0, color: 'rgb(var(--color-text-muted))' }} />
+            )}
+            {/* Home base — the passage this session kept returning to. */}
+            {anchorVisits != null && (
+              <span
+                title={`You came back to this passage ${anchorVisits} times — the centre of this study`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                  fontSize: 9, fontWeight: 700, fontStyle: 'normal', letterSpacing: '.03em', textTransform: 'uppercase',
+                  color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
+                  borderRadius: 999, padding: '1px 7px',
+                }}
+              ><Crosshair size={9} /> home · {anchorVisits}</span>
             )}
             {isRevisit && !bounceBadge && (
               <span style={{
@@ -1001,13 +1028,19 @@ function NodeBlock({
             {bounceBadge && (
               <button
                 onClick={(e) => { e.stopPropagation(); bounceBadge.onExpand() }}
-                title={`Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
+                title={bounceBadge.variant === 'run'
+                  ? `Read straight through ${bounceBadge.count} chapters over ${formatGap(bounceBadge.spanMs)} — click to show every one`
+                  : `Bounced ${bounceBadge.count}x over ${formatGap(bounceBadge.spanMs)}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 3,
-                  fontSize: 9.5, fontWeight: 700, color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
-                  border: 'none', borderRadius: 999, padding: '1px 6px', cursor: 'pointer', letterSpacing: '.01em',
+                  fontSize: 9.5, fontWeight: 700, fontStyle: 'normal', color: 'rgb(var(--color-accent))', background: 'rgb(var(--color-accent) / 0.14)',
+                  border: 'none', borderRadius: 999, padding: '1px 7px', cursor: 'pointer', letterSpacing: '.01em',
                 }}
-              ><ArrowLeftRight size={10} /> {bounceBadge.count}x</button>
+              >
+                {bounceBadge.variant === 'run'
+                  ? <><BookOpen size={10} /> read through {bounceBadge.count}</>
+                  : <><ArrowLeftRight size={10} /> {bounceBadge.count}x</>}
+              </button>
             )}
           </div>
         </TrailHoverCard>
@@ -1017,19 +1050,7 @@ function NodeBlock({
               a collapsed stop still reads as "there was more here" rather than as a bare chapter.
               Clicking it (or the row above) puts them back — and the fold is remembered across
               restarts, per direct feedback. */}
-          {rowsCollapsed ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); toggleCollapsed('branch', nodeKey) }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: INDENT_STEP,
-                fontSize: 10.5, color: 'rgb(var(--color-text-muted))', background: 'none',
-                border: 'none', padding: '2px 0', cursor: 'pointer',
-              }}
-            >
-              <GitBranch size={10} style={{ opacity: 0.7 }} />
-              {items.length} {items.length === 1 ? 'stop' : 'stops'} hidden
-            </button>
-          ) : items.map((it) => it.type === 'single'
+          {rowsCollapsed ? null : items.map((it) => it.type === 'single'
             ? <ConnRow key={it.item.id} conn={it.item} refFor={refFor} onOpenPrompt={onOpenPrompt} openMenu={openMenu} registerPoint={registerPoint} rowsForConnection={rowsForConnection} onHoverKey={onHoverKey} originBookId={node.bookId} originChapter={node.chapter} hoverChain={hoverChain} />
             : <GlanceGroupRow key={it.key} groupKey={it.key} items={it.items} refFor={refFor} openMenu={openMenu} registerPoint={registerPoint} />)}
         </div>
@@ -1038,6 +1059,12 @@ function NodeBlock({
     </div>
     </div>
   )
+}
+
+const blankMenuBtnStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px',
+  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer',
+  color: 'rgb(var(--color-text-primary))', textAlign: 'left', fontSize: 12,
 }
 
 export const ZOOM_MIN = 0.5
@@ -1385,6 +1412,20 @@ export default function MapView({
   // until it's clicked again or Escape is pressed. Hover still wins while the mouse is over
   // something, so a pin never blocks exploring.
   const [pinnedKey, setPinnedKey] = useState<string | null>(null)
+  // Right-click on EMPTY map space → add a note or a section there. Per direct feedback:
+  // "rightclicking empty space in a note should allow the user to create a note from a menu."
+  // Until now a sticky could only be added by right-clicking an existing stop, which is a strange
+  // place to look for "put a note here" — the empty margin beside the spine is the obvious one.
+  // The note is anchored to the nearest stop ABOVE the click, which is what "here" means on a
+  // timeline that reads downward.
+  const [blankMenu, setBlankMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  useEffect(() => {
+    if (!blankMenu) return
+    const close = () => setBlankMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('blur', close)
+    return () => { window.removeEventListener('click', close); window.removeEventListener('blur', close) }
+  }, [blankMenu])
   const togglePinned = useCallback((key: string) => setPinnedKey((k) => (k === key ? null : key)), [])
   const collapse = useTrailCollapse()
   // Sticky notes and section headers pinned to this map (v39). Loaded per-session, and refreshed
@@ -1668,9 +1709,36 @@ export default function MapView({
   const {
     nodeById, nextNodeById, nodeOrderIndex, originConnByNodeId,
     rowsForNode, rowsForConnection, edges, gutterWidth, maxRenderDepth,
-    hourLabelForNodeId, hourMarkers, isRevisitWithinWindow,
+    hourLabelForNodeId, hourMarkers, isRevisitWithinWindow, anchorNodes,
   } = graph
   const firstHour = hourMarkers[0]?.label ?? null
+
+  // ── What a fold actually hides ────────────────────────────────────────────
+  // "collapsing doesnt seem to fully be working for branches" — because a branch's real payoff is
+  // usually a CHAPTER it landed on, and those render as stops on the spine, not as rows under the
+  // folded connection. Folding hid the row and left its destination sitting there.
+  //
+  // A stop is hidden when the branch that produced it is hidden: walk from its origin connection
+  // up through fromConnectionId, and also check the stop that connection hangs off. Only branch
+  // arrivals can be hidden this way — a chapter you simply read on to is part of the spine and is
+  // never folded away by something else's fold.
+  const connById = new Map(detail.connections.map((c) => [c.id, c]))
+  function branchHidden(conn: TrailConnection): boolean {
+    if (collapse.isCollapsed('branch', `node:${conn.fromNodeId}`)) return true
+    let parentId = conn.fromConnectionId
+    const seen = new Set<string>()
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId)
+      if (collapse.isCollapsed('branch', parentId)) return true
+      parentId = connById.get(parentId)?.fromConnectionId
+    }
+    return false
+  }
+  function nodeHiddenByFold(n: TrailNode): boolean {
+    const oc = originConnByNodeId.get(n.id)
+    if (!oc || !renderAsBranch(oc)) return false
+    return branchHidden(oc)
+  }
 
   // Stickies indexed by the node they're pinned to. A 'section' renders ABOVE its node and owns
   // every stop from there until the next section; an 'annotation' renders beside its node.
@@ -1703,6 +1771,36 @@ export default function MapView({
   function jumpToOrigin(conn: TrailConnection) {
     const el = pointsRef.current.get(`row:${conn.id}`) ?? pointsRef.current.get(`node:${conn.fromNodeId}`)
     scrollNodeIntoView(el)
+  }
+
+  /** Nearest stop at or above a viewport y — what "here" anchors to for a blank-space note. */
+  function nodeIdNearestY(clientY: number): string | null {
+    let best: string | null = null
+    let bestTop = -Infinity
+    for (const [id, el] of nodeBlockRefs.current) {
+      const top = el.getBoundingClientRect().top
+      if (top <= clientY && top > bestTop) { bestTop = top; best = id }
+    }
+    // Clicking above the first stop still has to land somewhere — use the first one.
+    return best ?? detail.nodes[0]?.id ?? null
+  }
+
+  function onBlankContextMenu(e: React.MouseEvent) {
+    // Rows and bullets call e.stopPropagation() in their own handlers, so reaching here means the
+    // click really was on empty space.
+    if (detail.nodes.length === 0) return
+    const nodeId = nodeIdNearestY(e.clientY)
+    if (!nodeId) return
+    e.preventDefault()
+    setBlankMenu({ x: e.clientX, y: e.clientY, nodeId })
+  }
+
+  function addStickyAt(nodeId: string, kind: 'section' | 'annotation') {
+    setBlankMenu(null)
+    void window.studyTrail.createNote({
+      trailSessionId: nodeById.get(nodeId)?.trailSessionId ?? detail.session.id,
+      kind, anchorNodeId: nodeId, orderIndex: nodeOrderIndex.get(nodeId) ?? 0,
+    }).then(reloadStickies)
   }
 
   function refFor(conn: TrailConnection): TrailRef | null {
@@ -2006,7 +2104,7 @@ export default function MapView({
           />
         </div>
       )}
-      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
+      <div ref={scrollContainerRef} onWheel={onWheelZoom} onMouseDown={onMarqueeMouseDown} onContextMenu={onBlankContextMenu} onScroll={() => { checkAtBottom(); checkCentered(); saveScrollDebounced() }} style={{ overflow: 'auto', position: 'relative', flex: 1, minHeight: 0, paddingTop: topInset }}>
         {/* Symmetric `pad` (local units, inside the transform so it scales with zoom) centers the
             whole content block — gutter + spine + indents + labels — in the viewport. It
             collapses to 0 once the content is wider than the viewport, so the native scroll
@@ -2030,15 +2128,13 @@ export default function MapView({
                 label column (see SPINE_LABEL_COL_INSET). All of this lives inside the same `scale(zoom)` wrapper
                 as the bullets, so gutterWidth is used un-multiplied and alignment holds at every
                 zoom. Purely decorative: behind everything, never intercepts a click. */}
-            {detail.nodes.length > 0 && (
-              <div
-                key="guide:spine"
-                style={{
-                  position: 'absolute', top: 0, bottom: 0, left: gutterWidth + SPINE_DOT_INSET,
-                  width: 1, background: 'rgb(var(--color-surface-4) / 0.3)', pointerEvents: 'none', zIndex: 0,
-                }}
-              />
-            )}
+            {/* NO guide line under the main spine column any more. It ran the full height in a
+                flat grey while the real spine is drawn on top of it in segments by the SVG
+                overlay — so wherever a segment was quieter or absent you saw the guide instead,
+                which is precisely what "some of the main spine lines dont fully connect or are
+                switching colors in part of the line" was. The spine is now drawn by exactly one
+                thing (TrailConnectorOverlay), continuously. Indent guides stay: they mark columns
+                that have no line of their own to be confused with. */}
             {maxRenderDepth >= 0 && Array.from({ length: maxRenderDepth + 1 }, (_, depth) => (
               <div
                 key={`guide:${depth}`}
@@ -2058,11 +2154,16 @@ export default function MapView({
             }}>?</span> below (never required — dismiss any of them any time).
           </div>
         )}
-        {groupNodesForRender(detail.nodes).map((item) => {
-          if (item.type === 'cluster') {
+        {groupNodesForRender(detail.nodes, {
+          // A stop that has anything hanging off it is never swallowed into a read-through run —
+          // that branch is precisely what the map is for.
+          hasBranches: (id) => (rowsForNode.get(id)?.length ?? 0) > 0 || sectionsByNodeId.has(id) || annotationsByNodeId.has(id),
+        }).map((item) => {
+          if (item.type === 'cluster' || item.type === 'run') {
             return (
               <NodeClusterGroup
-                key={`cluster:${item.nodes[0].id}`}
+                key={`${item.type}:${item.nodes[0].id}`}
+                variant={item.type === 'run' ? 'run' : 'bounce'}
                 nodes={item.nodes}
                 registerPoint={registerPoint}
                 onHoverKey={handleHoverKey}
@@ -2140,6 +2241,8 @@ export default function MapView({
           // expand it again).
           const hiddenBySection = !!owningSection && sectionsHere.length === 0 && collapse.isCollapsed('section', owningSection)
           if (hiddenBySection) return null
+          // A stop reached by a branch that's currently folded away goes with it.
+          if (sectionsHere.length === 0 && nodeHiddenByFold(n)) return null
           return (
             <div key={n.id} data-trailnode={n.id} onClickCapture={(e) => onTrailNodeClickCapture(e, n.id)}>
             {sectionsHere.map((sec) => (
@@ -2168,6 +2271,7 @@ export default function MapView({
               onDeleteNode={(nodeId) => window.studyTrail.deleteNode(nodeId).then(onChanged)}
               onToggleTopicBreak={(nodeId, current) => window.studyTrail.setNodeTopicBreak(nodeId, !current).then(onChanged)}
               onSplitHere={onSplitHere}
+              anchorVisits={anchorNodes.get(n.id)}
               onAddSticky={(nodeId, kind) => {
                 void window.studyTrail.createNote({
                   // In the merged Everything view detail.session.id is a synthetic placeholder, so
@@ -2200,7 +2304,7 @@ export default function MapView({
                 {annotationsHere.map((a) => <TrailAnnotation key={a.id} note={a} onChanged={reloadStickies} />)}
               </div>
             )}
-            {showGapDivider && <GapDivider gapMs={gapToNextMs!} minWidth={Math.max(0, viewportWidth - 16) / zoom} gutterWidth={gutterWidth} />}
+            {showGapDivider && <GapDivider gapMs={gapToNextMs!} gutterWidth={gutterWidth} />}
             </>
             )}
             </div>
@@ -2328,6 +2432,23 @@ export default function MapView({
         )}
       </div>
     </div>
+    {blankMenu && (
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'fixed', top: blankMenu.y, left: blankMenu.x, zIndex: 10001, minWidth: 168,
+          background: 'rgb(var(--color-surface-2))', border: '1px solid rgb(var(--color-surface-4))',
+          borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.32)', padding: 5,
+        }}
+      >
+        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.nodeId, 'annotation')} style={blankMenuBtnStyle}>
+          <StickyNote size={13} style={{ opacity: 0.85 }} /> Add a note here
+        </button>
+        <button className="trail-ctx-btn" onClick={() => addStickyAt(blankMenu.nodeId, 'section')} style={blankMenuBtnStyle}>
+          <Heading size={13} style={{ opacity: 0.85 }} /> Add a section here
+        </button>
+      </div>
+    )}
     </TrailInteractionContext.Provider>
     </HoverDisabledContext.Provider>
   )

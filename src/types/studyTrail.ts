@@ -180,19 +180,28 @@ export interface TrailSearchHit {
   at: number
 }
 
-/** A subject you've been chasing across sessions — the Threads tab's unit. One per book actually
- *  studied, plus one per distinct Strong's number looked up. */
+/** A subject you've been chasing across sessions — the Threads tab's unit.
+ *
+ *  'tag'    = a topic you named yourself (a verse tag, or a session tag).
+ *  'traced' = a cluster of chapters and Strong's words that your own cross-references, verse ties
+ *             and word lookups linked together. Sequential reading is deliberately excluded from
+ *             that graph, or everything would join into one meaningless super-topic. */
 export interface TrailThread {
   id: string
-  kind: 'book' | 'strongs'
+  kind: 'tag' | 'traced'
+  /** For a traced thread this is derived from the words you wrote about it, falling back to its
+   *  busiest chapters. */
   label: string
-  bookId?: string
-  strongsNum?: string
+  color?: string
+  /** Where the topic came from, shown as a small caption ("verse tag", "from your notes"). */
+  source: string
   stops: number
-  chapters: number
+  sessions: Array<{ id: string; name: string }>
+  chapters: string[]
+  strongs: string[]
+  terms: string[]
   firstAt: number
   lastAt: number
-  sessions: Array<{ id: string; name: string }>
 }
 
 /** Cross-window "please navigate to this" payload — sent from the Study Trail window (or any

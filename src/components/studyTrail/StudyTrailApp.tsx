@@ -578,16 +578,11 @@ export default function StudyTrailApp() {
         WebkitAppRegion: 'drag',
       } as React.CSSProperties}>
         <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 10 }}>Study Trail</span>
-        {/* Persistent paused indicator — visible regardless of which session is being VIEWED,
-            since this reflects whether the ACTIVE (recording) session is paused, which is
-            easy to lose track of once you've clicked away from it. */}
-        {currentTrailSessionId && trailSessionStatus === 'paused' && (
-          <span style={{
-            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: '#e08468',
-            background: 'rgba(224,132,104,0.14)', border: '1px solid rgba(224,132,104,0.4)', borderRadius: 999,
-            padding: '2px 8px', marginRight: 10, WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties}>⏸ Study Trail paused</span>
-        )}
+        {/* REMOVED: the persistent "paused" pill. Per direct feedback, "pausing a session doesnt
+            pause everything" — recording continues into the loose-stops bucket whenever no user
+            session is live, so a window-level banner claiming the Study Trail as a whole was
+            paused was simply untrue. Each session row in the rail still shows its own status,
+            which is the accurate scope for that fact. */}
         <div style={{ display: 'flex', border: '1px solid rgb(var(--color-surface-4))', borderRadius: 8, overflow: 'hidden', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {MAIN_TABS.map((t) => (
             <button
