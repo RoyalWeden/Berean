@@ -177,6 +177,18 @@ SCENARIO 5 — Abandon a beta series and restart
   was applied to an empty range and nothing happened. The toolbar now remembers
   the selection from the moment the link popover opened and applies the link to
   that range.
+- The blank space in a note's top-bar header is draggable again (move the
+  window from it). A verse note's title was a full-width `<button>`, which the
+  window-drag handler excludes; and a regular note's title span filled the whole
+  bar, so there was no non-title space to grab. Both now size the title to its
+  text with a draggable filler beside it.
+
+### Search
+
+- **Verse tags in the floating search.** Type `#` to search your verse tags
+  (`#` alone lists them all), or just include a tag name in a normal query —
+  matching tags show up alongside verses and notes. Selecting one opens that
+  tag's tagged-verses view. Ranking: exact name, then prefix, then most verses.
 
 ### Settings
 

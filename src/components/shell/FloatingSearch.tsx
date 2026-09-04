@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check, Tag } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -13,9 +13,10 @@ import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
+import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import type { Book, LexiconEntry, Note } from '@/types'
+import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 
 interface CrossRef {
   bookId: string
@@ -213,6 +214,7 @@ export default function FloatingSearch() {
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const defaultBibleTranslation = useAppStore((s) => s.defaultBibleTranslation)
   const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const verseTags = useAppStore((s) => s.verseTags)
   const openLexiconSearchTab = useAppStore((s) => s.openLexiconSearchTab)
   const openNotesSearchTab = useAppStore((s) => s.openNotesSearchTab)
   const openYouTubeSearchTab = useAppStore((s) => s.openYouTubeSearchTab)
@@ -606,9 +608,10 @@ export default function FloatingSearch() {
     if (DIAG) { markKeystroke(val); dlog('keystroke', JSON.stringify(val)) }
     setQuery(val)
     setSelectedIdx(-1)
-    // Command mode (">") — no reference/keyword lookup to run at all, the
-    // `>`-prefixed text is matched against the command list client-side.
-    if (val.trim().startsWith('>')) {
+    // Command mode (">") / tag mode ("#") — no reference/keyword lookup to run,
+    // the prefixed text is matched client-side (against the command list, or the
+    // verse-tag list already in the store).
+    if (val.trim().startsWith('>') || val.trim().startsWith('#')) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
       return
@@ -805,7 +808,7 @@ export default function FloatingSearch() {
   const _resultsBuildT0 = DIAG ? performance.now() : 0
 
   const results: Array<{
-    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command'
+    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command' | 'tag'
     label: string
     sub: string
     action: () => void
@@ -831,9 +834,34 @@ export default function FloatingSearch() {
     }
   }
 
-  if (!isCommandMode && parsedRef) {
+  // Build a "open this verse tag's tagged-verses view" result row.
+  const tagRow = (t: VerseTag) => ({
+    type: 'tag' as const,
+    label: `#${t.name}`,
+    sub: [
+      t.verseCount ? `${t.verseCount} verse${t.verseCount === 1 ? '' : 's'}` : null,
+      t.chapterCount ? `${t.chapterCount} chapter${t.chapterCount === 1 ? '' : 's'}` : null,
+    ].filter(Boolean).join(' · ') || 'empty tag',
+    action: () => {
+      addRecentSearchQuery(query.trim())
+      openScriptureSearchTab(undefined, { tagIds: [t.id] })
+      setActiveSpace('scripture')
+      closeSearch()
+    },
+  })
+
+  // Tag mode ("#…") — Obsidian-style: an explicit prefix that searches ONLY verse
+  // tags (like ">" for commands). "#" alone lists every tag. Short-circuits the
+  // rest, same as command mode.
+  const isTagMode = query.trim().startsWith('#')
+  if (isTagMode) {
+    const needle = query.trim().slice(1)
+    for (const t of rankVerseTags(verseTags, needle).slice(0, 12)) results.push(tagRow(t))
+  }
+
+  if (!isCommandMode && !isTagMode && parsedRef) {
     results.push(refResultFor(parsedRef, detected?.textId))
-  } else if (!isCommandMode && cleanQuery.trim()) {
+  } else if (!isCommandMode && !isTagMode && cleanQuery.trim()) {
     // Bare book name, no chapter/verse ("Genesis", "Romans", "1 Kings") — parseRef's own
     // regex requires a trailing chapter number to match at all, so a plain book name never
     // produces a parsedRef. Offer chapter 1 of that book directly rather than requiring the
@@ -911,7 +939,7 @@ export default function FloatingSearch() {
   // compare against here. Scripture wins ties (the app's home space); no prediction at
   // all when every count is 0 (nothing confident to suggest).
   const predictedSpace: 'scripture' | 'notes' | 'youtube' | null = (() => {
-    if (parsedRef || isStrongs || multiStrongs || query.trim().startsWith('>') || cleanQuery.trim().length < 3) return null
+    if (parsedRef || isStrongs || multiStrongs || query.trim().startsWith('>') || query.trim().startsWith('#') || cleanQuery.trim().length < 3) return null
     const counts: Array<['scripture' | 'notes' | 'youtube', number]> = [
       ['scripture', scopedVerseResults.length],
       ['notes', versesOnly ? 0 : noteResults.length],
@@ -982,6 +1010,12 @@ export default function FloatingSearch() {
         },
       })
     }
+  }
+
+  // Verse tags whose name matches a plain keyword query (not the "#" explicit
+  // mode above — this surfaces tags alongside verses/notes for a normal search).
+  if (!versesOnly && !isTagMode && cleanQuery.trim().length >= 2) {
+    for (const t of rankVerseTags(verseTags, cleanQuery).slice(0, 3)) results.push(tagRow(t))
   }
 
   // YouTube videos — transcript hits show the matching line + timestamp as the sub-label.
@@ -1260,7 +1294,7 @@ export default function FloatingSearch() {
                     style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'tag' ? <Tag size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
                     </span>
                     <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="min-w-0">
@@ -1331,7 +1365,12 @@ export default function FloatingSearch() {
             <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↑↓" /> Navigate</span>
             <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↵" /> Open</span>
             <div className="flex-1" />
-            {!isCommandMode && (
+            {isTagMode && (
+              <span className="text-[10.5px] font-medium whitespace-nowrap">
+                {verseTags.length === 0 ? 'No verse tags yet' : `Searching ${verseTags.length} verse tag${verseTags.length === 1 ? '' : 's'}`}
+              </span>
+            )}
+            {!isCommandMode && !isTagMode && (
               <div className="flex items-center gap-1.5">
                 {/* Advanced Scripture search — previously its own accent-colored CTA pill
                     with a Search icon; restyled to match the plain "↑↓ Navigate"/"↵ Open"
