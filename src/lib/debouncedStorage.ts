@@ -42,7 +42,12 @@ function flush(): void {
 // the app process exits, so this covers both app quit and manual reload.
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', flush)
-  // Backstop for the case beforeunload never fires — a hard crash, `kill`, or the OS force-
+  // `pagehide` and a visibility flip to hidden fire on Chromium teardown paths where
+  // `beforeunload` sometimes doesn't (app quit while the window is backgrounded, some
+  // auto-update relaunches). All three just call the same idempotent flush().
+  window.addEventListener('pagehide', flush)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush() })
+  // Backstop for the case none of the above fire — a hard crash, `kill`, or the OS force-
   // quitting the app. Those skip the normal close path entirely, so a change made within the
   // 500ms debounce window right before one would otherwise be silently lost. Cheap: flush() is a
   // no-op when nothing is pending, so this just re-checks periodically rather than adding real
@@ -74,4 +79,26 @@ export const debouncedLocalStorage = {
     }
     localStorage.removeItem(name)
   },
+}
+
+// Read-through, write-NOTHING storage for zustand `persist` in the SECONDARY
+// windows (presenter/viewer, Study Trail, floating panel). Those windows each
+// construct their own `useAppStore` instance from the same module, and every
+// one of them was persisting its FULL state snapshot back to the shared
+// 'berean-app-state' key — including default values for the ~40 preference
+// fields that are never pushed into a secondary window. Whichever window
+// flushed last therefore decided what landed on disk, so a setting changed in
+// the main window would silently revert to a default on the next launch after
+// the viewer/trail window had been opened even once ("settings don't save
+// across restarts"). Secondary windows still REHYDRATE from the shared key
+// (getItem) and receive live updates through their existing IPC push channels;
+// they just no longer own the canonical blob. Anything a secondary window
+// genuinely must persist uses its own dedicated key written directly (e.g.
+// 'berean-viewer-font-scale', 'berean-ask-why-sync').
+export const readThroughLocalStorage = {
+  getItem: (name: string): string | null => {
+    try { return localStorage.getItem(name) } catch { return null }
+  },
+  setItem: (_name: string, _value: string): void => { /* intentionally no-op — see comment above */ },
+  removeItem: (_name: string): void => { /* intentionally no-op */ },
 }

@@ -1453,38 +1453,52 @@ export default function NotesPanel({ floating = false }: { floating?: boolean })
                  two places to rename the same thing, visible at once. */
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 {activeNote.verseRef && parseVerseRef(activeNote.verseRef) ? (
-                  <button
-                    onClick={() => openVerseFromNote(activeNote.verseRef!)}
-                    title="Open scripture reference"
-                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left group"
-                  >
-                    <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] group-hover:text-[rgb(var(--color-accent))] transition-colors">
+                  // Title text is a plain (draggable) span — NOT a <button>, which
+                  // the top-bar window-drag listener excludes, so a verse note's
+                  // header used to be undraggable in its blank space. The "open
+                  // scripture" affordance is the small icon button beside it.
+                  <>
+                    <span
+                      onClick={() => openVerseFromNote(activeNote.verseRef!)}
+                      title="Open scripture reference"
+                      className="no-drag text-sm font-medium truncate cursor-pointer text-[rgb(var(--color-text-primary))] hover:text-[rgb(var(--color-accent))] transition-colors min-w-0"
+                    >
                       {headerDisplayTitle(activeNote)}
                     </span>
-                    <ExternalLink size={12} className="flex-shrink-0 text-[rgb(var(--color-text-muted))] group-hover:text-[rgb(var(--color-accent))] transition-colors" />
-                  </button>
+                    <button
+                      onClick={() => openVerseFromNote(activeNote.verseRef!)}
+                      title="Open scripture reference"
+                      className="no-drag flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-accent))] transition-colors"
+                    >
+                      <ExternalLink size={12} />
+                    </button>
+                    {/* draggable filler so the blank header space moves the window */}
+                    <div className="flex-1 self-stretch" aria-hidden="true" />
+                  </>
                 ) : (
-                  <span className="flex-1 text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none">
-                    {headerDisplayTitle(activeNote)}
-                  </span>
+                  <>
+                    <span className="text-sm font-medium truncate text-[rgb(var(--color-text-primary))] opacity-75 select-none min-w-0">
+                      {headerDisplayTitle(activeNote)}
+                    </span>
+                    <div className="flex-1 self-stretch" aria-hidden="true" />
+                  </>
                 )}
               </div>
             ) : !titleFocused ? (
-              // `no-drag`, not `app-drag-region` — this WAS marked as a drag region on the
-              // theory that clicking it would still fire onClick and enter edit mode below.
-              // In practice Electron's drag-region hit-testing treats any perceptible mouse
-              // movement between mousedown and mouseup as the start of a window drag, not a
-              // click — so a slightly-imprecise click here (extremely common on a small text
-              // target) got silently swallowed as a drag attempt instead of renaming the note
-              // (reported: "it thinks I'm trying to drag the topbar"). `no-drag` trades away
-              // this one small strip of window-drag surface for reliable click-to-rename —
-              // the rest of the header bar remains draggable.
-              <span
-                onClick={() => setTitleFocused(true)}
-                className="no-drag flex-1 text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))]"
-              >
-                {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
-              </span>
+              // Title text is sized to its content and `no-drag` (click it to rename);
+              // the `flex-1` filler beside it is what fills the header's blank space,
+              // and that IS draggable, so you can move the window from the empty part
+              // of the bar. (Earlier this span was `flex-1` itself, so the whole blank
+              // strip was a rename target and nothing there dragged the window.)
+              <>
+                <span
+                  onClick={() => setTitleFocused(true)}
+                  className="no-drag text-sm font-medium truncate cursor-text text-[rgb(var(--color-text-primary))] min-w-0"
+                >
+                  {activeNote.title || <span className="text-[rgb(var(--color-text-muted))]">Untitled</span>}
+                </span>
+                <div className="flex-1 self-stretch" aria-hidden="true" />
+              </>
             ) : (
               <input
                 ref={titleInputRef}

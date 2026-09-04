@@ -10,7 +10,7 @@ import { parseMarkdown } from './parser'
 import { serializeToMarkdown } from './serializer'
 import { bereanKeymap, createBlockMovementKeymap } from './keymap'
 import { bereanInputRules } from './inputRules'
-import { bereanPastePlugin } from './pastePlugin'
+import { bereanPastePlugin, reclosePastedWrapperBlock } from './pastePlugin'
 import { createRefDecorationsPlugin, createRefClickPlugin } from './refDecorations'
 import { createPlaceholderPlugin } from './placeholderPlugin'
 import {
@@ -48,6 +48,15 @@ import { VerseCopyMenu, type VerseCopyTarget } from '@/components/bible/VerseCop
 import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexicon/StrongsContextMenu'
 import { dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import './pmEditor.css'
+
+// Some text-expansion setups fire the SAME trigger through two mechanisms at
+// once — e.g. a Raycast Snippet AND a macOS System Settings ▸ Text Replacement
+// both mapping "->" to "→". The replacement then lands twice: once as an insert,
+// then again as a ⌘V paste ~100ms later (confirmed in an input-event trace).
+// We record the last short insert and swallow an identical paste that arrives
+// right after it at the same spot. A deliberate "type X then paste X" is
+// vanishingly rare and still works after the 500ms window.
+let __lastShortInsert: { text: string; pos: number; at: number } | null = null
 
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
 // keymap, history, mark toggling, paste, input rules, inline ref
@@ -425,6 +434,12 @@ export default function NoteEditorPM({
           onWikilinkClick: (title) => refCallbacksRef.current.onWikilinkClick?.(title),
           onVerseRefClick: (ref) => refCallbacksRef.current.onVerseRefClick?.(ref),
           onLexiconRefClick: (id) => refCallbacksRef.current.onLexiconRefClick?.(id),
+          // Plain markdown links open in the system browser on click — same
+          // "click an inline reference and it acts" model as wikilinks/verse
+          // refs above, in both edit and view mode. Only external schemes.
+          onLinkClick: (href) => {
+            if (/^(https?:|mailto:)/i.test(href)) window.app.openExternal(href)
+          },
           onWikilinkHoverStart: (title, rect) => hoverHandlersRef.current.onWikilinkHoverStart(title, rect),
           onVerseRefHoverStart: (ref, rect) => hoverHandlersRef.current.onVerseRefHoverStart(ref, rect),
           onLexiconRefHoverStart: (id, rect) => hoverHandlersRef.current.onLexiconRefHoverStart(id, rect),
@@ -473,6 +488,7 @@ export default function NoteEditorPM({
       state,
       editable: () => mode === 'edit',
       attributes: placeholder ? { 'data-placeholder': placeholder } : {},
+      transformPasted: reclosePastedWrapperBlock,
       nodeViews: {
         callout: (node) => calloutNodeView(node),
         list_item: (node, editorView, getPos) => listItemNodeView(getPos)(node, editorView),
@@ -532,32 +548,86 @@ export default function NoteEditorPM({
         // structural Backspace command from baseKeymap, not a blind range delete. Erasing a
         // plain-text snippet trigger is always an intra-text-node deletion, so this still covers
         // the actual failure mode without touching structural backspace behavior at all.
+        // De-dupe a text-expansion that also fired as a keystroke insert moments
+        // ago (a Raycast Snippet + a macOS Text Replacement on the same trigger
+        // both expand it — once as an insert, then again as a ⌘V paste). See
+        // `__lastShortInsert`, recorded in `beforeinput` below.
+        paste(view, event) {
+          const cd = (event as ClipboardEvent).clipboardData
+          const txt = cd?.getData('text/plain') ?? ''
+          const html = cd?.getData('text/html') ?? ''
+          const li = __lastShortInsert
+          if (
+            li && !html && txt && txt === li.text &&
+            performance.now() - li.at < 500 &&
+            Math.abs(view.state.selection.head - li.pos) <= li.text.length + 1
+          ) {
+            __lastShortInsert = null
+            event.preventDefault()
+            return true
+          }
+          return false // otherwise let bereanPastePlugin / PM handle it
+        },
         beforeinput(view, event) {
           const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
           const isReplacement = ie.inputType === 'insertReplacementText'
-          const isDelete = ie.inputType === 'deleteContentBackward' || ie.inputType === 'deleteContentForward'
+          const isBackward = ie.inputType === 'deleteContentBackward'
+          const isForward = ie.inputType === 'deleteContentForward'
+          const isDelete = isBackward || isForward
+
+          // Remember short text inserts so the `paste` handler above can swallow a
+          // duplicate ⌘V of the same string from a second expansion mechanism.
+          if ((ie.inputType === 'insertText' || isReplacement) && ie.data && ie.data.length <= 8) {
+            __lastShortInsert = { text: ie.data, pos: view.state.selection.head, at: performance.now() }
+          } else if (!isDelete) {
+            __lastShortInsert = null
+          }
+
           if (!isReplacement && !isDelete) return false
+
+          // ── Collapsed-caret Backspace/Delete: authoritative single-character delete ──
+          // A single keystroke with no active selection must remove EXACTLY one character and
+          // never a bordering space. macOS/Chromium "smart delete" widens deleteContentBackward's
+          // target range to also swallow an adjacent space (so you don't end up with a double
+          // space); getTargetRanges() then reports that 2-char range. When a mark boundary
+          // (bold / link / an auto-detected verse ref) sits between the character and that space,
+          // the widened range even spans two DOM text nodes — slipping past the same-node guard
+          // in the getTargetRanges() path below and straight into the browser's own 2-char
+          // delete, which erases the space too. Rather than try to un-widen the reported range,
+          // ignore it entirely for this case and derive the delete from ProseMirror's own
+          // selection. Only the simple intra-textblock case is handled here — a caret at a block
+          // edge is a structural merge/outdent that belongs to baseKeymap's Backspace/Delete
+          // (which already ran on keydown and declined, or this event wouldn't be firing).
+          if (isDelete && view.state.selection.empty && !view.composing) {
+            const $c = view.state.selection.$head
+            const docSize = view.state.doc.content.size
+            const isSurrogatePair = (s: string) => s.length === 2 && /^[\uD800-\uDBFF][\uDC00-\uDFFF]$/.test(s)
+            if (isBackward) {
+              if ($c.parentOffset === 0) return false // block start — structural merge, let baseKeymap handle it
+              let delFrom = $c.pos - 1
+              // Keep an astral char (emoji surrogate pair) intact — remove both code units.
+              if (isSurrogatePair(view.state.doc.textBetween(Math.max(0, $c.pos - 2), $c.pos))) delFrom = $c.pos - 2
+              view.dispatch(view.state.tr.delete(delFrom, $c.pos))
+            } else {
+              if ($c.parentOffset === $c.parent.content.size) return false // block end — structural
+              let delTo = $c.pos + 1
+              if (isSurrogatePair(view.state.doc.textBetween($c.pos, Math.min(docSize, $c.pos + 2)))) delTo = $c.pos + 2
+              view.dispatch(view.state.tr.delete($c.pos, delTo))
+            }
+            event.preventDefault()
+            return true
+          }
+
+          // ── Non-collapsed delete / insertReplacementText: trust getTargetRanges() ──
           const ranges = ie.getTargetRanges?.()
           if (!ranges || ranges.length !== 1) return false
           const [range] = ranges
           if (isDelete && (range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE)) return false
           const from = view.posAtDOM(range.startContainer, range.startOffset)
-          let to = view.posAtDOM(range.endContainer, range.endOffset)
+          const to = view.posAtDOM(range.endContainer, range.endOffset)
           if (from < 0 || to < 0 || from > to) return false
-          if (isDelete && from === to) return false // nothing to delete — let default handling run
-          // A single Backspace/Delete keystroke with no active selection must only ever remove
-          // ONE character. macOS/Chromium "smart delete" widens deleteContentBackward's target
-          // range to also swallow an adjacent space (so you don't end up with a double space) —
-          // getTargetRanges() then reports that 2-char range and the delete below would faithfully
-          // erase both. The earlier same-node/text-node guard means anything reaching here is an
-          // intra-text-node delete, so clamping to a single char at the caret end is safe and
-          // keeps a real multi-char selection delete (selection not empty) untouched.
-          let delFrom = from
-          if (isDelete && view.state.selection.empty && to - from > 1) {
-            if (ie.inputType === 'deleteContentBackward') delFrom = to - 1
-            else to = from + 1
-          }
-          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(delFrom, to))
+          if (isDelete && from === to) return false
+          view.dispatch(isReplacement ? view.state.tr.insertText(ie.data ?? '', from, to) : view.state.tr.delete(from, to))
           event.preventDefault()
           return true
         },
@@ -675,7 +745,18 @@ export default function NoteEditorPM({
     const isDifferentNote = noteId !== prevSwapNoteIdRef.current
     prevSwapNoteIdRef.current = noteId
     const current = serializeToMarkdown(view.state.doc)
-    if (current === content) {
+    // A space at the end of a line is not representable in markdown — the
+    // serializer emits it, but markdown-it strips it again on the way back in.
+    // So `content` (which has been through a save→parse cycle) legitimately
+    // differs from `current` (straight off the live doc) by exactly those
+    // trailing spaces after e.g. deleting the last character on a line. That is
+    // NOT an external edit: reparsing over it would yank out the space the user
+    // is editing against and reset the caret — which reads as "Backspace also
+    // ate the space." Treat a trailing-whitespace-only difference as equal for
+    // the same note. (Hard breaks serialize as `\`, not trailing spaces, so
+    // this never collapses a real one.)
+    const stripLineTrailingWs = (s: string) => s.replace(/[ \t]+$/gm, '')
+    if (current === content || (!isDifferentNote && stripLineTrailingWs(current) === stripLineTrailingWs(content))) {
       lastContentPropRef.current = content
       return
     }

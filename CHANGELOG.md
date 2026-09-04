@@ -122,6 +122,104 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [0.5.19] - 2026-09-03
+
+### Windows
+
+- **Synced windows (Phase 1).** `Window › New Window` (⌘N) opens another peer
+  main window. All open windows share one live slice of state — the tab set and
+  order of every session, the session list, and every preference — so opening,
+  closing or reordering a tab in one window does the same in the others, and a
+  setting changed anywhere applies everywhere. Each window keeps its own view —
+  which session, space and tab it's showing, its panel layout, its scroll
+  position — and that view is now persisted per window, so two windows no longer
+  overwrite each other's on the next launch (the primary window's view is
+  remembered; a window spawned from another is seeded by the mirror and not
+  persisted). A newly opened window mirrors the one it was spawned from. Closing
+  the last window quits the app.
+  - Not yet: real-time co-editing of the *same* note in two windows at once
+    (edits sync on save/reload for now — Phase 3).
+- **`Window ▸ New Standalone Window` (⌘⌥N)** opens a window with its own tabs,
+  sessions and view — *not* part of cross-window sync (unlike `New Window`,
+  which shares them live). It inherits your settings (theme, fonts, preferences)
+  once but then goes its own way, starts with a blank workspace, and writes
+  nothing back. Notes, highlights and the Bible DB are still shared.
+- **The presenter window belongs to the window that opened it.** Only that
+  window drives its content, receives its "on presenter" outline band, and shows
+  the presenter controls; opening the presenter from a different synced window
+  hands ownership over (the old owner's controls clear); and closing the owning
+  window closes the presenter.
+- Typing in a note is snappy again — the cross-window sync was broadcasting the
+  whole tab set on every keystroke (cursor-position saves touch the active
+  tab's state); it now only fires on a real structural change.
+
+### Notes
+
+- Backspacing the last character on a line no longer eats the space before it.
+  Root cause: the notes editor was missing `white-space: pre-wrap` on the
+  editable element (ProseMirror's required base style — it was logging a console
+  warning about it). Without it the browser collapses whitespace in the DOM
+  while ProseMirror's model keeps it, the two disagree, and the next edit near a
+  run of spaces made ProseMirror "reconcile" by deleting the space from the
+  model. Also guards against a trailing-space-only difference between the live
+  doc and saved markdown forcing a reparse (markdown can't store a trailing
+  space, so the round trip isn't lossless).
+- Copying a blockquote (or a callout / list) from one note and pasting it into
+  another now keeps the block formatting. The clipboard slice was arriving
+  "open" on both sides and ProseMirror unwrapped it, dropping the paragraphs in
+  as plain text; a lone wrapper block is now re-closed before insertion.
+- Markdown links in the notes editor are now visible and clickable. The
+  editable view had no link styling at all, so `[text](url)` rendered as plain
+  body text, and there was no click handler — clicking a link did nothing.
+  Links now show in the accent colour with an underline and open in the system
+  browser on click (same as wikilink / verse-ref clicks), in both edit and
+  read-only view.
+- Links can now be created inside blockquotes (and anywhere the selection sits)
+  from the toolbar. Typing the URL focuses a text field, which blurs the editor
+  and could collapse the selection before you pressed Enter — so the link mark
+  was applied to an empty range and nothing happened. The toolbar now remembers
+  the selection from the moment the link popover opened and applies the link to
+  that range.
+- The blank space in a note's top-bar header is draggable again (move the
+  window from it). A verse note's title was a full-width `<button>`, which the
+  window-drag handler excludes; and a regular note's title span filled the whole
+  bar, so there was no non-title space to grab. Both now size the title to its
+  text with a draggable filler beside it.
+
+### Search
+
+- **Verse tags in the floating search.** Type `#` to browse your verse tags
+  (`#` alone lists them all), or just include a tag name in a normal query —
+  matches appear as selectable chips. Click a chip (or ↑/↓ + Enter in `#` mode)
+  to add it as a filter rather than navigating away; picked tags sit in a
+  removable "Filter by tag" row and stay there while you keep searching, until
+  you close the search. With tag filters on, keyword results are limited to
+  verses that carry a selected tag, and ⇧↵ (or "Search N tags in Scripture")
+  opens the advanced Scripture search with those tags applied.
+- The floating search is quieter: an ✕ clears the query and tag filters; the
+  All / OT / NT scope chips moved out (they belong to the advanced Scripture
+  search); the footer only appears when there's something to act on, with the
+  Notes / Lexicon / YouTube shortcuts as plain icons; and the "→ Scripture"
+  Enter hint is much dimmer.
+
+### Settings
+
+- Settings now persist reliably across restarts and updates. Every window
+  (main, presenter/viewer, Study Trail, floating panel) ran its own copy of the
+  app store, and each one wrote its *entire* state back to the single shared
+  `berean-app-state` key — including default values for the ~40 preference
+  fields that are never pushed into a secondary window. Whichever window flushed
+  last won, so once the presenter or Study Trail window had been opened, a
+  setting changed in the main window would quietly revert to its default on the
+  next launch. Secondary windows are now read-only consumers of that state (they
+  still rehydrate from it and get live updates over their existing sync
+  channels); only the main window writes it. Also flush the pending write on
+  `pagehide` / visibility-hidden, not just `beforeunload`, so a change made
+  seconds before quit isn't lost on teardown paths where `beforeunload` doesn't
+  fire.
+
+---
+
 ## [0.5.18] - 2026-09-01
 
 Backspace fix in the notes editor

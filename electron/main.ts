@@ -242,9 +242,44 @@ function applyAutoDownloadPref(db: ReturnType<typeof getBereanDb>): void {
   autoUpdater.autoDownload = row?.value === 'true'
 }
 
+// `mainWindow` is now "the app window that currently has focus" (or the first one
+// created) rather than a hard singleton — see createWindow(). Synced-window
+// (Phase 1) lets the user open several equal, peer main windows; `appWindows`
+// tracks every live one. Single-target sends still use `mainWindow` (they want
+// the focused window); anything that must reach every window uses
+// `broadcastAppWindows()`.
 let mainWindow: BrowserWindow | null = null
+const appWindows = new Set<BrowserWindow>()
 let viewerWindow: BrowserWindow | null = null
+// Phase 2: the presenter/viewer window belongs to ONE app window — the one that
+// opened it. Only that window drives its content and receives its reverse
+// channels, and closing that window closes the presenter.
+let viewerOwnerId: number | null = null
 let studyTrailWindow: BrowserWindow | null = null
+
+/** The app window that currently owns the presenter, if it's still alive. */
+function viewerOwnerWindow(): BrowserWindow | null {
+  if (viewerOwnerId == null) return null
+  for (const w of appWindows) {
+    if (!w.isDestroyed() && w.webContents.id === viewerOwnerId) return w
+  }
+  return null
+}
+function sendToViewerOwner(channel: string, payload?: unknown): void {
+  const w = viewerOwnerWindow()
+  if (w) w.webContents.send(channel, payload)
+}
+
+/** Send an IPC message to every live app window (not the viewer / Study Trail /
+ *  float windows — those are `?viewer` / `?studyTrail` / `?float` and are not
+ *  peers). Optionally skip one webContents (the sender of a relayed message). */
+function broadcastAppWindows(channel: string, payload?: unknown, exceptWebContentsId?: number): void {
+  for (const win of appWindows) {
+    if (win.isDestroyed()) continue
+    if (exceptWebContentsId != null && win.webContents.id === exceptWebContentsId) continue
+    win.webContents.send(channel, payload)
+  }
+}
 
 function sendUpdateStatus(status: string, extra?: Record<string, unknown>) {
   mainWindow?.webContents.send('app:updateStatus', { status, ...extra })
@@ -339,6 +374,25 @@ function buildAppMenu(): Electron.Menu {
     {
       label: 'Window',
       submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+N',
+          // Opens another peer main window, synced to this one (shared tabs /
+          // sessions / settings; its own active tab, space, layout and scroll).
+          click: () => {
+            const from = BrowserWindow.getFocusedWindow()
+            createWindow(from ? { mirrorFromWebContentsId: from.webContents.id } : undefined)
+          },
+        },
+        {
+          label: 'New Standalone Window',
+          accelerator: 'CmdOrCtrl+Alt+N',
+          // Its OWN tabs / sessions / view — not part of cross-window sync
+          // (unlike "New Window" above, which shares them). Notes, highlights and
+          // the Bible DB are still shared (they live in SQLite, not window state).
+          click: () => { createWindow({ independent: true }) },
+        },
+        { type: 'separator' as const },
         { role: 'minimize' as const },
         { role: 'zoom' as const },
         ...(isMac ? [
@@ -496,11 +550,9 @@ function createViewerWindow(): void {
 
   viewerWindow.on('closed', () => {
     viewerWindow = null
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('app:viewerWindowClosed')
-      }
-    })
+    // Only the owning window tracked this as open.
+    sendToViewerOwner('app:viewerWindowClosed')
+    viewerOwnerId = null
   })
 }
 
@@ -617,7 +669,7 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   })
 }
 
-function createWindow(): void {
+function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: boolean }): void {
   const iconPath = is.dev
     ? join(app.getAppPath(), 'assets/icon.icns')
     : join(process.resourcesPath, 'assets/icon.icns')
@@ -625,13 +677,21 @@ function createWindow(): void {
 
   const isMacWin = process.platform === 'darwin'
   const isWinWin = process.platform === 'win32'
+  // The first window restores its saved bounds; each extra synced window opens
+  // cascaded down-right from the currently-focused one so they don't stack
+  // exactly on top of each other.
+  const isFirst = appWindows.size === 0
   const savedBounds = loadMainBounds()
-  mainWindow = new BrowserWindow({
-    width: savedBounds.width,
-    height: savedBounds.height,
-    ...(typeof savedBounds.x === 'number' && typeof savedBounds.y === 'number'
-      ? { x: savedBounds.x, y: savedBounds.y }
-      : {}),
+  const focused = BrowserWindow.getFocusedWindow()
+  const cascade = !isFirst && focused && !focused.isDestroyed() ? focused.getBounds() : null
+  const win = new BrowserWindow({
+    width: cascade ? cascade.width : savedBounds.width,
+    height: cascade ? cascade.height : savedBounds.height,
+    ...(cascade
+      ? { x: cascade.x + 36, y: cascade.y + 36 }
+      : (typeof savedBounds.x === 'number' && typeof savedBounds.y === 'number'
+        ? { x: savedBounds.x, y: savedBounds.y }
+        : {})),
     minWidth: 800,
     minHeight: 600,
     // On Windows: frameless so we draw our own title bar in React
@@ -662,26 +722,44 @@ function createWindow(): void {
     },
   })
 
+  appWindows.add(win)
+  mainWindow = win
+  const winId = win.webContents.id // cache — webContents is gone by the 'closed' handler
+  win.on('focus', () => { mainWindow = win })
+
+  // `?mirrorFrom=<webContentsId>` tells the renderer to seed its per-window view
+  // state (active space / session / tab / panel layout) from the window that
+  // spawned it, via a cross-window:requestMirror round-trip. The first window
+  // has nothing to mirror.
+  // `?mirrorFrom=<id>` — seed per-window view from the spawning window (synced).
+  // `?independent=1` — a standalone window: its own tabs / sessions / view,
+  // NOT part of cross-window sync (notes / highlights / DB are still shared —
+  // those live in SQLite, not window state).
+  const qs: string[] = []
+  const mirrorId = opts?.mirrorFromWebContentsId
+  if (typeof mirrorId === 'number' && !opts?.independent) qs.push(`mirrorFrom=${mirrorId}`)
+  if (opts?.independent) qs.push('independent=1')
+  const query = qs.join('&')
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(query ? `${process.env['ELECTRON_RENDERER_URL']}?${query}` : process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), query ? { search: `?${query}` } : undefined)
   }
 
   if (is.dev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
+    win.webContents.openDevTools({ mode: 'detach' })
   }
 
-  if (savedBounds.maximized) mainWindow.maximize()
+  if (isFirst && savedBounds.maximized) win.maximize()
 
-  // Persist size/position so the app reopens where it was last closed. Debounced during
-  // live resize/move (a drag fires hundreds of events); also flushed synchronously on
-  // 'close' so a Cmd+Q that never emits a settled event still captures the final bounds.
-  // `boundsWin` is captured now (not `mainWindow`) for the same reason the Cmd+W handler
-  // below captures `thisWin` — createWindow() can run again and reassign `mainWindow`.
-  const boundsWin = mainWindow
+  // Persist size/position so the app reopens where it was last closed. Only the
+  // first/primary window drives the saved bounds — extra synced windows cascade
+  // from it and shouldn't fight over the single saved-bounds key.
+  const boundsWin = win
   let boundsSaveTimer: ReturnType<typeof setTimeout> | null = null
   const scheduleBoundsSave = () => {
+    if (!isFirst) return
     if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
     boundsSaveTimer = setTimeout(() => {
       if (!boundsWin.isDestroyed()) saveMainBounds(boundsWin)
@@ -691,88 +769,95 @@ function createWindow(): void {
   boundsWin.on('move', scheduleBoundsSave)
   boundsWin.on('close', () => {
     if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
-    if (!boundsWin.isDestroyed()) saveMainBounds(boundsWin)
+    if (isFirst && !boundsWin.isDestroyed()) saveMainBounds(boundsWin)
   })
 
   // Notify renderer when window is maximized/unmaximized (for Windows title bar button state)
-  mainWindow.on('maximize',   () => { mainWindow?.webContents.send('window:maximizeChanged', true); scheduleBoundsSave() })
-  mainWindow.on('unmaximize', () => { mainWindow?.webContents.send('window:maximizeChanged', false); scheduleBoundsSave() })
+  win.on('maximize',   () => { win.webContents.send('window:maximizeChanged', true); scheduleBoundsSave() })
+  win.on('unmaximize', () => { win.webContents.send('window:maximizeChanged', false); scheduleBoundsSave() })
 
-  // Intercept Cmd+W so the renderer can close a tab instead of quitting.
-  // IMPORTANT: capture the window reference now — do NOT use `mainWindow` inside the
-  // handler, because createWindow() can be called again for a second window and would
-  // overwrite `mainWindow`, causing this handler to send to the wrong window.
-  const thisWin = mainWindow
-  thisWin.webContents.on('before-input-event', (event, input) => {
+  // Intercept Cmd+W so the renderer can close a tab instead of quitting. Captures
+  // `win` (never the mutable `mainWindow`) so it always targets its own window.
+  win.webContents.on('before-input-event', (event, input) => {
     if (input.meta && !input.shift && !input.alt && input.key.toLowerCase() === 'w') {
       event.preventDefault()
-      thisWin.webContents.send('app:closeTab')
+      win.webContents.send('app:closeTab')
     }
   })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.on('closed', () => {
+    // If this window owned the presenter, close it too (Phase 2: the presenter
+    // is tied to the window it was opened from).
+    if (viewerOwnerId === winId && viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerOwnerId = null // suppress the re-parent notify in the viewer's own closed handler
+      viewerWindow.close()
+    }
+    appWindows.delete(win)
+    if (mainWindow === win) {
+      mainWindow = null
+      for (const w of appWindows) { if (!w.isDestroyed()) { mainWindow = w; break } }
+    }
   })
 
-  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+  win.webContents.on('render-process-gone', (_e, details) => {
     const msg = `reason: ${details.reason}  exitCode: ${details.exitCode}`
     earlyLog(`[renderer-process-gone] ${msg}`)
     log.error('[renderer-process-gone]', JSON.stringify(details))
     dialog.showErrorBox('Renderer crashed', msg)
   })
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
     earlyLog(`[did-fail-load] ${code} ${desc} ${url}`)
     log.error('[did-fail-load]', code, desc, url)
   })
-  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     const lvl = ['verbose', 'info', 'warning', 'error'][level] ?? 'unknown'
     earlyLog(`[renderer-console:${lvl}] ${message}  (${sourceId}:${line})`)
     log.info(`[renderer:${lvl}] ${message}`)
   })
-  mainWindow.webContents.on('did-start-loading', () => {
+  win.webContents.on('did-start-loading', () => {
     earlyLog('[did-start-loading]')
     log.info('[did-start-loading]')
   })
-  mainWindow.webContents.on('did-start-navigation', (_e, url) => {
+  win.webContents.on('did-start-navigation', (_e, url) => {
     earlyLog(`[did-start-navigation] ${url}`)
     log.info('[did-start-navigation]', url)
   })
-  mainWindow.webContents.on('dom-ready', () => {
+  win.webContents.on('dom-ready', () => {
     earlyLog('[dom-ready]')
     log.info('[dom-ready]')
   })
-  mainWindow.webContents.on('did-finish-load', () => {
+  win.webContents.on('did-finish-load', () => {
     earlyLog('[did-finish-load] renderer HTML loaded OK')
     log.info('[did-finish-load] renderer loaded')
   })
-  mainWindow.webContents.on('unresponsive', () => {
+  win.webContents.on('unresponsive', () => {
     earlyLog('[unresponsive] renderer is not responding')
     log.warn('[unresponsive]')
   })
-  mainWindow.webContents.on('responsive', () => {
+  win.webContents.on('responsive', () => {
     earlyLog('[responsive]')
     log.info('[responsive]')
   })
   // Show a native spell-check context menu when the user right-clicks a misspelled word.
-  mainWindow.webContents.on('context-menu', (_e, params) => {
+  win.webContents.on('context-menu', (_e, params) => {
     const { misspelledWord, dictionarySuggestions } = params
     if (!misspelledWord) return
     const items: Electron.MenuItemConstructorOptions[] = dictionarySuggestions.length > 0
       ? dictionarySuggestions.slice(0, 8).map(s => ({
           label: s,
-          click: () => mainWindow!.webContents.replaceMisspelling(s),
+          click: () => win.webContents.replaceMisspelling(s),
         }))
       : [{ label: 'No suggestions', enabled: false }]
     items.push(
       { type: 'separator' },
       {
         label: 'Add to Dictionary',
-        click: () => mainWindow!.session.addWordToSpellCheckerDictionary(misspelledWord),
+        click: () => win.webContents.session.addWordToSpellCheckerDictionary(misspelledWord),
       },
     )
-    Menu.buildFromTemplate(items).popup({ window: mainWindow! })
+    Menu.buildFromTemplate(items).popup({ window: win })
   })
-  log.info('mainWindow created, loading renderer...')
+  log.info(`app window created (${appWindows.size} open), loading renderer...`)
 }
 
 app.whenReady().then(async () => {
@@ -946,7 +1031,28 @@ app.whenReady().then(async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
-  ipcMain.handle('app:newWindow', () => { createWindow() })
+  ipcMain.handle('app:newWindow', (e) => { createWindow({ mirrorFromWebContentsId: e.sender.id }) })
+  ipcMain.handle('app:newIndependentWindow', () => { createWindow({ independent: true }) })
+
+  // ── Cross-window sync (Phase 1: synced peer windows) ──────────────────────
+  // A dumb relay: whatever a renderer broadcasts is forwarded verbatim to every
+  // OTHER app window. The renderer layer (src/lib/crossWindowSync.ts) owns the
+  // semantics — which store keys are synced, echo suppression, and the
+  // request/response used to mirror a freshly-spawned window's view state.
+  ipcMain.on('cross-window:broadcast', (e, message: unknown) => {
+    broadcastAppWindows('cross-window:message', message, e.sender.id)
+  })
+  // Targeted reply (used for the mirror handshake): send only to one webContents.
+  ipcMain.on('cross-window:sendTo', (_e, targetWebContentsId: number, message: unknown) => {
+    for (const w of appWindows) {
+      if (!w.isDestroyed() && w.webContents.id === targetWebContentsId) {
+        w.webContents.send('cross-window:message', message)
+        break
+      }
+    }
+  })
+  ipcMain.handle('cross-window:list', () => [...appWindows].filter((w) => !w.isDestroyed()).map((w) => w.webContents.id))
+  ipcMain.handle('cross-window:selfId', (e) => e.sender.id)
   // Manual, JS-driven window move — used by Sidebar.tsx's empty tab-list space, which needs to
   // support BOTH window-drag AND double-click-to-search on the exact same screen area. A real
   // `-webkit-app-region: drag` CSS region can't do this: Electron intercepts the mousedown at
@@ -970,11 +1076,20 @@ app.whenReady().then(async () => {
       throw err
     }
   })
-  ipcMain.handle('app:openViewerWindow', () => {
+  ipcMain.handle('app:openViewerWindow', (e) => {
+    const senderId = e.sender.id
     if (viewerWindow && !viewerWindow.isDestroyed()) {
+      // Re-parent: a different app window asked for the presenter. Tell the old
+      // owner it lost it (so it clears its PresenterControls / "on presenter"
+      // band), then hand ownership to the requester.
+      if (viewerOwnerId != null && viewerOwnerId !== senderId) {
+        sendToViewerOwner('app:viewerWindowClosed')
+      }
+      viewerOwnerId = senderId
       viewerWindow.focus()
       return true
     }
+    viewerOwnerId = senderId
     createViewerWindow()
     return true
   })
@@ -1027,43 +1142,38 @@ app.whenReady().then(async () => {
     if (viewerWindow && !viewerWindow.isDestroyed()) viewerWindow.close()
     return true
   })
-  // Viewer React app signals ready after registering its onContent listener
+  // Viewer React app signals ready after registering its onContent listener —
+  // only the owning app window is listening for this.
   ipcMain.on('viewer:signalReady', () => {
-    console.log('[Viewer IPC] viewer:signalReady received — broadcasting viewer:ready to main windows')
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('viewer:ready')
-      }
-    })
+    sendToViewerOwner('viewer:ready')
   })
 
-  ipcMain.on('app:pushViewerContent', (_e, payload: unknown) => {
+  ipcMain.on('app:pushViewerContent', (e, payload: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return // non-owner window must not drive the presenter
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:content', payload)
     }
   })
 
-  // Relay display/format settings from the main window to the viewer window
-  ipcMain.on('app:pushViewerSettings', (_e, settings: unknown) => {
+  // Relay display/format settings from the owning window to the viewer window
+  ipcMain.on('app:pushViewerSettings', (e, settings: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:settings', settings)
     }
   })
 
   // Relay ephemeral overlays (selection mirror + laser pointer) to the viewer window
-  ipcMain.on('app:pushViewerOverlay', (_e, payload: unknown) => {
+  ipcMain.on('app:pushViewerOverlay', (e, payload: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:overlay', payload)
     }
   })
 
-  // Relay the viewer's visible verse region back to the main (non-viewer) windows
+  // Relay the viewer's visible verse region back to its owning window only
   ipcMain.on('viewer:reportVisibleRegion', (_e, region: unknown) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('viewer:visibleRegion', region)
-      }
-    })
+    sendToViewerOwner('viewer:visibleRegion', region)
   })
 
   // Ask the viewer window to re-report its visible region right now, even if its content
@@ -1433,7 +1543,7 @@ app.whenReady().then(async () => {
   setupPowerAwareness()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (appWindows.size === 0) createWindow()
   })
 }).catch((err: unknown) => {
   const msg = err instanceof Error ? `${err.message}\n\n${err.stack}` : String(err)

@@ -1,6 +1,26 @@
 import { Plugin } from 'prosemirror-state'
+import { Slice, Fragment } from 'prosemirror-model'
 import { bereanSchema as schema } from './schema'
 import { insertImageFile } from './imageInsert'
+
+// A copied blockquote / callout / list crosses the clipboard as an OPEN slice —
+// openStart/openEnd = 2, because the selection was cut through both the wrapper
+// and its inner paragraph on each side. ProseMirror then UNWRAPS it on paste:
+// the inner paragraphs land as plain paragraphs and the quote / callout / list
+// formatting is lost ("I copied a block that had a quote format and the quote
+// format didn't work"). When the whole slice is exactly one such wrapper,
+// re-close it (openStart/openEnd = 0) so it pastes as the block it was copied
+// as. Mixed selections (text + a blockquote, two blockquotes, …) are left alone
+// — childCount > 1 — and keep ProseMirror's default behaviour. Used as
+// NoteEditorPM's `transformPasted`.
+const RECLOSABLE_WRAPPERS = new Set(['blockquote', 'callout', 'bullet_list', 'ordered_list'])
+export function reclosePastedWrapperBlock(slice: Slice): Slice {
+  const only = slice.content.childCount === 1 ? slice.content.firstChild : null
+  if (only && RECLOSABLE_WRAPPERS.has(only.type.name) && (slice.openStart > 0 || slice.openEnd > 0)) {
+    return new Slice(Fragment.from(only), 0, 0)
+  }
+  return slice
+}
 
 // Port of NoteEditor.tsx's pasteHandler: image clipboard data becomes an
 // inline `![](data:...)` image, a bare pasted URL becomes a markdown link

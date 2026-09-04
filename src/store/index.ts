@@ -7,7 +7,7 @@ import { bookName } from '@/lib/parseRef'
 import { isHermasBook, clampHermasChapter, hermasVariantForTextId } from '@/lib/hermasMap'
 import type { UpdateStatus } from '@/types/electron'
 import { ttsEngine, activateKokoroBackend } from '@/lib/tts/ttsEngine'
-import { debouncedLocalStorage } from '@/lib/debouncedStorage'
+import { debouncedLocalStorage, readThroughLocalStorage } from '@/lib/debouncedStorage'
 import { lexiconTitleFor } from '@/lib/lexiconTitle'
 import { recordLexiconConnection } from '@/store/studyTrailSlice'
 import { recordNavigation } from '@/lib/verseNavigation'
@@ -22,6 +22,27 @@ import { YOUTUBE_LOADING_TITLE, youtubeTitleFor } from '@/lib/youtubeTitle'
 // synchronously during create() below — referencing a const declared after create()
 // would hit the temporal-dead-zone.
 const VIEWER_FONT_SCALE_SYNC_KEY = 'berean-viewer-font-scale'
+
+// The main window is the ONLY owner/writer of the persisted 'berean-app-state'
+// blob. Secondary windows (?viewer=1 / ?studyTrail=1 / ?float=1) each build their
+// own useAppStore from this same module; letting them write the shared key means
+// their stale/default full-state snapshot clobbers real settings on the next
+// launch (see readThroughLocalStorage). They still rehydrate from it and get
+// live updates via IPC push channels.
+const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.get('viewer') === '1' || p.get('studyTrail') === '1' || p.get('float') === '1'
+  } catch { return false }
+})()
+
+// `?independent=1` — a standalone window: it inherits the user's SETTINGS
+// (theme, fonts, preferences — read from the shared blob) but starts with a
+// fresh, blank workspace (its own default session + no tabs), takes no part in
+// cross-window sync, and writes nothing. See the onRehydrateStorage reset below.
+export const IS_INDEPENDENT_WINDOW = typeof window !== 'undefined' && (() => {
+  try { return new URLSearchParams(window.location.search).get('independent') === '1' } catch { return false }
+})()
 
 export interface WordReplacerRule {
   id: string
@@ -2679,8 +2700,26 @@ export const useAppStore = create<AppState>()(
       // accidental wipe on ordinary additive changes (new fields, as most of this store's history
       // has been).
       migrate: (persistedState) => persistedState as Partial<AppState>,
-      storage: createJSONStorage(() => debouncedLocalStorage),
+      storage: createJSONStorage(() => (
+        (IS_SECONDARY_WINDOW || IS_INDEPENDENT_WINDOW) ? readThroughLocalStorage : debouncedLocalStorage
+      )),
       onRehydrateStorage: () => (state) => {
+        // An independent window (?independent=1) rehydrated the shared blob for
+        // the user's SETTINGS, but its workspace must start blank and its own —
+        // wipe the tab / session / view fields back to defaults here so it opens
+        // with one empty default session and no tabs.
+        if (IS_INDEPENDENT_WINDOW && state) {
+          state.tabs = DEFAULT_TABS
+          state.activeTabId = DEFAULT_ACTIVE_TAB
+          state.activeSpace = 'scripture'
+          state.currentSessionId = 'default'
+          state.sessions = [DEFAULT_SESSION]
+          state.sessionDisplayOrders = {}
+          state.tabMRUList = []
+          state.tabLastAccessed = {}
+          state.panelLayout = DEFAULT_PANEL_LAYOUT
+          return
+        }
         // Read Aloud (TTS) — the ACTUAL backend activation constructs a Worker, a runtime side
         // effect `persist`'s plain state rehydration can't perform itself, so it's kicked off
         // here. Unconditional now that Kokoro is the only engine: if the pack is on disk, Read
@@ -2762,10 +2801,14 @@ export const useAppStore = create<AppState>()(
         state.tabMRUList = [...validatedMRU, ...missing]
       },
       partialize: (state) => ({
-        activeSpace: state.activeSpace,
+        // NOTE: `activeSpace`, `activeTabId`, `panelLayout` and `currentSessionId`
+        // are PER-WINDOW view state and are deliberately NOT persisted in this
+        // shared blob — synced peer windows would clobber each other's view on
+        // the next launch. They are saved/restored per window by
+        // src/lib/perWindowViewState.ts. `tabs` stays here (the current
+        // session's tab SET is shared) and is also snapshotted into `sessions`
+        // below so a per-window restore can pull fresh tabs for its own session.
         tabs: state.tabs,
-        activeTabId: state.activeTabId,
-        panelLayout: state.panelLayout,
         sidebarCollapsed: state.sidebarCollapsed,
         lastSettingsSection: state.lastSettingsSection,
         settingsSectionScrollTop: state.settingsSectionScrollTop,
@@ -2806,8 +2849,17 @@ export const useAppStore = create<AppState>()(
         defaultYoutubeLayout: state.defaultYoutubeLayout,
         tabMRUList: state.tabMRUList,
         archivedGroups: state.archivedGroups,
-        sessions: state.sessions,
-        currentSessionId: state.currentSessionId,
+        // Snapshot the live tabs of whichever session this window is currently
+        // on back into the sessions array, so `sessions` stays the authoritative
+        // per-session tab store on disk (addTab/closeTab only mutate top-level
+        // `tabs`). A per-window restore then reads fresh tabs for its own
+        // session straight from here.
+        sessions: state.sessions.map((s) =>
+          s.id === state.currentSessionId
+            ? { ...s, tabs: state.tabs, activeTabId: state.activeTabId }
+            : s,
+        ),
+        // currentSessionId: per-window (see note in partialize head)
         sessionDisplayOrders: state.sessionDisplayOrders,
         tasksVisible: state.tasksVisible,
         tasksMinimized: state.tasksMinimized,

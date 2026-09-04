@@ -763,6 +763,17 @@ declare global {
       onRequestVisibleRegion: (cb: () => void) => void
       signalReady: () => void
     }
+    // Cross-window sync transport for synced peer main windows (Phase 1).
+    // Semantics live in src/lib/crossWindowSync.ts; this is just the relay.
+    crossWindow?: {
+      selfId: () => Promise<number>
+      broadcast: (message: unknown) => void
+      sendTo: (targetWebContentsId: number, message: unknown) => void
+      list: () => Promise<number[]>
+      onMessage: (cb: (message: unknown) => void) => () => void
+      newWindow: () => Promise<void>
+      newIndependentWindow: () => Promise<void>
+    }
     // Platform string injected by preload for renderer-side platform detection
     __berean_platform: NodeJS.Platform
 

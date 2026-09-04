@@ -1,5 +1,6 @@
 import { toggleMark, setBlockType, wrapIn, lift } from 'prosemirror-commands'
 import { wrapInList, liftListItem, sinkListItem } from 'prosemirror-schema-list'
+import { TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { bereanSchema as schema } from './schema'
 import { changeIndent } from './indent'
@@ -40,10 +41,23 @@ export function createEditorCommands(view: EditorView) {
   // Electron's renderer doesn't support window.prompt() (throws "prompt() is and
   // will not be supported"), so the URL can't be collected here — callers own a
   // small popover/input UI instead and pass the already-collected url in.
-  function applyLink(url: string) {
+  //
+  // `range` is the selection as it stood when the caller OPENED its URL popover.
+  // It must be passed because collecting the URL requires focusing a text
+  // <input>, which blurs the editor and can collapse `view.state.selection` by
+  // the time submit fires — the symptom being "link never applies" (an addMark
+  // over a now-collapsed from===to range is a no-op). Highlights don't hit this
+  // because their colour swatches never steal editor focus. Falls back to the
+  // live selection when no range is supplied or it's already collapsed.
+  function applyLink(url: string, range?: { from: number; to: number }) {
     if (!url) return
-    const { from, to } = view.state.selection
-    view.dispatch(view.state.tr.addMark(from, to, schema.marks.link.create({ href: url })))
+    const live = view.state.selection
+    const from = range && range.from !== range.to ? range.from : live.from
+    const to = range && range.from !== range.to ? range.to : live.to
+    if (from === to) return
+    const tr = view.state.tr.addMark(from, to, schema.marks.link.create({ href: url }))
+    tr.setSelection(TextSelection.create(tr.doc, from, to))
+    view.dispatch(tr)
     view.focus()
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ArrowRight, ChevronDown, Check } from 'lucide-react'
+import { Search, BookOpen, Hash, BookMarked, NotepadText, Youtube, GitFork, Clock, Terminal, ChevronDown, Check, Tag, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '@/store'
@@ -13,9 +13,10 @@ import { buildVerseDisplayText } from '@/lib/verseUtils'
 import { parseMultiStrongsQuery, searchMultiStrongs, searchAnyStrongs } from '@/lib/strongsSearch'
 import { decodeEntities } from '@/lib/youtubeSearch'
 import { getCommands, filterCommands } from '@/lib/commands'
+import { rankVerseTags } from '@/lib/verseTagSearch'
 import { mapChapterOnTranslationSwitch } from '@/lib/translationChapterMap'
 import ShortcutKeys from './ShortcutKeys'
-import type { Book, LexiconEntry, Note } from '@/types'
+import type { Book, LexiconEntry, Note, VerseTag } from '@/types'
 
 interface CrossRef {
   bookId: string
@@ -213,6 +214,7 @@ export default function FloatingSearch() {
   const requestOpenNote = useAppStore((s) => s.requestOpenNote)
   const defaultBibleTranslation = useAppStore((s) => s.defaultBibleTranslation)
   const openScriptureSearchTab = useAppStore((s) => s.openScriptureSearchTab)
+  const verseTags = useAppStore((s) => s.verseTags)
   const openLexiconSearchTab = useAppStore((s) => s.openLexiconSearchTab)
   const openNotesSearchTab = useAppStore((s) => s.openNotesSearchTab)
   const openYouTubeSearchTab = useAppStore((s) => s.openYouTubeSearchTab)
@@ -223,6 +225,9 @@ export default function FloatingSearch() {
   const addRecentSearchQuery = useAppStore((s) => s.addRecentSearchQuery)
 
   type SearchWordMode = 'all' | 'any' | 'phrase'
+  // OT/NT scoping moved to the advanced Scripture search — the floating search
+  // is always unscoped now. Kept as a const so `scopedVerseResults` below still
+  // type-checks without dead setter state.
   type ScopeFilter = 'all' | 'ot' | 'nt'
   const WORD_MODE_LABELS: Record<SearchWordMode, string> = { all: 'All words', any: 'Any word', phrase: 'Exact phrase' }
 
@@ -230,7 +235,7 @@ export default function FloatingSearch() {
   const selectedItemRef = useRef<HTMLButtonElement>(null)
   const [query, setQuery] = useState('')
   const [searchWordMode, setSearchWordMode] = useState<SearchWordMode>('all')
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all')
+  const scopeFilter: ScopeFilter = 'all'
   const [searchTextId, setSearchTextId] = useState(defaultBibleTranslation.toLowerCase())
   const [books, setBooks] = useState<Book[]>([])
   const [verseResults, setVerseResults] = useState<VerseResult[]>([])
@@ -302,6 +307,8 @@ export default function FloatingSearch() {
       setNoteResults([])
       setYoutubeResults([])
       setSelectedIdx(-1)
+      setSelectedTags([])
+      setTagFocusIdx(0)
     }
   }, [searchOpen, defaultBibleTranslation])
 
@@ -339,6 +346,65 @@ export default function FloatingSearch() {
     [cleanQuery]
   )
   const isStrongs = isStrongsRef(query)
+
+  // ── Verse-tag search ────────────────────────────────────────────────────────
+  // "#" is an explicit tag mode (like ">" for commands); "#" alone lists every
+  // tag. `selectedTags` accumulate as the user clicks tag chips — they persist
+  // while they keep typing, and ⇧↵ / "Search tags" opens the advanced Scripture
+  // search filtered by them.
+  const isTagMode = query.trim().startsWith('#')
+  const [selectedTags, setSelectedTags] = useState<VerseTag[]>([])
+  const [tagFocusIdx, setTagFocusIdx] = useState(0)
+  const candidateTags = useMemo(() => {
+    const selectedIds = new Set(selectedTags.map((t) => t.id))
+    const pool = verseTags.filter((t) => !selectedIds.has(t.id))
+    if (isTagMode) return rankVerseTags(pool, query.trim().slice(1)).slice(0, 12)
+    if (!query.trim().startsWith('>') && !parsedRef && !isStrongs && cleanQuery.trim().length >= 2) {
+      return rankVerseTags(pool, cleanQuery).slice(0, 6)
+    }
+    return []
+  }, [verseTags, selectedTags, isTagMode, query, cleanQuery, parsedRef, isStrongs])
+
+  const addTag = useCallback((t: VerseTag) => {
+    setSelectedTags((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, t]))
+    setTagFocusIdx(0)
+    setSelectedIdx(-1)
+    // Clear the input entirely — the tag is now a persistent filter shown in the
+    // chip row. Don't type "#" for the user; they can type it again themselves
+    // to pick more tags, or just start a keyword search. Also drop any lingering
+    // results from the query that produced these candidates.
+    setQuery('')
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([])
+    inputRef.current?.focus()
+  }, [])
+  const removeTag = useCallback((id: string) => {
+    setSelectedTags((prev) => prev.filter((x) => x.id !== id))
+    inputRef.current?.focus()
+  }, [])
+
+  // Member verses / whole chapters of the currently-selected tags — used to
+  // scope the floating search's own verse results (a keyword hit only shows if
+  // it actually carries a selected tag). Refetched whenever the selection
+  // changes; null while loading / when nothing is selected.
+  const [tagVerseFilter, setTagVerseFilter] = useState<{ verses: Set<string>; chapters: Set<string> } | null>(null)
+  useEffect(() => {
+    if (selectedTags.length === 0) { setTagVerseFilter(null); return }
+    let cancelled = false
+    setTagVerseFilter(null)
+    window.verseTags.getMembers(selectedTags.map((t) => t.id)).then((members) => {
+      if (cancelled) return
+      const verses = new Set<string>()
+      const chapters = new Set<string>()
+      for (const m of members) {
+        for (const v of m.verses) verses.add(`${v.bookId}:${v.chapter}:${v.verse}`)
+        for (const c of m.wholeChapters) chapters.add(`${c.bookId}:${c.chapter}`)
+      }
+      setTagVerseFilter({ verses, chapters })
+    }).catch(() => { if (!cancelled) setTagVerseFilter({ verses: new Set(), chapters: new Set() }) })
+    return () => { cancelled = true }
+  }, [selectedTags])
+
   // Render-scope mirror of the same check `runSearch`'s debounced callback does — needed
   // here too so the smart destination-prediction logic (below) can exclude Strong's-number
   // combinations from prediction the same way it excludes bare Strong's numbers and refs.
@@ -606,9 +672,11 @@ export default function FloatingSearch() {
     if (DIAG) { markKeystroke(val); dlog('keystroke', JSON.stringify(val)) }
     setQuery(val)
     setSelectedIdx(-1)
-    // Command mode (">") — no reference/keyword lookup to run at all, the
-    // `>`-prefixed text is matched against the command list client-side.
-    if (val.trim().startsWith('>')) {
+    setTagFocusIdx(0)
+    // Command mode (">") / tag mode ("#") — no reference/keyword lookup to run,
+    // the prefixed text is matched client-side (against the command list, or the
+    // verse-tag list already in the store).
+    if (val.trim().startsWith('>') || val.trim().startsWith('#')) {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([])
       return
@@ -805,7 +873,7 @@ export default function FloatingSearch() {
   const _resultsBuildT0 = DIAG ? performance.now() : 0
 
   const results: Array<{
-    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command'
+    type: 'ref' | 'verse' | 'lexicon' | 'note' | 'youtube' | 'crossref' | 'command' | 'tag'
     label: string
     sub: string
     action: () => void
@@ -831,9 +899,14 @@ export default function FloatingSearch() {
     }
   }
 
-  if (!isCommandMode && parsedRef) {
+  // Tag mode ("#…") is handled entirely by the selectable chip row rendered
+  // above the results (see `candidateTags` / `selectedTags`); it produces no
+  // result rows of its own. It still short-circuits the ref/keyword lookup, the
+  // same way command mode does.
+
+  if (!isCommandMode && !isTagMode && parsedRef) {
     results.push(refResultFor(parsedRef, detected?.textId))
-  } else if (!isCommandMode && cleanQuery.trim()) {
+  } else if (!isCommandMode && !isTagMode && cleanQuery.trim()) {
     // Bare book name, no chapter/verse ("Genesis", "Romans", "1 Kings") — parseRef's own
     // regex requires a trailing chapter number to match at all, so a plain book name never
     // produces a parsedRef. Offer chapter 1 of that book directly rather than requiring the
@@ -890,14 +963,23 @@ export default function FloatingSearch() {
   const wr = (t: string) => wordReplacerEnabled ? applyWordReplacer(t, wordReplacerRules) : t
 
   // Scripture verses first — most relevant for a Bible-study keyword search.
-  // Apply scope filter (OT/NT) to verse results.
-  const scopedVerseResults = scopeFilter === 'all'
+  const rawScopedVerses = scopeFilter === 'all'
     ? verseResults
     : verseResults.filter((v) => {
         const bk = books.find((b) => b.id === v.book_id)
         if (!bk) return true
         return scopeFilter === 'ot' ? bk.testament === 'OT' : bk.testament === 'NT'
       })
+  // When verse tags are selected they act as a LIVE filter: only keyword hits
+  // that actually carry one of the selected tags are shown. Until the tag's
+  // member verses have loaded, show nothing rather than an unfiltered list.
+  const scopedVerseResults = selectedTags.length === 0
+    ? rawScopedVerses
+    : tagVerseFilter
+      ? rawScopedVerses.filter((v) =>
+          tagVerseFilter.verses.has(`${v.book_id}:${v.chapter}:${v.verse_num}`) ||
+          tagVerseFilter.chapters.has(`${v.book_id}:${v.chapter}`))
+      : []
 
   // Smart destination prediction — guesses which single space (Scripture/Notes/YouTube)
   // a plain keyword query is most likely aimed at, from the live result counts each
@@ -911,7 +993,7 @@ export default function FloatingSearch() {
   // compare against here. Scripture wins ties (the app's home space); no prediction at
   // all when every count is 0 (nothing confident to suggest).
   const predictedSpace: 'scripture' | 'notes' | 'youtube' | null = (() => {
-    if (parsedRef || isStrongs || multiStrongs || query.trim().startsWith('>') || cleanQuery.trim().length < 3) return null
+    if (parsedRef || isStrongs || multiStrongs || query.trim().startsWith('>') || query.trim().startsWith('#') || cleanQuery.trim().length < 3) return null
     const counts: Array<['scripture' | 'notes' | 'youtube', number]> = [
       ['scripture', scopedVerseResults.length],
       ['notes', versesOnly ? 0 : noteResults.length],
@@ -984,6 +1066,9 @@ export default function FloatingSearch() {
     }
   }
 
+  // (Matching verse tags for a plain keyword query are shown as selectable chips
+  // in the tag row above the results — see `candidateTags` — not as rows here.)
+
   // YouTube videos — transcript hits show the matching line + timestamp as the sub-label.
   // Multiple entries may exist for the same video when perVideoLimit > 1.
   for (const vid of versesOnly ? [] : youtubeResults) {
@@ -1035,7 +1120,44 @@ export default function FloatingSearch() {
     return ref ? { ref, textId: det?.textId } : null
   }
 
+  // Open the advanced Scripture search tab, carrying any selected verse tags and
+  // (outside tag mode) the typed keyword.
+  function openAdvancedScriptureSearch() {
+    const keyword = isTagMode ? '' : query.trim()
+    let tags = selectedTags
+    // In tag mode with nothing explicitly picked yet, fold in the focused chip so
+    // ⇧↵ "just works" straight after typing a filter.
+    if (isTagMode && tags.length === 0 && candidateTags.length > 0) {
+      tags = [candidateTags[Math.min(tagFocusIdx, candidateTags.length - 1)]]
+    }
+    const tagIds = tags.map((t) => t.id)
+    if (query.trim()) addRecentSearchQuery(query.trim())
+    closeSearch()
+    openScriptureSearchTab(keyword || undefined, tagIds.length ? { tagIds } : undefined)
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
+    // ── Tag mode ("#…") owns the keyboard: arrow through candidate tag chips,
+    //    Enter selects the focused one, ⇧↵ (or Enter with nothing left to pick)
+    //    opens the advanced Scripture search with the selected tags. ──
+    if (isTagMode) {
+      if (e.key === 'ArrowDown' && candidateTags.length) {
+        e.preventDefault(); setTagFocusIdx((i) => Math.min(i + 1, candidateTags.length - 1)); return
+      }
+      if (e.key === 'ArrowUp' && candidateTags.length) {
+        e.preventDefault(); setTagFocusIdx((i) => Math.max(i - 1, 0)); return
+      }
+      if (e.key === 'Enter' && !e.shiftKey && candidateTags.length) {
+        e.preventDefault(); addTag(candidateTags[Math.min(tagFocusIdx, candidateTags.length - 1)]); return
+      }
+      if (e.key === 'Enter') { e.preventDefault(); openAdvancedScriptureSearch(); return }
+      // Backspace on a bare "#" pops the last selected tag (quick de-select).
+      if (e.key === 'Backspace' && query.trim() === '#' && selectedTags.length > 0) {
+        e.preventDefault(); setSelectedTags((prev) => prev.slice(0, -1)); return
+      }
+      return // no other keys do anything special in tag mode
+    }
+
     const immediateRef = e.key === 'Enter' ? getImmediateRef() : null
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -1054,12 +1176,17 @@ export default function FloatingSearch() {
       })
     } else if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault()
-      closeSearch()
-      openScriptureSearchTab(query.trim())
+      openAdvancedScriptureSearch()
     } else if (e.key === 'Enter' && selectedIdx < 0 && immediateRef) {
       e.preventDefault()
       // navigate() (called inside .action()) already closes the search overlay itself.
       refResultFor(immediateRef.ref, immediateRef.textId).action()
+    } else if (e.key === 'Enter' && selectedIdx < 0 && selectedTags.length > 0) {
+      // Tag(s) selected and nothing in the list highlighted — go straight to the
+      // tagged-verses view (carrying any keyword). Arrowing/hovering a result row
+      // opts back into activating that row below.
+      e.preventDefault()
+      openAdvancedScriptureSearch()
     } else if (e.key === 'Enter' && selectedIdx < 0 && predictedSpace) {
       // Enter with nothing selected (no arrowing, no mouse hover) — jump straight to
       // the predicted destination's own search tab with the current query, rather
@@ -1077,7 +1204,9 @@ export default function FloatingSearch() {
     }
   }
 
-  const showHint = !query.trim()
+  // No empty-state hint once tag filters are in play — the chip row + footer
+  // "Search N tags" action are the whole UI at that point.
+  const showHint = !query.trim() && selectedTags.length === 0
 
   return (
     <Dialog.Root open={searchOpen} onOpenChange={(open) => !open && closeSearch()}>
@@ -1133,11 +1262,8 @@ export default function FloatingSearch() {
               <div aria-hidden className="absolute inset-0 flex items-center text-sm pointer-events-none whitespace-pre overflow-hidden">
                 <span className="invisible">{query}</span>
                 {predictedSpace && selectedIdx < 0 && (
-                  <span className="flex items-center gap-1 ml-1 flex-shrink-0 opacity-60">
-                    <span className="text-[rgb(var(--color-text-muted))]">
-                      → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
-                    </span>
-                    <ShortcutKeys keys="↵" />
+                  <span className="flex items-center gap-1 ml-1.5 flex-shrink-0 opacity-35 text-[rgb(var(--color-text-muted))] text-[11px]">
+                    → {predictedSpace === 'scripture' ? 'Scripture' : predictedSpace === 'notes' ? 'Notes' : 'YouTube'}
                   </span>
                 )}
               </div>
@@ -1162,23 +1288,16 @@ export default function FloatingSearch() {
                 Strong's
               </span>
             )}
-            {/* Scope chips — visible when doing a text keyword search */}
-            {!parsedRef && !isStrongs && query.trim().length >= 2 && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {(['all', 'ot', 'nt'] as ScopeFilter[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setScopeFilter(s)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                      scopeFilter === s
-                        ? 'bg-[rgb(var(--color-accent))]/16 border-[rgb(var(--color-accent))]/45 text-[rgb(var(--color-accent))] font-semibold'
-                        : 'border-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))] hover:border-[rgb(var(--color-text-muted))]'
-                    }`}
-                  >
-                    {s === 'all' ? 'All' : s.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+            {/* Clear the query (and any selected tag filters). OT/NT scoping lives
+                in the advanced Scripture search, not here. */}
+            {(query.length > 0 || selectedTags.length > 0) && (
+              <button
+                onClick={() => { setQuery(''); setSelectedTags([]); setTagFocusIdx(0); setSelectedIdx(-1); if (debounceRef.current) clearTimeout(debounceRef.current); setVerseResults([]); setLexiconResults([]); setNoteResults([]); setYoutubeResults([]); setCrossRefResults([]); inputRef.current?.focus() }}
+                title="Clear search"
+                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-md text-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors"
+              >
+                <X size={13} />
+              </button>
             )}
             {/* Word mode dropdown — moved here (right-aligned in the input row, where the
                 user is actually typing) from the footer, so it's immediately next to the
@@ -1227,6 +1346,57 @@ export default function FloatingSearch() {
             )}
           </div>
 
+          {/* Verse-tag chips — selected (removable) + candidates (click to add).
+              A floating pill group tucked just under the input, no hard divider. */}
+          {(selectedTags.length > 0 || candidateTags.length > 0) && (
+            <div className="mx-2.5 mt-2 mb-1 rounded-xl bg-[rgb(var(--color-surface-3))]/50 px-3 py-2 flex flex-col gap-2">
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-medium mr-0.5">Filter by tag</span>
+                  {selectedTags.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => removeTag(t.id)}
+                      title={`Remove #${t.name}`}
+                      className="group inline-flex items-center gap-1 rounded-full bg-[rgb(var(--color-accent))/16] border border-[rgb(var(--color-accent))/40] px-2 py-0.5 text-[11px] font-medium text-[rgb(var(--color-accent))] hover:bg-[rgb(var(--color-accent))/24] transition-colors cursor-pointer"
+                    >
+                      <Tag size={10} />
+                      {t.name}
+                      <X size={10} className="opacity-60 group-hover:opacity-100" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {candidateTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {selectedTags.length === 0 && (
+                    <span className="text-[10px] uppercase tracking-wide text-[rgb(var(--color-text-muted))] font-semibold mr-1">Tags</span>
+                  )}
+                  {candidateTags.map((t, idx) => (
+                    <button
+                      key={t.id}
+                      onMouseEnter={() => setTagFocusIdx(idx)}
+                      onClick={() => addTag(t)}
+                      title={`${t.verseCount} verse${t.verseCount === 1 ? '' : 's'} · ${t.chapterCount} chapter${t.chapterCount === 1 ? '' : 's'}`}
+                      // Candidates stay neutral — no accent. The keyboard-focused one
+                      // (↑↓ in "#" mode) gets a plain surface fill, not the accent used
+                      // for the SELECTED chips above.
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer border-[rgb(var(--color-surface-4))] ${
+                        isTagMode && idx === tagFocusIdx
+                          ? 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-primary))]'
+                          : 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-4))]/60 hover:text-[rgb(var(--color-text-primary))]'
+                      }`}
+                    >
+                      <Tag size={10} className="opacity-60" />
+                      {t.name}
+                      <span className="opacity-45 tabular-nums">{t.verseCount}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Results */}
           {results.length > 0 && (
             <div
@@ -1260,7 +1430,7 @@ export default function FloatingSearch() {
                     style={sharedStyle}
                   >
                     <span className="flex-shrink-0 mt-0.5 text-[rgb(var(--color-text-muted))]">
-                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
+                      {r.type === 'ref' ? <BookOpen size={14} /> : r.type === 'lexicon' ? <BookMarked size={14} /> : r.type === 'note' ? <NotepadText size={14} /> : r.type === 'youtube' ? <Youtube size={14} className="text-red-400" /> : r.type === 'crossref' ? <GitFork size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'command' ? <Terminal size={14} className="text-[rgb(var(--color-accent))]" /> : r.type === 'tag' ? <Tag size={14} className="text-[rgb(var(--color-accent))]" /> : <Hash size={14} />}
                     </span>
                     <span className="flex-1 min-w-0 flex items-center justify-between gap-2">
                       <span className="min-w-0">
@@ -1326,69 +1496,55 @@ export default function FloatingSearch() {
             )
           )}
 
-          {/* Footer */}
-          <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
-            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↑↓" /> Navigate</span>
-            <span className="inline-flex items-center gap-1"><ShortcutKeys keys="↵" /> Open</span>
-            <div className="flex-1" />
-            {!isCommandMode && (
-              <div className="flex items-center gap-1.5">
-                {/* Advanced Scripture search — previously its own accent-colored CTA pill
-                    with a Search icon; restyled to match the plain "↑↓ Navigate"/"↵ Open"
-                    hint labels at the left edge of this same footer (shortcut keycap + text,
-                    muted color, no icon) rather than standing out as a visually distinct
-                    button — the icon didn't fit that minimal language, so it's dropped
-                    rather than swapped for another one. Still a real clickable action (unlike
-                    the inert hint spans), so it keeps a hover color shift for affordance.
-                    Works with or without a typed query (opens blank if empty). */}
-                <button
-                  onClick={() => { closeSearch(); openScriptureSearchTab(query.trim() || undefined) }}
-                  className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
-                >
-                  <ShortcutKeys keys="⇧↵" />
-                  <span className="text-[10.5px] font-medium whitespace-nowrap">Advanced scripture search</span>
-                </button>
-                {/* Remaining destination buttons — icon + arrow, hover-expand label, dimmed
-                    until a query exists (unlike Scripture above, these genuinely need a
-                    query to be useful). All three are hidden entirely in `versesOnly` mode
-                    (opened via the Scripture tab's own "Search scripture" button/shortcut)
-                    — that entry point is scoped to scripture, so offering destinations for
-                    other spaces there is out of place. */}
-                {(versesOnly ? [] : [
-                  { label: 'Notes',   icon: <NotepadText size={12} />, run: () => openNotesSearchTab(query.trim()) },
-                  { label: 'Lexicon', icon: <BookMarked size={12} />, run: () => openLexiconSearchTab(query.trim()) },
-                  { label: 'YouTube', icon: <Youtube size={12} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
-                ]).map((d) => {
-                  const active = !!query.trim()
-                  return (
+          {/* Footer — minimal: only shown when there's something actionable
+              (a query, tag mode, or selected tag filters). Just the advanced-
+              search affordance + quick destination icons; the ↑↓ / ↵ hints and
+              the new/current-tab badge were removed as noise. */}
+          {!isCommandMode && (query.trim().length > 0 || isTagMode || selectedTags.length > 0) && (
+            <div className="px-4 py-2 border-t border-[rgb(var(--color-surface-4))] flex items-center gap-3 text-xs text-[rgb(var(--color-text-muted))]">
+              {isTagMode && candidateTags.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium whitespace-nowrap">
+                  <ShortcutKeys keys="↵" /> add tag
+                </span>
+              )}
+              {isTagMode && verseTags.length === 0 && (
+                <span className="text-[10.5px] font-medium whitespace-nowrap">No verse tags yet</span>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={openAdvancedScriptureSearch}
+                className="flex items-center gap-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
+              >
+                <ShortcutKeys keys="⇧↵" />
+                <span className="text-[10.5px] font-medium whitespace-nowrap">
+                  {selectedTags.length > 0
+                    ? `Search ${selectedTags.length} tag${selectedTags.length === 1 ? '' : 's'} in Scripture`
+                    : 'Advanced scripture search'}
+                </span>
+              </button>
+              {/* Quick "send this query to…" destinations — bare icons (no
+                  hover-expand label), sized to match the app's other toolbar
+                  icons. Hidden in tag / verses-only mode. */}
+              {!versesOnly && !isTagMode && query.trim().length > 0 && (
+                <div className="flex items-center gap-0.5">
+                  {[
+                    { label: 'Search Notes',   icon: <NotepadText size={15} />, run: () => openNotesSearchTab(query.trim()) },
+                    { label: 'Search Lexicon', icon: <BookMarked size={15} />, run: () => openLexiconSearchTab(query.trim()) },
+                    { label: 'Search YouTube', icon: <Youtube size={15} className="text-red-400" />, run: () => openYouTubeSearchTab(query.trim()) },
+                  ].map((d) => (
                     <button
                       key={d.label}
-                      disabled={!active}
-                      onClick={() => { if (active) { closeSearch(); d.run() } }}
-                      className={`group flex items-center gap-1 pl-1.5 pr-1 py-1 rounded transition-colors cursor-pointer ${
-                        active
-                          ? 'text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))]'
-                          : 'opacity-40 pointer-events-none text-[rgb(var(--color-text-muted))]'
-                      }`}
+                      title={d.label}
+                      onClick={() => { closeSearch(); d.run() }}
+                      className="w-7 h-7 flex items-center justify-center rounded-md text-[rgb(var(--color-text-secondary))] hover:bg-[rgb(var(--color-surface-3))] hover:text-[rgb(var(--color-text-primary))] transition-colors cursor-pointer"
                     >
                       {d.icon}
-                      <span className="max-w-0 group-hover:max-w-[5rem] overflow-hidden whitespace-nowrap text-[10px] font-medium transition-[max-width] duration-150">
-                        {d.label}
-                      </span>
-                      <ArrowRight size={10} className="flex-shrink-0" />
                     </button>
-                  )
-                })}
-              </div>
-            )}
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-              searchMode === 'new'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-[rgb(var(--color-surface-4))] text-[rgb(var(--color-text-muted))]'
-            }`}>
-              {searchMode === 'new' ? 'New tab' : 'Current tab'}
-            </span>
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           </motion.div>
         </Dialog.Content>
       </Dialog.Portal>

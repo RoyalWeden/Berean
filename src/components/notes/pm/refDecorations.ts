@@ -181,6 +181,12 @@ export interface RefClickCallbacks {
   /** Click / 350ms-hover on an inline "#tag" reference. */
   onTagRefClick?: (name: string) => void
   onTagRefHoverStart?: (name: string, rect: DOMRect) => void
+  /** Click on a plain markdown link (`<a href>`). `modifier` is true when the
+   *  click carried Cmd/Ctrl. The consumer decides whether to open it (e.g. always
+   *  in read-only view, or modifier-only while editing). Return value is ignored;
+   *  the plugin always swallows the event so the editor doesn't also move the caret
+   *  into the link when it's being opened. */
+  onLinkClick?: (href: string, modifier: boolean) => void
 }
 
 export const refDecorationsKey = new PluginKey('berean-ref-decorations')
@@ -322,6 +328,18 @@ export function createRefClickPlugin(callbacks: RefClickCallbacks) {
           if (wikiEl) {
             callbacks.onWikilinkClick?.(wikiEl.textContent?.trim() ?? '')
             return true
+          }
+
+          // Plain markdown link (`[text](url)` -> `<a href>`). Ref decorations
+          // never render <a>, so this only ever matches a genuine link mark.
+          const anchorEl = target.closest('a[href]') as HTMLAnchorElement | null
+          if (anchorEl && callbacks.onLinkClick) {
+            const href = anchorEl.getAttribute('href')?.trim() ?? ''
+            if (href) {
+              event.preventDefault()
+              callbacks.onLinkClick(href, event.metaKey || event.ctrlKey)
+              return true
+            }
           }
 
           const lxxEl = target.closest('.pm-lxx-ref') as HTMLElement | null

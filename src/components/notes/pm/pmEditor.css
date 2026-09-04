@@ -49,6 +49,19 @@
   padding: 0 1px;
 }
 
+/* Plain markdown links ([text](url), <mark> excluded above). The live editor
+   had no `a` rule at all, so a real link rendered with no colour, no underline
+   and no pointer — indistinguishable from body text. Preview/print already
+   style links via `.berean-preview-prose a` (global.css); this brings the
+   editable view in line. Click handling lives in refDecorations.ts. */
+.berean-pm-editor .ProseMirror a {
+  color: rgb(var(--color-accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.berean-pm-editor .ProseMirror a:hover { text-decoration-thickness: 2px; }
+
 .pm-wikilink {
   color: rgb(var(--link-wikilink));
   background-color: rgb(var(--link-wikilink) / 0.12);
@@ -630,6 +643,19 @@
   min-height: 100%;
   box-sizing: border-box;
   line-height: 1.4;
+  /* REQUIRED by prosemirror-view (it logs a console warning without it, and —
+     more importantly — omitting it makes the browser collapse whitespace in the
+     contentEditable DOM while ProseMirror's document model keeps it. The two
+     then disagree, and the next DOM mutation near a run of spaces (typing after
+     a trailing space, backspacing the last character on a line) makes
+     readDOMChange "reconcile" by silently deleting the space from the model —
+     the "Backspace at end of line also eats the space" bug). This project never
+     imported prosemirror-view/style/prosemirror.css, so its base rules are set
+     here. `break-spaces` is the progressive-enhancement half (wraps trailing
+     space runs) and harmlessly ignored where unsupported. */
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  word-wrap: break-word;
 }
 /* The Bible-reading side panel's note editor is a much narrower embed than the
    main Notes space or a full tab (rightPanelWidth defaults to 280px) — the base
