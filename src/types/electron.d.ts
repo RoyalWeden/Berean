@@ -772,6 +772,7 @@ declare global {
       list: () => Promise<number[]>
       onMessage: (cb: (message: unknown) => void) => () => void
       newWindow: () => Promise<void>
+      newIndependentWindow: () => Promise<void>
     }
     // Platform string injected by preload for renderer-side platform detection
     __berean_platform: NodeJS.Platform

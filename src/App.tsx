@@ -29,6 +29,7 @@ import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
 import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import { initPerWindowViewState } from '@/lib/perWindowViewState'
+import { IS_INDEPENDENT_WINDOW } from '@/store'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
@@ -68,8 +69,10 @@ export default function App() {
   // Restore this window's own view (session / space / tab / layout) from its
   // per-window slot, then keep the shared slice (tab set, sessions, preferences)
   // convergent across every synced peer window. Order matters: restore first so
-  // the sync/mirror layer operates on this window's real view.
+  // the sync/mirror layer operates on this window's real view. An independent
+  // window (?independent=1) opts out of both entirely.
   useEffect(() => {
+    if (IS_INDEPENDENT_WINDOW) return
     const teardownView = initPerWindowViewState()
     const teardownSync = initCrossWindowSync()
     return () => { teardownSync(); teardownView() }
@@ -877,6 +880,12 @@ export default function App() {
         ensureTab('note')
         setActiveSpace('notes')
         createTab('note')
+      } else if (cmd && e.altKey && !e.shiftKey && (e.code === 'KeyN' || e.key.toLowerCase() === 'n')) {
+        // Cmd+Alt+N → open an independent window (own tabs / sessions / view).
+        // Menu: Window ▸ New Independent Window. `e.code` because Option+N on
+        // macOS is a dead key (combining tilde), so `e.key` isn't "n".
+        e.preventDefault()
+        void window.crossWindow?.newIndependentWindow()
       } else if (cmd && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
         // Cmd+N → open another synced window. Also wired as a menu accelerator
         // (Window ▸ New Window); this renderer-side handler is the fallback for

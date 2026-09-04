@@ -378,11 +378,19 @@ function buildAppMenu(): Electron.Menu {
           label: 'New Window',
           accelerator: 'CmdOrCtrl+N',
           // Opens another peer main window, synced to this one (shared tabs /
-          // notes / settings; its own active tab, space, layout and scroll).
+          // sessions / settings; its own active tab, space, layout and scroll).
           click: () => {
             const from = BrowserWindow.getFocusedWindow()
             createWindow(from ? { mirrorFromWebContentsId: from.webContents.id } : undefined)
           },
+        },
+        {
+          label: 'New Independent Window',
+          accelerator: 'CmdOrCtrl+Alt+N',
+          // A standalone window with its OWN tabs / sessions / view — not part of
+          // cross-window sync. Notes, highlights and the Bible DB are still
+          // shared (they live in SQLite, not window state).
+          click: () => { createWindow({ independent: true }) },
         },
         { type: 'separator' as const },
         { role: 'minimize' as const },
@@ -661,7 +669,7 @@ function createFloatingWindow(type: string, state: Record<string, unknown>): voi
   })
 }
 
-function createWindow(opts?: { mirrorFromWebContentsId?: number }): void {
+function createWindow(opts?: { mirrorFromWebContentsId?: number; independent?: boolean }): void {
   const iconPath = is.dev
     ? join(app.getAppPath(), 'assets/icon.icns')
     : join(process.resourcesPath, 'assets/icon.icns')
@@ -723,13 +731,20 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number }): void {
   // state (active space / session / tab / panel layout) from the window that
   // spawned it, via a cross-window:requestMirror round-trip. The first window
   // has nothing to mirror.
+  // `?mirrorFrom=<id>` — seed per-window view from the spawning window (synced).
+  // `?independent=1` — a standalone window: its own tabs / sessions / view,
+  // NOT part of cross-window sync (notes / highlights / DB are still shared —
+  // those live in SQLite, not window state).
+  const qs: string[] = []
   const mirrorId = opts?.mirrorFromWebContentsId
-  const mirrorQuery = typeof mirrorId === 'number' ? `mirrorFrom=${mirrorId}` : ''
+  if (typeof mirrorId === 'number' && !opts?.independent) qs.push(`mirrorFrom=${mirrorId}`)
+  if (opts?.independent) qs.push('independent=1')
+  const query = qs.join('&')
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(mirrorQuery ? `${process.env['ELECTRON_RENDERER_URL']}?${mirrorQuery}` : process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(query ? `${process.env['ELECTRON_RENDERER_URL']}?${query}` : process.env['ELECTRON_RENDERER_URL'])
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'), mirrorQuery ? { search: `?${mirrorQuery}` } : undefined)
+    win.loadFile(join(__dirname, '../renderer/index.html'), query ? { search: `?${query}` } : undefined)
   }
 
   if (is.dev) {
@@ -1017,6 +1032,7 @@ app.whenReady().then(async () => {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
   ipcMain.handle('app:newWindow', (e) => { createWindow({ mirrorFromWebContentsId: e.sender.id }) })
+  ipcMain.handle('app:newIndependentWindow', () => { createWindow({ independent: true }) })
 
   // ── Cross-window sync (Phase 1: synced peer windows) ──────────────────────
   // A dumb relay: whatever a renderer broadcasts is forwarded verbatim to every

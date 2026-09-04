@@ -231,8 +231,8 @@ export function initCrossWindowSync(): () => void {
   // cares about actually changed. Preference broadcasts are also debounced —
   // there's no need for a setting toggle to cross windows within the same tick.
   let prevPrefs: Record<string, unknown> | null = null
-  let prevTabs: Record<SpaceId, Tab[]> | null = null
   let prevTabsSession = ''
+  let prevTabsSig = ''
   let prevSessions: Session[] | null = null
   let prevSessionsSig = ''
   let prevOrders: Record<string, string[]> | null = null
@@ -246,11 +246,18 @@ export function initCrossWindowSync(): () => void {
   // message) — only list membership / name / icon changes matter here.
   const sessionsSig = (sessions: Session[]) =>
     JSON.stringify(sessions.map((ss) => [ss.id, ss.name, ss.icon ?? '']))
+  // Tab-set STRUCTURE only — id / order / title / pin per space. A tab's inner
+  // `.state` (scroll, cursor, which chapter it navigated to) is per-window and
+  // deliberately excluded: without this, every keystroke (which persists cursor
+  // position into the active tab's state) rebroadcast the entire tab set over
+  // IPC — the "typing is laggy" regression.
+  const tabsSig = (tabs: Record<SpaceId, Tab[]>) =>
+    SPACES.map((sp) => (tabs[sp] ?? []).map((t) => `${t.id}~${t.title}~${t.isPinned ? 1 : 0}`).join(',')).join('|')
 
   const s0 = useAppStore.getState()
   prevPrefs = snapshotPrefs(s0)
-  prevTabs = s0.tabs
   prevTabsSession = s0.currentSessionId
+  prevTabsSig = tabsSig(s0.tabs)
   prevSessions = s0.sessions
   prevSessionsSig = sessionsSig(s0.sessions)
   prevOrders = s0.sessionDisplayOrders
@@ -282,16 +289,21 @@ export function initCrossWindowSync(): () => void {
       }
     }
 
-    // Live tabs of the session this window is currently on
-    if (s.tabs !== prevTabs || s.currentSessionId !== prevTabsSession) {
-      prevTabs = s.tabs
-      prevTabsSession = s.currentSessionId
-      cw.broadcast({
-        kind: 'tabs',
-        sessionId: s.currentSessionId,
-        tabs: s.tabs,
-        order: s.sessionDisplayOrders[s.currentSessionId],
-      } satisfies Message)
+    // Tab SET of the session this window is on — broadcast only on a structural
+    // change (open / close / reorder / rename / pin), never on a tab's inner
+    // `.state` churning from scroll/cursor. Cheap ref gate before the sig.
+    if (s.tabs !== p.tabs || s.currentSessionId !== prevTabsSession) {
+      const sig = tabsSig(s.tabs)
+      if (sig !== prevTabsSig || s.currentSessionId !== prevTabsSession) {
+        prevTabsSig = sig
+        prevTabsSession = s.currentSessionId
+        cw.broadcast({
+          kind: 'tabs',
+          sessionId: s.currentSessionId,
+          tabs: s.tabs,
+          order: s.sessionDisplayOrders[s.currentSessionId],
+        } satisfies Message)
+      }
     }
 
     // Session list membership / rename / icon — only stringify when the array ref moved

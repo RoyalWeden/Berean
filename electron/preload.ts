@@ -286,6 +286,8 @@ contextBridge.exposeInMainWorld('crossWindow', {
   },
   /** Ask main to open another synced window, mirrored from this one. */
   newWindow: () => ipcRenderer.invoke('app:newWindow'),
+  /** Ask main to open a standalone window with its own tabs / sessions / view. */
+  newIndependentWindow: () => ipcRenderer.invoke('app:newIndependentWindow'),
 })
 
 contextBridge.exposeInMainWorld('viewer', {

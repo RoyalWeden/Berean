@@ -36,6 +36,14 @@ const IS_SECONDARY_WINDOW = typeof window !== 'undefined' && (() => {
   } catch { return false }
 })()
 
+// `?independent=1` — a standalone window: it inherits the user's SETTINGS
+// (theme, fonts, preferences — read from the shared blob) but starts with a
+// fresh, blank workspace (its own default session + no tabs), takes no part in
+// cross-window sync, and writes nothing. See the onRehydrateStorage reset below.
+export const IS_INDEPENDENT_WINDOW = typeof window !== 'undefined' && (() => {
+  try { return new URLSearchParams(window.location.search).get('independent') === '1' } catch { return false }
+})()
+
 export interface WordReplacerRule {
   id: string
   queries: string[]
@@ -2692,8 +2700,26 @@ export const useAppStore = create<AppState>()(
       // accidental wipe on ordinary additive changes (new fields, as most of this store's history
       // has been).
       migrate: (persistedState) => persistedState as Partial<AppState>,
-      storage: createJSONStorage(() => (IS_SECONDARY_WINDOW ? readThroughLocalStorage : debouncedLocalStorage)),
+      storage: createJSONStorage(() => (
+        (IS_SECONDARY_WINDOW || IS_INDEPENDENT_WINDOW) ? readThroughLocalStorage : debouncedLocalStorage
+      )),
       onRehydrateStorage: () => (state) => {
+        // An independent window (?independent=1) rehydrated the shared blob for
+        // the user's SETTINGS, but its workspace must start blank and its own —
+        // wipe the tab / session / view fields back to defaults here so it opens
+        // with one empty default session and no tabs.
+        if (IS_INDEPENDENT_WINDOW && state) {
+          state.tabs = DEFAULT_TABS
+          state.activeTabId = DEFAULT_ACTIVE_TAB
+          state.activeSpace = 'scripture'
+          state.currentSessionId = 'default'
+          state.sessions = [DEFAULT_SESSION]
+          state.sessionDisplayOrders = {}
+          state.tabMRUList = []
+          state.tabLastAccessed = {}
+          state.panelLayout = DEFAULT_PANEL_LAYOUT
+          return
+        }
         // Read Aloud (TTS) — the ACTUAL backend activation constructs a Worker, a runtime side
         // effect `persist`'s plain state rehydration can't perform itself, so it's kicked off
         // here. Unconditional now that Kokoro is the only engine: if the pack is on disk, Read
