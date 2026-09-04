@@ -52,6 +52,15 @@ import './pmEditor.css'
 // [rc-diag] TEMPORARY — shared sequence + timing for the Raycast "->" input trace.
 const __rcDiag = { seq: 0, last: 0 }
 
+// Some text-expansion setups fire the SAME trigger through two mechanisms at
+// once — e.g. a Raycast Snippet AND a macOS System Settings ▸ Text Replacement
+// both mapping "->" to "→". The replacement then lands twice: once as an insert,
+// then again as a ⌘V paste ~100ms later (confirmed in an input-event trace).
+// We record the last short insert and swallow an identical paste that arrives
+// right after it at the same spot. A deliberate "type X then paste X" is
+// vanishingly rare and still works after the 500ms window.
+let __lastShortInsert: { text: string; pos: number; at: number } | null = null
+
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
 // keymap, history, mark toggling, paste, input rules, inline ref
 // decorations + click-nav + wikilink hover preview, autocomplete popups
@@ -608,12 +617,25 @@ export default function NoteEditorPM({
           const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
           __rcDiag.last = now
           const cd = (event as ClipboardEvent).clipboardData
+          const txt = cd?.getData('text/plain') ?? ''
+          const html = cd?.getData('text/html') ?? ''
           console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms paste ` + JSON.stringify({
-            types: cd ? [...cd.types] : null,
-            text: cd?.getData('text/plain')?.slice(0, 40) ?? '',
-            html: cd?.getData('text/html')?.slice(0, 80) ?? '',
+            types: cd ? [...cd.types] : null, text: txt.slice(0, 40), html: html.slice(0, 80),
           }))
-          return false // let bereanPastePlugin / PM handle it
+          // De-dupe a text-expansion that also fired as a keystroke insert just now
+          // (Raycast Snippet + macOS Text Replacement on the same trigger).
+          const li = __lastShortInsert
+          if (
+            li && !html && txt && txt === li.text &&
+            now - li.at < 500 &&
+            Math.abs(view.state.selection.head - li.pos) <= li.text.length + 1
+          ) {
+            console.debug('[rc-diag] paste SWALLOWED as duplicate of a just-inserted expansion')
+            __lastShortInsert = null
+            event.preventDefault()
+            return true
+          }
+          return false // otherwise let bereanPastePlugin / PM handle it
         },
         beforeinput(view, event) {
           const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
@@ -621,6 +643,14 @@ export default function NoteEditorPM({
           const isBackward = ie.inputType === 'deleteContentBackward'
           const isForward = ie.inputType === 'deleteContentForward'
           const isDelete = isBackward || isForward
+
+          // Remember short text inserts so the `paste` handler above can swallow a
+          // duplicate ⌘V of the same string from a second expansion mechanism.
+          if ((ie.inputType === 'insertText' || isReplacement) && ie.data && ie.data.length <= 8) {
+            __lastShortInsert = { text: ie.data, pos: view.state.selection.head, at: performance.now() }
+          } else if (!isDelete) {
+            __lastShortInsert = null
+          }
 
           // ── [rc-diag] TEMPORARY: log EVERY beforeinput, sequenced ──
           {
