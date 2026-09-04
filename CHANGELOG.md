@@ -122,7 +122,7 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
-## [Unreleased]
+## [0.5.19] - 2026-09-03
 
 ### Windows
 
@@ -149,6 +149,9 @@ SCENARIO 5 — Abandon a beta series and restart
   the presenter controls; opening the presenter from a different synced window
   hands ownership over (the old owner's controls clear); and closing the owning
   window closes the presenter.
+- Typing in a note is snappy again — the cross-window sync was broadcasting the
+  whole tab set on every keystroke (cursor-position saves touch the active
+  tab's state); it now only fires on a real structural change.
 
 ### Notes
 
@@ -185,14 +188,19 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ### Search
 
-- **Verse tags in the floating search.** Type `#` to search your verse tags
-  (`#` alone lists them all); a plain keyword query also surfaces matching tags.
-  Matches show as **selectable chips** — click one (or ↑/↓ + Enter in `#` mode)
-  to add it as a filter instead of navigating away, and keep searching / picking
-  more. Selected tags sit in a removable chip row; **⇧↵ / "Search N tags in
-  Scripture"** opens the advanced Scripture search with those tags applied (plus
-  any keyword typed outside `#` mode). Ranking: exact name, then prefix, then
-  most verses.
+- **Verse tags in the floating search.** Type `#` to browse your verse tags
+  (`#` alone lists them all), or just include a tag name in a normal query —
+  matches appear as selectable chips. Click a chip (or ↑/↓ + Enter in `#` mode)
+  to add it as a filter rather than navigating away; picked tags sit in a
+  removable "Filter by tag" row and stay there while you keep searching, until
+  you close the search. With tag filters on, keyword results are limited to
+  verses that carry a selected tag, and ⇧↵ (or "Search N tags in Scripture")
+  opens the advanced Scripture search with those tags applied.
+- The floating search is quieter: an ✕ clears the query and tag filters; the
+  All / OT / NT scope chips moved out (they belong to the advanced Scripture
+  search); the footer only appears when there's something to act on, with the
+  Notes / Lexicon / YouTube shortcuts as plain icons; and the "→ Scripture"
+  Enter hint is much dimmer.
 
 ### Settings
 
