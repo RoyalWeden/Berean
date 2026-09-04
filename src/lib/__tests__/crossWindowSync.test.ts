@@ -40,8 +40,10 @@ afterEach(() => {
 })
 
 describe('crossWindowSync', () => {
-  it('broadcasts a preference change made locally', () => {
+  it('broadcasts a preference change made locally (debounced)', async () => {
     useAppStore.getState().setTheme('dark')
+    expect(broadcasts.some((m) => (m as { kind?: string }).kind === 'prefs')).toBe(false) // not yet — debounced
+    await new Promise((r) => setTimeout(r, 160))
     const msg = broadcasts.find((m) => (m as { kind?: string }).kind === 'prefs') as { patch: Record<string, unknown> }
     expect(msg).toBeTruthy()
     expect(msg.patch.theme).toBe('dark')

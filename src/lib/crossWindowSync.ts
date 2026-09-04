@@ -225,9 +225,15 @@ export function initCrossWindowSync(): () => void {
   })
 
   // ── Outbound: watch the shared slice and broadcast real changes ───────────
-  let prevPrefs: Record<string, unknown> = {}
+  // This runs on EVERY store mutation (including one per keystroke while typing
+  // a note), so the fast path has to be cheap: plain reference `!==` checks
+  // against the previous state, no snapshots / JSON until something a synced key
+  // cares about actually changed. Preference broadcasts are also debounced —
+  // there's no need for a setting toggle to cross windows within the same tick.
+  let prevPrefs: Record<string, unknown> | null = null
   let prevTabs: Record<SpaceId, Tab[]> | null = null
   let prevTabsSession = ''
+  let prevSessions: Session[] | null = null
   let prevSessionsSig = ''
   let prevOrders: Record<string, string[]> | null = null
 
@@ -245,21 +251,35 @@ export function initCrossWindowSync(): () => void {
   prevPrefs = snapshotPrefs(s0)
   prevTabs = s0.tabs
   prevTabsSession = s0.currentSessionId
+  prevSessions = s0.sessions
   prevSessionsSig = sessionsSig(s0.sessions)
   prevOrders = s0.sessionDisplayOrders
 
-  const unsub = useAppStore.subscribe((s) => {
-    if (applyingRemote) return
-
-    // Preferences
-    const curPrefs = snapshotPrefs(s)
+  let prefsTimer: ReturnType<typeof setTimeout> | null = null
+  const flushPrefs = () => {
+    prefsTimer = null
+    const s = useAppStore.getState()
+    const cur = snapshotPrefs(s)
     const changed: Record<string, unknown> = {}
     for (const k of SHARED_PREFERENCE_KEYS) {
-      if (!shallowEqual(curPrefs[k], prevPrefs[k])) changed[k] = curPrefs[k]
+      if (!shallowEqual(cur[k], prevPrefs![k])) changed[k] = cur[k]
     }
     if (Object.keys(changed).length > 0) {
-      prevPrefs = curPrefs
+      prevPrefs = cur
       cw.broadcast({ kind: 'prefs', patch: changed } satisfies Message)
+    }
+  }
+
+  const unsub = useAppStore.subscribe((s, p) => {
+    if (applyingRemote) return
+
+    // Preferences — cheap ref scan first, then a debounced diff+broadcast.
+    for (const k of SHARED_PREFERENCE_KEYS) {
+      if ((s as unknown as Record<string, unknown>)[k] !== (p as unknown as Record<string, unknown>)[k]) {
+        if (prefsTimer) clearTimeout(prefsTimer)
+        prefsTimer = setTimeout(flushPrefs, 120)
+        break
+      }
     }
 
     // Live tabs of the session this window is currently on
@@ -274,12 +294,14 @@ export function initCrossWindowSync(): () => void {
       } satisfies Message)
     }
 
-    // Session list membership / rename / icon
-    const sig = sessionsSig(s.sessions)
-    if (sig !== prevSessionsSig) {
-      prevSessionsSig = sig
-      // Include each session's tabs so a brand-new session's set propagates.
-      cw.broadcast({ kind: 'sessions', sessions: s.sessions } satisfies Message)
+    // Session list membership / rename / icon — only stringify when the array ref moved
+    if (s.sessions !== prevSessions) {
+      prevSessions = s.sessions
+      const sig = sessionsSig(s.sessions)
+      if (sig !== prevSessionsSig) {
+        prevSessionsSig = sig
+        cw.broadcast({ kind: 'sessions', sessions: s.sessions } satisfies Message)
+      }
     }
 
     // Display orders (drag-reorder in another window's sidebar)
@@ -300,5 +322,5 @@ export function initCrossWindowSync(): () => void {
     }
   } catch { /* no window.location (tests) */ }
 
-  return () => { offMessage?.(); unsub() }
+  return () => { offMessage?.(); unsub(); if (prefsTimer) clearTimeout(prefsTimer) }
 }

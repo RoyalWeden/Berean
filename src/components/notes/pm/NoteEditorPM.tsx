@@ -49,6 +49,9 @@ import { StrongsContextMenu, type StrongsContextTarget } from '@/components/lexi
 import { dispatchCloseContextMenus, CLOSE_CONTEXT_MENUS_EVENT } from '@/lib/usePositionedMenu'
 import './pmEditor.css'
 
+// [rc-diag] TEMPORARY — shared sequence + timing for the Raycast "->" input trace.
+const __rcDiag = { seq: 0, last: 0 }
+
 // Phase 2+3+4 scope: mount/unmount lifecycle, content/onChange wiring,
 // keymap, history, mark toggling, paste, input rules, inline ref
 // decorations + click-nav + wikilink hover preview, autocomplete popups
@@ -509,12 +512,15 @@ export default function NoteEditorPM({
             const headBefore = before.selection.head
             const applied = before.apply(tr)
             const headAfter = applied.selection.head
-            console.debug('[del-diag] dispatchTransaction ' + JSON.stringify({
-              source: tr.getMeta('del-diag-source') ?? '(other)',
+            const now = performance.now()
+            const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
+            __rcDiag.last = now
+            console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms dispatchTransaction ` + JSON.stringify({
+              source: tr.getMeta('del-diag-source') ?? '(other — readDOMChange / keymap / plugin)',
               selBefore: { head: headBefore, from: before.selection.from, to: before.selection.to },
-              docBefore: before.doc.textBetween(Math.max(0, headBefore - 8), Math.min(before.doc.content.size, headBefore + 8), '·', '·'),
+              docBefore: before.doc.textBetween(Math.max(0, headBefore - 10), Math.min(before.doc.content.size, headBefore + 10), '·', '·'),
               steps,
-              docAfter: applied.doc.textBetween(Math.max(0, headAfter - 8), Math.min(applied.doc.content.size, headAfter + 8), '·', '·'),
+              docAfter: applied.doc.textBetween(Math.max(0, headAfter - 10), Math.min(applied.doc.content.size, headAfter + 10), '·', '·'),
               composing: view.composing,
             }))
           } catch (e) { console.debug('[del-diag] dispatchTransaction log threw ' + String(e)) }
@@ -567,19 +573,47 @@ export default function NoteEditorPM({
         // structural Backspace command from baseKeymap, not a blind range delete. Erasing a
         // plain-text snippet trigger is always an intra-text-node deletion, so this still covers
         // the actual failure mode without touching structural backspace behavior at all.
-        // ── [del-diag] TEMPORARY: key-level trace for the Backspace/space bug.
+        // ── [rc-diag] TEMPORARY: full input trace for the Raycast "->" duplication.
+        // Every keydown / beforeinput / input / paste, sequenced with ms since the
+        // previous event, so the synthetic burst's structure and ordering is visible.
         keydown(view, event) {
-          if (event.key === 'Backspace' || event.key === 'Delete') {
-            const sel = view.state.selection
-            console.debug('[del-diag] keydown ' + JSON.stringify({
-              key: event.key,
-              alt: event.altKey, meta: event.metaKey, ctrl: event.ctrlKey, shift: event.shiftKey,
-              sel: { head: sel.head, from: sel.from, to: sel.to, empty: sel.empty, parentOffset: sel.$head.parentOffset },
-              ctx: view.state.doc.textBetween(Math.max(0, sel.head - 8), Math.min(view.state.doc.content.size, sel.head + 8), '·', '·'),
-              composing: view.composing,
-            }))
-          }
+          const now = performance.now()
+          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
+          __rcDiag.last = now
+          const sel = view.state.selection
+          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms keydown ` + JSON.stringify({
+            key: event.key, code: event.code, keyCode: event.keyCode,
+            meta: event.metaKey, alt: event.altKey, ctrl: event.ctrlKey, shift: event.shiftKey,
+            isComposing: event.isComposing, repeat: event.repeat,
+            caret: sel.head, parentOffset: sel.$head.parentOffset,
+            ctx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
+          }))
           return false
+        },
+        input(view, event) {
+          const now = performance.now()
+          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
+          __rcDiag.last = now
+          const ie = event as InputEvent
+          const sel = view.state.selection
+          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms input(after) ` + JSON.stringify({
+            inputType: ie.inputType, data: ie.data, isComposing: ie.isComposing,
+            caret: sel.head,
+            ctx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
+          }))
+          return false
+        },
+        paste(view, event) {
+          const now = performance.now()
+          const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
+          __rcDiag.last = now
+          const cd = (event as ClipboardEvent).clipboardData
+          console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms paste ` + JSON.stringify({
+            types: cd ? [...cd.types] : null,
+            text: cd?.getData('text/plain')?.slice(0, 40) ?? '',
+            html: cd?.getData('text/html')?.slice(0, 80) ?? '',
+          }))
+          return false // let bereanPastePlugin / PM handle it
         },
         beforeinput(view, event) {
           const ie = event as InputEvent & { getTargetRanges?: () => StaticRange[] }
@@ -588,20 +622,24 @@ export default function NoteEditorPM({
           const isForward = ie.inputType === 'deleteContentForward'
           const isDelete = isBackward || isForward
 
-          // ── [del-diag] TEMPORARY ──
-          if (/^delete/.test(ie.inputType) || isReplacement) {
+          // ── [rc-diag] TEMPORARY: log EVERY beforeinput, sequenced ──
+          {
+            const now = performance.now()
+            const dt = __rcDiag.last ? Math.round(now - __rcDiag.last) : 0
+            __rcDiag.last = now
             const rs = ie.getTargetRanges?.() ?? []
             const descNode = (n: Node | undefined) => n ? `${n.nodeName}${n.nodeType === Node.TEXT_NODE ? `("${(n.textContent ?? '').slice(0, 24)}")` : ''}` : 'null'
             const sel = view.state.selection
-            console.debug('[del-diag] beforeinput ' + JSON.stringify({
+            console.debug(`[rc-diag] #${++__rcDiag.seq} +${dt}ms beforeinput ` + JSON.stringify({
               inputType: ie.inputType,
               cancelable: ie.cancelable,
               data: ie.data,
+              willHandleHere: isReplacement || isDelete,
               selEmpty: sel.empty,
-              selHead: sel.head,
+              caret: sel.head,
               parentOffset: sel.$head.parentOffset,
               parentSize: sel.$head.parent.content.size,
-              domCtx: view.state.doc.textBetween(Math.max(0, sel.head - 8), Math.min(view.state.doc.content.size, sel.head + 8), '·', '·'),
+              domCtx: view.state.doc.textBetween(Math.max(0, sel.head - 10), Math.min(view.state.doc.content.size, sel.head + 10), '·', '·'),
               composing: view.composing,
               nRanges: rs.length,
               ranges: rs.map((r) => ({
