@@ -27,6 +27,7 @@ import AudioPlayer from '@/components/audio/AudioPlayer'
 import { useTTSPlayback } from '@/hooks/useTTSPlayback'
 import { useQueueAutosave } from '@/hooks/useQueueAutosave'
 import { applyThemeToDocument } from '@/lib/applyTheme'
+import { initCrossWindowSync } from '@/lib/crossWindowSync'
 import type { SpaceId, Tab, BibleTabState } from '@/types'
 
 // AI Lookup's floating panel is a small, occasionally-opened surface — code-split
@@ -63,6 +64,9 @@ export default function App() {
   // recorder hook).
   useEffect(() => { installStudyTrailRecorder(); installStudyTrailStateSync() }, [])
   useEffect(() => { void useAppStore.getState().refreshVerseTags() }, [])
+  // Keep the shared slice (tab set, sessions, preferences) convergent across
+  // every synced peer main window; leave per-window view state alone.
+  useEffect(() => initCrossWindowSync(), [])
   // Answers Study Trail's "what chapter is actually open right now" request (used to seed a
   // new session's first node from the currently-active tab) — see electron/main.ts's
   // app:getActiveScriptureRef comment for why this has to round-trip through the main process.

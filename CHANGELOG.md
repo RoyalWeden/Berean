@@ -122,6 +122,24 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+### Windows
+
+- **Synced windows (Phase 1).** `Window › New Window` (⌘N) opens another peer
+  main window. All open windows share one live slice of state — the tab set and
+  order of every session, the session list, and every preference — so opening,
+  closing or reordering a tab in one window does the same in the others, and a
+  setting changed anywhere applies everywhere. Each window keeps its own view:
+  which session, space and tab it's showing, its panel layout, and its scroll
+  position. A newly opened window mirrors the one it was spawned from. Closing
+  the last window quits the app.
+  - Not yet: real-time co-editing of the *same* note in two windows at once
+    (edits sync on save/reload for now — Phase 3), and re-parenting the
+    presenter window to a specific synced window (Phase 2).
+
+---
+
 ## [0.5.18] - 2026-09-01
 
 Backspace fix in the notes editor

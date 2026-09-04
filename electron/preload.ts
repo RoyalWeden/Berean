@@ -266,6 +266,28 @@ contextBridge.exposeInMainWorld('app', {
   },
 })
 
+// Cross-window sync (Phase 1: synced peer main windows). A thin transport;
+// src/lib/crossWindowSync.ts owns which store keys are synced and echo handling.
+contextBridge.exposeInMainWorld('crossWindow', {
+  /** This renderer's own webContents id — the address other windows target for
+   *  a directed reply (the mirror handshake). */
+  selfId: (): Promise<number> => ipcRenderer.invoke('cross-window:selfId'),
+  /** Broadcast a message to every OTHER app window. */
+  broadcast: (message: unknown) => ipcRenderer.send('cross-window:broadcast', message),
+  /** Send a message to exactly one window by its webContents id. */
+  sendTo: (targetWebContentsId: number, message: unknown) => ipcRenderer.send('cross-window:sendTo', targetWebContentsId, message),
+  /** Ids of all currently-open app windows (this one included). */
+  list: (): Promise<number[]> => ipcRenderer.invoke('cross-window:list'),
+  /** Subscribe to inbound cross-window messages. Returns an unsubscribe fn. */
+  onMessage: (cb: (message: unknown) => void) => {
+    const handler = (_e: unknown, message: unknown) => cb(message)
+    ipcRenderer.on('cross-window:message', handler)
+    return () => ipcRenderer.removeListener('cross-window:message', handler)
+  },
+  /** Ask main to open another synced window, mirrored from this one. */
+  newWindow: () => ipcRenderer.invoke('app:newWindow'),
+})
+
 contextBridge.exposeInMainWorld('viewer', {
   onContent: (cb: (payload: unknown) => void) => {
     ipcRenderer.removeAllListeners('viewer:content')
