@@ -138,8 +138,12 @@ SCENARIO 5 — Abandon a beta series and restart
   persisted). A newly opened window mirrors the one it was spawned from. Closing
   the last window quits the app.
   - Not yet: real-time co-editing of the *same* note in two windows at once
-    (edits sync on save/reload for now — Phase 3), and re-parenting the
-    presenter window to a specific synced window (Phase 2).
+    (edits sync on save/reload for now — Phase 3).
+- **The presenter window belongs to the window that opened it.** Only that
+  window drives its content, receives its "on presenter" outline band, and shows
+  the presenter controls; opening the presenter from a different synced window
+  hands ownership over (the old owner's controls clear); and closing the owning
+  window closes the presenter.
 
 ---
 

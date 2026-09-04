@@ -251,7 +251,24 @@ function applyAutoDownloadPref(db: ReturnType<typeof getBereanDb>): void {
 let mainWindow: BrowserWindow | null = null
 const appWindows = new Set<BrowserWindow>()
 let viewerWindow: BrowserWindow | null = null
+// Phase 2: the presenter/viewer window belongs to ONE app window — the one that
+// opened it. Only that window drives its content and receives its reverse
+// channels, and closing that window closes the presenter.
+let viewerOwnerId: number | null = null
 let studyTrailWindow: BrowserWindow | null = null
+
+/** The app window that currently owns the presenter, if it's still alive. */
+function viewerOwnerWindow(): BrowserWindow | null {
+  if (viewerOwnerId == null) return null
+  for (const w of appWindows) {
+    if (!w.isDestroyed() && w.webContents.id === viewerOwnerId) return w
+  }
+  return null
+}
+function sendToViewerOwner(channel: string, payload?: unknown): void {
+  const w = viewerOwnerWindow()
+  if (w) w.webContents.send(channel, payload)
+}
 
 /** Send an IPC message to every live app window (not the viewer / Study Trail /
  *  float windows — those are `?viewer` / `?studyTrail` / `?float` and are not
@@ -525,11 +542,9 @@ function createViewerWindow(): void {
 
   viewerWindow.on('closed', () => {
     viewerWindow = null
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('app:viewerWindowClosed')
-      }
-    })
+    // Only the owning window tracked this as open.
+    sendToViewerOwner('app:viewerWindowClosed')
+    viewerOwnerId = null
   })
 }
 
@@ -701,6 +716,7 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number }): void {
 
   appWindows.add(win)
   mainWindow = win
+  const winId = win.webContents.id // cache — webContents is gone by the 'closed' handler
   win.on('focus', () => { mainWindow = win })
 
   // `?mirrorFrom=<webContentsId>` tells the renderer to seed its per-window view
@@ -755,6 +771,12 @@ function createWindow(opts?: { mirrorFromWebContentsId?: number }): void {
   })
 
   win.on('closed', () => {
+    // If this window owned the presenter, close it too (Phase 2: the presenter
+    // is tied to the window it was opened from).
+    if (viewerOwnerId === winId && viewerWindow && !viewerWindow.isDestroyed()) {
+      viewerOwnerId = null // suppress the re-parent notify in the viewer's own closed handler
+      viewerWindow.close()
+    }
     appWindows.delete(win)
     if (mainWindow === win) {
       mainWindow = null
@@ -1038,11 +1060,20 @@ app.whenReady().then(async () => {
       throw err
     }
   })
-  ipcMain.handle('app:openViewerWindow', () => {
+  ipcMain.handle('app:openViewerWindow', (e) => {
+    const senderId = e.sender.id
     if (viewerWindow && !viewerWindow.isDestroyed()) {
+      // Re-parent: a different app window asked for the presenter. Tell the old
+      // owner it lost it (so it clears its PresenterControls / "on presenter"
+      // band), then hand ownership to the requester.
+      if (viewerOwnerId != null && viewerOwnerId !== senderId) {
+        sendToViewerOwner('app:viewerWindowClosed')
+      }
+      viewerOwnerId = senderId
       viewerWindow.focus()
       return true
     }
+    viewerOwnerId = senderId
     createViewerWindow()
     return true
   })
@@ -1095,43 +1126,38 @@ app.whenReady().then(async () => {
     if (viewerWindow && !viewerWindow.isDestroyed()) viewerWindow.close()
     return true
   })
-  // Viewer React app signals ready after registering its onContent listener
+  // Viewer React app signals ready after registering its onContent listener —
+  // only the owning app window is listening for this.
   ipcMain.on('viewer:signalReady', () => {
-    console.log('[Viewer IPC] viewer:signalReady received — broadcasting viewer:ready to main windows')
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('viewer:ready')
-      }
-    })
+    sendToViewerOwner('viewer:ready')
   })
 
-  ipcMain.on('app:pushViewerContent', (_e, payload: unknown) => {
+  ipcMain.on('app:pushViewerContent', (e, payload: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return // non-owner window must not drive the presenter
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:content', payload)
     }
   })
 
-  // Relay display/format settings from the main window to the viewer window
-  ipcMain.on('app:pushViewerSettings', (_e, settings: unknown) => {
+  // Relay display/format settings from the owning window to the viewer window
+  ipcMain.on('app:pushViewerSettings', (e, settings: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:settings', settings)
     }
   })
 
   // Relay ephemeral overlays (selection mirror + laser pointer) to the viewer window
-  ipcMain.on('app:pushViewerOverlay', (_e, payload: unknown) => {
+  ipcMain.on('app:pushViewerOverlay', (e, payload: unknown) => {
+    if (e.sender.id !== viewerOwnerId) return
     if (viewerWindow && !viewerWindow.isDestroyed()) {
       viewerWindow.webContents.send('viewer:overlay', payload)
     }
   })
 
-  // Relay the viewer's visible verse region back to the main (non-viewer) windows
+  // Relay the viewer's visible verse region back to its owning window only
   ipcMain.on('viewer:reportVisibleRegion', (_e, region: unknown) => {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      if (!win.isDestroyed() && !(win as any).__isViewer) {
-        win.webContents.send('viewer:visibleRegion', region)
-      }
-    })
+    sendToViewerOwner('viewer:visibleRegion', region)
   })
 
   // Ask the viewer window to re-report its visible region right now, even if its content
