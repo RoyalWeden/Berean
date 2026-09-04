@@ -122,6 +122,19 @@ SCENARIO 5 — Abandon a beta series and restart
 
 ---
 
+## [Unreleased]
+
+### Internal
+
+- Fixed two long-standing TypeScript errors in the Electron layer (an invalid
+  `sessionstorage` value passed to a storage-clear call, and a `localStorage`
+  reference in the preload script that the type config couldn't see) —
+  `npm run typecheck` is now fully clean.
+- Test runs no longer descend into git worktrees kept under `.claude/`, which
+  were surfacing a stale copy of the suite as spurious failures.
+
+---
+
 ## [0.5.19] - 2026-09-03
 
 ### Windows

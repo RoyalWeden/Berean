@@ -812,7 +812,9 @@ export function registerBgImportHandlers(
   ipcMain.handle('bgImport:clearSession', async () => {
     LOG('bgImport:clearSession')
     const sess = session.fromPartition(BG_PARTITION)
-    await sess.clearStorageData({ storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb', 'cachestorage'] })
+    // 'sessionstorage' isn't a valid `storages` value (and session storage in this
+    // throwaway import partition is ephemeral anyway) — dropped.
+    await sess.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage'] })
     return { success: true }
   })
 }
