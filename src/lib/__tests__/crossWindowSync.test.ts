@@ -85,6 +85,44 @@ describe('crossWindowSync', () => {
     expect(useAppStore.getState().activeTabId.scripture).toBeNull()
   })
 
+  it('an inbound tabs message keeps this window’s own state for a tab it already has, adopts new ones, drops removed ones', () => {
+    const sid = useAppStore.getState().currentSessionId
+    const mk = (id: string, state: object) => ({ id, spaceId: 'scripture', type: 'bible', title: id, state } as never)
+    // this window has A (scrolled to ch 5) and B
+    useAppStore.setState({
+      tabs: { scripture: [mk('A', { bookId: 'Gen', chapter: 5 }), mk('B', { bookId: 'Exo', chapter: 1 })], notes: [], lexicon: [], youtube: [], search: [] },
+      activeTabId: { scripture: 'A', notes: null, lexicon: null, youtube: null, search: null },
+    })
+    // another window: A now shows ch 99, B closed, C (new) added
+    deliver({
+      kind: 'tabs',
+      sessionId: sid,
+      tabs: { scripture: [mk('A', { bookId: 'Gen', chapter: 99 }), mk('C', { bookId: 'Lev', chapter: 3 })], notes: [], lexicon: [], youtube: [], search: [] },
+      order: undefined,
+    })
+    const scr = useAppStore.getState().tabs.scripture
+    expect(scr.map((t) => t.id)).toEqual(['A', 'C'])              // membership follows the sender
+    expect((scr[0].state as { chapter: number }).chapter).toBe(5) // but A keeps THIS window's nav
+    expect((scr[1].state as { chapter: number }).chapter).toBe(3) // new tab C adopts sender's state
+  })
+
+  it('a tabs message for a session this window is NOT on updates that session without touching the live view', () => {
+    const s = useAppStore.getState()
+    s.createSession('Second')
+    const first = s.sessions[0].id
+    const second = useAppStore.getState().currentSessionId // createSession switches to it
+    expect(second).not.toBe(first)
+    const before = useAppStore.getState().tabs
+    deliver({
+      kind: 'tabs',
+      sessionId: first,
+      tabs: { scripture: [{ id: 'x', spaceId: 'scripture', type: 'bible', title: 'x', state: {} } as never], notes: [], lexicon: [], youtube: [], search: [] },
+      order: undefined,
+    })
+    expect(useAppStore.getState().tabs).toBe(before) // our (second session) live view untouched
+    expect(useAppStore.getState().sessions.find((ss) => ss.id === first)?.tabs.scripture.map((t) => t.id)).toEqual(['x'])
+  })
+
   it('sends a requestMirror on mount when spawned with ?mirrorFrom', async () => {
     teardown?.()
     const spy = vi.spyOn(window.history, 'replaceState')

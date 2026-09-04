@@ -75,6 +75,8 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   return ka.every((k) => Object.is((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
 }
 
+const SPACES: SpaceId[] = ['scripture', 'notes', 'lexicon', 'youtube', 'search']
+
 /** Reconcile a window's own per-space active tab after a synced tab-set change:
  *  if this window was looking at a tab that another window just closed, fall
  *  back to the first remaining tab in that space (or null). */
@@ -94,6 +96,28 @@ function reconcileActiveTabs(
   return changed ? next : activeTabId
 }
 
+/** Merge an incoming tab set onto the local one for the same session.
+ *
+ *  Membership + order come from `incoming` (so open / close / reorder in another
+ *  window mirror here). But a tab that ALREADY exists in this window keeps its
+ *  own `state` — that's where per-window navigation and scroll live ("the only
+ *  difference is what's getting viewed"). Only genuinely new tabs adopt the
+ *  sender's state, so their mirrored copy opens on the right chapter / note. */
+function mergeTabSets(
+  incoming: Record<SpaceId, Tab[]>,
+  local: Record<SpaceId, Tab[]> | undefined,
+): Record<SpaceId, Tab[]> {
+  const out = {} as Record<SpaceId, Tab[]>
+  for (const sp of SPACES) {
+    const byId = new Map((local?.[sp] ?? []).map((t) => [t.id, t]))
+    out[sp] = (incoming[sp] ?? []).map((inc) => {
+      const mine = byId.get(inc.id)
+      return mine ? { ...mine, title: inc.title, isPinned: inc.isPinned } : inc
+    })
+  }
+  return out
+}
+
 function applyMessage(msg: Message): void {
   const store = useAppStore
   applyingRemote = true
@@ -108,8 +132,15 @@ function applyMessage(msg: Message): void {
           // Keep our own current session; if it was deleted elsewhere, fall back.
           const stillExists = msg.sessions.some((ss) => ss.id === s.currentSessionId)
           const currentSessionId = stillExists ? s.currentSessionId : (msg.sessions[0]?.id ?? s.currentSessionId)
-          const cur = msg.sessions.find((ss) => ss.id === currentSessionId)
-          const patch: Partial<AppState> = { sessions: msg.sessions, currentSessionId }
+          // Merge each incoming session's tabs onto whatever this window already
+          // has for that session (keep local per-tab view state).
+          const sessions = msg.sessions.map((inc) => {
+            const localSameId = s.sessions.find((ss) => ss.id === inc.id)
+            const localTabs = inc.id === s.currentSessionId ? s.tabs : localSameId?.tabs
+            return { ...inc, tabs: mergeTabSets(inc.tabs, localTabs) }
+          })
+          const cur = sessions.find((ss) => ss.id === currentSessionId)
+          const patch: Partial<AppState> = { sessions, currentSessionId }
           if (cur) {
             patch.tabs = cur.tabs
             patch.activeTabId = reconcileActiveTabs(s.activeTabId, cur.tabs)
@@ -120,12 +151,16 @@ function applyMessage(msg: Message): void {
       }
       case 'tabs': {
         store.setState((s) => {
-          const sessions = s.sessions.map((ss) => (ss.id === msg.sessionId ? { ...ss, tabs: msg.tabs } : ss))
+          const localTabs = s.currentSessionId === msg.sessionId
+            ? s.tabs
+            : s.sessions.find((ss) => ss.id === msg.sessionId)?.tabs
+          const merged = mergeTabSets(msg.tabs, localTabs)
+          const sessions = s.sessions.map((ss) => (ss.id === msg.sessionId ? { ...ss, tabs: merged } : ss))
           const patch: Partial<AppState> = { sessions }
           if (msg.order) patch.sessionDisplayOrders = { ...s.sessionDisplayOrders, [msg.sessionId]: msg.order }
           if (s.currentSessionId === msg.sessionId) {
-            patch.tabs = msg.tabs
-            patch.activeTabId = reconcileActiveTabs(s.activeTabId, msg.tabs)
+            patch.tabs = merged
+            patch.activeTabId = reconcileActiveTabs(s.activeTabId, merged)
           }
           return patch
         })
@@ -136,6 +171,8 @@ function applyMessage(msg: Message): void {
         break
       }
       case 'mirrorState': {
+        // A deliberate one-time "open a copy of that window" — take the
+        // spawner's sessions, tabs (with their live state) and view verbatim.
         store.setState((s) => {
           const sessions = msg.sessions
           const currentSessionId = sessions.some((ss) => ss.id === msg.view.currentSessionId)
